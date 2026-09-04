@@ -1,0 +1,39 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      PASSWORD_RECOVERY_KEY: ${PASSWORD_RECOVERY_KEY:?set PASSWORD_RECOVERY_KEY in .env}
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Nightly backup: same zip as admin -> Export, keeping the last 14.
+  backup:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+      SESSION_SECRET: ${SESSION_SECRET:-unused-by-backup}
+      PASSWORD_RECOVERY_KEY: ${PASSWORD_RECOVERY_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        while true; do
+          # 03:15 local time
+          now=$$(date +%s); target=$$(date -d "today 03:15" +%s 2>/dev/null || date +%s)
+          if [ "$$target" -le "$$now" ]; then target=$$((target + 86400)); fi
+          sleep $$((target - now))
+          node scripts/backup.mjs || true
+        done

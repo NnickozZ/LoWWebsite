@@ -1,0 +1,2453 @@
+/* ------------------------------------------------------------------ fonts */
+@import '@fontsource/source-serif-4/400.css';
+@import '@fontsource/source-serif-4/600.css';
+@import '@fontsource/source-sans-3/400.css';
+@import '@fontsource/source-sans-3/600.css';
+@import '@fontsource/archivo-narrow/500.css';
+@import '@fontsource/archivo-narrow/700.css';
+
+/* ----------------------------------------------------------------- tokens */
+:root {
+  --paper: #f3eee2;
+  --paper-dark: #e6dfcf;
+  --paper-raised: #f8f4ea;
+  --ink: #1f1b16;
+  --ink-muted: #5c544a;
+  --rule: #c9c0ad;
+  --stamp-red: #a8321e;
+  --string-red: #c0392b;
+  --link: #1f4e79;
+  --accent: var(--stamp-red);
+
+  --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --sans: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --stamp-face: 'Archivo Narrow', 'Arial Narrow', system-ui, sans-serif;
+
+  --radius: 2px;
+  --shadow: 2px 2px 0 rgba(31, 27, 22, 0.14);
+  --tap: 44px;
+
+  --nav-w: 220px;
+  --tabs-h: 60px;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --paper: #1b1915;
+  --paper-dark: #14120f;
+  --paper-raised: #23201b;
+  --ink: #e8e1d2;
+  --ink-muted: #a49b8a;
+  --rule: #3d382f;
+  --stamp-red: #a8321e;
+  --string-red: #c0392b;
+  --link: #8fb8dd;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #1b1915;
+    --paper-dark: #14120f;
+    --paper-raised: #23201b;
+    --ink: #e8e1d2;
+    --ink-muted: #a49b8a;
+    --rule: #3d382f;
+    --link: #8fb8dd;
+    color-scheme: dark;
+  }
+}
+
+/* ------------------------------------------------------------------ reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 0.4em;
+  letter-spacing: -0.005em;
+}
+
+h1 {
+  font-size: 1.9rem;
+}
+h2 {
+  font-size: 1.35rem;
+}
+h3 {
+  font-size: 1.1rem;
+}
+
+p {
+  margin: 0 0 0.9em;
+}
+
+a {
+  color: var(--link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+hr,
+.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 1.2rem 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(168, 50, 30, 0.2);
+}
+
+/* --------------------------------------------------------------- helpers */
+.muted {
+  color: var(--ink-muted);
+}
+.small {
+  font-size: 0.875rem;
+}
+.tiny {
+  font-size: 0.78rem;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.spacer {
+  flex: 1;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.eyebrow {
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+/* ---------------------------------------------------------------- buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  padding: 0 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  transition: transform 90ms ease, background 90ms ease;
+}
+.btn:hover:not(:disabled) {
+  background: var(--paper-dark);
+  border-color: var(--ink-muted);
+}
+.btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.14);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn-primary {
+  background: var(--stamp-red);
+  border-color: var(--stamp-red);
+  color: #fbf7ee;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #93291a;
+  border-color: #93291a;
+}
+.btn-ghost {
+  background: transparent;
+  box-shadow: none;
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--paper-dark);
+  border-color: var(--rule);
+}
+.btn-small {
+  min-height: 34px;
+  padding: 0 0.6rem;
+  font-size: 0.85rem;
+}
+.btn-danger {
+  color: var(--stamp-red);
+  border-color: var(--stamp-red);
+  background: transparent;
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(168, 50, 30, 0.08);
+  border-color: var(--stamp-red);
+}
+
+/* ----------------------------------------------------------------- inputs */
+.label {
+  display: block;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin-bottom: 0.3rem;
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.55rem 0.7rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  font-size: 1rem;
+}
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-family: inherit;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--ink-muted);
+}
+
+.field {
+  margin-bottom: 1rem;
+}
+
+.error-note {
+  color: var(--stamp-red);
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+/* ------------------------------------------------------------------ chips */
+/*
+ * A row of chips wraps on a desktop. On a phone, two rows of types and four
+ * of tags would push the actual content below the fold, so the row scrolls
+ * sideways instead — the standard phone idiom for a filter strip.
+ */
+.chip-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+@media (max-width: 767px) {
+  .chip-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Let the chips run to the screen edge, not the page padding. */
+    margin-left: calc(-1 * var(--page-pad, 1rem));
+    margin-right: calc(-1 * var(--page-pad, 1rem));
+    padding: 0.15rem var(--page-pad, 1rem);
+    -webkit-overflow-scrolling: touch;
+  }
+  .chip-strip::-webkit-scrollbar {
+    display: none;
+  }
+  .chip-strip > .spacer {
+    display: none;
+  }
+  .chip-strip > * {
+    flex: 0 0 auto;
+  }
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--paper-raised);
+  color: inherit;
+  text-decoration: none;
+}
+.chip-selectable {
+  cursor: pointer;
+  min-height: 38px;
+  padding: 0 0.7rem;
+  transition: background 90ms ease, border-color 90ms ease;
+}
+.chip-selectable:hover {
+  border-color: var(--ink-muted);
+  background: var(--paper-dark);
+}
+.chip-selectable.chip-active:hover,
+.chip-selectable[aria-pressed='true']:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.chip[aria-pressed='true'],
+.chip-active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+/* ----------------------------------------------------------------- stamps */
+.stamp {
+  display: inline-block;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--stamp-red);
+  border: 2px solid var(--stamp-red);
+  border-radius: 3px;
+  padding: 0.15rem 0.5rem;
+  transform: rotate(-3deg);
+  opacity: 0.85;
+}
+.stamp-muted {
+  color: var(--ink-muted);
+  border-color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------------ cards */
+.card {
+  display: block;
+  position: relative;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+/* A card that is a link lifts a little under the pointer; one that is a
+   working surface (a case card with its own menu) stays put. */
+a.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 3px 4px 0 rgba(31, 27, 22, 0.16);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .btn,
+  .chip-selectable {
+    transition: none;
+  }
+  a.card:hover {
+    transform: none;
+  }
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.85rem;
+}
+.card-cover {
+  aspect-ratio: 3 / 4;
+  background: var(--paper-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--rule);
+  overflow: hidden;
+}
+.card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-body {
+  padding: 0.55rem 0.65rem 0.7rem;
+}
+.card-name {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.25;
+  margin: 0 0 0.2rem;
+}
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ shell */
+.shell {
+  min-height: 100dvh;
+  display: flex;
+}
+
+.sidenav {
+  display: none;
+  width: var(--nav-w);
+  flex: 0 0 var(--nav-w);
+  border-right: 1px solid var(--rule);
+  background: var(--paper-dark);
+  padding: 1rem 0.75rem;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+.sidenav a,
+.tabs a {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--tap);
+  padding: 0 0.6rem;
+  border-radius: var(--radius);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+.sidenav a[aria-current='page'] {
+  background: var(--paper);
+  box-shadow: inset 2px 0 0 var(--stamp-red);
+}
+
+.main {
+  --page-pad: 1rem;
+  flex: 1;
+  min-width: 0;
+  padding: 1rem var(--page-pad) calc(var(--tabs-h) + 1.5rem);
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.page-wide {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.masthead {
+  padding: 0.3rem 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 0.6rem;
+}
+.masthead-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  margin-bottom: 0.3rem;
+}
+.masthead-name {
+  display: block;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.masthead-tagline {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.tabs {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--tabs-h);
+  display: flex;
+  background: var(--paper-dark);
+  border-top: 1px solid var(--rule);
+  z-index: 40;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tabs a {
+  flex: 1;
+  flex-direction: column;
+  gap: 0.1rem;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  min-height: var(--tabs-h);
+}
+.tabs a[aria-current='page'] {
+  color: var(--stamp-red);
+}
+
+.fab {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--tabs-h) + 1rem + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--stamp-red);
+  color: #fbf7ee;
+  border: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.28);
+  z-index: 45;
+}
+
+@media (min-width: 768px) {
+  .sidenav {
+    display: block;
+  }
+  .tabs {
+    display: none;
+  }
+  .main {
+    padding: 1.5rem 2rem 3rem;
+  }
+  .fab {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------- topbar (desktop) */
+.topbar {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+@media (min-width: 768px) {
+  .topbar {
+    display: flex;
+  }
+}
+
+/* ------------------------------------------------------------------ sheet */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 15, 0.45);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  width: 100%;
+  max-height: 92dvh;
+  overflow-y: auto;
+  padding: 0.85rem 1rem calc(1.2rem + env(safe-area-inset-bottom));
+  animation: sheet-up 180ms ease-out;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0.6;
+  }
+}
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+  margin: 0 auto 0.7rem;
+}
+@media (min-width: 768px) {
+  .sheet-backdrop {
+    align-items: center;
+  }
+  .sheet {
+    max-width: 560px;
+    border-radius: 4px;
+    border-bottom: 1px solid var(--rule);
+    box-shadow: 4px 4px 0 rgba(31, 27, 22, 0.2);
+    padding: 1.2rem 1.4rem 1.4rem;
+  }
+  .sheet-handle {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+  * {
+    transition: none !important;
+  }
+}
+
+/* ------------------------------------------------------------- suggestions */
+.suggest-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  overflow: hidden;
+}
+.suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.4rem 0.6rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  cursor: pointer;
+}
+.suggest-item:last-child {
+  border-bottom: none;
+}
+.suggest-item[aria-selected='true'],
+.suggest-item:hover {
+  background: var(--paper-dark);
+}
+
+/* ------------------------------------------------------------------ prose */
+.prose {
+  font-size: 1.02rem;
+}
+.prose h1 {
+  font-size: 1.5rem;
+}
+.prose h2 {
+  font-size: 1.25rem;
+}
+.prose h3 {
+  font-size: 1.08rem;
+}
+.prose blockquote {
+  margin: 1em 0;
+  padding-left: 0.9em;
+  border-left: 3px solid var(--rule);
+  color: var(--ink-muted);
+  font-style: italic;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.3em;
+}
+.prose img {
+  border: 1px solid var(--rule);
+  margin: 0.8em 0;
+}
+.prose code {
+  background: var(--paper-dark);
+  padding: 0.05em 0.3em;
+  border-radius: 2px;
+}
+.prose a {
+  color: var(--link);
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+/* entry link chips inside prose */
+.entry-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.02em 0.35em;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper-dark);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.entry-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chip-colour, var(--ink-muted));
+  display: inline-block;
+}
+.entry-chip.ProseMirror-selectednode {
+  outline: 2px solid var(--link);
+}
+.entry-chip-missing {
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------ editor shell */
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper-dark);
+  padding: 0.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.editor-toolbar button {
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 2px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.editor-toolbar button[aria-pressed='true'] {
+  background: var(--paper);
+  border-color: var(--rule);
+}
+.editor-body {
+  border: 1px solid var(--rule);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--paper-raised);
+  padding: 0.7rem 0.8rem;
+  min-height: 180px;
+}
+.ProseMirror {
+  outline: none;
+  min-height: 160px;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--ink-muted);
+  pointer-events: none;
+  height: 0;
+}
+
+/* ------------------------------------------------------------- entry page */
+.entry-head,
+.case-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+.case-head {
+  margin-bottom: 1.2rem;
+}
+@media (min-width: 620px) {
+  .entry-head,
+  .case-head {
+    /* A little wider than a thumbnail: the entry shows the whole picture,
+       whatever shape it is, so it needs somewhere to be legible. */
+    grid-template-columns: 220px 1fr;
+  }
+}
+.entry-cover {
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.entry-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* An entry with no cover should not eat the first screen on a phone. */
+.entry-cover-empty {
+  aspect-ratio: auto;
+  min-height: 84px;
+  border-style: dashed;
+  box-shadow: none;
+}
+@media (min-width: 620px) {
+  .entry-cover-empty {
+    min-height: 150px;
+  }
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 0.35rem 0.8rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.7rem 0;
+  margin: 1rem 0;
+  align-items: start;
+}
+.kv dt {
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  padding-top: 0.35rem;
+}
+.kv dd {
+  margin: 0;
+  min-width: 0;
+}
+
+details.section {
+  border-top: 1px solid var(--rule);
+  padding: 0.4rem 0;
+}
+details.section > summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+details.section > summary::-webkit-details-marker {
+  display: none;
+}
+details.section > summary::before {
+  content: '▸';
+  transition: transform 120ms ease;
+}
+details.section[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* --------------------------------------------------------------- editable */
+.editable {
+  border: 1px dashed transparent;
+  border-radius: var(--radius);
+  padding: 0.1rem 0.25rem;
+  margin: -0.1rem -0.25rem;
+  cursor: text;
+}
+.editable:hover {
+  border-color: var(--rule);
+}
+.title-input {
+  font-family: var(--serif);
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  width: 100%;
+  border: 1px dashed transparent;
+  background: transparent;
+  padding: 0.1rem 0.25rem;
+  margin: 0 0 0.3rem -0.25rem;
+  border-radius: var(--radius);
+}
+.title-input:hover {
+  border-color: var(--rule);
+}
+.title-input:focus {
+  border-color: var(--ink-muted);
+  border-style: solid;
+  background: var(--paper-raised);
+}
+.lead-input {
+  font-size: 1.08rem;
+  width: 100%;
+  border: 1px dashed transparent;
+  background: transparent;
+  padding: 0.3rem 0.25rem;
+  margin: 0 0 0.3rem -0.25rem;
+  border-radius: var(--radius);
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.lead-input:hover {
+  border-color: var(--rule);
+}
+.lead-input:focus {
+  border-color: var(--ink-muted);
+  border-style: solid;
+  background: var(--paper-raised);
+}
+
+.save-state {
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  min-height: 1.2em;
+}
+
+/* ----------------------------------------------------------------- toasts */
+.toast-wrap {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--tabs-h) + 1rem);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: center;
+  pointer-events: none;
+  width: min(94vw, 480px);
+}
+@media (min-width: 768px) {
+  .toast-wrap {
+    bottom: 1.5rem;
+  }
+}
+.toast {
+  pointer-events: auto;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: var(--shadow);
+  font-size: 0.92rem;
+  width: 100%;
+}
+.toast button {
+  background: none;
+  border: none;
+  color: var(--paper);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+/* ---------------------------------------------------------------- preview */
+.preview-card {
+  position: fixed;
+  z-index: 80;
+  width: 260px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.2);
+  border-radius: var(--radius);
+  padding: 0.6rem;
+  display: flex;
+  gap: 0.6rem;
+  pointer-events: none;
+}
+.preview-card img {
+  width: 54px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--rule);
+  flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------- case tabs */
+.case-tabs {
+  display: flex;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.case-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: var(--tap);
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  border-radius: 3px 3px 0 0;
+  margin-bottom: -1px;
+}
+.case-tab-active {
+  background: var(--paper-raised);
+  border-color: var(--rule);
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--stamp-red);
+}
+
+.jump-menu {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding: 0.4rem 0 0.6rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+  scrollbar-width: none;
+}
+.jump-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.sticky-section-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+/* ---------------------------------------------------------------- boards */
+:root {
+  --cork: #c2a276;
+  --cork-speck: rgba(90, 62, 32, 0.16);
+  --card-face: #fbf7ec;
+  --card-rule: #cdbfa4;
+}
+[data-theme='dark'] {
+  --cork: #4a3a26;
+  --cork-speck: rgba(0, 0, 0, 0.3);
+  --card-face: #e9e2d2;
+  --card-rule: #8b7f68;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cork: #4a3a26;
+    --cork-speck: rgba(0, 0, 0, 0.3);
+    --card-face: #e9e2d2;
+    --card-rule: #8b7f68;
+  }
+}
+
+.board-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.board-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.board-name-input {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  border: 1px dashed transparent;
+  background: transparent;
+  padding: 0.1rem 0.3rem;
+  margin-left: -0.3rem;
+  border-radius: var(--radius);
+  min-width: 8ch;
+  flex: 0 1 auto;
+}
+.board-name-input:hover {
+  border-color: var(--rule);
+}
+.board-name-input:focus {
+  border-style: solid;
+  border-color: var(--ink-muted);
+  background: var(--paper-raised);
+}
+
+.board-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.board-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.6rem;
+}
+
+.board-viewport {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  height: calc(100dvh - 320px);
+  min-height: 380px;
+  touch-action: none;
+  cursor: grab;
+  /* A flat cork tile: one seamless 48px SVG of sparse specks, no gradients. */
+  background-color: var(--cork);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cg fill='%235a3e20' fill-opacity='0.16'%3E%3Ccircle cx='6' cy='9' r='1.6'/%3E%3Ccircle cx='21' cy='4' r='1.1'/%3E%3Ccircle cx='35' cy='13' r='1.9'/%3E%3Ccircle cx='44' cy='30' r='1.2'/%3E%3Ccircle cx='13' cy='24' r='1.4'/%3E%3Ccircle cx='27' cy='33' r='1.7'/%3E%3Ccircle cx='4' cy='39' r='1.3'/%3E%3Ccircle cx='38' cy='44' r='1.1'/%3E%3Ccircle cx='18' cy='44' r='1.5'/%3E%3C/g%3E%3C/svg%3E");
+}
+@media (min-width: 768px) {
+  .board-viewport {
+    height: calc(100dvh - 205px);
+  }
+}
+
+.board-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.board-strings {
+  position: absolute;
+  left: -20000px;
+  top: -20000px;
+  overflow: visible;
+  pointer-events: none;
+}
+/*
+ * No `stroke` here on purpose. A presentation attribute loses to any CSS rule,
+ * so declaring the colour in this class would silently override the per-string
+ * colour set on the element and every board would be red.
+ */
+.board-string {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+/* 2 px of string is not a target: this invisible one is what you actually hit. */
+.board-string-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  stroke-linecap: round;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.board-string-selected {
+  stroke-width: 4;
+  filter: drop-shadow(0 0 3px rgba(31, 78, 121, 0.9));
+}
+.board-string-drawing {
+  stroke-dasharray: 6 5;
+  opacity: 0.8;
+}
+/* An HTML chip above the cards, so it stays readable between two of them. */
+.board-string-label {
+  position: absolute;
+  transform: translate(-50%, 0);
+  max-width: 190px;
+  padding: 2px 7px;
+  border: 1px solid var(--string-red);
+  border-radius: 999px;
+  background: var(--card-face);
+  color: #2a1a12;
+  font-family: var(--sans);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  box-shadow: 1px 1px 0 rgba(40, 26, 12, 0.2);
+  z-index: 4;
+}
+.board-string-label-on {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+.board-card {
+  position: absolute;
+  background: var(--card-face);
+  border: 1px solid var(--card-rule);
+  box-shadow: 2px 3px 0 rgba(40, 26, 12, 0.22);
+  color: #1f1b16;
+  user-select: none;
+  touch-action: none;
+}
+.board-card-selected {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+.board-pin {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border-radius: 50%;
+  background: var(--string-red);
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25);
+  cursor: crosshair;
+  z-index: 3;
+}
+.board-card-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  margin: 18px 8px 6px;
+  border: 1px solid var(--card-rule);
+  background: #ece4d3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.board-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.board-missing {
+  position: absolute;
+  font-size: 0.6rem;
+  background: var(--card-face);
+}
+.board-card-body {
+  padding: 0 8px 8px;
+}
+.board-card-name {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 0.86rem;
+  line-height: 1.2;
+  margin: 0 0 0.2rem;
+  cursor: pointer;
+}
+.board-card-text {
+  font-size: 0.76rem;
+  line-height: 1.35;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+.board-card-text-empty {
+  color: #8a8072;
+  font-style: italic;
+}
+.board-card-text-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.76rem;
+  border: 1px solid var(--card-rule);
+  background: #fff;
+  color: inherit;
+  border-radius: 2px;
+  padding: 2px 4px;
+  resize: vertical;
+}
+.board-make-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+  padding: 2px 5px;
+  font-size: 0.68rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  border: 1px dashed var(--card-rule);
+  background: transparent;
+  color: #6b5f4e;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------- board inspector */
+.board-inspector {
+  /* Fixed on a phone: the board viewport clips its overflow, and the bar has to
+     clear the bottom tabs and the floating "+" rather than hide under them. */
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--tabs-h) + 8px + env(safe-area-inset-bottom));
+  /* Room on the right for the floating "+", which draws over this bar. */
+  padding-right: 68px;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.55rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.28);
+}
+@media (min-width: 768px) {
+  .board-inspector {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    right: auto;
+    padding-right: 0.55rem;
+    z-index: 30;
+    /* Leave the tray's column alone: an inspector under the drawer is an
+       inspector you cannot reach. */
+    max-width: calc(100% - 20px - var(--board-tray-w, 0px));
+    flex-wrap: nowrap;
+  }
+  .board-inspector-input {
+    flex: 0 1 260px;
+  }
+}
+.board-inspector-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  white-space: nowrap;
+}
+.board-inspector-input {
+  flex: 1 1 200px;
+  min-width: 140px;
+  min-height: 36px;
+}
+.board-inspector-hint {
+  flex: 1 1 auto;
+}
+
+.board-swatches {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.board-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  padding: 0;
+}
+.board-swatch-on {
+  border-color: var(--paper);
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+/* ------------------------------------------------------------ board zoom */
+/* Pinch does the zooming on a phone; the readout only costs a row. */
+@media (max-width: 767px) {
+  .board-zoom {
+    display: none !important;
+  }
+}
+.board-zoom {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  overflow: hidden;
+}
+.board-zoom button {
+  min-width: 34px;
+  min-height: 34px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.board-zoom button:hover {
+  background: var(--paper-dark);
+}
+.board-zoom-level {
+  min-width: 4ch;
+  text-align: center;
+  font-family: var(--stamp-face);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  border-left: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  padding: 0 0.2rem;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ----------------------------------------------------------- board empty */
+.board-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #4a3a26;
+  background: rgba(251, 247, 236, 0.9);
+  border: 1px dashed rgba(74, 58, 38, 0.45);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  max-width: min(90%, 380px);
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------- board lightbox */
+.board-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(18, 14, 10, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.2rem;
+  cursor: zoom-out;
+}
+.board-lightbox img {
+  max-width: 100%;
+  max-height: calc(100dvh - 6rem);
+  object-fit: contain;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.board-card-cropping {
+  outline: 2px dashed var(--link);
+  outline-offset: 1px;
+  z-index: 5;
+}
+.board-crop-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(20, 18, 15, 0.72);
+  color: #f3eee2;
+  font-size: 0.62rem;
+  text-align: center;
+  padding: 2px 3px;
+}
+
+.board-marquee {
+  position: absolute;
+  border: 1px dashed var(--link);
+  background: rgba(31, 78, 121, 0.12);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ misc */
+.empty {
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+.feed-item {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  align-items: flex-start;
+}
+/*
+ * A wrapper, not the image itself: a crop with zoom > 1 puts a transform on the
+ * <img>, and a transform paints outside the element's box unless an ancestor
+ * clips it. As a bare class on the image, a zoomed cover spilled across the
+ * whole feed.
+ */
+.feed-thumb {
+  width: 42px;
+  height: 56px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.feed-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.since-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 0 0.4rem;
+  color: var(--stamp-red);
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.since-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--stamp-red);
+  opacity: 0.5;
+}
+
+.auth-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  background: var(--paper-dark);
+}
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.18);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+}
+.auth-title {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  margin-bottom: 0.15rem;
+}
+
+/* ------------------------------------------------- card border treatments */
+/*
+ * One treatment per entry type (lib/borders.mjs), meant to be read from across
+ * the room: a photograph, a warrant card, a map, an evidence tag, a censored
+ * page. A wall of cards sorts itself by shape before anyone reads a word.
+ *
+ * Every treatment draws inside a border-box card, so changing one never
+ * reflows a grid or moves a pin. Anything laid *over* the card — photo
+ * corners, tape, a tag hole, a stain — is a pseudo-element with
+ * pointer-events: none, so it can sit on top of the picture without ever
+ * getting in the way of a click. Nothing here is an image file.
+ */
+.brd {
+  --brd-ink: #6b5f4e;
+  /* The card's own drop shadow, carried into treatments that set box-shadow. */
+  --brd-base-shadow: var(--shadow);
+  /* The card's surface, for rings and gaps drawn in "paper". */
+  --brd-face: var(--paper-raised);
+  /* What shows through a hole punched in the card. */
+  --brd-behind: var(--paper);
+  /* The white margin of a photographic print. */
+  --brd-matte: #fdfaf2;
+  /* The black mounts of an album page. */
+  --brd-mount: #2a2118;
+  /* Gummed paper tape. */
+  --brd-tape: rgba(212, 188, 130, 0.95);
+}
+[data-theme='dark'] .brd {
+  --brd-ink: #a89c86;
+  --brd-matte: #d9d1c0;
+  --brd-mount: #cfc4ab;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .brd {
+    --brd-ink: #a89c86;
+    --brd-matte: #d9d1c0;
+    --brd-mount: #cfc4ab;
+  }
+}
+/* Board cards are always light paper on cork, whatever the theme says. */
+.board-world .board-card.brd {
+  --brd-ink: #7a6a52;
+  --brd-base-shadow: 2px 3px 0 rgba(40, 26, 12, 0.22);
+  --brd-face: var(--card-face);
+  --brd-behind: var(--cork);
+  --brd-matte: #fdfaf2;
+  --brd-mount: #2a2118;
+}
+
+/* Plain — a hairline, and nothing else. */
+.brd-plain {
+  border: 1px solid var(--rule);
+}
+.board-card.brd-plain {
+  border: 1px solid var(--card-rule);
+}
+
+/* Photograph — the white margin of a print, a little deeper along the bottom
+   the way a snapshot is, with the print's own hairline around the outside. */
+.brd-solid {
+  border: 5px solid var(--brd-matte);
+  border-bottom-width: 9px;
+  box-shadow:
+    var(--brd-base-shadow),
+    0 0 0 1px var(--brd-ink);
+}
+
+/* Heavy rule — the thick-and-thin rule of a ledger heading. Draws the thin
+   line as an overlay, because an inset shadow would hide behind the picture. */
+.brd-heavy {
+  border: 3px solid var(--brd-ink);
+}
+.brd-heavy::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid var(--brd-ink);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Warrant card — a double rule with the rounded corners of an identity card. */
+.brd-double {
+  border: 4px double var(--brd-ink);
+  border-radius: 9px;
+}
+
+/* Map edge — a dashed boundary, with a small compass rose in the corner. */
+.brd-dashed {
+  border: 2px dashed var(--brd-ink);
+}
+.brd-dashed::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--brd-ink);
+  background:
+    radial-gradient(circle at 50% 24%, var(--brd-ink) 1.6px, transparent 2.2px),
+    linear-gradient(var(--brd-ink), var(--brd-ink)) center / 1px 100% no-repeat,
+    linear-gradient(var(--brd-ink), var(--brd-ink)) center / 100% 1px no-repeat,
+    var(--brd-face);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Evidence tag — a perforated edge and a reinforced hole to hang it by. */
+.brd-dotted {
+  border: 2px dotted var(--brd-ink);
+}
+.brd-dotted::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--brd-ink);
+  background: var(--brd-behind);
+  box-shadow: 0 0 0 2px var(--brd-face);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Hatched — a band of diagonal hatching, the censor's way of marking a page
+   nobody should have. A hairline inside keeps the edge crisp. */
+.brd-frame {
+  border: 6px solid transparent;
+  border-image: repeating-linear-gradient(45deg, var(--brd-ink) 0 1.5px, transparent 1.5px 5px) 6;
+}
+.brd-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--brd-ink);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Taped — two strips of gummed tape across the top corners, holding it to
+   the wall. Clipped by a list card's edge, hanging over a board card's. */
+.brd-tape {
+  border: 1px solid var(--brd-ink);
+}
+.brd-tape::before,
+.brd-tape::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  width: 54px;
+  height: 14px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 6px),
+    var(--brd-tape);
+  border-left: 1px solid rgba(40, 26, 12, 0.16);
+  border-right: 1px solid rgba(40, 26, 12, 0.16);
+  box-shadow: 0 1px 2px rgba(40, 26, 12, 0.24);
+  pointer-events: none;
+  z-index: 5;
+}
+.brd-tape::before {
+  left: -12px;
+  transform: rotate(-40deg);
+}
+.brd-tape::after {
+  right: -12px;
+  transform: rotate(40deg);
+}
+
+/* Photo corners — the four mounts of an album page, holding the picture down. */
+.brd-corner {
+  border: 1px solid var(--brd-ink);
+}
+.brd-corner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    linear-gradient(135deg, var(--brd-mount) 50%, transparent 50.5%) left top / 18px 18px no-repeat,
+    linear-gradient(225deg, var(--brd-mount) 50%, transparent 50.5%) right top / 18px 18px no-repeat,
+    linear-gradient(45deg, var(--brd-mount) 50%, transparent 50.5%) left bottom / 18px 18px
+      no-repeat,
+    linear-gradient(315deg, var(--brd-mount) 50%, transparent 50.5%) right bottom / 18px 18px
+      no-repeat;
+}
+
+/* Foxed — an old page: a warm hairline, sepia creeping in from the edges, and
+   a few of the brown spots that give the treatment its name. */
+.brd-inset {
+  border: 1px solid #a48e6c;
+}
+.brd-inset::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 250, 235, 0.35),
+    inset 0 0 26px rgba(120, 78, 30, 0.4);
+  background:
+    radial-gradient(circle at 14% 78%, rgba(120, 78, 30, 0.22) 0 2px, transparent 3.5px),
+    radial-gradient(circle at 86% 22%, rgba(120, 78, 30, 0.18) 0 3px, transparent 4.5px),
+    radial-gradient(circle at 80% 90%, rgba(120, 78, 30, 0.2) 0 1.5px, transparent 3px);
+}
+
+/* ------------------------------------------------------- board additions */
+/* With the picture frame switched off the pin still needs a strip to sit on. */
+.board-card-nocover {
+  position: relative;
+  height: 22px;
+}
+.board-missing-inline {
+  position: absolute;
+  right: 6px;
+  top: 1px;
+  font-size: 0.55rem;
+  padding: 0 0.3rem;
+  background: var(--card-face);
+}
+
+/* A loose end: string tied to bare cork rather than to a card. */
+.board-anchor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--card-face);
+  border: 2px solid #6b5f4e;
+  box-shadow: 1px 1px 0 rgba(40, 26, 12, 0.28);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* --------------------------------------------------------- who else is here */
+/*
+ * §8, live. Two marks, both of them borrowed from the way a spreadsheet shows
+ * a second pair of hands: a strip of initials in the bar for who is at the
+ * wall, and a coloured border round whatever each of them is holding.
+ *
+ * Both are `pointer-events: none` — this is information about the board, never
+ * a thing to click, and a hand on a card must never stop you picking it up
+ * yourself. Last write still wins on a card two people drag at once; the point
+ * of the border is that you can see it coming.
+ */
+.board-people {
+  display: inline-flex;
+  align-items: center;
+}
+.board-person {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: -7px;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 1px 1px 0 rgba(40, 26, 12, 0.22);
+}
+.board-person:first-child {
+  margin-left: 0;
+}
+.board-person-more {
+  background: var(--ink-muted);
+}
+
+.board-held {
+  position: absolute;
+  pointer-events: none;
+  z-index: 4;
+  outline: 2px solid var(--held-colour);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.board-held-name {
+  position: absolute;
+  top: -1.15rem;
+  left: -2px;
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.05rem 0.3rem;
+  background: var(--held-colour);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  border-radius: 2px 2px 0 0;
+}
+
+/* A phone shows who is here, but the strip is the first thing to give up room. */
+@media (max-width: 520px) {
+  .board-person {
+    width: 22px;
+    height: 22px;
+    font-size: 0.66rem;
+  }
+}
+
+/*
+ * The two grips on a selected string. Small on purpose — they sit on top of
+ * the board — but the ::after ring gives them a full-size touch target.
+ */
+.board-end-handle {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--link);
+  background: var(--paper);
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.3);
+  cursor: grab;
+  touch-action: none;
+  z-index: 6;
+}
+.board-end-handle::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+}
+.board-end-handle:active {
+  cursor: grabbing;
+}
+
+/* The border picker in the inspector: a small stamped label and the select. */
+.board-border-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.board-border-field > .eyebrow {
+  margin: 0;
+  font-size: 0.66rem;
+}
+.board-border-select {
+  min-height: 34px;
+  padding: 0 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: 0.85rem;
+  max-width: 190px;
+}
+
+/* ------------------------------------------------------------ entry cover */
+/*
+ * The entry shows the whole picture, whatever shape it is, and never crops it.
+ * Lists get the squared-off version instead (see .entry-crop-frame).
+ */
+.entry-cover-whole {
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.entry-cover-whole img {
+  width: 100%;
+  height: auto;
+  max-height: 68vh;
+  object-fit: contain;
+}
+
+.entry-crop-row {
+  /* Stacked, because this lives in the narrow cover column. */
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+  margin-top: 0.6rem;
+}
+.entry-crop-frame {
+  flex: 0 0 auto;
+  width: 108px;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+}
+.entry-crop-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.entry-crop-frame:active {
+  cursor: grabbing;
+}
+
+/* A case card while its own crop of the cover is being set. */
+.card-cover-cropping {
+  cursor: grab;
+  touch-action: none;
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+.card-cover-cropping:active {
+  cursor: grabbing;
+}
+.card-crop-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-dark);
+}
+
+/* ------------------------------------------------------------ bare pins */
+/*
+ * A pin card is a head and a paper tag: a place on the wall for a lead that
+ * has no card yet. The head runs string, exactly like the one on an index
+ * card; the tag is what you drag it by and where its label goes.
+ */
+.board-pincard {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding-top: 16px;
+}
+.board-pincard .board-pin {
+  top: 0;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+}
+.board-pintag {
+  display: block;
+  margin: 2px auto 0;
+  max-width: 100%;
+  padding: 1px 7px;
+  font-family: var(--sans);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  text-align: center;
+  color: #2a1a12;
+  background: var(--card-face);
+  border: 1px solid var(--card-rule);
+  box-shadow: 1px 1px 0 rgba(40, 26, 12, 0.22);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+.board-pintag-empty {
+  color: #8a8072;
+  min-width: 26px;
+  letter-spacing: 0.1em;
+}
+/* Select the tag, not the invisible box around head and tag. */
+.board-pincard.board-card-selected {
+  outline: none;
+}
+.board-pincard.board-card-selected .board-pintag {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+/* The pin head as a glyph inside a button or a title. */
+.board-pin-inline {
+  position: static;
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  cursor: inherit;
+  z-index: auto;
+}
+
+/* --------------------------------------------------------- boards index */
+.board-row:hover strong {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+/* A scrap of cork, with a pin for each card on the board (up to five). */
+.cork-swatch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 44px;
+  border-radius: 2px;
+  border: 1px solid rgba(40, 26, 12, 0.35);
+  background-color: var(--cork);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cg fill='%235a3e20' fill-opacity='0.16'%3E%3Ccircle cx='3' cy='5' r='1'/%3E%3Ccircle cx='11' cy='2' r='0.8'/%3E%3Ccircle cx='18' cy='7' r='1.1'/%3E%3Ccircle cx='6' cy='13' r='0.9'/%3E%3Ccircle cx='14' cy='17' r='1'/%3E%3Ccircle cx='21' cy='20' r='0.8'/%3E%3Ccircle cx='2' cy='21' r='0.9'/%3E%3C/g%3E%3C/svg%3E");
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.cork-swatch-pin {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--string-red);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* --------------------------------------------------- sections and secrets */
+/*
+ * §9: extra titled sections. A revealed one reads as part of the entry; the
+ * Keeper's editing view gets a rule and a tint so prep is never mistaken for
+ * something the players can already read.
+ */
+.entry-sections {
+  margin: 1.4rem 0;
+}
+.entry-section {
+  margin: 1rem 0;
+}
+.entry-section-title {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  margin: 0 0 0.3rem;
+}
+.entry-section-editing {
+  border-left: 3px solid var(--rule);
+  padding: 0.6rem 0 0.6rem 0.7rem;
+  background: linear-gradient(90deg, rgba(168, 50, 30, 0.04), transparent 40%);
+}
+
+/* -------------------------------------------------------------- admin (§11) */
+.invite-code {
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  background: var(--paper-dark);
+  border: 1px solid var(--rule);
+  padding: 0.35rem 0.7rem;
+}
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  margin-left: 0.15rem;
+  border-radius: 999px;
+  background: var(--stamp-red);
+  color: #fbf7ee;
+  font-size: 0.66rem;
+  line-height: 1;
+}
+.chip-active .admin-badge {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.review-card {
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  border-radius: var(--radius);
+  padding: 0.8rem;
+  margin-bottom: 0.9rem;
+}
+/* Side by side where there is room, stacked on a phone — a diff you have to
+   scroll sideways is not a diff you can read. */
+.review-diff {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+@media (min-width: 700px) {
+  .review-diff {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.review-side {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  font-family: var(--sans);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 16rem;
+  overflow: auto;
+}
+.review-before {
+  border-left: 3px solid var(--ink-muted);
+}
+.review-after {
+  border-left: 3px solid var(--stamp-red);
+}
+
+.admin-type > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.admin-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 0;
+  border-bottom: 1px dashed var(--rule);
+}
+
+/*
+ * §11's word list. One row per term: what it is on the left, the Keeper's word
+ * on the right with the default showing through as a placeholder. The reset
+ * button keeps its space when there is nothing to reset, so the boxes stay in
+ * one column down the page rather than shuffling as words are typed.
+ */
+.admin-word-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0;
+  border-bottom: 1px dashed var(--rule);
+}
+
+/*
+ * §11's page builder. Each block of a soort's page is a card in a list the
+ * Keeper reorders; a hidden one fades rather than vanishing, because it is
+ * still configured and one press from coming back.
+ */
+.admin-block {
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  padding: 0.55rem 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.admin-block-hidden {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+/* ------------------------------------------------------------- board tray */
+/*
+ * The case's own drawer, down the right-hand side of the cork: everything
+ * filed in the case that is not on this wall yet. Drag a card out, or tap it.
+ * Collapses to a spine, because sometimes the wall is the point.
+ */
+.board-viewport:has(.board-tray) {
+  --board-tray-w: 210px;
+}
+.board-tray {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: 210px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.28);
+}
+@media (max-width: 767px) {
+  /* On a phone the drawer would be most of the screen; keep it narrow and let
+     the cork stay visible behind it. */
+  .board-tray {
+    width: 148px;
+    /* Above the docked inspector, which is fixed to the screen on a phone. */
+    bottom: 64px;
+  }
+  .board-viewport:has(.board-tray) {
+    --board-tray-w: 0px;
+  }
+}
+.board-tray-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.board-tray-filter {
+  min-height: 34px;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.45rem;
+}
+.board-tray-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.15rem 0 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.45rem;
+}
+.board-tray-empty {
+  margin: 0.2rem 0 0;
+}
+ /* A row, not a card: a drawer you can see ten things in beats one you can
+    see two things in, and the picture is only there to recognise them by. */
+.board-tray-card {
+  /* A hairline, not the type's border treatment: at 34 px the treatments are
+     noise, and the type is spelled out on the row anyway. */
+  border: 1px solid var(--card-rule);
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  background: var(--card-face);
+  color: #1f1b16;
+  cursor: grab;
+  overflow: hidden;
+}
+.board-tray-card:active {
+  cursor: grabbing;
+}
+.board-tray-card:hover {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+.board-tray-cover {
+  flex: 0 0 auto;
+  width: 34px;
+  min-height: 46px;
+  background: #ece4d3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-right: 1px solid var(--card-rule);
+}
+.board-tray-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.board-tray-text {
+  min-width: 0;
+  padding: 0.28rem 0.35rem 0.3rem 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.board-tray-name {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.board-tray-type {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.66rem;
+  color: #6b5f4e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Collapsed: a spine you can still read and hit. */
+.board-tray-spine {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 38px;
+  padding: 0 0.6rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.28);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.board-tray-spine:hover {
+  border-color: var(--ink-muted);
+}
+.board-tray-spine-label {
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}

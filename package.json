@@ -1,0 +1,46 @@
+{
+  "name": "zeeland-case-files",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0",
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "seed-demo": "node scripts/seed-demo.mjs",
+    "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/restore.mjs",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/archivo-narrow": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.0",
+    "@node-rs/argon2": "^2.0.2",
+    "@tiptap/core": "^2.11.5",
+    "@tiptap/extension-image": "^2.11.5",
+    "@tiptap/extension-link": "^2.11.5",
+    "@tiptap/extension-placeholder": "^2.11.5",
+    "@tiptap/pm": "^2.11.5",
+    "@tiptap/react": "^2.11.5",
+    "@tiptap/starter-kit": "^2.11.5",
+    "@tiptap/suggestion": "^2.11.5",
+    "better-sqlite3": "^11.8.1",
+    "drizzle-orm": "^0.39.3",
+    "next": "^15.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
