@@ -23,6 +23,22 @@ const nextConfig = {
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
   reactStrictMode: true,
   serverExternalPackages: ['better-sqlite3', 'sharp', '@node-rs/argon2'],
+
+  /**
+   * `instrumentation.ts` is compiled once for every runtime Next supports,
+   * including edge — even though every route here is `runtime: nodejs`. The
+   * edge build cannot resolve `node:fs`, and one unresolvable import there is
+   * enough to turn every page into a 500. The guard inside instrumentation.ts
+   * already stops the code *running* off Node; this stops it being *bundled*.
+   */
+  webpack(config, { nextRuntime, webpack }) {
+    if (nextRuntime === 'edge') {
+      config.plugins.push(
+        new webpack.IgnorePlugin({ resourceRegExp: /lib[\\/]diagnostics$/ }),
+      );
+    }
+    return config;
+  },
   allowedDevOrigins: lanOrigins(),
 };
 

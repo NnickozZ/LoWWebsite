@@ -69,6 +69,7 @@ LAN address works.
 | `make reset` | Delete `./data` after confirming |
 | `make backup` | Write a zip of every table plus all assets to `./data/backups` |
 | `make restore FILE=…` | Restore from one of those zips |
+| `make logs` | Everything the server wrote down; `make logs ARGS=--errors` for the bad news only |
 | `make test` | Unit tests |
 | `make test-e2e` | The golden flows, at 390 px and 1440 px |
 | `E2E_DEV=1 npm run test:e2e` | The same flows against `next dev`, where React Strict Mode double-invokes state updaters **and React's own warnings are still in the build** — `tests/e2e/no-console-warnings.spec.ts` only earns its keep here |
@@ -176,12 +177,56 @@ Node-API prebuilds that do not care which Node it is loaded into.
 **No compiler, and it stays that way.** npm gives any package with a
 `binding.gyp` and no install script an implicit `node-gyp rebuild`, so a plain
 `npm ci` will compile better-sqlite3 from source and want `build-essential`
-back — for a binary it already shipped. `.npmrc` sets `ignore-scripts=true` to
-stop that. Every native dependency here (better-sqlite3, sharp,
+back — for a binary it already shipped. The committed `.npmrc` sets
+`ignore-scripts=true` to stop that, and `scripts/deploy.sh` passes
+`--ignore-scripts` as well, so a deploy is safe even from a checkout where the
+file went missing. Every native dependency here (better-sqlite3, sharp,
 `@node-rs/argon2`) ships prebuilds, so the install is identical on Windows,
 Linux and in Docker, and no dependency runs code during a deploy. If a
 dependency is ever added that genuinely needs a postinstall step, that setting
 is what will have quietly skipped it.
+
+### When it goes wrong: the logbook
+
+Three outages here left nothing to read. The server died, the browser said
+`NetworkError when attempting to fetch resource`, buttons stopped doing
+anything, and the request log simply stopped mid-sentence. So everything that
+can be caught is now written down, synchronously, to `data/logs/` — on the
+server, next to the archive, surviving restarts, kept for fourteen days.
+
+```bash
+npm run logs              # everything, newest last  (or: make logs)
+npm run logs -- --errors  # only the entries worth waking up for
+```
+
+Four things write to it, and between them they cover every way this server has
+actually died:
+
+| What | Where it comes from |
+|---|---|
+| Errors in any page, layout, route handler or **server action** | `onRequestError` in `instrumentation.ts` — this is the "the button did nothing" case |
+| Uncaught exceptions and unhandled rejections | process handlers in `lib/diagnostics.ts` |
+| **Errors in the browser** | `components/ErrorReporter.tsx` → `POST /api/client-error` |
+| The server being killed, and by what signal | `scripts/start.mjs` |
+
+That last row is the one that was missing. A line reading
+`FATAL server died: killed by SIGKILL` means the kernel's out-of-memory killer
+took it — the box ran out of RAM. `killed by SIGABRT` means a native crash, and
+V8 will have dropped a `report-*.json` beside the log with the native stack;
+`npm run logs` lists those separately. Neither of those can be caught from
+JavaScript, which is exactly why the wrapper watches the child process instead
+of trusting it to say goodbye.
+
+A browser error matters as much as a server one. When a client component throws,
+React tears down the interactive tree and the page keeps *looking* fine while
+every button silently stops working — which is precisely what "I could not press
+any buttons to create new entries" was. Nothing reaches the server on its own,
+so `ErrorReporter` posts it, and the log line names the signed-in user, the URL
+and the stack.
+
+To take a snapshot of a server that is misbehaving but still up:
+`kill -USR2 $(pgrep -f next-server)` writes a full diagnostic report — heap,
+handles, native stack — into `data/logs/`.
 
 ### Environment
 
