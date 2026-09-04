@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "next build",
-    "start": "next start -H 0.0.0.0",
+    "start": "node scripts/start.mjs",
     "bootstrap": "node scripts/bootstrap.mjs",
     "seed-demo": "node scripts/seed-demo.mjs",
     "backup": "node scripts/backup.mjs",
@@ -27,20 +27,23 @@
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
     "@tiptap/suggestion": "^2.11.5",
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.39.3",
-    "next": "^15.1.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "next": "15.5.25",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "sharp": "^0.33.5"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.1",
+    "@playwright/test": "1.56.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   }
 }

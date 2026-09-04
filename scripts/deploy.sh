@@ -18,11 +18,15 @@ fi
 echo "==> git pull"
 git pull --ff-only
 
-echo "==> npm ci (native modules are built for this machine, never copied in)"
+echo "==> npm ci (exactly the locked tree; prebuilt binaries, no compiler needed)"
 npm ci --no-audit --no-fund
 
 echo "==> next build"
 npm run build
+
+# A build that produced no BUILD_ID is a build that failed without saying so;
+# restarting pm2 on top of it would swap a working server for a broken one.
+test -f .next/BUILD_ID || { echo "Build produced no .next/BUILD_ID — not restarting." >&2; exit 1; }
 
 if command -v pm2 >/dev/null 2>&1; then
   echo "==> pm2 restart"

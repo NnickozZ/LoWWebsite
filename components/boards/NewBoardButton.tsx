@@ -24,6 +24,12 @@ export function NewBoardButton() {
       }
       const data = await response.json();
       router.push(`/b/${data.board.id}`);
+    } catch {
+      // A `fetch` that rejects rather than answering means the archive did not
+      // reply at all — the server is down or the connection dropped. Without
+      // this the button simply did nothing, forever, with no explanation, which
+      // is the worst way to learn that the server has died.
+      ui.toast('Geen verbinding met het archief. Probeer het zo opnieuw.');
     } finally {
       setBusy(false);
     }

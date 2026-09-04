@@ -1,11 +1,63 @@
+# Dependencies — never committed, and never copied between machines either:
+# better-sqlite3, sharp and @node-rs/argon2 ship compiled binaries, so a
+# node_modules built on Windows fails on a Linux VPS with "invalid ELF header".
+# `npm ci` on the machine that will run the app is the only supported install.
 node_modules/
+.pnp/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/versions
+
+# Next.js build output
 .next/
 out/
-data/
-.env
-*.tsbuildinfo
+build/
 next-env.d.ts
+*.tsbuildinfo
+
+# The archive itself: SQLite file, uploaded assets, nightly backups.
+# This is the one directory that must survive every deploy, so it lives on the
+# server and never in git.
+data/
+data-e2e/
+
+# Secrets. `.env.example` IS committed; the real one never is.
+.env
+.env.*
+!.env.example
+
+# Test output
 test-results/
 playwright-report/
+playwright/.cache/
+blob-report/
+coverage/
+
+# Logs and process managers
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pm2/
+
+# Editors and operating systems
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
 .DS_Store
-data-e2e/
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Archives and stray copies — a 200 MB zip of the project has been committed
+# to this repository's ancestor once already.
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar

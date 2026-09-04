@@ -62,7 +62,8 @@ LAN address works.
 
 | Command | What it does |
 |---|---|
-| `make dev` | The app at `localhost:3000`, also on the LAN |
+| `make dev` | The app at `localhost:3000`, also on the LAN — **development only, never on a server** |
+| `npm ci && npm run build && npm start` | The production server, which is what a VPS runs |
 | `make bootstrap` | Create a Keeper (`--username X --password Y` for scripts) |
 | `make seed-demo` | Load the Zeeland demo dataset |
 | `make reset` | Delete `./data` after confirming |
@@ -70,7 +71,7 @@ LAN address works.
 | `make restore FILE=…` | Restore from one of those zips |
 | `make test` | Unit tests |
 | `make test-e2e` | The golden flows, at 390 px and 1440 px |
-| `E2E_DEV=1 npm run test:e2e` | The same flows against `next dev`, where React Strict Mode double-invokes state updaters |
+| `E2E_DEV=1 npm run test:e2e` | The same flows against `next dev`, where React Strict Mode double-invokes state updaters **and React's own warnings are still in the build** — `tests/e2e/no-console-warnings.spec.ts` only earns its keep here |
 | `make typecheck` | `tsc --noEmit` |
 | `make docker` | Build and run the production image against the same `./data` |
 
@@ -96,27 +97,13 @@ last fourteen.
 ### Without Docker (Node + pm2)
 
 If the VPS already runs Node for something else, the app can run beside it.
-Two rules, and both matter:
-
-- **Never run `npm run dev` on the server.** The dev server recompiles every
-  route the first time someone opens it, keeps the whole webpack graph in
-  memory — measured at 860 MB and climbing, against about 165 MB for the built
-  app — and shows React's development warnings to whoever is looking. On a
-  machine shared with another service it is the process the kernel kills first,
-  which looks like "the site goes down whenever someone opens a board".
-- **Never copy `node_modules` to the server.** `better-sqlite3`, `sharp` and
-  `@node-rs/argon2` are compiled for the machine that installed them; a copy from
-  Windows or a Mac fails on Linux with `invalid ELF header`. `npm ci` on the
-  server is the fix, every time.
-
-First time:
 
 ```bash
-sudo apt install -y build-essential python3      # in case a native module has to compile
-npm install -g pm2                               # Foundry's own docs recommend the same tool
-git clone <your repository> /home/LandOverWater
+sudo apt install -y git
+npm install -g pm2
+git clone https://github.com/NnickozZ/LoWWebsite.git /home/LandOverWater
 cd /home/LandOverWater
-cp .env.example .env                             # then set PUBLIC_URL and fresh secrets
+cp .env.example .env                # then set PUBLIC_URL and fresh secrets
 # bring an existing ./data folder across here, if there is one
 npm ci && npm run build
 pm2 start ecosystem.config.cjs && pm2 save && pm2 startup
@@ -130,8 +117,71 @@ cd /home/LandOverWater && bash scripts/deploy.sh
 
 `pm2 logs landoverwater` shows the server's own output, `pm2 status` whether it
 is up. The nightly backup that the compose file's sidecar provides is
-`npm run backup` here; `crontab -e` with `15 3 * * * cd /home/LandOverWater && npm run backup`
-does the same job.
+`npm run backup` here; `crontab -e` with
+`15 3 * * * cd /home/LandOverWater && npm run backup` does the same job.
+
+### Four ways this has already gone wrong on a server
+
+Every one of these was diagnosed the hard way. They are listed because none of
+them announces itself as what it is.
+
+**1. `node_modules` copied from another machine.** `better-sqlite3`, `sharp` and
+`@node-rs/argon2` ship compiled binaries. A folder copied from Windows fails on
+Linux with `invalid ELF header`, and the copy also loses the executable bit on
+`node_modules/.bin/*`, which surfaces as `prebuild-install: Permission denied`
+and then a compile from source that needs a toolchain the box does not have.
+`npm ci` on the machine that will run the app is the only supported install, and
+`node_modules` is in `.gitignore` so it can never travel by accident.
+
+**2. `npm run dev` as the public server.** The development server compiles each
+route on first visit and holds the whole build graph in memory — measured at
+860 MB and climbing against about 165 MB for the built app. On a box shared with
+another service it is the first thing the kernel kills, which reads as "the site
+goes down whenever someone opens a board". It also serves React's development
+warnings to players. `npm start` (via `scripts/start.mjs`) is the server.
+
+**3. A Next.js the project has never been built against.** When
+`node_modules/.bin` is missing or unusable, `npx next dev` quietly downloads
+whatever the latest major happens to be and runs *that* — a server was found
+running Next 16 while `package.json` said 15. `next`, `react` and `react-dom`
+are therefore pinned to exact versions, and `npm run dev` / `npm start` both
+invoke this project's own Next by path rather than through `npx`.
+
+**4. `better-sqlite3` 11 on Node 24.19 or newer — a hard process abort.**
+
+```
+# Assertion failed: (env) != nullptr
+2: node::RemoveEnvironmentCleanupHook(...)
+3: Statement::~Statement() [.../better_sqlite3.node]
+```
+
+Node 24.19.0 added cleanup hooks to the legacy `node::ObjectWrap`
+([nodejs/node#63642](https://github.com/nodejs/node/pull/63642)). Every class in
+better-sqlite3 11 and 12 derives from `node::ObjectWrap`, so when a V8
+environment is torn down while prepared statements are still alive, the
+destructor calls `RemoveEnvironmentCleanupHook` against an environment that is
+already gone and Node aborts — not an exception, not a stack trace in the app,
+the *whole process*, taking every connected player with it. Everything
+downstream looks like a different bug: "New board does nothing" (the POST
+succeeded, the navigation that followed it hit a dead server),
+`NetworkError when attempting to fetch resource`, a site that only falls over
+once a second person is on it.
+
+`better-sqlite3` 13 moved to Node-API and links no `node::` C++ symbol at all,
+so the abort is structurally impossible rather than merely unlikely. That is why
+this project pins `better-sqlite3` to `^13`, and why the version must not be
+walked back. It is also why the server needs no compiler any more: v13 ships
+Node-API prebuilds that do not care which Node it is loaded into.
+
+**No compiler, and it stays that way.** npm gives any package with a
+`binding.gyp` and no install script an implicit `node-gyp rebuild`, so a plain
+`npm ci` will compile better-sqlite3 from source and want `build-essential`
+back — for a binary it already shipped. `.npmrc` sets `ignore-scripts=true` to
+stop that. Every native dependency here (better-sqlite3, sharp,
+`@node-rs/argon2`) ships prebuilds, so the install is identical on Windows,
+Linux and in Docker, and no dependency runs code during a deploy. If a
+dependency is ever added that genuinely needs a postinstall step, that setting
+is what will have quietly skipped it.
 
 ### Environment
 

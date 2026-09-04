@@ -77,6 +77,15 @@ export default async function EntryPage({
    */
   const slots: Record<string, ReactNode> = {};
 
+  /*
+   * Each slot carries `key={block.id}` from birth. `EntryView` also wraps every
+   * block in a keyed Fragment, so this looks redundant — it is not. These nodes
+   * cross the server/client boundary as finished elements and are then placed
+   * into an array by a file that is not this one; a key set here travels with
+   * the node and holds wherever it lands, which is the only version of the
+   * invariant that cannot be broken from a distance.
+   */
+
   for (const block of blocks) {
     if (block.hidden) continue;
 
@@ -84,7 +93,7 @@ export default async function EntryPage({
       const rows = listDerivedEntries(entry.id, block, user);
       const heading = block.title || 'Lijst';
       slots[block.id] = (
-        <details className="section" open={block.open}>
+        <details key={block.id} className="section" open={block.open}>
           <summary>
             {heading} <span className="muted">({rows.length})</span>
           </summary>
@@ -113,7 +122,7 @@ export default async function EntryPage({
 
     if (block.kind === 'backlinks') {
       slots[block.id] = (
-        <details className="section" open={block.open || openHistory}>
+        <details key={block.id} className="section" open={block.open || openHistory}>
           <summary>
             {block.title || defaultBlockTitle('backlinks', words)}{' '}
             <span className="muted">({backlinks.length})</span>
@@ -148,7 +157,7 @@ export default async function EntryPage({
 
     if (block.kind === 'history') {
       slots[block.id] = (
-        <details className="section" open={block.open || openHistory}>
+        <details key={block.id} className="section" open={block.open || openHistory}>
           <summary>
             {block.title || defaultBlockTitle('history', words)}{' '}
             <span className="muted">({revisions.length})</span>

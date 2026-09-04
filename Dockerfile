@@ -1,9 +1,12 @@
 # syntax=docker/dockerfile:1
 
 FROM node:22-alpine AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json package-lock.json ./
+# .npmrc comes along deliberately: it is what stops npm compiling
+# better-sqlite3 from source, which is why no toolchain is installed above.
+# better-sqlite3 13 ships a linuxmusl prebuild, so alpine is served too.
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 FROM node:22-alpine AS builder
