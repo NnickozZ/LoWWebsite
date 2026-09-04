@@ -3,6 +3,10 @@ import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureEnv } from './ensure-env.mjs';
+// Runs on import and exits if node_modules is not the tree package.json asks
+// for. Starting a server built from the wrong Next, or against the
+// better-sqlite3 that aborts the process, is worse than not starting at all.
+import './check-install.mjs';
 
 /**
  * Production server. The mirror image of scripts/dev.mjs, and it exists for the

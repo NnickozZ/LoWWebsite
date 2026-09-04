@@ -139,7 +139,19 @@ route on first visit and holds the whole build graph in memory — measured at
 860 MB and climbing against about 165 MB for the built app. On a box shared with
 another service it is the first thing the kernel kills, which reads as "the site
 goes down whenever someone opens a board". It also serves React's development
-warnings to players. `npm start` (via `scripts/start.mjs`) is the server.
+warnings to players.
+
+It has a second failure that looks nothing like a server problem. `next dev`
+refuses `/_next/*` requests from any origin not in `allowedDevOrigins`, so
+reaching it as `landoverwater.nl` instead of `localhost` serves the HTML happily
+and answers **403 for every script chunk**. React never hydrates. The pages look
+completely normal and not one button does anything — no error, no clue, and the
+browser console shows only a failed HMR websocket. This project's
+`allowedDevOrigins` now includes the host from `PUBLIC_URL` so development
+against a real name works, but the fix is not to run development on a server:
+`next start` has no origin list and no HMR socket at all.
+
+`npm start` (via `scripts/start.mjs`) is the server.
 
 **3. A Next.js the project has never been built against.** When
 `node_modules/.bin` is missing or unusable, `npx next dev` quietly downloads
