@@ -4,8 +4,10 @@ import { useActionState, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { uploadForm } from '@/lib/upload';
 import { saveSiteAction, setLogoAction, type AdminState } from '@/app/(app)/admin/actions';
 import { defaultIntro } from '@/lib/intro';
+import { UploadProbe } from './UploadProbe';
 
 /** §11's Site pane: name, tagline, the welcome on the start page, logo, accent colour. */
 export function SiteForm({
@@ -33,15 +35,14 @@ export function SiteForm({
     try {
       const form = new FormData();
       form.append('file', file);
-      const response = await fetch('/api/assets', { method: 'POST', body: form });
-      const data = await response.json();
-      if (!response.ok) {
-        ui.toast(data.error ?? 'De afbeelding is niet geüpload.');
+      const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
+      if (!result.ok) {
+        ui.toast(result.error);
         return;
       }
-      setLogo(data.asset.id);
+      setLogo(result.data.asset.id);
       const body = new FormData();
-      body.append('assetId', data.asset.id);
+      body.append('assetId', result.data.asset.id);
       await setLogoAction(body);
     } finally {
       setUploading(false);
@@ -151,6 +152,8 @@ export function SiteForm({
           }}
         />
       </div>
+
+      <UploadProbe />
 
       {state.error && <p className="error-note">{state.error}</p>}
       {state.ok && <p className="small muted">{state.ok}</p>}

@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
+import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
+import type { LiveUser } from '@/components/editor/useLiveDoc';
+import { mapKey, pinFieldsRoomKey } from '@/lib/live/keys';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
@@ -92,11 +96,14 @@ export function MapCanvas({
   viewerId,
   isKeeper,
   peopleNames,
+  liveUser,
 }: {
   map: MapSummary;
   initialPins: MapPin[];
   viewerId: string;
   isKeeper: boolean;
+  /** §21: this person's name and ink, for the shared fields of a note pin. */
+  liveUser: LiveUser;
   /** §18: who set each pin, by the name they wear — keyed by account id. */
   peopleNames: Record<string, string>;
 }) {
@@ -299,6 +306,63 @@ export function MapCanvas({
   } | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
+  /* ---------------------------------------------------------------- live */
+
+  // §21: the map is a place. Other people's hands and the pins they carry are
+  // drawn from the site line; a pin someone else moved, set or removed is
+  // pulled again the moment the archive says so — except the one under this
+  // person's own hand, which lands where they put it.
+  const live = useLive();
+  const draggingRef = useRef<string | null>(null);
+  draggingRef.current = dragging;
+  useLiveChanges([mapKey(map.id)], () => {
+    void (async () => {
+      try {
+        const response = await fetch(`/api/maps/${map.id}/pins`, { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = (await response.json()) as { pins?: MapPin[] };
+        if (!Array.isArray(data.pins)) return;
+        const held = draggingRef.current;
+        setCarried((current) => (current.size ? new Map() : current));
+        setPins((current) => {
+          const mine = held ? current.find((p) => p.id === held) : undefined;
+          const next = data.pins!.map((pin) => (mine && pin.id === mine.id ? mine : pin));
+          if (mine && !next.some((p) => p.id === mine.id)) next.push(mine);
+          return JSON.stringify(next) === JSON.stringify(current) ? current : next;
+        });
+      } catch {
+        /* the next signal tries again */
+      }
+    })();
+  });
+  useEffect(() => {
+    live.setHolding(dragging ? [dragging] : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging]);
+  /**
+   * Where other people's pins are right now, before their drop is saved. A
+   * position sticks after the hand lets go, until the pins are pulled again —
+   * otherwise the pin would jump back to its old place for the moment between
+   * the drop and the save reaching this screen.
+   */
+  const [carried, setCarried] = useState<Map<string, [number, number]>>(new Map());
+  useEffect(() => {
+    setCarried((current) => {
+      let changed = false;
+      const next = new Map(current);
+      for (const pointer of live.pointers) {
+        for (const [id, pos] of Object.entries(pointer.m)) {
+          const known = next.get(id);
+          if (!known || known[0] !== pos[0] || known[1] !== pos[1]) {
+            next.set(id, pos);
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [live.pointers]);
+
   const stagePoint = (event: { clientX: number; clientY: number }): Pointer => {
     const rect = stageRef.current?.getBoundingClientRect();
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
@@ -349,10 +413,19 @@ export function MapCanvas({
     };
   };
 
+  const reportHand = (point: Pointer, moving?: { id: string; x: number; y: number }) => {
+    const at = toPicture(point.x, point.y);
+    const inside = at.x >= 0 && at.x <= 1 && at.y >= 0 && at.y <= 1;
+    live.reportPointer(inside ? { x: at.x, y: at.y, m: moving ? { [moving.id]: [moving.x, moving.y] } : {} } : null);
+  };
+
   const onStagePointerMove = (event: React.PointerEvent) => {
-    const g = gesture.current;
-    if (!g) return;
     const point = stagePoint(event);
+    const g = gesture.current;
+    if (!g) {
+      if (event.pointerType !== 'touch') reportHand(point);
+      return;
+    }
     pointers.current.set(event.pointerId, point);
 
     if (g.kind === 'pinch' && pointers.current.size >= 2) {
@@ -383,7 +456,10 @@ export function MapCanvas({
       const x = Math.min(1, Math.max(0, g.pinStart.x + dx / (map.width * g.view.zoom)));
       const y = Math.min(1, Math.max(0, g.pinStart.y + dy / (map.height * g.view.zoom)));
       setPins((current) => current.map((p) => (p.id === g.pinId ? { ...p, x, y } : p)));
+      if (event.pointerType !== 'touch') reportHand(point, { id: g.pinId, x, y });
+      return;
     }
+    if (event.pointerType !== 'touch') reportHand(point);
   };
 
   const onStagePointerUp = (event: React.PointerEvent) => {
@@ -701,6 +777,7 @@ export function MapCanvas({
         onPointerMove={onStagePointerMove}
         onPointerUp={onStagePointerUp}
         onPointerCancel={onStagePointerUp}
+        onPointerLeave={() => live.reportPointer(null)}
         onWheel={onWheel}
         role="application"
         aria-label={`${cap(mapWord)}: ${map.name}`}
@@ -722,14 +799,18 @@ export function MapCanvas({
           {shown.map((pin) => {
             const colour = pin.kind === 'note' ? NOTE_COLOUR : (pin.entry?.typeColour ?? 'var(--ink-muted)');
             const isSelected = pin.id === selectedId;
+            // A pin in someone else's hand is drawn where their hand has it.
+            const hand = dragging === pin.id ? undefined : carried.get(pin.id);
+            const px = hand ? hand[0] : pin.x;
+            const py = hand ? hand[1] : pin.y;
             return (
               <button
                 key={pin.id}
                 type="button"
-                className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}`}
+                className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}${hand ? ' map-pin-carried' : ''}`}
                 style={{
-                  left: view.tx + pin.x * map.width * view.zoom,
-                  top: view.ty + pin.y * map.height * view.zoom,
+                  left: view.tx + px * map.width * view.zoom,
+                  top: view.ty + py * map.height * view.zoom,
                   ['--pin-colour' as string]: colour,
                 }}
                 data-pin-id={pin.id}
@@ -750,6 +831,26 @@ export function MapCanvas({
               </button>
             );
           })}
+          {/* §21: everyone else's hand, in picture coordinates under this viewer's pan and zoom. */}
+          {live.pointers.map((pointer) =>
+            pointer.x === null || pointer.y === null ? null : (
+              <div
+                key={pointer.clientId}
+                className="board-cursor map-cursor"
+                aria-hidden="true"
+                style={{
+                  left: view.tx + pointer.x * map.width * view.zoom,
+                  top: view.ty + pointer.y * map.height * view.zoom,
+                  ['--cursor-colour' as string]: pointer.colour,
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" className="board-cursor-arrow">
+                  <path d="M4 3l7.5 17 2.3-7.2L21 10.5z" />
+                </svg>
+                <span className="board-cursor-name">{pointer.name}</span>
+              </div>
+            ),
+          )}
         </div>
 
         {!isPhone &&
@@ -799,6 +900,7 @@ export function MapCanvas({
             setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
             onSave={(patch) => void savePin(selected.id, patch)}
             onRemove={() => void removePin(selected)}
+            liveUser={liveUser}
           />
         </Sheet>
       )}
@@ -827,6 +929,36 @@ function PinSheet({
   setBy,
   onSave,
   onRemove,
+  liveUser,
+}: {
+  pin: MapPin;
+  busy: boolean;
+  mayEdit: boolean;
+  setBy: string | null;
+  onSave: (patch: { name?: string; text?: string }) => void;
+  onRemove: () => void;
+  liveUser: LiveUser;
+}) {
+  // §21: a note pin's name and text are shared fields — typed into by whoever
+  // may edit the pin, saved by the room. The sheet joins the pin's room when it
+  // opens (no state is handed over: the room answers within the round trip).
+  if (pin.kind === 'note' && mayEdit) {
+    return (
+      <LiveFields room={pinFieldsRoomKey(pin.id)} state="" user={liveUser} canEdit>
+        <PinSheetBody pin={pin} busy={busy} mayEdit={mayEdit} setBy={setBy} onSave={onSave} onRemove={onRemove} />
+      </LiveFields>
+    );
+  }
+  return <PinSheetBody pin={pin} busy={busy} mayEdit={mayEdit} setBy={setBy} onSave={onSave} onRemove={onRemove} />;
+}
+
+function PinSheetBody({
+  pin,
+  busy,
+  mayEdit,
+  setBy,
+  onSave,
+  onRemove,
 }: {
   pin: MapPin;
   busy: boolean;
@@ -837,9 +969,11 @@ function PinSheet({
 }) {
   const ui = useUi();
   const words = ui.words;
+  const room = useLiveFields();
+  const shared = Boolean(room?.canEdit);
   const [name, setName] = useState(pin.name);
   const [text, setText] = useState(pin.text);
-  const dirty = name !== pin.name || text !== pin.text;
+  const dirty = !shared && (name !== pin.name || text !== pin.text);
 
   return (
     <div className="stack">
@@ -879,17 +1013,24 @@ function PinSheet({
             <label className="label" htmlFor="pin-name">
               Naam
             </label>
-            <input id="pin-name" className="input" value={name} onChange={(event) => setName(event.target.value)} />
+            <LiveField field="name" id="pin-name" className="input" value={name} onValue={(next) => setName(next)} />
             <label className="label" htmlFor="pin-text">
               Tekst
             </label>
-            <textarea
+            <LiveField
+              as="textarea"
+              field="text"
               id="pin-text"
               className="input"
               rows={4}
               value={text}
-              onChange={(event) => setText(event.target.value)}
+              onValue={(next) => setText(next)}
             />
+            {shared && (
+              <p className="tiny muted" style={{ margin: 0 }}>
+                Wat je hier typt wordt meteen bewaard en ziet iedereen op deze {words.map}.
+              </p>
+            )}
             {dirty && (
               <p style={{ margin: 0 }}>
                 <button type="button" className="btn btn-small btn-primary" disabled={busy || !name.trim()} onClick={() => onSave({ name, text })}>

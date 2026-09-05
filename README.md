@@ -99,7 +99,20 @@ last fourteen.
 one of 100 MB (`lib/assets.ts`). Whatever sits in front of the server has a
 ceiling of its own: nginx refuses anything over 1 MB unless `client_max_body_size
 100m;` is set on the server block; Caddy has no such default. A limit the app
-allows but the proxy refuses looks like a broken upload button.
+allows but the proxy refuses looks like a broken upload button — the app now
+says so ("groter dan de webserver toelaat"), and **Beheer → Site →
+Uploadlimiet testen** posts 1.5, 11 and 101 MB of nothing to
+`/api/health/upload` and reports where it stops, with the line to add.
+
+```nginx
+server {
+    server_name site.landoverwater.nl;
+    client_max_body_size 100m;      # uploads: 10 MB for players, 100 MB for the Keeper
+    # ...
+}
+```
+
+Then `sudo nginx -t && sudo systemctl reload nginx`.
 
 ### Without Docker (Node + pm2)
 
@@ -482,3 +495,27 @@ Fifteen rules worth knowing before changing anything:
     is never scaled. A child counter-scaled inside a transformed layer keeps
     its size but is rasterised at the layer's scale — blurry at 4x. The board's
     live cursors follow the same idea.
+16. **Every page is live, and no write is silent.** Each tab holds one line to
+    the site (`/api/live/site`, `components/live/LiveProvider.tsx`), and every
+    page under `app/(app)` renders `<LivePage place=… watch=[…]>` — which is
+    what puts the tab on the presence strip, draws other people's hands, and
+    re-renders the page from the server when a watched key moves.
+    `tests/unit/live-everywhere.test.ts` fails a page without one. On the
+    other side, every INSERT/UPDATE/DELETE the ORM runs passes
+    `lib/live/changes.ts`, which reads the table and the ids out of the
+    statement and publishes change keys (`entry:{id}`, `entries`, `case:{id}`,
+    …) to whoever watches them — so a service function that forgets to
+    announce itself cannot exist. Watching is gated by `lib/live/gate.ts`
+    with the page's own visibility rules: a change signal for a hidden record
+    is itself a leak. A key names a thing and never carries it (rule 3
+    applies to the whole site now, not only to boards).
+17. **A short text is a shared field.** A record's name, one-liner and string
+    infobox fields live in a `fields` room (`entry:{id}:fields`,
+    `case:{id}:fields`, `map:{id}:fields`, `pin:{id}:fields`) — one Y.Text per
+    field — bound by `<LiveField>` inside `<LiveFields>`
+    (`components/live/LiveFields.tsx`). The room saves; the parent's autosave
+    is only for the road without a room (a viewer who may only propose). Any
+    plain write of such a field goes through the service, which calls
+    `resetFieldsInRoom` for exactly the fields it wrote — never the whole
+    record, or a field someone is typing in would be reset under their hands.
+    Rule 13 still holds: the archive is the truth, the room follows it.

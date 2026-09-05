@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LivePage } from '@/components/live/LivePage';
 import { eq } from 'drizzle-orm';
 import { Thumb } from '@/components/Cover';
 import { EntryCard } from '@/components/EntryCard';
@@ -95,6 +96,7 @@ export default async function HomePage() {
 
   return (
     <div className="page-wide home-layout">
+      <LivePage place="page:/" watch={['feed', 'entries', 'cases', 'boards', 'maps', 'site', 'words']} />
       <section className="home-welcome" aria-labelledby="home-title">
         <p className="eyebrow">Het archief</p>
         <h1 id="home-title" style={{ margin: '0 0 0.2rem' }}>

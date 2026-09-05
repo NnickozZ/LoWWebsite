@@ -769,7 +769,14 @@ and the bin came along as one more.
 and checked twice (declared size, actual bytes). The number the browser can
 send is also bounded by whatever sits in front of the server — nginx defaults
 to 1 MB — so the deploy notes say so; a limit the app enforces but the proxy
-refuses first would look like a broken button.
+refuses first would look like a broken button. It did, the same evening:
+nginx's 413 is an HTML page, every upload did `response.json()` on it, and
+the person read "Geen verbinding met het archief". Uploads now go through
+`lib/upload.ts`, which reads the answer as text first and names the web
+server when a 413 comes without JSON; and Beheer → Site has a probe that
+posts growing bodies to `/api/health/upload` and prints the nginx line to
+add. The probe's steps can be set in the URL (`?probe=1.5,11,25`) — for
+pinning a ceiling down, and because a browser harness cannot carry 101 MB.
 
 **The welcome is the Keeper's text, with a default that follows the word list.**
 A column on `site_settings` (migration `0007`), edited in Beheer → Site next to
@@ -777,6 +784,69 @@ the name and tagline it belongs with. The default is built from the word list
 so an archive that renamed "artikel" is not welcomed with the old word.
 
 ---
+
+## Phase 7 — Live everywhere
+
+**One line per tab, not one per thing.**
+A board had its own line, and every piece of shared text its own. That is
+fine for one editor and fails at an artikel with six sections: browsers allow
+about six connections to one host, and the seventh waits for ever. The shell
+now opens one `EventSource` (`/api/live/site`) and everything rides it —
+change signals, presence, pointer frames, and every room of shared text as
+multiplexed `room` frames. `useLiveDoc` kept its shape and lost its socket.
+The board's own line was left alone: it works, it is tested, and a second
+line on a board page is a cost we can afford.
+
+**Every write announces itself at the database, because that is the only
+place every write goes through.**
+The alternative — a `touch()` in each service function — would have held
+until the first function someone forgot. Drizzle has a `logger` hook that
+sees every statement; `lib/live/changes.ts` reads the verb, the table and the
+ids out of the SQL and turns them into change keys. It fires *before* the
+statement runs, which is only safe because SQLite is synchronous and the
+queue flushes on a zero timer, after the transaction. That is a real
+dependency on the database being SQLite, and it is written down as rule 16.
+
+**A change signal is gated like the record it names.**
+"entry:abc moved" tells a player that entry abc exists and is being worked
+on. So a tab does not receive signals for the world; it *watches* keys, and
+each key is checked with the page's own visibility rule before it is watched.
+The wire still never carries a document — rule 3 (boards) became a rule for
+the whole site.
+
+**Every page renders `<LivePage>`, and a test says so.**
+"Deeply ingrained and universal" was the ask. A convention would have lasted
+until the next page; a unit test that walks `app/(app)` and fails a page
+without `<LivePage>` lasts. A page that wants less (a board draws its own
+strip and hands) turns parts off with props rather than being exempted.
+
+**Short fields are shared documents, not last-write-wins.**
+Nick chose "true shared typing" over "last save wins, but live". A Y.Text per
+field in one `fields` room per record; an `<input>` bound to it by turning
+every browser change into one delete and one insert (`textDelta`); the caret
+kept through other people's edits with Yjs relative positions. The room
+persists through the same service functions as before (`updateEntry`,
+`updateCase`, `updateMap`, `updatePin`) with `{ live: true }`, and a plain
+write of a field resets *that field* in the room — never the whole record,
+or the field someone is typing in would be pulled from under them. Board
+note-card text is the one short text left as it was: it lives inside the
+board's state JSON, and a room persisting into `mergeBoardState` needs a
+"text only" patch that does not exist yet.
+
+**The room half of the fields is client-only.**
+`Awareness` starts a timer per instance; a Y.Doc made during a server render
+is a leak per request and a second copy of Yjs on the server is what rule 13
+forbids. `LiveFields.tsx` (imported by every page) carries no Yjs;
+`LiveFieldsRoom.tsx` does, behind `next/dynamic(…, { ssr: false })`. Until it
+loads, a `LiveField` is a plain input.
+
+**A tab ignores its own echo.**
+The home page watches `entries`; creating an artikel writes `entries`; the
+page's refresh on that signal landed in the middle of the `router.push` to
+the new artikel and cancelled it — found by an existing e2e test, on the
+first run. The provider notes the tab's own non-GET fetches and `LivePage`
+ignores a `changed` within 2.5 s of one. The tab has already refreshed
+itself after a write wherever it needed to.
 
 ## Dependencies
 

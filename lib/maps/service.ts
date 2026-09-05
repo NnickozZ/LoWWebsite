@@ -1,3 +1,5 @@
+import { resetFieldsInRoom } from '@/lib/live/docs';
+import { mapFieldsRoomKey, pinFieldsRoomKey } from '@/lib/live/keys';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
@@ -204,7 +206,12 @@ export type MapPatch = {
   height?: number;
 };
 
-export function updateMap(id: string, patch: MapPatch, actor: { id: string; isKeeper: boolean }): MapSummary {
+export function updateMap(
+  id: string,
+  patch: MapPatch,
+  actor: { id: string; isKeeper: boolean },
+  options: { live?: boolean } = {},
+): MapSummary {
   requireKeeper(actor);
   const current = getMapById(id);
   if (!current) throw new Error('Landkaart niet gevonden');
@@ -222,6 +229,13 @@ export function updateMap(id: string, patch: MapPatch, actor: { id: string; isKe
     if (typeof patch.height === 'number') values.height = patch.height;
   }
   db.update(schema.maps).set(values).where(eq(schema.maps.id, id)).run();
+  // §21: the name and description are shared fields; a plain write brings the room into line.
+  if (!options.live && (values.name !== undefined || values.description !== undefined)) {
+    const fields: Record<string, string> = {};
+    if (typeof values.name === 'string') fields.name = values.name;
+    if (typeof values.description === 'string') fields.description = values.description;
+    resetFieldsInRoom(mapFieldsRoomKey(id), fields);
+  }
   return getMapById(id)!;
 }
 
@@ -395,6 +409,7 @@ export function updatePin(
   pinId: string,
   patch: { x?: number; y?: number; name?: string; text?: string },
   actor: { id: string; isKeeper: boolean },
+  options: { live?: boolean } = {},
 ): MapPin {
   const pin = ownPin(pinId, actor);
   const values: Partial<typeof schema.mapPins.$inferInsert> = { updatedAt: now() };
@@ -408,6 +423,12 @@ export function updatePin(
   if (typeof patch.text === 'string') values.text = patch.text.trim().slice(0, 4000);
   db.update(schema.mapPins).set(values).where(eq(schema.mapPins.id, pinId)).run();
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
+  if (!options.live && (values.name !== undefined || values.text !== undefined)) {
+    const fields: Record<string, string> = {};
+    if (typeof values.name === 'string') fields.name = values.name;
+    if (typeof values.text === 'string') fields.text = values.text;
+    resetFieldsInRoom(pinFieldsRoomKey(pinId), fields);
+  }
   return getPin(pinId, actor)!;
 }
 

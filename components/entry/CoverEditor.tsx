@@ -6,6 +6,7 @@ import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CoverCrop } from '@/lib/db/schema';
+import { uploadForm } from '@/lib/upload';
 
 /**
  * §6: upload from device or paste from clipboard.
@@ -48,16 +49,15 @@ export function CoverEditor({
       try {
         const form = new FormData();
         form.append('file', file);
-        const response = await fetch('/api/assets', { method: 'POST', body: form });
-        const data = await response.json();
-        if (!response.ok) {
-          ui.toast(data.error ?? 'De afbeelding is niet geüpload.');
+        const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
+        if (!result.ok) {
+          ui.toast(result.error);
           return;
         }
         const fresh = { x: 0.5, y: 0.5, zoom: 1 };
         setLocal(fresh);
         setCropping(false);
-        onChange({ coverAssetId: data.asset.id, coverCrop: fresh });
+        onChange({ coverAssetId: result.data.asset.id, coverCrop: fresh });
       } finally {
         setBusy(false);
       }

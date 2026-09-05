@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { uploadForm } from '@/lib/upload';
 
 /**
  * §19: the Keeper hangs a map. One sheet: a picture and a name, and the map
@@ -35,17 +36,16 @@ export function NewMapButton() {
       form.set('file', file);
       form.set('name', name.trim() || file.name.replace(/\.[a-z0-9]+$/i, ''));
       form.set('description', description);
-      const response = await fetch('/api/maps', { method: 'POST', body: form });
-      const data = (await response.json()) as { map?: { slug: string }; error?: string };
-      if (!response.ok || !data.map) {
-        setError(data.error ?? 'Ophangen is niet gelukt.');
+      // The answer is read for what it is: the archive's JSON, or the web
+      // server's refusal (a 413 for a body over its own ceiling).
+      const result = await uploadForm<{ map?: { slug: string } }>('/api/maps', form);
+      if (!result.ok || !result.data.map) {
+        setError(result.ok ? 'Ophangen is niet gelukt.' : result.error);
         return;
       }
       setOpen(false);
-      router.push(`/maps/${data.map.slug}`);
+      router.push(`/maps/${result.data.map.slug}`);
       router.refresh();
-    } catch {
-      setError('Geen verbinding met het archief.');
     } finally {
       setBusy(false);
     }

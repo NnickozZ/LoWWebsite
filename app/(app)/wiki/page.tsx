@@ -1,4 +1,5 @@
 import { EntryCard } from '@/components/EntryCard';
+import { LivePage } from '@/components/live/LivePage';
 import { NewOfTypeButton } from '@/components/NewOfTypeButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { TypeTabs } from '@/components/TypeTabs';
@@ -29,6 +30,7 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="page-wide">
+      <LivePage place="page:/wiki" watch={['entries', 'types']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>
           <p className="eyebrow">Bladeren</p>

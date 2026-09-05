@@ -12,7 +12,9 @@ import { PinToBoardButton } from '@/components/boards/PinToBoardButton';
 import dynamic from 'next/dynamic';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
-import { LivePeople } from '@/components/editor/LivePeople';
+import { LiveField, LiveFields } from '@/components/live/LiveFields';
+import { useLiveChanges } from '@/components/live/LiveProvider';
+import { entryKey } from '@/lib/live/keys';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsWide } from '@/components/useIsPhone';
 
@@ -115,6 +117,7 @@ export function EntryView({
   onMaps,
   mapsToPlace,
   live,
+  liveFields,
 }: {
   entry: EntryViewData;
   knownTags: string[];
@@ -155,6 +158,8 @@ export function EntryView({
    * as the server had it; `canEdit` is the room's gate for this viewer.
    */
   live: { room: string; state: string; sv: string; canEdit: boolean; user: LiveUser } | null;
+  /** §21: the name, the one-liner and the infobox texts as shared fields. */
+  liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -243,6 +248,18 @@ export function EntryView({
   });
   const [savedAt, setSavedAt] = useState<{ at: number; by: string | null; keys: string[] } | null>(null);
   const [fieldsVersion, setFieldsVersion] = useState(0);
+  // §21: any change to this artikel, from anywhere, is a reason to re-read the
+  // rest of the record. The body's own `saved` frame still arrives too.
+  useLiveChanges([entryKey(entry.id)], () => setSavedAt({ at: Date.now(), by: null, keys: [] }));
+  // The name and the one-liner are shared fields when the room is open and
+  // this person may type: their text then comes from the room, not the fetch.
+  const fieldsShared = Boolean(liveFields?.canEdit);
+  // …and where that room's own keystrokes stand, for the one save word.
+  const [fieldsStatus, setFieldsStatus] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({
+    others: [],
+    status: 'connecting',
+    save: 'idle',
+  });
 
   /**
    * Someone else saved the rest of the record — name, description, tags,
@@ -270,8 +287,8 @@ export function EntryView({
         if (cancelled) return;
         const active = document.activeElement as HTMLElement | null;
         const focusedId = active?.id ?? '';
-        if (focusedId !== 'entry-name') setName((current) => (current === data.name ? current : data.name));
-        if (focusedId !== 'entry-lead') {
+        if (!fieldsShared && focusedId !== 'entry-name') setName((current) => (current === data.name ? current : data.name));
+        if (!fieldsShared && focusedId !== 'entry-lead') {
           setShortDescription((current) => (current === data.shortDescription ? current : data.shortDescription));
         }
         setTags((current) => (JSON.stringify(current) === JSON.stringify(data.tags) ? current : data.tags));
@@ -360,10 +377,10 @@ export function EntryView({
           compact
           fields={entry.typeFields}
           values={fields}
-          onChange={(patch) => {
+          onChange={(patch, meta) => {
             const next = { ...fields, ...patch };
             setFields(next);
-            set({ fields: patch });
+            if (!meta?.live) set({ fields: patch });
           }}
         />
       )}
@@ -561,27 +578,28 @@ export function EntryView({
             is on its way; "Opgeslagen" once both have landed.
           */}
           <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-            {state === 'dirty' || state === 'saving' || liveStatus.save === 'saving'
+            {state === 'dirty' || state === 'saving' || liveStatus.save === 'saving' || fieldsStatus.save === 'saving'
               ? saveLabel('saving')
               : state === 'pending' || state === 'error'
                 ? saveLabel(state)
-                : state === 'saved' || liveStatus.save === 'saved'
+                : state === 'saved' || liveStatus.save === 'saved' || fieldsStatus.save === 'saved'
                   ? saveLabel('saved')
                   : ''}
           </p>
-          {live && <LivePeople others={liveStatus.others} status={liveStatus.status} />}
+          {/* §21: who is here and whether the line is up now sit in the shell's strip, for every page alike. */}
         </div>
 
         <label className="visually-hidden" htmlFor="entry-name">
           Naam
         </label>
-        <input
+        <LiveField
+          field="name"
           id="entry-name"
           className="title-input"
           value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            set({ name: event.target.value });
+          onValue={(next, meta) => {
+            setName(next);
+            if (!meta.live) set({ name: next });
           }}
           onBlur={() => void flush()}
         />
@@ -589,17 +607,18 @@ export function EntryView({
         <label className="visually-hidden" htmlFor="entry-lead">
           Korte beschrijving
         </label>
-        <textarea
+        <LiveField
+          as="textarea"
+          field="shortDescription"
           id="entry-lead"
           ref={leadRef}
           className="lead-input"
           rows={1}
           placeholder={entry.typeText.descriptionPlaceholder || DEFAULT_DESCRIPTION_PLACEHOLDER}
           value={shortDescription}
-          onChange={(event) => {
-            setShortDescription(event.target.value);
-            autosize(event.target);
-            set({ shortDescription: event.target.value });
+          onValue={(next, meta) => {
+            setShortDescription(next);
+            if (!meta.live) set({ shortDescription: next });
           }}
           onBlur={() => void flush()}
         />
@@ -827,7 +846,7 @@ export function EntryView({
 
   /* -------------------------------------------------------------- render */
 
-  return (
+  const article = (
     <article className="page-wide entry-page">
       {header}
 
@@ -858,5 +877,14 @@ export function EntryView({
         )}
       </div>
     </article>
+  );
+
+  // §21: the room around the fields. Without one (no viewer, or a page that
+  // could not open it) every LiveField is a plain input on the autosave road.
+  if (!liveFields) return article;
+  return (
+    <LiveFields room={liveFields.room} state={liveFields.state} user={liveFields.user} canEdit={liveFields.canEdit} onStatus={setFieldsStatus}>
+      {article}
+    </LiveFields>
   );
 }

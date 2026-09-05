@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LivePage } from '@/components/live/LivePage';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { NewMapButton } from '@/components/maps/NewMapButton';
@@ -35,6 +36,7 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="page-wide">
+      <LivePage place="page:/maps" watch={['maps']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>
           <p className="eyebrow">Het eiland</p>

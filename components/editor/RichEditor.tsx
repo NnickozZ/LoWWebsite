@@ -16,6 +16,7 @@ import { documentExtensions } from '@/lib/editor/extensions';
 import { makeEntrySuggestion, type SuggestionEntry, type SuggestionRenderState } from './entrySuggestion';
 import { SuggestionPopup } from './SuggestionPopup';
 import type { LiveUser } from './useLiveDoc';
+import { uploadForm } from '@/lib/upload';
 
 /**
  * §20: when the text is a room, the editor binds to the shared Yjs document
@@ -205,13 +206,12 @@ export function RichEditor({
       if (!editor) return;
       const form = new FormData();
       form.append('file', file);
-      const response = await fetch('/api/assets', { method: 'POST', body: form });
-      const data = await response.json();
-      if (!response.ok) {
-        ui.toast(data.error ?? 'De afbeelding is niet geüpload.');
+      const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
+      if (!result.ok) {
+        ui.toast(result.error);
         return;
       }
-      editor.chain().focus().setImage({ src: `/api/assets/${data.asset.id}`, alt: file.name }).run();
+      editor.chain().focus().setImage({ src: `/api/assets/${result.data.asset.id}`, alt: file.name }).run();
     },
     [editor, ui],
   );

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { CharacterWardrobe } from '@/components/you/CharacterSwitcher';
 import { getWords } from '@/lib/admin/words';
@@ -38,6 +39,7 @@ export default async function YouPage() {
 
   return (
     <div className="page">
+      <LivePage place="page:/you" watch={['characters', 'users', 'entries']} />
       <p className="eyebrow">Jouw account</p>
       <h1>{user?.username}</h1>
       {user?.isKeeper && (

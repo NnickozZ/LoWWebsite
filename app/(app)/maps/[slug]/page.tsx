@@ -1,10 +1,13 @@
 import Link from 'next/link';
+import { mapKey } from '@/lib/live/keys';
+import { LivePage } from '@/components/live/LivePage';
 import { notFound } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
+import { presenceColour } from '@/lib/boards/live';
 import { displayNames } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { getMapBySlug, listPins } from '@/lib/maps/service';
@@ -40,6 +43,7 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
 
   return (
     <div className="page-wide">
+      <LivePage place={mapKey(map.id)} watch={['entries']} pointers={false} />
       <div className="row" style={{ marginBottom: '0.4rem', alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
           <p className="eyebrow" style={{ margin: 0 }}>
@@ -57,6 +61,7 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
       </div>
 
       <MapCanvas
+        liveUser={{ name: (user && peopleNames[user.id]) || user?.username || '', colour: presenceColour(user?.id ?? '') }}
         map={map}
         initialPins={pins}
         viewerId={user?.id ?? ''}

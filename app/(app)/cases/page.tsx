@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LivePage } from '@/components/live/LivePage';
 import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { NewCaseButton } from '@/components/cases/NewCaseButton';
@@ -45,6 +46,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="page-wide">
+      <LivePage place="page:/cases" watch={['cases']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>
           <p className="eyebrow">Archief</p>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
@@ -9,7 +9,7 @@ import { capitalise } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { CoverEditor } from '@/components/entry/CoverEditor';
 import dynamic from 'next/dynamic';
-import { LivePeople } from '@/components/editor/LivePeople';
+import { LiveField, LiveFields } from '@/components/live/LiveFields';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useIsPhone } from '@/components/useIsPhone';
@@ -90,6 +90,7 @@ export function CaseDossier({
   isKeeper,
   access,
   liveNotes,
+  liveFields,
 }: {
   data: CaseDossierData;
   groups: CaseGroup[];
@@ -103,6 +104,8 @@ export function CaseDossier({
   access: CaseAccess;
   /** §20: the notes as shared text, or null when the page could not open the room. */
   liveNotes: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
+  /** §21: the name and the one-liner as shared fields. */
+  liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -117,7 +120,26 @@ export function CaseDossier({
   const [keeperNotes, setKeeperNotes] = useState(data.keeperNotes);
   const [cover, setCover] = useState({ assetId: data.coverAssetId, crop: data.coverCrop });
   const [assignOpen, setAssignOpen] = useState(false);
+  // §21: when someone else changes the record the page is re-rendered from the
+  // server (`LivePage`) and these arrive as new props. Take them over unless
+  // this person is in the middle of that very control.
+  useEffect(() => {
+    setStatus(data.status);
+  }, [data.status]);
+  useEffect(() => {
+    setCover({ assetId: data.coverAssetId, crop: data.coverCrop });
+  }, [data.coverAssetId, data.coverCrop]);
+  useEffect(() => {
+    if (document.activeElement?.id !== 'case-keeper-notes') setKeeperNotes(data.keeperNotes);
+  }, [data.keeperNotes]);
+  useEffect(() => {
+    if (liveFields?.canEdit) return; // the room owns these
+    if (document.activeElement?.id !== 'case-name') setName(data.name);
+    if (document.activeElement?.id !== 'case-summary') setSummary(data.summary);
+  }, [data.name, data.summary, liveFields?.canEdit]);
   const [notesLive, setNotesLive] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
+  // §21: the name and the one-liner are a room too; its save state joins the one word.
+  const [fieldsLive, setFieldsLive] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const summaryRef = useRef<HTMLTextAreaElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -184,11 +206,6 @@ export function CaseDossier({
         <div>
           <span className="label row" style={{ gap: '0.6rem' }}>
             Dossiernotities
-            {liveNotes && (
-              <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
-                <LivePeople others={notesLive.others} status={notesLive.status} />
-              </span>
-            )}
           </span>
           {liveNotes ? (
             <LiveBody
@@ -227,6 +244,7 @@ export function CaseDossier({
             <Icon name="shield" size={14} /> Notities van de Keeper
           </summary>
           <textarea
+            id="case-keeper-notes"
             className="textarea"
             style={{ margin: '0.5rem 0 1rem' }}
             value={keeperNotes}
@@ -379,11 +397,11 @@ export function CaseDossier({
           )}
           <div className="spacer" />
           <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-            {state === 'dirty' || state === 'saving' || notesLive.save === 'saving'
+            {state === 'dirty' || state === 'saving' || notesLive.save === 'saving' || fieldsLive.save === 'saving'
               ? saveLabel('saving')
               : state === 'pending' || state === 'error'
                 ? saveLabel(state)
-                : state === 'saved' || notesLive.save === 'saved'
+                : state === 'saved' || notesLive.save === 'saved' || fieldsLive.save === 'saved'
                   ? saveLabel('saved')
                   : ''}
           </p>
@@ -392,14 +410,15 @@ export function CaseDossier({
         <label className="visually-hidden" htmlFor="case-name">
           Naam van het dossier
         </label>
-        <input
+        <LiveField
+          field="name"
           id="case-name"
           className="title-input"
           value={name}
           readOnly={readOnly}
-          onChange={(event) => {
-            setName(event.target.value);
-            set({ name: event.target.value });
+          onValue={(next, meta) => {
+            setName(next);
+            if (!meta.live && !readOnly) set({ name: next });
           }}
           onBlur={() => void flush()}
         />
@@ -409,7 +428,9 @@ export function CaseDossier({
         </label>
         {/* A textarea rather than an input: one line on desktop, but it wraps
           instead of clipping on a phone. */}
-        <textarea
+        <LiveField
+          as="textarea"
+          field="summary"
           id="case-summary"
           ref={summaryRef}
           className="lead-input"
@@ -417,10 +438,9 @@ export function CaseDossier({
           value={summary}
           readOnly={readOnly}
           placeholder="Eén regel: wat wordt er onderzocht?"
-          onChange={(event) => {
-            setSummary(event.target.value);
-            autosize(event.target);
-            set({ summary: event.target.value });
+          onValue={(next, meta) => {
+            setSummary(next);
+            if (!meta.live && !readOnly) set({ summary: next });
           }}
           onBlur={() => void flush()}
         />
@@ -517,9 +537,19 @@ export function CaseDossier({
 
   /* --------------------------------------------------------------- render */
 
+  // §21: the room around the name and the one-liner, whatever the layout.
+  const inRoom = (content: ReactNode) =>
+    liveFields ? (
+      <LiveFields room={liveFields.room} state={liveFields.state} user={liveFields.user} canEdit={liveFields.canEdit} onStatus={setFieldsLive}>
+        {content}
+      </LiveFields>
+    ) : (
+      content
+    );
+
   if (isPhone) {
     // §7: the same sections stacked, with sticky headers and a jump menu.
-    return (
+    return inRoom(
       <div className="page">
         {header}
 
@@ -557,11 +587,11 @@ export function CaseDossier({
             {sectionFor(item.key)}
           </section>
         ))}
-      </div>
+      </div>,
     );
   }
 
-  return (
+  return inRoom(
     <div className="page-wide">
       {header}
 
@@ -589,7 +619,7 @@ export function CaseDossier({
       <div role="tabpanel" style={{ paddingTop: '1.1rem' }}>
         {sectionFor(activeTab)}
       </div>
-    </div>
+    </div>,
   );
 }
 

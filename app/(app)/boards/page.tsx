@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
@@ -30,6 +31,7 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="page">
+      <LivePage place="page:/boards" watch={['boards', 'cases']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>
           <p className="eyebrow">Kurkborden</p>

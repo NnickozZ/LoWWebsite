@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { entryFieldsRoomKey, entryKey } from '@/lib/live/keys';
+import { LivePage } from '@/components/live/LivePage';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
@@ -346,8 +348,16 @@ export default async function EntryPage({
     );
   }
 
+  // §21: the name, the one-liner and the infobox texts as shared fields.
+  const fieldsAdmission = admit(entryFieldsRoomKey(entry.id), user);
+  const liveFields =
+    fieldsAdmission && liveUser
+      ? { room: fieldsAdmission.spec.key, state: snapshot(fieldsAdmission.spec).state, canEdit: fieldsAdmission.canEdit, user: liveUser }
+      : null;
+
   return (
     <>
+      <LivePage place={entryKey(entry.id)} watch={['cases', 'maps', 'types']} />
       <EntryView
         entry={{
           id: entry.id,
@@ -382,6 +392,7 @@ export default async function EntryPage({
           live: liveSections.get(section.id) ?? null,
         }))}
         live={liveBody}
+        liveFields={liveFields}
         revealUsers={revealUsers}
         revealCases={revealCases}
         access={access}

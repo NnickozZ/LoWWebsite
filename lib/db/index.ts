@@ -1,4 +1,5 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { changeLogger } from '@/lib/live/changes';
 import { assetsDir, backupsDir, dataDir, openDb } from './open.mjs';
 import { seedBaseline } from './seed.mjs';
 import * as schema from './schema';
@@ -10,7 +11,8 @@ export const BACKUPS_DIR: string = backupsDir();
 function create() {
   const sqlite = openDb();
   seedBaseline(sqlite);
-  return { sqlite, db: drizzle(sqlite, { schema }) };
+  // §21: every statement passes the change logger, so no write is silent.
+  return { sqlite, db: drizzle(sqlite, { schema, logger: changeLogger }) };
 }
 
 // Reuse one connection across hot reloads in dev; a second better-sqlite3

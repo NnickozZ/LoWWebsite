@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { uploadForm } from '@/lib/upload';
 import type { MapSummary } from '@/lib/maps/service';
 
 /** §19: rename, describe, redraw, take down — the Keeper's corner of a map page. */
@@ -42,10 +43,9 @@ export function MapKeeperTools({ map }: { map: MapSummary }) {
     try {
       const form = new FormData();
       form.set('file', file);
-      const response = await fetch(`/api/maps/${map.id}`, { method: 'PATCH', body: form });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        ui.toast(data.error ?? 'De nieuwe afbeelding is niet opgeslagen.');
+      const result = await uploadForm<{ map: { slug: string } }>(`/api/maps/${map.id}`, form, 'PATCH');
+      if (!result.ok) {
+        ui.toast(result.error);
         return;
       }
       ui.toast(`Nieuwe tekening; de ${words.mapPinPlural} staan waar ze stonden.`);

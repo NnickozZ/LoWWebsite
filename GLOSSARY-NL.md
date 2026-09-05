@@ -348,6 +348,9 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Note ‘X’ — a loose note on the map; type its text on the pin | Notitie ‘X’ zetten — een losse aantekening op de landkaart; de tekst typ je zo op de speld |
 | ‘X’ as a new entry — in the wiki and on this spot | ‘X’ als nieuw artikel aanmaken — komt in de wiki én op deze plek |
 | Up to 100 MB (a map) / That picture is over the limit of 10 MB. | tot 100 MB / Die afbeelding is groter dan de limiet van 10 MB. |
+| The file is over what the web server allows… | Het bestand is groter dan de webserver toelaat. Dit is niet de limiet van het archief zelf maar van de webserver ervoor (bij nginx: client_max_body_size). |
+| Test the upload limit / n MB on its way / n MB was refused / lets at least n MB through | Uploadlimiet testen / n MB onderweg / n MB werd geweigerd / laat minstens n MB door |
+| The archive is not answering right now. Try again shortly. | Het archief antwoordt even niet. Probeer het zo opnieuw. |
 
 ## Live (§8, §20)
 

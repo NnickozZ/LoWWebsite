@@ -34,6 +34,7 @@ import { BoardInspector } from './BoardInspector';
 import { BoardTray, type TrayEntry } from './BoardTray';
 import { syncLabel, useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
+import { uploadForm } from '@/lib/upload';
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
@@ -573,15 +574,12 @@ export function BoardCanvas({
       try {
         const form = new FormData();
         form.append('file', file);
-        const response = await fetch('/api/assets', {
-          method: 'POST',
-          body: form,
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          ui.toast(data.error ?? 'De afbeelding is niet geüpload.');
+        const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
+        if (!result.ok) {
+          ui.toast(result.error);
           return;
         }
+        const data = result.data;
 
         const fresh = { x: 0.5, y: 0.5, zoom: 1 };
         if (photoTarget.current === 'new') {

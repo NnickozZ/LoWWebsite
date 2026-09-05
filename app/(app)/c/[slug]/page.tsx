@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { caseFieldsRoomKey, caseKey } from '@/lib/live/keys';
+import { LivePage } from '@/components/live/LivePage';
 import { asc } from 'drizzle-orm';
 import { CaseDossier, type CaseGroup } from '@/components/cases/CaseDossier';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
@@ -117,8 +119,17 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
+  // §21: the name and the one-liner as shared fields.
+  const fieldsAdmission = user ? admit(caseFieldsRoomKey(record.id), user) : null;
+  const liveFields =
+    fieldsAdmission && liveNotes
+      ? { room: fieldsAdmission.spec.key, state: snapshot(fieldsAdmission.spec).state, canEdit: fieldsAdmission.canEdit, user: liveNotes.user }
+      : null;
+
   return (
-    <CaseDossier
+    <>
+      <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'users']} />
+      <CaseDossier
       data={{
         id: record.id,
         slug: record.slug,
@@ -139,6 +150,8 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       lastSeenAt={user?.lastSeenAt ?? null}
       isKeeper={Boolean(user?.isKeeper)}
       access={access}
+      liveFields={liveFields}
     />
+    </>
   );
 }

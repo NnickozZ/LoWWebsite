@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { yXmlFragmentToProsemirrorJSON } from 'y-prosemirror';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
+import { useLive, type RoomHandle } from '@/components/live/LiveProvider';
 
 /** The shared text as plain ProseMirror JSON — for a proposal, or a copy. */
 export function liveBodyJSON(doc: Y.Doc): unknown {
@@ -14,12 +15,15 @@ export function liveBodyJSON(doc: Y.Doc): unknown {
  * §20: one tab's end of a room of shared text.
  *
  * Holds the Yjs document the editor binds to, keeps it in step with the room
- * over the same kind of line a board uses (server-sent events down, POSTs
- * up), and carries everyone's cursor through Yjs awareness. The editor itself
+ * over the tab's site line (§21 — one connection per tab, rooms multiplexed on
+ * it), and carries everyone's cursor through Yjs awareness. The editor itself
  * never talks to the network: it edits the document, the document emits an
  * update, this sends it. That separation is what makes a dropped line
  * harmless — edits keep landing in the local document and go up in one batch
  * when the line is back, and Yjs merges them wherever they arrive.
+ *
+ * The same hook serves a `fields` room (a record's short texts as named
+ * Y.Texts): nothing here cares what is inside the document.
  *
  * `initialState` lets the page hand the document over in the HTML, so the
  * text is there before the line is open and nothing flashes empty.
@@ -65,9 +69,9 @@ export function useLiveDoc({
   initialState?: string | null;
   enabled?: boolean;
 }) {
-  const clientIdRef = useRef('');
-  if (!clientIdRef.current) clientIdRef.current = `t_${Math.random().toString(36).slice(2, 12)}`;
-  const clientId = clientIdRef.current;
+  const live = useLive();
+  const clientId = live.clientId;
+  const handleRef = useRef<RoomHandle | null>(null);
 
   const [doc] = useState(() => {
     const fresh = new Y.Doc();
@@ -100,19 +104,22 @@ export function useLiveDoc({
   const lastAwarenessPost = useRef(0);
   const retryDelay = useRef(500);
 
-  const post = useCallback(
-    async (body: Record<string, unknown>) => {
-      const response = await fetch(`/api/live/${encodeURIComponent(room)}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ clientId, ...body }),
-        keepalive: true,
-      });
-      if (response.status === 403) setCanEdit(false);
-      return response.ok;
-    },
-    [room, clientId],
-  );
+  /**
+   * Up the site line, to this room. `down` is a line that is not there (the
+   * update is kept and retried); `refused` is a line that is there and said no
+   * (look-only) — that update is dropped, because it will never be taken.
+   */
+  const post = useCallback(async (body: { update?: string; awareness?: string }): Promise<'ok' | 'down' | 'refused'> => {
+    const handle = handleRef.current;
+    if (!handle) return 'down';
+    let result: 'ok' | 'down' | 'refused' = 'ok';
+    if (body.update) result = await handle.sendUpdate(body.update);
+    if (body.awareness) {
+      const ok = await handle.sendAwareness(body.awareness);
+      if (!ok && result === 'ok') result = 'down';
+    }
+    return result;
+  }, []);
 
   const flushUpdates = useCallback(async () => {
     updateTimer.current = null;
@@ -120,18 +127,28 @@ export function useLiveDoc({
     const batch = pendingUpdates.current;
     pendingUpdates.current = [];
     const merged = batch.length === 1 ? batch[0] : Y.mergeUpdates(batch);
+    let result: 'ok' | 'down' | 'refused' = 'down';
     try {
-      const ok = await post({ update: toBase64(merged) });
-      if (!ok) throw new Error('refused');
-      retryDelay.current = 500;
+      result = await post({ update: toBase64(merged) });
     } catch {
-      // Put it back at the front and try again later: nothing typed is lost,
-      // and Yjs will merge it whenever it finally arrives.
-      pendingUpdates.current.unshift(merged);
-      setStatus('offline');
-      updateTimer.current = setTimeout(() => void flushUpdates(), retryDelay.current);
-      retryDelay.current = Math.min(15_000, retryDelay.current * 2);
+      result = 'down';
     }
+    if (result === 'ok') {
+      retryDelay.current = 500;
+      return;
+    }
+    if (result === 'refused') {
+      // The server will not take this tab's keystrokes: the editor is put to
+      // read-only and the batch is dropped rather than retried for ever.
+      setCanEdit(false);
+      setSave('idle');
+      return;
+    }
+    // Put it back at the front and try again later: nothing typed is lost,
+    // and Yjs will merge it whenever it finally arrives.
+    pendingUpdates.current.unshift(merged);
+    updateTimer.current = setTimeout(() => void flushUpdates(), retryDelay.current);
+    retryDelay.current = Math.min(15_000, retryDelay.current * 2);
   }, [post]);
 
   const flushAwareness = useCallback(() => {
@@ -200,29 +217,17 @@ export function useLiveDoc({
 
   useEffect(() => {
     if (!enabled) return;
-    let source: EventSource | null = null;
-    let retry: ReturnType<typeof setTimeout> | null = null;
-    let stopped = false;
-    let failures = 0;
+    let joined = true;
 
-    const open = () => {
-      if (stopped) return;
-      source = new EventSource(`/api/live/${encodeURIComponent(room)}?c=${encodeURIComponent(clientId)}&y=${doc.clientID}`);
-
-      source.addEventListener('sync', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data) as {
-            state: string;
-            sv: string;
-            awareness: string;
-            canEdit: boolean;
-          };
+    const onEvent = (event: string, raw: unknown) => {
+      if (!joined) return;
+      try {
+        if (event === 'sync') {
+          const data = raw as { state: string; sv: string; awareness: string; canEdit: boolean };
           Y.applyUpdate(doc, fromBase64(data.state), 'remote');
           if (data.awareness) applyAwarenessUpdate(awareness, fromBase64(data.awareness), 'remote');
           setCanEdit(data.canEdit);
           setSynced(true);
-          setStatus('live');
-          failures = 0;
           // Whatever this tab did while the line was down — or before it was
           // ever up — goes over now, as the difference against what the server
           // has. Yjs makes that exact and idempotent.
@@ -234,59 +239,27 @@ export function useLiveDoc({
           // And our name, so we appear on everyone's page at once.
           const current = (awareness.getLocalState() ?? {}) as Record<string, unknown>;
           awareness.setLocalState({ ...current, user: { name: user.name, colour: user.colour, color: user.colour } });
-        } catch {
-          /* a malformed frame is not worth tearing the line down for */
-        }
-      });
-
-      source.addEventListener('update', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data) as { u: string };
-          Y.applyUpdate(doc, fromBase64(data.u), 'remote');
-        } catch {
-          /* ignore */
-        }
-      });
-
-      source.addEventListener('awareness', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data) as { a: string };
-          applyAwarenessUpdate(awareness, fromBase64(data.a), 'remote');
-        } catch {
-          /* ignore */
-        }
-      });
-
-      source.addEventListener('persisted', () => {
-        // Nothing of ours is still on its way, so the archive has it all.
-        if (!pendingUpdates.current.length) setSave((current) => (current === 'saving' ? 'saved' : current));
-      });
-
-      source.addEventListener('saved', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data) as { by: string | null; keys: string[] };
+        } else if (event === 'update') {
+          Y.applyUpdate(doc, fromBase64((raw as { u: string }).u), 'remote');
+        } else if (event === 'awareness') {
+          applyAwarenessUpdate(awareness, fromBase64((raw as { a: string }).a), 'remote');
+        } else if (event === 'persisted') {
+          // Nothing of ours is still on its way, so the archive has it all.
+          if (!pendingUpdates.current.length) setSave((current) => (current === 'saving' ? 'saved' : current));
+        } else if (event === 'saved') {
+          const data = raw as { by: string | null; keys: string[] };
           setSavedAt({ at: Date.now(), by: data.by, keys: data.keys ?? [] });
-        } catch {
-          /* ignore */
         }
-      });
-
-      source.onerror = () => {
-        source?.close();
-        source = null;
-        failures += 1;
-        setStatus('offline');
-        if (stopped) return;
-        retry = setTimeout(open, Math.min(30_000, 1000 * 2 ** Math.min(failures, 5)));
-      };
+      } catch {
+        /* a malformed frame is not worth leaving the room for */
+      }
     };
 
-    open();
+    const handle = live.joinRoom(room, doc.clientID, { onEvent });
+    handleRef.current = handle;
 
     return () => {
-      stopped = true;
-      source?.close();
-      if (retry) clearTimeout(retry);
+      joined = false;
       if (updateTimer.current) {
         clearTimeout(updateTimer.current);
         updateTimer.current = null;
@@ -299,15 +272,21 @@ export function useLiveDoc({
       awareness.setLocalState(null);
       const left = [...awarenessPending.current];
       awarenessPending.current = new Set();
-      const body: Record<string, unknown> = {};
       if (pendingUpdates.current.length) {
-        body.update = toBase64(Y.mergeUpdates(pendingUpdates.current));
+        void handle.sendUpdate(toBase64(Y.mergeUpdates(pendingUpdates.current))).catch(() => undefined);
         pendingUpdates.current = [];
       }
-      if (left.length) body.awareness = toBase64(encodeAwarenessUpdate(awareness, left));
-      if (Object.keys(body).length) void post(body).catch(() => undefined);
+      if (left.length) void handle.sendAwareness(toBase64(encodeAwarenessUpdate(awareness, left))).catch(() => undefined);
+      handleRef.current = null;
+      handle.leave();
     };
-  }, [awareness, clientId, doc, enabled, flushUpdates, post, room, user.colour, user.name]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awareness, doc, enabled, flushUpdates, live.joinRoom, room, user.colour, user.name]);
+
+  // The word for the line is the site line's word: one connection, one truth.
+  useEffect(() => {
+    setStatus(live.status);
+  }, [live.status]);
 
   // The awareness keeps a timer, so it has to be destroyed when the page goes
   // — but a moment late. React's development mode mounts, unmounts and mounts

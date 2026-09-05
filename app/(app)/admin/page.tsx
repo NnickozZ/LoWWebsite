@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LivePage } from '@/components/live/LivePage';
 import { notFound } from 'next/navigation';
 import { asc, desc, eq } from 'drizzle-orm';
 import { AdminTabs, type AdminPane } from '@/components/admin/AdminTabs';
@@ -466,6 +467,7 @@ export default async function AdminPage({
 
   return (
     <div className="page">
+      <LivePage place="page:/admin" watch={['admin', 'types', 'words', 'site', 'users', 'entries', 'cases', 'boards', 'maps']} />
       <p className="eyebrow">{words.keeper}</p>
       <h1 style={{ marginBottom: 0 }}>{words.adminTitle}</h1>
       <AdminTabs panes={panes} />

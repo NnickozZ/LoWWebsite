@@ -7,7 +7,8 @@ import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
 import { visibleEntryCondition, type Viewer } from './visibility';
-import { publishSaved, resetRoom } from '@/lib/live/docs';
+import { publishSaved, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
+import { entryFieldsRoomKey } from '@/lib/live/keys';
 
 export type EntryTypeRow = {
   id: string;
@@ -579,13 +580,39 @@ export function updateEntry(
   const room = `entry:${entryId}:body`;
   if (patch.body !== undefined && !options.live) resetRoom(room, patch.body);
   const changed = Object.keys(values).filter((key) => key !== 'updatedAt' && key !== 'updatedBy' && key !== 'bodyText');
-  if (!options.live) publishSaved(room, user.id, changed);
+  if (!options.live) {
+    publishSaved(room, user.id, changed);
+    // §21: the short texts are shared too; a plain write brings their room into line.
+    const fields = liveFieldValues(
+      { name: values.name as string | undefined, shortDescription: values.shortDescription as string | undefined },
+      patch.fields !== undefined ? (values.fields as Record<string, unknown>) : undefined,
+    );
+    if (Object.keys(fields).length) resetFieldsInRoom(entryFieldsRoomKey(entryId), fields);
+  }
 
   return {
     status: 'saved',
     entry: getEntrySummaryById(entryId)!,
     updatedBy: entry.updatedBy,
   };
+}
+
+/**
+ * §21: the texts of an artikel that live in its `fields` room, in the room's
+ * names: `name`, `shortDescription`, and `field.<key>` for every string-valued
+ * infobox field. Only strings travel; a link or a list is not a text.
+ */
+export function liveFieldValues(
+  texts: { name?: string; shortDescription?: string },
+  fields?: Record<string, unknown>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (typeof texts.name === 'string') out.name = texts.name;
+  if (typeof texts.shortDescription === 'string') out.shortDescription = texts.shortDescription;
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    if (typeof value === 'string') out[`field.${key}`] = value;
+  }
+  return out;
 }
 
 export function softDeleteEntry(entryId: string, userId: string) {
@@ -657,6 +684,13 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
   logActivity({ actorId: user.id, verb: 'entry.restored_revision', entryId: revision.entryId });
   // §20: the shared document follows the archive, never the other way round.
   resetRoom(`entry:${revision.entryId}:body`, snapshot.body ?? null);
+  resetFieldsInRoom(
+    entryFieldsRoomKey(revision.entryId),
+    liveFieldValues(
+      { name: snapshot.name as string, shortDescription: snapshot.shortDescription as string },
+      (snapshot.fields as Record<string, unknown>) ?? {},
+    ),
+  );
   publishSaved(`entry:${revision.entryId}:body`, user.id, ['name', 'shortDescription', 'body', 'fields', 'tags', 'coverAssetId']);
   return revision.entryId;
 }

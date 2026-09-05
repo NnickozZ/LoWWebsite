@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { boardKey } from '@/lib/live/keys';
+import { LivePage } from '@/components/live/LivePage';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
@@ -30,7 +32,9 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const caseEntries = board.caseId ? listCaseEntries(board.caseId, user) : [];
 
   return (
-    <BoardCanvas
+    <>
+      <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
+      <BoardCanvas
       boardId={board.id}
       boardName={board.name}
       caseId={board.caseId}
@@ -68,5 +72,6 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         viewerId: user?.id ?? '',
       }}
     />
+    </>
   );
 }

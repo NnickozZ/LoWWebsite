@@ -473,6 +473,11 @@ Sixteen points, delivered together (see `DECISIONS.md`, Phase 6).
       (`uploadLimitFor`), checked on the declared size before the body is read
       and on the bytes that arrived; every upload route and every message say
       the limit that applies
+- [x] The web server's own ceiling is named, not hidden: every upload goes
+      through `lib/upload.ts`, a 413 without JSON reads "groter dan de
+      webserver toelaat", and Beheer → Site → *Uploadlimiet testen* posts
+      1.5 / 11 / 101 MB to `/api/health/upload` and prints the nginx line
+      (`client_max_body_size 100m;`) when one is refused
 
 ### Landkaarten
 

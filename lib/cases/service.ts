@@ -6,7 +6,8 @@ import type { AccessMode, CoverCrop } from '@/lib/db/schema';
 import { docToText } from '@/lib/entries/doc';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
-import { resetRoom } from '@/lib/live/docs';
+import { resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
+import { caseFieldsRoomKey } from '@/lib/live/keys';
 import { visibleCaseCondition } from './visibility';
 
 export type CaseStatus = 'open' | 'cold' | 'closed';
@@ -359,6 +360,13 @@ export function updateCase(
   logActivity({ actorId: user.id, verb: 'case.edited', caseId });
   // §20: the shared notes follow the archive when written around the room.
   if (patch.notes !== undefined && !options.live) resetRoom(`case:${caseId}:notes`, patch.notes);
+  // §21: so do the name and the one-liner, which are shared fields.
+  if (!options.live && (values.name !== undefined || values.summary !== undefined)) {
+    const fields: Record<string, string> = {};
+    if (typeof values.name === 'string') fields.name = values.name;
+    if (typeof values.summary === 'string') fields.summary = values.summary;
+    resetFieldsInRoom(caseFieldsRoomKey(caseId), fields);
+  }
   return getCaseById(caseId)!;
 }
 

@@ -6,6 +6,8 @@ import type { ReactNode } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { EntryPreview } from '@/components/EntryPreview';
 import { Icon } from '@/components/Icon';
+import { LiveProvider } from '@/components/live/LiveProvider';
+import { LiveStrip } from '@/components/live/LiveStrip';
 import { UiProvider, useUi, type EntryTypeLite } from '@/components/ui/UiProvider';
 import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
 import type { Words } from '@/lib/words';
@@ -122,11 +124,17 @@ export function AppShell({
 }) {
   return (
     <UiProvider types={types} words={words}>
-      <div className="shell">
-        <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} />
-        <main className="main">{children}</main>
-      </div>
-      <EntryPreview />
+      {/* §21: one live line per tab, for every page inside the shell. */}
+      <LiveProvider>
+        <div className="shell">
+          <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} />
+          <main className="main">
+            <LiveStrip />
+            {children}
+          </main>
+        </div>
+        <EntryPreview />
+      </LiveProvider>
     </UiProvider>
   );
 }

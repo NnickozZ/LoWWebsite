@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import { LiveField, useLiveFields } from '@/components/live/LiveFields';
 import type { FieldDef } from '@/lib/db/schema';
 import { EntryPicker, type EntryRef } from './EntryPicker';
 
@@ -59,6 +60,55 @@ function UserPicker({
   );
 }
 
+/**
+ * §21: a string field of the infobox. Inside a `<LiveFields>` room that this
+ * person may type in, the text is shared — every keystroke merges with
+ * everyone else's and the room saves. Otherwise it is what it was: typed
+ * locally, saved on blur.
+ */
+function StringField({
+  id,
+  fieldKey,
+  className,
+  value,
+  readOnly,
+  placeholder,
+  multiline = false,
+  onChange,
+}: {
+  id: string;
+  fieldKey: string;
+  className: string;
+  value: string;
+  readOnly: boolean;
+  placeholder?: string;
+  multiline?: boolean;
+  onChange: (patch: Values, meta?: { live: boolean }) => void;
+}) {
+  const room = useLiveFields();
+  const shared = Boolean(room?.canEdit);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => {
+    if (!shared) setDraft(value);
+  }, [value, shared]);
+  const common = {
+    id,
+    className,
+    field: `field.${fieldKey}`,
+    disabled: readOnly,
+    placeholder,
+    value: draft,
+    onValue: (next: string, meta: { live: boolean }) => {
+      setDraft(next);
+      if (meta.live) onChange({ [fieldKey]: next }, { live: true });
+    },
+    onBlur: () => {
+      if (!shared && draft !== value) onChange({ [fieldKey]: draft });
+    },
+  };
+  return multiline ? <LiveField as="textarea" {...common} /> : <LiveField {...common} />;
+}
+
 /** Renders the Keeper-configured fields for this entry type (§5). */
 export function FieldsEditor({
   fields,
@@ -70,7 +120,8 @@ export function FieldsEditor({
 }: {
   fields: FieldDef[];
   values: Values;
-  onChange: (patch: Values) => void;
+  /** `meta.live` says the room already saved this; the parent then skips its own save. */
+  onChange: (patch: Values, meta?: { live: boolean }) => void;
   readOnly?: boolean;
   /** The infobox shape: label beside value, smaller controls — for a sidebar. */
   compact?: boolean;
@@ -99,35 +150,37 @@ export function FieldsEditor({
             </label>
 
             {field.kind === 'text' && (
-              <input
+              <StringField
                 id={`field-${field.key}`}
+                fieldKey={field.key}
                 className="input"
-                disabled={readOnly}
-                defaultValue={typeof value === 'string' ? value : ''}
-                onBlur={(event) => set(event.target.value)}
+                readOnly={readOnly}
+                value={typeof value === 'string' ? value : ''}
+                onChange={onChange}
               />
             )}
 
             {field.kind === 'longtext' && (
-              <textarea
+              <StringField
                 id={`field-${field.key}`}
+                fieldKey={field.key}
                 className="textarea"
-                disabled={readOnly}
-                defaultValue={typeof value === 'string' ? value : ''}
-                onBlur={(event) => set(event.target.value)}
+                readOnly={readOnly}
+                multiline
+                value={typeof value === 'string' ? value : ''}
+                onChange={onChange}
               />
             )}
 
             {field.kind === 'date' && (
-              <input
+              <StringField
                 id={`field-${field.key}`}
+                fieldKey={field.key}
                 className="input"
-                type="text"
-                inputMode="text"
                 placeholder="bijv. 14 oktober 1934"
-                disabled={readOnly}
-                defaultValue={typeof value === 'string' ? value : ''}
-                onBlur={(event) => set(event.target.value)}
+                readOnly={readOnly}
+                value={typeof value === 'string' ? value : ''}
+                onChange={onChange}
               />
             )}
 

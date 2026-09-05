@@ -50,13 +50,27 @@ export type RoomEvent =
   | { event: 'persisted'; data: { at: number } }
   | { event: 'saved'; data: { by: string | null; keys: string[] } };
 
+/**
+ * Two kinds of room. `prose` is a ProseMirror document in one Y.XmlFragment —
+ * an artikel's body, a section, a dossier's notes. `fields` (§21) is the short
+ * texts of one record — a name, a one-line description, the text fields of the
+ * infobox — each a Y.Text under its own name, so ten people can type in the
+ * same name field and nobody's letters are lost. The seed and the persisted
+ * value are then a `Record<string, string>` instead of a document.
+ */
+export type RoomKind = 'prose' | 'fields';
+
 export type RoomSpec = {
   key: string;
-  /** The stored ProseMirror JSON to seed from when no Yjs state exists yet. */
+  kind?: RoomKind;
+  /** The stored value to seed from when no Yjs state exists yet: ProseMirror JSON, or the fields. */
   seed: () => unknown;
   /** Writes the shared document back into the archive, as this person. */
-  persist: (json: unknown, actor: { id: string; isKeeper: boolean }) => void;
+  persist: (value: unknown, actor: { id: string; isKeeper: boolean }) => void;
 };
+
+/** The fields of a `fields` room, as a plain object. */
+export type FieldValues = Record<string, string>;
 
 type Subscriber = {
   clientId: string;
@@ -141,6 +155,32 @@ function seedFragment(doc: Y.Doc, json: unknown) {
   }, 'seed');
 }
 
+function seedFields(doc: Y.Doc, values: unknown) {
+  const record = values && typeof values === 'object' ? (values as Record<string, unknown>) : {};
+  doc.transact(() => {
+    for (const [name, value] of Object.entries(record)) {
+      if (typeof value !== 'string') continue;
+      const text = doc.getText(name);
+      if (value) text.insert(0, value);
+    }
+  }, 'seed');
+}
+
+function seedRoom(doc: Y.Doc, spec: RoomSpec) {
+  if (spec.kind === 'fields') seedFields(doc, spec.seed());
+  else seedFragment(doc, spec.seed());
+}
+
+/** The fields of a room, as they stand. Every named Y.Text in the document is one. */
+export function roomFields(doc: Y.Doc): FieldValues {
+  const out: FieldValues = {};
+  for (const name of doc.share.keys()) {
+    if (name === FIELD) continue;
+    out[name] = doc.getText(name).toString();
+  }
+  return out;
+}
+
 function fanOut(room: Room, event: RoomEvent, exceptClientId?: string | null) {
   for (const subscriber of room.subscribers.values()) {
     if (exceptClientId && subscriber.clientId === exceptClientId) continue;
@@ -152,8 +192,9 @@ function fanOut(room: Room, event: RoomEvent, exceptClientId?: string | null) {
   }
 }
 
-/** The document, as the archive stores it. */
+/** The document, as the archive stores it: ProseMirror JSON, or the fields. */
 export function roomJSON(room: Room): unknown {
+  if (room.spec.kind === 'fields') return roomFields(room.doc);
   return yXmlFragmentToProsemirrorJSON(room.doc.getXmlFragment(FIELD));
 }
 
@@ -182,7 +223,7 @@ function openRoom(spec: RoomSpec): Room {
   const doc = new Y.Doc({ gc: true });
   const stored = loadState(spec.key);
   if (stored) Y.applyUpdate(doc, stored, 'load');
-  else seedFragment(doc, spec.seed());
+  else seedRoom(doc, spec);
 
   const awareness = new Awareness(doc);
   // The server is nobody in the room: no state of its own on the wire.
@@ -334,20 +375,60 @@ export function resetRoom(key: string, json: unknown) {
   forgetStoredState(key);
   const room = hub.rooms.get(key);
   if (!room) return;
-  const content = json && typeof json === 'object' ? json : { type: 'doc', content: [{ type: 'paragraph' }] };
-  try {
-    const node = PmNode.fromJSON(documentSchema(), content);
-    room.doc.transact(() => {
-      updateYFragment(room.doc, room.doc.getXmlFragment(FIELD), node, { mapping: new Map(), isOMark: new Map() });
-    }, 'reset');
-  } catch (err) {
-    console.error(`[live] reset failed for ${key}:`, err);
+  if (room.spec.kind === 'fields') {
+    resetFields(room, json);
+  } else {
+    const content = json && typeof json === 'object' ? json : { type: 'doc', content: [{ type: 'paragraph' }] };
+    try {
+      const node = PmNode.fromJSON(documentSchema(), content);
+      room.doc.transact(() => {
+        updateYFragment(room.doc, room.doc.getXmlFragment(FIELD), node, { mapping: new Map(), isOMark: new Map() });
+      }, 'reset');
+    } catch (err) {
+      console.error(`[live] reset failed for ${key}:`, err);
+    }
   }
   room.dirty = false;
   if (room.persistTimer) {
     clearTimeout(room.persistTimer);
     room.persistTimer = null;
   }
+  storeState(key, room.doc);
+}
+
+/**
+ * A `fields` room made to match the archive: only the fields given, and only
+ * where the text differs — a field nobody rewrote keeps every clock it had.
+ * Replacing a whole Y.Text is fine here (these are short strings, not prose),
+ * and the tabs see one update each.
+ */
+function resetFields(room: Room, values: unknown) {
+  const record = values && typeof values === 'object' ? (values as Record<string, unknown>) : {};
+  room.doc.transact(() => {
+    for (const [name, value] of Object.entries(record)) {
+      if (typeof value !== 'string') continue;
+      const text = room.doc.getText(name);
+      if (text.toString() === value) continue;
+      if (text.length) text.delete(0, text.length);
+      if (value) text.insert(0, value);
+    }
+  }, 'reset');
+}
+
+/**
+ * Only some fields of a record were rewritten around the room (a plain PATCH
+ * of the name, say). The room is brought into line for those and left alone
+ * for the rest; the stored Yjs state is rewritten, not dropped.
+ */
+export function resetFieldsInRoom(key: string, values: FieldValues) {
+  const room = hub.rooms.get(key);
+  if (!room) {
+    // Nobody has the room open: the archive is the truth and the next open
+    // seeds from it, as long as the stale stored state does not get in first.
+    forgetStoredState(key);
+    return;
+  }
+  resetFields(room, values);
   storeState(key, room.doc);
 }
 

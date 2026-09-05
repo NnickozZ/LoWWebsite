@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation';
+import { typePagePlace } from '@/lib/live/keys';
+import { LivePage } from '@/components/live/LivePage';
 import { EntryCard } from '@/components/EntryCard';
 import { NewOfTypeButton } from '@/components/NewOfTypeButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
@@ -41,6 +43,7 @@ export default async function BrowseTypePage({
 
   return (
     <div className="page-wide">
+      <LivePage place={typePagePlace(type.slug)} watch={['entries', 'types']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>
           <p className="eyebrow">De wiki</p>
