@@ -11,7 +11,7 @@ import { Icon } from '@/components/Icon';
 import { getSessionUser } from '@/lib/auth/session';
 import { db, schema } from '@/lib/db';
 import { relativeTime } from '@/lib/diff';
-import { listArchivedThings, listBoardRevisions, listCaseRevisions, listTrash } from '@/lib/admin/trash';
+import { destroyEffects, listArchivedThings, listBoardRevisions, listCaseRevisions, listTrash } from '@/lib/admin/trash';
 import { listTypesForAdmin } from '@/lib/admin/types';
 import { getWordOverrides } from '@/lib/admin/words';
 import { resolveWords } from '@/lib/words';
@@ -21,10 +21,10 @@ import {
   approveEditAction,
   regenerateInviteAction,
   rejectEditAction,
-  restoreAction,
   restoreBoardRevisionAction,
   restoreCaseRevisionAction,
 } from './actions';
+import { TrashRow } from './TrashRow';
 import { UserRow } from './UserRow';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +54,13 @@ const AUDIT_LABELS: Record<string, string> = {
   'case.restored_revision': 'eerdere versie van een dossier teruggezet',
   'board.restored': 'prikbord teruggezet',
   'board.restored_revision': 'eerdere versie van een prikbord teruggezet',
+  // §11: the only actions with nothing behind them. The audit row carries the
+  // name, because after this there is nothing left to look the name up in.
+  'entry.destroyed': 'artikel definitief gewist',
+  'case.destroyed': 'dossier definitief gewist',
+  'board.destroyed': 'prikbord definitief gewist',
+  'map.restored': 'landkaart teruggehangen',
+  'map.destroyed': 'landkaart definitief gewist',
   'entry_type.created': 'soort artikel aangemaakt',
   'entry_type.edited': 'soort artikel bewerkt',
   'entry_type.deleted': 'soort artikel verwijderd',
@@ -63,7 +70,12 @@ const AUDIT_LABELS: Record<string, string> = {
   'archive.exported': 'archief gedownload',
 };
 
-const TRASH_KINDS: Record<string, string> = { entry: 'Artikel', case: 'Dossier', board: 'Prikbord' };
+const TRASH_KINDS: Record<string, string> = {
+  entry: 'Artikel',
+  case: 'Dossier',
+  board: 'Prikbord',
+  map: 'Landkaart',
+};
 
 export default async function AdminPage({
   searchParams,
@@ -270,7 +282,9 @@ export default async function AdminPage({
         <>
           <h2 style={{ marginTop: 0 }}>{words.adminTrash}</h2>
           <p className="small muted">
-            Niets wordt echt gewist. Alles wat hier staat kun je terugzetten waar het stond.
+            Niets verdwijnt per ongeluk: alles wat hier staat kun je terugzetten waar het stond.
+            Wat hier echt weg moet, kan dat ook — dan vraagt het archief je de naam over te typen,
+            en daarna is het weg.
           </p>
           {!trash.length ? (
             <div className="empty">
@@ -279,29 +293,20 @@ export default async function AdminPage({
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {trash.map((item) => (
-                <li
+                <TrashRow
                   key={`${item.kind}-${item.id}`}
-                  className="row"
-                  style={{ borderBottom: '1px solid var(--rule)', padding: '0.5rem 0' }}
-                >
-                  <span className="chip">{TRASH_KINDS[item.kind]}</span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <strong>{item.name}</strong>
-                    {item.detail && (
-                      <span className="tiny muted clamp-2" style={{ display: 'block' }}>
-                        {item.detail}
-                      </span>
-                    )}
-                  </span>
-                  <span className="tiny muted">{relativeTime(item.deletedAt)}</span>
-                  <form action={restoreAction}>
-                    <input type="hidden" name="kind" value={item.kind} />
-                    <input type="hidden" name="id" value={item.id} />
-                    <button className="btn btn-small" type="submit">
-                      Terugzetten
-                    </button>
-                  </form>
-                </li>
+                  item={{
+                    id: item.id,
+                    kind: item.kind,
+                    kindLabel: TRASH_KINDS[item.kind],
+                    name: item.name,
+                    detail: item.detail,
+                    deletedAt: item.deletedAt,
+                    // Counted on the server, so the warning says what will
+                    // actually happen rather than what it usually would.
+                    effects: destroyEffects(item.kind, item.id),
+                  }}
+                />
               ))}
             </ul>
           )}

@@ -295,3 +295,89 @@ export function resolveBoardEntries(
   for (const row of rows) out.set(row.id, { ...row, missing: false });
   return out;
 }
+
+/**
+ * Everything a board's cards point at, as one parcel. The GET and the POST both
+ * answer with it, and the canvas keeps the three maps side by side, so a card
+ * of any kind knows what it stands for without three separate round trips.
+ */
+export type BoardRefs = {
+  entries: Record<string, BoardEntryFacts>;
+  maps: Record<string, BoardMapFacts>;
+  cases: Record<string, BoardCaseFacts>;
+};
+
+/**
+ * What a landkaart card shows. Same shape and the same rule as an entry card:
+ * only an id is on the wall, and what it stands for is looked up here.
+ *
+ * Every signed-in person may look at every landkaart (§19), so the only thing
+ * this filters out is a map that has been taken down — which then reads as
+ * MISSING, exactly like a deleted artikel.
+ */
+export type BoardMapFacts = {
+  id: string;
+  slug: string;
+  name: string;
+  assetId: string | null;
+  missing: boolean;
+};
+
+export function resolveBoardMaps(mapIds: string[], _viewer: Viewer): Map<string, BoardMapFacts> {
+  const out = new Map<string, BoardMapFacts>();
+  const ids = [...new Set(mapIds.filter(Boolean))];
+  if (!ids.length) return out;
+
+  const rows = db
+    .select({
+      id: schema.maps.id,
+      slug: schema.maps.slug,
+      name: schema.maps.name,
+      assetId: schema.maps.assetId,
+    })
+    .from(schema.maps)
+    .where(and(inArray(schema.maps.id, ids), isNull(schema.maps.deletedAt)))
+    .all();
+
+  for (const row of rows) out.set(row.id, { ...row, missing: false });
+  return out;
+}
+
+/**
+ * What a dossier card shows. This one really does depend on the viewer: a
+ * dossier's view dial is a dial people turn, and a wall that printed the name
+ * of a dossier somebody may not open would give it away in one word. So the
+ * card comes back MISSING instead — the same blank the archive shows for a
+ * Keeper-only artikel, and for the same reason.
+ */
+export type BoardCaseFacts = {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  assetId: string | null;
+  crop: unknown;
+  missing: boolean;
+};
+
+export function resolveBoardCases(caseIds: string[], viewer: Viewer): Map<string, BoardCaseFacts> {
+  const out = new Map<string, BoardCaseFacts>();
+  const ids = [...new Set(caseIds.filter(Boolean))];
+  if (!ids.length) return out;
+
+  const rows = db
+    .select({
+      id: schema.cases.id,
+      slug: schema.cases.slug,
+      name: schema.cases.name,
+      status: schema.cases.status,
+      assetId: schema.cases.coverAssetId,
+      crop: schema.cases.coverCrop,
+    })
+    .from(schema.cases)
+    .where(and(inArray(schema.cases.id, ids), visibleCaseCondition(viewer)))
+    .all();
+
+  for (const row of rows) out.set(row.id, { ...row, missing: false });
+  return out;
+}

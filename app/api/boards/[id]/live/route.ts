@@ -7,11 +7,11 @@ import {
   clearPresence,
   publishPointer,
   publishPresence,
+  readPointerFrame,
   setPresence,
   subscribe,
   touchPresence,
   type LiveEvent,
-  type PointerFrame,
 } from '@/lib/boards/live';
 
 export const dynamic = 'force-dynamic';
@@ -135,28 +135,6 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   }
 }
 
-const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
-
-/**
- * Reads a pointer frame off the wire and keeps it to numbers the board can
- * draw: a coordinate, or nothing; at most forty cards being carried at once.
- */
-function pointerFrame(clientId: string, body: { cursor?: unknown; moving?: unknown }): PointerFrame {
-  const cursor = body.cursor as { x?: unknown; y?: unknown } | null | undefined;
-  const x = cursor && finite(cursor.x) ? Math.round(cursor.x) : null;
-  const y = cursor && finite(cursor.y) ? Math.round(cursor.y) : null;
-  const m: PointerFrame['m'] = {};
-  if (body.moving && typeof body.moving === 'object') {
-    for (const [cardId, at] of Object.entries(body.moving as Record<string, unknown>).slice(0, 40)) {
-      const point = at as { x?: unknown; y?: unknown } | null;
-      if (point && finite(point.x) && finite(point.y) && cardId.length <= 40) {
-        m[cardId] = [Math.round(point.x), Math.round(point.y)];
-      }
-    }
-  }
-  return { c: clientId, x, y, m };
-}
-
 /**
  * The client's half of the line. Two kinds of message come up it:
  *
@@ -182,13 +160,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       leaving?: boolean;
       cursor?: unknown;
       moving?: unknown;
+      selection?: unknown;
     };
     const clientId = String(body.clientId ?? '').slice(0, 40);
     if (!clientId) return json({ error: 'Geen client-id.' }, { status: 400 });
 
-    const isFrame = body.cursor !== undefined || body.moving !== undefined;
+    const isFrame =
+      body.cursor !== undefined || body.moving !== undefined || body.selection !== undefined;
     if (isFrame && touchPresence(id, clientId, user.id)) {
-      publishPointer(id, pointerFrame(clientId, body));
+      publishPointer(id, readPointerFrame(clientId, body));
       return new Response(null, { status: 204 });
     }
 
@@ -200,7 +180,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       // A frame from a tab the hub had forgotten (reaped, or the server
       // restarted under it): put it back on the roster, then let it through.
       setPresence(id, { clientId, userId: user.id, name: shownName });
-      publishPointer(id, pointerFrame(clientId, body));
+      publishPointer(id, readPointerFrame(clientId, body));
       return new Response(null, { status: 204 });
     }
 

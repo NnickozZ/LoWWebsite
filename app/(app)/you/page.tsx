@@ -108,7 +108,7 @@ export default async function YouPage() {
           <hr className="rule" />
           <h2 id="lezen-of-bewerken">Lezen of bewerken</h2>
           <p className="small muted">
-            Hoe een {words.entry} opengaat als je erop klikt.
+            Hoe een {words.entry} of een {words.case} opengaat als je erop klikt.
           </p>
           <ArticleModeForm current={user.articleMode} isKeeper={user.isKeeper} />
         </>

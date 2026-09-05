@@ -4,8 +4,15 @@ import { LivePage } from '@/components/live/LivePage';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
-import { getBoard, resolveBoardEntries } from '@/lib/boards/service';
-import { listCaseEntries } from '@/lib/cases/service';
+import {
+  getBoard,
+  resolveBoardCases,
+  resolveBoardEntries,
+  resolveBoardMaps,
+} from '@/lib/boards/service';
+import { cardRef } from '@/lib/boards/merge';
+import { listCaseEntries, listCases } from '@/lib/cases/service';
+import { listMaps } from '@/lib/maps/service';
 import type { CoverCrop } from '@/lib/db/schema';
 
 export const dynamic = 'force-dynamic';
@@ -22,9 +29,20 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const mayEdit = canEdit(board, user, grant);
   const mayManage = canManageAccess(board, user);
 
-  const entryIds = board.state.cards
-    .filter((card) => card.kind === 'entry' && card.entryId)
-    .map((card) => card.entryId as string);
+  // Everything the wall points at, grouped by what kind of thing it is. Each
+  // list is resolved behind its own visibility rule below.
+  const refs = { entry: [] as string[], map: [] as string[], case: [] as string[] };
+  for (const card of board.state.cards) {
+    const ref = cardRef(card);
+    if (ref) refs[ref.kind].push(ref.id);
+  }
+
+  // What can still be put on the wall, for the search box in the board bar.
+  // Both lists are already filtered for this viewer, and both are small enough
+  // to hand over whole — a landkaart or a dossier is a thing you have a dozen
+  // of, not a thousand.
+  const pickableMaps = listMaps(user).map((map) => ({ id: map.id, name: map.name }));
+  const pickableCases = listCases(user).map((item) => ({ id: item.id, name: item.name }));
 
   // What this case already holds. Two things need it: the prompt that offers
   // to file a pinned entry, and the tray of everything in the case that is not
@@ -53,7 +71,11 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         typeBorder: entry.typeBorder,
       }))}
       initialState={board.state}
-      initialEntries={Object.fromEntries(resolveBoardEntries(entryIds, user))}
+      initialEntries={Object.fromEntries(resolveBoardEntries(refs.entry, user))}
+      initialMaps={Object.fromEntries(resolveBoardMaps(refs.map, user))}
+      initialCases={Object.fromEntries(resolveBoardCases(refs.case, user))}
+      pickableMaps={pickableMaps}
+      pickableCases={pickableCases}
       readOnly={!mayEdit}
       access={{
         settings:

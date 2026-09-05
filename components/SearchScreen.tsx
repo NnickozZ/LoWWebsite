@@ -6,6 +6,7 @@ import { Thumb } from './Cover';
 import { Icon } from './Icon';
 import { useUi } from './ui/UiProvider';
 import type { EntrySummary } from '@/lib/entries/service';
+import { entryDisplayName } from '@/lib/entries/caseName';
 
 type Results = { names: EntrySummary[]; bodies: EntrySummary[] };
 
@@ -26,7 +27,7 @@ function ResultRow({ entry }: { entry: EntrySummary }) {
         colour={entry.typeColour}
       />
       <span style={{ flex: 1, minWidth: 0 }}>
-        <strong>{entry.name}</strong>
+        <strong>{entryDisplayName(entry.name, entry.originCaseName)}</strong>
         <span className="tiny muted clamp-2" style={{ display: 'block' }}>
           {entry.shortDescription}
         </span>

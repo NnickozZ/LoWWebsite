@@ -25,6 +25,8 @@ export type TypeRow = {
   /** This soort's own wording for the few shared sentences that read badly. */
   pageText: TypeText;
   sortOrder: number;
+  /** §24: this soort is only made inside a dossier. */
+  caseOnly: boolean;
   /** How many entries are filed under it — a type in use should not vanish quietly. */
   entryCount: number;
 };
@@ -50,6 +52,7 @@ export function listTypesForAdmin(): TypeRow[] {
     blocks: resolveBlocks(type.blocks),
     pageText: cleanTypeText(type.pageText),
     sortOrder: type.sortOrder,
+    caseOnly: Boolean(type.caseOnly),
     entryCount: counts.get(type.id) ?? 0,
   }));
 }
@@ -63,6 +66,7 @@ export type TypePatch = Partial<{
   blocks: unknown;
   pageText: unknown;
   sortOrder: number;
+  caseOnly: boolean;
 }>;
 
 export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
@@ -86,6 +90,7 @@ export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
   if (patch.blocks !== undefined) values.blocks = cleanBlocks(patch.blocks);
   if (patch.pageText !== undefined) values.pageText = cleanTypeText(patch.pageText);
   if (patch.sortOrder !== undefined) values.sortOrder = patch.sortOrder;
+  if (patch.caseOnly !== undefined) values.caseOnly = patch.caseOnly;
   if (!Object.keys(values).length) return;
 
   db.update(schema.entryTypes).set(values).where(eq(schema.entryTypes.id, typeId)).run();

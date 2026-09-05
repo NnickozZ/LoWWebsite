@@ -14,6 +14,7 @@ import { capitalise } from '@/lib/words';
 import {
   boardBounds,
   CARD_SIZE,
+  cardRef,
   cardSize,
   endpointsEqual,
   headOf,
@@ -28,13 +29,20 @@ import {
   type StringColour,
   type Viewport,
 } from '@/lib/boards/merge';
-import type { BoardEntryFacts } from '@/lib/boards/service';
-import { BoardCardView, CARD_WIDTH, cardBorder, cardImage } from './BoardCard';
+import type {
+  BoardCaseFacts,
+  BoardEntryFacts,
+  BoardMapFacts,
+  BoardRefs,
+} from '@/lib/boards/service';
+import { BoardCardView, CARD_WIDTH, cardBorder, cardImage, subjectOf } from './BoardCard';
 import { BoardInspector } from './BoardInspector';
 import { BoardTray, type TrayEntry } from './BoardTray';
+import { offerToFileEntry } from './offerToFile';
 import { syncLabel, useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
 import { uploadForm } from '@/lib/upload';
+import { fuzzyScore } from '@/lib/search/fuzzy';
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
@@ -91,6 +99,10 @@ export function BoardCanvas({
   caseEntries,
   initialState,
   initialEntries,
+  initialMaps,
+  initialCases,
+  pickableMaps,
+  pickableCases,
   readOnly,
   access,
 }: {
@@ -112,6 +124,18 @@ export function BoardCanvas({
   caseEntries: TrayEntry[];
   initialState: BoardState;
   initialEntries: Record<string, BoardEntryFacts>;
+  /** §19: the landkaarten this wall points at, resolved for this viewer. */
+  initialMaps: Record<string, BoardMapFacts>;
+  /** §7: the dossiers it points at — a dossier card is a card like any other. */
+  initialCases: Record<string, BoardCaseFacts>;
+  /**
+   * What could still be put on the wall. Both lists are already filtered for
+   * this viewer on the server, and both are small enough to hand over whole:
+   * you have a dozen landkaarten, not a thousand, so the search box matches
+   * them here instead of asking.
+   */
+  pickableMaps: { id: string; name: string }[];
+  pickableCases: { id: string; name: string }[];
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -120,6 +144,8 @@ export function BoardCanvas({
   const [cards, setCards] = useState<BoardCard[]>(initialState.cards);
   const [strings, setStrings] = useState<BoardString[]>(initialState.strings);
   const [entries, setEntries] = useState<Record<string, BoardEntryFacts>>(initialEntries);
+  const [maps, setMaps] = useState<Record<string, BoardMapFacts>>(initialMaps);
+  const [caseFacts, setCaseFacts] = useState<Record<string, BoardCaseFacts>>(initialCases);
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
@@ -199,10 +225,12 @@ export function BoardCanvas({
    * because "the merge came back from my save" and "the merge came back because
    * Bram moved something" want exactly the same thing done with them.
    */
-  const applyRemote = useCallback((state: BoardState, freshEntries: Record<string, BoardEntryFacts>) => {
+  const applyRemote = useCallback((state: BoardState, refs: BoardRefs) => {
     setCards(state.cards);
     setStrings(state.strings);
-    setEntries((current) => ({ ...current, ...freshEntries }));
+    setEntries((current) => ({ ...current, ...refs.entries }));
+    setMaps((current) => ({ ...current, ...refs.maps }));
+    setCaseFacts((current) => ({ ...current, ...refs.cases }));
     // A card someone else deleted must not stay selected here: the inspector
     // would be editing something that no longer exists.
     const alive = new Set(state.cards.map((card) => card.id));
@@ -244,6 +272,17 @@ export function BoardCanvas({
       setName((current) => (current === remoteName ? current : remoteName));
     },
   });
+
+  /**
+   * One card, resolved. Everything that has to know what a card *is* — the
+   * card itself, the inspector, the double-click that opens it — asks this,
+   * so there is one place that knows how the three kinds are looked up.
+   */
+  const refs = useMemo<BoardRefs>(
+    () => ({ entries, maps, cases: caseFacts }),
+    [entries, maps, caseFacts],
+  );
+  const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
   const pushUndo = useCallback(() => {
     undoStack.current.push({ cards, strings });
@@ -437,6 +476,8 @@ export function BoardCanvas({
       const spot = freeSpotNear(centre.x, centre.y, cardSize(card));
       const placed: BoardCard = {
         entryId: null,
+        mapId: null,
+        caseId: null,
         assetId: null,
         crop: null,
         border: null,
@@ -520,43 +561,21 @@ export function BoardCanvas({
    * A board hanging off a case is that case's wall. Pinning someone to it
    * almost always means they belong in the file too — but not always, so this
    * asks rather than doing it, and only when the entry is not already filed.
+   *
+   * The question itself lives in `offerToFile.tsx`, because the same one has to
+   * be asked from the artikel page's "Op het prikbord" as well, in the same
+   * words. Whichever card is put on whichever wall, the archive asks once.
    */
   const offerToFile = useCallback(
     (entryId: string, entryName: string) => {
       if (!caseId || filed.current.has(entryId)) return;
-      const words = ui.words;
-      const dossier = caseName ?? `dit ${words.case}`;
-      // A sheet, not a toast: this is the one question the wall has to ask,
-      // and a line in the corner was too easy to miss.
-      void ui
-        .confirm({
-          title: `${entryName} zit nog niet in ${dossier}`,
-          message: (
-            <>
-              De {words.card} hangt nu op het {words.board}. Wil je {entryName} ook bij de{' '}
-              {words.entryPlural} van {dossier} zetten?
-            </>
-          ),
-          confirmLabel: `Toevoegen aan ${words.case}`,
-          cancelLabel: 'Alleen prikken',
-        })
-        .then((yes) => {
-          if (!yes) return;
-          filed.current.add(entryId);
-          void fetch(`/api/cases/${caseId}/entries`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ entryId }),
-          }).then((response) => {
-            if (response.ok) {
-              ui.toast(`${entryName} toegevoegd aan ${dossier}.`);
-              router.refresh();
-            } else {
-              filed.current.delete(entryId);
-              ui.toast('Opslaan is niet gelukt. Probeer het opnieuw.');
-            }
-          });
-        });
+      // Booked in optimistically so a second card of the same entry, placed
+      // while the sheet is open, does not ask the same question twice.
+      filed.current.add(entryId);
+      void offerToFileEntry(ui, { caseId, caseName, entryId, entryName }).then((done) => {
+        if (done) router.refresh();
+        else filed.current.delete(entryId);
+      });
     },
     [caseId, caseName, router, ui],
   );
@@ -795,6 +814,19 @@ export function BoardCanvas({
     if (marquee) {
       const point = toBoard(event.clientX, event.clientY);
       setMarquee({ ...marquee, x1: point.x, y1: point.y });
+      // §8, live: a box dragged round half the wall is something you are doing
+      // *to* a board somebody else is working on. They should see it happen,
+      // not only see six cards light up when it closes.
+      if (live.state === 'live') {
+        live.reportPointer({
+          selection: [
+            Math.round(marquee.x0),
+            Math.round(marquee.y0),
+            Math.round(point.x),
+            Math.round(point.y),
+          ],
+        });
+      }
     }
   }
 
@@ -912,6 +944,9 @@ export function BoardCanvas({
         .map((card) => card.id);
       setSelected(new Set(hit));
       setMarquee(null);
+      // The box is closed; take it off everyone else's wall. The selection it
+      // made shows up as the coloured borders presence already draws.
+      if (live.state === 'live') live.reportPointer({ selection: null });
     }
   }
 
@@ -1147,6 +1182,73 @@ export function BoardCanvas({
     [addCard],
   );
 
+  /**
+   * A landkaart or a dossier on the wall. Same card, same drag, same string —
+   * only the id it carries is different, and what it stands for is looked up
+   * per viewer like everything else.
+   */
+  const placeMap = useCallback(
+    (map: { id: string; name: string }) => {
+      setMaps((current) =>
+        current[map.id]
+          ? current
+          : { ...current, [map.id]: { id: map.id, slug: '', name: map.name, assetId: null, missing: false } },
+      );
+      addCard({ id: newCardId(), kind: 'map', mapId: map.id, name: map.name, text: '' });
+      setSearch('');
+      setSuggestions([]);
+      // The slug and the picture come back with the next pull; until then the
+      // card shows its name, which is what was just typed.
+      void sync.saveNow();
+    },
+    [addCard, sync],
+  );
+
+  const placeCase = useCallback(
+    (item: { id: string; name: string }) => {
+      setCaseFacts((current) =>
+        current[item.id]
+          ? current
+          : {
+              ...current,
+              [item.id]: {
+                id: item.id,
+                slug: '',
+                name: item.name,
+                status: 'open',
+                assetId: null,
+                crop: null,
+                missing: false,
+              },
+            },
+      );
+      addCard({ id: newCardId(), kind: 'case', caseId: item.id, name: item.name, text: '' });
+      setSearch('');
+      setSuggestions([]);
+      void sync.saveNow();
+    },
+    [addCard, sync],
+  );
+
+  /** Landkaarten and dossiers matching what is typed, and not already up. */
+  const otherMatches = useMemo(() => {
+    const typed = search.trim();
+    if (!typed) return { maps: [], cases: [] };
+    const onWall = {
+      map: new Set(cards.filter((card) => card.kind === 'map').map((card) => card.mapId)),
+      case: new Set(cards.filter((card) => card.kind === 'case').map((card) => card.caseId)),
+    };
+    const pick = <T extends { id: string; name: string }>(list: T[], up: Set<unknown>) =>
+      list
+        .filter((item) => !up.has(item.id))
+        .map((item) => ({ item, score: fuzzyScore(item.name, typed) }))
+        .filter((row) => row.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map((row) => row.item);
+    return { maps: pick(pickableMaps, onWall.map), cases: pick(pickableCases, onWall.case) };
+  }, [search, cards, pickableMaps, pickableCases]);
+
   /** Everything in the case that is not already a card on this wall. */
   const trayEntries = useMemo(() => {
     const onWall = new Set(
@@ -1188,6 +1290,38 @@ export function BoardCanvas({
     offerToFile(entryId, entryName);
   }
 
+  /**
+   * §11: a prikbord into the bin. It had no way out at all — a wall made by
+   * mistake stayed on the shelf for ever — and every other thing the archive
+   * makes has one. Soft, like the rest: a Keeper puts it back from Beheer, or
+   * takes it off the shelf for good after typing its name.
+   */
+  const [removing, setRemoving] = useState(false);
+  const removeBoard = useCallback(async () => {
+    const yes = await ui.confirm({
+      title: `${name || `Dit ${ui.words.board}`} weggooien?`,
+      message: (
+        <>
+          Het {ui.words.board} gaat naar de prullenbak; een {ui.words.keeper} kan het terugzetten.
+          De {ui.words.entryPlural} die eraan hangen blijven gewoon staan — alleen deze muur
+          verdwijnt.
+        </>
+      ),
+      confirmLabel: 'Naar de prullenbak',
+      danger: true,
+    });
+    if (!yes) return;
+    setRemoving(true);
+    const response = await fetch(`/api/boards/${boardId}`, { method: 'DELETE' }).catch(() => null);
+    if (!response?.ok) {
+      setRemoving(false);
+      ui.toast('Weggooien is niet gelukt.');
+      return;
+    }
+    router.push(caseSlug ? `/c/${caseSlug}` : '/boards');
+    router.refresh();
+  }, [boardId, caseSlug, name, router, ui]);
+
   /* ------------------------------------------------------------- render */
 
   const world = {
@@ -1197,8 +1331,8 @@ export function BoardCanvas({
 
   const drawingAnchor = drawing ? pointOf(drawing.anchor) : null;
   const singleSelected = selectedCards.length === 1 ? selectedCards[0] : null;
-  const selectedEntry = singleSelected?.entryId ? entries[singleSelected.entryId] : undefined;
-  const selectedImage = singleSelected ? cardImage(singleSelected, selectedEntry) : null;
+  const selectedSubject = singleSelected ? subjectFor(singleSelected) : undefined;
+  const selectedImage = singleSelected ? cardImage(singleSelected, selectedSubject) : null;
 
   /** Every loose end on the board, so a string never stops in mid-air. */
   const anchors = useMemo(() => {
@@ -1302,19 +1436,34 @@ export function BoardCanvas({
         >
           Ongedaan maken
         </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            disabled={removing}
+            onClick={() => void removeBoard()}
+            title={`Dit ${ui.words.board} naar de prullenbak`}
+            /* The word is hidden on a phone, where the bar is crowded, so the
+               button needs a name of its own — an icon is not a label. */
+            aria-label={`${capitalise(ui.words.board)} verwijderen`}
+          >
+            <Icon name="trash" size={14} />
+            <span className="board-bar-wide-only">{capitalise(ui.words.board)} verwijderen</span>
+          </button>
+        )}
       </div>
 
       {!readOnly && (
       <div className="board-tools">
         <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 0 }}>
           <label className="visually-hidden" htmlFor="board-search">
-            Kaart toevoegen
+            {capitalise(ui.words.card)} toevoegen
           </label>
           <input
             id="board-search"
             className="input"
             value={search}
-            placeholder={`Zoek een ${ui.words.entry}, of typ een naam voor een ${ui.words.note}…`}
+            placeholder={`Zoek een ${ui.words.entry}, een landkaart of een ${ui.words.case}…`}
             onChange={(event) => setSearch(event.target.value)}
           />
           {search.trim() && (
@@ -1334,6 +1483,36 @@ export function BoardCanvas({
                       <strong>{item.name}</strong>
                       <span className="tiny muted" style={{ display: 'block' }}>
                         {item.typeLabel}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+
+              {/* The other two things this archive holds that a wall might
+                  want to point at. Matched here rather than asked for: you
+                  have a dozen landkaarten, not a thousand. */}
+              {otherMatches.maps.map((item) => (
+                <li key={`map-${item.id}`}>
+                  <button type="button" className="suggest-item" onClick={() => placeMap(item)}>
+                    <Icon name="map" size={16} style={{ color: 'var(--ink-muted)' }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <strong>{item.name}</strong>
+                      <span className="tiny muted" style={{ display: 'block' }}>
+                        Landkaart
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {otherMatches.cases.map((item) => (
+                <li key={`case-${item.id}`}>
+                  <button type="button" className="suggest-item" onClick={() => placeCase(item)}>
+                    <Icon name="folder" size={16} style={{ color: 'var(--ink-muted)' }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <strong>{item.name}</strong>
+                      <span className="tiny muted" style={{ display: 'block' }}>
+                        {capitalise(ui.words.case)}
                       </span>
                     </span>
                   </button>
@@ -1515,7 +1694,7 @@ export function BoardCanvas({
               key={card.id}
               card={card}
               carried={live.carried.has(card.id) && !selected.has(card.id)}
-              entry={card.entryId ? entries[card.entryId] : undefined}
+              subject={subjectFor(card)}
               selected={selected.has(card.id)}
               interactive={interactive}
               cropping={croppingId === card.id}
@@ -1525,8 +1704,8 @@ export function BoardCanvas({
               onTextChange={(text) => !readOnly && patchCard(card.id, { text })}
               onOpen={() => {
                 if (dragMoved.current) return;
-                const entry = card.entryId ? entries[card.entryId] : undefined;
-                if (entry) router.push(`/e/${entry.slug}`);
+                const subject = subjectFor(card);
+                if (subject) router.push(subject.href);
               }}
               onViewFull={() => {
                 if (dragMoved.current) return;
@@ -1536,6 +1715,9 @@ export function BoardCanvas({
                 ui.openNewEntry({
                   name: card.name,
                   shortDescription: card.text,
+                  // §24: a wall that hangs off a dossier is that dossier's, so
+                  // an artikel made here is made in it.
+                  caseId: caseId ?? undefined,
                   onCreated: (created) => {
                     setEntries((current) => ({
                       ...current,
@@ -1632,6 +1814,23 @@ export function BoardCanvas({
             arrow is an arrow at every zoom, and eased between frames so
             sixteen frames a second read as one movement.
           */}
+          {live.marquees.map((box) => (
+            <div
+              key={`marquee-${box.clientId}`}
+              className="board-marquee board-marquee-other"
+              aria-hidden="true"
+              style={{
+                left: box.x,
+                top: box.y,
+                width: box.width,
+                height: box.height,
+                ['--marquee-colour' as string]: box.colour,
+              }}
+            >
+              <span className="board-marquee-name">{box.name}</span>
+            </div>
+          ))}
+
           {live.pointers.map((pointer) => (
             <div
               key={pointer.clientId}
@@ -1694,15 +1893,21 @@ export function BoardCanvas({
           canCrop={Boolean(singleSelected?.showImage && selectedImage?.assetId)}
           hasOwnPhoto={Boolean(singleSelected?.assetId)}
           inheritedBorderLabel={
-            selectedEntry?.typeBorder ? borderLabel(selectedEntry.typeBorder) : null
+            selectedSubject?.border ? borderLabel(selectedSubject.border) : null
           }
           borderValue={
             singleSelected
               ? (singleSelected.border ??
-                (selectedEntry ? '' : cardBorder(singleSelected, selectedEntry)))
+                (selectedSubject ? '' : cardBorder(singleSelected, selectedSubject)))
               : ''
           }
-          canOpenEntry={Boolean(selectedEntry)}
+          openLabel={
+            selectedSubject
+              ? selectedSubject.kind === 'entry'
+                ? `${capitalise(ui.words.entry)} openen`
+                : `${capitalise(selectedSubject.noun)} openen`
+              : null
+          }
           onLabelChange={(label) => selectedString && patchString(selectedString.id, { label })}
           onColourChange={(colour: StringColour) =>
             selectedString && patchString(selectedString.id, { colour })
@@ -1722,7 +1927,7 @@ export function BoardCanvas({
           }
           onBorderChange={(border) => singleSelected && patchCard(singleSelected.id, { border })}
           onRename={(name) => singleSelected && patchCard(singleSelected.id, { name })}
-          onOpenEntry={() => selectedEntry && router.push(`/e/${selectedEntry.slug}`)}
+          onOpenEntry={() => selectedSubject && router.push(selectedSubject.href)}
           onRemoveCards={() => removeCards(selectedCards.map((card) => card.id))}
           onClose={() => {
             setSelected(new Set());

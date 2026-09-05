@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, inviteCode, signIn } from './helpers';
+import { editArticle, inviteCode, openRights, signIn } from './helpers';
 
 /**
  * Phase 3 (§9–§11) beyond golden flow 5: entry-level visibility and its leaks,
@@ -36,7 +36,7 @@ test('a Keeper-only entry leaks nowhere', async ({ page, browser }, testInfo) =>
   await page.getByLabel('Korte beschrijving').fill('Waar het water vandaan komt.');
   await page.getByLabel('Korte beschrijving').blur();
 
-  await page.locator('summary', { hasText: 'Zichtbaarheid en onthullingen' }).click();
+  await openRights(page);
   await page.getByRole('button', { name: 'Alleen de Keeper' }).click();
   await expect(page.locator('.stamp', { hasText: 'Alleen voor de Keeper' })).toBeVisible();
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
@@ -77,7 +77,7 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
   await page.getByLabel('Korte beschrijving').blur();
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
-  await page.locator('summary', { hasText: 'Zichtbaarheid en onthullingen' }).click();
+  await openRights(page);
   await page.getByRole('button', { name: 'Open voor iedereen' }).click();
   await expect(page.locator('.chip', { hasText: 'Vergrendeld' }).first()).toBeVisible();
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });

@@ -8,6 +8,7 @@ import { requireKeeper } from '@/lib/auth/session';
 import { logAudit } from '@/lib/entries/service';
 import { approvePendingEdit, rejectPendingEdit } from '@/lib/entries/review';
 import {
+  destroyFromTrash,
   restoreBoardRevision,
   restoreCaseRevision,
   restoreFromTrash,
@@ -120,10 +121,46 @@ export async function restoreAction(formData: FormData) {
   const keeper = await requireKeeper();
   const kind = String(formData.get('kind') ?? '');
   const id = String(formData.get('id') ?? '');
-  if (kind !== 'entry' && kind !== 'case' && kind !== 'board') return;
+  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map') return;
   restoreFromTrash(kind, id, keeper.id);
   revalidatePath('/admin');
   revalidatePath('/');
+}
+
+/**
+ * §11: the bottom of the bin. Only a Keeper, only for something already in the
+ * bin, and only when the name has been typed back exactly — the same guard
+ * GitHub puts on deleting a repository, for the same reason: this is the one
+ * button in the archive with nothing behind it.
+ *
+ * The comparison is done here rather than in the browser, because a disabled
+ * button is a courtesy and a server check is a rule.
+ */
+export async function destroyAction(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const keeper = await requireKeeper();
+  const kind = String(formData.get('kind') ?? '');
+  const id = String(formData.get('id') ?? '');
+  const typed = String(formData.get('confirmName') ?? '').trim();
+  const expected = String(formData.get('name') ?? '').trim();
+
+  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map') {
+    return { error: 'Onbekend soort.' };
+  }
+  // Case-insensitive, whitespace-collapsed: this is a guard against acting
+  // without thinking, not a spelling test.
+  const same = (value: string) => value.replace(/\s+/g, ' ').toLocaleLowerCase('nl');
+  if (!typed || same(typed) !== same(expected)) {
+    return { error: 'De naam klopt nog niet. Typ hem precies over om dit definitief te wissen.' };
+  }
+
+  try {
+    const name = destroyFromTrash(kind, id, keeper.id);
+    revalidatePath('/admin');
+    revalidatePath('/');
+    return { ok: `${name} is definitief gewist.` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Wissen is niet gelukt.' };
+  }
 }
 
 export async function restoreCaseRevisionAction(formData: FormData) {
@@ -212,6 +249,9 @@ export async function saveTypeAction(_prev: AdminState, formData: FormData): Pro
         icon: String(formData.get('icon') ?? ''),
         colour: String(formData.get('colour') ?? ''),
         border: String(formData.get('border') ?? ''),
+        // §24: a checkbox is absent from the body when it is off, so the empty
+        // string is the "no" — not a missing value.
+        caseOnly: Boolean(String(formData.get('caseOnly') ?? '')),
         fields,
         blocks,
         pageText,

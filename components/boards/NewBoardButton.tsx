@@ -58,7 +58,11 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
         title="Iedereen mag kijken en prikken"
       >
         <Icon name="plus" size={15} />
-        Openbaar {ui.words.board}
+        {/* Inside a dossier there is only one wall worth making, and it is
+            this dossier's — so the button says what it does rather than what
+            its rights are. On the prikborden-pagina, where the choice really is
+            openbaar or privé, it keeps the old word. */}
+        {caseId ? `Maak nieuw ${ui.words.board} voor dit ${ui.words.case}` : `Openbaar ${ui.words.board}`}
       </button>
       <button
         type="button"

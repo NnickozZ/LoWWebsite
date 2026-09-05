@@ -318,6 +318,54 @@ export function caseHasEntry(caseId: string, entryId: string): boolean {
   );
 }
 
+/**
+ * §21: a dossier as an infobox field names it.
+ *
+ * Only the id is stored in the field. The name is looked up here, per viewer,
+ * behind the same `visibleCaseCondition` every other read uses — because a
+ * dossier's name is not public: "Vertrouwelijk" and "Privé" are dials people
+ * actually turn, and an artikel that printed the name of a dossier the reader
+ * may not open would give it away in one word. An id that resolves to nothing
+ * is simply left out, exactly as `listCasesForEntry` leaves it out.
+ */
+export type CaseRef = { id: string; name: string; slug: string; status: CaseStatus };
+
+export function resolveCaseRefs(ids: string[], viewer: Viewer): Record<string, CaseRef> {
+  const wanted = [...new Set(ids.filter(Boolean))].slice(0, 200);
+  if (!wanted.length) return {};
+
+  const rows = db
+    .select({
+      id: schema.cases.id,
+      name: schema.cases.name,
+      slug: schema.cases.slug,
+      status: schema.cases.status,
+    })
+    .from(schema.cases)
+    .where(and(inArray(schema.cases.id, wanted), visibleCaseCondition(viewer)))
+    .all() as CaseRef[];
+
+  const out: Record<string, CaseRef> = {};
+  for (const row of rows) out[row.id] = row;
+  return out;
+}
+
+/**
+ * Every case that already holds this entry. One query for a whole list of
+ * boards, so the "also file it?" prompt can be decided before the sheet opens
+ * rather than after a round trip per board.
+ */
+export function caseIdsHoldingEntry(entryId: string): Set<string> {
+  return new Set(
+    db
+      .select({ caseId: schema.caseEntries.caseId })
+      .from(schema.caseEntries)
+      .where(eq(schema.caseEntries.entryId, entryId))
+      .all()
+      .map((row) => row.caseId),
+  );
+}
+
 export type CasePatch = Partial<{
   name: string;
   summary: string;

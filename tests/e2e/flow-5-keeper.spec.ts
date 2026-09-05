@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { inviteCode, openRights, signIn } from './helpers';
 
 /**
  * Golden flow 5 (§15), both halves:
@@ -50,7 +50,7 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   await page.waitForURL('**/e/**');
   const entryUrl = new URL(page.url()).pathname;
 
-  await page.locator('summary', { hasText: 'Zichtbaarheid en onthullingen' }).click();
+  await openRights(page);
   await page.getByRole('button', { name: 'Sectie toevoegen' }).click();
   const title = page.getByLabel('Titel van de sectie');
   await expect(title).toBeVisible();

@@ -71,7 +71,65 @@ export type PointerFrame = {
   x: number | null;
   y: number | null;
   m: Record<string, [number, number]>;
+  /**
+   * The selection box this hand is dragging open right now, `[x0, y0, x1, y1]`
+   * in board coordinates, or null when there is none. Shift-dragging a box
+   * round half the wall is a thing you do *to* the board while somebody else is
+   * working on it, and until now it was invisible to them — they saw a cursor
+   * wander and then six cards light up at once. Like a cursor, a box is sight
+   * and not state: never stored, never merged.
+   */
+  s?: [number, number, number, number] | null;
 };
+
+const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+
+/** How many carried cards one frame may claim. A hand is not a forklift. */
+export const POINTER_CARD_LIMIT = 40;
+
+/**
+ * Reads a pointer frame off the wire and keeps it to numbers the board can
+ * draw: a coordinate, or nothing; at most forty cards being carried at once; a
+ * selection box of exactly four finite numbers, or none.
+ *
+ * It lives here rather than in the route because everything that goes on this
+ * wire is drawn straight into a style attribute on somebody else's screen, and
+ * the type and the thing that enforces it should be readable side by side.
+ */
+export function readPointerFrame(
+  clientId: string,
+  body: { cursor?: unknown; moving?: unknown; selection?: unknown },
+): PointerFrame {
+  const cursor = body.cursor as { x?: unknown; y?: unknown } | null | undefined;
+  const x = cursor && finite(cursor.x) ? Math.round(cursor.x) : null;
+  const y = cursor && finite(cursor.y) ? Math.round(cursor.y) : null;
+
+  const m: PointerFrame['m'] = {};
+  if (body.moving && typeof body.moving === 'object') {
+    for (const [cardId, at] of Object.entries(body.moving as Record<string, unknown>).slice(
+      0,
+      POINTER_CARD_LIMIT,
+    )) {
+      const point = at as { x?: unknown; y?: unknown } | null;
+      if (point && finite(point.x) && finite(point.y) && cardId.length <= 40) {
+        m[cardId] = [Math.round(point.x), Math.round(point.y)];
+      }
+    }
+  }
+
+  const box = body.selection as unknown[] | null | undefined;
+  const s: PointerFrame['s'] =
+    Array.isArray(box) && box.length === 4 && box.every((n) => finite(n))
+      ? [
+          Math.round(box[0] as number),
+          Math.round(box[1] as number),
+          Math.round(box[2] as number),
+          Math.round(box[3] as number),
+        ]
+      : null;
+
+  return { c: clientId, x, y, m, s };
+}
 
 export type LiveEvent =
   | { event: 'change'; data: { at: number; by: string | null } }

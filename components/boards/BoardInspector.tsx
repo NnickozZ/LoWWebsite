@@ -53,7 +53,7 @@ export function BoardInspector({
   onOpenEntry,
   onRemoveCards,
   onClose,
-  canOpenEntry,
+  openLabel,
 }: {
   /** The selected cards, if any. */
   cards: BoardCard[];
@@ -83,7 +83,13 @@ export function BoardInspector({
   onOpenEntry: () => void;
   onRemoveCards: () => void;
   onClose: () => void;
-  canOpenEntry: boolean;
+  /**
+   * What the "open it" button says, or null when this card stands for nothing
+   * openable. The word differs by kind — an artikel, a landkaart, a dossier —
+   * and the Keeper may have renamed the first of those, so the label is decided
+   * where the card is resolved rather than guessed here.
+   */
+  openLabel: string | null;
 }) {
   // §11: what a bare pin is called is the Keeper's to decide.
   const words = useUi().words;
@@ -245,10 +251,10 @@ export function BoardInspector({
         </>
       ) : (
         <>
-          {canOpenEntry && (
+          {openLabel && (
             <button type="button" className="btn btn-small" onClick={onOpenEntry}>
               <Icon name="chevron" size={15} />
-              {capitalise(words.entry)} openen
+              {openLabel}
             </button>
           )}
 

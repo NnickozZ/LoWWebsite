@@ -23,6 +23,13 @@ export type NewEntryPrefill = {
   name?: string;
   shortDescription?: string;
   typeSlug?: string;
+  /**
+   * §24: the dossier this is being made in, when it is. Set by the dossier's
+   * own add-box (and by a prikbord that hangs off one). Without it the sheet
+   * does not offer the soorten that only exist inside a dossier, and the server
+   * refuses one anyway.
+   */
+  caseId?: string;
   /** When set, the sheet hands the entry back instead of navigating to it. */
   onCreated?: (entry: CreatedEntry) => void;
 };
@@ -44,7 +51,7 @@ type Suggestion = {
 };
 
 export function NewEntrySheet({
-  types,
+  types: allTypes,
   prefill,
   onClose,
   onCreated,
@@ -54,6 +61,18 @@ export function NewEntrySheet({
   onClose: () => void;
   onCreated: (entry: CreatedEntry) => void;
 }) {
+  /**
+   * §24: which soorten this sheet may offer. Opened from a dossier, all of
+   * them; opened from anywhere else, only the ones that live in the wiki on
+   * their own. A voorwerp with no investigation behind it is a row nobody can
+   * explain, so it is not offered rather than offered and then refused.
+   */
+  const inCase = Boolean(prefill.caseId);
+  const types = useMemo(
+    () => (inCase ? allTypes : allTypes.filter((type) => !type.caseOnly)),
+    [allTypes, inCase],
+  );
+
   const initialType = useMemo(() => {
     if (prefill.typeSlug && types.some((t) => t.slug === prefill.typeSlug)) return prefill.typeSlug;
     if (typeof window !== 'undefined') {
@@ -111,7 +130,12 @@ export function NewEntrySheet({
       const response = await fetch('/api/entries', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ typeSlug, name: name.trim(), shortDescription: description }),
+        body: JSON.stringify({
+          typeSlug,
+          name: name.trim(),
+          shortDescription: description,
+          caseId: prefill.caseId,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {

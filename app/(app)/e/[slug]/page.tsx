@@ -4,6 +4,7 @@ import { LivePage } from '@/components/live/LivePage';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
+import { caseIdsInFields } from '@/lib/entries/caseFields';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
@@ -12,7 +13,7 @@ import { activeCharacter, displayNames, listCharacters, playersOf } from '@/lib/
 import { canReview, listPendingEdits } from '@/lib/entries/review';
 import { diffLines, relativeTime } from '@/lib/diff';
 import { docToText } from '@/lib/entries/doc';
-import { listCasesForEntry } from '@/lib/cases/service';
+import { listCasesForEntry, resolveCaseRefs } from '@/lib/cases/service';
 import {
   listCasesWithMembers,
   listEntryReveals,
@@ -32,7 +33,7 @@ import { getWords } from '@/lib/admin/words';
 import { presenceColour } from '@/lib/boards/live';
 import { snapshot } from '@/lib/live/docs';
 import { admit, entryRoomKey, sectionRoomKey } from '@/lib/live/rooms';
-import { listMaps, listPinsForEntry } from '@/lib/maps/service';
+import { listMaps, listMapsOfEntry, listPinsForEntry } from '@/lib/maps/service';
 import { cleanTypeText, defaultBlockTitle, resolveBlocks } from '@/lib/pageBlocks';
 import { deleteEntryAction, restoreRevisionAction } from './actions';
 
@@ -108,6 +109,16 @@ export default async function EntryPage({
   const mapsToPlace = listMaps(user)
     .filter((map) => !pinnedMapIds.has(map.id))
     .map((map) => ({ slug: map.slug, name: map.name }));
+  // §23: and the landkaarten that are a drawing *of* this artikel.
+  const mapsOfThis = listMapsOfEntry(entry.id).map((map) => ({ slug: map.slug, name: map.name }));
+  // §21: the dossiers this artikel's own fields point at. Only ids are stored;
+  // the names are looked up here, behind the same visibility rule as every
+  // other read, so a dossier the reader may not open is not named in their HTML.
+  const caseLinks = resolveCaseRefs(
+    caseIdsInFields(entry.typeFields, (entry.fields ?? {}) as Record<string, unknown>),
+    user,
+  );
+
   // §9: a player is handed only the sections they may read, and neither the
   // reveal lists nor the pickers — none of it reaches their HTML.
   const sections = listSections(entry.id, user);
@@ -402,6 +413,8 @@ export default async function EntryPage({
         playedBy={playedBy}
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}
+        mapsOfThis={mapsOfThis}
+        caseLinks={caseLinks}
         /*
          * §22: the face this artikel opens in. The person's own setting from
          * Jouw account, or — until they set one — what their role does: a

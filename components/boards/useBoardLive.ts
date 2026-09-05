@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardState } from '@/lib/boards/merge';
-import type { BoardEntryFacts } from '@/lib/boards/service';
+import type { BoardRefs } from '@/lib/boards/service';
 
 export type Person = {
   clientId: string;
@@ -18,6 +18,17 @@ export type Cursor = { clientId: string; name: string; colour: string; x: number
 
 /** A card somebody else is carrying right now, and where they have it. */
 export type Carried = { x: number; y: number; by: string; at: number };
+
+/** A selection box somebody else is dragging open, in board coordinates. */
+export type Marquee = {
+  clientId: string;
+  name: string;
+  colour: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 /** How often to fall back on asking, when the open line will not stay open. */
 const POLL_MS = 4000;
@@ -35,6 +46,12 @@ const POINTER_THROTTLE_MS = 60;
 const CURSOR_TTL_MS = 8000;
 /** A carried card with no frame behind it for this long is put back down. */
 const CARRIED_TTL_MS = 20_000;
+/**
+ * A selection box is a gesture in progress, so it is dropped much sooner than a
+ * cursor: a hand that goes quiet mid-drag has let go, and a rectangle left
+ * hanging on the cork is worse than none.
+ */
+const MARQUEE_TTL_MS = 4000;
 
 /**
  * §8, live: the other half of `useBoardSync`.
@@ -74,7 +91,7 @@ export function useBoardLive({
   paused: boolean;
   /** True while this client has changes it has not saved yet. */
   dirty: boolean;
-  onRemote: (state: BoardState, entries: Record<string, BoardEntryFacts>) => void;
+  onRemote: (state: BoardState, refs: BoardRefs) => void;
   onRename: (name: string) => void;
 }) {
   const [people, setPeople] = useState<Person[]>([]);
@@ -83,6 +100,10 @@ export function useBoardLive({
   const [cursors, setCursors] = useState<Map<string, { x: number; y: number; at: number }>>(new Map());
   /** Cards other people are carrying, keyed by card. */
   const [carried, setCarried] = useState<Map<string, Carried>>(new Map());
+  /** Selection boxes other people are dragging open, keyed by tab. */
+  const [boxes, setBoxes] = useState<Map<string, { box: [number, number, number, number]; at: number }>>(
+    new Map(),
+  );
   /**
    * Tabs whose save has been announced but not yet pulled. Their carried
    * positions stay on screen until the pull lands — otherwise a dropped card
@@ -125,7 +146,9 @@ export function useBoardLive({
       const data = (await response.json()) as {
         name: string;
         state: BoardState;
-        entries: Record<string, BoardEntryFacts>;
+        entries: BoardRefs['entries'];
+        maps: BoardRefs['maps'];
+        cases: BoardRefs['cases'];
       };
       // The user may have picked a card up between the request and the reply.
       if (!quietRef.current) {
@@ -133,7 +156,7 @@ export function useBoardLive({
         return;
       }
       owed.current = false;
-      onRemoteRef.current(data.state, data.entries);
+      onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases });
       onRenameRef.current(data.name);
       // Whatever those tabs were carrying is now where the document says.
       if (settling.current.size) {
@@ -226,6 +249,10 @@ export function useBoardLive({
             const next = new Map([...current].filter(([, item]) => here.has(item.by)));
             return next.size === current.size ? current : next;
           });
+          setBoxes((current) => {
+            const next = new Map([...current].filter(([id]) => here.has(id)));
+            return next.size === current.size ? current : next;
+          });
         } catch {
           /* a malformed frame is not worth tearing the line down for */
         }
@@ -238,8 +265,15 @@ export function useBoardLive({
             x: number | null;
             y: number | null;
             m: Record<string, [number, number]>;
+            s?: [number, number, number, number] | null;
           };
           if (!frame.c || frame.c === clientId) return;
+          setBoxes((current) => {
+            const next = new Map(current);
+            if (frame.s) next.set(frame.c, { box: frame.s, at: Date.now() });
+            else if (!next.delete(frame.c)) return current;
+            return next;
+          });
           setCursors((current) => {
             const next = new Map(current);
             if (frame.x === null || frame.y === null) next.delete(frame.c);
@@ -327,14 +361,24 @@ export function useBoardLive({
 
   /* ------------------------------------------------------- pointer frames */
 
-  const frame = useRef<{ cursor?: { x: number; y: number } | null; moving?: Record<string, { x: number; y: number }> }>({});
+  const frame = useRef<{
+    cursor?: { x: number; y: number } | null;
+    moving?: Record<string, { x: number; y: number }>;
+    selection?: [number, number, number, number] | null;
+  }>({});
   const lastFrame = useRef(0);
   const frameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sendFrame = useCallback(() => {
     frameTimer.current = null;
     const pending = frame.current;
-    if (pending.cursor === undefined && pending.moving === undefined) return;
+    if (
+      pending.cursor === undefined &&
+      pending.moving === undefined &&
+      pending.selection === undefined
+    ) {
+      return;
+    }
     frame.current = {};
     lastFrame.current = Date.now();
     void fetch(`/api/boards/${boardId}/live`, {
@@ -353,9 +397,15 @@ export function useBoardLive({
    * `moving: {}` says the hand is empty.
    */
   const reportPointer = useCallback(
-    (next: { cursor?: { x: number; y: number } | null; moving?: Record<string, { x: number; y: number }> }) => {
+    (next: {
+      cursor?: { x: number; y: number } | null;
+      moving?: Record<string, { x: number; y: number }>;
+      /** `[x0, y0, x1, y1]` while a box is being dragged; null when it closes. */
+      selection?: [number, number, number, number] | null;
+    }) => {
       if (next.cursor !== undefined) frame.current.cursor = next.cursor;
       if (next.moving !== undefined) frame.current.moving = next.moving;
+      if (next.selection !== undefined) frame.current.selection = next.selection;
       if (frameTimer.current) return;
       const wait = Math.max(0, POINTER_THROTTLE_MS - (Date.now() - lastFrame.current));
       frameTimer.current = setTimeout(sendFrame, wait);
@@ -385,6 +435,11 @@ export function useBoardLive({
       const stale = Date.now() - CARRIED_TTL_MS;
       setCarried((current) => {
         const next = new Map([...current].filter(([, item]) => item.at >= stale));
+        return next.size === current.size ? current : next;
+      });
+      const dropped = Date.now() - MARQUEE_TTL_MS;
+      setBoxes((current) => {
+        const next = new Map([...current].filter(([, item]) => item.at >= dropped));
         return next.size === current.size ? current : next;
       });
     }, 2000);
@@ -425,6 +480,30 @@ export function useBoardLive({
     return map;
   }, [others]);
 
+  /**
+   * Other people's selection boxes, in the ink of whoever is dragging each.
+   * Normalised to a positive rectangle here rather than in the renderer: a box
+   * dragged up and to the left arrives with its corners the other way round.
+   */
+  const marquees = useMemo<Marquee[]>(() => {
+    const out: Marquee[] = [];
+    for (const [id, item] of boxes) {
+      const person = people.find((p) => p.clientId === id);
+      if (!person || id === clientId) continue;
+      const [x0, y0, x1, y1] = item.box;
+      out.push({
+        clientId: id,
+        name: person.name,
+        colour: person.colour,
+        x: Math.min(x0, x1),
+        y: Math.min(y0, y1),
+        width: Math.abs(x1 - x0),
+        height: Math.abs(y1 - y0),
+      });
+    }
+    return out;
+  }, [boxes, people, clientId]);
+
   /** Other people's pointers, with the name and ink of whoever is behind each. */
   const pointers = useMemo<Cursor[]>(() => {
     const out: Cursor[] = [];
@@ -436,5 +515,5 @@ export function useBoardLive({
     return out;
   }, [cursors, people, clientId]);
 
-  return { others, heldByOthers, pointers, carried, reportPointer, state, pull };
+  return { others, heldByOthers, pointers, marquees, carried, reportPointer, state, pull };
 }

@@ -77,6 +77,21 @@ export function BoundField(props: FieldProps & { fields: FieldsValue }) {
   const onValueRef = useRef(onValue);
   onValueRef.current = onValue;
 
+  /**
+   * §21: the handover from the plain input to the shared one.
+   *
+   * The room is client-only (`ssr: false`), so for a moment after the page
+   * appears a `LiveField` is an ordinary input on the parent's autosave — and
+   * somebody who starts typing straight away is typing into *that*. When the
+   * room then arrives it takes the field over, and what was typed in between
+   * used to be dropped on the floor: the field went blank, nothing was saved,
+   * and it looked for all the world like a save that had failed.
+   *
+   * `binding` is true for the first pass of the observer effect below, which is
+   * where that handover happens.
+   */
+  const binding = useRef(true);
+
   // Where this person's caret is, as a position *in the shared text* rather than
   // a number — so when someone else inserts three letters before it, it stays
   // on the same letter instead of the same index.
@@ -117,9 +132,31 @@ export function BoundField(props: FieldProps & { fields: FieldsValue }) {
       onValueRef.current(next, { live: canEdit });
     };
     text.observe(onChange);
-    // The room may already differ from what the page rendered (a keystroke landed between).
+    // The room may already differ from what the page rendered (a keystroke
+    // landed between). Two ways round, and they are not the same.
     const now = text.toString();
-    if (now !== shown) {
+    const first = binding.current;
+    binding.current = false;
+
+    /*
+     * Taking the field over from the plain input, with an empty room and a
+     * parent that has something: that something is what this person typed while
+     * the room was loading, and it belongs in the room rather than in the bin.
+     *
+     * Only when the room is *empty*. If it holds anything at all, somebody has
+     * been typing in it and they are the ones who are right — a stale page must
+     * never overwrite a room. The one case this gets wrong is somebody clearing
+     * the field in the second before another tab's room finishes loading, and
+     * that tab putting it back; they clear it again. Losing the sentence you
+     * just typed is the worse of the two.
+     */
+    if (first && canEdit && !now && value) {
+      const delta = textDelta('', value);
+      if (delta?.insert) {
+        doc.transact(() => text.insert(delta.at, delta.insert), origin);
+      }
+      setShown(text.toString());
+    } else if (now !== shown) {
       setShown(now);
       onValueRef.current(now, { live: canEdit });
     }

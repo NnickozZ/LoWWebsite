@@ -6,7 +6,7 @@ import { ARTICLE_MODE_CHOICES, articleModeFor, type ArticleModePref } from '@/li
 import { setArticleModeAction, type ArticleModeState } from './actions';
 
 /**
- * §22: how an artikel opens for this person.
+ * §22: how an artikel — and a dossier — opens for this person.
  *
  * Three submit buttons in one form rather than a select and a Save: the choice
  * *is* the action, so there is nothing to confirm and nothing to forget. The
@@ -30,7 +30,7 @@ export function ArticleModeForm({
 
   return (
     <form action={action}>
-      <div className="row-wrap" role="group" aria-label="Hoe een artikel opengaat">
+      <div className="row-wrap" role="group" aria-label="Hoe een artikel of dossier opengaat">
         {ARTICLE_MODE_CHOICES.map((choice) => {
           const on = choice.value === chosen;
           return (
@@ -51,8 +51,8 @@ export function ArticleModeForm({
       </div>
 
       <p className="tiny muted" style={{ margin: '0.45rem 0 0' }}>
-        {hint} Een artikel opent nu in{' '}
-        <strong>{lands === 'edit' ? 'bewerken' : 'lezen'}</strong>; de knop bovenaan het artikel
+        {hint} Een artikel en een dossier openen nu in{' '}
+        <strong>{lands === 'edit' ? 'bewerken' : 'lezen'}</strong>; de knop bovenaan de pagina
         wisselt altijd.
       </p>
 

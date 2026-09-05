@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db, schema, sqlite } from '@/lib/db';
-import type { EntrySummary } from '@/lib/entries/service';
+import { nameTheirCases, type EntrySummary } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { rankBy } from './fuzzy';
 
@@ -19,6 +19,7 @@ const SUMMARY_COLUMNS = {
   tags: schema.entries.tags,
   visibility: schema.entries.visibility,
   isLocked: schema.entries.isLocked,
+  originCaseId: schema.entries.originCaseId,
   updatedAt: schema.entries.updatedAt,
 } as const;
 
@@ -109,7 +110,9 @@ export function searchEntries(
     }
   }
 
-  return { names, bodies };
+  // §24: with the dossier each case-bound artikel was made in, so two clues
+  // called "de brief" can be told apart in a list of results.
+  return { names: nameTheirCases(names, viewer), bodies: nameTheirCases(bodies, viewer) };
 }
 
 /**
@@ -128,5 +131,8 @@ export function suggestEntries(
     const allowed = new Set(options.typeSlugs);
     candidates = candidates.filter((e) => allowed.has(e.typeSlug));
   }
-  return rankBy(candidates, q, (entry) => [entry.name], options.limit ?? 5).map((s) => s.item);
+  const ranked = rankBy(candidates, q, (entry) => [entry.name], options.limit ?? 5).map(
+    (s) => s.item,
+  );
+  return nameTheirCases(ranked, viewer);
 }

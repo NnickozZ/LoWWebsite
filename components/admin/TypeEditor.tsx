@@ -11,7 +11,7 @@ import {
   type PageBlock,
   type TypeText,
 } from '@/lib/pageBlocks';
-import type { Words } from '@/lib/words';
+import { capitalise, type Words } from '@/lib/words';
 import type { FieldDef, FieldKind } from '@/lib/db/schema';
 import { saveTypeAction, deleteTypeAction, type AdminState } from '@/app/(app)/admin/actions';
 
@@ -60,6 +60,7 @@ export function TypeEditor({
     fields: FieldDef[];
     blocks: PageBlock[];
     pageText: TypeText;
+    caseOnly: boolean;
     entryCount: number;
   };
   /** Every soort, so a self-filling list can offer their fields by name. */
@@ -73,6 +74,7 @@ export function TypeEditor({
   const [pageText, setPageText] = useState<TypeText>(type.pageText);
   const [icon, setIcon] = useState(type.icon);
   const [colour, setColour] = useState(type.colour);
+  const [caseOnly, setCaseOnly] = useState(type.caseOnly);
 
   function patchField(index: number, patch: Partial<FieldDef>) {
     setFields((current) =>
@@ -149,6 +151,33 @@ export function TypeEditor({
               ))}
             </select>
           </span>
+        </div>
+
+        {/*
+          §24: some soorten only exist inside an investigation. A voorwerp or a
+          clue is *found*, so it is made in a dossier; the "Nieuw artikel" sheet
+          leaves it out and the wiki's own new button goes away. What is already
+          made stays exactly where it is, and still shows up in the wiki.
+        */}
+        <div>
+          <span className="label">Waar wordt dit gemaakt</span>
+          <input type="hidden" name="caseOnly" value={caseOnly ? '1' : ''} />
+          <div className="row-wrap">
+            <button
+              type="button"
+              aria-pressed={caseOnly}
+              className={`chip chip-selectable${caseOnly ? ' chip-active' : ''}`}
+              onClick={() => setCaseOnly((was) => !was)}
+            >
+              <Icon name={caseOnly ? 'folder' : 'file'} size={13} />
+              {caseOnly ? `Alleen in een ${words.case}` : 'Overal in het archief'}
+            </button>
+            <span className="tiny muted" style={{ flex: '1 1 14rem' }}>
+              {caseOnly
+                ? `Deze soort staat niet in het "${words.newEntry}"-venster en heeft geen eigen knop in de wiki. In de wiki komen ze te staan als "${capitalise(words.case)}: naam".`
+                : `Overal aan te maken: via "${words.newEntry}", via de wiki, en in een ${words.case}.`}
+            </span>
+          </div>
         </div>
 
         <div>

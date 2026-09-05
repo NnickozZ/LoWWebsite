@@ -32,6 +32,9 @@ export async function GET(request: Request) {
         typeIcon: e.typeIcon,
         typeColour: e.typeColour,
         coverAssetId: e.coverAssetId,
+        // §24: the dossier a voorwerp or clue was made in, when this viewer may
+        // see it — so an autocomplete can tell two "de brief"s apart.
+        originCaseName: e.originCaseName ?? null,
       })),
     });
   } catch (err) {

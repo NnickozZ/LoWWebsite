@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { EntrySummary } from '@/lib/entries/service';
+import { entryDisplayName } from '@/lib/entries/caseName';
 import { borderClass } from './borders';
 import { Cover } from './Cover';
 import { Icon } from './Icon';
@@ -24,7 +25,11 @@ export function EntryCard({
         colour={entry.typeColour}
       />
       <div className="card-body">
-        <p className="card-name">{entry.name}</p>
+        {/* §24: a voorwerp or a clue is made inside one investigation, so a
+            list says which — two letters called "de brief" are two letters.
+            Only the printing; the stored name is still the short one, and the
+            dossier is named only to someone who may open it. */}
+        <p className="card-name">{entryDisplayName(entry.name, entry.originCaseName)}</p>
         {entry.shortDescription && (
           <p className="tiny muted clamp-2" style={{ margin: 0 }}>
             {entry.shortDescription}

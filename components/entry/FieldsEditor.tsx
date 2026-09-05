@@ -4,9 +4,28 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
 import { LiveField, useLiveFields } from '@/components/live/LiveFields';
 import type { FieldDef } from '@/lib/db/schema';
+import type { CaseRef } from '@/lib/cases/service';
+import { caseIdsIn } from '@/lib/entries/caseFields';
 import { EntryPicker, type EntryRef } from './EntryPicker';
+import { CasePicker } from './CasePicker';
 
 type Values = Record<string, unknown>;
+
+/**
+ * §21: dossiers named in a field are stored as bare ids and looked up on the
+ * server, per viewer (`resolveCaseRefs`). An id that is not in this map is one
+ * the reader may not open, and is left out rather than named.
+ */
+export type CaseRefs = Record<string, CaseRef>;
+
+function CaseChip({ item }: { item: CaseRef }) {
+  return (
+    <a className="entry-chip" href={`/c/${item.slug}`} data-case-id={item.id}>
+      <Icon name="folder" size={12} />
+      {item.name}
+    </a>
+  );
+}
 
 function asEntryRef(value: unknown): EntryRef | null {
   if (value && typeof value === 'object' && 'id' in value && 'name' in value) {
@@ -118,7 +137,7 @@ function StringField({
  * infobox leave empty rows out altogether — a wiki's infobox lists the facts
  * that are known, not every fact the template could hold.
  */
-export function fieldValue(field: FieldDef, value: unknown): ReactNode | null {
+export function fieldValue(field: FieldDef, value: unknown, cases: CaseRefs = {}): ReactNode | null {
   switch (field.kind) {
     case 'text':
     case 'longtext':
@@ -156,8 +175,23 @@ export function fieldValue(field: FieldDef, value: unknown): ReactNode | null {
       return user?.username ? user.username : null;
     }
 
-    // A case link and a map pin have no reading shape of their own yet; the
-    // maps a fiche is on are listed under the header instead.
+    case 'case_link':
+    case 'case_links': {
+      const items = caseIdsIn(value)
+        .map((id) => cases[id])
+        .filter(Boolean);
+      if (!items.length) return null;
+      return (
+        <span className="row-wrap" style={{ gap: '0.25rem' }}>
+          {items.map((item) => (
+            <CaseChip key={item.id} item={item} />
+          ))}
+        </span>
+      );
+    }
+
+    // A map pin has no reading shape of its own; the maps a fiche is on are
+    // listed under the header instead.
     default:
       return null;
   }
@@ -185,9 +219,17 @@ function EntryChip({ entry }: { entry: EntryRef }) {
  * has, so nothing jumps when you switch faces, but every value is text.
  * Renders nothing at all when not one field is filled in.
  */
-export function FieldsView({ fields, values }: { fields: FieldDef[]; values: Values }) {
+export function FieldsView({
+  fields,
+  values,
+  cases = {},
+}: {
+  fields: FieldDef[];
+  values: Values;
+  cases?: CaseRefs;
+}) {
   const rows = fields.flatMap((field) => {
-    const shown = fieldValue(field, values[field.key]);
+    const shown = fieldValue(field, values[field.key], cases);
     return shown === null ? [] : [{ field, shown }];
   });
   if (!rows.length) return null;
@@ -212,9 +254,15 @@ export function FieldsEditor({
   readOnly = false,
   hideLabels = false,
   compact = false,
+  cases = {},
+  onCasePicked,
 }: {
   fields: FieldDef[];
   values: Values;
+  /** §21: the dossiers behind the stored ids, already filtered for this viewer. */
+  cases?: CaseRefs;
+  /** A dossier just picked here is not in `cases` yet; the page adds it. */
+  onCasePicked?: (item: CaseRef) => void;
   /** `meta.live` says the room already saved this; the parent then skips its own save. */
   onChange: (patch: Values, meta?: { live: boolean }) => void;
   readOnly?: boolean;
@@ -360,10 +408,24 @@ export function FieldsEditor({
               />
             )}
 
-            {field.kind === 'case_link' && (
-              <p className="small muted" style={{ margin: 0 }}>
-                Dossierkoppelingen verschijnen zodra de dossiers er zijn (fase 2).
-              </p>
+            {(field.kind === 'case_link' || field.kind === 'case_links') && (
+              <CasePicker
+                id={`field-${field.key}`}
+                multiple={field.kind === 'case_links'}
+                ids={caseIdsIn(value)}
+                cases={cases}
+                readOnly={readOnly}
+                onPicked={onCasePicked}
+                onChange={(ids) =>
+                  set(
+                    field.kind === 'case_links'
+                      ? ids.map((id) => ({ id }))
+                      : ids.length
+                        ? { id: ids[0] }
+                        : null,
+                  )
+                }
+              />
             )}
 
             {field.kind === 'map_pin' && (

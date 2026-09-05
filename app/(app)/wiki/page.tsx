@@ -5,7 +5,13 @@ import { SortFilterBar } from '@/components/SortFilterBar';
 import { TypeTabs } from '@/components/TypeTabs';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
-import { browseEntries, countEntriesPerType, listEntryTypes, listTagsWithCounts } from '@/lib/entries/service';
+import {
+  browseEntries,
+  countEntriesPerType,
+  listEntryTypes,
+  listTagsWithCounts,
+  nameTheirCases,
+} from '@/lib/entries/service';
 import { readListFilters, wikiFilterGroups, WIKI_SORTS } from '@/lib/entries/browseFilters';
 import type { ListParams } from '@/lib/listParams';
 
@@ -25,7 +31,9 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
   const perType = countEntriesPerType(user);
   const tags = listTagsWithCounts(user);
   const filters = readListFilters(query, user);
-  const entries = browseEntries(user, { ...filters, limit: 120 });
+  // §24: with the dossier each case-bound artikel was made in, for whoever
+  // may see that dossier.
+  const entries = nameTheirCases(browseEntries(user, { ...filters, limit: 120 }), user);
   const total = [...perType.values()].reduce((n, count) => n + count, 0);
 
   return (

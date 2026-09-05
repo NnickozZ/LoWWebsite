@@ -9,8 +9,18 @@ import { normaliseBorder } from '@/lib/borders.mjs';
  * A pin is a card with nothing on it: a head to run string from and a small
  * tag underneath that can be labelled. It is how a lead that has no entry yet
  * gets a place on the wall.
+ *
+ * `map` and `case` are the other two things this archive holds that a wall
+ * might want to point at: the landkaart the harbour is drawn on, and the
+ * dossier this all belongs to. They are cards like any other — draggable,
+ * croppable, string can be run to them — and, like an entry card, they carry
+ * only an id. What is behind that id is resolved per viewer, so a dossier
+ * somebody may not open comes back as MISSING rather than as a name.
  */
-export type CardKind = 'entry' | 'note' | 'photo' | 'pin';
+export type CardKind = 'entry' | 'note' | 'photo' | 'pin' | 'map' | 'case';
+
+/** The card kinds that stand for a record elsewhere in the archive. */
+export const REFERENCE_KINDS = ['entry', 'map', 'case'] as const;
 
 /** Index cards are all one size; a pin is a head and a tag. */
 export const CARD_SIZE = { width: 160, height: 250 } as const;
@@ -18,6 +28,20 @@ export const PIN_SIZE = { width: 76, height: 40 } as const;
 
 export function cardSize(card: Pick<BoardCard, 'kind'>): { width: number; height: number } {
   return card.kind === 'pin' ? PIN_SIZE : CARD_SIZE;
+}
+
+/**
+ * The record a card stands for, if it stands for one. One shape for all three
+ * kinds, so anything that has to walk a board's references — the resolver, the
+ * page that builds the props — asks once instead of three times.
+ */
+export function cardRef(
+  card: Pick<BoardCard, 'kind' | 'entryId' | 'mapId' | 'caseId'>,
+): { kind: 'entry' | 'map' | 'case'; id: string } | null {
+  if (card.kind === 'entry' && card.entryId) return { kind: 'entry', id: card.entryId };
+  if (card.kind === 'map' && card.mapId) return { kind: 'map', id: card.mapId };
+  if (card.kind === 'case' && card.caseId) return { kind: 'case', id: card.caseId };
+  return null;
 }
 
 /** Where the pin head sits — the point a string is tied to. */
@@ -39,6 +63,10 @@ export type BoardCard = {
   kind: CardKind;
   /** Set for kind 'entry'. The card still renders if the entry is later deleted. */
   entryId?: string | null;
+  /** Set for kind 'map' — the landkaart this card stands for. */
+  mapId?: string | null;
+  /** Set for kind 'case' — the dossier this card stands for. */
+  caseId?: string | null;
   /** A picture belonging to this card. Notes may gain one after the fact. */
   assetId?: string | null;
   /** How that picture — or the entry's — sits in this card's frame. */
@@ -255,10 +283,16 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
         .map((card) => ({
           id: card.id,
           kind:
-            card.kind === 'note' || card.kind === 'photo' || card.kind === 'pin'
+            card.kind === 'note' ||
+            card.kind === 'photo' ||
+            card.kind === 'pin' ||
+            card.kind === 'map' ||
+            card.kind === 'case'
               ? card.kind
               : 'entry',
           entryId: card.entryId ?? null,
+          mapId: card.mapId ?? null,
+          caseId: card.caseId ?? null,
           assetId: card.assetId ?? null,
           // Every card keeps its own crop: an entry card crops the entry's
           // cover for this board alone, and leaves every other list untouched.

@@ -6,33 +6,116 @@ import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
-import { PIN_SIZE, type BoardCard as BoardCardModel, type CardCrop } from '@/lib/boards/merge';
-import type { BoardEntryFacts } from '@/lib/boards/service';
+import { cardRef, PIN_SIZE, type BoardCard as BoardCardModel, type CardCrop } from '@/lib/boards/merge';
+import type { BoardRefs } from '@/lib/boards/service';
 import type { CoverCrop } from '@/lib/db/schema';
 
 export const CARD_WIDTH = 160;
 
 /**
- * What picture a card shows and how it is framed. A card's own photo wins; an
- * entry card otherwise borrows the entry's cover. Either way the crop is the
- * *card's* when it has one, so tightening a face on this board leaves every
- * other list alone.
+ * What a card *stands for*, once its id has been looked up.
+ *
+ * Three kinds of card point at something else in the archive — an artikel, a
+ * landkaart, a dossier — and on the cork they behave identically: a picture, a
+ * name, a double-click that opens the thing. One shape for all three keeps
+ * that true, and keeps the card view from growing a branch per kind.
+ *
+ * A card whose id resolves to nothing has no subject at all, which is what
+ * draws the MISSING stamp. That is the same answer for "it was deleted" and
+ * "you may not see it", deliberately: the second must not be distinguishable
+ * from the first.
  */
-export function cardImage(card: BoardCardModel, entry?: BoardEntryFacts) {
+export type CardSubject = {
+  kind: 'entry' | 'map' | 'case';
+  name: string;
+  /** Where a double-click goes. */
+  href: string;
+  assetId: string | null;
+  crop: CoverCrop | null;
+  icon: string;
+  colour: string;
+  /** The border this kind of thing wears, when it has one of its own. */
+  border: string | null;
+  /** What the card is called in a title attribute — "artikel", "landkaart"… */
+  noun: string;
+};
+
+/** Resolves a card against the three lookup maps the board keeps. */
+export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | undefined {
+  const ref = cardRef(card);
+  if (!ref) return undefined;
+
+  if (ref.kind === 'entry') {
+    const entry = refs.entries[ref.id];
+    if (!entry) return undefined;
+    return {
+      kind: 'entry',
+      name: entry.name,
+      href: `/e/${entry.slug}`,
+      assetId: entry.coverAssetId,
+      crop: (entry.coverCrop as CoverCrop | null) ?? null,
+      icon: entry.typeIcon,
+      colour: entry.typeColour,
+      border: entry.typeBorder,
+      noun: 'artikel',
+    };
+  }
+
+  if (ref.kind === 'map') {
+    const map = refs.maps[ref.id];
+    if (!map) return undefined;
+    return {
+      kind: 'map',
+      name: map.name,
+      href: `/maps/${map.slug}`,
+      assetId: map.assetId,
+      // A landkaart has no crop of its own; a card that wants one sets its own.
+      crop: null,
+      icon: 'map',
+      colour: 'var(--ink-muted)',
+      // "Kaartrand" — the dashed edge of a printed map, which is what it is.
+      border: 'dashed',
+      noun: 'landkaart',
+    };
+  }
+
+  const item = refs.cases[ref.id];
+  if (!item) return undefined;
+  return {
+    kind: 'case',
+    name: item.name,
+    href: `/c/${item.slug}`,
+    assetId: item.assetId,
+    crop: (item.crop as CoverCrop | null) ?? null,
+    icon: 'folder',
+    colour: 'var(--ink-muted)',
+    // "Vergeeld" — the yellowed paper of a file that has been in a drawer.
+    border: 'inset',
+    noun: 'dossier',
+  };
+}
+
+/**
+ * What picture a card shows and how it is framed. A card's own photo wins; a
+ * card that stands for something otherwise borrows that thing's picture — an
+ * artikel's cover, a dossier's cover, the landkaart itself. Either way the crop
+ * is the *card's* when it has one, so tightening a face on this board leaves
+ * every other list alone.
+ */
+export function cardImage(card: BoardCardModel, subject?: CardSubject) {
   const own = card.assetId ?? null;
-  const assetId = own ?? (card.kind === 'entry' ? (entry?.coverAssetId ?? null) : null);
-  const crop: CardCrop | CoverCrop | null =
-    card.crop ?? (own ? null : ((entry?.coverCrop as CoverCrop | null) ?? null));
+  const assetId = own ?? subject?.assetId ?? null;
+  const crop: CardCrop | CoverCrop | null = card.crop ?? (own ? null : (subject?.crop ?? null));
   return { assetId, crop, isOwn: Boolean(own) };
 }
 
 /**
- * The border this card draws: its own override, else its entry type's, else
- * what the card *is* — a pinned photograph gets a print's white margin, a bare
- * note gets a hairline.
+ * The border this card draws: its own override, else the one its subject wears,
+ * else what the card *is* — a pinned photograph gets a print's white margin, a
+ * bare note gets a hairline.
  */
-export function cardBorder(card: BoardCardModel, entry?: BoardEntryFacts): string {
-  return card.border ?? entry?.typeBorder ?? (card.kind === 'photo' ? 'solid' : 'plain');
+export function cardBorder(card: BoardCardModel, subject?: CardSubject): string {
+  return card.border ?? subject?.border ?? (card.kind === 'photo' ? 'solid' : 'plain');
 }
 
 /**
@@ -43,7 +126,7 @@ export function cardBorder(card: BoardCardModel, entry?: BoardEntryFacts): strin
  */
 export function BoardCardView({
   card,
-  entry,
+  subject,
   selected,
   interactive,
   cropping,
@@ -57,7 +140,8 @@ export function BoardCardView({
   carried = false,
 }: {
   card: BoardCardModel;
-  entry?: BoardEntryFacts;
+  /** What this card stands for, resolved for this viewer. Absent = MISSING. */
+  subject?: CardSubject;
   selected: boolean;
   /** §8, live: somebody else's hand is moving this card right now. */
   carried?: boolean;
@@ -94,9 +178,11 @@ export function BoardCardView({
     if (editing) textRef.current?.focus();
   }, [editing]);
 
-  const isEntryCard = card.kind === 'entry';
-  const missing = isEntryCard && !entry;
-  const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, entry);
+  // Three kinds of card stand for something in the archive; all three go
+  // MISSING the same way when what they stand for is gone or out of reach.
+  const refers = card.kind === 'entry' || card.kind === 'map' || card.kind === 'case';
+  const missing = refers && !subject;
+  const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, subject);
   const zoomed = (imageCrop?.zoom ?? 1) > 1.05;
 
   if (card.kind === 'pin') {
@@ -131,11 +217,11 @@ export function BoardCardView({
     );
   }
 
-  /** An entry card opens the entry; a picture opens full size. */
+  /** A card that stands for something opens it; a picture opens full size. */
   function open(event: React.MouseEvent) {
     if (cropping) return;
     event.stopPropagation();
-    if (isEntryCard && entry) onOpen();
+    if (refers && subject) onOpen();
     else if (isOwn) onViewFull();
   }
 
@@ -152,7 +238,7 @@ export function BoardCardView({
     <div
       className={[
         'board-card',
-        borderClass(cardBorder(card, entry)),
+        borderClass(cardBorder(card, subject)),
         selected ? 'board-card-selected' : '',
         cropping ? 'board-card-cropping' : '',
         carried ? 'board-card-carried' : '',
@@ -185,9 +271,9 @@ export function BoardCardView({
           onClick={onCoverClick}
           onDoubleClick={onCoverDoubleClick}
           title={
-            isEntryCard && entry
+            refers && subject
               ? interactive
-                ? `Dubbelklik om het ${words.entry} te openen`
+                ? `Dubbelklik om ${subject.kind === 'entry' ? `het ${words.entry}` : `de ${subject.noun}`} te openen`
                 : undefined
               : isOwn && interactive
                 ? 'Dubbelklik om op volledige grootte te bekijken'
@@ -204,10 +290,10 @@ export function BoardCardView({
             />
           ) : (
             <Icon
-              name={entry?.typeIcon ?? (isEntryCard ? 'person' : 'file')}
+              name={subject?.icon ?? (card.kind === 'entry' ? 'person' : card.kind === 'map' ? 'map' : card.kind === 'case' ? 'folder' : 'file')}
               size={34}
               style={{
-                color: entry?.typeColour ?? 'var(--ink-muted)',
+                color: subject?.colour ?? 'var(--ink-muted)',
                 opacity: 0.45,
               }}
             />
@@ -226,10 +312,10 @@ export function BoardCardView({
         <p
           className="board-card-name"
           onClick={(event) => {
-            if (isEntryCard && entry && canOpenOnTap()) open(event);
+            if (refers && subject && canOpenOnTap()) open(event);
           }}
           onDoubleClick={(event) => {
-            if (isEntryCard && entry) open(event);
+            if (refers && subject) open(event);
           }}
         >
           {card.name || 'Naamloos'}
@@ -265,6 +351,16 @@ export function BoardCardView({
           >
             {card.text || (interactive ? 'Dubbelklik om te schrijven' : 'Dubbeltik om te schrijven')}
           </p>
+        )}
+
+        {/* An artikel card is what a wall is mostly made of, so it needs no
+            label. A landkaart or a dossier among them does: two lines of type
+            on a card are not enough to tell a place from a file. */}
+        {subject && subject.kind !== 'entry' && (
+          <span className="board-card-kind">
+            <Icon name={subject.icon} size={11} />
+            {subject.noun}
+          </span>
         )}
 
         {card.kind === 'note' && (

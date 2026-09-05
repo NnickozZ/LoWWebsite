@@ -2,17 +2,30 @@ import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getBoard, renameBoard, saveBoard, softDeleteBoard } from '@/lib/boards/service';
-import { resolveBoardEntries } from '@/lib/boards/service';
+import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps } from '@/lib/boards/service';
 import { publishChange } from '@/lib/boards/live';
-import type { BoardPatch, BoardState } from '@/lib/boards/merge';
+import { cardRef, type BoardPatch, type BoardState } from '@/lib/boards/merge';
+import type { Viewer } from '@/lib/entries/visibility';
 
 export const dynamic = 'force-dynamic';
 
-/** The cards on a board whose entry facts have to be looked up for this viewer. */
-function entryIdsOf(state: BoardState): string[] {
-  return state.cards
-    .filter((card) => card.kind === 'entry' && card.entryId)
-    .map((card) => card.entryId as string);
+/**
+ * Everything a board's cards point at, looked up for this viewer. Three kinds
+ * of card stand for a record — an artikel, a landkaart, a dossier — and each is
+ * resolved behind its own visibility rule, so a card whose record this viewer
+ * may not see comes back absent and is stamped MISSING on the wall.
+ */
+function referencesOf(state: BoardState, viewer: Viewer) {
+  const ids = { entry: [] as string[], map: [] as string[], case: [] as string[] };
+  for (const card of state.cards) {
+    const ref = cardRef(card);
+    if (ref) ids[ref.kind].push(ref.id);
+  }
+  return {
+    entries: Object.fromEntries(resolveBoardEntries(ids.entry, viewer)),
+    maps: Object.fromEntries(resolveBoardMaps(ids.map, viewer)),
+    cases: Object.fromEntries(resolveBoardCases(ids.case, viewer)),
+  };
 }
 
 /**
@@ -31,7 +44,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     return json({
       name: board.name,
       state: board.state,
-      entries: Object.fromEntries(resolveBoardEntries(entryIdsOf(board.state), user)),
+      ...referencesOf(board.state, user),
       updatedAt: board.updatedAt,
     });
   } catch (err) {
@@ -64,10 +77,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     // The author is skipped: they are holding the merged document already.
     publishChange(id, typeof patch.clientId === 'string' ? patch.clientId : null);
 
-    return json({
-      state,
-      entries: Object.fromEntries(resolveBoardEntries(entryIdsOf(state), user)),
-    });
+    return json({ state, ...referencesOf(state, user) });
   } catch (err) {
     return apiError(err);
   }

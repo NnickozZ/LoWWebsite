@@ -7,6 +7,7 @@ import { Icon } from '@/components/Icon';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
 import { AddToCaseButton } from '@/components/cases/AddToCaseButton';
 import type { PendingEdit } from '@/lib/entries/review';
+import { ConnectMapButton } from './ConnectMapButton';
 import { ProposalsPanel } from './ProposalsPanel';
 import { PinToBoardButton } from '@/components/boards/PinToBoardButton';
 import dynamic from 'next/dynamic';
@@ -35,7 +36,7 @@ import { capitalise } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
-import { FieldsEditor, FieldsView, fieldValue } from './FieldsEditor';
+import { FieldsEditor, FieldsView, fieldValue, type CaseRefs } from './FieldsEditor';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
 import { TagsEditor } from './TagsEditor';
@@ -123,6 +124,7 @@ export function EntryView({
   isKeeper,
   openAddMore,
   cases,
+  caseLinks,
   sections,
   revealUsers,
   revealCases,
@@ -133,6 +135,7 @@ export function EntryView({
   playedBy,
   onMaps,
   mapsToPlace,
+  mapsOfThis,
   live,
   liveFields,
   defaultMode,
@@ -142,6 +145,13 @@ export function EntryView({
   isKeeper: boolean;
   openAddMore: boolean;
   cases: EntryCaseLite[];
+  /**
+   * §21: the dossiers this artikel's own fields point at, resolved on the
+   * server for this viewer. Only ids are stored, so this map is the only place
+   * a dossier's name comes from — one the reader may not open is simply not in
+   * it, and the field prints nothing rather than naming it.
+   */
+  caseLinks: CaseRefs;
   sections: SectionLite[];
   revealUsers: RevealableUser[];
   revealCases: RevealableCase[];
@@ -172,6 +182,13 @@ export function EntryView({
   /** …and the ones it is not on yet. */
   mapsToPlace: { slug: string; name: string }[];
   /**
+   * §23: the landkaarten that *are* this artikel — the floor plan of this
+   * building, the chart of this harbour. The other direction from a speld: a
+   * speld says where this artikel sits on someone else's map, this says the
+   * drawing is of it. A Keeper hooks one up on the landkaart's own page.
+   */
+  mapsOfThis: { slug: string; name: string }[];
+  /**
    * §20: the shared text, handed over in the page. `state` is the Yjs document
    * as the server had it; `canEdit` is the room's gate for this viewer.
    */
@@ -188,6 +205,16 @@ export function EntryView({
   const ui = useUi();
   const router = useRouter();
   const wide = useIsWide();
+
+  /**
+   * §21: the dossiers named in the fields. Seeded from the server and added to
+   * as they are picked, so a dossier chosen a second ago has a name before the
+   * page has been asked for again.
+   */
+  const [caseRefs, setCaseRefs] = useState<CaseRefs>(caseLinks);
+  useEffect(() => {
+    setCaseRefs((current) => ({ ...current, ...caseLinks }));
+  }, [caseLinks]);
 
   /**
    * §22: which face this artikel is wearing. Per artikel and per visit, like
@@ -423,7 +450,7 @@ export function EntryView({
    */
   const readableFields =
     entry.typeFields.length > 0 ? (
-      <FieldsView fields={entry.typeFields} values={fields} />
+      <FieldsView fields={entry.typeFields} values={fields} cases={caseRefs} />
     ) : null;
   const hasReadableInfo = Boolean(readableFields) || tags.length > 0;
 
@@ -456,6 +483,8 @@ export function EntryView({
           compact
           fields={entry.typeFields}
           values={fields}
+          cases={caseRefs}
+          onCasePicked={(item) => setCaseRefs((current) => ({ ...current, [item.id]: item }))}
           onChange={(patch, meta) => {
             const next = { ...fields, ...patch };
             setFields(next);
@@ -830,7 +859,33 @@ export function EntryView({
           </p>
         )}
 
-        {(onMaps.length > 0 || mapsToPlace.length > 0) && (
+        {/* §22 rule 2: reading, this row is a fact — the landkaarten that draw
+            this place — and prints only when there are any. The button that
+            hooks one up is an action, and actions live on the other face. */}
+        {(mapsOfThis.length > 0 || (isKeeper && !reading)) && (
+          <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
+            <span className="muted">Uitgetekend op:</span>
+            {mapsOfThis.map((item) => (
+              <Link key={item.slug} className="chip" href={`/maps/${item.slug}`}>
+                <Icon name="map" size={12} />
+                {item.name}
+              </Link>
+            ))}
+            {/* §19: hanging and hooking up landkaarten is Keeper work. Offered
+                from here as well as from the map, because a Keeper writing up a
+                place is on the place's page. */}
+            {isKeeper && !reading && (
+              <ConnectMapButton entryId={entry.id} entryName={name || entry.name} />
+            )}
+            {!mapsOfThis.length && isKeeper && !reading && (
+              <span className="muted">nog niets — voor een plattegrond van deze plek</span>
+            )}
+          </p>
+        )}
+
+        {/* Same rule: where it *is* on the maps is a fact; "zet op…" is an
+            action, and the reading face has none. */}
+        {(onMaps.length > 0 || (mapsToPlace.length > 0 && !reading)) && (
           <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
             <span className="muted">{words.onTheMap}:</span>
             {onMaps.map((item) => (
@@ -839,7 +894,7 @@ export function EntryView({
                 {item.mapName}
               </Link>
             ))}
-            {mapsToPlace.slice(0, mapsToPlace.length > 3 ? 2 : 3).map((item) => (
+            {!reading && mapsToPlace.slice(0, mapsToPlace.length > 3 ? 2 : 3).map((item) => (
               <Link
                 key={item.slug}
                 className="chip chip-selectable"
@@ -850,7 +905,7 @@ export function EntryView({
                 Zet op {item.name}
               </Link>
             ))}
-            {mapsToPlace.length > 3 && (
+            {!reading && mapsToPlace.length > 3 && (
               <Link
                 className="chip chip-selectable"
                 href={`/maps?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
@@ -887,26 +942,131 @@ export function EntryView({
         {words.manage}
       </h2>
 
-      {(access.canManage || access.settings.locked) && (
+      {/*
+        §25: one panel, two halves, because "wie mag dit zien" was two questions
+        in two boxes and nobody could say which was which.
+
+        They are not the same question and never were. The *Keeper* decides what
+        the camping already knows — a fiche that is still a secret is invisible
+        to everyone, whoever owns it. The *owner* decides who among the people
+        who may know gets to look and to type. Both have to say yes, which is
+        why they are now one heading with a line that says so, rather than two
+        panels that quietly AND themselves together somewhere in the database.
+      */}
+      {(access.canManage || access.settings.locked || isKeeper) && (
         <details className="section">
           <summary>
             <Icon name="lock" size={14} /> {words.rights}{' '}
             <span className="muted">
               (kijken: {accessLabel(accessNow.viewMode, accessNow.viewers.length).toLowerCase()},
-              bewerken: {accessLabel(accessNow.editMode, accessNow.editors.length).toLowerCase()})
+              bewerken: {accessLabel(accessNow.editMode, accessNow.editors.length).toLowerCase()}
+              {isKeeper && visibility !== 'all'
+                ? `, ${visibility === 'keeper' ? 'geheim' : 'onthuld'}`
+                : ''}
+              )
             </span>
           </summary>
-          <div style={{ padding: '0.6rem 0 1rem' }}>
-            <AccessEditor
-              target="entry"
-              id={entry.id}
-              initial={access.settings}
-              canManage={access.canManage}
-              isKeeper={isKeeper}
-              viewerId={access.viewerId}
-              onChange={setAccessNow}
-              nouns={{ this: `dit ${words.entry}` }}
-            />
+
+          <div className="stack" style={{ padding: '0.6rem 0 1rem', gap: '1.1rem' }}>
+            <p className="tiny muted" style={{ margin: 0 }}>
+              Twee sloten op één deur. Ze moeten allebei open: wat de {words.keeper} geheim houdt
+              ziet niemand, ook niet wie jij uitkiest.
+            </p>
+
+            {isKeeper && (
+              <div className="rights-half">
+                <h3 className="rights-half-title">
+                  <Icon name="shield" size={13} /> {words.visibilityAndReveals}
+                </h3>
+                <p className="tiny muted" style={{ margin: '0 0 0.5rem' }}>
+                  Het verhaal. Geheim betekent geheim voor iedereen — het staat in geen lijst, geen
+                  zoekresultaat en op geen kaart, en de URL doet niets.
+                </p>
+                <div className="stack">
+                <div>
+                  <span className="label">Wie mag {`dit ${words.entry}`} zien</span>
+                  <div className="row-wrap">
+                    {(['all', 'players', 'keeper'] as Visibility[]).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`chip chip-selectable${visibility === value ? ' chip-active' : ''}`}
+                        aria-pressed={visibility === value}
+                        onClick={() => {
+                          setVisibility(value);
+                          set({ visibility: value });
+                          void flush();
+                        }}
+                      >
+                        {VISIBILITY_LABELS[value]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {visibility === 'players' && (
+                  <RevealPicker
+                    users={revealUsers}
+                    cases={revealCases}
+                    value={revealedTo}
+                    label="Onthuld aan"
+                    onChange={(next) => {
+                      setRevealedTo(next);
+                      set({ revealedTo: next });
+                      void flush();
+                    }}
+                  />
+                )}
+
+                <div>
+                  <span className="label">Vergrendeling</span>
+                  <div className="row-wrap">
+                    <button
+                      type="button"
+                      className={`chip chip-selectable${isLocked ? ' chip-active' : ''}`}
+                      aria-pressed={isLocked}
+                      onClick={() => {
+                        const next = !isLocked;
+                        setIsLocked(next);
+                        set({ isLocked: next });
+                        void flush();
+                      }}
+                    >
+                      <Icon name="lock" size={13} />
+                      {isLocked ? 'Vergrendeld' : 'Open voor iedereen'}
+                    </button>
+                    <span className="tiny muted">
+                      Bewerkingen van spelers gaan bij een vergrendeld {words.entry} naar de
+                      beoordelingswachtrij.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              </div>
+            )}
+
+            {(access.canManage || access.settings.locked) && (
+              <div className="rights-half">
+                <h3 className="rights-half-title">
+                  <Icon name="person" size={13} /> Van jou: wie mag kijken en bewerken?
+                </h3>
+                <p className="tiny muted" style={{ margin: '0 0 0.5rem' }}>
+                  Jouw eigen slot, binnen wat hierboven al mag. Handig voor aantekeningen die nog
+                  niet af zijn — het is geen manier om iets voor de {words.keeper} te verbergen.
+                </p>
+                <AccessEditor
+                  target="entry"
+                  id={entry.id}
+                  initial={access.settings}
+                  canManage={access.canManage}
+                  isKeeper={isKeeper}
+                  viewerId={access.viewerId}
+                  onChange={setAccessNow}
+                  nouns={{ this: `dit ${words.entry}` }}
+                />
+              </div>
+            )}
           </div>
         </details>
       )}
@@ -915,72 +1075,6 @@ export function EntryView({
 
       {isKeeper && (
         <>
-          <details className="section">
-            <summary>
-              <Icon name="eye" size={14} /> {words.visibilityAndReveals}
-            </summary>
-            <div className="stack" style={{ padding: '0.6rem 0 1rem' }}>
-              <div>
-                <span className="label">Wie mag {`dit ${words.entry}`} zien</span>
-                <div className="row-wrap">
-                  {(['all', 'players', 'keeper'] as Visibility[]).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={`chip chip-selectable${visibility === value ? ' chip-active' : ''}`}
-                      aria-pressed={visibility === value}
-                      onClick={() => {
-                        setVisibility(value);
-                        set({ visibility: value });
-                        void flush();
-                      }}
-                    >
-                      {VISIBILITY_LABELS[value]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {visibility === 'players' && (
-                <RevealPicker
-                  users={revealUsers}
-                  cases={revealCases}
-                  value={revealedTo}
-                  label="Onthuld aan"
-                  onChange={(next) => {
-                    setRevealedTo(next);
-                    set({ revealedTo: next });
-                    void flush();
-                  }}
-                />
-              )}
-
-              <div>
-                <span className="label">Vergrendeling</span>
-                <div className="row-wrap">
-                  <button
-                    type="button"
-                    className={`chip chip-selectable${isLocked ? ' chip-active' : ''}`}
-                    aria-pressed={isLocked}
-                    onClick={() => {
-                      const next = !isLocked;
-                      setIsLocked(next);
-                      set({ isLocked: next });
-                      void flush();
-                    }}
-                  >
-                    <Icon name="lock" size={13} />
-                    {isLocked ? 'Vergrendeld' : 'Open voor iedereen'}
-                  </button>
-                  <span className="tiny muted">
-                    Bewerkingen van spelers gaan bij een vergrendeld {words.entry} naar de
-                    beoordelingswachtrij.
-                  </span>
-                </div>
-              </div>
-            </div>
-          </details>
-
           <details className="section">
             <summary>
               <Icon name="shield" size={14} /> {words.keeperNotes}
@@ -1006,9 +1100,25 @@ export function EntryView({
 
   /* -------------------------------------------------------------- render */
 
+  /*
+   * §25: three columns on a wide screen.
+   *
+   * The header used to run the full width above the grid, which pushed the
+   * picture and Meer info a title-and-a-lead down the page — a lot of empty
+   * paper next to a heading, and the two halves of the artikel starting at
+   * different heights. The title and the one-liner belong to the *text*, so
+   * they moved into the text column: everything now begins at the top edge
+   * together, and the title wraps at reading width instead of at screen width.
+   *
+   * The outline moved into the gap that opened up between the two. It is a
+   * signpost for the text, not a fact about the artikel, so standing it beside
+   * the text rather than underneath the infobox is where it belongs — and the
+   * 2.5rem of nothing that used to be there was the widest empty space on the
+   * page. Narrow screens are unchanged: picture, then jump chips, then text.
+   */
   const article = (
     <article className={`page-wide entry-page${reading ? ' entry-page-reading' : ''}`}>
-      {header}
+      {!wide && header}
 
       {/* Only worth saying on the face where it changes what happens next. */}
       {!reading && !access.canEdit && (
@@ -1026,18 +1136,20 @@ export function EntryView({
 
       <div className={`entry-layout${wide ? ' entry-layout-wide' : ''}`}>
         <div className="entry-main">
+          {wide && header}
           {entry.typeBlocks.map((block) => renderBlock(block))}
           {manage}
         </div>
 
         {wide && (
-          <aside className="entry-aside">
-            {asideBox}
-            <div className="entry-aside-sticky">
+          <div className="entry-rail">
+            <div className="entry-rail-sticky">
               <EntryOutline items={outline} shape="column" label={words.onThisPage} />
             </div>
-          </aside>
+          </div>
         )}
+
+        {wide && <aside className="entry-aside">{asideBox}</aside>}
       </div>
     </article>
   );

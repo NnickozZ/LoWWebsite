@@ -19,12 +19,17 @@ import {
   listCaseMembers,
 } from '@/lib/cases/service';
 import { listEntryTypes } from '@/lib/entries/service';
+import { Icon } from '@/components/Icon';
+import { deleteCaseAction } from './actions';
+import { articleModeFor } from '@/lib/entries/mode';
 
 export const dynamic = 'force-dynamic';
 
 /** §7's tab list. Anything else keeps its own tab so nothing filed here is lost. */
 const MERGED_PEOPLE = { key: 'people', label: 'Personen', typeSlugs: ['character', 'investigator'] };
-const TAB_ORDER = ['people', 'location', 'object', 'clue', 'abnormality'];
+// §24: the two soorten that are made here come first after the people — they
+// are what an investigation actually produces.
+const TAB_ORDER = ['people', 'item', 'clue', 'location', 'object', 'abnormality'];
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getSessionUser();
@@ -151,6 +156,31 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       isKeeper={Boolean(user?.isKeeper)}
       access={access}
       liveFields={liveFields}
+      /*
+       * §22: the face this dossier opens in — the same setting an artikel
+       * obeys, already resolved against this person's role on the server.
+       */
+      defaultMode={articleModeFor(user?.articleMode, Boolean(user?.isKeeper))}
+      binSlot={
+        mayEdit ? (
+          <details className="section" style={{ marginTop: '1.5rem' }}>
+            <summary>Dossier verwijderen</summary>
+            <div style={{ padding: '0.6rem 0 1.5rem' }}>
+              <p className="small muted">
+                Niets wordt echt gewist — een {words.keeper} kan dit terughalen uit de prullenbak.
+                De {words.entryPlural} erin blijven staan.
+              </p>
+              <form action={deleteCaseAction}>
+                <input type="hidden" name="caseId" value={record.id} />
+                <button className="btn btn-small btn-danger" type="submit">
+                  <Icon name="trash" size={14} />
+                  Naar de prullenbak
+                </button>
+              </form>
+            </div>
+          </details>
+        ) : null
+      }
     />
     </>
   );

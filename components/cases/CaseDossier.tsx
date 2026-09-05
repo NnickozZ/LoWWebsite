@@ -7,7 +7,9 @@ import { Icon } from '@/components/Icon';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
 import { capitalise } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
+import { Cover } from '@/components/Cover';
 import { CoverEditor } from '@/components/entry/CoverEditor';
+import type { ArticleMode } from '@/lib/entries/mode';
 import dynamic from 'next/dynamic';
 import { LiveField, LiveFields } from '@/components/live/LiveFields';
 import { RichEditor } from '@/components/editor/RichEditor';
@@ -91,6 +93,8 @@ export function CaseDossier({
   access,
   liveNotes,
   liveFields,
+  defaultMode,
+  binSlot,
 }: {
   data: CaseDossierData;
   groups: CaseGroup[];
@@ -106,6 +110,18 @@ export function CaseDossier({
   liveNotes: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
   /** §21: the name and the one-liner as shared fields. */
   liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
+  /**
+   * §22: the face this dossier opens in — this person's own setting from Jouw
+   * account, already resolved against their role on the server. The toggle at
+   * the top overrides it for this visit; the setting itself only changes there.
+   */
+  defaultMode: ArticleMode;
+  /**
+   * §11: the bin, built on the server because it is a server action, and handed
+   * over the same way the artikel's is. Null when this viewer may not throw the
+   * dossier away.
+   */
+  binSlot: ReactNode;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -116,7 +132,25 @@ export function CaseDossier({
   const [status, setStatus] = useState<CaseStatus>(data.status);
   const [accessNow, setAccessNow] = useState(access.settings);
   const memberIds = accessNow.viewMode === 'some' ? accessNow.viewers : [];
-  const readOnly = !access.canEdit;
+
+  /**
+   * §22: which face this dossier is wearing, and the difference between the two
+   * kinds of "no".
+   *
+   * `readOnly` is about *rights* — this person may look at the file and not
+   * change it. `reading` is about the *face they asked for* — a Keeper who
+   * came to read the theory rather than rewrite it. `locked` is the two of them
+   * together, and it is what every input on this page is switched off by. The
+   * split matters because the shared-text room quite correctly says a Keeper
+   * may type: without it, choosing to read would still leave a caret blinking
+   * in the notes.
+   */
+  const mayEdit = access.canEdit;
+  const canToggle = Boolean(access.viewerId);
+  const [mode, setMode] = useState<ArticleMode>(canToggle ? defaultMode : 'view');
+  const reading = mode === 'view';
+  const readOnly = !mayEdit;
+  const locked = readOnly || reading;
   const [keeperNotes, setKeeperNotes] = useState(data.keeperNotes);
   const [cover, setCover] = useState({ assetId: data.coverAssetId, crop: data.coverCrop });
   const [assignOpen, setAssignOpen] = useState(false);
@@ -193,7 +227,9 @@ export function CaseDossier({
 
   const overview = (
     <div>
-      {!readOnly && (
+      {/* §22: reading, a shelf is what is on it. The box that puts things there
+          belongs to the other face. */}
+      {!locked && (
         <CaseAddSearch
           caseId={data.id}
           typeSlugs={allTypeSlugs.length ? undefined : undefined}
@@ -213,15 +249,17 @@ export function CaseDossier({
               state={liveNotes.state}
               user={liveNotes.user}
               canEdit={liveNotes.canEdit && !readOnly}
+              /* §22: harder than `canEdit` — the room may say yes, the reader said no. */
+              readOnly={reading}
               placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
               onStatus={setNotesLive}
             />
           ) : (
             <RichEditor
               initialDoc={data.notes}
-              editable={!readOnly}
+              editable={!locked}
               placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
-              onChange={(doc) => !readOnly && set({ notes: doc })}
+              onChange={(doc) => !locked && set({ notes: doc })}
             />
           )}
         </div>
@@ -232,7 +270,7 @@ export function CaseDossier({
           <p className="eyebrow">Laatst toegevoegd</p>
           <div className="card-grid">
             {recent.map((entry) => (
-              <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={readOnly} />
+              <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={locked} />
             ))}
           </div>
         </>
@@ -243,26 +281,36 @@ export function CaseDossier({
           <summary>
             <Icon name="shield" size={14} /> Notities van de Keeper
           </summary>
-          <textarea
-            id="case-keeper-notes"
-            className="textarea"
-            style={{ margin: '0.5rem 0 1rem' }}
-            value={keeperNotes}
-            placeholder="Nooit zichtbaar voor spelers."
-            onChange={(event) => {
-              setKeeperNotes(event.target.value);
-              set({ keeperNotes: event.target.value });
-            }}
-            onBlur={() => void flush()}
-          />
+          {locked ? (
+            <p className="small" style={{ margin: '0.5rem 0 1rem', whiteSpace: 'pre-wrap' }}>
+              {keeperNotes || <span className="muted">Nog niets opgeschreven.</span>}
+            </p>
+          ) : (
+            <textarea
+              id="case-keeper-notes"
+              className="textarea"
+              style={{ margin: '0.5rem 0 1rem' }}
+              value={keeperNotes}
+              placeholder="Nooit zichtbaar voor spelers."
+              onChange={(event) => {
+                setKeeperNotes(event.target.value);
+                set({ keeperNotes: event.target.value });
+              }}
+              onBlur={() => void flush()}
+            />
+          )}
         </details>
       )}
+
+      {/* §11: the bin, at the foot of the file and folded — the same place and
+          the same manners as the artikel's. */}
+      {!locked && binSlot}
     </div>
   );
 
   const groupSection = (group: CaseGroup) => (
     <div>
-      {!readOnly && (
+      {!locked && (
         <CaseAddSearch
           caseId={data.id}
           typeSlugs={group.typeSlugs}
@@ -273,7 +321,7 @@ export function CaseDossier({
       {group.entries.length ? (
         <div className="card-grid">
           {group.entries.map((entry) => (
-            <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={readOnly} />
+            <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={locked} />
           ))}
         </div>
       ) : (
@@ -284,7 +332,7 @@ export function CaseDossier({
 
   const boardSection = (
     <div>
-      {!readOnly && (
+      {!locked && (
         <div className="row-wrap" style={{ marginBottom: '0.9rem' }}>
           <NewBoardButton caseId={data.id} />
         </div>
@@ -365,22 +413,36 @@ export function CaseDossier({
 
   /* --------------------------------------------------------------- header */
 
+  // §22: reading, a dossier with no picture has nothing to put in the left-hand
+  // column, so the header stops being two columns rather than leaving one empty.
+  const showsCover = !locked || Boolean(cover.assetId);
+
   const header = (
-    <header className="case-head">
+    <header className={`case-head${showsCover ? '' : ' case-head-solo'}`}>
       {/* The file's own picture: a location, a photograph of the principal, a
           scan of the thing that started it. Shown whole here; the Case Files
-          grid squares it off with its own crop, exactly like an entry. */}
-      <CoverEditor
-        assetId={cover.assetId}
-        crop={cover.crop}
-        alt={name}
-        icon="folder"
-        colour="var(--ink-muted)"
-        onChange={(next) => {
-          setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
-          set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });
-        }}
-      />
+          grid squares it off with its own crop, exactly like an entry.
+          §22: reading, a dossier with no picture has no frame at all — the
+          same rule the artikel's reading face follows. */}
+      {locked ? (
+        cover.assetId && (
+          <figure className="entry-figure" style={{ margin: 0 }}>
+            <Cover assetId={cover.assetId} crop={cover.crop} alt={name} icon="folder" colour="var(--ink-muted)" />
+          </figure>
+        )
+      ) : (
+        <CoverEditor
+          assetId={cover.assetId}
+          crop={cover.crop}
+          alt={name}
+          icon="folder"
+          colour="var(--ink-muted)"
+          onChange={(next) => {
+            setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
+            set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });
+          }}
+        />
+      )}
 
       <div style={{ minWidth: 0 }}>
         <div className="row-wrap" style={{ marginBottom: '0.4rem' }}>
@@ -396,70 +458,105 @@ export function CaseDossier({
             </span>
           )}
           <div className="spacer" />
-          <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-            {state === 'dirty' || state === 'saving' || notesLive.save === 'saving' || fieldsLive.save === 'saving'
-              ? saveLabel('saving')
-              : state === 'pending' || state === 'error'
-                ? saveLabel(state)
-                : state === 'saved' || notesLive.save === 'saved' || fieldsLive.save === 'saved'
-                  ? saveLabel('saved')
-                  : ''}
-          </p>
-        </div>
-
-        <label className="visually-hidden" htmlFor="case-name">
-          Naam van het dossier
-        </label>
-        <LiveField
-          field="name"
-          id="case-name"
-          className="title-input"
-          value={name}
-          readOnly={readOnly}
-          onValue={(next, meta) => {
-            setName(next);
-            if (!meta.live && !readOnly) set({ name: next });
-          }}
-          onBlur={() => void flush()}
-        />
-
-        <label className="visually-hidden" htmlFor="case-summary">
-          Samenvatting
-        </label>
-        {/* A textarea rather than an input: one line on desktop, but it wraps
-          instead of clipping on a phone. */}
-        <LiveField
-          as="textarea"
-          field="summary"
-          id="case-summary"
-          ref={summaryRef}
-          className="lead-input"
-          rows={1}
-          value={summary}
-          readOnly={readOnly}
-          placeholder="Eén regel: wat wordt er onderzocht?"
-          onValue={(next, meta) => {
-            setSummary(next);
-            if (!meta.live && !readOnly) set({ summary: next });
-          }}
-          onBlur={() => void flush()}
-        />
-
-        <div className="row-wrap" style={{ marginTop: '0.6rem' }}>
-          {STATUSES.map((value) => (
+          {!reading && (
+            <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
+              {state === 'dirty' || state === 'saving' || notesLive.save === 'saving' || fieldsLive.save === 'saving'
+                ? saveLabel('saving')
+                : state === 'pending' || state === 'error'
+                  ? saveLabel(state)
+                  : state === 'saved' || notesLive.save === 'saved' || fieldsLive.save === 'saved'
+                    ? saveLabel('saved')
+                    : ''}
+            </p>
+          )}
+          {/* §22: the two faces, in the same pair of words the artikel uses. */}
+          {canToggle && (
             <button
-              key={value}
               type="button"
-              className={`chip chip-selectable${value === status ? ' chip-active' : ''}`}
-              disabled={readOnly}
+              className={`btn btn-small entry-mode-toggle${reading ? '' : ' entry-mode-toggle-on'}`}
+              aria-pressed={!reading}
               onClick={() => {
-                setStatus(value);
-                set({ status: value });
+                // Anything half-typed reaches the archive before the inputs
+                // holding it leave the page.
+                if (!reading) void flush();
+                setMode(reading ? 'edit' : 'view');
               }}
             >
-              {STATUS_LABELS[value]}
+              <Icon name={reading ? 'edit' : 'eye'} size={14} />
+              {reading ? 'Bewerken' : 'Lezen'}
             </button>
-          ))}
+          )}
+        </div>
+
+        {/*
+          §22: reading, the name is a heading and the one-liner is a paragraph —
+          the two things any file opens with. An empty one-liner is simply not
+          there, where the editing face has to keep the box and its placeholder.
+        */}
+        {reading ? (
+          <>
+            <h1 className="entry-title">{name || 'Naamloos dossier'}</h1>
+            {summary.trim() && <p className="entry-lead">{summary}</p>}
+          </>
+        ) : (
+          <>
+            <label className="visually-hidden" htmlFor="case-name">
+              Naam van het dossier
+            </label>
+            <LiveField
+              field="name"
+              id="case-name"
+              className="title-input"
+              value={name}
+              readOnly={readOnly}
+              onValue={(next, meta) => {
+                setName(next);
+                if (!meta.live && !readOnly) set({ name: next });
+              }}
+              onBlur={() => void flush()}
+            />
+
+            <label className="visually-hidden" htmlFor="case-summary">
+              Samenvatting
+            </label>
+            {/* A textarea rather than an input: one line on desktop, but it wraps
+              instead of clipping on a phone. */}
+            <LiveField
+              as="textarea"
+              field="summary"
+              id="case-summary"
+              ref={summaryRef}
+              className="lead-input"
+              rows={1}
+              value={summary}
+              readOnly={readOnly}
+              placeholder="Eén regel: wat wordt er onderzocht?"
+              onValue={(next, meta) => {
+                setSummary(next);
+                if (!meta.live && !readOnly) set({ summary: next });
+              }}
+              onBlur={() => void flush()}
+            />
+          </>
+        )}
+
+        <div className="row-wrap" style={{ marginTop: '0.6rem' }}>
+          {/* §22: reading, the state of the file is the stamp above; a row of
+              buttons to change it is a form. */}
+          {!locked &&
+            STATUSES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={`chip chip-selectable${value === status ? ' chip-active' : ''}`}
+                onClick={() => {
+                  setStatus(value);
+                  set({ status: value });
+                }}
+              >
+                {STATUS_LABELS[value]}
+              </button>
+            ))}
 
           <span style={{ width: 8 }} />
 

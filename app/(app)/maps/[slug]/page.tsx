@@ -11,7 +11,8 @@ import { presenceColour } from '@/lib/boards/live';
 import { displayNames } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { getMapBySlug, listPins } from '@/lib/maps/service';
-import { inArray } from 'drizzle-orm';
+import { visibleEntryCondition } from '@/lib/entries/visibility';
+import { and, eq, inArray } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,17 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
 
   const words = getWords();
   const pins = listPins(map.id, user);
+
+  // §23: the artikel this map is a map *of*, if it is of one — read behind the
+  // ordinary entry visibility rule, so a map of a Keeper-only place does not
+  // name it to a player who happens to be looking at the drawing.
+  const ofEntry = map.entryId
+    ? (db
+        .select({ id: schema.entries.id, name: schema.entries.name, slug: schema.entries.slug })
+        .from(schema.entries)
+        .where(and(eq(schema.entries.id, map.entryId), visibleEntryCondition(user)))
+        .get() ?? null)
+    : null;
 
   // §18: who set each pin, by the name they wear.
   // The viewer is in the list too, so a pin they set just now has a name at once.
@@ -52,6 +64,11 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
             </Link>
           </p>
           <h1 style={{ margin: 0 }}>{map.name}</h1>
+          {ofEntry && (
+            <p className="small" style={{ margin: '0.2rem 0 0' }}>
+              De {words.map} van <Link href={`/e/${ofEntry.slug}`}>{ofEntry.name}</Link>
+            </p>
+          )}
           {map.description && (
             <p className="small muted" style={{ margin: '0.2rem 0 0' }}>
               {map.description}
@@ -69,7 +86,16 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
         peopleNames={peopleNames}
       />
 
-      {user?.isKeeper && <MapKeeperTools map={map} />}
+      {user?.isKeeper && (
+        <MapKeeperTools
+          map={map}
+          ofEntry={
+            ofEntry
+              ? { id: ofEntry.id, name: ofEntry.name, slug: ofEntry.slug }
+              : null
+          }
+        />
+      )}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import {
   publishChange,
   publishPresence,
   resetHub,
+  publishPointer,
+  readPointerFrame,
   roster,
   setPresence,
   subscribe,
@@ -233,5 +235,62 @@ describe('presenceColour', () => {
       Array.from({ length: 12 }, (_, i) => presenceColour(`user-${i}`)),
     );
     expect(inks.size).toBeGreaterThan(3);
+  });
+});
+
+/**
+ * §8, live: the hand, and now the box the hand is dragging open.
+ *
+ * A pointer frame is sight, not state — it is never stored and never merged —
+ * but every number in one is drawn straight into a style attribute on somebody
+ * else's screen, which is why the reader is this strict.
+ */
+describe('pointer frames', () => {
+  it('carries the selection box, and takes it back when it closes', () => {
+    const anneke = listener('anneke');
+    const bram = listener('bram');
+
+    publishPointer('b1', readPointerFrame('bram', { selection: [10, 20, 110, 220] }));
+    expect(anneke.events('pointer')).toHaveLength(1);
+    expect((anneke.events('pointer')[0].data as { s: number[] }).s).toEqual([10, 20, 110, 220]);
+    // A frame never goes back to the hand that sent it.
+    expect(bram.events('pointer')).toHaveLength(0);
+
+    publishPointer('b1', readPointerFrame('bram', { selection: null }));
+    expect((anneke.events('pointer')[1].data as { s: unknown }).s).toBeNull();
+  });
+
+  it('refuses a box that is not four finite numbers', () => {
+    for (const bad of [
+      [1, 2, 3],
+      [1, 2, 3, 4, 5],
+      [1, 2, 3, 'x'],
+      [1, 2, 3, Number.NaN],
+      [1, 2, 3, Infinity],
+      'alles',
+      {},
+      42,
+    ]) {
+      expect(readPointerFrame('bram', { selection: bad }).s).toBeNull();
+    }
+  });
+
+  it('keeps a cursor and a carried card to numbers, and caps how many', () => {
+    const frame = readPointerFrame('bram', {
+      cursor: { x: 12.6, y: -4.2 },
+      moving: Object.fromEntries(
+        Array.from({ length: 60 }, (_, i) => [`c${i}`, { x: i, y: i }]),
+      ),
+    });
+    expect([frame.x, frame.y]).toEqual([13, -4]);
+    expect(Object.keys(frame.m)).toHaveLength(40);
+
+    // A pointer that left the wall says so with nothing rather than with zero.
+    expect(readPointerFrame('bram', { cursor: null }).x).toBeNull();
+    expect(readPointerFrame('bram', { cursor: { x: 'over daar', y: 3 } }).x).toBeNull();
+    // And a card id long enough to be a payload is not carried at all.
+    expect(
+      Object.keys(readPointerFrame('bram', { moving: { ['x'.repeat(200)]: { x: 1, y: 1 } } }).m),
+    ).toHaveLength(0);
   });
 });

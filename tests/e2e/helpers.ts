@@ -41,15 +41,24 @@ export async function signUp(page: Page, username: string, password: string) {
  * has to ask for the editing one first, exactly as a person would — the toggle
  * at the top of the header. Already editing (a Keeper, or a page reached with
  * `?new=1`), this does nothing.
+ *
+ * §23: a dossier wears the same pair of faces and the same toggle, so this
+ * takes the field it should wait for — `editCase` below is the same call with
+ * the dossier's name box.
  */
-export async function editArticle(page: Page) {
+export async function editArticle(page: Page, field = '#entry-name') {
   const toggle = page.locator('.entry-mode-toggle');
   await toggle.waitFor({ state: 'visible', timeout: 15_000 });
   if ((await toggle.innerText()).trim() === 'Bewerken') {
     await toggle.click();
     // The inputs replace the prose on the next render; give React the frame.
-    await page.locator('#entry-name').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.locator(field).waitFor({ state: 'visible', timeout: 10_000 });
   }
+}
+
+/** §23: the same, for a dossier. A player lands on its reading face too. */
+export async function editCase(page: Page) {
+  return editArticle(page, '#case-name');
 }
 
 /**
@@ -61,4 +70,29 @@ export async function editArticle(page: Page) {
 export async function imageMenu(page: Page, item: RegExp | string) {
   await page.locator('.cover-menu-button').click();
   await page.getByRole('menuitem', { name: item }).click();
+}
+
+/**
+ * §25: the Keeper's dials used to be a panel of their own, "Zichtbaarheid en
+ * onthullingen". They are one half of "Rechten" now — same controls, one
+ * heading — so a test that wants them opens that.
+ */
+export async function openRights(page: Page) {
+  const rights = page.locator('summary').filter({ hasText: 'Rechten' }).first();
+  await rights.waitFor({ state: 'visible', timeout: 15_000 });
+  if ((await rights.getAttribute('aria-expanded')) !== 'true') await rights.click();
+  await page.locator('.rights-half').first().waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+/**
+ * §25: inside a dossier the button that makes a wall says what it does —
+ * "Maak nieuw prikbord voor dit dossier" — rather than what its rights are.
+ * On the prikborden-pagina, where the choice really is openbaar or privé, it
+ * still says "Openbaar prikbord". This is the one inside a dossier.
+ */
+export async function newCaseBoard(page: Page) {
+  const tab = page.getByRole('tab', { name: 'Prikbord' });
+  if (await tab.isVisible().catch(() => false)) await tab.click();
+  await page.getByRole('button', { name: /Maak nieuw prikbord voor dit dossier/ }).click();
+  await page.waitForURL('**/b/**');
 }

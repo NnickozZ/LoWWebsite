@@ -7,8 +7,18 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { placementRotation } from '@/lib/boards/merge';
 import { fuzzyScore } from '@/lib/search/fuzzy';
+import { offerToFileEntry } from './offerToFile';
 
-type BoardLite = { id: string; name: string; caseName: string | null };
+type BoardLite = {
+  id: string;
+  name: string;
+  caseId: string | null;
+  caseName: string | null;
+  /** True when there is nothing to file — no case, or the case has it already. */
+  caseHasEntry?: boolean;
+  /** §17: whether this viewer may put anything in that case at all. */
+  caseEditable?: boolean;
+};
 
 /** §6: "Pin to board" from an entry — pick a board, the card lands on it. */
 export function PinToBoardButton({
@@ -28,12 +38,14 @@ export function PinToBoardButton({
 
   useEffect(() => {
     if (!open) return;
-    void fetch('/api/boards')
+    // `forEntry` makes each board say whether its dossier already holds this
+    // artikel, so the filing question below can be asked without a second trip.
+    void fetch(`/api/boards?forEntry=${encodeURIComponent(entryId)}`)
       .then((r) => (r.ok ? r.json() : { boards: [] }))
       .then((data) => setBoards(data.boards ?? []))
       .catch(() => undefined);
     setTimeout(() => searchRef.current?.focus(), 60);
-  }, [open]);
+  }, [open, entryId]);
 
   const matches = useMemo(() => {
     const typed = query.trim();
@@ -75,6 +87,26 @@ export function PinToBoardButton({
         label: 'Prikbord openen',
         onAction: () => router.push(`/b/${boardId}`),
       });
+
+      // The wall asks this question whenever a card lands on it; a card pinned
+      // from the artikel page is no different, and used to slip in silently.
+      const board = boards.find((item) => item.id === boardId);
+      if (board?.caseId && board.caseHasEntry === false && board.caseEditable) {
+        const filed = await offerToFileEntry(ui, {
+          caseId: board.caseId,
+          caseName: board.caseName,
+          entryId,
+          entryName,
+        });
+        if (filed) {
+          setBoards((current) =>
+            current.map((item) =>
+              item.caseId === board.caseId ? { ...item, caseHasEntry: true } : item,
+            ),
+          );
+          router.refresh();
+        }
+      }
     } finally {
       setBusy(false);
     }

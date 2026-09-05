@@ -1,15 +1,21 @@
 /**
- * §22: reading or editing an artikel.
+ * §22: reading or editing — an artikel, and (since §23) a dossier too.
  *
  * The page has two faces. *Lezen* is what a wiki article looks like to
  * everybody else on the web — a title, a picture and its facts on the right,
  * prose underneath, nothing that asks to be filled in. *Bewerken* is the page
  * this archive had before: every line an input, the infobox a form.
  *
+ * A dossier wears the same pair. It is the same reading: a name, a one-liner,
+ * the working theory, and the file's contents — where the editing face has a
+ * search box above every shelf and a caret in the notes. One setting governs
+ * both, because "I came here to read" is a thing about the person, not about
+ * which kind of page they happen to have opened.
+ *
  * Which one a person lands in is theirs to decide, in Jouw account. Until they
  * do, their role decides: a Keeper writes the archive, so a Keeper lands in
  * Bewerken; everyone else came to read, so they land in Lezen. Either way the
- * toggle at the top of the artikel switches faces, and it is not a right — a
+ * toggle at the top of the page switches faces, and it is not a right — a
  * player who may only propose still gets to open the editing face, their
  * changes simply travel as proposals (§10, §17).
  */
@@ -22,7 +28,7 @@ export function cleanArticleModePref(value: unknown): ArticleModePref {
   return value === 'view' || value === 'edit' ? value : '';
 }
 
-/** The face this person's artikel opens in. */
+/** The face this person's artikel — or dossier — opens in. */
 export function articleModeFor(
   pref: ArticleModePref | null | undefined,
   isKeeper: boolean,
@@ -41,11 +47,11 @@ export const ARTICLE_MODE_CHOICES: { value: ArticleModePref; label: string; hint
   {
     value: 'view',
     label: 'Altijd lezen',
-    hint: 'Een artikel opent als leespagina. De knop bovenaan zet het alsnog open.',
+    hint: 'Een artikel of dossier opent als leespagina. De knop bovenaan zet het alsnog open.',
   },
   {
     value: 'edit',
     label: 'Altijd bewerken',
-    hint: 'Een artikel opent meteen met alle velden open.',
+    hint: 'Een artikel of dossier opent meteen met alle velden open.',
   },
 ];

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { entryDisplayName } from '@/lib/entries/caseName';
 
 export type EntryRef = {
   id: string;
@@ -21,6 +22,8 @@ type Suggestion = {
   typeColour: string;
   typeSlug: string;
   shortDescription: string;
+  /** §24: the dossier a voorwerp or clue was made in, when it was. */
+  originCaseName?: string | null;
 };
 
 /**
@@ -28,12 +31,15 @@ type Suggestion = {
  * multi-value `entry_links` field stacks these.
  */
 export function EntryPicker({
+  id,
   value,
   ofType,
   placeholder = 'Zoeken…',
   onPick,
   onClear,
 }: {
+  /** So a caller's own `<label htmlFor>` actually points at the box. */
+  id?: string;
   value: EntryRef | null;
   ofType?: string[];
   placeholder?: string;
@@ -97,6 +103,7 @@ export function EntryPicker({
   return (
     <div ref={boxRef} style={{ position: 'relative' }}>
       <input
+        id={id}
         className="input"
         value={query}
         placeholder={placeholder}
@@ -127,7 +134,7 @@ export function EntryPicker({
               >
                 <Icon name={entry.typeIcon} size={15} style={{ color: entry.typeColour }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <strong>{entry.name}</strong>
+                  <strong>{entryDisplayName(entry.name, entry.originCaseName)}</strong>
                   <span className="tiny muted" style={{ display: 'block' }}>
                     {entry.typeLabel}
                   </span>

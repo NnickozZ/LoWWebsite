@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { typePagePlace } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
@@ -14,6 +15,7 @@ import {
   getEntryType,
   listEntryTypes,
   listTagsWithCounts,
+  nameTheirCases,
 } from '@/lib/entries/service';
 import type { ListParams } from '@/lib/listParams';
 
@@ -38,7 +40,7 @@ export default async function BrowseTypePage({
   const perType = countEntriesPerType(user);
   const tags = listTagsWithCounts(user, typeSlug);
   const filters = readListFilters(query, user);
-  const entries = browseEntries(user, { ...filters, typeSlug, limit: 200 });
+  const entries = nameTheirCases(browseEntries(user, { ...filters, typeSlug, limit: 200 }), user);
   const total = [...perType.values()].reduce((n, count) => n + count, 0);
 
   return (
@@ -50,7 +52,17 @@ export default async function BrowseTypePage({
           <h1 style={{ margin: 0 }}>{type.label}</h1>
         </div>
         <div className="spacer" />
-        <NewOfTypeButton typeSlug={type.slug} />
+        {/* §24: a soort that only exists inside a dossier has no "new" button
+            here. It is not hidden from the wiki — everything made lands here —
+            but it is made in an investigation, so that is where the door is. */}
+        {type.caseOnly ? (
+          <p className="tiny muted" style={{ margin: 0, maxWidth: '22rem', textAlign: 'right' }}>
+            {type.label} maak je in een {words.case}, bij het onderzoek waar ze vandaan komen.{' '}
+            <Link href="/cases">Naar de {words.casePlural}</Link>
+          </p>
+        ) : (
+          <NewOfTypeButton typeSlug={type.slug} />
+        )}
       </div>
 
       <TypeTabs

@@ -40,6 +40,12 @@ export type EntryTypeLite = {
   colour: string;
   /** §11: what this soort's own "Nieuw" button says, if it was given one. */
   newButton?: string;
+  /**
+   * §24: this soort is only made inside a dossier. The "Nieuw artikel" sheet
+   * leaves it out unless it was opened from one, and the wiki's own new button
+   * is gone for it — a voorwerp or a clue is found during an investigation.
+   */
+  caseOnly?: boolean;
 };
 
 type Toast = {

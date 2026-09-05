@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { entryDisplayName } from '@/lib/entries/caseName';
 
 type Suggestion = {
   id: string;
@@ -14,6 +15,7 @@ type Suggestion = {
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
+  originCaseName?: string | null;
 };
 
 /**
@@ -109,7 +111,7 @@ export function CaseAddSearch({
               >
                 <Icon name={entry.typeIcon} size={16} style={{ color: entry.typeColour }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <strong>{entry.name}</strong>
+                  <strong>{entryDisplayName(entry.name, entry.originCaseName)}</strong>
                   <span className="tiny muted" style={{ display: 'block' }}>
                     {entry.typeLabel}
                   </span>
@@ -129,6 +131,10 @@ export function CaseAddSearch({
                 ui.openNewEntry({
                   name,
                   typeSlug: typeSlugs?.[0],
+                  // §24: made *in* this dossier, which is what lets a voorwerp
+                  // or a clue be made at all — and what the wiki puts in front
+                  // of its name later.
+                  caseId,
                   onCreated: (created) => void add(created.id, created.name),
                 });
               }}

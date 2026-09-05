@@ -2,14 +2,36 @@ import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { createBoard, listBoards } from '@/lib/boards/service';
-import { getCaseById, getCaseBySlug } from '@/lib/cases/service';
+import { caseIdsHoldingEntry, getCaseById, getCaseBySlug } from '@/lib/cases/service';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+/**
+ * Every board this viewer may open.
+ *
+ * With `?forEntry=<id>` each board also says whether its case already holds
+ * that entry, and whether this viewer may file anything in it — which is what
+ * lets "Op het prikbord" ask "…and in the dossier too?" the moment the card
+ * lands, instead of a round trip per board or a question nobody may answer.
+ */
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    return json({ boards: listBoards(user) });
+    const boards = listBoards(user);
+
+    const forEntry = new URL(request.url).searchParams.get('forEntry');
+    if (!forEntry) return json({ boards });
+
+    const holding = caseIdsHoldingEntry(forEntry);
+    return json({
+      boards: boards.map((board) => ({
+        ...board,
+        // No case behind the board is nothing to file into, which reads the
+        // same to the caller as "already filed": there is no question to ask.
+        caseHasEntry: board.caseId ? holding.has(board.caseId) : true,
+        caseEditable: board.caseId ? viewerCanEdit('case', board.caseId, user) : false,
+      })),
+    });
   } catch (err) {
     return apiError(err);
   }

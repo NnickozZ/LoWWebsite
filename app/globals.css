@@ -856,8 +856,10 @@ a.card:hover {
     grid-template-columns: 220px 1fr;
   }
   /* §22: the artikel's picture moved to the right-hand column, so its header
-     has nothing to put beside the title any more. A dossier still has. */
-  .entry-head-solo {
+     has nothing to put beside the title any more. A dossier still has — until
+     it is being read and has no picture, when it has nothing either. */
+  .entry-head-solo,
+  .case-head-solo {
     grid-template-columns: 1fr;
   }
 }
@@ -1204,6 +1206,15 @@ details.section[open] > summary::before {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+/* The bar is crowded on a phone; the bin keeps its icon and drops its word. */
+.board-bar-wide-only {
+  display: none;
+}
+@media (min-width: 768px) {
+  .board-bar-wide-only {
+    display: inline;
+  }
+}
 .board-name-input {
   font-family: var(--serif);
   font-size: 1.5rem;
@@ -1394,6 +1405,25 @@ details.section[open] > summary::before {
   word-break: break-word;
   cursor: text;
 }
+/* §19/§7: a landkaart or a dossier among a wall of artikelen says which it is.
+   An artikel card wears no such label — it is what a board is mostly made of,
+   and labelling every card would be labelling nothing. */
+.board-card-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  align-self: flex-start;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--card-rule);
+  border-radius: 2px;
+  font-family: var(--stamp-face);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6d6357;
+}
+
 .board-card-text-empty {
   color: #8a8072;
   font-style: italic;
@@ -1611,6 +1641,29 @@ details.section[open] > summary::before {
   border: 1px dashed var(--link);
   background: rgba(31, 78, 121, 0.12);
   pointer-events: none;
+}
+/* §8, live: somebody else's selection box, in their ink. Solid rather than
+   dashed, so at a glance you can tell your own box from theirs even when both
+   are open at once. */
+.board-marquee-other {
+  z-index: 7;
+  border: 1px solid var(--marquee-colour, var(--ink-muted));
+  background: color-mix(in srgb, var(--marquee-colour, #1f4e79) 12%, transparent);
+}
+.board-marquee-name {
+  position: absolute;
+  left: -1px;
+  bottom: 100%;
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.05rem 0.35rem;
+  background: var(--marquee-colour, var(--ink-muted));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  line-height: 1.4;
 }
 
 /* ------------------------------------------------------------------ misc */
@@ -3045,6 +3098,24 @@ details.section[open] > summary::before {
   padding-top: 0.6rem;
   border-top: 3px double var(--rule);
 }
+/* §25: the two halves of Rechten. One panel, but the eye has to be able to see
+   where the Keeper's decision stops and the owner's begins. */
+.rights-half {
+  border-left: 2px solid var(--rule);
+  padding-left: 0.8rem;
+}
+.rights-half-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.15rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
 .entry-manage-title {
   display: flex;
   align-items: center;
@@ -3058,13 +3129,58 @@ details.section[open] > summary::before {
   color: var(--ink-muted);
 }
 @media (min-width: 1024px) {
+  /*
+   * §25: text, signpost, facts.
+   *
+   * The header lives in the first column now, so all three start at the top
+   * edge of the page together and the title wraps at reading width. The middle
+   * column is the outline — it used to sit under the infobox, with 2.5rem of
+   * empty paper beside it; standing it next to the text it describes is both
+   * where it belongs and where the space already was.
+   */
   .entry-layout-wide {
     display: grid;
     /* §22: 20 px wider than before — the column holds the picture now. */
-    grid-template-columns: minmax(0, 1fr) 320px;
-    column-gap: 2.5rem;
-    /* Stretch (the default) on purpose: the sidebar has to be as tall as the
-       text for its sticky outline to have anything to stick along. */
+    grid-template-columns: minmax(0, 1fr) 12rem 320px;
+    column-gap: 1.6rem;
+    /* Stretch (the default) on purpose: the columns have to be as tall as the
+       text for the sticky outline to have anything to stick along. */
+  }
+  /* Below 1280 px three columns leave the text too narrow to read, so the
+     outline steps back into the sidebar under the picture — exactly where it
+     stood before this round. The header stays in the text column either way. */
+  @media (max-width: 1279px) {
+    .entry-layout-wide {
+      grid-template-columns: minmax(0, 1fr) 320px;
+      column-gap: 2.5rem;
+    }
+    .entry-layout-wide > .entry-main {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+    }
+    .entry-layout-wide > .entry-aside {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .entry-layout-wide > .entry-rail {
+      grid-column: 2;
+      grid-row: 2;
+      margin-top: 1.2rem;
+    }
+    .entry-rail-sticky {
+      position: static;
+      max-height: none;
+    }
+  }
+  .entry-rail {
+    min-width: 0;
+  }
+  .entry-rail-sticky {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
   .entry-aside {
     display: flex;
@@ -3078,6 +3194,12 @@ details.section[open] > summary::before {
     max-height: calc(100dvh - 2rem);
     overflow-y: auto;
     scrollbar-width: thin;
+  }
+  /* §25: the header sits in the text column, so its own two-column grid is
+     gone — it is the title, the one-liner and the chips, at reading width. */
+  .entry-main > .entry-head {
+    display: block;
+    margin-bottom: 1.1rem;
   }
 }
 

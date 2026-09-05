@@ -90,6 +90,14 @@ export const entryTypes = sqliteTable(
     /** This soort's own wording for the few sentences that read badly shared. */
     pageText: text('page_text', { mode: 'json' }).$type<TypeText>().notNull().default({}),
     sortOrder: integer('sort_order').notNull().default(0),
+    /**
+     * §24: this soort is only made inside a dossier. A voorwerp or a clue is
+     * found during an investigation, so the "Nieuw artikel" sheet does not
+     * offer it and the wiki's own new button is gone; the dossier's add-box is
+     * the only door. What comes out is an artikel like any other, and lands in
+     * the wiki like any other — under the dossier's name (`originCaseId`).
+     */
+    caseOnly: integer('case_only', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [uniqueIndex('entry_types_slug_idx').on(t.slug)],
 );
@@ -102,6 +110,7 @@ export type FieldKind =
   | 'entry_links'
   | 'user_link'
   | 'case_link'
+  | 'case_links'
   | 'date'
   | 'map_pin';
 
@@ -152,6 +161,16 @@ export const entries = sqliteTable(
     viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
     editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
     accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §24: the dossier this artikel was *made in*, if it was made in one.
+     *
+     * Not the same as the dossiers it is filed in — that is `case_entries`, and
+     * there can be several. This is the one it came from, and it is what the
+     * wiki prints in front of its name ("Zaak Vlissingen: De koperen sleutel"),
+     * so two clues called "de brief" in two investigations can be told apart at
+     * a glance. Null for everything born in the wiki itself.
+     */
+    originCaseId: text('origin_case_id'),
     createdBy: text('created_by'),
     updatedBy: text('updated_by'),
     createdAt: integer('created_at').notNull().default(now),
@@ -420,12 +439,19 @@ export const maps = sqliteTable(
     height: integer('height').notNull().default(0),
     description: text('description').notNull().default(''),
     sortOrder: integer('sort_order').notNull().default(0),
+    /**
+     * §23: the artikel this map is a map *of* — a place with a floor plan, a
+     * harbour with its own chart. Not the same relation as a pin: a pin says
+     * "this artikel is somewhere on this map", this says "this map is that
+     * place". Null for a map of the world rather than of one page.
+     */
+    entryId: text('entry_id'),
     createdBy: text('created_by'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
     deletedAt: integer('deleted_at'),
   },
-  (t) => [uniqueIndex('maps_slug_idx').on(t.slug)],
+  (t) => [uniqueIndex('maps_slug_idx').on(t.slug), index('maps_entry_idx').on(t.entryId)],
 );
 
 /**

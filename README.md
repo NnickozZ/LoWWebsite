@@ -329,7 +329,8 @@ app/
     admin/           users, review queue, types and pages, words, trash,
                      history, site, export, log
     you/             account, the wardrobe of characters, and the choice of
-                     which face an artikel opens on (ArticleModeForm)
+                     which face an artikel or dossier opens on
+                     (ArticleModeForm)
   api/               entries, cases, boards, maps, characters, access, assets,
                      search, suggest, admin
 components/
@@ -338,10 +339,15 @@ components/
   entry/             cover (its tools behind one "Afbeelding" menu), the list
                      crop, type fields — as a form on the editing face and as
                      printed facts on the reading one (`FieldsView`) — tags,
-                     the autosave hook, the proposals panel, the outline of
-                     the page (EntryOutline)
-  cases/             the dossier, its add-boxes and cards
-  boards/            the canvas, the card, the inspector, the sync hook
+                     the pickers for a linked artikel (EntryPicker), a linked
+                     dossier (CasePicker) and the landkaart that draws this
+                     place (ConnectMapButton), the autosave hook, the
+                     proposals panel, the outline of the page (EntryOutline)
+  cases/             the dossier — two faces, like an artikel — its add-boxes
+                     and cards
+  boards/            the canvas, the card (artikel, notitie, foto, punaise,
+                     landkaart, dossier), the inspector, the sync hook, and
+                     the "…and in the dossier too?" question (offerToFile)
   maps/              the map canvas (pan, zoom, pins, legend), the Keeper's
                      upload sheet and tools
   access/            the two dials (kijken, bewerken) and their checkboxes
@@ -358,13 +364,21 @@ lib/
   db/                schema, migrations, seeds, the connection
   entries/           the entry service, the document helpers, visibility,
                      sections and reveals (secrets.ts), the review queue,
-                     the wiki's filter vocabulary, and mode.ts — reading or
-                     editing, and whose default is which
-  admin/             trash and history, the entry-type editor, the word list
-  cases/             the case service and its visibility rule
-  boards/            the board service, the pure merge rule, and the live hub
-                     (presence, change signals, pointer frames)
-  maps/              maps and pins
+                     the wiki's filter vocabulary, caseFields.ts and
+                     caseName.ts — the dossier a clue was made in, stored as an
+                     id and printed in front of its name — and mode.ts, reading
+                     or editing and whose default is which
+  admin/             trash — artikelen, dossiers, prikborden and landkaarten:
+                     restoring, and the one way out of the archive
+                     (destroyFromTrash) — history, the entry-type editor, the
+                     word list
+  cases/             the case service, its visibility rule, and the lookup
+                     that turns a stored dossier id into a name this viewer
+                     may see (resolveCaseRefs)
+  boards/            the board service, the pure merge rule, the resolvers for
+                     what a card stands for, and the live hub (presence,
+                     change signals, pointer frames)
+  maps/              maps, pins, and the artikel a map is a map *of*
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
   editor/            the one list of Tiptap extensions both halves build from
@@ -540,3 +554,77 @@ Eighteen rules worth knowing before changing anything:
     empty hand-filled list is not a list, and an artikel with no picture has
     no empty frame in its margin. A new block that is a form on one face needs
     a printed shape on the other, or it does not belong on the reading page.
+    §23 gives a **dossier** the same two faces and the same one setting: a
+    dossier that opens as a form for a Keeper opens as a file to read for
+    everyone else, and `CaseDossier` folds "may not" (`readOnly`) and "did not
+    ask to" (`reading`) together into one `locked` that every input on the page
+    is switched off by.
+
+19. **A card on a wall carries an id, and what it stands for is resolved per
+    viewer.** §8, §23. A board card can stand for an artikel, a landkaart or a
+    dossier (`cardRef` in `lib/boards/merge.ts` says which), and none of them
+    keeps a name in the document. `resolveBoardEntries` / `resolveBoardMaps` /
+    `resolveBoardCases` look each one up behind its own visibility rule, and a
+    card whose record this viewer may not see comes back *absent* — the card
+    draws a MISSING stamp, which is deliberately the same answer as "it was
+    deleted". A fourth kind of card would add a fourth resolver and nothing
+    else; it must never add a name to the JSON. The same rule governs the
+    dossiers named in an infobox field (`case_link` / `case_links`): the field
+    stores ids, `resolveCaseRefs` supplies the names, and an id that resolves
+    to nothing prints nothing.
+
+20. **A pointer frame is sight, never state.** §8. Cursors, carried cards and
+    the selection box someone is dragging open all travel as `PointerFrame`
+    over the live line, are fanned out directly, and are never stored and
+    never merged — the save that follows the gesture is what makes it true.
+    Everything in a frame is drawn straight into a style attribute on somebody
+    else's screen, so `readPointerFrame` in `lib/boards/live.ts` is the one
+    place that reads one off the wire, and it keeps a frame to finite numbers,
+    forty carried cards and a box of exactly four coordinates.
+
+21. **The bin has a bottom, and it is the only thing in the archive with
+    nothing behind it.** §11. Everything soft-deletes first, so
+    `destroyFromTrash` only ever reaches something already in the bin, and the
+    Keeper has to type its name back before it runs. It takes everything that
+    existed only because of the thing — sections, versions, reveals, links,
+    proposals, spelden, the search-index row — and nothing that belongs to
+    something else: a dossier's artikelen survive it, and its prikborden become
+    loose prikborden rather than boards pointing at a case that is gone (which
+    `getBoard` cannot open at all). The audit row is written *first*, with the
+    name, because afterwards there is nothing left to look the name up in.
+    §26 finished the sentence: a prikbord and a landkaart had no way into the
+    bin at all, and a landkaart taken off the wall was gone for good. Everything
+    the archive makes now soft-deletes into the bin, is restorable, and can be
+    destroyed from there. Anything new that can be *made* needs all three.
+
+22. **A soort can be one that only exists inside a dossier.** §24.
+    `entry_types.case_only` — a voorwerp or a clue is *found*, during an
+    investigation, so the "Nieuw artikel" sheet leaves it out and the wiki's own
+    new button is gone for it. The sheet hiding it is a courtesy; `/api/entries`
+    refusing it without a dossier the writer may edit is the rule. What comes
+    out is an artikel like any other and lands in the wiki like any other; it
+    simply remembers where it was born, in `entries.origin_case_id`.
+
+23. **A name is stored short and printed long.** §24. The dossier in front of a
+    clue's name ("Zaak Vlissingen: De brief") is put there by
+    `entryDisplayName` where the archive *lists* it — the wiki, search, the
+    autocomplete — and never written into `entries.name`: rename the dossier
+    and every list follows. `nameTheirCases` looks the dossier up behind
+    `visibleCaseCondition`, so somebody who may not open it is shown the plain
+    name rather than told an investigation exists.
+
+24. **Both locks have to say yes, and one panel says so.** §25. The Keeper's
+    dial (`entries.visibility` + reveals) is about what the camping knows; the
+    owner's dials (§17) are about who among them may look and type. They are
+    AND-ed in `visibleEntryCondition` and they are now two halves of one
+    "Rechten" panel, because two separate panels that quietly AND themselves
+    together in the database is a thing nobody could read off the screen.
+
+25. **A field that is handed over must not lose what was typed into it.** §21.
+    A `LiveField` is a plain input until the room loads (`ssr: false`), so there
+    is always a window in which somebody is typing into the parent's autosave
+    instead. When the room arrives with an *empty* text and the parent has one,
+    the parent's is what the person just typed and is seeded into the room; when
+    the room holds anything at all, somebody is in it and the room wins. Getting
+    this backwards lost a one-liner and looked exactly like a save that failed —
+    `tests/unit/live-field-handover.test.ts` is the specification.

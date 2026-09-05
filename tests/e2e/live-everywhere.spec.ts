@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { editCase, inviteCode, signIn } from './helpers';
 
 /**
  * §21: live is every page.
@@ -54,6 +54,9 @@ test('a list grows on the other screen, people see each other, and a name typed 
   // Both open it: each sees the other on the strip.
   await page.goto(path);
   await other.goto(path);
+  // §23: a dossier has two faces now, and a signed-up player lands on the
+  // reading one. Typing into it is the thing under test, so ask for the other.
+  await editCase(other);
   await expect(page.getByTestId('live-strip').locator('.board-person')).toHaveCount(1, { timeout: 15_000 });
   await expect(other.getByTestId('live-strip').locator('.board-person')).toHaveCount(1, { timeout: 15_000 });
 

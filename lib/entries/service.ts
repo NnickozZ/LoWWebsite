@@ -7,6 +7,7 @@ import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
 import { visibleEntryCondition, type Viewer } from './visibility';
+import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { publishSaved, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
 import { entryFieldsRoomKey } from '@/lib/live/keys';
 
@@ -22,6 +23,8 @@ export type EntryTypeRow = {
   blocks: PageBlock[];
   pageText: TypeText;
   sortOrder: number;
+  /** §24: this soort is only made inside a dossier. */
+  caseOnly: boolean;
 };
 
 export type EntrySummary = {
@@ -41,6 +44,15 @@ export type EntrySummary = {
   isLocked: boolean;
   /** §17: so a list card can show a lock for something not everyone sees. */
   viewMode: AccessMode;
+  /** §24: the dossier this artikel was made in, if it was made in one. */
+  originCaseId: string | null;
+  /**
+   * The name of that dossier, for this viewer — filled in by `nameTheirCases`,
+   * absent otherwise. Never read straight off the row: a dossier's name is not
+   * public, so it is resolved behind `visibleCaseCondition` like every other
+   * read of one.
+   */
+  originCaseName?: string | null;
   createdBy: string | null;
   createdAt: number;
   updatedAt: number;
@@ -63,6 +75,7 @@ export const SUMMARY_COLUMNS = {
   visibility: schema.entries.visibility,
   isLocked: schema.entries.isLocked,
   viewMode: schema.entries.viewMode,
+  originCaseId: schema.entries.originCaseId,
   createdBy: schema.entries.createdBy,
   createdAt: schema.entries.createdAt,
   updatedAt: schema.entries.updatedAt,
@@ -205,11 +218,21 @@ export type CreateEntryInput = {
   fields?: Record<string, unknown>;
   tags?: string[];
   createdBy: string | null;
+  /**
+   * §24: the dossier this is being made in. Required for a `caseOnly` soort —
+   * a voorwerp or a clue is found *during* an investigation, and one with no
+   * investigation behind it is a row nobody can explain. The caller checks that
+   * this person may write in that dossier; this only checks that there is one.
+   */
+  originCaseId?: string | null;
 };
 
 export function createEntry(input: CreateEntryInput): EntrySummary {
   const type = getEntryType(input.typeSlug);
   if (!type) throw new Error(`Onbekende soort artikel: ${input.typeSlug}`);
+  if (type.caseOnly && !input.originCaseId) {
+    throw new Error(`${type.label} maak je in een dossier.`);
+  }
 
   const name = input.name.trim();
   if (!name) throw new Error('Een artikel heeft een naam nodig.');
@@ -232,6 +255,7 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
       bodyText: docToText(body),
       fields: input.fields ?? {},
       tags: normaliseTags(input.tags ?? []),
+      originCaseId: input.originCaseId ?? null,
       createdBy: input.createdBy,
       updatedBy: input.createdBy,
     })
@@ -370,6 +394,39 @@ export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): Entr
     .limit(options.limit ?? 120)
     .offset(options.offset ?? 0)
     .all() as EntrySummary[];
+}
+
+/**
+ * §24: fills in the name of the dossier each artikel was made in, for this
+ * viewer, in one query for the whole list.
+ *
+ * Deliberately a second pass rather than a join in `SUMMARY_COLUMNS`: that
+ * shape is shared by a dozen readers (`derived.ts`, backlinks, the feed) and
+ * only two or three of them list anything that has an origin dossier at all.
+ * A dossier this viewer may not open resolves to nothing, and
+ * `entryDisplayName` then prints the plain name — the label on a clue must not
+ * give away an investigation nobody told them about.
+ */
+export function nameTheirCases<T extends { originCaseId: string | null }>(
+  rows: T[],
+  viewer: Viewer,
+): (T & { originCaseName: string | null })[] {
+  const ids = [...new Set(rows.flatMap((row) => (row.originCaseId ? [row.originCaseId] : [])))];
+  if (!ids.length) return rows.map((row) => ({ ...row, originCaseName: null }));
+
+  const names = new Map(
+    db
+      .select({ id: schema.cases.id, name: schema.cases.name })
+      .from(schema.cases)
+      .where(and(inArray(schema.cases.id, ids), visibleCaseCondition(viewer)))
+      .all()
+      .map((row) => [row.id, row.name] as const),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    originCaseName: (row.originCaseId && names.get(row.originCaseId)) || null,
+  }));
 }
 
 /**
@@ -809,6 +866,7 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
         visibility: row.visibility,
         isLocked: row.isLocked,
         viewMode: row.viewMode,
+        originCaseId: row.originCaseId,
         createdBy: row.createdBy,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

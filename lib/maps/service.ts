@@ -35,6 +35,8 @@ export type MapSummary = {
   height: number;
   description: string;
   sortOrder: number;
+  /** §23: the artikel this map is a map *of*, if it is a map of one. */
+  entryId: string | null;
   createdBy: string | null;
   createdAt: number;
   updatedAt: number;
@@ -78,6 +80,7 @@ const MAP_COLUMNS = {
   height: schema.maps.height,
   description: schema.maps.description,
   sortOrder: schema.maps.sortOrder,
+  entryId: schema.maps.entryId,
   createdBy: schema.maps.createdBy,
   createdAt: schema.maps.createdAt,
   updatedAt: schema.maps.updatedAt,
@@ -204,6 +207,8 @@ export type MapPatch = {
   assetId?: string;
   width?: number;
   height?: number;
+  /** §23: the artikel this map is a map of. `null` unhooks it. */
+  entryId?: string | null;
 };
 
 export function updateMap(
@@ -227,6 +232,20 @@ export function updateMap(
     values.assetId = patch.assetId;
     if (typeof patch.width === 'number') values.width = patch.width;
     if (typeof patch.height === 'number') values.height = patch.height;
+  }
+  if (patch.entryId !== undefined) {
+    // The artikel has to exist and be one this Keeper can see; anything else
+    // would leave a chip pointing at nothing on a page nobody can explain.
+    if (patch.entryId === null || patch.entryId === '') values.entryId = null;
+    else {
+      const target = db
+        .select({ id: schema.entries.id })
+        .from(schema.entries)
+        .where(and(eq(schema.entries.id, patch.entryId), isNull(schema.entries.deletedAt)))
+        .get();
+      if (!target) throw new Error('Dat artikel bestaat niet (meer).');
+      values.entryId = target.id;
+    }
   }
   db.update(schema.maps).set(values).where(eq(schema.maps.id, id)).run();
   // §21: the name and description are shared fields; a plain write brings the room into line.
@@ -439,6 +458,20 @@ export function removePin(pinId: string, actor: { id: string; isKeeper: boolean 
 }
 
 /** Where a fiche is on the maps — for the "Op de landkaart" block on its page. */
+/**
+ * §23: the landkaarten that *are* this artikel — the floor plan of the
+ * lighthouse, the chart drawn for the harbour. The other direction from
+ * `listPinsForEntry`, which says where the artikel is on somebody else's map.
+ */
+export function listMapsOfEntry(entryId: string): { id: string; slug: string; name: string }[] {
+  return db
+    .select({ id: schema.maps.id, slug: schema.maps.slug, name: schema.maps.name })
+    .from(schema.maps)
+    .where(and(eq(schema.maps.entryId, entryId), isNull(schema.maps.deletedAt)))
+    .orderBy(asc(schema.maps.sortOrder), asc(sql`lower(${schema.maps.name})`))
+    .all();
+}
+
 export function listPinsForEntry(entryId: string): {
   pinId: string;
   mapId: string;

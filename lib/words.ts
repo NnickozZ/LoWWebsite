@@ -116,8 +116,8 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'history', what: 'De kop boven de versies', fallback: 'Geschiedenis' },
       {
         key: 'visibilityAndReveals',
-        what: 'De kop boven zichtbaarheid',
-        fallback: 'Zichtbaarheid en onthullingen',
+        what: 'De kop boven de Keeper-helft van Rechten',
+        fallback: 'De Keeper: wat weet de camping al?',
       },
       { key: 'keeperNotes', what: 'De kop boven de geheime notities', fallback: 'Notities van de Keeper' },
       { key: 'deleteEntry', what: 'De kop boven de prullenbakknop', fallback: 'Dit artikel verwijderen' },

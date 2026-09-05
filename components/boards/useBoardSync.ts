@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BoardCard, BoardState, BoardString, Viewport } from '@/lib/boards/merge';
-import type { BoardEntryFacts } from '@/lib/boards/service';
+import type { BoardRefs } from '@/lib/boards/service';
 
 export type SyncState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -37,7 +37,7 @@ export function useBoardSync({
   cards: BoardCard[];
   strings: BoardString[];
   viewport: Viewport;
-  onMerged: (state: BoardState, entries: Record<string, BoardEntryFacts>) => void;
+  onMerged: (state: BoardState, refs: BoardRefs) => void;
   /** True while a drag or a text edit is in flight — do not yank the DOM. */
   paused: boolean;
 }) {
@@ -107,14 +107,16 @@ export function useBoardSync({
       if (!response.ok) throw new Error('save failed');
       const data = (await response.json()) as {
         state: BoardState;
-        entries: Record<string, BoardEntryFacts>;
+        entries: BoardRefs['entries'];
+        maps: BoardRefs['maps'];
+        cases: BoardRefs['cases'];
       };
       setState('saved');
       // Applying the merge mid-drag, or on top of newer local edits, would
       // fight the pointer — so it only lands when the client is quiet and the
       // response still describes what we sent.
       if (!latest.current.paused && version.current === sentVersion) {
-        onMergedRef.current(data.state, data.entries);
+        onMergedRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases });
       }
     } catch {
       // Put them back so they are retried rather than lost.

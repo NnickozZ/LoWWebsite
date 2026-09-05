@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { newCaseBoard, signIn } from './helpers';
 
 /**
  * The second pass over the board: bare pins for leads with no card, string
@@ -226,9 +226,7 @@ test.describe('board strings and borders', () => {
     await page.waitForURL('**/c/**');
     const caseUrl = new URL(page.url()).pathname;
 
-    await page.getByRole('tab', { name: 'Prikbord' }).click();
-    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
-    await page.waitForURL('**/b/**');
+    await newCaseBoard(page);
 
     await pinEntry(page, 'Pier Boone');
 
@@ -310,10 +308,7 @@ test.describe('the case tray on a board', () => {
     }
 
     // §7: tabs on a desktop, one stacked page on a phone.
-    const boardTab = page.getByRole('tab', { name: 'Prikbord' });
-    if (await boardTab.isVisible().catch(() => false)) await boardTab.click();
-    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
-    await page.waitForURL('**/b/**');
+    await newCaseBoard(page);
 
     // Both are in the drawer, because neither is on the wall yet.
     const tray = page.locator('.board-tray');

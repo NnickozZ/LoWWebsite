@@ -226,3 +226,59 @@ test('the other hand is on the wall: a pointer, and a card that travels before i
 
   await context.close();
 });
+
+test('the box someone drags round the wall is on everyone else’s wall too', async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'phone', '§8: no marquee under 768 px');
+  test.setTimeout(90_000);
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const boardUrl = await newBoard(page);
+  await addEntryCard(page, 'Pier Boone');
+
+  const context = await browser.newContext();
+  const watcher = await context.newPage();
+  const stamp = Date.now().toString(36);
+  await signUp(watcher, `Kijker ${stamp}`, 'onderzeeboot');
+  await watcher.goto(boardUrl);
+  await expect(watcher.locator('.board-card', { hasText: 'Pier Boone' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.board-person')).toHaveCount(1, { timeout: 15_000 });
+
+  // Shift-drag a box over an empty stretch of cork. The other screen should
+  // watch it open — until now the box was invisible and half the wall simply
+  // lit up at once when it closed.
+  const viewport = (await page.locator('.board-viewport').boundingBox())!;
+  const from = { x: viewport.x + 420, y: viewport.y + 120 };
+  await page.keyboard.down('Shift');
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 260, from.y + 200, { steps: 12 });
+
+  const theirs = watcher.locator('.board-marquee-other');
+  await expect(theirs).toHaveCount(1, { timeout: 10_000 });
+  await expect(theirs.locator('.board-marquee-name')).toHaveText('Keeper');
+  // Polled rather than measured once: frames are throttled, so the first one to
+  // arrive is the box as it was a moment ago, not as it is.
+  await expect
+    .poll(async () => (await theirs.boundingBox())!.width, { timeout: 10_000 })
+    .toBeGreaterThan(200);
+
+  // It keeps growing while the hand does.
+  const opened = (await theirs.boundingBox())!;
+  await page.mouse.move(from.x + 460, from.y + 320, { steps: 10 });
+  await expect
+    .poll(async () => (await theirs.boundingBox())!.width - opened.width, { timeout: 10_000 })
+    .toBeGreaterThan(120);
+
+  // And it is gone the moment the hand lets go: a rectangle left hanging on the
+  // cork is worse than none.
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await expect(theirs).toHaveCount(0, { timeout: 10_000 });
+  // Nobody else's box was ever drawn on the wall of the person dragging it.
+  await expect(page.locator('.board-marquee-other')).toHaveCount(0);
+
+  await context.close();
+});
