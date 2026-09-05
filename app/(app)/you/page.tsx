@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
+import { CharacterWardrobe } from '@/components/you/CharacterSwitcher';
+import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
+import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
 import { ChangePasswordForm } from './ChangePasswordForm';
@@ -19,6 +22,19 @@ export default async function YouPage() {
   // §10: a locked entry sends a player's edit to the Keeper. This is where they
   // find out what came of it, and read the Keeper's note back.
   const proposals = user ? listMyProposals(user.id) : [];
+  const words = getWords();
+
+  // §18: the wardrobe. A Keeper's is empty by rule, not by accident.
+  const me = user
+    ? {
+        id: user.id,
+        username: user.username,
+        isKeeper: user.isKeeper,
+        characters: user.isKeeper ? [] : listCharacters(user.id),
+        activeId: user.isKeeper ? null : (activeCharacter(user.id)?.entryId ?? null),
+      }
+    : null;
+  const worn = me?.characters.find((c) => c.entryId === me.activeId) ?? null;
 
   return (
     <div className="page">
@@ -26,12 +42,25 @@ export default async function YouPage() {
       <h1>{user?.username}</h1>
       {user?.isKeeper && (
         <p className="row-wrap">
-          <span className="stamp">Keeper</span>
+          <span className="stamp">{words.keeper}</span>
           <Link className="btn btn-small" href="/admin">
             <Icon name="shield" size={15} />
-            Beheer
+            {words.navAdmin}
           </Link>
         </p>
+      )}
+      {worn && (
+        <p className="small muted" style={{ marginTop: 0 }}>
+          {words.playsAs} <strong>{worn.name}</strong>.
+        </p>
+      )}
+
+      {me && (
+        <>
+          <hr className="rule" />
+          <h2 id="karakters">{words.yourCharacters}</h2>
+          <CharacterWardrobe me={me} />
+        </>
       )}
 
       {proposals.length > 0 && (

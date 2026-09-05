@@ -25,7 +25,7 @@ function UserPicker({
   value: { id: string; username: string } | null;
   onChange: (next: { id: string; username: string } | null) => void;
 }) {
-  const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; username: string; character?: string | null }[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -46,13 +46,13 @@ function UserPicker({
       value={value?.id ?? ''}
       onChange={(event) => {
         const found = users.find((u) => u.id === event.target.value);
-        onChange(found ?? null);
+        onChange(found ? { id: found.id, username: found.username } : null);
       }}
     >
       <option value="">—</option>
       {users.map((user) => (
         <option key={user.id} value={user.id}>
-          {user.username}
+          {user.character ? `${user.username} — speelt ${user.character}` : user.username}
         </option>
       ))}
     </select>
@@ -216,34 +216,11 @@ export function FieldsEditor({
             )}
 
             {field.kind === 'map_pin' && (
-              <div className="row">
-                <input
-                  className="input"
-                  placeholder="breedtegraad"
-                  inputMode="decimal"
-                  disabled={readOnly}
-                  defaultValue={(value as { lat?: number } | null)?.lat ?? ''}
-                  onBlur={(event) =>
-                    set({
-                      ...((value as object) ?? {}),
-                      lat: event.target.value ? Number(event.target.value) : undefined,
-                    })
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="lengtegraad"
-                  inputMode="decimal"
-                  disabled={readOnly}
-                  defaultValue={(value as { lng?: number } | null)?.lng ?? ''}
-                  onBlur={(event) =>
-                    set({
-                      ...((value as object) ?? {}),
-                      lng: event.target.value ? Number(event.target.value) : undefined,
-                    })
-                  }
-                />
-              </div>
+              <p className="small muted" style={{ margin: 0 }}>
+                Spelden staan tegenwoordig op de landkaarten zelf: zet deze fiche op een kaart via
+                &lsquo;Op de landkaart&rsquo; bovenaan de pagina, of vanaf de{' '}
+                <a href="/maps">kaartenpagina</a>.
+              </p>
             )}
           </div>
         );

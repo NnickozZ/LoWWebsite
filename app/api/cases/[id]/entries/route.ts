@@ -1,3 +1,4 @@
+import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
@@ -18,12 +19,18 @@ function assertVisible(id: string, viewer: { id: string; isKeeper: boolean }) {
   return summary;
 }
 
+/** §17: seeing a case and changing it are two different rights. */
+function assertEditable(id: string, viewer: { id: string; isKeeper: boolean }) {
+  assertVisible(id, viewer);
+  if (!viewerCanEdit('case', id, viewer)) throw new Error('Je mag dit dossier niet bewerken.');
+}
+
 /** Add an entry to the case, or change its case note or its crop of the cover. */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     const { id } = await ctx.params;
-    assertVisible(id, user);
+    assertEditable(id, user);
 
     const body = (await request.json()) as {
       entryId?: string;
@@ -49,7 +56,7 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
   try {
     const user = await requireUser();
     const { id } = await ctx.params;
-    assertVisible(id, user);
+    assertEditable(id, user);
 
     const entryId = new URL(request.url).searchParams.get('entryId');
     if (!entryId) return json({ error: 'Geen fiche opgegeven.' }, { status: 400 });

@@ -96,10 +96,31 @@ export type BoardString = {
 
 export type Viewport = { x: number; y: number; zoom: number };
 
+/**
+ * What has been taken off the wall, and when — id to a millisecond timestamp.
+ *
+ * Merging by id alone cannot express a deletion. Someone whose screen still
+ * shows a card the wall no longer has will send that card up with their next
+ * save, entirely honestly, and an upsert puts it straight back. On a board
+ * where two people are working that is not a rare race: it is what happens
+ * every time one deletes while the other is holding a card, because a client
+ * that is busy defers the change rather than applying it.
+ *
+ * So a deletion is written down. The merge drops any incoming card whose id is
+ * in here, which is the difference between "I have not heard of this card" and
+ * "this card is gone".
+ */
+export type Tombstones = {
+  cards: Record<string, number>;
+  strings: Record<string, number>;
+};
+
 export type BoardState = {
   cards: BoardCard[];
   strings: BoardString[];
   viewport: Viewport;
+  /** Optional so every board saved before this existed still opens. */
+  deleted?: Tombstones;
 };
 
 export type BoardPatch = {
@@ -107,8 +128,26 @@ export type BoardPatch = {
   strings?: BoardString[];
   deletedCardIds?: string[];
   deletedStringIds?: string[];
+  /**
+   * Undo. A deletion that has already been saved leaves a tombstone, and
+   * without a way to lift one, undo would put a card back on screen and the
+   * next save would quietly delete it again. These ids say "this is deliberate,
+   * it exists again" — only ever sent for something the person just restored.
+   */
+  restoredCardIds?: string[];
+  restoredStringIds?: string[];
   viewport?: Viewport;
 };
+
+/**
+ * How long a deletion is remembered. Long enough that a laptop shut mid-session
+ * and opened the next evening cannot resurrect anything; short enough that the
+ * document does not accumulate for ever. Ids are a few dozen bytes each.
+ */
+export const TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** And a hard ceiling, so a scripted client cannot grow the row without bound. */
+export const TOMBSTONE_LIMIT = 500;
 
 export const EMPTY_BOARD: BoardState = {
   cards: [],
@@ -207,7 +246,7 @@ function normaliseString(line: unknown): BoardString | null {
 }
 
 /** Accepts anything out of the database or off the wire and returns a valid board. */
-export function normaliseState(input: unknown): BoardState {
+export function normaliseState(input: unknown, now = Date.now()): BoardState {
   const raw = (input ?? {}) as Partial<BoardState>;
 
   const cards: BoardCard[] = Array.isArray(raw.cards)
@@ -249,6 +288,7 @@ export function normaliseState(input: unknown): BoardState {
     : [];
 
   const viewport = raw.viewport ?? EMPTY_BOARD.viewport;
+  const deleted = normaliseTombstones(raw.deleted, now);
 
   return {
     cards,
@@ -258,7 +298,38 @@ export function normaliseState(input: unknown): BoardState {
       y: clampNumber(viewport.y, 0),
       zoom: Math.max(0.2, Math.min(3, clampNumber(viewport.zoom, 1))),
     },
+    deleted,
   };
+}
+
+/**
+ * Reads whatever is in the column, drops anything expired, and keeps the most
+ * recent `TOMBSTONE_LIMIT`. Pruning happens on the way in rather than on a
+ * timer: every merge passes through here, so the list cannot outlive its use.
+ */
+function normaliseTombstones(input: unknown, now = Date.now()): Tombstones {
+  const out: Tombstones = { cards: {}, strings: {} };
+  if (!input || typeof input !== 'object') return out;
+  const raw = input as Partial<Tombstones>;
+
+  for (const key of ['cards', 'strings'] as const) {
+    const source = raw[key];
+    if (!source || typeof source !== 'object') continue;
+    const entries = Object.entries(source)
+      .filter(
+        ([id, at]) =>
+          typeof id === 'string' &&
+          id.length > 0 &&
+          id.length <= 64 &&
+          typeof at === 'number' &&
+          Number.isFinite(at) &&
+          now - at < TOMBSTONE_TTL_MS,
+      )
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOMBSTONE_LIMIT);
+    out[key] = Object.fromEntries(entries);
+  }
+  return out;
 }
 
 /**
@@ -267,7 +338,7 @@ export function normaliseState(input: unknown): BoardState {
  * win for cards it does know; deletions are applied explicitly rather than
  * inferred from absence, so a stale client cannot wipe the board.
  */
-export function mergeBoardState(stored: unknown, patch: BoardPatch): BoardState {
+export function mergeBoardState(stored: unknown, patch: BoardPatch, now = Date.now()): BoardState {
   const base = normaliseState(stored);
   const incoming = normaliseState({
     cards: patch.cards ?? [],
@@ -278,10 +349,28 @@ export function mergeBoardState(stored: unknown, patch: BoardPatch): BoardState 
   const deletedCards = new Set(patch.deletedCardIds ?? []);
   const deletedStrings = new Set(patch.deletedStringIds ?? []);
 
+  // What the wall already knows is gone, plus what this patch just removed,
+  // minus anything the person deliberately restored with undo.
+  const tombstones: Tombstones = {
+    cards: { ...(base.deleted?.cards ?? {}) },
+    strings: { ...(base.deleted?.strings ?? {}) },
+  };
+  for (const id of deletedCards) tombstones.cards[id] = now;
+  for (const id of deletedStrings) tombstones.strings[id] = now;
+  for (const id of patch.restoredCardIds ?? []) delete tombstones.cards[id];
+  for (const id of patch.restoredStringIds ?? []) delete tombstones.strings[id];
+
   const cardsById = new Map<string, BoardCard>();
   for (const card of base.cards) cardsById.set(card.id, card);
-  for (const card of incoming.cards) cardsById.set(card.id, card);
-  for (const id of deletedCards) cardsById.delete(id);
+  // A card the sender still has on screen but the wall has buried stays buried.
+  // Without this the sender's next save — a drag, a pan, anything — hands the
+  // card straight back, and a deletion made while somebody was mid-drag simply
+  // undoes itself a few seconds later.
+  for (const card of incoming.cards) {
+    if (card.id in tombstones.cards) continue;
+    cardsById.set(card.id, card);
+  }
+  for (const id of Object.keys(tombstones.cards)) cardsById.delete(id);
 
   const stringsById = new Map<string, BoardString>();
   for (const line of base.strings) stringsById.set(line.id, line);
@@ -289,15 +378,19 @@ export function mergeBoardState(stored: unknown, patch: BoardPatch): BoardState 
   // card that only the *stored* half of the merge knows about.
   for (const line of patch.strings ?? []) {
     const clean = normaliseString(line);
-    if (clean) stringsById.set(clean.id, clean);
+    if (clean && !(clean.id in tombstones.strings)) stringsById.set(clean.id, clean);
   }
-  for (const id of deletedStrings) stringsById.delete(id);
+  for (const id of Object.keys(tombstones.strings)) stringsById.delete(id);
 
-  return normaliseState({
-    cards: [...cardsById.values()],
-    strings: [...stringsById.values()],
-    viewport: patch.viewport ?? base.viewport,
-  });
+  return normaliseState(
+    {
+      cards: [...cardsById.values()],
+      strings: [...stringsById.values()],
+      viewport: patch.viewport ?? base.viewport,
+      deleted: tombstones,
+    },
+    now,
+  );
 }
 
 /** ±2° at placement, stored so a card never jumps between loads (§8). */

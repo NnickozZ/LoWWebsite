@@ -8,6 +8,8 @@ import {
   isCardEnd,
   mergeBoardState,
   normaliseState,
+  TOMBSTONE_LIMIT,
+  TOMBSTONE_TTL_MS,
   placementRotation,
   stringColourValue,
   STRING_COLOURS,
@@ -111,9 +113,91 @@ describe('mergeBoardState', () => {
   });
 });
 
+describe('a deletion is remembered, so a stale client cannot undo it', () => {
+  /**
+   * The bug this exists for: two people at one wall, one deletes a card while
+   * the other is mid-drag. The dragging client defers the change (by design —
+   * applying it would yank the card out from under the pointer), and then saves
+   * a document that still contains the deleted card. Merging by id alone reads
+   * that as an update and puts the card back, so the deletion undoes itself a
+   * few seconds after it was made.
+   */
+  it('drops an incoming card the wall has already buried', () => {
+    const afterDelete = mergeBoardState(base, { deletedCardIds: ['b'] });
+    expect(afterDelete.cards.map((c) => c.id)).toEqual(['a']);
+
+    // The other client, still holding both cards, saves what it believes.
+    const stale = mergeBoardState(afterDelete, { cards: [card('a'), card('b', { x: 999 })] });
+    expect(stale.cards.map((c) => c.id)).toEqual(['a']);
+  });
+
+  it('drops an incoming string whose deletion has been recorded', () => {
+    const afterDelete = mergeBoardState(base, { deletedStringIds: ['s1'] });
+    expect(afterDelete.strings).toEqual([]);
+
+    const stale = mergeBoardState(afterDelete, {
+      cards: [card('a'), card('b')],
+      strings: [line('s1', 'a', 'b')],
+    });
+    expect(stale.strings).toEqual([]);
+  });
+
+  it('still lets a genuinely new card through', () => {
+    const afterDelete = mergeBoardState(base, { deletedCardIds: ['b'] });
+    const withNew = mergeBoardState(afterDelete, { cards: [card('a'), card('c')] });
+    expect(withNew.cards.map((c) => c.id).sort()).toEqual(['a', 'c']);
+  });
+
+  it('lets undo put a card back, because that is deliberate', () => {
+    const afterDelete = mergeBoardState(base, { deletedCardIds: ['b'] });
+    const undone = mergeBoardState(afterDelete, {
+      cards: [card('a'), card('b')],
+      restoredCardIds: ['b'],
+    });
+    expect(undone.cards.map((c) => c.id).sort()).toEqual(['a', 'b']);
+
+    // And the tombstone is gone, so the next ordinary save keeps it.
+    const later = mergeBoardState(undone, { cards: [card('a'), card('b', { x: 40 })] });
+    expect(later.cards.find((c) => c.id === 'b')!.x).toBe(40);
+  });
+
+  it('forgets a deletion once it is old enough to be no danger', () => {
+    const now = Date.now();
+    const afterDelete = mergeBoardState(base, { deletedCardIds: ['b'] }, now);
+    expect(afterDelete.deleted?.cards.b).toBe(now);
+
+    const muchLater = now + TOMBSTONE_TTL_MS + 1000;
+    const pruned = mergeBoardState(afterDelete, {}, muchLater);
+    expect(pruned.deleted?.cards.b).toBeUndefined();
+  });
+
+  it('keeps the record bounded, newest first', () => {
+    const now = Date.now();
+    const many: Record<string, number> = {};
+    for (let i = 0; i < TOMBSTONE_LIMIT + 50; i++) many[`c_${i}`] = now - i;
+    const state = normaliseState({ cards: [], strings: [], deleted: { cards: many, strings: {} } }, now);
+    const kept = Object.keys(state.deleted!.cards);
+    expect(kept.length).toBe(TOMBSTONE_LIMIT);
+    expect(kept).toContain('c_0');
+    expect(kept).not.toContain(`c_${TOMBSTONE_LIMIT + 40}`);
+  });
+
+  it('opens a board saved before any of this existed', () => {
+    const old = { cards: [card('a')], strings: [], viewport: { x: 0, y: 0, zoom: 1 } };
+    const merged = mergeBoardState(old, { cards: [card('a', { x: 12 })] });
+    expect(merged.cards.find((c) => c.id === 'a')!.x).toBe(12);
+    expect(merged.deleted).toEqual({ cards: {}, strings: {} });
+  });
+});
+
 describe('normaliseState', () => {
   it('survives rubbish', () => {
-    expect(normaliseState(null)).toEqual({ cards: [], strings: [], viewport: { x: 0, y: 0, zoom: 1 } });
+    expect(normaliseState(null)).toEqual({
+      cards: [],
+      strings: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      deleted: { cards: {}, strings: {} },
+    });
     expect(normaliseState({ cards: 'nope', strings: 7 }).cards).toEqual([]);
   });
 

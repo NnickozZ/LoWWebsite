@@ -2,9 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Icon } from '@/components/Icon';
+import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
+import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useUi } from '@/components/ui/UiProvider';
+
+/** §20: client-only, so the server never holds a second copy of Yjs. */
+const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
+  ssr: false,
+  loading: () => <div className="editor-body" aria-busy="true" />,
+});
 import type { Visibility } from '@/lib/db/schema';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 
@@ -14,7 +23,51 @@ export type SectionLite = {
   body: unknown;
   visibility: Visibility;
   revealedTo: string[];
+  /** §20: the section's own room, if this viewer may be in it. */
+  live?: { room: string; state: string; canEdit: boolean } | null;
 };
+
+/**
+ * §20: one section's text, shared. Each section is its own room with its own
+ * gate (§9), so a Keeper typing in a hidden section is seen by other Keepers
+ * and by nobody else — and the moment it is revealed, the players who may
+ * read it join the same room.
+ */
+function SectionText({
+  section,
+  user,
+  editable,
+  placeholder,
+  onChange,
+}: {
+  section: SectionLite;
+  user: LiveUser | null;
+  editable: boolean;
+  placeholder?: string;
+  onChange: (doc: unknown) => void;
+}) {
+  const [status, setStatus] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
+  if (!section.live || !user) {
+    return <RichEditor initialDoc={section.body} editable={editable} placeholder={placeholder} onChange={onChange} />;
+  }
+  return (
+    <>
+      <LiveBody
+        room={section.live.room}
+        state={section.live.state}
+        user={user}
+        canEdit={editable && section.live.canEdit}
+        placeholder={placeholder}
+        onStatus={setStatus}
+      />
+      {(status.others.length > 0 || status.status !== 'live') && (
+        <p className="tiny" style={{ margin: '0.3rem 0 0' }}>
+          <LivePeople others={status.others} status={status.status} />
+        </p>
+      )}
+    </>
+  );
+}
 
 const VISIBILITY_LABELS: Record<Visibility, string> = {
   keeper: 'Alleen de Keeper',
@@ -35,12 +88,15 @@ export function SectionsEditor({
   isKeeper,
   users,
   cases,
+  liveUser,
 }: {
   entryId: string;
   sections: SectionLite[];
   isKeeper: boolean;
   users: RevealableUser[];
   cases: RevealableCase[];
+  /** §20: this person's name and ink in the shared text; null when not signed in. */
+  liveUser: LiveUser | null;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -96,7 +152,7 @@ export function SectionsEditor({
         {sections.map((section) => (
           <section key={section.id} className="entry-section">
             <h2 className="entry-section-title">{section.title || 'Zonder titel'}</h2>
-            <RichEditor initialDoc={section.body} editable={false} onChange={() => {}} />
+            <SectionText section={section} user={liveUser} editable={false} onChange={() => undefined} />
           </section>
         ))}
       </>
@@ -179,8 +235,10 @@ export function SectionsEditor({
             </div>
           )}
 
-          <RichEditor
-            initialDoc={section.body}
+          <SectionText
+            section={section}
+            user={liveUser}
+            editable
             placeholder="Wat weet de Keeper hier nog meer over?"
             onChange={(doc) => void patch(section.id, { body: doc })}
           />

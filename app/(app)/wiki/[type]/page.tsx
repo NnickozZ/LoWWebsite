@@ -2,9 +2,11 @@ import { notFound } from 'next/navigation';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
 import { NewOfTypeButton } from '@/components/NewOfTypeButton';
+import { SortFilterBar } from '@/components/SortFilterBar';
 import { getSessionUser } from '@/lib/auth/session';
+import { readListFilters, wikiFilterGroups, WIKI_SORTS } from '@/lib/entries/browseFilters';
 import { browseEntries, getEntryType, listTagsWithCounts } from '@/lib/entries/service';
-import { TagBar } from '@/components/TagBar';
+import type { ListParams } from '@/lib/listParams';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,18 +15,18 @@ export default async function BrowseTypePage({
   searchParams,
 }: {
   params: Promise<{ type: string }>;
-  searchParams: Promise<{ tag?: string; sort?: string }>;
+  searchParams: Promise<ListParams>;
 }) {
   const user = await getSessionUser();
   const { type: typeSlug } = await params;
   const query = await searchParams;
-  const sort = query.sort === 'name' ? 'name' : 'recent';
 
   const type = getEntryType(typeSlug);
   if (!type) notFound();
 
   const tags = listTagsWithCounts(user, typeSlug);
-  const entries = browseEntries(user, { typeSlug, tag: query.tag, sort, limit: 200 });
+  const filters = readListFilters(query, user);
+  const entries = browseEntries(user, { ...filters, typeSlug, limit: 200 });
 
   return (
     <div className="page-wide">
@@ -38,7 +40,7 @@ export default async function BrowseTypePage({
         {entries.length} {entries.length === 1 ? 'fiche' : 'fiches'}
       </p>
 
-      <TagBar tags={tags} activeTag={query.tag} sort={sort} basePath={`/wiki/${typeSlug}`} />
+      <SortFilterBar sorts={WIKI_SORTS} defaultSort="recent" groups={wikiFilterGroups(tags, user)} />
 
       {entries.length ? (
         <div className="card-grid">

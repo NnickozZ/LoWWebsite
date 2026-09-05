@@ -12,7 +12,7 @@ import { signIn } from './helpers';
 
 async function newBoard(page: Page) {
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
   await page.waitForURL('**/b/**');
 }
 
@@ -227,15 +227,16 @@ test.describe('board strings and borders', () => {
     const caseUrl = new URL(page.url()).pathname;
 
     await page.getByRole('tab', { name: 'Prikbord' }).click();
-    await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
     await page.waitForURL('**/b/**');
 
     await pinEntry(page, 'Pier Boone');
 
-    // The board is this case's wall, so it asks — it does not decide.
-    const toast = page.locator('.toast', { hasText: caseName });
-    await expect(toast).toBeVisible();
-    await toast.getByRole('button', { name: 'Toevoegen' }).click();
+    // The board is this case's wall, so it asks — it does not decide. And it
+    // asks in a sheet, in the middle, not in a toast in the corner.
+    const question = page.getByRole('dialog', { name: new RegExp(`zit nog niet in ${caseName}`) });
+    await expect(question).toBeVisible();
+    await question.getByRole('button', { name: 'Toevoegen aan dossier' }).click();
     await expect(page.locator('.toast', { hasText: 'toegevoegd aan' })).toBeVisible();
 
     await page.goto(caseUrl);
@@ -245,7 +246,7 @@ test.describe('board strings and borders', () => {
     // already in the file.
     await page.goBack();
     await pinEntry(page, 'Pier Boone');
-    await expect(page.locator('.toast', { hasText: 'zit nog niet in' })).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: /zit nog niet in/ })).toHaveCount(0);
   });
 });
 
@@ -311,7 +312,7 @@ test.describe('the case tray on a board', () => {
     // §7: tabs on a desktop, one stacked page on a phone.
     const boardTab = page.getByRole('tab', { name: 'Prikbord' });
     if (await boardTab.isVisible().catch(() => false)) await boardTab.click();
-    await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
     await page.waitForURL('**/b/**');
 
     // Both are in the drawer, because neither is on the wall yet.
@@ -325,7 +326,7 @@ test.describe('the case tray on a board', () => {
     await expect(tray.locator('.board-tray-card')).toHaveCount(1);
 
     // Filing it already happened, so no prompt to file it again.
-    await expect(page.locator('.toast', { hasText: 'zit nog niet in' })).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: /zit nog niet in/ })).toHaveCount(0);
 
     await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
     await page.reload();

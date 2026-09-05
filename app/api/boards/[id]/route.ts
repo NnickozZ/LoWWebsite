@@ -1,3 +1,4 @@
+import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getBoard, renameBoard, saveBoard, softDeleteBoard } from '@/lib/boards/service';
@@ -49,6 +50,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     const user = await requireUser();
     const { id } = await ctx.params;
     if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
+    // §17: a board without edit rights is a wall to look at. No proposal
+    // queue here — there is nothing sensible to propose about a card's x and y.
+    if (!viewerCanEdit('board', id, user)) {
+      return json({ error: 'Je mag dit prikbord niet bewerken.' }, { status: 403 });
+    }
 
     const patch = (await request.json()) as BoardPatch & { clientId?: string };
     const state = saveBoard(id, patch, user);
@@ -73,6 +79,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     const { id } = await ctx.params;
     if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
 
+    if (!viewerCanEdit('board', id, user)) {
+      return json({ error: 'Je mag dit prikbord niet bewerken.' }, { status: 403 });
+    }
     const body = (await request.json()) as { name?: string; clientId?: string };
     if (body.name !== undefined) {
       renameBoard(id, body.name);
@@ -90,6 +99,9 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     const user = await requireUser();
     const { id } = await ctx.params;
     if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
+    if (!viewerCanEdit('board', id, user)) {
+      return json({ error: 'Je mag dit prikbord niet bewerken.' }, { status: 403 });
+    }
 
     softDeleteBoard(id, user.id);
     return json({ ok: true });

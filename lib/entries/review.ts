@@ -1,4 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
+import { canManageAccess, loadAccessRow } from '@/lib/access';
+import { displayNames } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { docToText } from '@/lib/entries/doc';
 import { logActivity, logAudit, updateEntry, type EntryPatch } from '@/lib/entries/service';
@@ -6,9 +8,21 @@ import { visibleEntryCondition } from '@/lib/entries/visibility';
 
 /**
  * §10: a player's edit to a locked entry lands in `pending_edits` instead of on
- * the entry. This is the Keeper's side of that: what is waiting, what it would
+ * the entry. This is the reviewing side of that: what is waiting, what it would
  * change, and approving or rejecting it with a note back to the author.
+ *
+ * §17 widened who reviews. A proposal now also comes from someone who may see
+ * a fiche but not edit it, and the fiche's *owner* may judge it as well as a
+ * Keeper — on the fiche itself, where the Keeper's queue in Beheer is one list
+ * of everything.
  */
+
+/** Who may pass judgement on a proposal for this fiche: a Keeper, or its owner. */
+export function canReview(entryId: string, user: { id: string; isKeeper: boolean }): boolean {
+  if (user.isKeeper) return true;
+  const row = loadAccessRow('entry', entryId);
+  return Boolean(row && row.createdBy === user.id && canManageAccess(row, user));
+}
 
 export type PendingField = {
   key: string;
@@ -25,7 +39,10 @@ export type PendingEdit = {
   entrySlug: string;
   entryName: string;
   proposedBy: string | null;
+  /** §18: the name to print — the character the proposer wears, or the Keeper's word. */
   proposedByName: string | null;
+  /** The account behind that name, for the tooltip. */
+  proposedByAccount: string | null;
   createdAt: number;
   fields: PendingField[];
 };
@@ -50,7 +67,7 @@ function asText(key: string, value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-export function listPendingEdits(): PendingEdit[] {
+export function listPendingEdits(entryId?: string): PendingEdit[] {
   const rows = db
     .select({
       id: schema.pendingEdits.id,
@@ -67,15 +84,29 @@ export function listPendingEdits(): PendingEdit[] {
       entryFields: schema.entries.fields,
       entryCover: schema.entries.coverAssetId,
       proposedByName: schema.users.username,
+      proposedByIsKeeper: schema.users.isKeeper,
     })
     .from(schema.pendingEdits)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.pendingEdits.entryId))
     .leftJoin(schema.users, eq(schema.users.id, schema.pendingEdits.proposedBy))
-    .where(eq(schema.pendingEdits.status, 'pending'))
+    .where(
+      entryId
+        ? and(eq(schema.pendingEdits.status, 'pending'), eq(schema.pendingEdits.entryId, entryId))
+        : eq(schema.pendingEdits.status, 'pending'),
+    )
     .orderBy(desc(schema.pendingEdits.createdAt))
     .all();
 
+  const names = displayNames(
+    rows.flatMap((row) =>
+      row.proposedBy
+        ? [{ id: row.proposedBy, username: row.proposedByName ?? '', isKeeper: Boolean(row.proposedByIsKeeper) }]
+        : [],
+    ),
+  );
+
   return rows.map((row) => {
+    const named = row.proposedBy ? names.get(row.proposedBy) : undefined;
     const snapshot = (row.proposedSnapshot ?? {}) as Record<string, unknown>;
     const current: Record<string, unknown> = {
       name: row.entryName,
@@ -102,7 +133,8 @@ export function listPendingEdits(): PendingEdit[] {
       entrySlug: row.entrySlug,
       entryName: row.entryName,
       proposedBy: row.proposedBy,
-      proposedByName: row.proposedByName,
+      proposedByName: named?.label ?? row.proposedByName,
+      proposedByAccount: named?.account ?? row.proposedByName,
       createdAt: row.createdAt,
       fields,
     };
@@ -118,12 +150,14 @@ export function countPendingEdits(): number {
 }
 
 /**
- * Approving applies the proposal as the Keeper, which is what makes it land on
- * a locked entry at all — `updateEntry` would otherwise queue it again.
+ * Approving applies the proposal with the reviewer's authority: as far as
+ * `updateEntry` is concerned the write comes from a Keeper, which is what makes
+ * it land on a locked or guarded fiche at all — it would otherwise be queued
+ * again. The reviewer must have the right to review, which is checked first.
  */
 export function approvePendingEdit(
   pendingId: string,
-  keeper: { id: string; isKeeper: boolean },
+  reviewer: { id: string; isKeeper: boolean },
   note = '',
 ) {
   const row = db
@@ -132,26 +166,27 @@ export function approvePendingEdit(
     .where(eq(schema.pendingEdits.id, pendingId))
     .get();
   if (!row || row.status !== 'pending') throw new Error('Voorstel niet gevonden');
+  if (!canReview(row.entryId, reviewer)) throw new Error('Alleen de eigenaar of een Keeper beoordeelt dit.');
 
   const snapshot = (row.proposedSnapshot ?? {}) as Record<string, unknown>;
   const patch = Object.fromEntries(
     Object.entries(snapshot).filter(([key]) => key in FIELD_LABELS),
   ) as EntryPatch;
-  updateEntry(row.entryId, patch, keeper);
+  updateEntry(row.entryId, patch, { id: reviewer.id, isKeeper: true });
 
   db.update(schema.pendingEdits)
     .set({
       status: 'approved',
-      reviewedBy: keeper.id,
+      reviewedBy: reviewer.id,
       reviewedAt: Math.floor(Date.now() / 1000),
       reviewNote: note.slice(0, 500),
     })
     .where(eq(schema.pendingEdits.id, pendingId))
     .run();
 
-  logActivity({ actorId: keeper.id, verb: 'entry.edit_approved', entryId: row.entryId });
+  logActivity({ actorId: reviewer.id, verb: 'entry.edit_approved', entryId: row.entryId });
   logAudit({
-    actorId: keeper.id,
+    actorId: reviewer.id,
     action: 'pending_edit.approved',
     targetType: 'entry',
     targetId: row.entryId,
@@ -159,18 +194,23 @@ export function approvePendingEdit(
   });
 }
 
-export function rejectPendingEdit(pendingId: string, keeperId: string, note = '') {
+export function rejectPendingEdit(
+  pendingId: string,
+  reviewer: { id: string; isKeeper: boolean },
+  note = '',
+) {
   const row = db
     .select()
     .from(schema.pendingEdits)
     .where(eq(schema.pendingEdits.id, pendingId))
     .get();
   if (!row || row.status !== 'pending') return;
+  if (!canReview(row.entryId, reviewer)) throw new Error('Alleen de eigenaar of een Keeper beoordeelt dit.');
 
   db.update(schema.pendingEdits)
     .set({
       status: 'rejected',
-      reviewedBy: keeperId,
+      reviewedBy: reviewer.id,
       reviewedAt: Math.floor(Date.now() / 1000),
       reviewNote: note.slice(0, 500),
     })
@@ -178,7 +218,7 @@ export function rejectPendingEdit(pendingId: string, keeperId: string, note = ''
     .run();
 
   logAudit({
-    actorId: keeperId,
+    actorId: reviewer.id,
     action: 'pending_edit.rejected',
     targetType: 'entry',
     targetId: row.entryId,

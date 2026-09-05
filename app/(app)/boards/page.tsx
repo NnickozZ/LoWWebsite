@@ -1,15 +1,32 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
+import { SortFilterBar } from '@/components/SortFilterBar';
 import { getSessionUser } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
 import { relativeTime } from '@/lib/diff';
+import { readMany, readOne, type ListParams } from '@/lib/listParams';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BoardsPage() {
+const SORTS = ['recent', 'name', 'created', 'size'] as const;
+const WHERE = ['loose', 'case'] as const;
+const SHOW = ['mine', 'restricted'] as const;
+
+export default async function BoardsPage({ searchParams }: { searchParams: Promise<ListParams> }) {
   const user = await getSessionUser();
-  const boards = listBoards(user);
+  const query = await searchParams;
+  const sort = readOne(query, 'sort', SORTS, 'recent') as (typeof SORTS)[number];
+  const where = readOne(query, 'where', WHERE, '') as '' | (typeof WHERE)[number];
+  const show = readMany(query, 'show', SHOW);
+  const filtering = Boolean(where) || show.length > 0;
+
+  const boards = listBoards(user, {
+    sort,
+    where: where || undefined,
+    mine: show.includes('mine') && user ? user.id : undefined,
+    privateOnly: show.includes('restricted') || undefined,
+  });
 
   return (
     <div className="page">
@@ -24,6 +41,35 @@ export default async function BoardsPage() {
       <p className="muted small">
         {boards.length} {boards.length === 1 ? 'prikbord' : 'prikborden'}
       </p>
+
+      <SortFilterBar
+        sorts={[
+          { value: 'recent', label: 'Laatst veranderd' },
+          { value: 'name', label: 'Op naam' },
+          { value: 'created', label: 'Nieuwste eerst' },
+          { value: 'size', label: 'Meeste kaarten' },
+        ]}
+        defaultSort="recent"
+        groups={[
+          {
+            key: 'where',
+            label: 'Waar',
+            options: [
+              { value: 'loose', label: 'Los', icon: 'board' },
+              { value: 'case', label: 'Bij een dossier', icon: 'folder' },
+            ],
+          },
+          {
+            key: 'show',
+            label: 'Alleen',
+            multi: true,
+            options: [
+              { value: 'mine', label: 'Van mij', icon: 'you' },
+              { value: 'restricted', label: 'Privé of gekozen', icon: 'lock' },
+            ],
+          },
+        ]}
+      />
 
       {boards.length ? (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -45,6 +91,11 @@ export default async function BoardsPage() {
                   </span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <strong>{board.name}</strong>
+                    {board.viewMode !== 'all' && (
+                      <span className="stamp stamp-muted" style={{ fontSize: '0.6rem', marginLeft: '0.4rem' }}>
+                        <Icon name="lock" size={9} /> {board.viewMode === 'private' ? 'Privé' : 'Gekozen'}
+                      </span>
+                    )}
                     <span className="tiny muted" style={{ display: 'block' }}>
                       {board.caseName && (
                         <>
@@ -68,9 +119,11 @@ export default async function BoardsPage() {
         </ul>
       ) : (
         <div className="empty">
-          <p style={{ margin: 0 }}>Nog geen prikborden.</p>
+          <p style={{ margin: 0 }}>{filtering ? 'Geen prikbord voldoet hieraan.' : 'Nog geen prikborden.'}</p>
           <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Een prikbord is een kurkbord: prik er fiches en notities op en span er rode draad tussen.
+            {filtering
+              ? 'Zet een filter uit om meer te zien.'
+              : 'Een prikbord is een kurkbord: prik er fiches en notities op en span er rode draad tussen.'}
           </p>
         </div>
       )}

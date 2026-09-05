@@ -15,7 +15,7 @@ export const FIELD_KINDS: { kind: FieldKind; label: string }[] = [
   { kind: 'user_link', label: 'Koppeling naar een speler' },
   { kind: 'case_link', label: 'Koppeling naar een dossier' },
   { kind: 'date', label: 'Datum' },
-  { kind: 'map_pin', label: 'Speld op de kaart' },
+  { kind: 'map_pin', label: 'Speld op de landkaart (verwijst naar de kaartenpagina)' },
 ];
 
 const KNOWN_KINDS = new Set(FIELD_KINDS.map((entry) => entry.kind));

@@ -1,5 +1,7 @@
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { charactersWorn } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
+import { resetRoom } from '@/lib/live/docs';
 import { newId } from '@/lib/ids';
 import { docToText } from '@/lib/entries/doc';
 import { logActivity, logAudit } from '@/lib/entries/service';
@@ -116,7 +118,12 @@ export type SectionPatch = Partial<{
   sortOrder: number;
 }>;
 
-export function updateSection(sectionId: string, patch: SectionPatch, keeperId: string) {
+export function updateSection(
+  sectionId: string,
+  patch: SectionPatch,
+  keeperId: string,
+  options: { live?: boolean } = {},
+) {
   const existing = db
     .select()
     .from(schema.entrySections)
@@ -158,6 +165,8 @@ export function updateSection(sectionId: string, patch: SectionPatch, keeperId: 
     .set(values)
     .where(eq(schema.entrySections.id, sectionId))
     .run();
+  // §20: a body written around the room rewrites the shared document.
+  if (patch.body !== undefined && !options.live) resetRoom(`section:${sectionId}`, patch.body);
 }
 
 export function deleteSection(sectionId: string, keeperId: string) {
@@ -241,13 +250,18 @@ export function listCasesWithMembers(): { id: string; name: string; memberIds: s
     .all();
   if (!cases.length) return [];
 
+  // §17: the people on a case are its view grants now.
   const members = db
-    .select()
-    .from(schema.caseMembers)
+    .select({ caseId: schema.accessGrants.targetId, userId: schema.accessGrants.userId })
+    .from(schema.accessGrants)
     .where(
-      inArray(
-        schema.caseMembers.caseId,
-        cases.map((item) => item.id),
+      and(
+        eq(schema.accessGrants.targetType, 'case'),
+        eq(schema.accessGrants.canView, true),
+        inArray(
+          schema.accessGrants.targetId,
+          cases.map((item) => item.id),
+        ),
       ),
     )
     .all();
@@ -260,9 +274,14 @@ export function listCasesWithMembers(): { id: string; name: string; memberIds: s
     .filter((item) => item.memberIds.length > 0);
 }
 
-/** Every non-disabled player, for both pickers. */
-export function listRevealableUsers(): { id: string; username: string; isKeeper: boolean }[] {
-  return db
+/** Every non-disabled player, for both pickers — with (§18) the character each wears. */
+export function listRevealableUsers(): {
+  id: string;
+  username: string;
+  isKeeper: boolean;
+  character: string | null;
+}[] {
+  const accounts = db
     .select({
       id: schema.users.id,
       username: schema.users.username,
@@ -272,6 +291,8 @@ export function listRevealableUsers(): { id: string; username: string; isKeeper:
     .where(eq(schema.users.isDisabled, false))
     .orderBy(asc(schema.users.usernameLower))
     .all();
+  const worn = charactersWorn(accounts.map((a) => a.id));
+  return accounts.map((a) => ({ ...a, character: worn.get(a.id) ?? null }));
 }
 
 /** True when this entry has a section the viewer may not see. Keeper-only UI hint. */

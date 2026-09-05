@@ -20,7 +20,7 @@ test.describe('board editing', () => {
   test('a string can be relabelled, recoloured and removed', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
-    await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
     await page.waitForURL('**/b/**');
 
     const search = page.getByLabel('Kaart toevoegen');
@@ -87,7 +87,7 @@ test.describe('board editing', () => {
   test('a note gains a photo, is re-cropped, and opens full size', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
-    await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
     await page.waitForURL('**/b/**');
 
     await page.getByLabel('Kaart toevoegen').fill('Ledger fragment');

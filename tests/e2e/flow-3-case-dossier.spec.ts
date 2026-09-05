@@ -60,11 +60,16 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   await page.locator('textarea[placeholder="Waarom dit hier van belang is"]').blur();
   await expect(page.getByText('Keeps the second ledger.')).toBeVisible();
 
-  // -- make it confidential --------------------------------------------------
-  await page.getByRole('button', { name: 'Voor iedereen' }).click();
-  await expect(page.getByRole('button', { name: 'Vertrouwelijk' })).toBeVisible();
+  // -- make it confidential (§17: the view dial to "chosen people") ----------
+  await page.getByRole('button', { name: /^Rechten:/ }).click();
+  const viewDial = page.getByRole('radiogroup', { name: 'Wie mag kijken' });
+  await viewDial.getByRole('radio', { name: 'Gekozen personen' }).click();
+  await expect(viewDial.getByRole('radio', { name: 'Gekozen personen' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
   await expect(page.locator('.stamp', { hasText: 'Vertrouwelijk' })).toBeVisible();
-  await page.waitForTimeout(1400); // let the autosave land
+  await page.waitForTimeout(600); // the PATCH is immediate; give it a beat
 
   // -- a non-member sees nothing anywhere -----------------------------------
   const outsiderContext = await browser.newContext();

@@ -2,10 +2,11 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
-import type { CoverCrop } from '@/lib/db/schema';
+import type { AccessMode, CoverCrop } from '@/lib/db/schema';
 import { docToText } from '@/lib/entries/doc';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
+import { resetRoom } from '@/lib/live/docs';
 import { visibleCaseCondition } from './visibility';
 
 export type CaseStatus = 'open' | 'cold' | 'closed';
@@ -29,7 +30,11 @@ export type CaseSummary = {
   slug: string;
   summary: string;
   status: CaseStatus;
-  visibility: 'all' | 'assigned';
+  /** §17: the owner's dials. `visibility === 'assigned'` of old is `viewMode === 'some'`. */
+  viewMode: AccessMode;
+  editMode: AccessMode;
+  accessLocked: boolean;
+  createdBy: string | null;
   coverAssetId: string | null;
   coverCrop: CoverCrop | null;
   updatedAt: number;
@@ -42,7 +47,10 @@ const CASE_COLUMNS = {
   slug: schema.cases.slug,
   summary: schema.cases.summary,
   status: schema.cases.status,
-  visibility: schema.cases.visibility,
+  viewMode: schema.cases.viewMode,
+  editMode: schema.cases.editMode,
+  accessLocked: schema.cases.accessLocked,
+  createdBy: schema.cases.createdBy,
   coverAssetId: schema.cases.coverAssetId,
   coverCrop: schema.cases.coverCrop,
   updatedAt: schema.cases.updatedAt,
@@ -134,29 +142,70 @@ export function getCaseBySlug(slug: string, viewer: Viewer) {
   return row;
 }
 
-export function listCases(viewer: Viewer, options: { status?: CaseStatus } = {}): CaseSummary[] {
+export type CaseListOptions = {
+  /** One status, or any of several. */
+  status?: CaseStatus | CaseStatus[];
+  /** 'status' = open first, then cold, then closed, newest change first within each. */
+  sort?: 'status' | 'recent' | 'name' | 'created';
+  /** §14: only what this account opened. */
+  mine?: string;
+  /** §14: only cases where this account is on the view list (or which it owns). */
+  memberOf?: string;
+  /** §14: only cases whose §17 view dial is not "everyone". */
+  restricted?: boolean;
+};
+
+const STATUS_RANK = sql`CASE ${schema.cases.status} WHEN 'open' THEN 0 WHEN 'cold' THEN 1 ELSE 2 END`;
+
+export function listCases(viewer: Viewer, options: CaseListOptions = {}): CaseSummary[] {
+  const conditions = [visibleCaseCondition(viewer)];
+  const statuses = Array.isArray(options.status) ? options.status : options.status ? [options.status] : [];
+  if (statuses.length === 1) conditions.push(eq(schema.cases.status, statuses[0]));
+  else if (statuses.length > 1) conditions.push(inArray(schema.cases.status, statuses));
+  if (options.mine) conditions.push(eq(schema.cases.createdBy, options.mine));
+  if (options.memberOf) {
+    conditions.push(
+      sql`(${schema.cases.createdBy} = ${options.memberOf} OR EXISTS (SELECT 1 FROM access_grants g WHERE g.target_type = 'case' AND g.target_id = ${schema.cases.id} AND g.user_id = ${options.memberOf} AND g.can_view = 1))`,
+    );
+  }
+  if (options.restricted) conditions.push(sql`${schema.cases.viewMode} <> 'all'`);
+
+  const order =
+    options.sort === 'name'
+      ? [sql`${schema.cases.name} COLLATE NOCASE ASC`]
+      : options.sort === 'created'
+        ? [desc(schema.cases.createdAt)]
+        : options.sort === 'status'
+          ? [STATUS_RANK, desc(schema.cases.updatedAt)]
+          : [desc(schema.cases.updatedAt)];
+
   return db
     .select(CASE_COLUMNS)
     .from(schema.cases)
-    .where(
-      and(
-        visibleCaseCondition(viewer),
-        ...(options.status ? [eq(schema.cases.status, options.status)] : []),
-      ),
-    )
-    .orderBy(desc(schema.cases.updatedAt))
+    .where(and(...conditions))
+    .orderBy(...order)
     .limit(200)
     .all() as CaseSummary[];
 }
 
 export type CaseMember = { id: string; username: string };
 
+/**
+ * §17: the people on this case's view list — what "assigned investigators"
+ * used to be. Read from access_grants; case_members is history.
+ */
 export function listCaseMembers(caseId: string): CaseMember[] {
   return db
     .select({ id: schema.users.id, username: schema.users.username })
-    .from(schema.caseMembers)
-    .innerJoin(schema.users, eq(schema.users.id, schema.caseMembers.userId))
-    .where(eq(schema.caseMembers.caseId, caseId))
+    .from(schema.accessGrants)
+    .innerJoin(schema.users, eq(schema.users.id, schema.accessGrants.userId))
+    .where(
+      and(
+        eq(schema.accessGrants.targetType, 'case'),
+        eq(schema.accessGrants.targetId, caseId),
+        eq(schema.accessGrants.canView, true),
+      ),
+    )
     .orderBy(schema.users.usernameLower)
     .all();
 }
@@ -273,17 +322,16 @@ export type CasePatch = Partial<{
   summary: string;
   notes: unknown;
   status: CaseStatus;
-  visibility: 'all' | 'assigned';
   coverAssetId: string | null;
   coverCrop: CoverCrop | null;
   keeperNotes: string;
-  memberIds: string[];
 }>;
 
 export function updateCase(
   caseId: string,
   patch: CasePatch,
   user: { id: string; isKeeper: boolean },
+  options: { live?: boolean } = {},
 ) {
   const existing = db.select().from(schema.cases).where(eq(schema.cases.id, caseId)).get();
   if (!existing) throw new Error('Dossier niet gevonden');
@@ -296,16 +344,11 @@ export function updateCase(
     values.notesText = docToText(patch.notes);
   }
   if (patch.status !== undefined) values.status = patch.status;
-  if (patch.visibility !== undefined) values.visibility = patch.visibility;
   if (patch.coverAssetId !== undefined) values.coverAssetId = patch.coverAssetId;
   if (patch.coverCrop !== undefined) values.coverCrop = cleanCrop(patch.coverCrop);
   if (patch.keeperNotes !== undefined && user.isKeeper) values.keeperNotes = patch.keeperNotes;
-
-  if (patch.memberIds !== undefined) {
-    db.delete(schema.caseMembers).where(eq(schema.caseMembers.caseId, caseId)).run();
-    const rows = [...new Set(patch.memberIds)].map((userId) => ({ caseId, userId }));
-    if (rows.length) db.insert(schema.caseMembers).values(rows).onConflictDoNothing().run();
-  }
+  // §17: who may see or edit the case is not a field on it — it goes through
+  // lib/access.ts and /api/access, with its own rules about who may change it.
 
   if (Object.keys(values).length) {
     values.updatedAt = Math.floor(Date.now() / 1000);
@@ -314,6 +357,8 @@ export function updateCase(
 
   writeCaseRevision(caseId, user.id);
   logActivity({ actorId: user.id, verb: 'case.edited', caseId });
+  // §20: the shared notes follow the archive when written around the room.
+  if (patch.notes !== undefined && !options.live) resetRoom(`case:${caseId}:notes`, patch.notes);
   return getCaseById(caseId)!;
 }
 
@@ -345,7 +390,8 @@ export function writeCaseRevision(caseId: string, editedBy: string | null) {
     summary: row.summary,
     notes: row.notes,
     status: row.status,
-    visibility: row.visibility,
+    viewMode: row.viewMode,
+    editMode: row.editMode,
     keeperNotes: row.keeperNotes,
     memberIds: listCaseMembers(caseId).map((m) => m.id),
   };
@@ -369,7 +415,13 @@ export type CaseActivityItem = {
   id: string;
   verb: string;
   createdAt: number;
+  /** The account. §18: the page turns it into a character name with `attributed`. */
+  actorId: string | null;
   actorName: string | null;
+  actorIsKeeper: boolean;
+  /** §18: filled in by `attributed()` on the page; the account name until then. */
+  actorLabel?: string | null;
+  actorAccount?: string | null;
   entryName: string | null;
   entrySlug: string | null;
   boardName: string | null;
@@ -382,12 +434,12 @@ export function listCaseActivity(caseId: string, viewer: Viewer, limit = 120): C
       id: schema.activity.id,
       verb: schema.activity.verb,
       createdAt: schema.activity.createdAt,
+      actorId: schema.users.id,
       actorName: schema.users.username,
+      actorIsKeeper: schema.users.isKeeper,
       entryId: schema.activity.entryId,
       entryName: schema.entries.name,
       entrySlug: schema.entries.slug,
-      entryVisibility: schema.entries.visibility,
-      entryDeletedAt: schema.entries.deletedAt,
       boardName: schema.boards.name,
     })
     .from(schema.activity)
@@ -399,32 +451,29 @@ export function listCaseActivity(caseId: string, viewer: Viewer, limit = 120): C
     .limit(limit)
     .all();
 
-  const revealed = viewer
-    ? new Set(
-        db
-          .select({ entryId: schema.entryReveals.entryId })
-          .from(schema.entryReveals)
-          .where(eq(schema.entryReveals.userId, viewer.id))
+  // A row about an entry the viewer may not see must not name it. One query
+  // behind the same condition every list uses (§9 secrecy and §17 rights both).
+  const mentioned = [...new Set(rows.flatMap((row) => (row.entryId ? [row.entryId] : [])))];
+  const allowed = new Set(
+    mentioned.length
+      ? db
+          .select({ id: schema.entries.id })
+          .from(schema.entries)
+          .where(and(inArray(schema.entries.id, mentioned), visibleEntryCondition(viewer)))
           .all()
-          .map((r) => r.entryId),
-      )
-    : new Set<string>();
+          .map((r) => r.id)
+      : [],
+  );
 
   return rows
-    .filter((row) => {
-      // A row about an entry the viewer may not see must not name it.
-      if (!row.entryId) return true;
-      if (viewer?.isKeeper) return true;
-      if (row.entryDeletedAt) return false;
-      if (row.entryVisibility === 'all') return true;
-      if (row.entryVisibility === 'keeper') return false;
-      return revealed.has(row.entryId);
-    })
+    .filter((row) => !row.entryId || allowed.has(row.entryId))
     .map((row) => ({
       id: row.id,
       verb: row.verb,
       createdAt: row.createdAt,
+      actorId: row.actorId,
       actorName: row.actorName,
+      actorIsKeeper: Boolean(row.actorIsKeeper),
       entryName: row.entryName,
       entrySlug: row.entrySlug,
       boardName: row.boardName,

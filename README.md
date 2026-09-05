@@ -160,6 +160,26 @@ running Next 16 while `package.json` said 15. `next`, `react` and `react-dom`
 are therefore pinned to exact versions, and `npm run dev` / `npm start` both
 invoke this project's own Next by path rather than through `npx`.
 
+A stale `node_modules` fails in a way that sends you somewhere else entirely.
+Building with a leftover Next 16 reports `This build is using Turbopack, with a
+webpack config` and then `Call retries were exceeded` — an error about build
+systems, when the real problem is that `npm ci` never ran or failed with its
+message scrolled off the screen. So `npm run build` and `npm start` both begin
+with `scripts/check-install.mjs`, which compares what is installed against
+package.json and stops with the version numbers side by side:
+
+```
+  - next: 16.3.4 is installed, package.json wants 15.5.25
+  - better-sqlite3: 11.10.0 is installed, package.json wants ^13.0.3
+      versions below 13 … abort the entire process on Node 24.19 or newer
+
+    rm -rf node_modules && npm ci
+```
+
+It is chained with `&&` inside the `build` script rather than living in a
+`prebuild` hook, because `ignore-scripts=true` in `.npmrc` silently skips
+`pre`/`post` hooks — and a guard that can be skipped is not a guard.
+
 **4. `better-sqlite3` 11 on Node 24.19 or newer — a hard process abort.**
 
 ```
@@ -283,28 +303,48 @@ app/
     e/[slug]/        the entry page: inline editing, backlinks, history
     c/[slug]/        the case dossier: tabs on desktop, stacked on a phone
     b/[id]/          the corkboard
-    cases/ boards/   the two index pages
+    cases/ boards/   two of the index pages
+    maps/            the shelf of maps, and one map with its pins
     wiki/            browse, and browse-by-type
     search/          instant search
     admin/           users, review queue, types and pages, words, trash,
                      history, site, export, log
-    you/             account
-  api/               entries, cases, boards, assets, search, suggest, admin
+    you/             account, and the wardrobe of characters
+  api/               entries, cases, boards, maps, characters, access, assets,
+                     search, suggest, admin
 components/
-  editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar
-  entry/             cover, the list crop, type fields, tags, the autosave hook
+  editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
+                     the shared-text editor (useLiveDoc, LiveBody, LivePeople)
+  entry/             cover, the list crop, type fields, tags, the autosave
+                     hook, the proposals panel
   cases/             the dossier, its add-boxes and cards
   boards/            the canvas, the card, the inspector, the sync hook
-  ui/                the new-entry and new-case sheets, toasts, shortcuts
+  maps/              the map canvas (pan, zoom, pins, legend), the Keeper's
+                     upload sheet and tools
+  access/            the two dials (kijken, bewerken) and their checkboxes
+  you/               the character switcher and the wardrobe
+  ui/                the new-entry and new-case sheets, the yes/no sheet,
+                     toasts, shortcuts
+  SortFilterBar.tsx  the one sort-and-filter bar every list page shares
 lib/
   auth/              password hashing and recovery, sessions, rate limiting
   db/                schema, migrations, seeds, the connection
   entries/           the entry service, the document helpers, visibility,
-                     sections and reveals (secrets.ts), the review queue
+                     sections and reveals (secrets.ts), the review queue,
+                     the wiki's filter vocabulary
   admin/             trash and history, the entry-type editor, the word list
   cases/             the case service and its visibility rule
   boards/            the board service, the pure merge rule, and the live hub
+                     (presence, change signals, pointer frames)
+  maps/              maps and pins
+  live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
+                     the gates, schema.ts the ProseMirror schema on the server)
+  editor/            the one list of Tiptap extensions both halves build from
   search/            fuzzy ranking, the search service
+access.ts            §17: who may look and who may touch, as one SQL condition
+                     for readers and one boolean for writers
+characters.ts        §18: who a person is being, and the name a feed prints
+listParams.ts        the server half of the sort-and-filter bar
 words.ts             every term the interface repeats, with its default
 pageBlocks.ts        what a soort fiche's page is made of (pure; the queries
                      behind it live in lib/entries/derived.ts)
@@ -316,14 +356,16 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Nine rules worth knowing before changing anything:
+Thirteen rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
-   autocomplete, backlinks, feeds, previews, board cards and direct URLs all use
-   them. A new query that skips one is how a Keeper's secret leaks. A board card
-   whose entry the viewer may not see comes back stamped MISSING, exactly like a
-   deleted one.
+   autocomplete, backlinks, feeds, previews, board cards, map pins and direct
+   URLs all use them. A new query that skips one is how a Keeper's secret
+   leaks. A board card whose entry the viewer may not see comes back stamped
+   MISSING, exactly like a deleted one. Since §17 both conditions also carry the
+   owner's *kijken* dial (`viewableCondition()` from `lib/access.ts`), so a
+   private fiche is hidden by the same clause that hides a secret one.
 2. **The board's merge rule lives in `lib/boards/merge.ts` and is pure.** The
    server is the only thing that merges; the client sends what it knows plus the
    ids it deleted, and applies whatever comes back. `tests/unit/board-merge.test.ts`
@@ -337,7 +379,11 @@ Nine rules worth knowing before changing anything:
    holding) is the only thing the hub itself knows, it lives in memory, and it
    is gone thirty seconds after a tab stops saying hello. Nothing is applied to
    a client that is mid-drag or holding unsaved work: `useBoardLive` remembers
-   the change and lands it when the board goes quiet.
+   the change and lands it when the board goes quiet. Since Phase 5 the line
+   also carries *pointer frames* — where each hand is and where the card in it
+   is right now — which are fanned out at once and never stored; a card
+   carried by someone else is drawn where their hand has it and stays there
+   until their save has been pulled, so it never snaps back.
 4. **`.mjs` files are shared with the CLI scripts.** `lib/auth/password.mjs`,
    `lib/db/open.mjs`, `lib/db/seed.mjs`, `lib/borders.mjs` and `lib/zip.mjs` are
    plain JavaScript so that `npm run bootstrap` and the app cannot drift into two
@@ -364,9 +410,10 @@ Nine rules worth knowing before changing anything:
    `EntryView` as a slot, so its rows stay behind `visibleEntryCondition` and
    never travel to a player's browser as props. Rule 1 applies to a derived list
    exactly as it does to a search result.
-8. **No screen types a word that `lib/words.ts` already holds.** About forty
-   terms — fiche, dossier, prikbord, punaise, the menu, the main buttons, the
-   Beheer tabs — are the Keeper's to rename in Beheer → Woorden. Read them from
+8. **No screen types a word that `lib/words.ts` already holds.** About sixty
+   terms — fiche, dossier, prikbord, punaise, landkaart, speld, karakter, the
+   menu, the main buttons, the Beheer tabs — are the Keeper's to rename in
+   Beheer → Woorden. Read them from
    `useUi().words` in a client component and `getWords()` on the server; adding a
    term to that file is what puts it on the screen. Only the Keeper's *changes*
    are stored, so an empty box means the default and improving a default still
@@ -374,4 +421,37 @@ Nine rules worth knowing before changing anything:
 9. **Three sizes of every picture.** `?s=thumb` (400 px) for the feed and the
    search list, `?s=card` (900 px) for any card, and the bare id (1600 px) for
    the entry page, the lightbox and crop frames. `lib/assets.ts` makes the card
-   size on first request for pictures uploaded before it existed.
+   size on first request for pictures uploaded before it existed. A map is the
+   one exception: it is kept to 3200 px, because it is the one picture people
+   zoom into.
+10. **Every write asks `lib/access.ts` first.** `viewerCanEdit(target, id,
+    viewer)` for a case, a board or a fiche; the API answers 403 when it says
+    no, and the screen has already hidden the tools. The three rules — Keepers
+    may do anything; the owner always may; editing implies viewing — are in
+    `canView` / `canEdit` / `canManageAccess`, and `tests/unit/access.test.ts`
+    is their specification. Rights are per **account**; a character (§18) is a
+    name, never a key.
+11. **A feed prints the character, never the account.** Any row that carries an
+    actor (`actorId`, `actorName`, `actorIsKeeper`) goes through `attributed()`
+    from `lib/characters.ts` on the page that shows it; single names go through
+    `displayNameOf()`. The account stays in the tooltip. A Keeper is always the
+    Keeper's word. A new feed that prints `users.username` directly is a bug.
+12. **Sorting and filtering are the URL.** A list page reads its search params
+    with `lib/listParams.ts` (`readOne`, `readMany`) and hands
+    `components/SortFilterBar.tsx` the same options; the bar only ever writes
+    the URL. Every filter is another `AND` on a query that already carries the
+    visibility conditions — never a substitute for them.
+13. **Shared text is a room, and the room's gate is the visibility rule.** A
+    fiche's body, each of its sections and a dossier's notes are Yjs documents
+    held in `lib/live/docs.ts` and fanned out to everyone in the room; who is
+    in the room is decided by `lib/live/rooms.ts` with the *same* conditions
+    the page renders with (`visibleEntryCondition`, `canSeeSection`,
+    `visibleCaseCondition`), and who may type by `canEdit` and the §10 lock —
+    checked again on every POST. `entries.body` (and friends) stay the truth:
+    the room writes itself back through `updateEntry` / `updateSection` /
+    `updateCase`, and a body written around the room is pushed back *into* it
+    with `resetRoom`, never the other way. A new piece of prose that wants to
+    be shared gets a key and an `admit` branch there; nothing else. The editor
+    that binds to a room is loaded client-only, and `yjs` is a server
+    external, so the server holds one copy of Yjs — two copies fail their own
+    `instanceof` checks, and Yjs says so at start-up.

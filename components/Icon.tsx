@@ -32,6 +32,19 @@ const PATHS: Record<string, string> = {
   link: 'M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.5 1.5M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.5-1.5',
   check: 'M5 12.5 10 17.5 19 7',
   chevron: 'M9 6l6 6-6 6',
+  map: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
+  mask: 'M4 5c2.5-1.3 5.3-2 8-2s5.5.7 8 2v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10zM8.5 11h2M13.5 11h2M9 15.5c1 .8 2 1.2 3 1.2s2-.4 3-1.2',
+  swap: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4',
+  sort: 'M4 6h16M7 12h10M10 18h4',
+  filter: 'M3 5h18l-7 8v6l-4-2v-4z',
+  crosshair: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 3v4M12 17v4M3 12h4M17 12h4',
+  upload: 'M12 16V4m0 0L7 9m5-5 5 5M4 20h16',
+  edit: 'M4 20h4l11-11-4-4L4 16zM13 7l4 4',
+  zoomIn: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20 20l-4-4M11 8v6M8 11h6',
+  zoomOut: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20 20l-4-4M8 11h6',
+  fit: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5',
+  note: 'M5 4h11l3 3v13H5zM8 10h8M8 14h6',
+  mapPin: 'M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11ZM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
 };
 
 export type IconName = keyof typeof PATHS | string;

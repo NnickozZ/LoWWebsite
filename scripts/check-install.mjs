@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -63,6 +63,44 @@ function satisfies(version, range) {
 }
 
 const problems = [];
+
+/**
+ * The @tiptap/* packages are one library shipped as thirty, and they only work
+ * together at a single major. Upgrading some of them and not others produces
+ * `Could not resolve dependency: peer @tiptap/pm@3.x from @tiptap/core@3.x`,
+ * which reads like an npm problem and is really a half-finished upgrade — and a
+ * half-finished upgrade is how an install stops working entirely, which is how
+ * a server ends up still running last month's Next and last month's SQLite.
+ * StarterKit 3 also bundles Link, which this project registers itself, so a
+ * split tree announces itself as `Duplicate extension names found: ['link']`.
+ */
+function tiptapMajors() {
+  const dir = join(root, 'node_modules', '@tiptap');
+  if (!existsSync(dir)) return new Map();
+  const majors = new Map();
+  for (const name of readdirSync(dir)) {
+    const version = installedVersion(`@tiptap/${name}`);
+    if (!version) continue;
+    const major = parse(version)[0];
+    if (!majors.has(major)) majors.set(major, []);
+    majors.get(major).push(`@tiptap/${name}@${version}`);
+  }
+  return majors;
+}
+
+const majors = tiptapMajors();
+if (majors.size > 1) {
+  const shown = [...majors.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([major, names]) => `v${major}: ${names.slice(0, 3).join(', ')}` +
+      (names.length > 3 ? ` and ${names.length - 3} more` : ''))
+    .join('\n      ');
+  problems.push(
+    `@tiptap/*: installed across ${majors.size} major versions at once\n      ${shown}\n` +
+      '    The editor packages must all be on the same major. This project is on 2.x.',
+  );
+}
+
 for (const [name, why] of Object.entries(WATCHED)) {
   const wanted = pkg.dependencies?.[name] ?? pkg.devDependencies?.[name];
   if (!wanted) continue;

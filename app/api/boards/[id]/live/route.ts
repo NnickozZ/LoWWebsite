@@ -1,12 +1,17 @@
+import { getWords } from '@/lib/admin/words';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getBoard } from '@/lib/boards/service';
+import { displayNameOf } from '@/lib/characters';
 import {
   clearPresence,
+  publishPointer,
   publishPresence,
   setPresence,
   subscribe,
+  touchPresence,
   type LiveEvent,
+  type PointerFrame,
 } from '@/lib/boards/live';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +37,8 @@ const HEARTBEAT_MS = 20_000;
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18: on the wall, a person is the character they are wearing.
+    const shownName = displayNameOf(user.id, getWords().keeper)?.label ?? user.username;
     const { id } = await ctx.params;
     // Exactly the check every other board read makes; a player who cannot open
     // the board cannot listen to it either, nor learn who is standing at it.
@@ -45,6 +52,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let unsubscribe: (() => void) | null = null;
     let closed = false;
+    /** This line, as distinct from any other line the same tab opens. */
+    const connection = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -61,7 +70,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
           closed = true;
           if (heartbeat) clearInterval(heartbeat);
           unsubscribe?.();
-          clearPresence(id, clientId);
+          clearPresence(id, clientId, connection);
           // The people still on the wall need to watch this one leave.
           publishPresence(id);
           try {
@@ -75,7 +84,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 
         // Arriving is itself a presence event, so a tab that opens the board
         // and touches nothing still shows up for everyone else.
-        setPresence(id, { clientId, userId: user.id, name: user.username, holding: [] });
+        setPresence(id, { clientId, userId: user.id, name: shownName, holding: [], connection });
 
         // A retry hint and one comment first: some proxies will not flush a
         // response until they have seen a few bytes.
@@ -94,7 +103,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
           // taking the process and every other open board with it.
           try {
             write(`: ping\n\n`);
-            setPresence(id, { clientId, userId: user.id, name: user.username });
+            setPresence(id, { clientId, userId: user.id, name: shownName, connection });
           } catch {
             stop();
           }
@@ -106,7 +115,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
         closed = true;
         if (heartbeat) clearInterval(heartbeat);
         unsubscribe?.();
-        clearPresence(id, clientId);
+        clearPresence(id, clientId, connection);
         publishPresence(id);
       },
     });
@@ -126,24 +135,74 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   }
 }
 
+const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+
 /**
- * The client's half of the line: "I am still here, and these are the cards I am
- * holding." Throttled by the client to a few a second while dragging, which at
- * forty players and one container is nothing.
+ * Reads a pointer frame off the wire and keeps it to numbers the board can
+ * draw: a coordinate, or nothing; at most forty cards being carried at once.
+ */
+function pointerFrame(clientId: string, body: { cursor?: unknown; moving?: unknown }): PointerFrame {
+  const cursor = body.cursor as { x?: unknown; y?: unknown } | null | undefined;
+  const x = cursor && finite(cursor.x) ? Math.round(cursor.x) : null;
+  const y = cursor && finite(cursor.y) ? Math.round(cursor.y) : null;
+  const m: PointerFrame['m'] = {};
+  if (body.moving && typeof body.moving === 'object') {
+    for (const [cardId, at] of Object.entries(body.moving as Record<string, unknown>).slice(0, 40)) {
+      const point = at as { x?: unknown; y?: unknown } | null;
+      if (point && finite(point.x) && finite(point.y) && cardId.length <= 40) {
+        m[cardId] = [Math.round(point.x), Math.round(point.y)];
+      }
+    }
+  }
+  return { c: clientId, x, y, m };
+}
+
+/**
+ * The client's half of the line. Two kinds of message come up it:
+ *
+ *   - "I am still here, and these are the cards I am holding" — the roster.
+ *   - "my pointer is here, and the cards I am dragging are here" — a pointer
+ *     frame, sent up to twenty times a second while a hand is moving. These
+ *     are let straight through to everyone else and never stored: they are
+ *     what makes another person's drag visible *while it happens*, and the
+ *     save that follows the drop is what makes it true.
+ *
+ * A frame skips the board lookup when the hub already knows this tab as this
+ * account (it passed the check when the line was opened); anything else goes
+ * through the same `getBoard` gate as every read.
  */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     const { id } = await ctx.params;
-    if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
 
     const body = (await request.json()) as {
       clientId?: string;
       holding?: unknown;
       leaving?: boolean;
+      cursor?: unknown;
+      moving?: unknown;
     };
     const clientId = String(body.clientId ?? '').slice(0, 40);
     if (!clientId) return json({ error: 'Geen client-id.' }, { status: 400 });
+
+    const isFrame = body.cursor !== undefined || body.moving !== undefined;
+    if (isFrame && touchPresence(id, clientId, user.id)) {
+      publishPointer(id, pointerFrame(clientId, body));
+      return new Response(null, { status: 204 });
+    }
+
+    if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
+    // §18: on the wall, a person is the character they are wearing.
+    const shownName = displayNameOf(user.id, getWords().keeper)?.label ?? user.username;
+
+    if (isFrame) {
+      // A frame from a tab the hub had forgotten (reaped, or the server
+      // restarted under it): put it back on the roster, then let it through.
+      setPresence(id, { clientId, userId: user.id, name: shownName });
+      publishPointer(id, pointerFrame(clientId, body));
+      return new Response(null, { status: 204 });
+    }
 
     if (body.leaving) {
       clearPresence(id, clientId);
@@ -152,7 +211,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       const { changed } = setPresence(id, {
         clientId,
         userId: user.id,
-        name: user.username,
+        name: shownName,
         holding: body.holding,
       });
       // A heartbeat that says nothing new must not send the whole roster to

@@ -1,4 +1,5 @@
 import { sql, type SQL } from 'drizzle-orm';
+import { viewableCondition } from '@/lib/access';
 import { schema } from '@/lib/db';
 import type { Visibility } from '@/lib/db/schema';
 
@@ -11,18 +12,22 @@ export type Viewer = { id: string; isKeeper: boolean } | null;
  *   - visibility is 'players' and there is a reveal row for them.
  * 'keeper' entries are invisible to players everywhere: lists, search,
  * autocomplete, backlinks, feeds and direct URLs all run through this.
+ *
+ * §17 adds the owner's dial on top, AND-ed rather than substituted: the Keeper
+ * decides what the campaign may know, the owner decides who among them.
  */
 export function visibleEntryCondition(viewer: Viewer): SQL {
   const notDeleted = sql`${schema.entries.deletedAt} IS NULL`;
   if (viewer?.isKeeper) return notDeleted;
-  if (!viewer) return sql`${notDeleted} AND ${schema.entries.visibility} = 'all'`;
+  const owner = viewableCondition('entry', viewer);
+  if (!viewer) return sql`${notDeleted} AND ${schema.entries.visibility} = 'all' AND ${owner}`;
   return sql`${notDeleted} AND (
     ${schema.entries.visibility} = 'all'
     OR (${schema.entries.visibility} = 'players' AND EXISTS (
       SELECT 1 FROM entry_reveals er
       WHERE er.entry_id = ${schema.entries.id} AND er.user_id = ${viewer.id}
     ))
-  )`;
+  ) AND ${owner}`;
 }
 
 /** The same rule as a plain predicate, for tests and in-memory filtering. */

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
+import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
 import { getBoard, resolveBoardEntries } from '@/lib/boards/service';
 import { listCaseEntries } from '@/lib/cases/service';
@@ -13,6 +14,11 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
 
   const board = getBoard(id, user);
   if (!board) notFound();
+
+  // §17: may this viewer touch the wall, and may they turn its dials.
+  const grant = user ? grantFor('board', board.id, user.id) : null;
+  const mayEdit = canEdit(board, user, grant);
+  const mayManage = canManageAccess(board, user);
 
   const entryIds = board.state.cards
     .filter((card) => card.kind === 'entry' && card.entryId)
@@ -44,6 +50,23 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       }))}
       initialState={board.state}
       initialEntries={Object.fromEntries(resolveBoardEntries(entryIds, user))}
+      readOnly={!mayEdit}
+      access={{
+        settings:
+          mayManage || board.accessLocked
+            ? accessSettings(board, 'board', board.id)
+            : {
+                ownerId: null,
+                viewMode: board.viewMode,
+                editMode: board.editMode,
+                locked: board.accessLocked,
+                viewers: [],
+                editors: [],
+              },
+        canManage: mayManage,
+        isKeeper: Boolean(user?.isKeeper),
+        viewerId: user?.id ?? '',
+      }}
     />
   );
 }

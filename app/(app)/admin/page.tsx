@@ -14,6 +14,7 @@ import { listArchivedThings, listBoardRevisions, listCaseRevisions, listTrash } 
 import { listTypesForAdmin } from '@/lib/admin/types';
 import { getWordOverrides } from '@/lib/admin/words';
 import { resolveWords } from '@/lib/words';
+import { charactersWorn } from '@/lib/characters';
 import { listPendingEdits } from '@/lib/entries/review';
 import {
   approveEditAction,
@@ -72,7 +73,7 @@ export default async function AdminPage({
   if (!me?.isKeeper) notFound();
   const query = await searchParams;
 
-  const users = db
+  const accounts = db
     .select({
       id: schema.users.id,
       username: schema.users.username,
@@ -83,6 +84,10 @@ export default async function AdminPage({
     .from(schema.users)
     .orderBy(asc(schema.users.usernameLower))
     .all();
+  // §18: which character each account is wearing, so the Keeper can tell
+  // "Bram" from "Onderzoeker Van Dijk" without asking.
+  const worn = charactersWorn(accounts.map((a) => a.id));
+  const users = accounts.map((a) => ({ ...a, character: worn.get(a.id) ?? null }));
 
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
   const pending = listPendingEdits();

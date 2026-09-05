@@ -3,7 +3,7 @@
 The whole interface is in Dutch. This is the single list of terms so that every
 screen says the same thing.
 
-**Since §11's word list, about forty of these are the Keeper's to change.**
+**Since §11's word list, about sixty of these are the Keeper's to change.**
 `lib/words.ts` holds them with the words below as their defaults, and Beheer →
 Woorden overrides any of them for one archive. What is written here is therefore
 what a screen says *unless a Keeper has said otherwise* — which is why a term
@@ -28,6 +28,9 @@ change.
 | case / case file / cases | dossier / dossiers | *het* dossier |
 | case note | dossiernotitie | |
 | board / clue board / boards | prikbord / prikborden | *het* prikbord |
+| map / maps | landkaart / landkaarten | *de* landkaart; never "kaart", which is a board's card |
+| map pin / pins | speld / spelden | on a landkaart; a *punaise* is on a prikbord |
+| character / characters | karakter / karakters | the fiche a player wears (§18) |
 | (board) card | kaart | |
 | note (on a board) | notitie | |
 | photo | foto | |
@@ -247,14 +250,98 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Visible to | Zichtbaar voor |
 | Locking / Locked / Open to everyone | Vergrendeling / Vergrendeld / Open voor iedereen |
 
+## Rights (§17)
+
+| English | Dutch |
+|---|---|
+| Rights | Rechten |
+| Who may look / Who may edit | Wie mag kijken / Wie mag bewerken |
+| Everyone / Chosen people / Private | Iedereen / Gekozen personen / Privé |
+| Private / Chosen / Confidential (stamps on lists) | Privé / Gekozen / Vertrouwelijk |
+| Public board / Private board | Openbaar prikbord / Privé prikbord |
+| Read only | Alleen kijken |
+| Lock the rights / Locked — the owner can no longer change this | Rechten vastzetten / Vastgezet — de eigenaar kan dit niet meer veranderen |
+| The Keeper has locked the rights of this {thing}. | De Keeper heeft de rechten van {this} vastgezet. |
+| You can read this {entry}. What you change goes to the owner as a proposal. | Je kunt deze {fiche} lezen. Wat je verandert gaat als voorstel naar de eigenaar. |
+| Sent to the owner as a proposal. | Als voorstel naar de eigenaar gestuurd. |
+| Proposals (n) / Accept / Reject | Voorstellen (n) / Overnemen / Afwijzen |
+| You may not edit this {case}. | Je mag dit dossier niet bewerken. |
+
+## Characters (§18)
+
+| English | Dutch |
+|---|---|
+| You play as | Je speelt als |
+| As yourself | Als jezelf |
+| Your characters | Jouw karakters |
+| This is my character | Dit is mijn karakter |
+| Play as {name} / Active / This is you now | Speel als {naam} / Actief / Dit ben je nu |
+| Your character / One of your characters | Jouw karakter / Een van je karakters |
+| Played by {accounts} | Gespeeld door {accounts} |
+| Tie a character on | Karakter koppelen |
+| Manage characters | Karakters beheren |
+| You now play as {name}. | Je speelt nu als {naam}. |
+| A Keeper is always the Keeper. | Een Keeper is altijd de Keeper. |
+| As Keeper you are the Keeper everywhere. | Als Keeper ben je overal de Keeper. |
+
+## Maps (§19)
+
+| English | Dutch |
+|---|---|
+| Maps (menu) | Landkaarten |
+| Hang a map / Hang | Landkaart ophangen / Ophangen |
+| Set a pin | Speld zetten |
+| Tap the map where the pin should go. | Tik op de landkaart waar de speld moet komen. |
+| Tap the map where {name} belongs. | Tik op de landkaart waar {naam} hoort. |
+| What goes here? / An entry / A note | Wat komt hier? / Een fiche / Een notitie |
+| Legend / All on / Only my pins / Find a pin… | Legenda / Alles aan / Alleen mijn spelden / Zoek een speld… |
+| Zoom out / Zoom in / Fit | Uitzoomen / Inzoomen / Passend maken |
+| Drag the pin to move it. | Sleep de speld om hem te verplaatsen. |
+| Remove pin / Remove {name} from the map? | Speld weghalen / {naam} van de landkaart halen? |
+| This pin is someone else's… | Deze speld is van iemand anders: alleen wie hem zette, of een Keeper, kan hem verplaatsen of weghalen. |
+| Set by {name} | Gezet door {naam} |
+| On the map: / Put on {map} | Op de landkaart: / Zet op {landkaart} |
+| {name} is on {map}. | {naam} staat op {landkaart}. |
+| New drawing / Take off the wall | Nieuwe tekening / Van de muur halen |
+| Only a Keeper hangs maps. | Alleen een Keeper hangt landkaarten op. |
+
+## Sorting and filtering (§14)
+
+| English | Dutch |
+|---|---|
+| Sort | Sorteren |
+| Last edited / By name / Newest first / Open first / Most entries / Most cards | Laatst bewerkt / Op naam / Nieuwste eerst / Open eerst / Meeste fiches / Meeste kaarten |
+| Keeper's order / Last changed | Volgorde van de Keeper / Laatst veranderd |
+| Only: mine / not for everyone / on a map | Alleen: van mij / niet voor iedereen / op een landkaart |
+| Status: open / cold / closed | Status: open / koud / gesloten |
+| Where I belong / Confidential | Waar ik bij zit / Vertrouwelijk |
+| Where: loose / with a case | Waar: los / bij een dossier |
+| Private or chosen | Privé of gekozen |
+| With my pins | Met mijn spelden |
+| Secrecy: for everyone / revealed to chosen / Keeper only | Geheimhouding: voor iedereen / onthuld aan gekozen / alleen de Keeper |
+| Clear filters | Wis filters |
+| Nothing matches this. Switch a filter off to see more. | Geen dossier voldoet hieraan. Zet een filter uit om meer te zien. |
+
+## Live (§8, §20)
+
+| English | Dutch |
+|---|---|
+| live / connecting… / no connection | live / verbinden… / geen verbinding |
+| Live: what you type, everyone sees at once | Live: wat je typt ziet iedereen meteen |
+| No connection — what you type is kept and sent on later | Geen verbinding — wat je typt wordt bewaard en straks doorgestuurd |
+| Also here: … | Ook hier: … |
+| Propose a change / Send proposal | Wijziging voorstellen / Voorstel sturen |
+| Your own version of the text… | Je eigen versie van de tekst. Wat je stuurt komt als voorstel bij de eigenaar en de Keeper; de tekst hierboven verandert pas als zij het overnemen. |
+| You may only read this text. | Je mag deze tekst alleen lezen. |
+
 ## Toasts and errors
 
 | English | Dutch |
 |---|---|
 | Card removed. / N cards removed. | Kaart verwijderd. / N kaarten verwijderd. |
 | String removed. | Draad verwijderd. |
-| X is not in {case}. | X zit nog niet in {case}. |
-| File it there | Toevoegen |
+| X is not in {case} (a sheet, since §17's polish) | X zit nog niet in {case} |
+| File it in the case / Just pin it | Toevoegen aan dossier / Alleen prikken |
 | X filed in {case}. | X toegevoegd aan {case}. |
 | That did not save. Try again. | Opslaan is niet gelukt. Probeer het opnieuw. |
 | That image did not upload. | De afbeelding is niet geüpload. |

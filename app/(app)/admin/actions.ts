@@ -108,7 +108,7 @@ export async function rejectEditAction(formData: FormData) {
   const keeper = await requireKeeper();
   rejectPendingEdit(
     String(formData.get('pendingId') ?? ''),
-    keeper.id,
+    keeper,
     String(formData.get('note') ?? ''),
   );
   revalidatePath('/admin');

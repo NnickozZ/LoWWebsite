@@ -18,8 +18,12 @@ fi
 echo "==> git pull"
 git pull --ff-only
 
+# --ignore-scripts belongs here as well as in .npmrc, not instead of it: npm
+# gives any package with a binding.gyp and no install script an implicit
+# `node-gyp rebuild`, and better-sqlite3 has one. Without this the deploy
+# compiles a binary it already shipped and fails on a server with no compiler.
 echo "==> npm ci (exactly the locked tree; prebuilt binaries, no compiler needed)"
-npm ci --no-audit --no-fund
+npm ci --ignore-scripts --no-audit --no-fund
 
 echo "==> next build"
 npm run build

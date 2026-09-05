@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { assetUrl } from '@/components/Cover';
 import { borderLabel } from '@/components/borders';
 import { Icon } from '@/components/Icon';
+import { AccessEditor, type AccessSettings } from '@/components/access/AccessEditor';
+import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
@@ -88,9 +90,19 @@ export function BoardCanvas({
   caseEntries,
   initialState,
   initialEntries,
+  readOnly,
+  access,
 }: {
   boardId: string;
   boardName: string;
+  /** §17: may look, not touch. Every write path below is switched off. */
+  readOnly: boolean;
+  access: {
+    settings: AccessSettings;
+    canManage: boolean;
+    isKeeper: boolean;
+    viewerId: string;
+  };
   /** The case this board belongs to, if any — the filing prompt needs it. */
   caseId: string | null;
   caseName: string | null;
@@ -166,7 +178,8 @@ export function BoardCanvas({
 
   // §8: no dragging or string-drawing on screens under 768 px. Selecting and
   // editing still work, or the inspector would be unreachable on a phone.
-  const interactive = !isPhone;
+  const interactive = !isPhone && !readOnly;
+  const [accessOpen, setAccessOpen] = useState(false);
 
   /**
    * §8, live: this tab. One person with the board open twice is two hands on
@@ -238,24 +251,32 @@ export function BoardCanvas({
 
   const commit = useCallback(
     (next: Partial<Snapshot>, options: { undo?: boolean } = {}) => {
+      if (readOnly) return;
       if (options.undo !== false) pushUndo();
       if (next.cards) setCards(next.cards);
       if (next.strings) setStrings(next.strings);
       sync.markDirty();
     },
-    [pushUndo, sync],
+    [pushUndo, sync, readOnly],
   );
 
   const undo = useCallback(() => {
+    if (readOnly) return;
     const previous = undoStack.current.pop();
     if (!previous) return;
-    // Anything undo brings back must not still be queued for deletion.
-    sync.forgetDeletions();
+    // Anything undo brings back must not still be queued for deletion, and the
+    // server has to be told to lift the tombstone it wrote when the deletion
+    // was first saved — otherwise the card reappears here and is swept away
+    // again on the next save.
+    sync.noteRestored(
+      previous.cards.map((card) => card.id),
+      previous.strings.map((line) => line.id),
+    );
     setCards(previous.cards);
     setStrings(previous.strings);
     setSelected(new Set());
     setSelectedStringId(null);
-    sync.markDirty();
+    if (!readOnly) sync.markDirty();
   }, [sync]);
 
   /* ------------------------------------------------------------ geometry */
@@ -278,7 +299,22 @@ export function BoardCanvas({
     return toBoard(rect.left + rect.width / 2, rect.top + rect.height / 2);
   }, [toBoard]);
 
-  const cardById = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards]);
+  /**
+   * §8, live: the cards as they are *seen*. A card someone else is dragging is
+   * drawn where their hand has it right now, not where the last save left it
+   * — the strings tied to it follow, and so does the hit test, because what
+   * you see is what you can point at. `cards` itself is untouched: it is what
+   * gets saved, and another person's drag is not ours to save.
+   */
+  const shownCards = useMemo(() => {
+    if (!live.carried.size) return cards;
+    return cards.map((card) => {
+      const held = live.carried.get(card.id);
+      return held && !selected.has(card.id) ? { ...card, x: held.x, y: held.y } : card;
+    });
+  }, [cards, live.carried, selected]);
+
+  const cardById = useMemo(() => new Map(shownCards.map((card) => [card.id, card])), [shownCards]);
 
   /** Where an end of a string sits on the cork. Null if its card has gone. */
   const pointOf = useCallback(
@@ -293,11 +329,11 @@ export function BoardCanvas({
   /** The topmost card — or pin — under a board point, or null for bare cork. */
   const cardAt = useCallback(
     (x: number, y: number) =>
-      [...cards].reverse().find((card) => {
+      [...shownCards].reverse().find((card) => {
         const size = cardSize(card);
         return x >= card.x && x <= card.x + size.width && y >= card.y && y <= card.y + size.height;
       }) ?? null,
-    [cards],
+    [shownCards],
   );
 
   /**
@@ -487,9 +523,24 @@ export function BoardCanvas({
   const offerToFile = useCallback(
     (entryId: string, entryName: string) => {
       if (!caseId || filed.current.has(entryId)) return;
-      ui.toast(`${entryName} zit nog niet in ${caseName ?? 'dit dossier'}.`, {
-        label: 'Toevoegen',
-        onAction: () => {
+      const words = ui.words;
+      const dossier = caseName ?? `dit ${words.case}`;
+      // A sheet, not a toast: this is the one question the wall has to ask,
+      // and a line in the corner was too easy to miss.
+      void ui
+        .confirm({
+          title: `${entryName} zit nog niet in ${dossier}`,
+          message: (
+            <>
+              De {words.card} hangt nu op het {words.board}. Wil je {entryName} ook bij de{' '}
+              {words.entryPlural} van {dossier} zetten?
+            </>
+          ),
+          confirmLabel: `Toevoegen aan ${words.case}`,
+          cancelLabel: 'Alleen prikken',
+        })
+        .then((yes) => {
+          if (!yes) return;
           filed.current.add(entryId);
           void fetch(`/api/cases/${caseId}/entries`, {
             method: 'POST',
@@ -497,15 +548,14 @@ export function BoardCanvas({
             body: JSON.stringify({ entryId }),
           }).then((response) => {
             if (response.ok) {
-              ui.toast(`${entryName} toegevoegd aan ${caseName ?? 'het dossier'}.`);
+              ui.toast(`${entryName} toegevoegd aan ${dossier}.`);
               router.refresh();
             } else {
               filed.current.delete(entryId);
               ui.toast('Opslaan is niet gelukt. Probeer het opnieuw.');
             }
           });
-        },
-      });
+        });
     },
     [caseId, caseName, router, ui],
   );
@@ -678,6 +728,12 @@ export function BoardCanvas({
   }
 
   function onPointerMove(event: React.PointerEvent) {
+    // §8, live: where this hand is, for everyone else's wall. A finger has no
+    // hover, so touch only reports while it is actually dragging a card.
+    if (event.pointerType !== 'touch' && live.state === 'live') {
+      live.reportPointer({ cursor: toBoard(event.clientX, event.clientY) });
+    }
+
     if (cropDrag.current && croppingId) {
       const rect = viewportRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -709,15 +765,14 @@ export function BoardCanvas({
       }
       sync.touch();
       const origin = drag.current.origin;
+      const moving: Record<string, { x: number; y: number }> = {};
+      for (const [id, from] of origin) moving[id] = { x: Math.round(from.x + dx), y: Math.round(from.y + dy) };
+      // Everyone else sees the cards travel with the hand, not just land.
+      if (dragMoved.current && live.state === 'live') live.reportPointer({ moving });
       setCards((current) =>
         current.map((card) => {
-          const from = origin.get(card.id);
-          if (!from) return card;
-          return {
-            ...card,
-            x: Math.round(from.x + dx),
-            y: Math.round(from.y + dy),
-          };
+          const at = moving[card.id];
+          return at ? { ...card, x: at.x, y: at.y } : card;
         }),
       );
       return;
@@ -748,19 +803,26 @@ export function BoardCanvas({
   function onPointerUp(event: React.PointerEvent) {
     if (cropDrag.current) {
       cropDrag.current = null;
-      sync.markDirty();
+      if (!readOnly) sync.markDirty();
       return;
     }
 
     if (drag.current) {
+      const moved = dragMoved.current;
       drag.current = null;
-      sync.markDirty();
+      // The drop is the one save everyone else is waiting on: they have been
+      // watching this card travel, and its final place should not lag behind
+      // the hand by a debounce.
+      if (!readOnly) {
+        if (moved) sync.saveNow();
+        else sync.markDirty();
+      }
       return;
     }
 
     if (pan.current) {
       pan.current = null;
-      sync.markDirty();
+      if (!readOnly) sync.markDirty();
       return;
     }
 
@@ -871,7 +933,7 @@ export function BoardCanvas({
           y: atY - ((atY - current.y) / current.zoom) * nextZoom,
         };
       });
-      sync.markDirty();
+      if (!readOnly) sync.markDirty();
     },
     [sync],
   );
@@ -945,7 +1007,7 @@ export function BoardCanvas({
       x: rect.width / 2 - (bounds.x + bounds.width / 2) * zoom,
       y: rect.height / 2 - (bounds.y + bounds.height / 2) * zoom,
     });
-    sync.markDirty();
+    if (!readOnly) sync.markDirty();
   }
 
   /* ---------------------------------------------------------- keyboard */
@@ -969,6 +1031,7 @@ export function BoardCanvas({
       }
       if (typing) return;
 
+      if (readOnly) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         undo();
@@ -986,22 +1049,22 @@ export function BoardCanvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, selectedStringId, croppingId, drawing, lightbox, removeCards, removeString, undo]);
+  }, [selected, selectedStringId, croppingId, drawing, lightbox, removeCards, removeString, undo, readOnly]);
 
   /** If the pointer leaves the board mid-drag, finish rather than stick. */
   useEffect(() => {
     const finish = () => {
       if (drag.current) {
         drag.current = null;
-        sync.markDirty();
+        if (!readOnly) sync.markDirty();
       }
       if (cropDrag.current) {
         cropDrag.current = null;
-        sync.markDirty();
+        if (!readOnly) sync.markDirty();
       }
       if (pan.current) {
         pan.current = null;
-        sync.markDirty();
+        if (!readOnly) sync.markDirty();
       }
     };
     window.addEventListener('pointerup', finish);
@@ -1161,8 +1224,10 @@ export function BoardCanvas({
           id="board-name"
           className="board-name-input"
           value={name}
+          readOnly={readOnly}
           onChange={(event) => setName(event.target.value)}
           onBlur={() =>
+            !readOnly &&
             void fetch(`/api/boards/${boardId}`, {
               method: 'PATCH',
               headers: { 'content-type': 'application/json' },
@@ -1170,6 +1235,23 @@ export function BoardCanvas({
             })
           }
         />
+        {readOnly && (
+          <span className="chip" title="Je kunt dit prikbord bekijken, niet bewerken.">
+            <Icon name="lock" size={12} />
+            Alleen kijken
+          </span>
+        )}
+        {(access.canManage || access.settings.locked) && (
+          <button
+            type="button"
+            className="chip chip-selectable"
+            onClick={() => setAccessOpen(true)}
+            title="Wie mag dit prikbord zien en bewerken"
+          >
+            <Icon name={access.settings.viewMode === 'all' ? 'eye' : 'lock'} size={12} />
+            Rechten
+          </button>
+        )}
         {caseSlug && (
           <Link className="chip" href={`/c/${caseSlug}`}>
             <Icon name="folder" size={12} />
@@ -1224,6 +1306,7 @@ export function BoardCanvas({
         </button>
       </div>
 
+      {!readOnly && (
       <div className="board-tools">
         <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 0 }}>
           <label className="visually-hidden" htmlFor="board-search">
@@ -1314,8 +1397,9 @@ export function BoardCanvas({
           {capitalise(ui.words.pin)}
         </button>
       </div>
+      )}
 
-      {isPhone && <p className="board-hint">Verschuiven werkt het best op een tablet of computer.</p>}
+      {isPhone && !readOnly && <p className="board-hint">Verschuiven werkt het best op een tablet of computer.</p>}
 
       <div
         className="board-viewport"
@@ -1324,11 +1408,12 @@ export function BoardCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onPointerLeave={() => live.reportPointer({ cursor: null })}
         onWheel={onWheel}
         onTouchMove={onTouchMove}
         onTouchEnd={() => {
           pinch.current = null;
-          sync.markDirty();
+          if (!readOnly) sync.markDirty();
         }}
         onDragOver={(event) => {
           // Only say yes to a card from our own tray; a file dropped here is
@@ -1404,14 +1489,14 @@ export function BoardCanvas({
             `BoardCardView`, so a card's own markup and its own selected state
             stay exactly what they were.
           */}
-          {cards.map((card) => {
+          {shownCards.map((card) => {
             const holder = live.heldByOthers.get(card.id);
             if (!holder) return null;
             const size = cardSize(card);
             return (
               <div
                 key={`held-${card.id}`}
-                className="board-held"
+                className={`board-held${live.carried.has(card.id) ? ' board-card-carried' : ''}`}
                 aria-hidden="true"
                 style={{
                   left: card.x,
@@ -1427,10 +1512,11 @@ export function BoardCanvas({
             );
           })}
 
-          {cards.map((card) => (
+          {shownCards.map((card) => (
             <BoardCardView
               key={card.id}
               card={card}
+              carried={live.carried.has(card.id) && !selected.has(card.id)}
               entry={card.entryId ? entries[card.entryId] : undefined}
               selected={selected.has(card.id)}
               interactive={interactive}
@@ -1438,7 +1524,7 @@ export function BoardCanvas({
               canOpenOnTap={() => !interactive && pressWasSelected.current === card.id}
               onPointerDown={(event) => onCardPointerDown(event, card.id)}
               onPinPointerDown={(event) => onPinPointerDown(event, card.id)}
-              onTextChange={(text) => patchCard(card.id, { text })}
+              onTextChange={(text) => !readOnly && patchCard(card.id, { text })}
               onOpen={() => {
                 if (dragMoved.current) return;
                 const entry = card.entryId ? entries[card.entryId] : undefined;
@@ -1541,6 +1627,31 @@ export function BoardCanvas({
               }}
             />
           )}
+
+          {/*
+            §8, live: everyone else's hand. Drawn in board coordinates so each
+            viewer sees it under their own pan and zoom, counter-scaled so an
+            arrow is an arrow at every zoom, and eased between frames so
+            sixteen frames a second read as one movement.
+          */}
+          {live.pointers.map((pointer) => (
+            <div
+              key={pointer.clientId}
+              className="board-cursor"
+              aria-hidden="true"
+              style={{
+                left: pointer.x,
+                top: pointer.y,
+                transform: `scale(${1 / viewport.zoom})`,
+                ['--cursor-colour' as string]: pointer.colour,
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" className="board-cursor-arrow">
+                <path d="M4 3l7.5 17 2.3-7.2L21 10.5z" />
+              </svg>
+              <span className="board-cursor-name">{pointer.name}</span>
+            </div>
+          ))}
         </div>
 
         {!cards.length && (
@@ -1563,7 +1674,7 @@ export function BoardCanvas({
           </div>
         )}
 
-        {caseId && (
+        {caseId && !readOnly && (
           <BoardTray
             entries={trayEntries}
             onAdd={(entry) => placeEntry(entry)}
@@ -1576,6 +1687,7 @@ export function BoardCanvas({
           />
         )}
 
+        {!readOnly && (
         <BoardInspector
           cards={selectedCards}
           string={selectedString}
@@ -1620,7 +1732,36 @@ export function BoardCanvas({
             setCroppingId(null);
           }}
         />
+        )}
       </div>
+
+      {accessOpen && (
+        <Sheet onClose={() => setAccessOpen(false)} labelledBy="board-access-title">
+          <div className="row" style={{ marginBottom: '0.8rem' }}>
+            <h2 id="board-access-title" style={{ margin: 0, fontSize: '1.3rem' }}>
+              Wie mag hier aan
+            </h2>
+            <div className="spacer" />
+            <button
+              className="btn btn-ghost btn-small"
+              type="button"
+              onClick={() => setAccessOpen(false)}
+              aria-label="Sluiten"
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+          <AccessEditor
+            target="board"
+            id={boardId}
+            initial={access.settings}
+            canManage={access.canManage}
+            isKeeper={access.isKeeper}
+            viewerId={access.viewerId}
+            nouns={{ this: `dit ${ui.words.board}` }}
+          />
+        </Sheet>
+      )}
 
       {lightbox && (
         <div

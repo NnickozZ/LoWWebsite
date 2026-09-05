@@ -4,7 +4,10 @@ import { notFound } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
+import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
+import { activeCharacter, displayNames, listCharacters, playersOf } from '@/lib/characters';
+import { canReview, listPendingEdits } from '@/lib/entries/review';
 import { diffLines, relativeTime } from '@/lib/diff';
 import { docToText } from '@/lib/entries/doc';
 import { listCasesForEntry } from '@/lib/cases/service';
@@ -23,6 +26,10 @@ import {
   listRevisions,
 } from '@/lib/entries/service';
 import { getWords } from '@/lib/admin/words';
+import { presenceColour } from '@/lib/boards/live';
+import { snapshot } from '@/lib/live/docs';
+import { admit, entryRoomKey, sectionRoomKey } from '@/lib/live/rooms';
+import { listMaps, listPinsForEntry } from '@/lib/maps/service';
 import { cleanTypeText, defaultBlockTitle, resolveBlocks } from '@/lib/pageBlocks';
 import { deleteEntryAction, restoreRevisionAction } from './actions';
 
@@ -42,19 +49,88 @@ export default async function EntryPage({
   const entry = getEntryBySlug(slug, user);
   if (!entry) notFound();
 
+  // §17: what this viewer may do here. The dials themselves only travel to the
+  // owner or a Keeper; everyone else gets the one bit they need — may I edit.
+  const grant = user ? grantFor('entry', entry.id, user.id) : null;
+  const mayEdit = canEdit(entry, user, grant);
+  const mayManage = canManageAccess(entry, user);
+  const access = {
+    settings: mayManage || (entry.accessLocked && entry.createdBy === user?.id)
+      ? accessSettings(entry, 'entry', entry.id)
+      : {
+          ownerId: null,
+          viewMode: entry.viewMode,
+          editMode: entry.editMode,
+          locked: entry.accessLocked,
+          viewers: [],
+          editors: [],
+        },
+    canManage: mayManage,
+    canEdit: mayEdit,
+    viewerId: user?.id ?? '',
+  };
+  const proposals = user && canReview(entry.id, user) ? listPendingEdits(entry.id) : [];
+
   const backlinks = getBacklinks(entry.id, user);
   const revisions = listRevisions(entry.id);
   const knownTags = listAllTags(user);
   const cases = listCasesForEntry(entry.id, user);
   const isKeeper = Boolean(user?.isKeeper);
+
+  // §11: what this soort's page is made of, and the words it uses.
+  const words = getWords();
+
+  // §18: history rows carry the account; the page shows the character.
+  const editorNames = displayNames(
+    revisions.flatMap((r) =>
+      r.editedBy ? [{ id: r.editedBy, username: r.username ?? '', isKeeper: Boolean(r.isKeeper) }] : [],
+    ),
+    words.keeper,
+  );
+
+  // §18: is this fiche one of the viewer's characters, and who else plays it?
+  const mine = user && !user.isKeeper ? listCharacters(user.id) : [];
+  const wornId = user && !user.isKeeper ? (activeCharacter(user.id)?.entryId ?? null) : null;
+  const character = user && !user.isKeeper
+    ? { linked: mine.some((c) => c.entryId === entry.id), active: wornId === entry.id }
+    : null;
+  const playedBy = playersOf(entry.id)
+    .filter((p) => p.id !== user?.id)
+    .map((p) => p.username);
+
+  // §19: where this fiche is on the maps, and which maps it could still go on.
+  const entryPins = listPinsForEntry(entry.id);
+  const onMaps = entryPins.map((pin) => ({ pinId: pin.pinId, mapSlug: pin.mapSlug, mapName: pin.mapName }));
+  const pinnedMapIds = new Set(entryPins.map((pin) => pin.mapId));
+  const mapsToPlace = listMaps(user)
+    .filter((map) => !pinnedMapIds.has(map.id))
+    .map((map) => ({ slug: map.slug, name: map.name }));
   // §9: a player is handed only the sections they may read, and neither the
   // reveal lists nor the pickers — none of it reaches their HTML.
   const sections = listSections(entry.id, user);
   const revealUsers = isKeeper ? listRevealableUsers() : [];
   const revealCases = isKeeper ? listCasesWithMembers() : [];
 
-  // §11: what this soort's page is made of, and the words it uses.
-  const words = getWords();
+  // §20: the shared text. The document is handed over in the page so the
+  // editor has it before the line is open; the gate here is the same one the
+  // line will apply, so a viewer never gets a room the line would refuse.
+  const liveUser = user
+    ? {
+        name: displayNames([{ id: user.id, username: user.username, isKeeper: user.isKeeper }], words.keeper).get(user.id)?.label ?? user.username,
+        colour: presenceColour(user.id),
+      }
+    : null;
+  const bodyAdmission = admit(entryRoomKey(entry.id), user);
+  const liveBody =
+    bodyAdmission && liveUser
+      ? { room: bodyAdmission.spec.key, ...snapshot(bodyAdmission.spec), canEdit: bodyAdmission.canEdit, user: liveUser }
+      : null;
+  const liveSections = new Map<string, { room: string; state: string; canEdit: boolean }>();
+  for (const section of sections) {
+    const admission = admit(sectionRoomKey(section.id), user);
+    if (admission) liveSections.set(section.id, { room: admission.spec.key, state: snapshot(admission.spec).state, canEdit: admission.canEdit });
+  }
+
   const blocks = resolveBlocks(entry.typeBlocks);
   const typeText = cleanTypeText(entry.typePageText);
   const openHistory = Boolean(query.rev);
@@ -226,7 +302,9 @@ export default async function EntryPage({
                 >
                   <Icon name="clock" size={15} style={{ color: 'var(--ink-muted)' }} />
                   <span className="small" style={{ flex: 1 }}>
-                    {revision.username ?? 'Iemand'}
+                    <span title={revision.editedBy ? editorNames.get(revision.editedBy)?.account : undefined}>
+                      {(revision.editedBy && editorNames.get(revision.editedBy)?.label) ?? 'Iemand'}
+                    </span>
                     {revision.note ? ` — ${revision.note}` : ''}
                   </span>
                   <span className="tiny muted">{relativeTime(revision.createdAt)}</span>
@@ -279,18 +357,27 @@ export default async function EntryPage({
           body: section.body,
           visibility: section.visibility,
           revealedTo: section.revealedTo,
+          live: liveSections.get(section.id) ?? null,
         }))}
+        live={liveBody}
         revealUsers={revealUsers}
         revealCases={revealCases}
+        access={access}
+        proposals={proposals}
+        character={character}
+        playedBy={playedBy}
+        onMaps={onMaps}
+        mapsToPlace={mapsToPlace}
         openAddMore={query.new === '1'}
         cases={cases.map((item) => ({
           id: item.id,
           slug: item.slug,
           name: item.name,
-          visibility: item.visibility,
+          confidential: item.viewMode !== 'all',
         }))}
       />
 
+      {mayEdit && (
       <div className="page">
         <details className="section">
           <summary>{words.deleteEntry}</summary>
@@ -308,6 +395,7 @@ export default async function EntryPage({
           </div>
         </details>
       </div>
+      )}
     </>
   );
 }

@@ -52,10 +52,13 @@ export function BoardCardView({
   onOpen,
   onViewFull,
   onConvertToEntry,
+  carried = false,
 }: {
   card: BoardCardModel;
   entry?: BoardEntryFacts;
   selected: boolean;
+  /** §8, live: somebody else's hand is moving this card right now. */
+  carried?: boolean;
   /** False under 768 px: the card can be selected and edited, but not dragged. */
   interactive: boolean;
   /** True while this card's picture is being repositioned. */
@@ -98,7 +101,7 @@ export function BoardCardView({
     // label it. No border, no picture, no body — it is a place, not a card.
     return (
       <div
-        className={`board-card board-pincard${selected ? ' board-card-selected' : ''}`}
+        className={`board-card board-pincard${selected ? ' board-card-selected' : ''}${carried ? ' board-card-carried' : ''}`}
         style={{
           left: card.x,
           top: card.y,
@@ -149,6 +152,7 @@ export function BoardCardView({
         borderClass(cardBorder(card, entry)),
         selected ? 'board-card-selected' : '',
         cropping ? 'board-card-cropping' : '',
+        carried ? 'board-card-carried' : '',
       ]
         .filter(Boolean)
         .join(' ')}

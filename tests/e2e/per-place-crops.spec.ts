@@ -81,7 +81,7 @@ test('a case crops a cover for itself without touching the entry', async ({ page
 
   // -- and a board card starts from the entry's, not the case's -------------
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
   await page.waitForURL('**/b/**');
   await page.getByLabel('Kaart toevoegen').fill(entryName);
   await page

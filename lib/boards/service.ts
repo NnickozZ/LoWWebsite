@@ -1,5 +1,7 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { viewableCondition } from '@/lib/access';
 import { db, schema } from '@/lib/db';
+import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -12,6 +14,11 @@ export type BoardSummary = {
   caseId: string | null;
   caseName: string | null;
   caseSlug: string | null;
+  /** §17 */
+  viewMode: AccessMode;
+  editMode: AccessMode;
+  accessLocked: boolean;
+  createdBy: string | null;
   updatedAt: number;
   createdAt: number;
   /** How much is on the wall — only the index page asks. */
@@ -19,30 +26,60 @@ export type BoardSummary = {
   stringCount?: number;
 };
 
+const BOARD_COLUMNS = {
+  id: schema.boards.id,
+  name: schema.boards.name,
+  caseId: schema.boards.caseId,
+  caseName: schema.cases.name,
+  caseSlug: schema.cases.slug,
+  viewMode: schema.boards.viewMode,
+  editMode: schema.boards.editMode,
+  accessLocked: schema.boards.accessLocked,
+  createdBy: schema.boards.createdBy,
+  updatedAt: schema.boards.updatedAt,
+  createdAt: schema.boards.createdAt,
+} as const;
+
+export type BoardListOptions = {
+  sort?: 'recent' | 'name' | 'created' | 'size';
+  /** 'loose' = no case; 'case' = belongs to one; a case id = that one. */
+  where?: 'loose' | 'case' | string;
+  mine?: string;
+  privateOnly?: boolean;
+};
+
 /**
- * A board is visible when it is standalone (open to every signed-in player) or
- * when its case is visible. There is no other way to load one: `getBoard` and
- * `listBoards` are the only readers, and both apply the case rule.
+ * §17: a board is visible when its own view dial allows the viewer AND, if it
+ * hangs off a case, that case is visible. There is no other way to load one:
+ * `getBoard` and `listBoards` are the only readers, and both apply both rules.
  */
-export function listBoards(viewer: Viewer): BoardSummary[] {
+export function listBoards(viewer: Viewer, options: BoardListOptions = {}): BoardSummary[] {
+  const conditions = [isNull(schema.boards.deletedAt), viewableCondition('board', viewer)];
+  if (options.where === 'loose') conditions.push(isNull(schema.boards.caseId));
+  else if (options.where === 'case') conditions.push(sql`${schema.boards.caseId} IS NOT NULL`);
+  else if (options.where) conditions.push(eq(schema.boards.caseId, options.where));
+  if (options.mine) conditions.push(eq(schema.boards.createdBy, options.mine));
+  if (options.privateOnly) conditions.push(sql`${schema.boards.viewMode} <> 'all'`);
+
+  const order =
+    options.sort === 'name'
+      ? sql`${schema.boards.name} COLLATE NOCASE ASC`
+      : options.sort === 'created'
+        ? desc(schema.boards.createdAt)
+        : options.sort === 'size'
+          ? sql`coalesce(json_array_length(json_extract(${schema.boards.state}, '$.cards')), 0) DESC`
+          : desc(schema.boards.updatedAt);
+
   const rows = db
     .select({
-      id: schema.boards.id,
-      name: schema.boards.name,
-      caseId: schema.boards.caseId,
-      caseName: schema.cases.name,
-      caseSlug: schema.cases.slug,
-      caseVisibility: schema.cases.visibility,
-      caseDeletedAt: schema.cases.deletedAt,
-      updatedAt: schema.boards.updatedAt,
-      createdAt: schema.boards.createdAt,
+      ...BOARD_COLUMNS,
       cardCount: sql<number>`coalesce(json_array_length(json_extract(${schema.boards.state}, '$.cards')), 0)`,
       stringCount: sql<number>`coalesce(json_array_length(json_extract(${schema.boards.state}, '$.strings')), 0)`,
     })
     .from(schema.boards)
     .leftJoin(schema.cases, eq(schema.cases.id, schema.boards.caseId))
-    .where(isNull(schema.boards.deletedAt))
-    .orderBy(desc(schema.boards.updatedAt))
+    .where(and(...conditions))
+    .orderBy(order)
     .limit(200)
     .all();
 
@@ -58,34 +95,27 @@ export function listBoards(viewer: Viewer): BoardSummary[] {
   return rows
     .filter((row) => !row.caseId || visibleCaseIds.has(row.caseId))
     .map((row) => ({
-      id: row.id,
-      name: row.name,
-      caseId: row.caseId,
-      caseName: row.caseName,
-      caseSlug: row.caseSlug,
-      updatedAt: row.updatedAt,
-      createdAt: row.createdAt,
+      ...row,
       cardCount: Number(row.cardCount ?? 0),
       stringCount: Number(row.stringCount ?? 0),
     }));
 }
 
-export function listBoardsForCase(caseId: string): BoardSummary[] {
+/** The boards inside a case that this viewer may open. */
+export function listBoardsForCase(caseId: string, viewer: Viewer): BoardSummary[] {
   return db
-    .select({
-      id: schema.boards.id,
-      name: schema.boards.name,
-      caseId: schema.boards.caseId,
-      caseName: schema.cases.name,
-      caseSlug: schema.cases.slug,
-      updatedAt: schema.boards.updatedAt,
-      createdAt: schema.boards.createdAt,
-    })
+    .select(BOARD_COLUMNS)
     .from(schema.boards)
     .leftJoin(schema.cases, eq(schema.cases.id, schema.boards.caseId))
-    .where(and(eq(schema.boards.caseId, caseId), isNull(schema.boards.deletedAt)))
+    .where(
+      and(
+        eq(schema.boards.caseId, caseId),
+        isNull(schema.boards.deletedAt),
+        viewableCondition('board', viewer),
+      ),
+    )
     .orderBy(desc(schema.boards.updatedAt))
-    .all() as BoardSummary[];
+    .all();
 }
 
 export function getBoard(boardId: string, viewer: Viewer) {
@@ -95,11 +125,15 @@ export function getBoard(boardId: string, viewer: Viewer) {
       name: schema.boards.name,
       caseId: schema.boards.caseId,
       state: schema.boards.state,
+      viewMode: schema.boards.viewMode,
+      editMode: schema.boards.editMode,
+      accessLocked: schema.boards.accessLocked,
+      createdBy: schema.boards.createdBy,
       updatedAt: schema.boards.updatedAt,
       deletedAt: schema.boards.deletedAt,
     })
     .from(schema.boards)
-    .where(eq(schema.boards.id, boardId))
+    .where(and(eq(schema.boards.id, boardId), viewableCondition('board', viewer)))
     .get();
 
   if (!row || row.deletedAt) return undefined;
@@ -121,6 +155,8 @@ export function createBoard(input: {
   name: string;
   caseId?: string | null;
   createdBy: string | null;
+  /** §17: "Privé prikbord" sets both dials to private in one go. */
+  isPrivate?: boolean;
 }): BoardSummary {
   const id = newId();
   db.insert(schema.boards)
@@ -129,6 +165,8 @@ export function createBoard(input: {
       name: input.name.trim() || 'Naamloos prikbord',
       caseId: input.caseId ?? null,
       state: { cards: [], strings: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      viewMode: input.isPrivate ? 'private' : 'all',
+      editMode: input.isPrivate ? 'private' : 'all',
       createdBy: input.createdBy,
     })
     .run();
@@ -139,15 +177,7 @@ export function createBoard(input: {
     caseId: input.caseId ?? null,
   });
   return db
-    .select({
-      id: schema.boards.id,
-      name: schema.boards.name,
-      caseId: schema.boards.caseId,
-      caseName: schema.cases.name,
-      caseSlug: schema.cases.slug,
-      updatedAt: schema.boards.updatedAt,
-      createdAt: schema.boards.createdAt,
-    })
+    .select(BOARD_COLUMNS)
     .from(schema.boards)
     .leftJoin(schema.cases, eq(schema.cases.id, schema.boards.caseId))
     .where(eq(schema.boards.id, id))

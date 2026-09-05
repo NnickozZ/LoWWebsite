@@ -19,10 +19,13 @@ export function CaseEntryCard({
   caseId,
   entry,
   onChanged,
+  readOnly = false,
 }: {
   caseId: string;
   entry: CaseEntry;
   onChanged: () => void;
+  /** §17: no note, crop or remove for someone who may only look. */
+  readOnly?: boolean;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -96,6 +99,7 @@ export function CaseEntryCard({
         </Link>
       )}
 
+      {!readOnly && (
       <button
         type="button"
         aria-label={`Opties voor ${entry.name}`}
@@ -115,8 +119,9 @@ export function CaseEntryCard({
       >
         ⋯
       </button>
+      )}
 
-      {menuOpen && (
+      {menuOpen && !readOnly && (
         <div
           className="suggest-list"
           style={{ position: 'absolute', top: 38, right: 4, zIndex: 20, width: 190 }}

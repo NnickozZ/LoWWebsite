@@ -490,6 +490,209 @@ host.
 
 ---
 
+## Phase 4 — Rights, characters, maps
+
+**Rights are two dials, not a role system.**
+Who may *look* and who may *touch*, each Iedereen / Gekozen personen / Privé.
+Groups, roles and inheritance were all considered and all rejected: a campaign
+has six people in it, and "these three" is a row of checkboxes, not a group to
+name and maintain. Both dials default to Iedereen — the archive was open before
+this and stays open until someone closes a door on purpose.
+
+**Editing implies viewing, and the Keeper's secrecy is a separate layer.**
+An edit grant on something you cannot see is nothing (`canEdit` asks `canView`
+first), so nobody can be handed a pen for a page they are not allowed to read.
+§9's *zichtbaarheid* (Keeper-only, revealed to chosen players) is not folded
+into the dials: it is the Keeper's, they are the owner's, and a fiche is shown
+only when *both* say yes. Two layers with one owner each is simpler than one
+layer with two.
+
+**Rights follow the account, not the character.**
+A character is a name a person wears. If a private dossier were shared with
+"Onderzoeker Van Dijk", it would open or close with a costume change — and a
+player with two characters could see it as one and not the other. The
+checkboxes show the character beside the account name so the owner can still
+pick "Bram, who plays Van Dijk", but what is stored is Bram.
+
+**Look-but-not-touch on a fiche is a proposal; on a dossier or a prikbord it is read-only.**
+A fiche is prose, and §10 already had a queue for edits that need a second pair
+of eyes — so a reader's change goes there, and the owner judges it on the fiche
+itself instead of the Keeper in Beheer. A prikbord is a hundred small moves and
+a dossier is a set of buttons; a proposal for "move this card left" is absurd,
+so those simply lose their tools (403 from the API, no buttons on screen).
+
+**One rule module, applied on the way in and on the way out.**
+`lib/access.ts` gives every reader a SQL condition (`viewableCondition`) and
+every writer a boolean (`viewerCanEdit`). The condition is ANDed into the two
+visibility conditions the rest of the code already used, so the sixty places
+that read entries did not need to learn a new rule — rule 1 of the README
+simply got a second clause. A right enforced only in the UI is decoration.
+
+**A Keeper can bolt the dials, not override them per person.**
+The one thing a Keeper needed beyond "sees everything" was to stop an owner
+from re-opening what the Keeper closed (or closing what the Keeper needs open).
+`access_locked` freezes the dials as they stand; the owner still sees them, and
+sees why they are grey. Per-person Keeper overrides would have been a third
+layer for a case nobody described.
+
+**The two prikbord buttons exist because a private wall must never be public first.**
+"Create, then find the setting" leaves a window in which everyone saw the
+board in the list. Openbaar / Privé at the moment of making it closes that
+window and is one tap either way. Dossiers and fiches did not get the same
+treatment: a fiche is empty at birth and a dossier is a name, so the window is
+harmless there.
+
+**A character is worn, not recorded.**
+Attribution is resolved at display time from `users.active_character_id`, not
+written into each activity row. Switching character therefore re-labels a
+person's past as well — and for a campaign wiki that is the honest reading:
+the person did those things, and this is who they are being. Recording the
+character per act would have meant two names for one person in one feed, and a
+migration for every existing row. The account name stays one tooltip away, and
+Beheer shows who plays whom.
+
+**A Keeper is always the Keeper.**
+`activeCharacter()` returns nothing for a Keeper and `addCharacter` refuses
+them, so no log row can ever say "Van Dijk onthulde iets" when it was the
+Keeper. The brief said Keepers always have Keeper selected; the code cannot say
+otherwise.
+
+**The switch lives under the masthead on a desktop and on the Jij page on a phone.**
+It had to be visible without being in the way. Under the masthead it reads as a
+byline — "Je speelt als Van Dijk" — which is what it is. The phone tab bar had
+no room, and a person switches character once an evening, so the Jij tab is
+where the wardrobe lives; the first fiche tied on is worn at once, so nobody has
+to find a second button to start being someone.
+
+**A map is a picture; pins are fractions of it.**
+No tiles, no projection, no coordinates: the Keeper uploads a drawing and a pin
+is `(x, y)` in 0..1 of that drawing. A redrawn map keeps every pin; a map twice
+the size keeps every pin. The picture is kept to 3200 px rather than a cover's
+1600 because a map is the one image people zoom into.
+
+**A pin is a fiche or a note, and a fiche pin is behind the fiche's rules.**
+The lighthouse on the map *is* the lighthouse's fiche, so the map is another
+reader and `listPins` runs behind `visibleEntryCondition`. A Keeper-only fiche
+pinned on the map would otherwise announce itself by its icon. Notes are for
+everyone: they are the map's own margin.
+
+**Whoever set a pin owns it; everyone may set one.**
+A map with a hundred spelden is a shared thing, and "anyone may move anything"
+would have made it a shared mess. Owner-or-Keeper for move, edit and pull is the
+same shape as the rights on everything else, without a third pair of dials.
+
+**The legend is remembered in the browser, per map.**
+Which kinds of pin are switched off is a viewing preference, not a fact about
+the archive, so it lives in `localStorage` under the map's id and is read
+inside a `try` — a private window simply starts with everything on.
+
+**The dossier prompt became a sheet because a toast is easy to miss.**
+"Also file this in the dossier?" is the whole point of pinning to a case wall,
+and a line in the corner was ignored. `ui.confirm()` is the app's own yes/no
+sheet — never the browser's `confirm()`, which cannot be styled, cannot be
+worded, and blocks the tab — and any screen may now ask a question with it.
+
+**Sorting and filtering live in the URL.**
+The bar writes `?sort=&status=&show=` and the page reads it back, so a filtered
+list survives a reload and can be sent to someone. Filters are chips, not
+dropdowns: a chip shows its state, and several of them show the whole state at
+a glance. A single-choice group behaves like a radio that can also be switched
+off; a multi-choice group joins its values with commas.
+
+**Every filter is applied behind the visibility rules, never instead of them.**
+"Van mij", "vertrouwelijk", "op een landkaart" — each is another `AND` on a
+query that already carries `visibleEntryCondition`, so a filter can never show
+someone a thing they could not open; `list-filters.test.ts` checks each one
+from a player's seat as well as the Keeper's. The Keeper's secrecy filter is
+simply ignored for a player who types it into the URL.
+
+**"Landkaart", not "kaart".**
+The board already calls its index cards *kaarten*, and a menu with two
+different *Kaarten* in it is a menu nobody can use. *Landkaart* is
+unambiguous, fits the island, and is one word in the list for a Keeper who
+disagrees.
+
+---
+
+## Phase 5 — Live: hands on the wall, shared text
+
+**A pointer frame is ephemeral and goes round the document entirely.**
+Where someone's mouse is, and where the card in their hand is *right now*,
+travels as its own event on the board's existing line — sixteen a second at
+most, fanned out to everyone else, remembered by nobody. It is not a fact about
+the board, so it never touches the merge, the tombstones or the save; the drop
+that follows is what makes the position true. That keeps rule 3 ("the wire
+carries a signal, never the document") intact: positions of cards are not
+per-viewer secrets, and a frame contains nothing that is.
+
+**A carried card stays where the hand left it until the save has been pulled.**
+The obvious thing — clear the ephemeral position on mouse-up — snaps the card
+back to where it started for one round trip and then jumps it forward. So the
+receiver keeps carried positions until the `change` signal from *that* tab has
+been pulled, and only then lets the document take over. A tab that dies
+mid-drag is caught by a timeout.
+
+**The drop saves now; typing still waits.**
+A card everyone has just watched travel must not then lag its landing by a
+debounce, so a drop goes out at once. Typing in a note card keeps a (shorter)
+debounce because a keystroke is not a moment anyone is waiting for.
+
+**Shared text is Yjs, over the same kind of line a board uses.**
+A CRDT is the only honest answer to two people in one paragraph: last-write-wins
+per field (§6) is fine for a name, and unacceptable for prose. Yjs is small,
+proven, and Tiptap ships bindings for it. The transport is the one the boards
+already have — server-sent events down, POSTs up — so there is still no second
+server, no socket, no new port on the VPS, and every message goes through the
+same session cookie.
+
+**The room's membership is the visibility rule.**
+Fanning one CRDT document out to everyone in a room would break README rule 1
+if "everyone" were a loose word. It is not: a room admits exactly the viewers
+`visibleEntryCondition`, `canSeeSection` and `visibleCaseCondition` admit, and
+a hidden section has its own room — so a Keeper drafting "what is really in
+the cellar" is seen by other Keepers and by nobody else, until it is revealed
+and the players who may read it join that room. Keeper notes are deliberately
+not a room.
+
+**The archive stays the truth, and the room follows it.**
+`entries.body` is what search, revisions, links, exports and the feed read, so
+the room writes itself back through `updateEntry` like any other save — as the
+last person who typed — and keeps its own CRDT state beside it only so a tab
+that was away merges instead of clobbering. When the body is written around the
+room (a revision restored, a proposal approved), the room is rewritten to match
+and open tabs see it as one more update. The other direction never happens.
+
+**Looking is live too; proposing is a copy.**
+Someone who may see a fiche but not type in it gets the same live text,
+read-only — they watch it change — and a button that opens their own copy to
+edit and send as one proposal. The old behaviour (a proposal per autosave) would
+have flooded the owner with fragments; a copy sent once is what "voorstel"
+means.
+
+**The document goes into the HTML.**
+The page hands the editor the Yjs state as a prop, so the text is there before
+the line is open and nothing flashes empty. It also means the room is warm by
+the first keystroke. A Yjs update is idempotent, so the `sync` that follows
+does no harm.
+
+**Exactly one Yjs on the server, and none in the server-side render.**
+Bundled, the server ended up with a copy of Yjs per chunk group — three — and
+Yjs says so at start-up because a document that crosses copies fails its own
+`instanceof` checks. `yjs` is now a server external (one module in Node's
+cache) and the live editor is loaded on the client only (`next/dynamic`,
+`ssr: false`; Tiptap renders nothing on the server anyway).
+
+**Fixed by React's development double mount, twice.**
+Strict Mode mounts, unmounts and mounts again, which is also what a reconnect
+does. It found (1) a room's `leave()` deleting the *new* line's subscription
+because both lines share a tab id — now only the line that owns the entry may
+remove it, on boards as well; and (2) `awareness.setLocalStateField` being a
+silent no-op once the local state has been cleared, so a remounted tab never
+announced itself — the state is now set whole. Both would have bitten in
+production on any reconnect.
+
+---
+
 ## Dependencies
 
 §13 says to ask before adding a dependency. Three additions, all of them serving
@@ -506,6 +709,12 @@ would not have matched §12.
 prebuilt binaries for Windows, macOS and Linux, so `npm install` never needs a
 native toolchain. §13a is explicit that a dependency which fails to compile on
 Windows or macOS should be swapped for one that does not.
+
+**`yjs`, `y-prosemirror`, `y-protocols`, `@tiptap/extension-collaboration`,
+`@tiptap/extension-collaboration-cursor`** (Phase 5) — shared text needs a
+CRDT, and writing one is not a weekend. Yjs is the one Tiptap binds to, pure
+JavaScript, no native code, no runtime fetch. Added with the helm let go;
+the transport around it is our own (no `y-websocket`, no extra server).
 
 Deliberately *not* added, though each would have been the obvious reach:
 

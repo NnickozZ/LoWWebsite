@@ -7,11 +7,16 @@ import type { BoardEntryFacts } from '@/lib/boards/service';
 export type SyncState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 /**
- * §8: autosave 800 ms after the last change. The client sends what it knows
- * plus the ids it has deleted; the server merges and returns the merged
- * document, which is applied here — that is how a card someone else added
- * thirty seconds ago appears without a reload.
+ * §8: autosave shortly after the last change — and at once when a hand comes
+ * off a card, because everyone else is watching that card move and should not
+ * wait for a debounce to see it land. The client sends what it knows plus the
+ * ids it has deleted; the server merges and returns the merged document, which
+ * is applied here — that is how a card someone else added thirty seconds ago
+ * appears without a reload.
  */
+
+/** Typing in a note card saves this long after the last keystroke. */
+const DEBOUNCE_MS = 300;
 export function useBoardSync({
   boardId,
   clientId,
@@ -39,6 +44,14 @@ export function useBoardSync({
   const [state, setState] = useState<SyncState>('idle');
   const deletedCards = useRef<Set<string>>(new Set());
   const deletedStrings = useRef<Set<string>>(new Set());
+  /**
+   * Ids undo has deliberately put back. A deletion that reached the server left
+   * a tombstone there; only an explicit restore lifts it, so without this an
+   * undone card would reappear on screen and be swept away again on the next
+   * save — which looks exactly like undo not working.
+   */
+  const restoredCards = useRef<Set<string>>(new Set());
+  const restoredStrings = useRef<Set<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   const again = useRef(false);
@@ -69,8 +82,12 @@ export function useBoardSync({
 
     const deletedCardIds = [...deletedCards.current];
     const deletedStringIds = [...deletedStrings.current];
+    const restoredCardIds = [...restoredCards.current];
+    const restoredStringIds = [...restoredStrings.current];
     deletedCards.current = new Set();
     deletedStrings.current = new Set();
+    restoredCards.current = new Set();
+    restoredStrings.current = new Set();
 
     try {
       const response = await fetch(`/api/boards/${boardId}`, {
@@ -83,6 +100,8 @@ export function useBoardSync({
           viewport: latest.current.viewport,
           deletedCardIds,
           deletedStringIds,
+          restoredCardIds,
+          restoredStringIds,
         }),
       });
       if (!response.ok) throw new Error('save failed');
@@ -98,9 +117,11 @@ export function useBoardSync({
         onMergedRef.current(data.state, data.entries);
       }
     } catch {
-      // Put the deletions back so they are retried rather than lost.
+      // Put them back so they are retried rather than lost.
       for (const id of deletedCardIds) deletedCards.current.add(id);
       for (const id of deletedStringIds) deletedStrings.current.add(id);
+      for (const id of restoredCardIds) restoredCards.current.add(id);
+      for (const id of restoredStringIds) restoredStrings.current.add(id);
       setState('error');
     } finally {
       inFlight.current = false;
@@ -120,7 +141,20 @@ export function useBoardSync({
     version.current += 1;
     setState('dirty');
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void flush(), 800);
+    timer.current = setTimeout(() => void flush(), DEBOUNCE_MS);
+  }, [flush]);
+
+  /**
+   * A change that everyone else is already watching — a drop, a new card, a
+   * deletion — goes out now, not after the debounce. `flush` runs on the next
+   * tick so the state update that made the change has rendered into
+   * `latest.current` first.
+   */
+  const saveNow = useCallback(() => {
+    version.current += 1;
+    setState('dirty');
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void flush(), 0);
   }, [flush]);
 
   const noteDeletedCard = useCallback((id: string) => {
@@ -128,14 +162,17 @@ export function useBoardSync({
   }, []);
 
   /**
-   * Undo brings something back. If its id were still queued as a deletion the
-   * next save would carry both the restored card and the instruction to delete
-   * it — and the server applies deletions last, so the undo would silently
-   * come apart on the round trip.
+   * Undo brings something back. Two things have to happen for that to survive a
+   * round trip: the queued deletion must not still be sitting in this save, and
+   * any tombstone the server already wrote has to be lifted. The caller passes
+   * what the restored board contains, and every one of those ids is asserted as
+   * present — which is what undo means.
    */
-  const forgetDeletions = useCallback(() => {
+  const noteRestored = useCallback((cardIds: string[], stringIds: string[]) => {
     deletedCards.current = new Set();
     deletedStrings.current = new Set();
+    for (const id of cardIds) restoredCards.current.add(id);
+    for (const id of stringIds) restoredStrings.current.add(id);
   }, []);
 
   const noteDeletedString = useCallback((id: string) => {
@@ -151,11 +188,12 @@ export function useBoardSync({
   return {
     state,
     markDirty,
+    saveNow,
     touch,
     flush,
     noteDeletedCard,
     noteDeletedString,
-    forgetDeletions,
+    noteRestored,
   };
 }
 

@@ -1,11 +1,24 @@
-import { eq } from 'drizzle-orm';
+import { getWords } from '@/lib/admin/words';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { db, schema } from '@/lib/db';
+import { displayNameOf } from '@/lib/characters';
 import { setEntryReveals } from '@/lib/entries/secrets';
-import { softDeleteEntry, updateEntry, type EntryPatch } from '@/lib/entries/service';
+import { getEntryFieldsForViewer, softDeleteEntry, updateEntry, type EntryPatch } from '@/lib/entries/service';
 
 export const dynamic = 'force-dynamic';
+
+/** §20: the fields around the shared text, for a page catching up live. */
+export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireUser();
+    const { id } = await ctx.params;
+    const entry = getEntryFieldsForViewer(id, user);
+    if (!entry) return json({ error: 'Fiche niet gevonden' }, { status: 404 });
+    return json({ ...entry, tags: entry.tags ?? [], fields: entry.fields ?? {} });
+  } catch (err) {
+    return apiError(err);
+  }
+}
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -23,15 +36,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
     if (result.status === 'pending') return json({ status: 'pending' });
 
-    // §6: "Bram also edited this — refreshed".
+    // §6: "Bram also edited this — refreshed". §18: by the name they wear.
     let previousEditorName: string | null = null;
     if (result.updatedBy && result.updatedBy !== user.id) {
-      previousEditorName =
-        db
-          .select({ username: schema.users.username })
-          .from(schema.users)
-          .where(eq(schema.users.id, result.updatedBy))
-          .get()?.username ?? null;
+      previousEditorName = displayNameOf(result.updatedBy, getWords().keeper)?.label ?? null;
     }
 
     return json({

@@ -1,3 +1,4 @@
+import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getCaseById, getCaseBySlug, updateCase, type CasePatch } from '@/lib/cases/service';
@@ -12,11 +13,17 @@ function assertVisible(id: string, viewer: { id: string; isKeeper: boolean }) {
   return summary;
 }
 
+/** §17: seeing a case and changing it are two different rights. */
+function assertEditable(id: string, viewer: { id: string; isKeeper: boolean }) {
+  assertVisible(id, viewer);
+  if (!viewerCanEdit('case', id, viewer)) throw new Error('Je mag dit dossier niet bewerken.');
+}
+
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     const { id } = await ctx.params;
-    assertVisible(id, user);
+    assertEditable(id, user);
 
     const patch = (await request.json()) as CasePatch;
     return json({ case: updateCase(id, patch, user) });

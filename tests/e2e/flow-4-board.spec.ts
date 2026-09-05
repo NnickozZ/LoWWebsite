@@ -19,7 +19,7 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   // A board of its own, so the test is repeatable and cannot collide with a
   // board another spec is working on.
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Nieuw prikbord' }).click();
+  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
   await page.waitForURL('**/b/**');
   const boardUrl = page.url();
 

@@ -1,8 +1,14 @@
 import { notFound } from 'next/navigation';
 import { asc } from 'drizzle-orm';
 import { CaseDossier, type CaseGroup } from '@/components/cases/CaseDossier';
+import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
+import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
+import { presenceColour } from '@/lib/boards/live';
+import { attributed, charactersWorn, displayNames } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
+import { snapshot } from '@/lib/live/docs';
+import { admit, caseRoomKey } from '@/lib/live/rooms';
 import { listBoardsForCase } from '@/lib/boards/service';
 import {
   getCaseBySlug,
@@ -25,17 +31,60 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
   const record = getCaseBySlug(slug, user);
   if (!record) notFound();
 
+  // §17
+  const grant = user ? grantFor('case', record.id, user.id) : null;
+  const mayEdit = canEdit(record, user, grant);
+  const mayManage = canManageAccess(record, user);
+  const access = {
+    settings:
+      mayManage || record.accessLocked
+        ? accessSettings(record, 'case', record.id)
+        : {
+            ownerId: null,
+            viewMode: record.viewMode,
+            editMode: record.editMode,
+            locked: record.accessLocked,
+            viewers: [],
+            editors: [],
+          },
+    canManage: mayManage,
+    canEdit: mayEdit,
+    viewerId: user?.id ?? '',
+  };
+
   const entries = listCaseEntries(record.id, user);
   const types = listEntryTypes();
-  const members = listCaseMembers(record.id);
-  const boards = listBoardsForCase(record.id);
-  const activity = listCaseActivity(record.id, user);
+  const boards = listBoardsForCase(record.id, user);
+  const words = getWords();
+  // §18: the log names characters; the account stays in the tooltip.
+  const activity = attributed(listCaseActivity(record.id, user), words.keeper);
 
-  const allUsers = db
+  const accounts = db
     .select({ id: schema.users.id, username: schema.users.username })
     .from(schema.users)
     .orderBy(asc(schema.users.usernameLower))
     .all();
+  const worn = charactersWorn(accounts.map((a) => a.id));
+  const allUsers = accounts.map((a) => ({ ...a, character: worn.get(a.id) ?? null }));
+  const members = listCaseMembers(record.id).map((m) => ({
+    ...m,
+    character: worn.get(m.id) ?? null,
+  }));
+
+  // §20: the working notes are shared text, handed over in the page.
+  const admission = user ? admit(caseRoomKey(record.id), user) : null;
+  const liveNotes =
+    admission && user
+      ? {
+          room: admission.spec.key,
+          state: snapshot(admission.spec).state,
+          canEdit: admission.canEdit,
+          user: {
+            name: displayNames([{ id: user.id, username: user.username, isKeeper: user.isKeeper }], words.keeper).get(user.id)?.label ?? user.username,
+            colour: presenceColour(user.id),
+          },
+        }
+      : null;
 
   // Build one group per §7 tab, then one for any other type that has entries.
   const groups: CaseGroup[] = [];
@@ -76,7 +125,6 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         name: record.name,
         summary: record.summary,
         status: record.status,
-        visibility: record.visibility,
         notes: record.notes,
         keeperNotes: record.keeperNotes ?? '',
         coverAssetId: record.coverAssetId,
@@ -87,8 +135,10 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       allUsers={allUsers}
       boards={boards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}
       activity={activity}
+      liveNotes={liveNotes}
       lastSeenAt={user?.lastSeenAt ?? null}
       isKeeper={Boolean(user?.isKeeper)}
+      access={access}
     />
   );
 }

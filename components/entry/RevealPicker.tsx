@@ -2,7 +2,13 @@
 
 import { Icon } from '@/components/Icon';
 
-export type RevealableUser = { id: string; username: string; isKeeper: boolean };
+export type RevealableUser = {
+  id: string;
+  username: string;
+  isKeeper: boolean;
+  /** §18: the character this account wears, if any. */
+  character?: string | null;
+};
 export type RevealableCase = { id: string; name: string; memberIds: string[] };
 
 /**
@@ -66,6 +72,11 @@ export function RevealPicker({
               >
                 {chosen.has(user.id) && <Icon name="check" size={12} />}
                 {user.username}
+                {user.character && (
+                  <span className="muted" style={{ textTransform: 'none', letterSpacing: 0 }}>
+                    · {user.character}
+                  </span>
+                )}
               </button>
             ))}
           </div>

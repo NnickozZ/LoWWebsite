@@ -4,9 +4,20 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
+import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { CoverEditor } from '@/components/entry/CoverEditor';
+import dynamic from 'next/dynamic';
+import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
+import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useIsPhone } from '@/components/useIsPhone';
+
+/** §20: client-only, so the server never holds a second copy of Yjs. */
+const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
+  ssr: false,
+  loading: () => <div className="editor-body" aria-busy="true" />,
+});
 import { useUi } from '@/components/ui/UiProvider';
 import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
@@ -31,15 +42,23 @@ export type CaseDossierData = {
   name: string;
   summary: string;
   status: CaseStatus;
-  visibility: 'all' | 'assigned';
   notes: unknown;
   keeperNotes: string;
   coverAssetId: string | null;
   coverCrop: CoverCrop | null;
 };
 
+/** §17: the owner's dials and what this viewer may do with them. */
+export type CaseAccess = {
+  settings: AccessSettings;
+  canManage: boolean;
+  canEdit: boolean;
+  viewerId: string;
+};
+
 export type BoardLite = { id: string; name: string; updatedAt: number };
-export type UserLite = { id: string; username: string };
+/** An account, and (§18) the character it is wearing, if any. */
+export type UserLite = { id: string; username: string; character?: string | null };
 
 const STATUSES: CaseStatus[] = ['open', 'cold', 'closed'];
 const STATUS_LABELS: Record<CaseStatus, string> = { open: 'open', cold: 'koud', closed: 'gesloten' };
@@ -67,15 +86,21 @@ export function CaseDossier({
   activity,
   lastSeenAt,
   isKeeper,
+  access,
+  liveNotes,
 }: {
   data: CaseDossierData;
   groups: CaseGroup[];
+  /** The people on the view list, for the little row of initials. */
   members: UserLite[];
   allUsers: UserLite[];
   boards: BoardLite[];
   activity: CaseActivityItem[];
   lastSeenAt: number | null;
   isKeeper: boolean;
+  access: CaseAccess;
+  /** §20: the notes as shared text, or null when the page could not open the room. */
+  liveNotes: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -84,11 +109,13 @@ export function CaseDossier({
   const [name, setName] = useState(data.name);
   const [summary, setSummary] = useState(data.summary);
   const [status, setStatus] = useState<CaseStatus>(data.status);
-  const [visibility, setVisibility] = useState(data.visibility);
-  const [memberIds, setMemberIds] = useState(members.map((m) => m.id));
+  const [accessNow, setAccessNow] = useState(access.settings);
+  const memberIds = accessNow.viewMode === 'some' ? accessNow.viewers : [];
+  const readOnly = !access.canEdit;
   const [keeperNotes, setKeeperNotes] = useState(data.keeperNotes);
   const [cover, setCover] = useState({ assetId: data.coverAssetId, crop: data.coverCrop });
   const [assignOpen, setAssignOpen] = useState(false);
+  const [notesLive, setNotesLive] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const summaryRef = useRef<HTMLTextAreaElement>(null);
 
@@ -135,39 +162,46 @@ export function CaseDossier({
 
   const allTypeSlugs = useMemo(() => groups.flatMap((group) => group.typeSlugs), [groups]);
 
-  async function createBoard() {
-    const response = await fetch('/api/boards', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ caseId: data.id }),
-    });
-    if (!response.ok) {
-      ui.toast('Nieuw prikbord aanmaken is niet gelukt.');
-      return;
-    }
-    const created = await response.json();
-    router.push(`/b/${created.board.id}`);
-  }
-
   /* ------------------------------------------------------------- sections */
 
   const overview = (
     <div>
-      <CaseAddSearch
-        caseId={data.id}
-        typeSlugs={allTypeSlugs.length ? undefined : undefined}
-        placeholder="Voeg iets toe aan dit dossier…"
-        onAdded={refresh}
-      />
+      {!readOnly && (
+        <CaseAddSearch
+          caseId={data.id}
+          typeSlugs={allTypeSlugs.length ? undefined : undefined}
+          placeholder="Voeg iets toe aan dit dossier…"
+          onAdded={refresh}
+        />
+      )}
 
       <div className="stack" style={{ marginBottom: '1.2rem' }}>
         <div>
-          <span className="label">Dossiernotities</span>
-          <RichEditor
-            initialDoc={data.notes}
-            placeholder="Wat is de werktheorie? Typ @ of [[ om een fiche te koppelen."
-            onChange={(doc) => set({ notes: doc })}
-          />
+          <span className="label row" style={{ gap: '0.6rem' }}>
+            Dossiernotities
+            {liveNotes && (
+              <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
+                <LivePeople others={notesLive.others} status={notesLive.status} />
+              </span>
+            )}
+          </span>
+          {liveNotes ? (
+            <LiveBody
+              room={liveNotes.room}
+              state={liveNotes.state}
+              user={liveNotes.user}
+              canEdit={liveNotes.canEdit && !readOnly}
+              placeholder="Wat is de werktheorie? Typ @ of [[ om een fiche te koppelen."
+              onStatus={setNotesLive}
+            />
+          ) : (
+            <RichEditor
+              initialDoc={data.notes}
+              editable={!readOnly}
+              placeholder="Wat is de werktheorie? Typ @ of [[ om een fiche te koppelen."
+              onChange={(doc) => !readOnly && set({ notes: doc })}
+            />
+          )}
         </div>
       </div>
 
@@ -176,7 +210,7 @@ export function CaseDossier({
           <p className="eyebrow">Laatst toegevoegd</p>
           <div className="card-grid">
             {recent.map((entry) => (
-              <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} />
+              <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={readOnly} />
             ))}
           </div>
         </>
@@ -205,16 +239,18 @@ export function CaseDossier({
 
   const groupSection = (group: CaseGroup) => (
     <div>
-      <CaseAddSearch
-        caseId={data.id}
-        typeSlugs={group.typeSlugs}
-        placeholder={`Zoek of maak ${group.label.toLowerCase()}…`}
-        onAdded={refresh}
-      />
+      {!readOnly && (
+        <CaseAddSearch
+          caseId={data.id}
+          typeSlugs={group.typeSlugs}
+          placeholder={`Zoek of maak ${group.label.toLowerCase()}…`}
+          onAdded={refresh}
+        />
+      )}
       {group.entries.length ? (
         <div className="card-grid">
           {group.entries.map((entry) => (
-            <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} />
+            <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={readOnly} />
           ))}
         </div>
       ) : (
@@ -225,12 +261,11 @@ export function CaseDossier({
 
   const boardSection = (
     <div>
-      <div className="row-wrap" style={{ marginBottom: '0.9rem' }}>
-        <button type="button" className="btn btn-small" onClick={createBoard}>
-          <Icon name="plus" size={15} />
-          Nieuw prikbord
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="row-wrap" style={{ marginBottom: '0.9rem' }}>
+          <NewBoardButton caseId={data.id} />
+        </div>
+      )}
       {boards.length ? (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {boards.map((board) => (
@@ -274,7 +309,10 @@ export function CaseDossier({
               style={{ borderBottom: '1px solid var(--rule)', padding: '0.5rem 0' }}
             >
               <span className="small" style={{ flex: 1 }}>
-                <strong>{item.actorName ?? 'Iemand'}</strong> {verbText(item.verb)}
+                <strong title={item.actorAccount ?? item.actorName ?? undefined}>
+                  {item.actorLabel ?? item.actorName ?? 'Iemand'}
+                </strong>{' '}
+                {verbText(item.verb)}
                 {item.entryName && item.entrySlug ? (
                   <>
                     {' '}
@@ -326,10 +364,23 @@ export function CaseDossier({
           <span className={`stamp${status === 'open' ? '' : ' stamp-muted'}`}>
             {STATUS_LABELS[status]}
           </span>
-          {visibility === 'assigned' && <span className="stamp">Vertrouwelijk</span>}
+          {accessNow.viewMode === 'some' && <span className="stamp">Vertrouwelijk</span>}
+          {accessNow.viewMode === 'private' && <span className="stamp">Privé</span>}
+          {readOnly && (
+            <span className="chip" title="Je kunt dit dossier bekijken, niet bewerken.">
+              <Icon name="lock" size={12} />
+              Alleen kijken
+            </span>
+          )}
           <div className="spacer" />
           <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-            {saveLabel(state)}
+            {state === 'dirty' || state === 'saving' || notesLive.save === 'saving'
+              ? saveLabel('saving')
+              : state === 'pending' || state === 'error'
+                ? saveLabel(state)
+                : state === 'saved' || notesLive.save === 'saved'
+                  ? saveLabel('saved')
+                  : ''}
           </p>
         </div>
 
@@ -340,6 +391,7 @@ export function CaseDossier({
           id="case-name"
           className="title-input"
           value={name}
+          readOnly={readOnly}
           onChange={(event) => {
             setName(event.target.value);
             set({ name: event.target.value });
@@ -358,6 +410,7 @@ export function CaseDossier({
           className="lead-input"
           rows={1}
           value={summary}
+          readOnly={readOnly}
           placeholder="Eén regel: wat wordt er onderzocht?"
           onChange={(event) => {
             setSummary(event.target.value);
@@ -373,6 +426,7 @@ export function CaseDossier({
               key={value}
               type="button"
               className={`chip chip-selectable${value === status ? ' chip-active' : ''}`}
+              disabled={readOnly}
               onClick={() => {
                 setStatus(value);
                 set({ status: value });
@@ -384,59 +438,48 @@ export function CaseDossier({
 
           <span style={{ width: 8 }} />
 
-          <button
-            type="button"
-            className={`chip chip-selectable${visibility === 'assigned' ? ' chip-active' : ''}`}
-            onClick={() => {
-              const next = visibility === 'assigned' ? 'all' : 'assigned';
-              setVisibility(next);
-              set({ visibility: next });
-              ui.toast(
-                next === 'assigned'
-                  ? 'Alleen de toegewezen onderzoekers en de Keepers kunnen dit dossier nu zien.'
-                  : 'Dit dossier is weer voor iedereen zichtbaar.',
-              );
-            }}
-          >
-            <Icon name="lock" size={13} />
-            {visibility === 'assigned' ? 'Vertrouwelijk' : 'Voor iedereen'}
-          </button>
+          {(access.canManage || accessNow.locked) && (
+            <button
+              type="button"
+              className={`chip chip-selectable${assignOpen ? ' chip-active' : ''}`}
+              onClick={() => setAssignOpen((open) => !open)}
+              aria-expanded={assignOpen}
+              title="Wie mag dit dossier zien en bewerken"
+            >
+              <Icon name={accessNow.viewMode === 'all' ? 'eye' : 'lock'} size={13} />
+              Rechten: kijken {accessLabel(accessNow.viewMode, accessNow.viewers.length).toLowerCase()},
+              bewerken {accessLabel(accessNow.editMode, accessNow.editors.length).toLowerCase()}
+            </button>
+          )}
 
-          <button
-            type="button"
-            className="chip chip-selectable"
-            onClick={() => setAssignOpen((open) => !open)}
-          >
-            <Icon name="badge" size={13} />
-            {memberIds.length} toegewezen
-          </button>
-
-          <span className="row" style={{ gap: 4 }}>
-            {allUsers
-              .filter((user) => memberIds.includes(user.id))
-              .slice(0, 6)
-              .map((user) => (
-                <span
-                  key={user.id}
-                  title={user.username}
-                  className="tiny"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    border: '1px solid var(--rule)',
-                    background: 'var(--paper-dark)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    fontFamily: 'var(--stamp-face)',
-                  }}
-                >
-                  {initials(user.username)}
-                </span>
-              ))}
-          </span>
+          {memberIds.length > 0 && (
+            <span className="row" style={{ gap: 4 }} title="Wie dit dossier mag zien">
+              {allUsers
+                .filter((user) => memberIds.includes(user.id))
+                .slice(0, 6)
+                .map((user) => (
+                  <span
+                    key={user.id}
+                    title={user.character ? `${user.character} (${user.username})` : user.username}
+                    className="tiny"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      border: '1px solid var(--rule)',
+                      background: 'var(--paper-dark)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontFamily: 'var(--stamp-face)',
+                    }}
+                  >
+                    {initials(user.character ?? user.username)}
+                  </span>
+                ))}
+            </span>
+          )}
         </div>
 
         {assignOpen && (
@@ -444,40 +487,20 @@ export function CaseDossier({
             style={{
               border: '1px solid var(--rule)',
               background: 'var(--paper-raised)',
-              padding: '0.6rem',
+              padding: '0.7rem',
               marginTop: '0.6rem',
             }}
           >
-            <p className="eyebrow" style={{ marginTop: 0 }}>
-              Toegewezen onderzoekers
-            </p>
-            <div className="row-wrap">
-              {allUsers.map((user) => {
-                const on = memberIds.includes(user.id);
-                return (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className={`chip chip-selectable${on ? ' chip-active' : ''}`}
-                    onClick={() => {
-                      const next = on
-                        ? memberIds.filter((id) => id !== user.id)
-                        : [...memberIds, user.id];
-                      setMemberIds(next);
-                      set({ memberIds: next });
-                    }}
-                  >
-                    {user.username}
-                  </button>
-                );
-              })}
-            </div>
-            {visibility === 'assigned' && memberIds.length === 0 && (
-              <p className="error-note small" style={{ marginBottom: 0 }}>
-                Een vertrouwelijk dossier zonder toegewezen onderzoekers is alleen zichtbaar voor
-                Keepers.
-              </p>
-            )}
+            <AccessEditor
+              target="case"
+              id={data.id}
+              initial={access.settings}
+              canManage={access.canManage}
+              isKeeper={isKeeper}
+              viewerId={access.viewerId}
+              onChange={setAccessNow}
+              nouns={{ this: `dit ${ui.words.case}` }}
+            />
           </div>
         )}
       </div>

@@ -558,14 +558,29 @@ a.card:hover {
 }
 .tabs a {
   flex: 1;
+  min-width: 0;
   flex-direction: column;
   gap: 0.1rem;
   justify-content: center;
-  font-size: 0.68rem;
+  padding: 0 0.1rem;
+  font-size: 0.56rem;
   font-family: var(--stamp-face);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   min-height: var(--tabs-h);
+}
+.tabs a > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tabs a.tab-compact {
+  flex: 0 0 44px;
+}
+.tabs a.tab-compact svg {
+  width: 24px;
+  height: 24px;
 }
 .tabs a[aria-current='page'] {
   color: var(--stamp-red);
@@ -2450,4 +2465,430 @@ details.section[open] > summary::before {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
+}
+
+/* ------------------------------------------------------------ §18 who you are */
+.who {
+  padding: 0 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 0.6rem;
+}
+.who-eyebrow {
+  display: block;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin-bottom: 0.2rem;
+}
+.who-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 0.98rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.who-button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.2rem 0.4rem;
+  margin: 0 -0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.who-button:hover,
+.who-button:focus-visible {
+  border-color: var(--rule);
+  background: var(--paper);
+}
+.who-button .who-name {
+  display: block;
+  flex: 1;
+}
+.who-button .feed-thumb {
+  width: 26px;
+  height: 34px;
+}
+.who-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.who-option,
+.who-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+.who-option {
+  cursor: pointer;
+}
+.who-option:hover {
+  border-color: var(--ink-muted);
+}
+.who-option-active {
+  box-shadow: inset 2px 0 0 var(--stamp-red);
+}
+.who-option .feed-thumb,
+.who-row .feed-thumb {
+  width: 32px;
+  height: 42px;
+}
+
+/* ---------------------------------------------------------- §14 sort & filter */
+.sortbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.6rem 0 1rem;
+}
+.sortbar-row {
+  align-items: center;
+}
+.sortbar-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink-muted);
+}
+.sortbar-sort .select {
+  width: auto;
+  min-height: 38px;
+  padding: 0 1.6rem 0 0.6rem;
+  font-size: 0.85rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  background-color: var(--paper-raised);
+}
+.sortbar-label {
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  padding-right: 0.2rem;
+}
+.sortbar-group {
+  gap: 0.35rem;
+}
+
+/* ------------------------------------------------------------------ §19 maps */
+.map-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.map-toolbar {
+  margin-bottom: 0.5rem;
+}
+.map-stage {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  height: calc(100dvh - var(--tabs-h) - 12rem);
+  min-height: 320px;
+  border: 1px solid var(--rule);
+  background:
+    radial-gradient(circle at 1px 1px, rgba(31, 27, 22, 0.12) 1px, transparent 0) 0 0 / 14px 14px,
+    var(--paper-dark);
+  cursor: grab;
+}
+.map-stage:active {
+  cursor: grabbing;
+}
+.map-stage-placing {
+  cursor: crosshair;
+}
+@media (min-width: 768px) {
+  .map-stage {
+    height: calc(100dvh - 11rem);
+    min-height: 420px;
+  }
+}
+.map-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.map-world > img {
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  box-shadow: 3px 4px 0 rgba(31, 27, 22, 0.25);
+}
+.map-pin {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  z-index: 2;
+}
+.map-pin-selected {
+  z-index: 3;
+}
+.map-pin-dragging {
+  z-index: 4;
+  opacity: 0.85;
+}
+.map-pin-head {
+  --pin-colour: var(--ink-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--paper);
+  border: 2px solid var(--pin-colour);
+  color: var(--pin-colour);
+  box-shadow: 1px 2px 0 rgba(31, 27, 22, 0.3);
+}
+.map-pin-head > svg {
+  transform: rotate(45deg);
+}
+.map-pin-head-static {
+  transform: none;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.map-pin-head-static > svg {
+  transform: none;
+}
+.map-pin-selected .map-pin-head {
+  background: var(--pin-colour);
+  color: var(--paper);
+  outline: 3px solid rgba(31, 27, 22, 0.25);
+}
+.map-pin-label {
+  max-width: 140px;
+  padding: 0.05rem 0.35rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  font-family: var(--stamp-face);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+.map-pin:focus-visible .map-pin-head {
+  outline: 3px solid var(--stamp-red);
+}
+.map-legend {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  width: 220px;
+  max-height: calc(100% - 1.2rem);
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.18);
+  padding: 0.6rem 0.7rem;
+  z-index: 5;
+  cursor: default;
+  touch-action: auto;
+  user-select: text;
+}
+.map-legend-phone {
+  position: static;
+  width: auto;
+  max-height: none;
+  box-shadow: none;
+  margin-bottom: 0.5rem;
+}
+.map-legend-list {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+}
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 32px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.map-legend-item input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--stamp-red);
+}
+.map-legend-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: var(--paper);
+  flex: 0 0 auto;
+}
+.map-card-picture {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-dark);
+}
+.map-card-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ------------------------------------------------------ §8 live: other hands */
+.board-cursor {
+  position: absolute;
+  z-index: 8;
+  pointer-events: none;
+  transform-origin: 0 0;
+  /* Eased between frames: sixteen a second becomes one movement. */
+  transition: left 70ms linear, top 70ms linear;
+  --cursor-colour: var(--ink-muted);
+}
+.board-cursor-arrow {
+  display: block;
+  fill: var(--cursor-colour);
+  stroke: #fbf7ee;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(31, 27, 22, 0.35));
+}
+.board-cursor-name {
+  position: absolute;
+  top: 18px;
+  left: 14px;
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.05rem 0.35rem;
+  background: var(--cursor-colour);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  border-radius: 2px;
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.25);
+}
+/* A card carried by someone else glides between frames rather than jumping. */
+.board-card.board-card-carried,
+.board-held.board-card-carried {
+  transition: left 70ms linear, top 70ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-cursor,
+  .board-card.board-card-carried {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------- §20 shared text */
+.live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.live-dot-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+}
+.live-dot-live .live-dot-mark {
+  background: #2f6b4f;
+  box-shadow: 0 0 0 3px rgba(47, 107, 79, 0.18);
+}
+.live-dot-offline .live-dot-mark {
+  background: var(--stamp-red);
+}
+/* Other people's carets and selections in the text (y-prosemirror). */
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid;
+  border-right: 2px solid;
+  border-color: var(--ink-muted);
+  word-break: normal;
+  pointer-events: none;
+}
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.35em;
+  left: -2px;
+  padding: 0.05rem 0.35rem;
+  border-radius: 2px 2px 2px 0;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+.proposal-editor {
+  margin-top: 0.4rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--ink-muted);
+  background: var(--paper-raised);
 }

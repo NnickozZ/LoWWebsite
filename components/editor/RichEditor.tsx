@@ -1,19 +1,33 @@
 'use client';
 
 import { Extension } from '@tiptap/core';
-import Image from '@tiptap/extension-image';
-import Link from '@tiptap/extension-link';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
 import Placeholder from '@tiptap/extension-placeholder';
 import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
 import { PluginKey } from '@tiptap/pm/state';
 import Suggestion from '@tiptap/suggestion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type * as Y from 'yjs';
+import type { Awareness } from 'y-protocols/awareness';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
-import { EntryLink } from './EntryLink';
+import { documentExtensions } from '@/lib/editor/extensions';
 import { makeEntrySuggestion, type SuggestionEntry, type SuggestionRenderState } from './entrySuggestion';
 import { SuggestionPopup } from './SuggestionPopup';
+import type { LiveUser } from './useLiveDoc';
+
+/**
+ * §20: when the text is a room, the editor binds to the shared Yjs document
+ * instead of holding its own copy. Nothing is autosaved from here — the room
+ * writes itself to the archive — and undo is Yjs's, which undoes *your*
+ * keystrokes and leaves everyone else's alone.
+ */
+export type LiveBinding = {
+  doc: Y.Doc;
+  provider: { awareness: Awareness };
+  user: LiveUser;
+};
 
 const AT_KEY = new PluginKey('entrySuggestionAt');
 const BRACKET_KEY = new PluginKey('entrySuggestionBrackets');
@@ -45,11 +59,14 @@ export function RichEditor({
   placeholder = 'Schrijf op wat er gebeurd is…',
   onChange,
   editable = true,
+  live,
 }: {
   initialDoc: unknown;
   placeholder?: string;
   onChange: (doc: unknown) => void;
   editable?: boolean;
+  /** §20: bind to a room instead of `initialDoc`. Fixed for the editor's life. */
+  live?: LiveBinding | null;
 }) {
   const ui = useUi();
   const [suggestState, setSuggestState] = useState<SuggestionRenderState | null>(null);
@@ -123,18 +140,30 @@ export function RichEditor({
     [requestCreate],
   );
 
+  // Read once: an editor is either shared or its own for as long as it exists.
+  const liveRef = useRef(live ?? null);
+  const binding = liveRef.current;
+
   const editor = useEditor({
     immediatelyRender: false,
     editable,
     extensions: [
-      StarterKit.configure({ heading: { levels: [2, 3] } }),
+      ...documentExtensions({ history: binding ? false : undefined }),
       Placeholder.configure({ placeholder }),
-      Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noreferrer' } }),
-      Image.configure({ inline: false, allowBase64: false }),
-      EntryLink,
       suggestionExtension,
+      ...(binding
+        ? [
+            Collaboration.configure({ document: binding.doc, field: 'default' }),
+            CollaborationCursor.configure({
+              provider: binding.provider,
+              user: { name: binding.user.name, color: binding.user.colour },
+            }),
+          ]
+        : []),
     ],
-    content: (initialDoc as object) ?? { type: 'doc', content: [{ type: 'paragraph' }] },
+    // A shared document already has its text; giving Tiptap content as well
+    // would insert it a second time.
+    ...(binding ? {} : { content: (initialDoc as object) ?? { type: 'doc', content: [{ type: 'paragraph' }] } }),
     editorProps: {
       attributes: { class: 'prose' },
       handleClickOn: (_view, _pos, node) => {
@@ -162,7 +191,8 @@ export function RichEditor({
       ready.current = true;
     },
     onUpdate: ({ editor: instance }) => {
-      if (!ready.current) return;
+      // The room saves itself; a shared editor has nothing to report upward.
+      if (!ready.current || binding) return;
       const next = JSON.stringify(instance.getJSON());
       if (next === lastEmitted.current) return;
       lastEmitted.current = next;

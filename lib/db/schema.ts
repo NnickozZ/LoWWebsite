@@ -1,9 +1,11 @@
 import { sql } from 'drizzle-orm';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import {
+  blob,
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -24,6 +26,8 @@ export const users = sqliteTable(
     isDisabled: integer('is_disabled', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull().default(now),
     lastSeenAt: integer('last_seen_at'),
+    /** §18: the character this person is currently wearing; null means "just me". */
+    activeCharacterId: text('active_character_id'),
   },
   (t) => [uniqueIndex('users_username_lower_idx').on(t.usernameLower)],
 );
@@ -105,6 +109,17 @@ export type FieldDef = {
 
 export type Visibility = 'all' | 'keeper' | 'players';
 
+/**
+ * §17: the owner's two dials, on a fiche, a dossier and a prikbord alike.
+ *   'all'      everyone signed in — the default, because the archive is built on trust
+ *   'some'     the people listed in access_grants
+ *   'private'  the owner and the Keepers
+ * Separate from the Keeper's `Visibility` above: a player sees something only
+ * when the Keeper allows it AND the owner allows it.
+ */
+export type AccessMode = 'all' | 'some' | 'private';
+export type AccessTargetType = 'entry' | 'case' | 'board';
+
 export const entries = sqliteTable(
   'entries',
   {
@@ -125,6 +140,10 @@ export const entries = sqliteTable(
     isLocked: integer('is_locked', { mode: 'boolean' }).notNull().default(false),
     visibility: text('visibility').$type<Visibility>().notNull().default('all'),
     keeperNotes: text('keeper_notes').notNull().default(''),
+    /** §17 */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
     updatedBy: text('updated_by'),
     createdAt: integer('created_at').notNull().default(now),
@@ -235,7 +254,12 @@ export const cases = sqliteTable(
     notesText: text('notes_text').notNull().default(''),
     keeperNotes: text('keeper_notes').notNull().default(''),
     status: text('status').$type<'open' | 'cold' | 'closed'>().notNull().default('open'),
+    /** Pre-§17. Migrated into view_mode; kept so an old backup still restores. */
     visibility: text('visibility').$type<'all' | 'assigned'>().notNull().default('all'),
+    /** §17 */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
     coverAssetId: text('cover_asset_id'),
     /** How the Case Files grid squares off the cover; the dossier shows it whole. */
     coverCrop: text('cover_crop', { mode: 'json' }).$type<CoverCrop | null>(),
@@ -247,6 +271,7 @@ export const cases = sqliteTable(
   (t) => [uniqueIndex('cases_slug_idx').on(t.slug)],
 );
 
+/** Pre-§17. Its rows were copied into access_grants; nothing reads it any more. */
 export const caseMembers = sqliteTable(
   'case_members',
   {
@@ -283,6 +308,10 @@ export const boards = sqliteTable('boards', {
   name: text('name').notNull(),
   caseId: text('case_id'),
   state: text('state', { mode: 'json' }).$type<unknown>().notNull().default({}),
+  /** §17 */
+  viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+  editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
+  accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
   createdBy: text('created_by'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
@@ -339,3 +368,88 @@ export const activity = sqliteTable(
   },
   (t) => [index('activity_created_idx').on(t.createdAt)],
 );
+
+/**
+ * §17: the people behind `view_mode = 'some'` / `edit_mode = 'some'`. One table
+ * for all three kinds. Rights are per ACCOUNT, never per character.
+ */
+export const accessGrants = sqliteTable(
+  'access_grants',
+  {
+    targetType: text('target_type').$type<AccessTargetType>().notNull(),
+    targetId: text('target_id').notNull(),
+    userId: text('user_id').notNull(),
+    canView: integer('can_view', { mode: 'boolean' }).notNull().default(true),
+    canEdit: integer('can_edit', { mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.targetType, t.targetId, t.userId] }),
+    index('access_grants_user_idx').on(t.userId),
+  ],
+);
+
+/** §18: which fiches a person may wear as a character. */
+export const userCharacters = sqliteTable(
+  'user_characters',
+  {
+    userId: text('user_id').notNull(),
+    entryId: text('entry_id').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.entryId] })],
+);
+
+/** §19: an uploaded picture of somewhere. The island is fiction; nothing is fetched. */
+export const maps = sqliteTable(
+  'maps',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    assetId: text('asset_id').notNull(),
+    width: integer('width').notNull().default(0),
+    height: integer('height').notNull().default(0),
+    description: text('description').notNull().default(''),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+    deletedAt: integer('deleted_at'),
+  },
+  (t) => [uniqueIndex('maps_slug_idx').on(t.slug)],
+);
+
+/**
+ * §19: a pin on a map, in picture coordinates 0..1 so a redrawn map keeps
+ * them. Either a fiche (`entry_id`) or a loose note (`name` + `text`).
+ */
+export const mapPins = sqliteTable(
+  'map_pins',
+  {
+    id: text('id').primaryKey(),
+    mapId: text('map_id').notNull(),
+    kind: text('kind').$type<'entry' | 'note'>().notNull().default('entry'),
+    entryId: text('entry_id'),
+    name: text('name').notNull().default(''),
+    text: text('text').notNull().default(''),
+    x: real('x').notNull().default(0.5),
+    y: real('y').notNull().default(0.5),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [index('map_pins_map_idx').on(t.mapId), index('map_pins_entry_idx').on(t.entryId)],
+);
+
+/**
+ * §20: the CRDT state behind a piece of shared text, keyed by room
+ * (`entry:{id}:body`, `section:{id}`). `entries.body` remains what every
+ * reader uses; this is the Yjs document's own memory, so a client that was
+ * away merges instead of overwriting.
+ */
+export const liveDocs = sqliteTable('live_docs', {
+  room: text('room').primaryKey(),
+  state: blob('state', { mode: 'buffer' }).notNull(),
+  updatedAt: integer('updated_at').notNull().default(now),
+});

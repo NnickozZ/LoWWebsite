@@ -276,20 +276,163 @@ Phases 1 and 2 of the brief, as a checklist. Tick items as they land; keep this 
 - [x] The page builder and the word list have their own spec: a self-filling
       list filling itself, a hand-built list keeping what is filed in it, and a
       renamed word reaching both menus
-- [x] A console guard walks every screen and fails on anything React says — a
-      missing key, a bad nesting, a hydration mismatch. It found one: the page
-      blocks that come back as server-rendered slots were joining an array
-      without keys. Only meaningful under `E2E_DEV=1`, because a production
-      build has no React warnings left in it to catch — which is exactly how
-      that one got through
 - [x] Live boards have their own spec, and every assertion in it is made on a
       second browser that is never reloaded: a card appearing, a hand showing on
       a held card, someone leaving the strip, and a change arriving mid-drag
       without yanking the card out from under the pointer
 
+## Phase 4 — Rights, characters, maps
+
+### 17. Who may look, who may touch
+
+- [x] Two dials on every fiche, dossier and prikbord — *kijken* and *bewerken* —
+      each Iedereen / Gekozen personen / Privé, both defaulting to Iedereen
+      (migration `0005`; `view_mode`, `edit_mode`, `access_grants`)
+- [x] One rule module, `lib/access.ts`, applied by every reader and every writer:
+      `viewableCondition()` is ANDed into `visibleEntryCondition` and
+      `visibleCaseCondition`, so lists, search, feeds, backlinks, board cards,
+      map pins and direct URLs all agree; the API refuses a write the owner did
+      not allow (403)
+- [x] Rights per **account**, never per character; Keepers see and edit everything,
+      always; the owner always may; editing implies viewing; a Keeper's secrecy
+      (§9) stays a separate layer on top
+- [x] The owner turns the dials from the thing itself: a `Rechten` fold on a
+      fiche, a `Rechten` chip on a dossier and a prikbord; chosen people are
+      checkboxes; a Keeper can bolt the dials shut (`access_locked`)
+- [x] A prikbord is born with one of two buttons, *Openbaar* or *Privé*, so a
+      private wall never spends a minute public
+- [x] Dossiers use the same dials; the old "toegewezen onderzoekers" list became
+      the chosen-people list of the *kijken* dial (`case_members` migrated into
+      `access_grants`)
+- [x] Someone who may look at a fiche but not touch it still types — and what
+      they type goes to the owner as a proposal through the §10 review queue,
+      which the owner now judges on the fiche itself (`Voorstellen`)
+- [x] Lists show a stamp — Privé / Gekozen / Vertrouwelijk — where a dial is not
+      Iedereen; the §14 filters can narrow to just those
+
+### 18. Characters
+
+- [x] An account ties any number of fiches on as characters and wears one at a
+      time (`user_characters`, `users.active_character_id`); a Keeper wears
+      nobody and is always the Keeper
+- [x] From a fiche: *Dit is mijn karakter*; from the Jij page: the wardrobe
+      (tie on, take off, swap); from the side menu: *Je speelt als …* under the
+      masthead, which opens the swap sheet — on a phone the Jij tab is the switch
+- [x] The name is resolved at display time from who is active *now*, in one
+      query per feed (`lib/characters.ts`: `displayNames`, `attributed`): the
+      home feed, a dossier's activity, a fiche's history, who is at a wall, "X
+      also edited this", proposals, dossier member initials, the reveal picker
+      and the rights checkboxes; the account name stays as the tooltip and in
+      Beheer
+
+### 19. Maps
+
+- [x] The Keeper hangs any number of maps — uploaded pictures, kept sharp to
+      3200 px — and can rename, describe, reorder, redraw (same pins) or take
+      one down (`maps`, `map_pins`, `/api/maps`)
+- [x] A pin is a fiche or a loose note, in picture coordinates 0..1; anyone
+      signed in may set one, only whoever set it or a Keeper may move, edit or
+      pull it; a fiche pin is only shown to someone who may see that fiche
+- [x] One picture, one transform: drag to pan, wheel or pinch to zoom, pins that
+      keep their size; *Speld zetten* then a tap asks what goes there; a legend
+      per kind of pin, remembered per map in the browser; *Alleen mijn spelden*;
+      a search that jumps to a pin; `?pin=` deep links from the fiche's
+      *Op de landkaart* row, and *Zet op …* the other way round
+- [x] The old `map_pin` field kind now points at the maps page
+
+### The dossier prompt, and sorting and filtering
+
+- [x] Pinning a fiche on a dossier's prikbord asks "also file it?" in a sheet in
+      the middle of the screen, not a toast in a corner (`ui.confirm()`, the
+      app's own yes/no sheet, now available to every screen)
+- [x] One bar on the wiki, dossiers, prikborden and landkaarten
+      (`components/SortFilterBar.tsx`, URL-driven so a filtered list can be
+      sent to someone): wiki — bewerkt / naam / aangemaakt, tag, van mij, niet
+      voor iedereen, op een landkaart, and for the Keeper the §9 secrecy level;
+      dossiers — open eerst / recent / naam / aangemaakt / meeste fiches, status
+      (several at once), waar ik bij zit, van mij, vertrouwelijk; prikborden —
+      recent / naam / aangemaakt / meeste kaarten, los of bij een dossier, van
+      mij, privé of gekozen; landkaarten — volgorde / naam / recent / nieuwste,
+      met mijn spelden
+
+### Verification
+
+- [x] 187 unit tests: the three rules of §17 (`access.test.ts`), the dossier
+      condition rewritten on them, characters against a real SQLite file (the
+      first tied is worn, a Keeper is refused, taking off what you wear falls
+      back, switching re-labels the past), and every §14 filter from a player's
+      seat as well as the Keeper's (`list-filters.test.ts`)
+- [x] Playwright, desktop and phone: `access-rights.spec.ts` (a private fiche is
+      nobody else's and the Keeper sees it anyway; look-but-not-touch sends a
+      proposal and the owner takes it; a private board is born private and a
+      chosen person may look but the API still refuses; the Keeper bolts the
+      dials), `characters.spec.ts`, `maps.spec.ts`, `sort-filter.spec.ts`, and
+      the dossier prompt in `board-strings-borders.spec.ts` now expects a dialog
+
+## Phase 5 — Live: hands on the wall, shared text
+
+### 8d. The other hand on the prikbord
+
+- [x] Everyone's pointer on the cork, as a named arrow in their ink, in board
+      coordinates under each viewer's own pan and zoom; eased between frames
+      (`pointer` frames over the existing line, ~16/s, never stored)
+- [x] A card being dragged travels on every other wall *while* it is dragged,
+      under the mover's hand, and lands where it was put — no snap back:
+      carried positions stay until the mover's save has been pulled
+- [x] The drop saves at once (`saveNow`), and the debounce for everything else
+      went from 800 ms to 300 ms, so a card, a note or a string is on the other
+      screen inside a second
+- [x] A late goodbye from a replaced line (a reconnect) no longer throws the
+      tab off the roster (`connection` on presence)
+
+### 20. Shared text (fiches, sections, dossier notes)
+
+- [x] One Yjs document per piece of text — a fiche's body, each §9 section, a
+      dossier's working notes — held in a room in the server process
+      (`lib/live/docs.ts`), fanned out over server-sent events, keystrokes up
+      as batched updates; carets and names through Yjs awareness
+- [x] The room's gate *is* the visibility rule (`lib/live/rooms.ts`):
+      `visibleEntryCondition` / `canSeeSection` / `visibleCaseCondition` to be
+      in it, `canEdit` (§17) and the §10 lock to type; a POST from someone who
+      may only look is 403 even if their page were lying
+- [x] The archive stays the truth: the room writes itself back through
+      `updateEntry` / `updateSection` / `updateCase` (revisions, links, search,
+      feed) on a debounce with a ceiling, and the Yjs state is kept beside it
+      (`live_docs`, migration `0006`) so a tab that was away merges instead of
+      clobbering; a body written *around* the room (a restored revision, an
+      approved proposal) rewrites the room (`resetRoom`)
+- [x] The page hands the document over in the HTML (`snapshot`), so the
+      editor has its text before the line is open; the editor is client-only
+      (`next/dynamic`, `ssr: false`) and `yjs` is a server external, so the
+      server holds exactly one copy of Yjs
+- [x] Who else is here (initials strip + a live/offline word), other people's
+      carets and selections in the text, undo that is your own
+- [x] Someone who may only look sees the text live, read-only, and proposes
+      through a copy (*Wijziging voorstellen* → *Voorstel sturen*) instead of
+      a proposal per keystroke
+- [x] The rest of the record follows: a save of name, description, tags,
+      fields or cover on one screen (`saved` event) is fetched and taken over
+      on the others, except in the field the person is typing in
+- [x] Rooms nobody has open are written out and let go of; every dirty room is
+      written before the process exits (a shutdown hook the diagnostics run)
+
+### Verification
+
+- [x] 199 unit tests: the room converges, persists as the last typist, merges
+      an offline tab's edits, follows a rewrite, tells the room about other
+      saves, survives a reconnect's late goodbye; every gate from a player's
+      seat and the Keeper's (`live-docs.test.ts`); the board hub's presence
+- [x] Playwright, on a second browser that is never reloaded:
+      `board-live.spec.ts` (a pointer that follows, a card that travels before
+      it lands and does not snap back), `entry-live.spec.ts` (typing arrives
+      as typed, carets with names, the archive holds it, undo is your own, a
+      rename lands on the other screen, a reader sees live and proposes) — on
+      the production build and on `next dev` (Strict Mode's double mount found
+      two real bugs)
+
 ## Not started (later phases)
 
-- [ ] Phase 4 — island map, Obsidian import, presence, handout PDFs
+- [ ] Obsidian import, handout PDFs
 
 §14's Phase 4 also lists a "Dutch interface toggle"; the interface is simply
 Dutch now (see `GLOSSARY-NL.md`), so a toggle would mean building an English

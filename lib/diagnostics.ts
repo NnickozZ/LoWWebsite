@@ -100,6 +100,23 @@ export function logEvent(level: LogLevel, event: string, detail?: unknown) {
  * write a diagnostic report next to these files. Between the two, every way this
  * server can die leaves something behind.
  */
+/**
+ * Work that must happen before the process goes: registered from wherever it
+ * lives, run here. A registry on `globalThis` rather than an import, because
+ * this file is bundled on its own (instrumentation) and an import from here
+ * would give the server a second copy of whatever it pulled in.
+ */
+type ShutdownHook = () => void;
+const globalForHooks = globalThis as unknown as { __zcfShutdownHooks?: ShutdownHook[] };
+
+export function onShutdown(hook: ShutdownHook) {
+  (globalForHooks.__zcfShutdownHooks ??= []).push(hook);
+}
+
+function shutdownHooks(): ShutdownHook[] {
+  return globalForHooks.__zcfShutdownHooks ?? [];
+}
+
 export function installProcessHandlers() {
   const flag = '__zcfDiagnosticsInstalled';
   const g = globalThis as unknown as Record<string, boolean>;
@@ -130,6 +147,15 @@ export function installProcessHandlers() {
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     process.on(signal, () => {
       logEvent('info', `received ${signal}, shutting down`);
+      // Whatever registered to be written out first (§20's rooms) runs now,
+      // synchronously and inside a try — a restart must never hang on this.
+      for (const hook of shutdownHooks()) {
+        try {
+          hook();
+        } catch (err) {
+          logEvent('error', 'a shutdown hook failed', { error: String(err) });
+        }
+      }
       process.exit(0);
     });
   }

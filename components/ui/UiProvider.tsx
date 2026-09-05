@@ -14,6 +14,24 @@ import { useRouter } from 'next/navigation';
 import { DEFAULT_WORDS, type Words } from '@/lib/words';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
 import { NewCaseSheet, type NewCasePrefill, type CreatedCase } from './NewCaseSheet';
+import { Sheet } from './Sheet';
+
+/**
+ * A question the person has to answer before anything else happens. Not the
+ * browser's `confirm()` — the app's own sheet, in the app's own words — and
+ * not a toast either: a toast is easy to miss, and some questions ("also file
+ * this in the dossier?") are the whole point of the moment.
+ */
+export type ConfirmOptions = {
+  title: string;
+  message?: ReactNode;
+  /** The yes. */
+  confirmLabel: string;
+  /** The no. Defaults to "Annuleren". */
+  cancelLabel?: string;
+  /** Paint the yes red, for anything that throws something away. */
+  danger?: boolean;
+};
 
 export type EntryTypeLite = {
   slug: string;
@@ -40,6 +58,8 @@ type UiValue = {
    */
   words: Words;
   toast: (message: string, action?: { label: string; onAction: () => void }) => void;
+  /** Asks, in a sheet; resolves true for the yes, false for the no or a dismissal. */
+  confirm: (options: ConfirmOptions) => Promise<boolean>;
   openNewEntry: (prefill?: NewEntryPrefill) => void;
   openNewCase: (prefill?: NewCasePrefill) => void;
 };
@@ -65,7 +85,25 @@ export function UiProvider({
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [entryPrefill, setEntryPrefill] = useState<NewEntryPrefill | null>(null);
   const [casePrefill, setCasePrefill] = useState<NewCasePrefill | null>(null);
+  const [question, setQuestion] = useState<{ options: ConfirmOptions; settle: (yes: boolean) => void } | null>(null);
   const nextId = useRef(1);
+
+  const confirm = useCallback((options: ConfirmOptions) => {
+    return new Promise<boolean>((resolve) => {
+      // A second question while one is open answers the first with "no".
+      setQuestion((current) => {
+        current?.settle(false);
+        return { options, settle: resolve };
+      });
+    });
+  }, []);
+
+  const answer = useCallback((yes: boolean) => {
+    setQuestion((current) => {
+      current?.settle(yes);
+      return null;
+    });
+  }, []);
 
   const toast = useCallback((message: string, action?: { label: string; onAction: () => void }) => {
     const id = nextId.current++;
@@ -135,8 +173,8 @@ export function UiProvider({
   );
 
   const value = useMemo<UiValue>(
-    () => ({ types, words, toast, openNewEntry, openNewCase }),
-    [types, words, toast, openNewEntry, openNewCase],
+    () => ({ types, words, toast, confirm, openNewEntry, openNewCase }),
+    [types, words, toast, confirm, openNewEntry, openNewCase],
   );
 
   return (
@@ -158,6 +196,32 @@ export function UiProvider({
           onClose={() => setCasePrefill(null)}
           onCreated={handleCaseCreated}
         />
+      )}
+
+      {question && (
+        <Sheet onClose={() => answer(false)} labelledBy="confirm-title">
+          <h2 id="confirm-title" style={{ marginTop: 0 }}>
+            {question.options.title}
+          </h2>
+          {question.options.message && (
+            <div className="small" style={{ marginBottom: '1rem' }}>
+              {question.options.message}
+            </div>
+          )}
+          <div className="row-wrap">
+            <button
+              type="button"
+              className={`btn ${question.options.danger ? 'btn-danger' : 'btn-primary'}`}
+              autoFocus
+              onClick={() => answer(true)}
+            >
+              {question.options.confirmLabel}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => answer(false)}>
+              {question.options.cancelLabel ?? 'Annuleren'}
+            </button>
+          </div>
+        </Sheet>
       )}
 
       <div className="toast-wrap" aria-live="polite">

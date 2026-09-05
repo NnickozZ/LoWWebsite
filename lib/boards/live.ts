@@ -33,6 +33,12 @@
 export type Presence = {
   /** One open tab. A person with the board open twice is here twice. */
   clientId: string;
+  /**
+   * Which open line put this entry here. A tab that reconnects opens a new
+   * line before the old one's goodbye arrives; only the line that owns the
+   * entry may clear it.
+   */
+  connection: string | null;
   /** Server-side only — see `PublicPresence`, which is what is sent. */
   userId: string;
   name: string;
@@ -52,11 +58,25 @@ export type Presence = {
  * in a browser, so it does not leave the server. Least privilege on a channel
  * every signed-in player can open.
  */
-export type PublicPresence = Omit<Presence, 'userId' | 'joinedAt' | 'seenAt'>;
+export type PublicPresence = Omit<Presence, 'userId' | 'joinedAt' | 'seenAt' | 'connection'>;
+
+/**
+ * One frame of somebody's hand: where their pointer is on the cork, and where
+ * the cards they are dragging are *right now* — before any of it is saved.
+ * Board coordinates, so every viewer draws it under their own pan and zoom.
+ * `x`/`y` null means the pointer left the wall. `m` is card id → [x, y].
+ */
+export type PointerFrame = {
+  c: string;
+  x: number | null;
+  y: number | null;
+  m: Record<string, [number, number]>;
+};
 
 export type LiveEvent =
   | { event: 'change'; data: { at: number; by: string | null } }
-  | { event: 'presence'; data: { people: PublicPresence[] } };
+  | { event: 'presence'; data: { people: PublicPresence[] } }
+  | { event: 'pointer'; data: PointerFrame };
 
 type Subscriber = {
   clientId: string;
@@ -145,6 +165,32 @@ export function publishChange(boardId: string, byClientId?: string | null) {
   fanOut(boardId, { event: 'change', data: { at: Date.now(), by: byClientId ?? null } }, byClientId);
 }
 
+/**
+ * Somebody's hand moved. Fanned out to everyone else at once and remembered by
+ * nobody: a pointer is only interesting *now*, and a late arrival sees it the
+ * moment it next moves. Nothing here is a fact about the board — the positions
+ * in `m` are where a card is being *held*, and the save that follows the drop
+ * is what makes them true.
+ */
+export function publishPointer(boardId: string, frame: PointerFrame) {
+  fanOut(boardId, { event: 'pointer', data: frame }, frame.c);
+}
+
+/**
+ * Is this tab already on the wall as this account? A pointer frame arrives
+ * twenty times a second while someone drags, and each one has already been
+ * through the board's access check when the line was opened — so the frames
+ * are let in on the strength of that, and refresh the tab's place in the
+ * roster on the way. A tab the hub does not know is sent back to the front
+ * door.
+ */
+export function touchPresence(boardId: string, clientId: string, userId: string): boolean {
+  const entry = hub.presence.get(boardId)?.get(clientId);
+  if (!entry || entry.userId !== userId) return false;
+  entry.seenAt = Date.now();
+  return true;
+}
+
 /* -------------------------------------------------------------- presence */
 
 function reap(boardId: string): Map<string, Presence> {
@@ -177,7 +223,7 @@ export function publicRoster(boardId: string): PublicPresence[] {
 
 export function setPresence(
   boardId: string,
-  input: { clientId: string; userId: string; name: string; holding?: unknown },
+  input: { clientId: string; userId: string; name: string; holding?: unknown; connection?: string },
 ): { entry: Presence; changed: boolean } {
   let people = hub.presence.get(boardId);
   if (!people) {
@@ -188,6 +234,7 @@ export function setPresence(
   const existing = people.get(input.clientId);
   const entry: Presence = {
     clientId: input.clientId,
+    connection: input.connection ?? existing?.connection ?? null,
     userId: input.userId,
     name: input.name,
     colour: presenceColour(input.userId),
@@ -214,9 +261,13 @@ export function setPresence(
   return { entry, changed };
 }
 
-export function clearPresence(boardId: string, clientId: string) {
+export function clearPresence(boardId: string, clientId: string, connection?: string) {
   const people = hub.presence.get(boardId);
   if (!people) return;
+  const entry = people.get(clientId);
+  if (!entry) return;
+  // A goodbye from a line that has since been replaced is not a goodbye.
+  if (connection && entry.connection && entry.connection !== connection) return;
   people.delete(clientId);
   if (!people.size) hub.presence.delete(boardId);
 }

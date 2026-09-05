@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { Thumb } from '@/components/Cover';
 import { EntryCard } from '@/components/EntryCard';
+import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
+import { attributed } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { countEntriesPerCase, listCases } from '@/lib/cases/service';
 import { browseEntries, recentActivity } from '@/lib/entries/service';
@@ -19,7 +21,9 @@ const VERBS: Record<string, string> = {
 
 export default async function HomePage() {
   const user = await getSessionUser();
-  const feed = recentActivity(user, 30);
+  const words = getWords();
+  // §18: every row names the character the person is wearing now.
+  const feed = attributed(recentActivity(user, 30), words.keeper);
   const recent = browseEntries(user, { limit: 12, sort: 'recent' });
   const openCases = listCases(user, { status: 'open' }).slice(0, 6);
   const counts = countEntriesPerCase(
@@ -63,7 +67,7 @@ export default async function HomePage() {
                 />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span className="small">
-                    <strong>{item.actorName ?? 'Iemand'}</strong>{' '}
+                    <strong title={item.actorAccount ?? undefined}>{item.actorLabel ?? 'Iemand'}</strong>{' '}
                     {VERBS[item.verb] ?? 'wijzigde'}{' '}
                     <strong>{item.entry!.name}</strong>
                   </span>

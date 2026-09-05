@@ -46,12 +46,20 @@ export type StoredAsset = {
  * variant. All stored as webp; the crop rectangle lives on the placement, so
  * the stored image is never cropped and a player can recrop forever.
  */
+/**
+ * §19: a map is the one picture people zoom *into*, so it may keep more of
+ * its pixels than a cover. Still capped: a 40 MB scan is a scan, not a map.
+ */
+export const MAP_EDGE = 3200;
+
 export async function storeImage(
   input: Buffer,
   filename: string,
   mime: string,
   uploadedBy: string | null,
+  options: { maxEdge?: number } = {},
 ): Promise<StoredAsset> {
+  const maxEdge = options.maxEdge ?? MAX_EDGE;
   if (input.byteLength > MAX_UPLOAD_BYTES) {
     throw new Error('Die afbeelding is groter dan de limiet van 20 MB.');
   }
@@ -65,7 +73,7 @@ export async function storeImage(
 
   const full = await pipeline
     .clone()
-    .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+    .resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 82 })
     .toBuffer({ resolveWithObject: true });
 

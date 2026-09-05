@@ -35,7 +35,7 @@ export function EntryCard({
             {note}
           </p>
         )}
-        {(showType || entry.visibility === 'keeper') && (
+        {(showType || entry.visibility === 'keeper' || entry.viewMode !== 'all') && (
           <p
             className="tiny muted"
             style={{ margin: '0.35rem 0 0', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
@@ -49,6 +49,16 @@ export function EntryCard({
             {entry.visibility === 'keeper' && (
               <span className="stamp stamp-muted" style={{ fontSize: '0.6rem', marginLeft: 'auto' }}>
                 Keeper
+              </span>
+            )}
+            {entry.visibility !== 'keeper' && entry.viewMode !== 'all' && (
+              // §17: not everyone sees this one — the owner chose who.
+              <span
+                className="stamp stamp-muted"
+                style={{ fontSize: '0.6rem', marginLeft: 'auto' }}
+                title={entry.viewMode === 'private' ? 'Privé' : 'Alleen gekozen personen'}
+              >
+                <Icon name="lock" size={9} /> {entry.viewMode === 'private' ? 'Privé' : 'Gekozen'}
               </span>
             )}
           </p>

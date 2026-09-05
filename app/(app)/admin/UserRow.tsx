@@ -12,6 +12,8 @@ type UserLite = {
   isKeeper: boolean;
   isDisabled: boolean;
   lastSeenAt: number | null;
+  /** §18: the character this account wears right now. */
+  character?: string | null;
 };
 
 const REVEAL_SECONDS = 30;
@@ -51,6 +53,12 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
       <div className="row-wrap">
         <strong style={{ fontFamily: 'var(--serif)', fontSize: '1.05rem' }}>{user.username}</strong>
         {user.isKeeper && <span className="chip">Keeper</span>}
+        {user.character && (
+          <span className="chip" title="Speelt nu als">
+            <Icon name="mask" size={12} />
+            {user.character}
+          </span>
+        )}
         {user.isDisabled && <span className="chip">Uitgeschakeld</span>}
         <span className="tiny muted">
           {user.lastSeenAt ? `gezien ${relativeTime(user.lastSeenAt)}` : 'nooit ingelogd'}

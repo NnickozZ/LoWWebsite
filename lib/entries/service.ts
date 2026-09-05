@@ -1,11 +1,13 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
 import { db, schema, sqlite } from '@/lib/db';
-import type { CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
+import type { AccessMode, CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
 import { visibleEntryCondition, type Viewer } from './visibility';
+import { publishSaved, resetRoom } from '@/lib/live/docs';
 
 export type EntryTypeRow = {
   id: string;
@@ -36,6 +38,10 @@ export type EntrySummary = {
   tags: string[];
   visibility: Visibility;
   isLocked: boolean;
+  /** §17: so a list card can show a lock for something not everyone sees. */
+  viewMode: AccessMode;
+  createdBy: string | null;
+  createdAt: number;
   updatedAt: number;
 };
 
@@ -55,6 +61,9 @@ export const SUMMARY_COLUMNS = {
   tags: schema.entries.tags,
   visibility: schema.entries.visibility,
   isLocked: schema.entries.isLocked,
+  viewMode: schema.entries.viewMode,
+  createdBy: schema.entries.createdBy,
+  createdAt: schema.entries.createdAt,
   updatedAt: schema.entries.updatedAt,
 } as const;
 
@@ -258,6 +267,30 @@ export function getEntrySummaryById(id: string): EntrySummary | undefined {
     .get() as EntrySummary | undefined;
 }
 
+/**
+ * §20: the rest of the record — everything but the shared text — for a page
+ * catching up after someone else saved. Same gate as every read.
+ */
+export function getEntryFieldsForViewer(id: string, viewer: Viewer) {
+  const row = db
+    .select({
+      id: schema.entries.id,
+      name: schema.entries.name,
+      shortDescription: schema.entries.shortDescription,
+      tags: schema.entries.tags,
+      fields: schema.entries.fields,
+      coverAssetId: schema.entries.coverAssetId,
+      coverCrop: schema.entries.coverCrop,
+      isLocked: schema.entries.isLocked,
+      visibility: schema.entries.visibility,
+      updatedAt: schema.entries.updatedAt,
+    })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, id), visibleEntryCondition(viewer)))
+    .get();
+  return row ?? undefined;
+}
+
 export function getEntryBySlug(slug: string, viewer: Viewer) {
   const row = db
     .select({
@@ -271,6 +304,9 @@ export function getEntryBySlug(slug: string, viewer: Viewer) {
       fields: schema.entries.fields,
       keeperNotes: schema.entries.keeperNotes,
       status: schema.entries.status,
+      viewMode: schema.entries.viewMode,
+      editMode: schema.entries.editMode,
+      accessLocked: schema.entries.accessLocked,
       createdBy: schema.entries.createdBy,
       updatedBy: schema.entries.updatedBy,
       createdAt: schema.entries.createdAt,
@@ -290,7 +326,15 @@ export function getEntryBySlug(slug: string, viewer: Viewer) {
 export type BrowseOptions = {
   typeSlug?: string;
   tag?: string;
-  sort?: 'recent' | 'name';
+  sort?: 'recent' | 'name' | 'created';
+  /** §14: only what this account made. */
+  mine?: string;
+  /** §14, Keeper only: one §9 secrecy level. Ignored for a player. */
+  visibility?: Visibility;
+  /** §14: only fiches whose §17 view dial is not "everyone". */
+  restricted?: boolean;
+  /** §14: only fiches that are pinned on a map. */
+  onMap?: boolean;
   limit?: number;
   offset?: number;
 };
@@ -301,6 +345,14 @@ export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): Entr
   if (options.tag) {
     conditions.push(sql`EXISTS (SELECT 1 FROM json_each(${schema.entries.tags}) WHERE value = ${options.tag})`);
   }
+  if (options.mine) conditions.push(eq(schema.entries.createdBy, options.mine));
+  if (options.visibility && viewer?.isKeeper) conditions.push(eq(schema.entries.visibility, options.visibility));
+  if (options.restricted) conditions.push(sql`${schema.entries.viewMode} <> 'all'`);
+  if (options.onMap) {
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM map_pins mp INNER JOIN maps m ON m.id = mp.map_id WHERE mp.entry_id = ${schema.entries.id} AND m.deleted_at IS NULL)`,
+    );
+  }
 
   return db
     .select(SUMMARY_COLUMNS)
@@ -310,7 +362,9 @@ export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): Entr
     .orderBy(
       options.sort === 'name'
         ? sql`${schema.entries.name} COLLATE NOCASE ASC`
-        : desc(schema.entries.updatedAt),
+        : options.sort === 'created'
+          ? desc(schema.entries.createdAt)
+          : desc(schema.entries.updatedAt),
     )
     .limit(options.limit ?? 120)
     .offset(options.offset ?? 0)
@@ -393,9 +447,37 @@ export function updateEntry(
   entryId: string,
   patch: EntryPatch,
   user: { id: string; isKeeper: boolean },
+  options: {
+    /**
+     * §20: the save is the shared document writing itself back. Anything else
+     * that changes the body — a proposal approved, a plain PATCH — has to
+     * rewrite the shared document to match, or the next keystroke in the
+     * room would put the old text back.
+     */
+    live?: boolean;
+  } = {},
 ): SaveResult {
   const entry = db.select().from(schema.entries).where(eq(schema.entries.id, entryId)).get();
   if (!entry) throw new Error('Fiche niet gevonden');
+
+  // §17: someone who may see this fiche but not change it gets the same road
+  // a locked fiche offers everyone — the edit becomes a proposal for the owner
+  // or a Keeper to look at. Anyone who cannot see it gets nothing at all.
+  if (!user.isKeeper) {
+    const grant = grantFor('entry', entryId, user.id);
+    if (!canView(entry, user, grant)) throw new Error('Fiche niet gevonden');
+    if (!canEdit(entry, user, grant)) {
+      db.insert(schema.pendingEdits)
+        .values({
+          id: newId(),
+          entryId,
+          proposedSnapshot: patch as Record<string, unknown>,
+          proposedBy: user.id,
+        })
+        .run();
+      return { status: 'pending' };
+    }
+  }
 
   if (entry.isLocked && !user.isKeeper) {
     db.insert(schema.pendingEdits)
@@ -478,6 +560,12 @@ export function updateEntry(
   writeRevision(entryId, user.id);
   logActivity({ actorId: user.id, verb: 'entry.edited', entryId });
 
+  // §20: keep the room honest, and tell whoever has the page open.
+  const room = `entry:${entryId}:body`;
+  if (patch.body !== undefined && !options.live) resetRoom(room, patch.body);
+  const changed = Object.keys(values).filter((key) => key !== 'updatedAt' && key !== 'updatedBy' && key !== 'bodyText');
+  if (!options.live) publishSaved(room, user.id, changed);
+
   return {
     status: 'saved',
     entry: getEntrySummaryById(entryId)!,
@@ -486,6 +574,10 @@ export function updateEntry(
 }
 
 export function softDeleteEntry(entryId: string, userId: string) {
+  // §17: to the trash is an edit like any other.
+  if (!viewerCanEdit('entry', entryId, viewerOf(userId))) {
+    throw new Error('Je mag deze fiche niet bewerken.');
+  }
   const name = db
     .select({ name: schema.entries.name })
     .from(schema.entries)
@@ -523,6 +615,10 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
     .where(eq(schema.entryRevisions.id, revisionId))
     .get();
   if (!revision) throw new Error('Versie niet gevonden');
+  // §17: putting an old version back is an edit.
+  if (!viewerCanEdit('entry', revision.entryId, user)) {
+    throw new Error('Je mag deze fiche niet bewerken.');
+  }
 
   const snapshot = revision.snapshot as Record<string, unknown>;
   writeRevision(revision.entryId, user.id, 'voor het terugzetten');
@@ -544,6 +640,9 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
   recomputeLinks(revision.entryId, snapshot.body);
   reindexEntry(revision.entryId);
   logActivity({ actorId: user.id, verb: 'entry.restored_revision', entryId: revision.entryId });
+  // §20: the shared document follows the archive, never the other way round.
+  resetRoom(`entry:${revision.entryId}:body`, snapshot.body ?? null);
+  publishSaved(`entry:${revision.entryId}:body`, user.id, ['name', 'shortDescription', 'body', 'fields', 'tags', 'coverAssetId']);
   return revision.entryId;
 }
 
@@ -555,6 +654,7 @@ export function listRevisions(entryId: string) {
       note: schema.entryRevisions.note,
       editedBy: schema.entryRevisions.editedBy,
       username: schema.users.username,
+      isKeeper: schema.users.isKeeper,
     })
     .from(schema.entryRevisions)
     .leftJoin(schema.users, eq(schema.users.id, schema.entryRevisions.editedBy))
@@ -599,7 +699,10 @@ export type FeedItem = {
   id: string;
   verb: string;
   createdAt: number;
+  /** The account. §18: pages turn this into a character name with `displayNames`. */
+  actorId: string | null;
   actorName: string | null;
+  actorIsKeeper: boolean;
   entry: EntrySummary | null;
 };
 
@@ -614,7 +717,9 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
       activityId: schema.activity.id,
       verb: schema.activity.verb,
       happenedAt: schema.activity.createdAt,
+      actorId: schema.users.id,
       actorName: schema.users.username,
+      actorIsKeeper: schema.users.isKeeper,
     })
     .from(schema.activity)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.activity.entryId))
@@ -636,7 +741,9 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
       id: row.activityId,
       verb: row.verb,
       createdAt: row.happenedAt,
+      actorId: row.actorId,
       actorName: row.actorName,
+      actorIsKeeper: Boolean(row.actorIsKeeper),
       entry: {
         id: row.id,
         slug: row.slug,
@@ -652,6 +759,9 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
         tags: row.tags,
         visibility: row.visibility,
         isLocked: row.isLocked,
+        viewMode: row.viewMode,
+        createdBy: row.createdBy,
+        createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       },
     });
@@ -677,4 +787,15 @@ export function logAudit(input: {
       meta: input.meta ?? {},
     })
     .run();
+}
+
+/** A user id as a `Viewer`, with their Keeper flag looked up. */
+export function viewerOf(userId: string | null): Viewer {
+  if (!userId) return null;
+  const row = db
+    .select({ id: schema.users.id, isKeeper: schema.users.isKeeper })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+  return row ?? null;
 }

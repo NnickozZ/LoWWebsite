@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Bottom sheet on phones, centred panel on desktop (§6). Escape and a tap on
  * the backdrop both close it; focus is trapped while it is open.
+ *
+ * Rendered through a portal onto <body>: a sheet opened from inside the side
+ * menu (which is sticky, and so a stacking context of its own) would otherwise
+ * sit *under* the page it is supposed to cover.
  */
 export function Sheet({
   children,
@@ -16,6 +21,8 @@ export function Sheet({
   labelledBy?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -51,7 +58,9 @@ export function Sheet({
     };
   }, [onClose]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       className="sheet-backdrop"
       onPointerDown={(event) => {
@@ -68,6 +77,7 @@ export function Sheet({
         <div className="sheet-handle" />
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

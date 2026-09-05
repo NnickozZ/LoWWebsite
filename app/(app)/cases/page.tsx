@@ -2,26 +2,44 @@ import Link from 'next/link';
 import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { NewCaseButton } from '@/components/cases/NewCaseButton';
+import { SortFilterBar } from '@/components/SortFilterBar';
 import { getSessionUser } from '@/lib/auth/session';
-import { countEntriesPerCase, listCases } from '@/lib/cases/service';
+import { countEntriesPerCase, listCases, type CaseStatus } from '@/lib/cases/service';
 import { relativeTime } from '@/lib/diff';
+import { readMany, readOne, type ListParams } from '@/lib/listParams';
 
 export const dynamic = 'force-dynamic';
 
-const ORDER = { open: 0, cold: 1, closed: 2 } as const;
 const STATUS_LABELS = { open: 'open', cold: 'koud', closed: 'gesloten' } as const;
+const STATUSES = ['open', 'cold', 'closed'] as const;
+const SORTS = ['status', 'recent', 'name', 'created', 'size'] as const;
+const SHOW = ['mine', 'member', 'restricted'] as const;
 
-export default async function CasesPage() {
+/** §14: the dossier shelf, sortable and filterable — status above all. */
+export default async function CasesPage({ searchParams }: { searchParams: Promise<ListParams> }) {
   const user = await getSessionUser();
-  const cases = listCases(user);
+  const query = await searchParams;
+
+  const sort = readOne(query, 'sort', SORTS, 'status') as (typeof SORTS)[number];
+  const statuses = readMany(query, 'status', STATUSES) as CaseStatus[];
+  const show = readMany(query, 'show', SHOW);
+
+  const cases = listCases(user, {
+    status: statuses,
+    sort: sort === 'size' ? 'recent' : sort,
+    mine: show.includes('mine') && user ? user.id : undefined,
+    memberOf: show.includes('member') && user ? user.id : undefined,
+    restricted: show.includes('restricted') || undefined,
+  });
   const counts = countEntriesPerCase(
     cases.map((c) => c.id),
     user,
   );
-
-  const sorted = [...cases].sort(
-    (a, b) => ORDER[a.status] - ORDER[b.status] || b.updatedAt - a.updatedAt,
-  );
+  // "Meeste fiches" counts what this viewer may see, so it is sorted here.
+  const sorted =
+    sort === 'size'
+      ? [...cases].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || b.updatedAt - a.updatedAt)
+      : cases;
 
   return (
     <div className="page-wide">
@@ -37,6 +55,39 @@ export default async function CasesPage() {
         {cases.length} {cases.length === 1 ? 'dossier' : 'dossiers'}
       </p>
 
+      <SortFilterBar
+        sorts={[
+          { value: 'status', label: 'Open eerst' },
+          { value: 'recent', label: 'Laatst veranderd' },
+          { value: 'name', label: 'Op naam' },
+          { value: 'created', label: 'Nieuwste eerst' },
+          { value: 'size', label: 'Meeste fiches' },
+        ]}
+        defaultSort="status"
+        groups={[
+          {
+            key: 'status',
+            label: 'Status',
+            multi: true,
+            options: [
+              { value: 'open', label: 'Open', icon: 'folder' },
+              { value: 'cold', label: 'Koud', icon: 'clock' },
+              { value: 'closed', label: 'Gesloten', icon: 'check' },
+            ],
+          },
+          {
+            key: 'show',
+            label: 'Alleen',
+            multi: true,
+            options: [
+              { value: 'member', label: 'Waar ik bij zit', icon: 'person' },
+              { value: 'mine', label: 'Van mij', icon: 'you' },
+              { value: 'restricted', label: 'Vertrouwelijk', icon: 'lock' },
+            ],
+          },
+        ]}
+      />
+
       {sorted.length ? (
         <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
           {sorted.map((item) => (
@@ -49,12 +100,12 @@ export default async function CasesPage() {
                 >
                   {STATUS_LABELS[item.status]}
                 </span>
-                {item.visibility === 'assigned' && (
+                {item.viewMode !== 'all' && (
                   <span
                     className="stamp"
                     style={{ position: 'absolute', bottom: 8, right: 8, background: 'var(--paper)' }}
                   >
-                    Vertrouwelijk
+                    {item.viewMode === 'private' ? 'Privé' : 'Vertrouwelijk'}
                   </span>
                 )}
               </div>
@@ -80,10 +131,11 @@ export default async function CasesPage() {
         </div>
       ) : (
         <div className="empty">
-          <p style={{ margin: 0 }}>Nog geen dossiers.</p>
+          <p style={{ margin: 0 }}>{statuses.length || show.length ? 'Geen dossier voldoet hieraan.' : 'Nog geen dossiers.'}</p>
           <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Een dossier hoort bij één onderzoek — een naam en één regel samenvatting zijn genoeg om
-            te beginnen.
+            {statuses.length || show.length
+              ? 'Zet een filter uit om meer te zien.'
+              : 'Een dossier hoort bij één onderzoek — een naam en één regel samenvatting zijn genoeg om te beginnen.'}
           </p>
         </div>
       )}
