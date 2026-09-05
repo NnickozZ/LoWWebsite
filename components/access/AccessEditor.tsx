@@ -6,7 +6,7 @@ import { useUi } from '@/components/ui/UiProvider';
 import type { AccessMode, AccessTargetType } from '@/lib/db/schema';
 
 /**
- * §17: the owner's two dials, drawn the same way on a fiche, a dossier and a
+ * §17: the owner's two dials, drawn the same way on an artikel, a dossier and a
  * prikbord so that once you have set one you have set them all.
  *
  *   Kijken     Iedereen · Gekozen personen · Privé
@@ -44,8 +44,15 @@ const MODE_LABELS: Record<AccessMode, string> = {
   private: 'Privé',
 };
 
-export function accessLabel(mode: AccessMode, count = 0): string {
-  if (mode === 'some') return count === 1 ? '1 persoon' : `${count} personen`;
+/**
+ * The short form for a chip: "3 personen", or — when the page has its own word
+ * for the chosen few, as a dossier has "toegewezen" — "3 toegewezen".
+ */
+export function accessLabel(mode: AccessMode, count = 0, someWord?: string): string {
+  if (mode === 'some') {
+    if (someWord) return `${count} ${someWord.toLowerCase()}`;
+    return count === 1 ? '1 persoon' : `${count} personen`;
+  }
   return MODE_LABELS[mode];
 }
 
@@ -67,8 +74,12 @@ export function AccessEditor({
   isKeeper: boolean;
   viewerId: string;
   onChange?: (settings: AccessSettings) => void;
-  /** "deze fiche" / "dit dossier" / "dit prikbord" — for the sentences. */
-  nouns: { this: string };
+  /**
+   * "dit artikel" / "dit dossier" / "dit prikbord" — for the sentences; and,
+   * optionally, the page's own word for the chosen few ("Toegewezen" on a
+   * dossier) in place of "Gekozen personen".
+   */
+  nouns: { this: string; some?: string };
 }) {
   const ui = useUi();
   const [settings, setSettings] = useState<AccessSettings>(initial);
@@ -152,7 +163,7 @@ export function AccessEditor({
               onClick={() => value !== mode && void patch({ [modeKey]: mode })}
             >
               {mode === 'private' && <Icon name="lock" size={12} />}
-              {MODE_LABELS[mode]}
+              {mode === 'some' && nouns.some ? nouns.some : MODE_LABELS[mode]}
             </button>
           ))}
         </div>
@@ -237,7 +248,7 @@ export function AccessEditor({
           settings.viewMode === 'private'
             ? `Alleen jij en de Keepers zien ${nouns.this}.`
             : settings.viewMode === 'some'
-              ? `Alleen de gekozen personen, jij en de Keepers zien ${nouns.this}.`
+              ? `Alleen de ${nouns.some ? `${nouns.some.toLowerCase()} personen` : 'gekozen personen'}, jij en de Keepers zien ${nouns.this}.`
               : `Iedereen die ingelogd is kan ${nouns.this} zien — mits de Keeper het niet verborgen houdt.`,
       })}
       {dial({
@@ -248,7 +259,7 @@ export function AccessEditor({
           settings.editMode === 'private'
             ? 'Alleen jij en de Keepers. Anderen kunnen een wijziging voorstellen.'
             : settings.editMode === 'some'
-              ? 'De gekozen personen, jij en de Keepers. Anderen kunnen een wijziging voorstellen.'
+              ? `De ${nouns.some ? `${nouns.some.toLowerCase()} personen` : 'gekozen personen'}, jij en de Keepers. Anderen kunnen een wijziging voorstellen.`
               : 'Iedereen die het mag zien, mag het ook veranderen.',
       })}
 

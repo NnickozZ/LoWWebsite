@@ -18,7 +18,7 @@ test('a zoomed cover stays inside its thumbnail in the feed', async ({ page }, t
   // An entry with a cover, zoomed in hard enough to overflow if unclipped.
   await page.goto('/wiki/character');
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByLabel('Naam').fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');

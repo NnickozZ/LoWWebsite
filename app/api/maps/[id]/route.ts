@@ -1,6 +1,6 @@
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { MAP_EDGE, MAX_UPLOAD_BYTES, storeImage } from '@/lib/assets';
+import { MAP_EDGE, storeImage, tooLargeMessage, uploadLimitFor } from '@/lib/assets';
 import { deleteMap, getMapById, updateMap, type MapPatch } from '@/lib/maps/service';
 
 export const dynamic = 'force-dynamic';
@@ -22,11 +22,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       const form = await request.formData();
       const file = form.get('file');
       if (!(file instanceof File)) return json({ error: 'Er is geen afbeelding meegestuurd.' }, { status: 400 });
-      if (file.size > MAX_UPLOAD_BYTES) {
-        return json({ error: 'Die afbeelding is groter dan de limiet van 20 MB.' }, { status: 413 });
-      }
+      const limit = uploadLimitFor(user);
+      if (file.size > limit) return json({ error: tooLargeMessage(limit) }, { status: 413 });
       const buffer = Buffer.from(await file.arrayBuffer());
-      const asset = await storeImage(buffer, file.name, file.type, user.id, { maxEdge: MAP_EDGE });
+      const asset = await storeImage(buffer, file.name, file.type, user.id, { maxEdge: MAP_EDGE, limitBytes: limit });
       return json({ map: updateMap(id, { assetId: asset.id, width: asset.width, height: asset.height }, user) });
     }
 

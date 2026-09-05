@@ -23,14 +23,14 @@ change.
 | Keeper / Keepers | Keeper / Keepers | the role, capitalised, never translated |
 | player(s) | speler(s) | |
 | investigator(s) (the people) | onderzoeker(s) | |
-| entry / entries | fiche / fiches | *de* fiche: an index card in the archive |
-| entry type(s) | soort fiche / soorten fiches | |
+| entry / entries | artikel / artikelen | *het* artikel — until 5 September 2026 this was *fiche*; the keys in `lib/words.ts` still say `entry` |
+| entry type(s) | soort artikel / soorten artikelen | |
 | case / case file / cases | dossier / dossiers | *het* dossier |
 | case note | dossiernotitie | |
 | board / clue board / boards | prikbord / prikborden | *het* prikbord |
 | map / maps | landkaart / landkaarten | *de* landkaart; never "kaart", which is a board's card |
 | map pin / pins | speld / spelden | on a landkaart; a *punaise* is on a prikbord |
-| character / characters | karakter / karakters | the fiche a player wears (§18) |
+| character / characters | karakter / karakters | the artikel a player wears (§18) |
 | (board) card | kaart | |
 | note (on a board) | notitie | |
 | photo | foto | |
@@ -71,20 +71,25 @@ change.
 | self-filling list | lijst die zichzelf vult | a reverse query, e.g. "Leden" |
 | hand-filled list | lijst die je zelf vult | a chosen list, e.g. "Bondgenoten" |
 | word list | Woorden | the Beheer pane that renames all of the above |
+| infobox (fields and tags beside the text) | Meer info | was *Meer toevoegen*; a card beside the text on a wide screen, folded under the header on a phone |
+| outline of the page | Op deze pagina | the list that scrolls along beside an artikel |
+| the managing foot of an artikel | Beheer van dit artikel | rights, proposals, visibility, Keeper notes, the bin |
+| the chosen few on a dossier | toegewezen | "Toegewezen: 3"; an artikel or prikbord says *gekozen personen* |
+| welcome text (start page) | welkomsttekst | Beheer → Site |
 
 ## Navigation
 
 Home → Start · Cases → Dossiers · Wiki → Wiki · Boards → Prikborden ·
 Search → Zoeken · You → Jij · Admin → Beheer
 
-Admin panes: Gebruikers · Beoordelen · Soorten fiches · Woorden · Prullenbak ·
+Admin panes: Gebruikers · Beoordelen · Soorten artikelen · Woorden · Prullenbak ·
 Geschiedenis · Site · Export · Logboek
 
 ## Buttons and labels
 
 | English | Dutch |
 |---|---|
-| New entry | Nieuwe fiche |
+| New entry | Nieuw artikel |
 | New (per-type button) | Nieuw |
 | Create | Aanmaken |
 | Create ‘X’ | ‘X’ aanmaken |
@@ -99,7 +104,7 @@ Geschiedenis · Site · Export · Logboek
 | Add case note / Edit case note | Dossiernotitie toevoegen / bewerken |
 | Why this matters here | Waarom dit hier van belang is |
 | Crop for this case | Bijsnijden voor dit dossier |
-| Use the entry’s crop | Uitsnede van de fiche gebruiken |
+| Use the entry’s crop | Uitsnede van het artikel gebruiken |
 | Options for X | Opties voor X |
 | Add cover | Afbeelding toevoegen |
 | Replace | Vervangen |
@@ -128,7 +133,7 @@ Geschiedenis · Site · Export · Logboek
 | Pin label | Label van de punaise |
 | Label this pin (optional) | Geef de punaise een label (niet verplicht) |
 | Add a card (board search label) | Kaart toevoegen |
-| Add an entry, or type a name for a note… | Zoek een fiche, of typ een naam voor een notitie… |
+| Add an entry, or type a name for a note… | Zoek een artikel, of typ een naam voor een notitie… |
 | Add ‘X’ as a note | ‘X’ als notitie toevoegen |
 | Sign in | Inloggen |
 | Create account | Account aanmaken |
@@ -139,8 +144,8 @@ Geschiedenis · Site · Export · Logboek
 | Password | Wachtwoord |
 | Password again | Wachtwoord nogmaals |
 | Invite code | Uitnodigingscode |
-| Add more | Meer toevoegen |
-| Remove this entry | Deze fiche verwijderen |
+| Add more → More info (the infobox) | Meer info |
+| Remove this entry | Dit artikel verwijderen |
 | Sort: recent / Sort: name | Sorteren: recent / Sorteren: op naam |
 | Search names, tags and text… | Zoek op naam, tag of tekst… |
 | Add anything to this case… | Voeg iets toe aan dit dossier… |
@@ -149,7 +154,7 @@ Geschiedenis · Site · Export · Logboek
 | Summary | Samenvatting |
 | One line: what is being investigated? | Eén regel: wat wordt er onderzocht? |
 | Case notes | Dossiernotities |
-| What is the working theory? Type @ or [[ to link an entry. | Wat is de werktheorie? Typ @ of [[ om een fiche te koppelen. |
+| What is the working theory? Type @ or [[ to link an entry. | Wat is de werktheorie? Typ @ of [[ om een artikel te koppelen. |
 | Assigned investigators / N assigned | Toegewezen onderzoekers / N toegewezen |
 | Open to all / Confidential | Voor iedereen / Vertrouwelijk |
 | open / cold / closed | open / koud / gesloten |
@@ -199,13 +204,13 @@ other, so renaming boards to "muren" renames this too.
 | Order: by name / recently updated | Volgorde: Op naam / Onlangs bijgewerkt |
 | Only these types may go in (empty = anything) | Alleen deze soorten mogen erin (leeg = alles) |
 | A line of explanation under the heading (optional) | Regel uitleg onder de kop (niet verplicht) |
-| Opens as soon as the entry opens | Staat open zodra de fiche opengaat |
+| Opens as soon as the entry opens | Staat open zodra het artikel opengaat |
 | The words of this type | De woorden van deze soort |
 | The question under the title | De vraag onder de titel |
 | The line in the big text box | De regel in het grote tekstvak |
 | What the ‘new’ button says | Wat de knop ‘nieuw’ zegt |
 | What it says when nothing points here | Wat er staat als niets hiernaar verwijst |
-| Nothing yet. This list fills itself as soon as an entry points here. | Nog niets. Deze lijst vult zichzelf zodra een fiche hiernaar wijst. |
+| Nothing yet. This list fills itself as soon as an entry points here. | Nog niets. Deze lijst vult zichzelf zodra een artikel hiernaar wijst. |
 
 ## The word list (§11)
 
@@ -214,7 +219,7 @@ other, so renaming boards to "muren" renames this too.
 | Words | Woorden |
 | Things in the archive | Dingen in het archief |
 | The menu | Het menu |
-| Buttons and headings on an entry | Knoppen en koppen op een fiche |
+| Buttons and headings on an entry | Knoppen en koppen op een artikel |
 | The tabs in Admin | De tabbladen in Beheer |
 | Back on ‘X’ | Terug op ‘X’ |
 | Everything is on the default words. | Alles staat op de standaardwoorden. |
@@ -240,7 +245,7 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | English | Dutch |
 |---|---|
 | Visibility and reveals | Zichtbaarheid en onthullingen |
-| Who may see this entry | Wie mag deze fiche zien |
+| Who may see this entry | Wie mag dit artikel zien |
 | Everyone / Chosen players / Only the Keeper | Iedereen / Gekozen spelers / Alleen de Keeper |
 | Revealed to | Onthuld aan |
 | Or all at once: | Of in één keer: |
@@ -262,7 +267,7 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Read only | Alleen kijken |
 | Lock the rights / Locked — the owner can no longer change this | Rechten vastzetten / Vastgezet — de eigenaar kan dit niet meer veranderen |
 | The Keeper has locked the rights of this {thing}. | De Keeper heeft de rechten van {this} vastgezet. |
-| You can read this {entry}. What you change goes to the owner as a proposal. | Je kunt deze {fiche} lezen. Wat je verandert gaat als voorstel naar de eigenaar. |
+| You can read this {entry}. What you change goes to the owner as a proposal. | Je kunt dit {artikel} lezen. Wat je verandert gaat als voorstel naar de eigenaar. |
 | Sent to the owner as a proposal. | Als voorstel naar de eigenaar gestuurd. |
 | Proposals (n) / Accept / Reject | Voorstellen (n) / Overnemen / Afwijzen |
 | You may not edit this {case}. | Je mag dit dossier niet bewerken. |
@@ -293,7 +298,7 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Set a pin | Speld zetten |
 | Tap the map where the pin should go. | Tik op de landkaart waar de speld moet komen. |
 | Tap the map where {name} belongs. | Tik op de landkaart waar {naam} hoort. |
-| What goes here? / An entry / A note | Wat komt hier? / Een fiche / Een notitie |
+| What goes here? / Note ‘X’ / ‘X’ as a new entry | Wat komt hier? / Notitie ‘X’ zetten / ‘X’ als nieuw artikel aanmaken |
 | Legend / All on / Only my pins / Find a pin… | Legenda / Alles aan / Alleen mijn spelden / Zoek een speld… |
 | Zoom out / Zoom in / Fit | Uitzoomen / Inzoomen / Passend maken |
 | Drag the pin to move it. | Sleep de speld om hem te verplaatsen. |
@@ -310,7 +315,7 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | English | Dutch |
 |---|---|
 | Sort | Sorteren |
-| Last edited / By name / Newest first / Open first / Most entries / Most cards | Laatst bewerkt / Op naam / Nieuwste eerst / Open eerst / Meeste fiches / Meeste kaarten |
+| Last edited / By name / Newest first / Open first / Most entries / Most cards | Laatst bewerkt / Op naam / Nieuwste eerst / Open eerst / Meeste artikelen / Meeste kaarten |
 | Keeper's order / Last changed | Volgorde van de Keeper / Laatst veranderd |
 | Only: mine / not for everyone / on a map | Alleen: van mij / niet voor iedereen / op een landkaart |
 | Status: open / cold / closed | Status: open / koud / gesloten |
@@ -319,8 +324,30 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Private or chosen | Privé of gekozen |
 | With my pins | Met mijn spelden |
 | Secrecy: for everyone / revealed to chosen / Keeper only | Geheimhouding: voor iedereen / onthuld aan gekozen / alleen de Keeper |
-| Clear filters | Wis filters |
+| Clear filters / Clear all / Done | Wis filters / Wis alles / Klaar |
+| Filters (the button, with a count badge) | Filters |
+| Everything (the first tab of soorten) | Alles |
+| Active filter chip | Tag: water × |
 | Nothing matches this. Switch a filter off to see more. | Geen dossier voldoet hieraan. Zet een filter uit om meer te zien. |
+| Nothing matches these filters. | Niets voldoet aan deze filters. |
+| Search in {soort}… / Nothing under {soort} matches that. | Zoek in {soort}… / Niets onder {soort} komt daarmee overeen. |
+
+## The start page and the artikel page (5 September 2026)
+
+| English | Dutch |
+|---|---|
+| Welcome text on the start page | Welkomsttekst op de startpagina |
+| Since your last visit / n more, earlier | Sinds je laatste bezoek / Nog n eerder |
+| Edit the welcome text | Welkomsttekst aanpassen |
+| Open cases / All cases / Recent entries / See everything | Open dossiers / Alle dossiers / Recente artikelen / Alles bekijken |
+| More info (the infobox) | Meer info |
+| On this page (the outline) | Op deze pagina |
+| Managing this entry | Beheer van dit artikel |
+| Legend: fold / unfold / n off / only mine | Legenda inklappen / Legenda uitklappen / n uit / alleen de mijne |
+| What goes here? | Wat komt hier? |
+| Note ‘X’ — a loose note on the map; type its text on the pin | Notitie ‘X’ zetten — een losse aantekening op de landkaart; de tekst typ je zo op de speld |
+| ‘X’ as a new entry — in the wiki and on this spot | ‘X’ als nieuw artikel aanmaken — komt in de wiki én op deze plek |
+| Up to 100 MB (a map) / That picture is over the limit of 10 MB. | tot 100 MB / Die afbeelding is groter dan de limiet van 10 MB. |
 
 ## Live (§8, §20)
 
@@ -348,7 +375,7 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Sign in first. | Log eerst in. |
 | Not found | Niet gevonden |
 | Give the case a name first. | Geef het dossier eerst een naam. |
-| No entry given. | Geen fiche opgegeven. |
+| No entry given. | Geen artikel opgegeven. |
 | Wrong name or password. | Naam of wachtwoord klopt niet. |
 | That invite code is not right. | Die uitnodigingscode klopt niet. |
 | That name is taken. | Die naam is al in gebruik. |
@@ -362,6 +389,7 @@ otherwise a date formatted with `nl-NL`.
 
 ## Entry types (seed) — labels and fields
 
-Personages · Onderzoekers · Locaties · Voorwerpen en relieken · Aanwijzingen ·
+Personen (was *Personages* until 5 September 2026; one word, *personen*,
+everywhere) · Onderzoekers · Locaties · Voorwerpen en relieken · Aanwijzingen ·
 Abnormaliteiten · Facties · Gebeurtenissen · Overlevering en folklore ·
 Sessieverslagen. Field labels and select options are in lib/db/seed.mjs.

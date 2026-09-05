@@ -43,7 +43,7 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   await page.locator('.suggest-item').filter({ hasText: 'als notitie' }).click();
   const note = page.locator('.board-card', { hasText: noteName });
   await expect(note).toBeVisible();
-  await expect(note.getByRole('button', { name: 'Fiche aanmaken' })).toBeVisible();
+  await expect(note.getByRole('button', { name: 'Artikel aanmaken' })).toBeVisible();
 
   // -- board-local text ------------------------------------------------------
   await note.locator('.board-card-text').dblclick();

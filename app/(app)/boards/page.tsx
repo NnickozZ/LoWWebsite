@@ -38,10 +38,6 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
         <div className="spacer" />
         <NewBoardButton />
       </div>
-      <p className="muted small">
-        {boards.length} {boards.length === 1 ? 'prikbord' : 'prikborden'}
-      </p>
-
       <SortFilterBar
         sorts={[
           { value: 'recent', label: 'Laatst veranderd' },
@@ -50,6 +46,7 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
           { value: 'size', label: 'Meeste kaarten' },
         ]}
         defaultSort="recent"
+        summary={`${boards.length} ${boards.length === 1 ? 'prikbord' : 'prikborden'}`}
         groups={[
           {
             key: 'where',
@@ -123,7 +120,7 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
           <p className="small" style={{ margin: '0.4rem 0 0' }}>
             {filtering
               ? 'Zet een filter uit om meer te zien.'
-              : 'Een prikbord is een kurkbord: prik er fiches en notities op en span er rode draad tussen.'}
+              : 'Een prikbord is een kurkbord: prik er artikelen en notities op en span er rode draad tussen.'}
           </p>
         </div>
       )}

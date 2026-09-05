@@ -9,7 +9,9 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const url = new URL(request.url);
     const q = url.searchParams.get('q') ?? '';
-    const { names, bodies } = searchEntries(user, q, { limit: 20 });
+    // One soort at a time, when the wiki is big enough to need it (5 Sep 2026).
+    const type = url.searchParams.get('type')?.trim() || undefined;
+    const { names, bodies } = searchEntries(user, q, { limit: 20, typeSlug: type });
     return json({ names, bodies });
   } catch (err) {
     return apiError(err);

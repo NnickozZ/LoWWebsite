@@ -24,11 +24,11 @@ test('link and create in one motion', async ({ page }, testInfo) => {
   await expect(createOption).toBeVisible();
   await createOption.click();
 
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByLabel('Naam')).toHaveValue(typed);
   await sheet.getByLabel('Naam').fill(target);
-  await sheet.getByRole('radio', { name: 'Personages' }).click();
+  await sheet.getByRole('radio', { name: 'Personen' }).click();
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
 
   // Back in the body, with the chip inserted.

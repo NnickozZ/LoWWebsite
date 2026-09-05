@@ -27,7 +27,7 @@ async function openRights(page: Page) {
 
 async function newEntry(page: Page, name: string): Promise<string> {
   await page.keyboard.press('n');
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByLabel('Naam').fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
@@ -94,7 +94,7 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
   const other = await otherCtx.newPage();
   await signUpAs(other, `Lezer ${stamp}`);
   await other.goto(path);
-  await expect(other.getByText(/Je kunt deze fiche lezen/)).toBeVisible();
+  await expect(other.getByText(/Je kunt dit artikel lezen/)).toBeVisible();
   await other.getByLabel('Korte beschrijving').fill('Voorstel van een lezer');
   await other.getByLabel('Korte beschrijving').blur();
   await expect(other.getByText('Als voorstel naar de eigenaar gestuurd.')).toBeVisible();

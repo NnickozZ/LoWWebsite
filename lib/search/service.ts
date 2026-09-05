@@ -89,11 +89,18 @@ export function searchEntries(
     }
     const fresh = ids.filter((id) => !alreadyShown.has(id));
     if (fresh.length) {
+      // The chosen soort narrows the text matches too, not only the names.
       const rows = db
         .select(SUMMARY_COLUMNS)
         .from(schema.entries)
         .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
-        .where(and(inArray(schema.entries.id, fresh), visibleEntryCondition(viewer)))
+        .where(
+          and(
+            inArray(schema.entries.id, fresh),
+            visibleEntryCondition(viewer),
+            ...(options.typeSlug ? [eq(schema.entryTypes.slug, options.typeSlug)] : []),
+          ),
+        )
         .all() as EntrySummary[];
       const order = new Map(fresh.map((id, i) => [id, i]));
       bodies = rows

@@ -18,6 +18,7 @@ process.env.DATA_DIR = dir;
 type Deps = {
   sqlite: typeof import('@/lib/db').sqlite;
   browseEntries: typeof import('@/lib/entries/service').browseEntries;
+  countEntriesPerType: typeof import('@/lib/entries/service').countEntriesPerType;
   listCases: typeof import('@/lib/cases/service').listCases;
   listBoards: typeof import('@/lib/boards/service').listBoards;
   listMaps: typeof import('@/lib/maps/service').listMaps;
@@ -38,6 +39,7 @@ beforeAll(async () => {
   deps = {
     sqlite: dbModule.sqlite,
     browseEntries: entries.browseEntries,
+    countEntriesPerType: entries.countEntriesPerType,
     listCases: cases.listCases,
     listBoards: boards.listBoards,
     listMaps: maps.listMaps,
@@ -180,6 +182,14 @@ describe('browseEntries', () => {
     expect(names(deps.browseEntries(KEEPER, { onMap: true }))).toEqual([]);
     deps.sqlite.prepare(`UPDATE maps SET deleted_at = NULL WHERE id = 'm1'`).run();
   });
+  it('the tabs count only what the viewer may see', () => {
+    // Four characters exist; Bram may see three (not the Keeper's secret),
+    // Aagje two (nor Bram's private one), the Keeper all four.
+    expect(deps.countEntriesPerType(KEEPER).get('character')).toBe(4);
+    expect(deps.countEntriesPerType(BRAM).get('character')).toBe(3);
+    expect(deps.countEntriesPerType(AAGJE).get('character')).toBe(2);
+  });
+
   it('tags still narrow', () => {
     expect(names(deps.browseEntries(BRAM, { tag: 'haven' }))).toEqual(['Oude fiche']);
   });

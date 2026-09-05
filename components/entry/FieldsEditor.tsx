@@ -66,11 +66,14 @@ export function FieldsEditor({
   onChange,
   readOnly = false,
   hideLabels = false,
+  compact = false,
 }: {
   fields: FieldDef[];
   values: Values;
   onChange: (patch: Values) => void;
   readOnly?: boolean;
+  /** The infobox shape: label beside value, smaller controls — for a sidebar. */
+  compact?: boolean;
   /**
    * §11: a hand-filled list block already has its own heading, so it borrows
    * this editor for one synthetic field and turns the label off rather than
@@ -81,7 +84,7 @@ export function FieldsEditor({
   if (!fields.length) return null;
 
   return (
-    <div className="stack">
+    <div className={compact ? 'stack fields-compact' : 'stack'}>
       {fields.map((field) => {
         const value = values[field.key];
         const set = (next: unknown) => onChange({ [field.key]: next });
@@ -217,7 +220,7 @@ export function FieldsEditor({
 
             {field.kind === 'map_pin' && (
               <p className="small muted" style={{ margin: 0 }}>
-                Spelden staan tegenwoordig op de landkaarten zelf: zet deze fiche op een kaart via
+                Spelden staan tegenwoordig op de landkaarten zelf: zet dit artikel op een kaart via
                 &lsquo;Op de landkaart&rsquo; bovenaan de pagina, of vanaf de{' '}
                 <a href="/maps">kaartenpagina</a>.
               </p>

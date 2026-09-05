@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
-import { EntryPicker } from '@/components/entry/EntryPicker';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
@@ -15,8 +14,13 @@ import type { MapPin, MapSummary } from '@/lib/maps/service';
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
  *
  * The picture is the world: pins live in picture coordinates (0..1) and the
- * whole thing is panned and zoomed with one CSS transform. Pins are counter-
- * scaled so a speld is the same size at every zoom — the map grows, the pins
+ * picture is panned and zoomed with one CSS transform. The pins are *not* in
+ * that transformed layer. They used to be, counter-scaled by 1/zoom, and the
+ * browser rasterised them along with the picture — at the picture's scale —
+ * so a pin at 4x zoom was a 28 px badge drawn at 7 px and blown up: blurry
+ * and unreadable (Nick, 5 Sep 2026). Now each pin is placed in stage pixels,
+ * `tx + x·width·zoom`, in a layer of its own that is never scaled, so a
+ * speld is crisp and the same size at every zoom — the map grows, the pins
  * do not.
  *
  * Touch: one finger pans, two pinch, a tap on a pin opens it. Mouse: drag
@@ -59,6 +63,29 @@ function writeHidden(mapId: string, hidden: Set<string>) {
   }
 }
 
+/**
+ * Whether the desktop legend is unfolded. Folded by default — it covered a
+ * good corner of the picture — and remembered per browser, not per map: a
+ * person who likes it open likes it open everywhere.
+ */
+const LEGEND_OPEN_KEY = 'map-legend-open';
+
+function readLegendOpen(): boolean {
+  try {
+    return window.localStorage.getItem(LEGEND_OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeLegendOpen(open: boolean) {
+  try {
+    window.localStorage.setItem(LEGEND_OPEN_KEY, open ? '1' : '0');
+  } catch {
+    /* fine */
+  }
+}
+
 export function MapCanvas({
   map,
   initialPins,
@@ -94,6 +121,17 @@ export function MapCanvas({
   const [find, setFind] = useState('');
   const [busy, setBusy] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  useEffect(() => {
+    // Phones start folded regardless; the memory is for the floating panel.
+    if (!isPhone) setLegendOpen(readLegendOpen());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const toggleLegend = () => {
+    setLegendOpen((open) => {
+      if (!isPhone) writeLegendOpen(!open);
+      return !open;
+    });
+  };
 
   /* ------------------------------------------------------------ geometry */
 
@@ -509,7 +547,20 @@ export function MapCanvas({
   const legendPanel = (
     <div className="map-legend-body">
       <div className="row" style={{ gap: '0.4rem' }}>
-        <strong className="small">Legenda</strong>
+        {isPhone ? (
+          <strong className="small">Legenda</strong>
+        ) : (
+          <button
+            type="button"
+            className="map-legend-fold"
+            aria-expanded={true}
+            title="Legenda inklappen"
+            onClick={toggleLegend}
+          >
+            <Icon name="chevron" size={14} className="map-legend-chevron" />
+            <strong className="small">Legenda</strong>
+          </button>
+        )}
         <div className="spacer" />
         {hidden.size > 0 && (
           <button type="button" className="btn btn-ghost btn-small" onClick={showAll}>
@@ -622,7 +673,7 @@ export function MapCanvas({
             type="button"
             className={`btn btn-small${legendOpen ? ' btn-primary' : ''}`}
             aria-expanded={legendOpen}
-            onClick={() => setLegendOpen((open) => !open)}
+            onClick={toggleLegend}
           >
             <Icon name="filter" size={14} />
             Legenda
@@ -664,6 +715,10 @@ export function MapCanvas({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={assetUrl(map.assetId)} alt={map.name} width={map.width} height={map.height} draggable={false} />
+        </div>
+
+        {/* The pins: stage pixels, never scaled — see the note at the top. */}
+        <div className="map-pins">
           {shown.map((pin) => {
             const colour = pin.kind === 'note' ? NOTE_COLOUR : (pin.entry?.typeColour ?? 'var(--ink-muted)');
             const isSelected = pin.id === selectedId;
@@ -673,9 +728,8 @@ export function MapCanvas({
                 type="button"
                 className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}`}
                 style={{
-                  left: `${pin.x * 100}%`,
-                  top: `${pin.y * 100}%`,
-                  transform: `translate(-50%, -100%) scale(${1 / view.zoom})`,
+                  left: view.tx + pin.x * map.width * view.zoom,
+                  top: view.ty + pin.y * map.height * view.zoom,
                   ['--pin-colour' as string]: colour,
                 }}
                 data-pin-id={pin.id}
@@ -698,17 +752,37 @@ export function MapCanvas({
           })}
         </div>
 
-        {!isPhone && (
-          <aside
-            className="map-legend"
-            // The legend floats over the stage; what happens in it is not a pan.
-            onPointerDown={(event) => event.stopPropagation()}
-            onPointerUp={(event) => event.stopPropagation()}
-            onWheel={(event) => event.stopPropagation()}
-          >
-            {legendPanel}
-          </aside>
-        )}
+        {!isPhone &&
+          (legendOpen ? (
+            <aside
+              className="map-legend"
+              // The legend floats over the stage; what happens in it is not a pan.
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              onWheel={(event) => event.stopPropagation()}
+            >
+              {legendPanel}
+            </aside>
+          ) : (
+            <button
+              type="button"
+              className="map-legend-toggle"
+              aria-expanded={false}
+              title="Legenda uitklappen"
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              onClick={toggleLegend}
+            >
+              <Icon name="filter" size={14} />
+              Legenda
+              {hidden.size > 0 && (
+                <span className="map-legend-badge" title={`${hidden.size} soort${hidden.size === 1 ? '' : 'en'} uit`}>
+                  {hidden.size} uit
+                </span>
+              )}
+              {onlyMine && <span className="map-legend-badge">alleen de mijne</span>}
+            </button>
+          ))}
       </div>
 
       <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
@@ -851,6 +925,21 @@ function PinSheet({
   );
 }
 
+type PinSuggestion = {
+  id: string;
+  name: string;
+  typeLabel: string;
+  typeIcon: string;
+  typeColour: string;
+};
+
+/**
+ * "Wat komt hier?" — one box, and a list that grows under it. The list is in
+ * the flow of the sheet, not floated over it: a floating list inside a sheet
+ * that scrolls gave a scrollbar for eight rows of results (Nick, 5 Sep 2026).
+ * Every choice is a row: an existing artikel, a new one with this name, or a
+ * note with this name — the note's text is typed on the pin once it stands.
+ */
 function NewPinSheet({
   busy,
   onEntry,
@@ -862,69 +951,113 @@ function NewPinSheet({
 }) {
   const ui = useUi();
   const words = ui.words;
-  const [tab, setTab] = useState<'entry' | 'note'>('entry');
-  const [name, setName] = useState('');
-  const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
+  const [items, setItems] = useState<PinSuggestion[]>([]);
+  const typed = query.trim();
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  useEffect(() => {
+    if (!typed) {
+      setItems([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/suggest?q=${encodeURIComponent(typed)}&limit=8`, { signal: controller.signal });
+        if (!response.ok) return;
+        const data = (await response.json()) as { entries: PinSuggestion[] };
+        setItems(data.entries ?? []);
+      } catch {
+        /* aborted, or offline: the list just stays as it was */
+      }
+    }, 160);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [typed]);
 
   return (
     <div className="stack">
       <h2 id="new-pin-title" style={{ margin: 0 }}>
         Wat komt hier?
       </h2>
-      <div className="row-wrap" role="tablist" aria-label="Soort speld">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'entry'}
-          className={`chip chip-selectable${tab === 'entry' ? ' chip-active' : ''}`}
-          onClick={() => setTab('entry')}
-        >
-          <Icon name="file" size={13} />
-          Een {words.entry}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'note'}
-          className={`chip chip-selectable${tab === 'note' ? ' chip-active' : ''}`}
-          onClick={() => setTab('note')}
-        >
-          <Icon name="note" size={13} />
-          Een {words.note}
-        </button>
+      <div>
+        <label className="visually-hidden" htmlFor="new-pin-query">
+          Zoek een {words.entry}, of typ een naam voor een {words.note}
+        </label>
+        <input
+          id="new-pin-query"
+          className="input"
+          value={query}
+          placeholder={`Zoek een ${words.entry}…`}
+          autoFocus
+          autoComplete="off"
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter takes the first row: the best match, else the note.
+            if (event.key !== 'Enter' || !typed || busy) return;
+            event.preventDefault();
+            if (items[0]) onEntry(items[0].id);
+            else onNote(typed, '');
+          }}
+        />
+        <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
+          Een bestaand {words.entry} uit de lijst, een nieuw {words.entry} met deze naam, of een losse {words.note}.
+        </p>
       </div>
 
-      {tab === 'entry' ? (
-        <>
-          <p className="small muted" style={{ margin: 0 }}>
-            Zoek de {words.entry} die op deze plek hoort — of maak hem hier aan.
-          </p>
-          <EntryPicker value={null} placeholder={`Zoek een ${words.entry}…`} onPick={(entry) => onEntry(entry.id)} onClear={() => undefined} />
-        </>
-      ) : (
-        <>
-          <label className="label" htmlFor="new-pin-name">
-            Naam
-          </label>
-          <input
-            id="new-pin-name"
-            className="input"
-            value={name}
-            placeholder="Bijv. hier lag de boot"
-            autoFocus
-            onChange={(event) => setName(event.target.value)}
-          />
-          <label className="label" htmlFor="new-pin-text">
-            Tekst
-          </label>
-          <textarea id="new-pin-text" className="input" rows={3} value={text} onChange={(event) => setText(event.target.value)} />
-          <p style={{ margin: 0 }}>
-            <button type="button" className="btn btn-primary" disabled={busy || !name.trim()} onClick={() => onNote(name.trim(), text)}>
-              <Icon name="mapPin" size={15} />
-              {words.mapPin.charAt(0).toUpperCase() + words.mapPin.slice(1)} zetten
+      {typed && (
+        <ul className="suggest-list pin-choices" aria-label="Wat hier kan komen">
+          {items.map((entry) => (
+            <li key={entry.id}>
+              <button type="button" className="suggest-item" disabled={busy} onClick={() => onEntry(entry.id)}>
+                <Icon name={entry.typeIcon} size={15} style={{ color: entry.typeColour }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{entry.name}</strong>
+                  <span className="tiny muted" style={{ display: 'block' }}>
+                    {entry.typeLabel}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+          <li>
+            <button type="button" className="suggest-item" disabled={busy} onClick={() => onNote(typed, '')}>
+              <Icon name="note" size={15} style={{ color: NOTE_COLOUR }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <strong>
+                  {cap(words.note)} &lsquo;{typed}&rsquo; zetten
+                </strong>
+                <span className="tiny muted" style={{ display: 'block' }}>
+                  Een losse aantekening op de {words.map}; de tekst typ je zo op de {words.mapPin}.
+                </span>
+              </span>
             </button>
-          </p>
-        </>
+          </li>
+          <li>
+            <button
+              type="button"
+              className="suggest-item"
+              disabled={busy}
+              onClick={() =>
+                ui.openNewEntry({
+                  name: typed,
+                  onCreated: (entry) => onEntry(entry.id),
+                })
+              }
+            >
+              <Icon name="plus" size={15} style={{ color: 'var(--stamp-red)' }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <strong>&lsquo;{typed}&rsquo; als nieuw {words.entry} aanmaken</strong>
+                <span className="tiny muted" style={{ display: 'block' }}>
+                  Het {words.entry} komt in de wiki én op deze plek.
+                </span>
+              </span>
+            </button>
+          </li>
+        </ul>
       )}
     </div>
   );

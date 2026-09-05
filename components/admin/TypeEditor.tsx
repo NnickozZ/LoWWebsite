@@ -96,7 +96,7 @@ export function TypeEditor({
         <Icon name={icon} size={15} style={{ color: colour }} />
         {type.label}
         <span className="muted tiny" style={{ marginLeft: '0.4rem' }}>
-          {type.entryCount} {type.entryCount === 1 ? 'fiche' : 'fiches'}
+          {type.entryCount} {type.entryCount === 1 ? 'artikel' : 'artikelen'}
         </span>
       </summary>
 
@@ -270,7 +270,7 @@ export function TypeEditor({
         <div>
           <span className="label">De woorden van deze soort</span>
           <p className="tiny muted" style={{ margin: '0 0 0.45rem' }}>
-            Een locatie vraagt iets anders dan een personage. Laat leeg voor de vraag die overal
+            Een locatie vraagt iets anders dan een persoon. Laat leeg voor de vraag die overal
             staat.
           </p>
           <div className="stack" style={{ gap: '0.45rem' }}>

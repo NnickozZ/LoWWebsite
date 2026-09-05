@@ -27,7 +27,9 @@ test('a self-filling list fills itself from a field on another fiche', async ({ 
   await page.getByRole('link', { name: /Doktor Gerhard Lang/ }).first().click();
   await page.waitForURL('**/e/**');
 
-  await page.locator('summary', { hasText: 'Meer toevoegen' }).click();
+  // "Meer info" is folded on a phone and a card beside the text on a desktop.
+  const folded = page.locator('details#block-info:not([open]) > summary');
+  if (await folded.count()) await folded.click();
   // An entry_link field's picker has no id of its own, so the field is found by
   // the label that names it rather than by getByLabel.
   const faction = page.locator('div:has(> label[for="field-faction"])');
@@ -54,7 +56,7 @@ test('the Keeper adds a list of their own to every page of a soort', async ({ pa
 
   await signIn(page, 'Keeper', 'abbeytower34');
   await page.goto('/admin');
-  await page.getByRole('tab', { name: 'Soorten fiches' }).click();
+  await page.getByRole('tab', { name: 'Soorten artikelen' }).click();
 
   const editor = page
     .locator('details.admin-type')

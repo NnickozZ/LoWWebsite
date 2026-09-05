@@ -106,7 +106,7 @@ export function addCharacter(userId: string, entryId: string, actor: { id: strin
     .from(schema.entries)
     .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(actor as Viewer)))
     .get();
-  if (!entry) throw new Error('Fiche niet gevonden');
+  if (!entry) throw new Error('Artikel niet gevonden');
 
   const count = db
     .select({ id: schema.userCharacters.entryId })

@@ -3,6 +3,7 @@ import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { NewCaseButton } from '@/components/cases/NewCaseButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
+import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { countEntriesPerCase, listCases, type CaseStatus } from '@/lib/cases/service';
 import { relativeTime } from '@/lib/diff';
@@ -19,6 +20,7 @@ const SHOW = ['mine', 'member', 'restricted'] as const;
 export default async function CasesPage({ searchParams }: { searchParams: Promise<ListParams> }) {
   const user = await getSessionUser();
   const query = await searchParams;
+  const words = getWords();
 
   const sort = readOne(query, 'sort', SORTS, 'status') as (typeof SORTS)[number];
   const statuses = readMany(query, 'status', STATUSES) as CaseStatus[];
@@ -35,7 +37,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
     cases.map((c) => c.id),
     user,
   );
-  // "Meeste fiches" counts what this viewer may see, so it is sorted here.
+  // "Meeste artikelen" counts what this viewer may see, so it is sorted here.
   const sorted =
     sort === 'size'
       ? [...cases].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || b.updatedAt - a.updatedAt)
@@ -51,19 +53,16 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
         <div className="spacer" />
         <NewCaseButton />
       </div>
-      <p className="muted small">
-        {cases.length} {cases.length === 1 ? 'dossier' : 'dossiers'}
-      </p>
-
       <SortFilterBar
         sorts={[
           { value: 'status', label: 'Open eerst' },
           { value: 'recent', label: 'Laatst veranderd' },
           { value: 'name', label: 'Op naam' },
           { value: 'created', label: 'Nieuwste eerst' },
-          { value: 'size', label: 'Meeste fiches' },
+          { value: 'size', label: `Meeste ${words.entryPlural}` },
         ]}
         defaultSort="status"
+        summary={`${cases.length} ${cases.length === 1 ? words.case : words.casePlural}`}
         groups={[
           {
             key: 'status',
@@ -121,7 +120,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
                   style={{ margin: '0.4rem 0 0', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                 >
                   <Icon name="file" size={13} />
-                  {counts.get(item.id) ?? 0} {(counts.get(item.id) ?? 0) === 1 ? 'fiche' : 'fiches'}
+                  {counts.get(item.id) ?? 0} {(counts.get(item.id) ?? 0) === 1 ? words.entry : words.entryPlural}
                   <span className="spacer" />
                   {relativeTime(item.updatedAt)}
                 </p>

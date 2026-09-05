@@ -21,7 +21,7 @@ async function signUpAs(page: Page, name: string) {
 }
 
 async function newEntry(page: Page, name: string): Promise<string> {
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   for (let attempt = 0; attempt < 8 && !(await sheet.isVisible()); attempt++) {
     await page.keyboard.press('n');
     await page.waitForTimeout(400);

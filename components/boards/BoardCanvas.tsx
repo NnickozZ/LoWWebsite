@@ -1316,7 +1316,7 @@ export function BoardCanvas({
             id="board-search"
             className="input"
             value={search}
-            placeholder="Zoek een fiche, of typ een naam voor een notitie…"
+            placeholder={`Zoek een ${ui.words.entry}, of typ een naam voor een ${ui.words.note}…`}
             onChange={(event) => setSearch(event.target.value)}
           />
           {search.trim() && (

@@ -40,7 +40,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       crop?: unknown;
       cropOnly?: boolean;
     };
-    if (!body.entryId) return json({ error: 'Geen fiche opgegeven.' }, { status: 400 });
+    if (!body.entryId) return json({ error: 'Geen artikel opgegeven.' }, { status: 400 });
 
     if (body.cropOnly) setCaseEntryCrop(id, body.entryId, cleanCrop(body.crop));
     else if (body.noteOnly) setCaseEntryNote(id, body.entryId, body.note ?? '', user.id);
@@ -59,7 +59,7 @@ export async function DELETE(request: Request, ctx: { params: Promise<{ id: stri
     assertEditable(id, user);
 
     const entryId = new URL(request.url).searchParams.get('entryId');
-    if (!entryId) return json({ error: 'Geen fiche opgegeven.' }, { status: 400 });
+    if (!entryId) return json({ error: 'Geen artikel opgegeven.' }, { status: 400 });
 
     removeEntryFromCase(id, entryId, user.id);
     return json({ ok: true });

@@ -208,10 +208,10 @@ export type CreateEntryInput = {
 
 export function createEntry(input: CreateEntryInput): EntrySummary {
   const type = getEntryType(input.typeSlug);
-  if (!type) throw new Error(`Onbekende soort fiche: ${input.typeSlug}`);
+  if (!type) throw new Error(`Onbekende soort artikel: ${input.typeSlug}`);
 
   const name = input.name.trim();
-  if (!name) throw new Error('Een fiche heeft een naam nodig.');
+  if (!name) throw new Error('Een artikel heeft een naam nodig.');
 
   const slug = uniqueSlug(name, (candidate) =>
     Boolean(db.select({ id: schema.entries.id }).from(schema.entries).where(eq(schema.entries.slug, candidate)).get()),
@@ -401,6 +401,21 @@ export function listTagsWithCounts(
     .slice(0, 40);
 }
 
+/**
+ * How many entries this viewer may see, per soort — the numbers on the wiki's
+ * tabs. Behind `visibleEntryCondition`, like every count: a tab that said
+ * "Aanwijzingen 12" to a player who may see 9 would be a leak by arithmetic.
+ */
+export function countEntriesPerType(viewer: Viewer): Map<string, number> {
+  const rows = db
+    .select({ typeId: schema.entries.typeId, n: sql<number>`count(*)` })
+    .from(schema.entries)
+    .where(visibleEntryCondition(viewer))
+    .groupBy(schema.entries.typeId)
+    .all();
+  return new Map(rows.map((row) => [row.typeId, Number(row.n)]));
+}
+
 /** All tags in use, for the tag autocomplete on the entry page. */
 export function listAllTags(viewer: Viewer): string[] {
   return listTagsWithCounts(viewer).map((t) => t.tag);
@@ -458,14 +473,14 @@ export function updateEntry(
   } = {},
 ): SaveResult {
   const entry = db.select().from(schema.entries).where(eq(schema.entries.id, entryId)).get();
-  if (!entry) throw new Error('Fiche niet gevonden');
+  if (!entry) throw new Error('Artikel niet gevonden');
 
   // §17: someone who may see this fiche but not change it gets the same road
   // a locked fiche offers everyone — the edit becomes a proposal for the owner
   // or a Keeper to look at. Anyone who cannot see it gets nothing at all.
   if (!user.isKeeper) {
     const grant = grantFor('entry', entryId, user.id);
-    if (!canView(entry, user, grant)) throw new Error('Fiche niet gevonden');
+    if (!canView(entry, user, grant)) throw new Error('Artikel niet gevonden');
     if (!canEdit(entry, user, grant)) {
       db.insert(schema.pendingEdits)
         .values({
@@ -576,7 +591,7 @@ export function updateEntry(
 export function softDeleteEntry(entryId: string, userId: string) {
   // §17: to the trash is an edit like any other.
   if (!viewerCanEdit('entry', entryId, viewerOf(userId))) {
-    throw new Error('Je mag deze fiche niet bewerken.');
+    throw new Error('Je mag dit artikel niet bewerken.');
   }
   const name = db
     .select({ name: schema.entries.name })
@@ -617,7 +632,7 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
   if (!revision) throw new Error('Versie niet gevonden');
   // §17: putting an old version back is an edit.
   if (!viewerCanEdit('entry', revision.entryId, user)) {
-    throw new Error('Je mag deze fiche niet bewerken.');
+    throw new Error('Je mag dit artikel niet bewerken.');
   }
 
   const snapshot = revision.snapshot as Record<string, unknown>;

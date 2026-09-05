@@ -10,6 +10,14 @@ import { createPortal } from 'react-dom';
  * Rendered through a portal onto <body>: a sheet opened from inside the side
  * menu (which is sticky, and so a stacking context of its own) would otherwise
  * sit *under* the page it is supposed to cover.
+ *
+ * The key handler and the focus bookkeeping run exactly once, for the life of
+ * the sheet, and read the latest `onClose` through a ref. They used to re-run
+ * whenever `onClose` changed — and every caller passes an inline arrow, so
+ * that was every render: each keystroke in a field inside the sheet tore the
+ * effect down, which handed focus back to the button that opened the sheet,
+ * and set it up again with *that* button as the thing to return to. Typing in
+ * "Landkaart ophangen" lost the field on every key. (Nick, 5 Sep 2026.)
  */
 export function Sheet({
   children,
@@ -24,12 +32,15 @@ export function Sheet({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
@@ -54,9 +65,14 @@ export function Sheet({
     return () => {
       document.removeEventListener('keydown', onKey, true);
       document.body.style.overflow = overflow;
-      previouslyFocused?.focus?.();
+      // Back to where the person was before the sheet opened — but only if
+      // focus is still inside the sheet (or nowhere); a person who has already
+      // clicked elsewhere is not yanked back.
+      const active = document.activeElement;
+      const inSheet = !active || active === document.body || panelRef.current?.contains(active);
+      if (inSheet) previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   if (!mounted) return null;
 
@@ -64,7 +80,7 @@ export function Sheet({
     <div
       className="sheet-backdrop"
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) onCloseRef.current();
       }}
     >
       <div

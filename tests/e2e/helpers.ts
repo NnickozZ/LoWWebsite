@@ -8,9 +8,13 @@ export function inviteCode(): string {
   return readFileSync(join(root, 'data-e2e', 'invite.txt'), 'utf8').trim();
 }
 
-/** The "+" is a FAB on phones and a sidebar button on desktop; click whichever is on screen. */
+/**
+ * The "+" is a FAB on phones and a sidebar button on desktop; click whichever
+ * is on screen. Some pages (the wiki) carry a second one of their own, so the
+ * first visible one is the answer.
+ */
 export function newEntryButton(page: Page) {
-  return page.getByRole('button', { name: 'Nieuwe fiche' }).locator('visible=true');
+  return page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first();
 }
 
 export async function signIn(page: Page, username: string, password: string) {

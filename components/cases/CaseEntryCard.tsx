@@ -154,7 +154,7 @@ export function CaseEntryCard({
               }}
             >
               <Icon name="close" size={15} />
-              Uitsnede van de fiche gebruiken
+              Uitsnede van het {ui.words.entry} gebruiken
             </button>
           )}
           <button type="button" className="suggest-item" onClick={remove}>

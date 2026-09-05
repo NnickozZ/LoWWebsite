@@ -22,7 +22,7 @@ test('a case crops a cover for itself without touching the entry', async ({ page
   // -- an entry with a cover, left at its default crop -----------------------
   await page.goto('/wiki/character');
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByLabel('Naam').fill(entryName);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');

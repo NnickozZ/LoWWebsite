@@ -58,23 +58,25 @@ test('shots', async ({ page }, info) => {
   };
   await place(0.45, 0.45);
   let ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
-  await ask.getByRole('tab', { name: /notitie/ }).click();
-  await ask.getByLabel('Naam').fill('Hier lag de boot');
-  await ask.getByLabel('Tekst').fill('Aangespoeld op de ochtend van 3 mei.');
-  await ask.getByRole('button', { name: 'Speld zetten' }).click();
-  await page.getByRole('dialog', { name: 'Hier lag de boot' }).waitFor();
+  await ask.getByPlaceholder('Zoek een artikel…').fill('Hier lag de boot');
+  await ask.getByRole('button', { name: /Notitie .Hier lag de boot. zetten/ }).click();
+  const noteSheet = page.getByRole('dialog', { name: 'Hier lag de boot' });
+  await noteSheet.waitFor();
+  await noteSheet.getByLabel('Tekst').fill('Aangespoeld op de ochtend van 3 mei.');
+  await noteSheet.getByRole('button', { name: 'Opslaan' }).click();
+  await page.waitForTimeout(400);
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await place(0.62, 0.38);
   ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
-  await ask.getByPlaceholder('Zoek een fiche…').fill('Pier');
+  await ask.getByPlaceholder('Zoek een artikel…').fill('Pier');
   await page.locator('.suggest-item').filter({ hasText: 'Pier Boone' }).first().click();
   await page.getByRole('dialog', { name: 'Pier Boone' }).waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await place(0.3, 0.6);
   ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
-  await ask.getByPlaceholder('Zoek een fiche…').fill('Vuur');
+  await ask.getByPlaceholder('Zoek een artikel…').fill('Vuur');
   await page.waitForTimeout(400);
   const first = page.locator('.suggest-item').filter({ hasNotText: 'aanmaken' }).first();
   if (await first.isVisible().catch(() => false)) {
@@ -90,13 +92,53 @@ test('shots', async ({ page }, info) => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: `shots/${p}-map-pin.png` });
   await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+
+  // Zoomed in: the pins must stay crisp (5 Sep). And the legend unfolded.
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Inzoomen' }).click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `shots/${p}-map-zoomed.png` });
+  const legendToggle = page.getByRole('button', { name: /^Legenda/ });
+  if ((await legendToggle.getAttribute('aria-expanded')) !== 'true') await legendToggle.click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `shots/${p}-map-legend.png` });
 
   await page.goto('/wiki');
   await page.waitForTimeout(300);
   await page.screenshot({ path: `shots/${p}-wiki.png` });
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `shots/${p}-wiki-filters.png` });
+  const firstTag = page.getByRole('group', { name: 'Tag' }).getByRole('button').first();
+  if (await firstTag.isVisible().catch(() => false)) {
+    await firstTag.click();
+    await page.waitForTimeout(600);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `shots/${p}-wiki-filtered.png` });
+  }
+  await page.goto('/search?q=Pier');
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `shots/${p}-search.png` });
+
+  // A seeded artikel, with its fields and text, as the Keeper.
+  await page.goto('/wiki/character');
+  await page.waitForTimeout(300);
+  await page.getByRole('link', { name: /Pier Boone/ }).first().click();
+  await page.waitForURL('**/e/**');
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `shots/${p}-entry.png`, fullPage: true });
+
   await page.goto('/cases');
   await page.waitForTimeout(300);
   await page.screenshot({ path: `shots/${p}-cases.png` });
+  const firstCase = page.locator('.card').first();
+  if (await firstCase.isVisible().catch(() => false)) {
+    await firstCase.click();
+    await page.waitForURL('**/c/**');
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `shots/${p}-case.png` });
+  }
   await page.goto('/maps');
   await page.waitForTimeout(300);
   await page.screenshot({ path: `shots/${p}-maps.png` });
@@ -104,8 +146,12 @@ test('shots', async ({ page }, info) => {
   // A player with a character, for the switcher.
   await page.context().clearCookies();
   await signUpAs(page, `Nick ${stamp}`);
-  await page.keyboard.press('n');
-  const ns = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const ns = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  for (let attempt = 0; attempt < 8 && !(await ns.isVisible()); attempt++) {
+    await page.keyboard.press('n');
+    await page.waitForTimeout(400);
+  }
+  if (!(await ns.isVisible())) await page.locator('.fab').click();
   await ns.getByLabel('Naam').fill('Onderzoeker Van Dijk');
   await ns.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
@@ -125,5 +171,5 @@ test('shots', async ({ page }, info) => {
   }
   await page.goto('/');
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `shots/${p}-home.png` });
+  await page.screenshot({ path: `shots/${p}-home.png`, fullPage: true });
 });

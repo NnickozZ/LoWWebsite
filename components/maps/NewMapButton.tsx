@@ -80,7 +80,7 @@ export function NewMapButton() {
                 }}
               />
               <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
-                Een scan, een tekening, een schermafbeelding — tot 20 MB. Grote kaarten blijven scherp tot 3200 px.
+                Een scan, een tekening, een schermafbeelding — tot 100 MB. Grote kaarten blijven scherp tot 3200 px.
               </p>
             </div>
             <div>

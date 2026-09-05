@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Sheet } from './Sheet';
+import { useUi } from './UiProvider';
+import { capitalise } from '@/lib/words';
 import type { EntryTypeLite } from './UiProvider';
 
 export type CreatedEntry = {
@@ -61,6 +63,7 @@ export function NewEntrySheet({
     return types[0]?.slug ?? 'character';
   }, [prefill.typeSlug, types]);
 
+  const words = useUi().words;
   const [typeSlug, setTypeSlug] = useState(initialType);
   const [name, setName] = useState(prefill.name ?? '');
   const [description, setDescription] = useState(prefill.shortDescription ?? '');
@@ -128,7 +131,7 @@ export function NewEntrySheet({
     <Sheet onClose={onClose} labelledBy="new-entry-title">
       <div className="row" style={{ marginBottom: '0.8rem' }}>
         <h2 id="new-entry-title" style={{ margin: 0, fontSize: '1.3rem' }}>
-          Nieuwe fiche
+          {words.newEntry}
         </h2>
         <div className="spacer" />
         <button className="btn btn-ghost btn-small" type="button" onClick={onClose} aria-label="Sluiten">
@@ -139,7 +142,7 @@ export function NewEntrySheet({
       <div
         className="row-wrap"
         role="radiogroup"
-        aria-label="Soort fiche"
+        aria-label={capitalise(words.entryType)}
         style={{ marginBottom: '0.9rem' }}
       >
         {types.map((type) => (

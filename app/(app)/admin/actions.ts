@@ -145,6 +145,9 @@ export async function saveSiteAction(_prev: AdminState, formData: FormData): Pro
   const name = String(formData.get('name') ?? '').trim();
   const tagline = String(formData.get('tagline') ?? '').trim();
   const accent = String(formData.get('accent') ?? '').trim();
+  const intro = String(formData.get('intro') ?? '')
+    .replace(/\r\n/g, '\n')
+    .trim();
 
   if (!name) return { error: 'Het archief heeft een naam nodig.' };
   if (accent && !/^#[0-9a-fA-F]{6}$/.test(accent)) {
@@ -156,6 +159,7 @@ export async function saveSiteAction(_prev: AdminState, formData: FormData): Pro
       name: name.slice(0, 80),
       tagline: tagline.slice(0, 120),
       theme: accent ? { accent } : {},
+      intro: intro.slice(0, 4000),
     })
     .where(eq(schema.siteSettings.id, 1))
     .run();

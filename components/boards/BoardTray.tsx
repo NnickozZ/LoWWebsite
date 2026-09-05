@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { useUi } from '@/components/ui/UiProvider';
+import { capitalise } from '@/lib/words';
 import type { CoverCrop } from '@/lib/db/schema';
 
 export type TrayEntry = {
@@ -43,6 +45,7 @@ export function BoardTray({
   /** Dragged: the canvas takes over and drops it where the pointer lands. */
   onDragStart: (entry: TrayEntry, event: React.DragEvent) => void;
 }) {
+  const words = useUi().words;
   const [open, setOpen] = useState(true);
   const [filter, setFilter] = useState('');
 
@@ -73,7 +76,7 @@ export function BoardTray({
   }
 
   return (
-    <aside className="board-tray" aria-label="Fiches uit het dossier die nog niet op dit prikbord staan">
+    <aside className="board-tray" aria-label={`${capitalise(words.entryPlural)} uit het ${words.case} die nog niet op dit ${words.board} staan`}>
       <div className="board-tray-head">
         <Icon name="folder" size={15} />
         <strong className="small" style={{ flex: 1 }}>

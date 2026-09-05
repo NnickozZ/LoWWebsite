@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       tags?: string[];
     };
 
-    if (!body.name?.trim()) return json({ error: 'Geef de fiche eerst een naam.' }, { status: 400 });
+    if (!body.name?.trim()) return json({ error: 'Geef het artikel eerst een naam.' }, { status: 400 });
 
     const entry = createEntry({
       typeSlug: body.typeSlug || 'character',

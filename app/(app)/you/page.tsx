@@ -68,7 +68,7 @@ export default async function YouPage() {
           <hr className="rule" />
           <h2>Jouw voorstellen</h2>
           <p className="small muted">
-            Bewerkingen die je op een vergrendelde fiche hebt voorgesteld.
+            Bewerkingen die je op een vergrendeld {words.entry} hebt voorgesteld.
           </p>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {proposals.map((proposal) => (

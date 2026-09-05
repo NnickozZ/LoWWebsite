@@ -248,7 +248,7 @@ export function BoardInspector({
           {canOpenEntry && (
             <button type="button" className="btn btn-small" onClick={onOpenEntry}>
               <Icon name="chevron" size={15} />
-              Fiche openen
+              {capitalise(words.entry)} openen
             </button>
           )}
 

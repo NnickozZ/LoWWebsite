@@ -56,7 +56,7 @@ const FIELD_LABELS: Record<string, string> = {
   tags: 'Tags',
   coverAssetId: 'Afbeelding',
   coverCrop: 'Uitsnede van de afbeelding',
-  typeSlug: 'Soort fiche',
+  typeSlug: 'Soort artikel',
 };
 
 function asText(key: string, value: unknown): string {

@@ -37,12 +37,12 @@ const AUDIT_LABELS: Record<string, string> = {
   'user.enabled': 'account ingeschakeld',
   'user.disabled': 'account uitgeschakeld',
   'invite.regenerated': 'uitnodigingscode vernieuwd',
-  'entry.visibility_changed': 'zichtbaarheid van een fiche gewijzigd',
-  'entry.locked': 'fiche vergrendeld',
-  'entry.unlocked': 'fiche ontgrendeld',
-  'entry.revealed': 'fiche onthuld aan spelers',
-  'entry.deleted': 'fiche verwijderd',
-  'entry.restored': 'fiche teruggezet',
+  'entry.visibility_changed': 'zichtbaarheid van een artikel gewijzigd',
+  'entry.locked': 'artikel vergrendeld',
+  'entry.unlocked': 'artikel ontgrendeld',
+  'entry.revealed': 'artikel onthuld aan spelers',
+  'entry.deleted': 'artikel verwijderd',
+  'entry.restored': 'artikel teruggezet',
   'section.created': 'sectie toegevoegd',
   'section.deleted': 'sectie verwijderd',
   'section.visibility_changed': 'zichtbaarheid van een sectie gewijzigd',
@@ -53,16 +53,16 @@ const AUDIT_LABELS: Record<string, string> = {
   'case.restored_revision': 'eerdere versie van een dossier teruggezet',
   'board.restored': 'prikbord teruggezet',
   'board.restored_revision': 'eerdere versie van een prikbord teruggezet',
-  'entry_type.created': 'soort fiche aangemaakt',
-  'entry_type.edited': 'soort fiche bewerkt',
-  'entry_type.deleted': 'soort fiche verwijderd',
+  'entry_type.created': 'soort artikel aangemaakt',
+  'entry_type.edited': 'soort artikel bewerkt',
+  'entry_type.deleted': 'soort artikel verwijderd',
   'site.settings_changed': 'site-instellingen gewijzigd',
   'site.logo_changed': 'logo gewijzigd',
   'site.words_changed': 'woorden van het archief gewijzigd',
   'archive.exported': 'archief gedownload',
 };
 
-const TRASH_KINDS: Record<string, string> = { entry: 'Fiche', case: 'Dossier', board: 'Prikbord' };
+const TRASH_KINDS: Record<string, string> = { entry: 'Artikel', case: 'Dossier', board: 'Prikbord' };
 
 export default async function AdminPage({
   searchParams,
@@ -161,7 +161,7 @@ export default async function AdminPage({
             <div className="empty">
               <p style={{ margin: 0 }}>Niets te beoordelen.</p>
               <p className="small" style={{ margin: '0.4rem 0 0' }}>
-                Bewerkingen van spelers op een vergrendelde fiche komen hier terecht.
+                Bewerkingen van spelers op een vergrendeld {words.entry} komen hier terecht.
               </p>
             </div>
           ) : (
@@ -237,8 +237,8 @@ export default async function AdminPage({
         <>
           <h2 style={{ marginTop: 0 }}>{words.adminTypes}</h2>
           <p className="small muted" style={{ maxWidth: '46rem' }}>
-            Naam, pictogram, kleur, rand en velden — en wat een fiche van deze soort op haar pagina
-            heeft staan: welke blokken, in welke volgorde, en welke lijsten. Bestaande fiches houden
+            Naam, pictogram, kleur, rand en velden — en wat een {words.entry} van deze soort op zijn pagina
+            heeft staan: welke blokken, in welke volgorde, en welke lijsten. Bestaande {words.entryPlural} houden
             wat ze hadden; een veld of lijst die je weghaalt en terugzet, brengt zijn waarde weer
             mee.
           </p>
@@ -315,7 +315,7 @@ export default async function AdminPage({
         <>
           <h2 style={{ marginTop: 0 }}>Geschiedenis van dossiers en prikborden</h2>
           <p className="small muted">
-            De geschiedenis van een fiche staat op de fiche zelf. Dossiers en prikborden bewaren
+            De geschiedenis van een {words.entry} staat op het {words.entry} zelf. Dossiers en prikborden bewaren
             hun eigen momentopnamen; kies er een om terug te zetten.
           </p>
 
@@ -407,6 +407,7 @@ export default async function AdminPage({
             tagline={settings?.tagline ?? ''}
             accent={(settings?.theme as { accent?: string })?.accent ?? ''}
             logoAssetId={settings?.logoAssetId ?? null}
+            intro={settings?.intro ?? ''}
           />
         </>
       ),

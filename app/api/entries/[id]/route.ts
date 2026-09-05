@@ -13,7 +13,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     const user = await requireUser();
     const { id } = await ctx.params;
     const entry = getEntryFieldsForViewer(id, user);
-    if (!entry) return json({ error: 'Fiche niet gevonden' }, { status: 404 });
+    if (!entry) return json({ error: 'Artikel niet gevonden' }, { status: 404 });
     return json({ ...entry, tags: entry.tags ?? [], fields: entry.fields ?? {} });
   } catch (err) {
     return apiError(err);

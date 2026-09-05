@@ -76,7 +76,7 @@ export function PageBlocksEditor({
     <div>
       <span className="label">De pagina</span>
       <p className="tiny muted" style={{ margin: '0 0 0.5rem' }}>
-        Wat er op een fiche van deze soort staat, van boven naar beneden. De vijf vaste blokken kun
+        Wat er op een artikel van deze soort staat, van boven naar beneden. De vijf vaste blokken kun
         je hernoemen, verplaatsen en verbergen; lijsten mag je er zoveel bij zetten als je wilt.
       </p>
 
@@ -306,7 +306,7 @@ function BlockRow({
           )}
           {!pointingFields.length && (
             <p className="tiny muted" style={{ margin: 0 }}>
-              Deze soorten hebben nog geen veld dat naar een andere fiche wijst. Geef er eerst een
+              Deze soorten hebben nog geen veld dat naar een ander artikel wijst. Geef er eerst een
               koppelingsveld bij, dan verschijnt het hier.
             </p>
           )}
@@ -363,7 +363,7 @@ function BlockRow({
           checked={Boolean(block.open)}
           onChange={(event) => onPatch({ open: event.target.checked })}
         />
-        Staat open zodra de fiche opengaat
+        Staat open zodra het artikel opengaat
       </label>
     </li>
   );
@@ -383,8 +383,8 @@ const BLOCK_WHAT: Record<BlockKind, string> = {
   fields: 'De velden van deze soort, met de tags eronder.',
   body: 'Het grote tekstvak.',
   sections: 'De blokken die je apart kunt onthullen.',
-  backlinks: 'Alles wat naar deze fiche verwijst.',
-  history: 'Eerdere versies van deze fiche.',
+  backlinks: 'Alles wat naar dit artikel verwijst.',
+  history: 'Eerdere versies van dit artikel.',
   links: 'Een lijst die je zelf vult.',
   derived: 'Een lijst die zichzelf vult uit een veld.',
 };

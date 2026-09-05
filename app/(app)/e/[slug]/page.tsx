@@ -187,7 +187,7 @@ export default async function EntryPage({
               </div>
             ) : (
               <p className="muted small" style={{ margin: 0 }}>
-                Nog niets. Deze lijst vult zichzelf zodra een fiche hiernaar wijst.
+                Nog niets. Deze lijst vult zichzelf zodra een {words.entry} hiernaar wijst.
               </p>
             )}
           </div>
@@ -324,6 +324,28 @@ export default async function EntryPage({
     }
   }
 
+  // The bin: a server action, so it is made here and handed over as a slot
+  // like the other reads — EntryView files it under "Beheer van dit artikel".
+  if (mayEdit) {
+    slots.delete = (
+      <details key="delete" className="section">
+        <summary>{words.deleteEntry}</summary>
+        <div style={{ padding: '0.6rem 0 1.5rem' }}>
+          <p className="small muted">
+            Niets wordt echt gewist — een {words.keeper} kan dit terughalen uit de prullenbak.
+          </p>
+          <form action={deleteEntryAction}>
+            <input type="hidden" name="entryId" value={entry.id} />
+            <button className="btn btn-small btn-danger" type="submit">
+              <Icon name="trash" size={14} />
+              Naar de prullenbak
+            </button>
+          </form>
+        </div>
+      </details>
+    );
+  }
+
   return (
     <>
       <EntryView
@@ -376,26 +398,6 @@ export default async function EntryPage({
           confidential: item.viewMode !== 'all',
         }))}
       />
-
-      {mayEdit && (
-      <div className="page">
-        <details className="section">
-          <summary>{words.deleteEntry}</summary>
-          <div style={{ padding: '0.6rem 0 1.5rem' }}>
-            <p className="small muted">
-              Niets wordt echt gewist — een {words.keeper} kan dit terughalen uit de prullenbak.
-            </p>
-            <form action={deleteEntryAction}>
-              <input type="hidden" name="entryId" value={entry.id} />
-              <button className="btn btn-small btn-danger" type="submit">
-                <Icon name="trash" size={14} />
-                Naar de prullenbak
-              </button>
-            </form>
-          </div>
-        </details>
-      </div>
-      )}
     </>
   );
 }

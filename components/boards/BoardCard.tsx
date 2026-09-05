@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { assetUrl, coverStyle } from '@/components/Cover';
 import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
+import { useUi } from '@/components/ui/UiProvider';
+import { capitalise } from '@/lib/words';
 import { PIN_SIZE, type BoardCard as BoardCardModel, type CardCrop } from '@/lib/boards/merge';
 import type { BoardEntryFacts } from '@/lib/boards/service';
 import type { CoverCrop } from '@/lib/db/schema';
@@ -79,6 +81,7 @@ export function BoardCardView({
   onViewFull: () => void;
   onConvertToEntry: () => void;
 }) {
+  const words = useUi().words;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(card.text);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -184,7 +187,7 @@ export function BoardCardView({
           title={
             isEntryCard && entry
               ? interactive
-                ? 'Dubbelklik om de fiche te openen'
+                ? `Dubbelklik om het ${words.entry} te openen`
                 : undefined
               : isOwn && interactive
                 ? 'Dubbelklik om op volledige grootte te bekijken'
@@ -272,7 +275,7 @@ export function BoardCardView({
             onClick={onConvertToEntry}
           >
             <Icon name="plus" size={12} />
-            Fiche aanmaken
+            {capitalise(words.entry)} aanmaken
           </button>
         )}
       </div>

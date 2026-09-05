@@ -17,10 +17,10 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
 
   await newEntryButton(page).click();
 
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet).toBeVisible();
 
-  await sheet.getByRole('radio', { name: 'Personages' }).click();
+  await sheet.getByRole('radio', { name: 'Personen' }).click();
   await sheet.getByLabel('Naam').fill(entryName);
   await sheet
     .getByLabel('Korte beschrijving')
@@ -37,8 +37,19 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
   await page.waitForURL('**/e/**');
   await expect(page.getByLabel('Naam')).toHaveValue(entryName);
   await expect(page.getByLabel('Korte beschrijving')).toHaveValue(/Vlissingen quay/);
-  // The page is already valid and published — "Add more" is open, nothing required.
-  await expect(page.locator('details.section[open] > summary', { hasText: 'Meer toevoegen' })).toBeVisible();
+  // The page is already valid and published — "Meer info" is there to fill,
+  // open: a card beside the text on a wide screen, unfolded under the
+  // header on a phone.
+  const info = page.locator('#block-info');
+  await expect(info).toBeVisible();
+  await expect(info).toContainText('Meer info');
+  await expect(info.getByLabel('Bijnamen')).toBeVisible();
+
+  // "Op deze pagina": the outline names the parts and jumps to them.
+  const outline = page.getByRole('navigation', { name: 'Op deze pagina' });
+  await expect(outline.getByRole('link', { name: 'Tekst' })).toBeVisible();
+  await outline.getByRole('link', { name: /Genoemd in/ }).click();
+  await expect(page.locator('details.section[open] > summary', { hasText: 'Genoemd in' })).toBeVisible();
 
   // And it is immediately findable.
   await page.goto('/search');

@@ -1,18 +1,20 @@
 /**
  * §11's word list.
  *
- * Every term the interface repeats — fiche, dossier, prikbord, punaise — lives
- * here once, with the Dutch the archive shipped with as its default. A Keeper
- * renames any of them under Beheer → Woorden and the whole app follows. Nothing
- * else in the code may hard-code one of these words; if a screen needs a term
- * that is not here, add it here first.
+ * Every term the interface repeats — artikel, dossier, prikbord, punaise —
+ * lives here once, with the Dutch the archive ships with as its default. A
+ * Keeper renames any of them under Beheer → Woorden and the whole app follows.
+ * Nothing else in the code may hard-code one of these words; if a screen needs
+ * a term that is not here, add it here first.
  *
  * Deliberately pure: client components import this, so it must never open the
  * database. `lib/admin/words.ts` is the half that reads and writes settings.
  *
  * Two rules for the defaults below:
- *   1. A default is exactly what the screen said before this file existed, so
- *      an archive that never touches Beheer looks identical.
+ *   1. A default is what the screen says out of the box. (5 Sep 2026: "fiche"
+ *      became "artikel" everywhere at Nick's request — the *keys* still say
+ *      `entry`, and the code's comments still say fiche here and there; only
+ *      what a person reads changed.)
  *   2. Keys never change. They are what a Keeper's override is filed under; a
  *      renamed key would silently drop their word.
  */
@@ -33,10 +35,10 @@ export const WORD_GROUPS: WordGroup[] = [
     title: 'Dingen in het archief',
     note: 'De zelfstandige naamwoorden. Enkelvoud en meervoud apart, want het archief telt ze.',
     words: [
-      { key: 'entry', what: 'Eén fiche', fallback: 'fiche' },
-      { key: 'entryPlural', what: 'Meer fiches', fallback: 'fiches' },
-      { key: 'entryType', what: 'Eén soort fiche', fallback: 'soort fiche' },
-      { key: 'entryTypePlural', what: 'Meer soorten', fallback: 'soorten fiches' },
+      { key: 'entry', what: 'Eén artikel', fallback: 'artikel' },
+      { key: 'entryPlural', what: 'Meer artikelen', fallback: 'artikelen' },
+      { key: 'entryType', what: 'Eén soort artikel', fallback: 'soort artikel' },
+      { key: 'entryTypePlural', what: 'Meer soorten', fallback: 'soorten artikelen' },
       { key: 'case', what: 'Eén dossier', fallback: 'dossier' },
       { key: 'casePlural', what: 'Meer dossiers', fallback: 'dossiers' },
       { key: 'board', what: 'Eén prikbord', fallback: 'prikbord' },
@@ -63,7 +65,7 @@ export const WORD_GROUPS: WordGroup[] = [
         key: 'character',
         what: 'Eén karakter',
         fallback: 'karakter',
-        hint: 'De fiche die een speler als zichzelf draagt.',
+        hint: 'Het artikel dat een speler als zichzelf draagt.',
       },
       { key: 'characterPlural', what: 'Meer karakters', fallback: 'karakters' },
     ],
@@ -90,18 +92,26 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'playsAs', what: 'Boven het gekozen karakter', fallback: 'Je speelt als' },
       { key: 'asYourself', what: 'De keuze om geen karakter te dragen', fallback: 'Als jezelf' },
       { key: 'yourCharacters', what: 'De kop op de Jij-pagina', fallback: 'Jouw karakters' },
-      { key: 'thisIsMyCharacter', what: 'De knop op een fiche', fallback: 'Dit is mijn karakter' },
-      { key: 'onTheMap', what: 'De kop op een fiche met spelden', fallback: 'Op de landkaart' },
+      { key: 'thisIsMyCharacter', what: 'De knop op een artikel', fallback: 'Dit is mijn karakter' },
+      { key: 'onTheMap', what: 'De kop op een artikel met spelden', fallback: 'Op de landkaart' },
+      {
+        key: 'assigned',
+        what: 'De gekozen personen bij een dossier',
+        fallback: 'Toegewezen',
+        hint: 'Wie een vertrouwelijk dossier mag zien. Bij artikelen en prikborden blijft het "gekozen personen".',
+      },
     ],
   },
   {
-    title: 'Knoppen en koppen op een fiche',
+    title: 'Knoppen en koppen op een artikel',
     words: [
-      { key: 'newEntry', what: 'De grote knop in het menu', fallback: 'Nieuwe fiche' },
+      { key: 'newEntry', what: 'De grote knop in het menu', fallback: 'Nieuw artikel' },
       { key: 'newOfType', what: 'Nieuw, per soort', fallback: 'Nieuw' },
       { key: 'addToCase', what: 'Toevoegen aan een dossier', fallback: 'Aan dossier toevoegen' },
       { key: 'pinToBoard', what: 'Prikken op een prikbord', fallback: 'Op prikbord prikken' },
-      { key: 'addMore', what: 'De kop boven de velden en tags', fallback: 'Meer toevoegen' },
+      { key: 'addMore', what: 'De kop boven de velden en tags', fallback: 'Meer info' },
+      { key: 'onThisPage', what: 'De kop boven de inhoudsopgave', fallback: 'Op deze pagina' },
+      { key: 'manage', what: 'De kop boven rechten en Keeper-instellingen', fallback: 'Beheer van dit artikel' },
       { key: 'backlinks', what: 'De kop boven de verwijzingen', fallback: 'Genoemd in' },
       { key: 'history', what: 'De kop boven de versies', fallback: 'Geschiedenis' },
       {
@@ -110,7 +120,7 @@ export const WORD_GROUPS: WordGroup[] = [
         fallback: 'Zichtbaarheid en onthullingen',
       },
       { key: 'keeperNotes', what: 'De kop boven de geheime notities', fallback: 'Notities van de Keeper' },
-      { key: 'deleteEntry', what: 'De kop boven de prullenbakknop', fallback: 'Deze fiche verwijderen' },
+      { key: 'deleteEntry', what: 'De kop boven de prullenbakknop', fallback: 'Dit artikel verwijderen' },
     ],
   },
   {
@@ -120,7 +130,7 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'adminTitle', what: 'De titel van deze pagina', fallback: 'Beheer' },
       { key: 'adminUsers', what: 'Gebruikers', fallback: 'Gebruikers' },
       { key: 'adminReview', what: 'Beoordelen', fallback: 'Beoordelen' },
-      { key: 'adminTypes', what: 'Soorten fiches', fallback: 'Soorten fiches' },
+      { key: 'adminTypes', what: 'Soorten artikelen', fallback: 'Soorten artikelen' },
       { key: 'adminWords', what: 'Woorden', fallback: 'Woorden' },
       { key: 'adminTrash', what: 'Prullenbak', fallback: 'Prullenbak' },
       { key: 'adminHistory', what: 'Geschiedenis', fallback: 'Geschiedenis' },
@@ -166,7 +176,7 @@ export function resolveWords(overrides: unknown): Words {
 
 /**
  * Sentence-case a word that is stored lower case, for the start of a heading:
- * `fiche` → `Fiche`. Leaves a word the Keeper capitalised themselves alone.
+ * `artikel` → `Artikel`. Leaves a word the Keeper capitalised themselves alone.
  */
 export function capitalise(word: string): string {
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : word;

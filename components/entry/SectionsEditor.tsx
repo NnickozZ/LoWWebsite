@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Icon } from '@/components/Icon';
@@ -89,6 +89,7 @@ export function SectionsEditor({
   users,
   cases,
   liveUser,
+  onOutlineChange,
 }: {
   entryId: string;
   sections: SectionLite[];
@@ -97,11 +98,19 @@ export function SectionsEditor({
   cases: RevealableCase[];
   /** §20: this person's name and ink in the shared text; null when not signed in. */
   liveUser: LiveUser | null;
+  /** The page's outline follows the titles: told on every add, rename and removal. */
+  onOutlineChange?: (sections: { id: string; title: string }[]) => void;
 }) {
   const ui = useUi();
   const router = useRouter();
   const [sections, setSections] = useState(initial);
   const [busy, setBusy] = useState(false);
+
+  const tell = onOutlineChange;
+  useEffect(() => {
+    tell?.(sections.map((section) => ({ id: section.id, title: section.title })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections]);
 
   async function patch(id: string, body: Record<string, unknown>) {
     const response = await fetch(`/api/sections/${id}`, {
@@ -150,7 +159,7 @@ export function SectionsEditor({
     return (
       <>
         {sections.map((section) => (
-          <section key={section.id} className="entry-section">
+          <section key={section.id} id={`section-${section.id}`} className="entry-section">
             <h2 className="entry-section-title">{section.title || 'Zonder titel'}</h2>
             <SectionText section={section} user={liveUser} editable={false} onChange={() => undefined} />
           </section>
@@ -162,7 +171,7 @@ export function SectionsEditor({
   return (
     <section className="entry-sections">
       <div className="row" style={{ marginBottom: '0.5rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Secties</h2>
+        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{ui.words.sectionPlural.charAt(0).toUpperCase() + ui.words.sectionPlural.slice(1)}</h2>
         <div className="spacer" />
         <button type="button" className="btn btn-small" onClick={() => void add()} disabled={busy}>
           <Icon name="plus" size={15} />
@@ -178,7 +187,7 @@ export function SectionsEditor({
       )}
 
       {sections.map((section) => (
-        <div key={section.id} className="entry-section entry-section-editing">
+        <div key={section.id} id={`section-${section.id}`} className="entry-section entry-section-editing">
           <div className="row-wrap" style={{ marginBottom: '0.4rem' }}>
             <label className="visually-hidden" htmlFor={`section-title-${section.id}`}>
               Titel van de sectie

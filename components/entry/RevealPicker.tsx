@@ -90,7 +90,7 @@ export function RevealPicker({
                   type="button"
                   className="chip chip-selectable"
                   onClick={() => toggleCase(item.memberIds)}
-                  title={`Alle toegewezen onderzoekers van ${item.name}`}
+                  title={`Iedereen die ${item.name} mag zien`}
                 >
                   <Icon name="folder" size={12} />
                   {item.name}

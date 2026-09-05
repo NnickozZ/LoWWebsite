@@ -95,6 +95,12 @@ Put Caddy or the host's reverse proxy in front for TLS. The compose file also
 runs a small sidecar that writes a backup zip at 03:15 every night and keeps the
 last fourteen.
 
+**Uploads and the proxy.** A player may upload a picture of 10 MB, a Keeper
+one of 100 MB (`lib/assets.ts`). Whatever sits in front of the server has a
+ceiling of its own: nginx refuses anything over 1 MB unless `client_max_body_size
+100m;` is set on the server block; Caddy has no such default. A limit the app
+allows but the proxy refuses looks like a broken upload button.
+
 ### Without Docker (Node + pm2)
 
 If the VPS already runs Node for something else, the app can run beside it.
@@ -305,8 +311,8 @@ app/
     b/[id]/          the corkboard
     cases/ boards/   two of the index pages
     maps/            the shelf of maps, and one map with its pins
-    wiki/            browse, and browse-by-type
-    search/          instant search
+    wiki/            browse, and browse-by-type (one row of soorten as tabs)
+    search/          instant search, one soort at a time
     admin/           users, review queue, types and pages, words, trash,
                      history, site, export, log
     you/             account, and the wardrobe of characters
@@ -315,8 +321,9 @@ app/
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
-  entry/             cover, the list crop, type fields, tags, the autosave
-                     hook, the proposals panel
+  entry/             cover, the list crop, type fields (also as an infobox),
+                     tags, the autosave hook, the proposals panel, the
+                     outline of the page (EntryOutline)
   cases/             the dossier, its add-boxes and cards
   boards/            the canvas, the card, the inspector, the sync hook
   maps/              the map canvas (pan, zoom, pins, legend), the Keeper's
@@ -325,7 +332,11 @@ components/
   you/               the character switcher and the wardrobe
   ui/                the new-entry and new-case sheets, the yes/no sheet,
                      toasts, shortcuts
-  SortFilterBar.tsx  the one sort-and-filter bar every list page shares
+  SortFilterBar.tsx  the one toolbar every list page shares: count, the
+                     Filters panel, the sort, the active-filter chips
+  TypeTabs.tsx       the wiki's soorten as tabs, with counts
+  useOverflowing.ts  "does this strip really overflow?" — for scrollbars that
+                     should not show until they must
 lib/
   auth/              password hashing and recovery, sessions, rate limiting
   db/                schema, migrations, seeds, the connection
@@ -346,7 +357,9 @@ access.ts            §17: who may look and who may touch, as one SQL condition
 characters.ts        §18: who a person is being, and the name a feed prints
 listParams.ts        the server half of the sort-and-filter bar
 words.ts             every term the interface repeats, with its default
-pageBlocks.ts        what a soort fiche's page is made of (pure; the queries
+intro.ts             the start page's welcome: the default text and paragraphs
+assets.ts            pictures in three sizes, and the two upload ceilings
+pageBlocks.ts        what a soort artikel's page is made of (pure; the queries
                      behind it live in lib/entries/derived.ts)
 scripts/             dev, bootstrap, seed-demo, backup, restore
 tests/unit/          vitest
@@ -356,7 +369,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Thirteen rules worth knowing before changing anything:
+Fifteen rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -411,9 +424,10 @@ Thirteen rules worth knowing before changing anything:
    never travel to a player's browser as props. Rule 1 applies to a derived list
    exactly as it does to a search result.
 8. **No screen types a word that `lib/words.ts` already holds.** About sixty
-   terms — fiche, dossier, prikbord, punaise, landkaart, speld, karakter, the
-   menu, the main buttons, the Beheer tabs — are the Keeper's to rename in
-   Beheer → Woorden. Read them from
+   terms — artikel (which was "fiche" until 5 September 2026; the keys still
+   say `entry`), dossier, prikbord, punaise, landkaart, speld, karakter,
+   toegewezen, the menu, the main buttons, the Beheer tabs — are the Keeper's
+   to rename in Beheer → Woorden. Read them from
    `useUi().words` in a client component and `getWords()` on the server; adding a
    term to that file is what puts it on the screen. Only the Keeper's *changes*
    are stored, so an empty box means the default and improving a default still
@@ -455,3 +469,16 @@ Thirteen rules worth knowing before changing anything:
     that binds to a room is loaded client-only, and `yjs` is a server
     external, so the server holds one copy of Yjs — two copies fail their own
     `instanceof` checks, and Yjs says so at start-up.
+14. **A `Sheet` never re-binds while it is open.** Its key handler and its
+    focus bookkeeping run once, for the life of the sheet, and read the latest
+    `onClose` through a ref. An effect that depended on `onClose` — which every
+    caller passes as an inline arrow, a new function per render — re-ran on
+    each keystroke and handed focus back to the button that opened the sheet.
+    Anything else that "restores" focus or binds a document listener should be
+    written the same way.
+15. **Pins, cursors and anything else that must stay crisp live outside the
+    transformed layer.** The map's picture is scaled with one transform; its
+    pins are placed in stage pixels from the same view state, in a layer that
+    is never scaled. A child counter-scaled inside a transformed layer keeps
+    its size but is rasterised at the layer's scale — blurry at 4x. The board's
+    live cursors follow the same idea.

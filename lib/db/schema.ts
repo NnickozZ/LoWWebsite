@@ -60,6 +60,8 @@ export const siteSettings = sqliteTable('site_settings', {
    * the default, so a later change to a default still reaches them.
    */
   words: text('words', { mode: 'json' }).$type<Record<string, string>>().notNull().default({}),
+  /** The start page's welcome, in the Keeper's words; empty means the default text. */
+  intro: text('intro').notNull().default(''),
 });
 
 export const entryTypes = sqliteTable(

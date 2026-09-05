@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 
 export type AdminPane = {
@@ -19,7 +20,10 @@ export type AdminPane = {
  * on the server; this only chooses which one is on screen.
  */
 export function AdminTabs({ panes }: { panes: AdminPane[] }) {
-  const [active, setActive] = useState(panes[0]?.key ?? '');
+  // `/admin?tab=site` opens on that pane — the start page links there.
+  const params = useSearchParams();
+  const asked = params.get('tab');
+  const [active, setActive] = useState(panes.some((pane) => pane.key === asked) ? asked! : (panes[0]?.key ?? ''));
   const current = panes.find((pane) => pane.key === active) ?? panes[0];
 
   return (

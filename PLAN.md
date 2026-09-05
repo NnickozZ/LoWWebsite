@@ -430,6 +430,102 @@ Phases 1 and 2 of the brief, as a checklist. Tick items as they land; keep this 
       the production build and on `next dev` (Strict Mode's double mount found
       two real bugs)
 
+## Phase 6 — Nick's list of 5 September: words, the artikel page, the shelves
+
+Sixteen points, delivered together (see `DECISIONS.md`, Phase 6).
+
+### Words
+
+- [x] *Fiche* is *artikel* everywhere: the word list's defaults
+      (`entry`, `entryPlural`, `entryType`, `entryTypePlural`, `newEntry`,
+      `deleteEntry`, `adminTypes`), every hard-coded sentence, every error
+      message, the tests and the glossary; the keys stay `entry`, and a Keeper
+      who prefers another word still has Beheer → Woorden
+- [x] *Meer toevoegen* is *Meer info* — and is an infobox now (below)
+- [x] *Personages* is *Personen*: the seed, a one-time marker
+      (`seed:personen-label`) that renames the soort on an existing archive
+      unless the Keeper renamed it themselves, and the texts that said
+      "personage"
+- [x] A dossier's chosen few are *Toegewezen* (a word of its own, `assigned`):
+      the chip reads "Toegewezen: 3" with the initials beside it, the rights
+      dial of a dossier offers *Toegewezen* where an artikel or prikbord
+      offers *Gekozen personen*
+
+### Start
+
+- [x] A welcome block: the archive's name and tagline, the Keeper's own
+      text (Beheer → Site → *Welkomsttekst op de startpagina*, migration
+      `0007`; blank lines make paragraphs; empty means the archive's own words,
+      which follow the word list) and what the archive counts for this viewer
+- [x] *Sinds je laatste bezoek* is a sidebar on a desktop (sticky, scrolls on
+      its own) and the second block on a phone; eight rows in view, the rest
+      folded under *Nog n eerder*
+
+### Dossiers
+
+- [x] The tab row shows no scrollbar until the tabs really do not fit
+      (`useOverflowing`, measured; `overflow-y: hidden` because `overflow-x:
+      auto` alone turned a one-pixel-taller active tab into a vertical bar)
+
+### Uploads
+
+- [x] A player's picture may weigh 10 MB, a Keeper's 100 MB
+      (`uploadLimitFor`), checked on the declared size before the body is read
+      and on the bytes that arrived; every upload route and every message say
+      the limit that applies
+
+### Landkaarten
+
+- [x] Typing in *Landkaart ophangen* keeps the field: `Sheet` ran its focus
+      bookkeeping again on every render (an inline `onClose` is a new function
+      each time) and handed focus back to the opening button on each keystroke;
+      the effect now runs once and reads `onClose` through a ref — every sheet
+      in the app is cured at once
+- [x] Pins stay crisp at every zoom: they live in a layer of their own in
+      stage pixels (`tx + x·width·zoom`) instead of inside the scaled picture,
+      where the browser rasterised them at the picture's scale
+- [x] *Speld zetten* is one box with the choices under it, in the sheet's own
+      flow (the sheet grows; no scrollbar): an existing artikel, a note with
+      this name (its text typed on the pin once it stands), a new artikel
+- [x] The legend folds to a corner button on a desktop, folded by default,
+      remembered per browser; the button carries "n uit" when kinds are
+      switched off
+
+### Wiki, search
+
+- [x] One row of soorten as tabs (*Alles* first, each with what this viewer
+      may see), one toolbar — the count, a *Filters* button with a badge that
+      opens a panel (popover on a desktop, sheet on a phone), the sort — and
+      the filters that are on as chips with a ×; two rows where there were six.
+      The same toolbar on Dossiers, Prikborden and Landkaarten
+- [x] Zoeken narrows to one soort (chips under the box, `?type=` in the URL);
+      name matches and text matches alike
+
+### The artikel page
+
+- [x] Two columns on a wide screen: the text, sections, lists, backlinks and
+      history down the left in the Keeper's order; *Meer info* — the fields
+      and tags as an infobox, editable in place — and *Op deze pagina* — an
+      outline that scrolls along and marks the part being read — down the
+      right. Rights, proposals, visibility, Keeper notes and the bin under
+      one heading, *Beheer van dit artikel*, at the foot of the text
+- [x] Under 1024 px: *Meer info* folded under the header (open on a fresh
+      artikel), the outline as a row of chips
+- [x] Every block carries an id (`block-…`, `section-…`) the outline jumps
+      to; a folded block opens before the jump
+
+### Verification
+
+- [x] 205 unit tests (counts per soort from three seats, the welcome text
+      follows the word list, the upload ceilings and their messages)
+- [x] Playwright, desktop and phone, 84 passed / 14 pre-existing skips:
+      typing in a sheet keeps focus, a pin is the same size before and after
+      zooming, the legend folds and remembers, the filters panel and the
+      chips, one soort at a time in search, the infobox and the outline on a
+      fresh artikel, the dossier's tab row without a bar, the Keeper's welcome
+      text on Start and its default when cleared; `entry-live`, `maps`,
+      `sort-filter` and `flow-1` also on `next dev`
+
 ## Not started (later phases)
 
 - [ ] Obsidian import, handout PDFs

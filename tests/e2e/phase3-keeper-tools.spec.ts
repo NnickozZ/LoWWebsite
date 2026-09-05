@@ -10,7 +10,7 @@ import { inviteCode, signIn } from './helpers';
 async function newEntry(page: Page, typeSlug: string, name: string) {
   await page.goto(`/wiki/${typeSlug}`);
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByLabel('Naam').fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
@@ -127,7 +127,7 @@ test('the trash gives an entry back', async ({ page }, testInfo) => {
   await signIn(page, 'Keeper', 'abbeytower34');
   const url = await newEntry(page, 'object', entryName);
 
-  await page.locator('summary', { hasText: 'Deze fiche verwijderen' }).click();
+  await page.locator('summary', { hasText: 'Dit artikel verwijderen' }).click();
   await page.getByRole('button', { name: 'Naar de prullenbak' }).click();
   await page.waitForURL((candidate) => !candidate.pathname.startsWith('/e/'));
 
@@ -147,7 +147,7 @@ test('the Keeper can add a type, give it a field, and use it', async ({ page }, 
 
   await signIn(page, 'Keeper', 'abbeytower34');
   await page.goto('/admin');
-  await page.getByRole('tab', { name: 'Soorten fiches' }).click();
+  await page.getByRole('tab', { name: 'Soorten artikelen' }).click();
 
   await page.getByLabel('Naam van de nieuwe soort').fill(typeName);
   await page.getByRole('button', { name: 'Soort aanmaken' }).click();
@@ -167,8 +167,8 @@ test('the Keeper can add a type, give it a field, and use it', async ({ page }, 
 
   // The new type is a chip in the New entry sheet, and its field is on the page.
   await page.goto('/wiki');
-  await page.getByRole('button', { name: 'Nieuwe fiche' }).locator('visible=true').click();
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  await page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first().click();
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: typeName }).click();
   await sheet.getByLabel('Naam').fill(`De Zeearend ${stamp}`);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
@@ -184,9 +184,26 @@ test('site settings rename the archive, and the export downloads', async ({ page
   await page.getByRole('tab', { name: 'Site' }).click();
 
   await page.getByLabel('Ondertitel').fill('Archief van het Eiland');
+  // The welcome on Start is the Keeper's to write (5 Sep 2026); a blank line
+  // starts a new paragraph.
+  await page.getByLabel('Welkomsttekst op de startpagina').fill('Welkom, onderzoekers.\n\nLees eerst het dossier.');
   await page.getByRole('button', { name: 'Opslaan' }).click();
   await expect(page.locator('.masthead-tagline')).toHaveText('Archief van het Eiland');
+  await page.goto('/');
+  const welcome = page.locator('.home-welcome');
+  await expect(welcome.getByRole('heading', { level: 1 })).toHaveText('Zeeland Case Files');
+  await expect(welcome.locator('.home-intro p')).toHaveCount(2);
+  await expect(welcome.locator('.home-intro p').first()).toHaveText('Welkom, onderzoekers.');
+  await expect(welcome.locator('.home-numbers')).toContainText('artikel');
+  // …and cleared again, the archive's own words come back.
+  await page.goto('/admin?tab=site');
+  await page.getByLabel('Welkomsttekst op de startpagina').fill('');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await page.waitForTimeout(400);
+  await page.goto('/');
+  await expect(page.locator('.home-intro')).toContainText('Welkom in het archief');
 
+  await page.goto('/admin');
   await page.getByRole('tab', { name: 'Export' }).click();
   const download = page.waitForEvent('download');
   await page.getByRole('link', { name: 'Alles downloaden' }).click();

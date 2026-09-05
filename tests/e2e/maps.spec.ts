@@ -4,9 +4,9 @@ import { inviteCode, signIn } from './helpers';
 /**
  * §19: maps.
  *
- * The Keeper hangs a map; a note and a fiche are pinned on it; the legend
+ * The Keeper hangs a map; a note and an artikel are pinned on it; the legend
  * switches a kind off and remembers that; someone else's pin cannot be pulled
- * by a player; and the fiche knows where it is.
+ * by a player; and the artikel knows where it is.
  */
 
 async function signUpAs(page: Page, name: string) {
@@ -53,7 +53,16 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await page.getByRole('button', { name: 'Landkaart ophangen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Landkaart ophangen' });
   await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer: await picture() });
-  await sheet.getByLabel('Naam').fill(mapName);
+  // Typing keeps the field: every keystroke used to hand focus back to the
+  // button that opened the sheet (5 Sep 2026).
+  await sheet.getByLabel('Naam').click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type(mapName);
+  await expect(sheet.getByLabel('Naam')).toBeFocused();
+  await expect(sheet.getByLabel('Naam')).toHaveValue(mapName);
+  await sheet.getByLabel('Omschrijving').click();
+  await page.keyboard.type('De kaart van de landmeter.');
+  await expect(sheet.getByLabel('Omschrijving')).toBeFocused();
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
   await page.waitForURL('**/maps/**');
   const mapUrl = new URL(page.url()).pathname;
@@ -66,21 +75,31 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await placeAt(page, 0.5, 0.5);
   const ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
   await expect(ask).toBeVisible();
-  await ask.getByRole('tab', { name: /notitie/ }).click();
-  await ask.getByLabel('Naam').fill('Hier lag de boot');
-  await ask.getByRole('button', { name: 'Speld zetten' }).click();
+  // One box: type a name, and the note is one of the rows under it.
+  await ask.getByPlaceholder('Zoek een artikel…').fill('Hier lag de boot');
+  await ask.getByRole('button', { name: /Notitie .Hier lag de boot. zetten/ }).click();
   await expect(page.locator('.map-pin', { hasText: 'Hier lag de boot' })).toBeVisible();
   // The new pin opens; close it.
   await page.keyboard.press('Escape');
 
-  // A fiche, a bit to the right.
+  // An artikel, a bit to the right.
   await page.getByRole('button', { name: 'Speld zetten' }).click();
   await placeAt(page, 0.7, 0.4);
-  await ask.getByPlaceholder('Zoek een fiche…').fill('Pier');
+  await ask.getByPlaceholder('Zoek een artikel…').fill('Pier');
   await page.locator('.suggest-item').filter({ hasText: 'Pier Boone' }).first().click();
   await expect(page.locator('.map-pin', { hasText: 'Pier Boone' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('.map-pin')).toHaveCount(2);
+
+  // Zooming grows the map, not the pins: same size at 1x and after three
+  // steps in — they live in their own unscaled layer (5 Sep 2026).
+  const pinBefore = (await page.locator('.map-pin', { hasText: 'Pier Boone' }).boundingBox())!;
+  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Inzoomen' }).click();
+  await page.waitForTimeout(200);
+  const pinAfter = (await page.locator('.map-pin', { hasText: 'Pier Boone' }).boundingBox())!;
+  expect(Math.round(pinAfter.height)).toBe(Math.round(pinBefore.height));
+  expect(Math.round(pinAfter.width)).toBe(Math.round(pinBefore.width));
+  await page.getByRole('button', { name: 'Passend maken' }).click();
 
   // The legend: one line per kind, and switching notes off hides the note.
   const legend = await openLegend(page);
@@ -93,11 +112,11 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await (await openLegend(page)).getByRole('checkbox', { name: /Notities/ }).check();
   await expect(page.locator('.map-pin')).toHaveCount(2);
 
-  // The fiche knows where it is.
+  // The artikel knows where it is.
   await page.locator('.map-pin', { hasText: 'Pier Boone' }).click();
   const pinSheet = page.getByRole('dialog', { name: 'Pier Boone' });
   await expect(pinSheet).toBeVisible();
-  await pinSheet.getByRole('link', { name: 'Fiche openen' }).click();
+  await pinSheet.getByRole('link', { name: 'Artikel openen' }).click();
   await page.waitForURL('**/e/**');
   await expect(page.getByRole('link', { name: mapName })).toBeVisible();
 
@@ -124,9 +143,8 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await other.getByRole('button', { name: 'Speld zetten' }).click();
   await placeAt(other, 0.3, 0.7);
   const ask2 = other.getByRole('dialog', { name: 'Wat komt hier?' });
-  await ask2.getByRole('tab', { name: /notitie/ }).click();
-  await ask2.getByLabel('Naam').fill('Mijn eigen speld');
-  await ask2.getByRole('button', { name: 'Speld zetten' }).click();
+  await ask2.getByPlaceholder('Zoek een artikel…').fill('Mijn eigen speld');
+  await ask2.getByRole('button', { name: /Notitie .Mijn eigen speld. zetten/ }).click();
   const own = other.getByRole('dialog', { name: 'Mijn eigen speld' });
   await expect(own).toBeVisible();
   await own.getByRole('button', { name: 'Speld weghalen' }).click();

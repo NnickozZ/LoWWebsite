@@ -250,7 +250,7 @@ export const DEFAULT_DESCRIPTION_PLACEHOLDER =
   'Waar kwam je ze tegen, wat was de sfeer, wat was de context van de eerste ontmoeting, en hoe zagen ze eruit?';
 
 export const DEFAULT_BODY_PLACEHOLDER =
-  'Wat is er verder bekend? Typ @ of [[ om een andere fiche te koppelen.';
+  'Wat is er verder bekend? Typ @ of [[ om een ander artikel te koppelen.';
 
 export function cleanTypeText(input: unknown): TypeText {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};

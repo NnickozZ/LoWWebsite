@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
+import { capitalise } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { CoverEditor } from '@/components/entry/CoverEditor';
 import dynamic from 'next/dynamic';
@@ -12,6 +13,7 @@ import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useIsPhone } from '@/components/useIsPhone';
+import { useOverflowing } from '@/components/useOverflowing';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
@@ -118,6 +120,9 @@ export function CaseDossier({
   const [notesLive, setNotesLive] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const summaryRef = useRef<HTMLTextAreaElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // The tab row only gets a scrollbar once there are more tabs than fit.
+  const tabsOverflow = useOverflowing(tabsRef);
 
   const save = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -191,14 +196,14 @@ export function CaseDossier({
               state={liveNotes.state}
               user={liveNotes.user}
               canEdit={liveNotes.canEdit && !readOnly}
-              placeholder="Wat is de werktheorie? Typ @ of [[ om een fiche te koppelen."
+              placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
               onStatus={setNotesLive}
             />
           ) : (
             <RichEditor
               initialDoc={data.notes}
               editable={!readOnly}
-              placeholder="Wat is de werktheorie? Typ @ of [[ om een fiche te koppelen."
+              placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
               onChange={(doc) => !readOnly && set({ notes: doc })}
             />
           )}
@@ -447,13 +452,16 @@ export function CaseDossier({
               title="Wie mag dit dossier zien en bewerken"
             >
               <Icon name={accessNow.viewMode === 'all' ? 'eye' : 'lock'} size={13} />
-              Rechten: kijken {accessLabel(accessNow.viewMode, accessNow.viewers.length).toLowerCase()},
-              bewerken {accessLabel(accessNow.editMode, accessNow.editors.length).toLowerCase()}
+              {accessNow.viewMode === 'some'
+                ? `${capitalise(ui.words.assigned)}: ${accessNow.viewers.length}`
+                : `Kijken: ${accessLabel(accessNow.viewMode).toLowerCase()}`}
+              {accessNow.editMode !== 'all' &&
+                ` · bewerken: ${accessLabel(accessNow.editMode, accessNow.editors.length, ui.words.assigned).toLowerCase()}`}
             </button>
           )}
 
           {memberIds.length > 0 && (
-            <span className="row" style={{ gap: 4 }} title="Wie dit dossier mag zien">
+            <span className="row" style={{ gap: 4 }} title={`${capitalise(ui.words.assigned)}: wie dit ${ui.words.case} mag zien`}>
               {allUsers
                 .filter((user) => memberIds.includes(user.id))
                 .slice(0, 6)
@@ -499,7 +507,7 @@ export function CaseDossier({
               isKeeper={isKeeper}
               viewerId={access.viewerId}
               onChange={setAccessNow}
-              nouns={{ this: `dit ${ui.words.case}` }}
+              nouns={{ this: `dit ${ui.words.case}`, some: capitalise(ui.words.assigned) }}
             />
           </div>
         )}
@@ -557,7 +565,12 @@ export function CaseDossier({
     <div className="page-wide">
       {header}
 
-      <div className="case-tabs" role="tablist" aria-label="Onderdelen van het dossier">
+      <div
+        ref={tabsRef}
+        className={`case-tabs${tabsOverflow ? ' case-tabs-scrollable' : ''}`}
+        role="tablist"
+        aria-label="Onderdelen van het dossier"
+      >
         {tabs.map((item) => (
           <button
             key={item.key}

@@ -5,18 +5,22 @@ import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { saveSiteAction, setLogoAction, type AdminState } from '@/app/(app)/admin/actions';
+import { defaultIntro } from '@/lib/intro';
 
-/** §11's Site pane: name, tagline, logo, accent colour. */
+/** §11's Site pane: name, tagline, the welcome on the start page, logo, accent colour. */
 export function SiteForm({
   name,
   tagline,
   accent,
   logoAssetId,
+  intro,
 }: {
   name: string;
   tagline: string;
   accent: string;
   logoAssetId: string | null;
+  /** The start page's welcome text; empty means the archive's own default. */
+  intro: string;
 }) {
   const ui = useUi();
   const [state, action, busy] = useActionState<AdminState, FormData>(saveSiteAction, {});
@@ -60,6 +64,24 @@ export function SiteForm({
         <input id="site-tagline" className="input" name="tagline" defaultValue={tagline} />
         <p className="tiny muted" style={{ margin: '0.25rem 0 0' }}>
           Staat onder de naam in het menu.
+        </p>
+      </div>
+
+      <div>
+        <label className="label" htmlFor="site-intro">
+          Welkomsttekst op de startpagina
+        </label>
+        <textarea
+          id="site-intro"
+          className="input textarea"
+          name="intro"
+          defaultValue={intro}
+          rows={5}
+          placeholder={defaultIntro(ui.words)}
+        />
+        <p className="tiny muted" style={{ margin: '0.25rem 0 0' }}>
+          Staat bovenaan Start, boven de dossiers. Een lege regel begint een nieuwe alinea. Laat leeg voor
+          de standaardtekst hierboven.
         </p>
       </div>
 

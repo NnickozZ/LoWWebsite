@@ -45,12 +45,17 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   await peopleSearch.fill(newEntryName);
   await page.locator('.suggest-item').filter({ hasText: 'aanmaken' }).first().click();
 
-  const entrySheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const entrySheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(entrySheet.getByLabel('Naam')).toHaveValue(newEntryName);
   await entrySheet.getByRole('button', { name: 'Aanmaken' }).click();
   await expect(entrySheet).toBeHidden();
 
   await expect(page.getByText(newEntryName).first()).toBeVisible();
+
+  // -- the tab row has no scrollbar until the tabs really overflow ----------
+  if (testInfo.project.name === 'desktop') {
+    await expect(page.locator('.case-tabs')).not.toHaveClass(/case-tabs-scrollable/);
+  }
 
   // -- a case note on one card ----------------------------------------------
   const card = page.locator('.card', { hasText: 'Pier Boone' }).first();
@@ -60,11 +65,13 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   await page.locator('textarea[placeholder="Waarom dit hier van belang is"]').blur();
   await expect(page.getByText('Keeps the second ledger.')).toBeVisible();
 
-  // -- make it confidential (§17: the view dial to "chosen people") ----------
-  await page.getByRole('button', { name: /^Rechten:/ }).click();
+  // -- make it confidential (§17: the view dial to "Toegewezen") -------------
+  // The chip reads "Kijken: iedereen" until people are chosen, then
+  // "Toegewezen: n" (5 Sep 2026).
+  await page.getByRole('button', { name: /^(Kijken|Toegewezen):/ }).click();
   const viewDial = page.getByRole('radiogroup', { name: 'Wie mag kijken' });
-  await viewDial.getByRole('radio', { name: 'Gekozen personen' }).click();
-  await expect(viewDial.getByRole('radio', { name: 'Gekozen personen' })).toHaveAttribute(
+  await viewDial.getByRole('radio', { name: 'Toegewezen' }).click();
+  await expect(viewDial.getByRole('radio', { name: 'Toegewezen' })).toHaveAttribute(
     'aria-checked',
     'true',
   );

@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as { entryId?: unknown; userId?: unknown };
-    if (typeof body.entryId !== 'string' || !body.entryId) throw new Error('Welke fiche?');
+    if (typeof body.entryId !== 'string' || !body.entryId) throw new Error('Welk artikel?');
     const userId = whose(user, body);
     addCharacter(userId, body.entryId, user);
     return json(state(userId));
@@ -72,7 +72,7 @@ export async function DELETE(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as { entryId?: unknown; userId?: unknown };
-    if (typeof body.entryId !== 'string' || !body.entryId) throw new Error('Welke fiche?');
+    if (typeof body.entryId !== 'string' || !body.entryId) throw new Error('Welk artikel?');
     const userId = whose(user, body);
     removeCharacter(userId, body.entryId, user);
     return json(state(userId));

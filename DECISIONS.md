@@ -691,6 +691,91 @@ silent no-op once the local state has been cleared, so a remounted tab never
 announced itself — the state is now set whole. Both would have bitten in
 production on any reconnect.
 
+## Phase 6 — Nick's list of 5 September
+
+**"Fiche" became "artikel" by changing defaults, not keys.**
+The word list was built for exactly this: the defaults in `lib/words.ts` now
+say artikel, the keys still say `entry`, and a Keeper's override still wins.
+The hard-coded sentences that had grown outside the list were moved into it
+or rewritten, so rule 8 is closer to true than it was. Comments and internal
+names keep saying fiche where they always did; renaming the code would have
+been churn without a reader.
+
+**"Personen" is a data change, so it has a marker.**
+The soort's label lives in `entry_types`, which the Keeper can edit, so the
+seed cannot simply overwrite it. A one-time marker (`seed:personen-label`)
+renames "Personages" to "Personen" on the archives that still have the shipped
+word and leaves any other word alone — the same trick as the Dutch-labels
+changeover.
+
+**A dossier's chosen few are "Toegewezen"; an artikel's stay "Gekozen
+personen".**
+The old dossier called its view list "toegewezen onderzoekers", and that is
+the word that fits a case: people are assigned to it. On an artikel or a
+prikbord the owner *chooses* who may look, which is a different act. The
+`AccessEditor` takes the word as a noun (`nouns.some`) rather than knowing
+about dossiers; `assigned` is in the word list so the Keeper can change it.
+
+**A `Sheet` binds its handlers once and reads the latest `onClose` through a
+ref.**
+The focus-restore effect depended on `onClose`; every caller passes an inline
+arrow, so the effect tore down and re-ran on each render — each keystroke
+handed focus to the button that opened the sheet, then remembered *that*
+button as the place to return to. A ref is the standard cure and fixes every
+sheet at once; the alternative, asking each caller to memoise, would have
+been forgotten by the next one.
+
+**Pins are drawn in stage pixels, never inside the scaled picture.**
+Counter-scaling a child of a transformed layer keeps its *size* right and its
+*resolution* wrong: the browser rasterises the layer at the picture's scale,
+so at 4x a pin was drawn at a quarter size and blown up. The pins now sit in
+a layer of their own, positioned from the same view state, and the picture
+alone is transformed. The e2e asserts a pin's box is the same before and
+after zooming.
+
+**"Speld zetten" is a list in the flow, not a dropdown.**
+A floating suggestion list inside a sheet that scrolls is two scrolling things
+fighting; the sheet grew a scrollbar for eight results. The list is now part of
+the sheet, so the sheet grows with it, and the note and the new-artikel
+choices are rows in the same list rather than a second tab. The note's text is
+typed on the pin once it stands — one decision per screen.
+
+**The legend folds, and starts folded.**
+It covered a corner of the picture on every visit for a choice most visits
+never make. Folded by default, remembered per browser (not per map: a person
+who likes it open likes it open everywhere), and the folded button says "n uit"
+when it is hiding something so a filtered map never looks like an empty one.
+
+**Filters live behind one button; the ones that are on are chips.**
+Six rows of chips between a title and its cards were the whole problem. The
+groups moved into a panel (popover on a desktop, sheet on a phone) with a
+badge for how many are on, and active filters are shown on the page as chips
+with a × — visible status, hidden machinery, which is the shape list pages on
+the web have settled on. The URL is unchanged, so every bookmark and every
+test that reads the URL still holds. The soorten became tabs because they are
+navigation between pages, not a filter on one.
+
+**The artikel page borrows shapes people already know.**
+Infobox beside the prose (Wikipedia, Fandom), an outline that scrolls along
+(Notion, Craft, Google Docs), settings kept away from content (all of them).
+The fields as a full-width form had pushed the text below the fold on every
+artikel; as an infobox they are a glance. The outline is measured on scroll
+rather than with an observer per heading, and the Keeper's block order still
+decides the column. Nothing moved server-side: the reads are the same slots,
+and the bin came along as one more.
+
+**Two ceilings for uploads, and the proxy is part of the answer.**
+10 MB for a player, 100 MB for a Keeper, decided by `uploadLimitFor(viewer)`
+and checked twice (declared size, actual bytes). The number the browser can
+send is also bounded by whatever sits in front of the server — nginx defaults
+to 1 MB — so the deploy notes say so; a limit the app enforces but the proxy
+refuses first would look like a broken button.
+
+**The welcome is the Keeper's text, with a default that follows the word list.**
+A column on `site_settings` (migration `0007`), edited in Beheer → Site next to
+the name and tagline it belongs with. The default is built from the word list
+so an archive that renamed "artikel" is not welcomed with the old word.
+
 ---
 
 ## Dependencies

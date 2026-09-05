@@ -44,7 +44,7 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   // -- an entry with a section the player may not see -----------------------
   await page.goto('/wiki/location');
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Nieuwe fiche' });
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByLabel('Naam').fill(entryName);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
@@ -83,7 +83,8 @@ test('recovery: an audited password reveal, and a section revealed to a player',
 
   // -- and the player sees it on refresh -----------------------------------
   await player.reload();
-  await expect(player.getByText('Wat er echt in de kelder ligt')).toBeVisible();
+  // As a heading in the text — the outline beside it names it too.
+  await expect(player.getByRole('heading', { name: 'Wat er echt in de kelder ligt' })).toBeVisible();
   await expect(player.getByText('gietijzeren luik')).toBeVisible();
 
   // Still nobody else's business: a second player sees nothing.

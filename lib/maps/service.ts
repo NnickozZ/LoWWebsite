@@ -352,7 +352,7 @@ export function addPin(mapId: string, input: NewPin, actor: { id: string; isKeep
       .from(schema.entries)
       .where(and(eq(schema.entries.id, input.entryId), visibleEntryCondition(actor)))
       .get();
-    if (!entry) throw new Error('Fiche niet gevonden');
+    if (!entry) throw new Error('Artikel niet gevonden');
     db.insert(schema.mapPins)
       .values({ id, mapId, kind: 'entry', entryId: entry.id, x: clamp01(input.x), y: clamp01(input.y), createdBy: actor.id })
       .run();

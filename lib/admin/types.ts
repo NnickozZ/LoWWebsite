@@ -71,7 +71,7 @@ export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
     .from(schema.entryTypes)
     .where(eq(schema.entryTypes.id, typeId))
     .get();
-  if (!existing) throw new Error('Soort fiche niet gevonden');
+  if (!existing) throw new Error('Soort artikel niet gevonden');
 
   const values: Record<string, unknown> = {};
   if (patch.label !== undefined && patch.label.trim()) values.label = patch.label.trim().slice(0, 60);
@@ -156,7 +156,7 @@ export function createType(
  */
 export function deleteType(typeId: string, keeperId: string) {
   const inUse = db.select().from(schema.entries).where(eq(schema.entries.typeId, typeId)).all();
-  if (inUse.length) throw new Error('Er staan nog fiches onder deze soort.');
+  if (inUse.length) throw new Error('Er staan nog artikelen onder deze soort.');
   db.delete(schema.entryTypes).where(eq(schema.entryTypes.id, typeId)).run();
   logAudit({
     actorId: keeperId,

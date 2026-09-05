@@ -43,9 +43,6 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
         <div className="spacer" />
         {user?.isKeeper && <NewMapButton />}
       </div>
-      <p className="muted small">
-        {maps.length} {maps.length === 1 ? words.map : words.mapPlural}
-      </p>
       {place && placeName && (
         <p className="small" style={{ margin: '0 0 0.6rem', padding: '0.5rem 0.7rem', border: '1px solid var(--rule)', background: 'var(--paper-raised)' }}>
           <Icon name="crosshair" size={14} /> Kies de {words.map} waar <strong>{placeName}</strong> op moet.
@@ -60,7 +57,7 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
           { value: 'created', label: 'Nieuwste eerst' },
         ]}
         defaultSort="order"
-        compact
+        summary={`${maps.length} ${maps.length === 1 ? words.map : words.mapPlural}`}
         groups={[
           {
             key: 'show',
