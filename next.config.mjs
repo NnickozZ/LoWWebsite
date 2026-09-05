@@ -51,14 +51,27 @@ const nextConfig = {
   /**
    * `instrumentation.ts` is compiled once for every runtime Next supports,
    * including edge — even though every route here is `runtime: nodejs`. The
-   * edge build cannot resolve `node:fs`, and one unresolvable import there is
-   * enough to turn every page into a 500. The guard inside instrumentation.ts
-   * already stops the code *running* off Node; this stops it being *bundled*.
+   * edge build cannot resolve `node:fs`, let alone the bare `require('fs')`
+   * inside better-sqlite3, and one unresolvable import there is enough to turn
+   * every page into a 500. The guard inside instrumentation.ts already stops
+   * the code *running* off Node; this stops it being *bundled*.
+   *
+   * **Every module `instrumentation.ts` imports has to be named here.** The
+   * `await import(…)` is dynamic to a reader and perfectly static to webpack,
+   * which follows it into the edge bundle regardless of the `NEXT_RUNTIME`
+   * check above it — so a second import added to that file without a line here
+   * breaks the whole site, and breaks it in dev first, where instrumentation is
+   * compiled for edge on the first request. That is how `lib/entries/mentions`
+   * (§27's backfill, which opens the database) took the archive down: the
+   * backfill itself ran perfectly, on Node, and the edge copy of the same file
+   * could not resolve `fs`.
    */
   webpack(config, { nextRuntime, webpack }) {
     if (nextRuntime === 'edge') {
       config.plugins.push(
-        new webpack.IgnorePlugin({ resourceRegExp: /lib[\\/]diagnostics$/ }),
+        new webpack.IgnorePlugin({
+          resourceRegExp: /lib[\\/](diagnostics|entries[\\/]mentions)$/,
+        }),
       );
     }
     return config;

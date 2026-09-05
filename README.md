@@ -140,7 +140,7 @@ is up. The nightly backup that the compose file's sidecar provides is
 `npm run backup` here; `crontab -e` with
 `15 3 * * * cd /home/LandOverWater && npm run backup` does the same job.
 
-### Four ways this has already gone wrong on a server
+### Five ways this has already gone wrong
 
 Every one of these was diagnosed the hard way. They are listed because none of
 them announces itself as what it is.
@@ -236,6 +236,34 @@ file went missing. Every native dependency here (better-sqlite3, sharp,
 Linux and in Docker, and no dependency runs code during a deploy. If a
 dependency is ever added that genuinely needs a postinstall step, that setting
 is what will have quietly skipped it.
+
+**5. One import in `instrumentation.ts`, and every page answers 500.**
+
+```
+⨯ ./node_modules/better-sqlite3/lib/binding.js:2:1
+Module not found: Can't resolve 'fs'
+Import trace: ./lib/db/index.ts → ./lib/entries/mentions.ts → ./instrumentation.ts
+ GET / 500
+```
+
+Next compiles `instrumentation.ts` once for **every** runtime it supports,
+edge included, even in a project where every route is `runtime: nodejs`. The
+edge build can resolve neither `node:fs` nor the bare `require('fs')` inside
+better-sqlite3. The `if (process.env.NEXT_RUNTIME !== 'nodejs') return` at the
+top of `register()` looks like it settles this and does not: it stops the code
+*running* off Node, while webpack follows every `await import(…)` in the file
+into the edge bundle regardless, because a specifier that is dynamic to a
+reader is perfectly static to a bundler.
+
+The tell is that everything *works*: the start-up job runs, the log line is
+written, and the site is down anyway. It bites in `next dev` first, which
+compiles instrumentation for edge on the first request — a production build can
+sail past it.
+
+The answer is the `IgnorePlugin` in `next.config.mjs`, and **every module
+`instrumentation.ts` imports has to be named in it**. Adding an import and
+forgetting that line is the whole trap, so `tests/unit/instrumentation-edge.test.ts`
+reads both files and refuses the mismatch by name.
 
 ### When it goes wrong: the logbook
 
