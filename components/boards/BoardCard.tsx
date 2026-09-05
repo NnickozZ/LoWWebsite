@@ -6,7 +6,7 @@ import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
-import { cardRef, PIN_SIZE, type BoardCard as BoardCardModel, type CardCrop } from '@/lib/boards/merge';
+import { CARD_SIZE, cardRef, PIN_SIZE, type BoardCard as BoardCardModel, type CardCrop } from '@/lib/boards/merge';
 import type { BoardRefs } from '@/lib/boards/service';
 import type { CoverCrop } from '@/lib/db/schema';
 
@@ -184,6 +184,24 @@ export function BoardCardView({
   const missing = refers && !subject;
   const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, subject);
   const zoomed = (imageCrop?.zoom ?? 1) > 1.05;
+  /**
+   * Belt and braces on the rule `defaultShowImage` sets: a frame with nothing
+   * in it is never drawn, whatever the flag says. `showImage` is what the card
+   * *wants*; this is whether there is anything to put there.
+   *
+   * Something means a picture — the card's own, or the one it borrows from
+   * what it stands for — or, failing that, a subject, whose soort icon and
+   * colour is what the frame has always shown while an artikel waits for a
+   * cover. A notitie has neither, and that is the case this guard is for: a
+   * grey box above the words on every note ever written. A card that stands
+   * for something the viewer may not see has neither either, and says so on a
+   * plain slip with the MISSING stamp instead of framing an empty rectangle.
+   *
+   * Deciding it here rather than only at creation is what repairs the walls
+   * that were hung before the default changed. The saved flag is left exactly
+   * as it is, so a picture added later still turns the frame on.
+   */
+  const framed = card.showImage && (Boolean(image) || Boolean(subject));
 
   if (card.kind === 'pin') {
     // A bare pin: a head to run string from, and a paper tag to drag it by and
@@ -249,6 +267,19 @@ export function BoardCardView({
         left: card.x,
         top: card.y,
         width: CARD_WIDTH,
+        /*
+         * A card is a piece of paper of a fixed size, whether or not there is a
+         * picture on it. `CARD_SIZE` is not decoration: `freeSpotNear` reserves
+         * that much room, `headOf` ties string to it and the merge rule measures
+         * with it — so a card that renders shorter than the model says leaves the
+         * wall with gaps the geometry does not know about, and its middle drifts
+         * up out of the place everything else thinks it is. That was invisible
+         * while every card carried a frame; a notitie with the frame off made it
+         * visible at once (a card on a phone whose centre landed above the cork
+         * entirely). The floor is here rather than in `.board-card` because this
+         * is where the width already comes from, and the two belong together.
+         */
+        minHeight: CARD_SIZE.height,
         transform: `rotate(${card.rotation}deg)`,
         cursor: cropping ? 'grab' : interactive ? 'grab' : 'pointer',
       }}
@@ -265,7 +296,7 @@ export function BoardCardView({
         }}
       />
 
-      {card.showImage ? (
+      {framed ? (
         <div
           className="board-card-cover"
           onClick={onCoverClick}
@@ -289,13 +320,12 @@ export function BoardCardView({
               draggable={false}
             />
           ) : (
+            /* No picture yet, but something to stand for: its soort's icon in
+               its soort's colour, which is the frame doing its other job. */
             <Icon
-              name={subject?.icon ?? (card.kind === 'entry' ? 'person' : card.kind === 'map' ? 'map' : card.kind === 'case' ? 'folder' : 'file')}
+              name={subject?.icon ?? 'file'}
               size={34}
-              style={{
-                color: subject?.colour ?? 'var(--ink-muted)',
-                opacity: 0.45,
-              }}
+              style={{ color: subject?.colour ?? 'var(--ink-muted)', opacity: 0.45 }}
             />
           )}
           {missing && <span className="stamp board-missing">Ontbreekt</span>}

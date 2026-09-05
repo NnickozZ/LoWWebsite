@@ -36,6 +36,9 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   entry_section_reveals: { lists: ['entries'] },
   entry_revisions: { refs: { entry_id: 'entry' }, lists: [] },
   entry_links: { refs: { from_entry_id: 'entry', to_entry_id: 'entry' }, lists: [] },
+  // §27: a mention is a change to the *mentioned* artikel's page, never to the
+  // dossier or wall it was typed on — that one has already announced itself.
+  entry_mentions: { refs: { to_entry_id: 'entry' }, lists: [] },
   cases: { row: 'case', lists: ['cases', 'feed'] },
   case_members: { refs: { case_id: 'case' }, lists: ['cases'] },
   case_entries: { refs: { case_id: 'case', entry_id: 'entry' }, lists: ['cases'] },

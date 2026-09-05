@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db';
 import { resetRoom } from '@/lib/live/docs';
 import { newId } from '@/lib/ids';
 import { docToText } from '@/lib/entries/doc';
+import { recomputeSectionMentions } from '@/lib/entries/mentions';
 import { logActivity, logAudit } from '@/lib/entries/service';
 import { canSeeSection, type Viewer } from '@/lib/entries/visibility';
 import type { Visibility } from '@/lib/db/schema';
@@ -165,6 +166,15 @@ export function updateSection(
     .set(values)
     .where(eq(schema.entrySections.id, sectionId))
     .run();
+  // §27: what this artikel's sections name. The whole artikel is recomputed
+  // rather than this one section, because a mention row is filed under the
+  // artikel and its title — see `recomputeSectionMentions`. Hung off the
+  // service so a save from the room counts as much as a plain PATCH (rule 13),
+  // and off a title change as much as a body one, since the title is what the
+  // mention prints.
+  if (patch.body !== undefined || patch.title !== undefined) {
+    recomputeSectionMentions(existing.entryId);
+  }
   // §20: a body written around the room rewrites the shared document.
   if (patch.body !== undefined && !options.live) resetRoom(`section:${sectionId}`, patch.body);
 }
@@ -180,6 +190,8 @@ export function deleteSection(sectionId: string, keeperId: string) {
     .where(eq(schema.entrySectionReveals.sectionId, sectionId))
     .run();
   db.delete(schema.entrySections).where(eq(schema.entrySections.id, sectionId)).run();
+  // §27: a section that is gone mentions nothing.
+  recomputeSectionMentions(existing.entryId);
   logAudit({
     actorId: keeperId,
     action: 'section.deleted',

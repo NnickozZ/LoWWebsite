@@ -6,7 +6,7 @@ import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CoverCrop } from '@/lib/db/schema';
-import { uploadForm } from '@/lib/upload';
+import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
 
 /**
  * §6: upload from device or paste from clipboard.
@@ -86,16 +86,23 @@ export function CoverEditor({
     [onChange, ui],
   );
 
-  // Paste an image straight onto the entry page. Not while reading: a paste on
-  // the reading face is someone copying text out, not putting a picture in.
+  /**
+   * Paste an image straight onto the entry page. Not while reading: a paste on
+   * the reading face is someone copying text out, not putting a picture in.
+   *
+   * §30: this used to read `clipboardData.files` on its own, which is only one
+   * of the two shapes a picture arrives in — a screenshot, or a picture copied
+   * out of a web page, has no file in `.files` at all, so the most ordinary
+   * paste there is did nothing and said nothing. `imageFromClipboard` reads
+   * both. `pasteIsForTyping` replaces the contenteditable test with the whole
+   * list: the name and the one-liner are inputs, and text pasted into one of
+   * them is text.
+   */
   useEffect(() => {
     if (readOnly) return;
     const onPaste = (event: ClipboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.isContentEditable) return; // the body editor handles its own pastes
-      const file = Array.from(event.clipboardData?.files ?? []).find((f) =>
-        f.type.startsWith('image/'),
-      );
+      if (pasteIsForTyping(event.target)) return; // the body editor handles its own pastes
+      const file = imageFromClipboard(event);
       if (!file) return;
       event.preventDefault();
       void upload(file);
@@ -201,15 +208,25 @@ export function CoverEditor({
           </div>
         ) : (
           // Nothing to choose between yet: the one thing to do is the button.
-          <button
-            type="button"
-            className="btn btn-small"
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
-          >
-            <Icon name="camera" size={15} />
-            {busy ? 'Uploaden…' : 'Afbeelding toevoegen'}
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-small"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy}
+            >
+              <Icon name="camera" size={15} />
+              {busy ? 'Uploaden…' : 'Afbeelding toevoegen'}
+            </button>
+            {/*
+              §30: only where there is nothing yet. Once a picture is in place
+              the paste still works, but the column is 320 px wide and a line of
+              advice above the facts is chrome for something already done.
+            */}
+            <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
+              of plak een afbeelding
+            </p>
+          </>
         )}
       </div>
 

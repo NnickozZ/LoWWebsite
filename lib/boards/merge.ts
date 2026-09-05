@@ -31,6 +31,41 @@ export function cardSize(card: Pick<BoardCard, 'kind'>): { width: number; height
 }
 
 /**
+ * Whether a *newly made* card starts with its picture frame open.
+ *
+ * Only a card that has something to put in it. A `photo` card is made around a
+ * picture, and the three kinds that stand for something else in the archive —
+ * `entry`, `map`, `case` — show what that thing looks like: its cover, the
+ * landkaart itself, or, until it has a picture of its own, the icon and the
+ * colour of its soort, which is how you tell a person from a place across a
+ * wall of a hundred cards.
+ *
+ * A `note` and a `pin` stand for nothing and hold nothing. Their frame was
+ * open all the same, so every notitie ever written came into the world with a
+ * grey 3:4 box above the words — a picture frame on a slip of paper that has
+ * no picture and, nine times out of ten, never will. That is the same sentence
+ * §22 already writes for the reading face of an artikel: no picture, no empty
+ * frame in the margin. Give a notitie a photo afterwards and the frame opens,
+ * because that is somebody deciding it should.
+ *
+ * `map` and `case` are the pair worth explaining, since a card that resolves
+ * to nothing for *this* viewer (§19) has no picture and no icon either. They
+ * start open regardless, because that is a card that is MISSING, and a MISSING
+ * card says so with its stamp on a plain slip; the frame is decided again at
+ * render time by whether anything actually turned up. Starting them closed
+ * would have taken the picture off every landkaart card on the wall to spare
+ * the rare one that is out of reach.
+ *
+ * This is a *default*, not a normalisation: `normaliseState` keeps whatever a
+ * saved card says, so no board already on the wall changes under it.
+ * `BoardCard` then refuses to draw a frame with nothing in it whatever the
+ * flag says, which is what quietly repairs the walls hung before this rule.
+ */
+export function defaultShowImage(kind: CardKind): boolean {
+  return kind !== 'note' && kind !== 'pin';
+}
+
+/**
  * The record a card stands for, if it stands for one. One shape for all three
  * kinds, so anything that has to walk a board's references — the resolver, the
  * page that builds the props — asks once instead of three times.

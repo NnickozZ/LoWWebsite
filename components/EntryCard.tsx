@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { EntrySummary } from '@/lib/entries/service';
-import { entryDisplayName } from '@/lib/entries/caseName';
+import { entryDisplayName, isAdrift } from '@/lib/entries/caseName';
+import { AdriftChip } from './entry/AdriftChip';
 import { borderClass } from './borders';
 import { Cover } from './Cover';
 import { Icon } from './Icon';
@@ -29,7 +30,17 @@ export function EntryCard({
             list says which — two letters called "de brief" are two letters.
             Only the printing; the stored name is still the short one, and the
             dossier is named only to someone who may open it. */}
-        <p className="card-name">{entryDisplayName(entry.name, entry.originCaseName)}</p>
+        <p className="card-name">
+          {entryDisplayName(entry.name, entry.originCaseName)}
+          {/* §24: and when it is in no dossier at all, the archive says so
+              rather than letting a clue read like an ordinary artikel. */}
+          {isAdrift(entry) && (
+            <>
+              {' '}
+              <AdriftChip />
+            </>
+          )}
+        </p>
         {entry.shortDescription && (
           <p className="tiny muted clamp-2" style={{ margin: 0 }}>
             {entry.shortDescription}

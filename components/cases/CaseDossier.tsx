@@ -27,7 +27,9 @@ import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
 import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/service';
 import type { CoverCrop } from '@/lib/db/schema';
+import { PreferredCases } from '@/components/entry/PreferredCases';
 import { CaseAddSearch } from './CaseAddSearch';
+import { CaseTabsButton, type CaseTabSoort } from './CaseTabsButton';
 import { CaseEntryCard } from './CaseEntryCard';
 
 export type CaseGroup = {
@@ -38,6 +40,13 @@ export type CaseGroup = {
   /** The entry types this tab covers — "People" is characters and investigators. */
   typeSlugs: string[];
   entries: CaseEntry[];
+  /**
+   * §30: this tab is here because the Keeper said this soort belongs in this
+   * dossier, not because something happens to be filed under it. The page has
+   * already decided which tabs there are and in what order (`planCaseTabs`);
+   * this only says *why*, so an empty shelf can explain itself.
+   */
+  pinned: boolean;
 };
 
 export type CaseDossierData = {
@@ -84,6 +93,8 @@ function initials(name: string) {
 export function CaseDossier({
   data,
   groups,
+  soorten,
+  tabTypes,
   members,
   allUsers,
   boards,
@@ -98,6 +109,10 @@ export function CaseDossier({
 }: {
   data: CaseDossierData;
   groups: CaseGroup[];
+  /** §30: every soort, for the "Tabbladen" sheet — with what is filed here. */
+  soorten: CaseTabSoort[];
+  /** §30: `cases.tab_types` — null is "let the tabs follow what is filed". */
+  tabTypes: string[] | null;
   /** The people on the view list, for the little row of initials. */
   members: UserLite[];
   allUsers: UserLite[];
@@ -196,11 +211,16 @@ export function CaseDossier({
   const { state, set, flush } = useAutosave<Record<string, unknown>>({ save });
 
   const tabs = useMemo(() => {
-    // §7: empty type tabs are hidden. Overview, Board and Activity always show.
-    const populated = groups.filter((group) => group.entries.length > 0);
+    /*
+     * §7 and §30: which soorten have a tab is decided on the server now —
+     * `planCaseTabs` keeps everything with something filed in it and adds the
+     * soorten this dossier was told it has, in the Keeper's order. What is left
+     * here is drawing them. Overzicht, Prikbord and Activiteit keep their
+     * places at either end, as they always did.
+     */
     return [
       { key: 'overview', label: 'Overzicht', icon: 'file' },
-      ...populated.map((group) => ({ key: group.key, label: group.label, icon: group.icon })),
+      ...groups.map((group) => ({ key: group.key, label: group.label, icon: group.icon })),
       { key: 'board', label: 'Prikbord', icon: 'board' },
       { key: 'activity', label: 'Activiteit', icon: 'clock' },
     ];
@@ -325,7 +345,13 @@ export function CaseDossier({
           ))}
         </div>
       ) : (
-        <div className="empty">Hier is nog niets toegevoegd.</div>
+        <div className="empty">
+          {/* §30: a shelf that is here because this dossier was told it should
+              be says so, rather than looking like an accident. */}
+          {group.pinned
+            ? `Nog geen ${group.label.toLowerCase()} in dit dossier.`
+            : 'Hier is nog niets toegevoegd.'}
+        </div>
       )}
     </div>
   );
@@ -560,6 +586,21 @@ export function CaseDossier({
 
           <span style={{ width: 8 }} />
 
+          {/*
+            §30: which soorten this dossier has shelves for. Behind `locked`
+            like every other input on this page — a player who may only look,
+            and anybody who came to read, does not get it — and behind
+            `canEdit` on the server, where the answer is a 403.
+          */}
+          {!locked && (
+            <CaseTabsButton
+              caseId={data.id}
+              soorten={soorten}
+              tabTypes={tabTypes}
+              onChanged={refresh}
+            />
+          )}
+
           {(access.canManage || accessNow.locked) && (
             <button
               type="button"
@@ -635,14 +676,19 @@ export function CaseDossier({
   /* --------------------------------------------------------------- render */
 
   // §21: the room around the name and the one-liner, whatever the layout.
-  const inRoom = (content: ReactNode) =>
-    liveFields ? (
-      <LiveFields room={liveFields.room} state={liveFields.state} user={liveFields.user} canEdit={liveFields.canEdit} onStatus={setFieldsLive}>
-        {content}
-      </LiveFields>
-    ) : (
-      content
-    );
+  // §31: and, around both, the dossier itself — everything opened on this page
+  // offers what is already filed here before the rest of the archive.
+  const inRoom = (content: ReactNode) => (
+    <PreferredCases ids={[data.id]}>
+      {liveFields ? (
+        <LiveFields room={liveFields.room} state={liveFields.state} user={liveFields.user} canEdit={liveFields.canEdit} onStatus={setFieldsLive}>
+          {content}
+        </LiveFields>
+      ) : (
+        content
+      )}
+    </PreferredCases>
+  );
 
   if (isPhone) {
     // §7: the same sections stacked, with sticky headers and a jump menu.

@@ -3,6 +3,7 @@ import { viewableCondition } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
+import { recomputeBoardMentions } from '@/lib/entries/mentions';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
@@ -205,6 +206,11 @@ export function saveBoard(
     .set({ state: merged, updatedAt: nowSeconds })
     .where(eq(schema.boards.id, boardId))
     .run();
+
+  // §27: the artikelen this wall now names — the entry cards outright, and the
+  // notitie cards that write one down. The merged document, never the patch:
+  // the patch is one client's half of the wall.
+  recomputeBoardMentions(boardId, merged);
 
   const latest = db
     .select({ createdAt: schema.boardRevisions.createdAt })

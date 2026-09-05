@@ -6,6 +6,7 @@ import { activeCharacter, listCharacters } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { listEntryTypes } from '@/lib/entries/service';
 import { cleanTypeText } from '@/lib/pageBlocks';
+import { readingFontAttr } from '@/lib/readingFont';
 import { resolveWords } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
@@ -49,8 +50,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? `:root,[data-theme='dark']{--stamp-red:${accent};--accent:${accent};}`
       : null;
 
+  /*
+   * §29: the face this person reads in. `<html>` belongs to the root layout,
+   * which knows nothing about accounts, so the attribute goes on one wrapper
+   * here — custom properties cascade, so a wrapper is enough, and it is
+   * rendered on the server, so nobody ever sees a paragraph in the wrong font
+   * and then watch it change. An account on the archive's own letter gets no
+   * attribute at all.
+   */
+  const fontAttr = readingFontAttr(user.readingFont);
+
   return (
-    <>
+    <div data-font={fontAttr}>
       {accentCss && <style>{accentCss}</style>}
       <AppShell
         types={types}
@@ -62,6 +73,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         {children}
       </AppShell>
-    </>
+    </div>
   );
 }

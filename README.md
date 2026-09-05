@@ -366,15 +366,19 @@ lib/
                      sections and reveals (secrets.ts), the review queue,
                      the wiki's filter vocabulary, caseFields.ts and
                      caseName.ts — the dossier a clue was made in, stored as an
-                     id and printed in front of its name — and mode.ts, reading
-                     or editing and whose default is which
+                     id and printed in front of its name — origin.ts, which
+                     keeps that id in step with the dossiers it is filed in,
+                     mentions.ts (§27: everything that is not an artikel and
+                     names one) and mode.ts, reading or editing and whose
+                     default is which
   admin/             trash — artikelen, dossiers, prikborden and landkaarten:
                      restoring, and the one way out of the archive
                      (destroyFromTrash) — history, the entry-type editor, the
                      word list
-  cases/             the case service, its visibility rule, and the lookup
-                     that turns a stored dossier id into a name this viewer
-                     may see (resolveCaseRefs)
+  cases/             the case service, its visibility rule, the lookup that
+                     turns a stored dossier id into a name this viewer may see
+                     (resolveCaseRefs), and tabs.ts — which soorten a dossier
+                     has shelves for, and in what order
   boards/            the board service, the pure merge rule, the resolvers for
                      what a card stands for, and the live hub (presence,
                      change signals, pointer frames)
@@ -400,7 +404,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Eighteen rules worth knowing before changing anything:
+Thirty-one rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -454,6 +458,15 @@ Eighteen rules worth knowing before changing anything:
    `EntryView` as a slot, so its rows stay behind `visibleEntryCondition` and
    never travel to a player's browser as props. Rule 1 applies to a derived list
    exactly as it does to a search result.
+   A soort's *address* is a Keeper's to change too, which it was not before:
+   `entry_types.id` **is** the slug, so `renameTypeSlug` in `lib/admin/types.ts`
+   moves the row, `entries.type_id`, `cases.tab_types` and every `ofType` /
+   `fromType` in every soort's fields and page blocks, in one transaction. What
+   no cascade can reach is a link somebody saved, so the editor warns in plain
+   Dutch and asks before it runs. `seedBaseline` remembers the rename — through
+   a `schema_migrations` marker and, because a restore drops those, through the
+   audit log — so a restart never puts the old address back as a second, empty
+   soort.
 8. **No screen types a word that `lib/words.ts` already holds.** About sixty
    terms — artikel (which was "fiche" until 5 September 2026; the keys still
    say `entry`), dossier, prikbord, punaise, landkaart, speld, karakter,
@@ -628,3 +641,96 @@ Eighteen rules worth knowing before changing anything:
     the room holds anything at all, somebody is in it and the room wins. Getting
     this backwards lost a one-liner and looked exactly like a save that failed —
     `tests/unit/live-field-handover.test.ts` is the specification.
+
+26. **"Genoemd in" counts every place a name is written, and each place is
+    filtered by its own rule.** §27. `entry_links` is artikel-to-artikel and
+    stays that way; `entry_mentions` is the same idea with a source that is a
+    dossier's werkaantekeningen, an infobox field, one of an artikel's sections,
+    a card on a prikbord or a speld on a landkaart. Like `entry_links` it is
+    **derived, never authored**: `recomputeMentions` in `lib/entries/mentions.ts`
+    wipes what a source said before and writes what it says now, on every save,
+    hung off the *service* function so a save through a Yjs room counts exactly
+    as much as a plain PATCH (rule 13). The table is therefore disposable, and
+    `rebuildAllMentions()` builds it again from the archive — which
+    `instrumentation.ts` does once, at start-up, when it finds it empty. Coming
+    back out is where rule 1 lives: `listMentions` puts a dossier through
+    `visibleCaseCondition`, a field or a section through `visibleEntryCondition`,
+    a prikbord through the two conditions `getBoard` applies, and a section
+    through `canSeeSection` as well — and a mention the reader may not follow is
+    **absent**, not hidden and not stamped MISSING. That is the one difference
+    from rule 19's MISSING card: a card on a wall you are already looking at has
+    to say *something*, but "an investigation you cannot see mentions you" gives
+    the investigation away whether it is named or not. A new kind of source adds
+    a `fromKind`, a recompute on its save path and a branch in `listMentions`
+    carrying its own condition — never a name written into the row.
+
+27. **A dossier's tabs are a decision, not a report.** §28. `cases.tab_types` is
+    null for every dossier that has never been told otherwise, and null means
+    what the archive always did: one tab per soort with something filed in it. A
+    list of soort slugs means those tabs are *always* there, empty or not, each
+    with the add-box the populated ones have — so a fresh investigation can be
+    given a Clues shelf before there is a single clue in the archive to put on
+    it. `lib/cases/tabs.ts` is pure and is the specification
+    (`tests/unit/case-tabs.test.ts`). Two things it is not: it is never a filter
+    — any soort with something filed here keeps its tab, always, so a change of
+    mind cannot hide what is in a file — and it is never a permission; who may
+    see what is still §17 and §25. The order is the Keeper's own list first, then
+    `TAB_ORDER`, then the soort's place in Beheer → Soorten.
+
+28. **A reference box offers the desk you are standing at first.** §31. With an
+    artikel or a dossier open, every dropdown that picks an artikel —
+    `EntryPicker`, the `entry_link` / `entry_links` fields, and the editor's `@`
+    and `[[` — puts what is filed in *those* dossiers above everything else. It
+    is an `ORDER BY` and never a widened `WHERE`: the candidates were already
+    behind `visibleEntryCondition`, the dossier ids arrive from a browser and go
+    through `visibleCaseCondition` before anything is looked up in them, and a
+    boosted row is marked with a folder icon and never with a dossier's name.
+    Rule 1 has one more place it could be broken and is not. The ids travel by
+    context (`components/entry/PreferredCases.tsx`), because the pickers sit four
+    levels below the pages that know.
+
+29. **The letters can be changed and the stamps cannot.** §29. Jouw account has a
+    third dial beside the theme and the face a page opens in: Archief, Beter
+    leesbaar (Atkinson Hyperlegible) or Dyslexie (OpenDyslexic). It re-points
+    `--serif` and `--sans` and nothing else — `--stamp-face` stays, because a
+    dyslexia setting that flattens the whole archive into one font takes the
+    archive away rather than making it readable. Both faces are bundled through
+    `@fontsource`, so nothing is fetched at runtime and the promise on the front
+    page of this README still holds. The attribute is written on one wrapper in
+    `app/(app)/layout.tsx` on the server, so there is no flash and nothing
+    becomes client-rendered; the second selector in `globals.css`
+    (`:root:has(…)`) is what reaches a `Sheet`, which portals onto `<body>`
+    outside that wrapper. **`npm ci` is required after this change** — two new
+    dependencies.
+
+30. **A picture arrives by one road, whichever way it was picked up.** §30. The
+    file dialog and the clipboard both end at the same upload, everywhere a
+    picture is taken: the cover, the prose editor, a card on a prikbord, a
+    landkaart, the site's logo. `imageFromClipboard` in `lib/upload.ts` is the
+    only place that reads a clipboard, because a browser puts a picture there in
+    two different shapes — `clipboardData.files` for a file copied in Explorer,
+    an `image/*` entry under `clipboardData.items` (nameless) for a screenshot
+    or a picture copied out of a web page — and anything reading only the first
+    silently ignores the commonest paste there is. The size ceiling is
+    deliberately *not* in that helper: it belongs to the upload, which already
+    knows whose ceiling applies (`uploadLimitFor`) and is checked again on the
+    server against the bytes that actually arrived. A paste that grew a limit of
+    its own, or a second wording for "too large", is the bug this rule exists to
+    prevent.
+
+31. **The cork is not text, and the cork does not scroll.** §30. A corkboard is a
+    thing you drag, and a browser's answer to a drag is to sweep a text selection
+    across everything it passes — which fought the board's own selection
+    rectangle (rule 20) over the same gesture. So `.board-viewport`, the world,
+    the cards and the pins are `user-select: none`, and the text you can actually
+    type in is handed back explicitly; anything new that puts *readable* text
+    inside `.board-viewport` needs a `user-select: text` of its own. The second
+    half is the one that bites silently: the wall's position is the transform on
+    `.board-world` and nothing else, but an `overflow: hidden` box is still a
+    scroll box, so a browser revealing a focused field could slide the whole cork
+    sideways behind the board's back and never put it back. `overflow: clip`
+    means there is nothing to scroll, and the `onScroll` in `BoardCanvas` puts it
+    back where `clip` is not understood. For the same family of reasons a new
+    card is now laid down *in sight*: `freeSpotNear` prefers a spot on screen
+    that overlaps a little over a clear spot outside the view, because on a phone
+    the view is two cards wide and the old answer was a card you never saw.

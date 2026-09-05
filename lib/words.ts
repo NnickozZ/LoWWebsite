@@ -94,6 +94,19 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'yourCharacters', what: 'De kop op de Jij-pagina', fallback: 'Jouw karakters' },
       { key: 'thisIsMyCharacter', what: 'De knop op een artikel', fallback: 'Dit is mijn karakter' },
       { key: 'onTheMap', what: 'De kop op een artikel met spelden', fallback: 'Op de landkaart' },
+      // §24: waar een artikel vandaan komt, en wat er staat als dat nergens is.
+      {
+        key: 'fromCase',
+        what: 'Boven de titel: uit welk dossier dit komt',
+        fallback: 'Uit',
+        hint: 'Er komt een dubbele punt en de naam van het dossier achter.',
+      },
+      {
+        key: 'noCase',
+        what: 'Het merkje bij een artikel zonder dossier',
+        fallback: 'Zonder dossier',
+        hint: 'Alleen bij soorten die je alleen in een dossier maakt.',
+      },
       {
         key: 'assigned',
         what: 'De gekozen personen bij een dossier',
@@ -113,6 +126,16 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'onThisPage', what: 'De kop boven de inhoudsopgave', fallback: 'Op deze pagina' },
       { key: 'manage', what: 'De kop boven rechten en Keeper-instellingen', fallback: 'Beheer van dit artikel' },
       { key: 'backlinks', what: 'De kop boven de verwijzingen', fallback: 'Genoemd in' },
+      // §27: "Genoemd in" telt vier soorten bronnen, elk onder een eigen kopje.
+      { key: 'mentionedInCases', what: 'Genoemd in: het kopje boven de dossiers', fallback: 'In dossiers' },
+      {
+        key: 'mentionedInEntries',
+        what: 'Genoemd in: het kopje boven de artikelen',
+        fallback: 'In artikelen',
+        hint: 'Een veld in een infobox of een sectie die hiernaar verwijst.',
+      },
+      { key: 'mentionedOnBoards', what: 'Genoemd in: het kopje boven de prikborden', fallback: 'Op prikborden' },
+      { key: 'mentionedOnMaps', what: 'Genoemd in: het kopje boven de landkaarten', fallback: 'Op landkaarten' },
       { key: 'history', what: 'De kop boven de versies', fallback: 'Geschiedenis' },
       {
         key: 'visibilityAndReveals',

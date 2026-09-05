@@ -37,6 +37,7 @@ export function BoardInspector({
   cropping,
   busy,
   canCrop,
+  canShowImage,
   hasOwnPhoto,
   inheritedBorderLabel,
   borderValue,
@@ -63,6 +64,13 @@ export function BoardInspector({
   busy: boolean;
   /** True when the card shows a picture that can be repositioned. */
   canCrop: boolean;
+  /**
+   * True when this card has a picture at all — its own, or the one it borrows
+   * from what it stands for. A card without one draws no frame however
+   * `showImage` is set, so the switch is left off the bar rather than offered
+   * as a press that changes nothing on screen.
+   */
+  canShowImage: boolean;
   /** True when the picture belongs to the card rather than to its entry. */
   hasOwnPhoto: boolean;
   /** What "from type" means for this card, e.g. "Map edge". Null for notes. */
@@ -281,10 +289,12 @@ export function BoardInspector({
                 </select>
               </span>
 
-              <button type="button" className="btn btn-small" onClick={onToggleImage}>
-                <Icon name="camera" size={15} />
-                {single.showImage ? 'Foto verbergen' : 'Foto tonen'}
-              </button>
+              {canShowImage && (
+                <button type="button" className="btn btn-small" onClick={onToggleImage}>
+                  <Icon name="camera" size={15} />
+                  {single.showImage ? 'Foto verbergen' : 'Foto tonen'}
+                </button>
+              )}
             </>
           )}
 

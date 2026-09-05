@@ -4,6 +4,7 @@ import { LivePage } from '@/components/live/LivePage';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
+import { PreferredCases } from '@/components/entry/PreferredCases';
 import { caseIdsInFields } from '@/lib/entries/caseFields';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
@@ -21,6 +22,7 @@ import {
   listSections,
 } from '@/lib/entries/secrets';
 import { listDerivedEntries } from '@/lib/entries/derived';
+import { groupMentions, listMentions } from '@/lib/entries/mentions';
 import { articleModeFor } from '@/lib/entries/mode';
 import {
   getBacklinks,
@@ -76,10 +78,37 @@ export default async function EntryPage({
   const proposals = user && canReview(entry.id, user) ? listPendingEdits(entry.id) : [];
 
   const backlinks = getBacklinks(entry.id, user);
+  /*
+   * §27: everything else that names this artikel — a dossier's notes, another
+   * artikel's infobox or one of its sections, a card on a prikbord, a speld on
+   * a landkaart. Read here, on the server, behind each source's own visibility
+   * rule (rule 7): a dossier this reader may not open is not in the list and
+   * not in their HTML, because "an investigation you cannot see mentions you"
+   * gives the investigation away just as loudly as naming it would.
+   */
+  const mentions = listMentions(entry.id, user);
+  const mentionGroups = groupMentions(mentions);
   const revisions = listRevisions(entry.id);
   const knownTags = listAllTags(user);
   const cases = listCasesForEntry(entry.id, user);
   const isKeeper = Boolean(user?.isKeeper);
+
+  /*
+   * §24: where this artikel came from, resolved here rather than in the
+   * browser. `resolveCaseRefs` is the same lookup an infobox uses — behind
+   * `visibleCaseCondition` — so a herkomst-dossier this reader may not open
+   * simply has no name to print, and the eyebrow is not there at all. The
+   * control is offered where the question means something: a soort that only
+   * exists inside a dossier, or an artikel that already has one.
+   */
+  const originRef = entry.originCaseId
+    ? resolveCaseRefs([entry.originCaseId], user)[entry.originCaseId]
+    : undefined;
+  const origin = {
+    case: originRef ? { id: originRef.id, slug: originRef.slug, name: originRef.name } : null,
+    pinned: Boolean(entry.originPinned),
+    offer: Boolean(entry.typeCaseOnly) || Boolean(entry.originCaseId),
+  };
 
   // §11: what this soort's page is made of, and the words it uses.
   const words = getWords();
@@ -215,7 +244,7 @@ export default async function EntryPage({
         <details key={block.id} className="section" open={block.open || openHistory}>
           <summary>
             {block.title || defaultBlockTitle('backlinks', words)}{' '}
-            <span className="muted">({backlinks.length})</span>
+            <span className="muted">({backlinks.length + mentions.length})</span>
           </summary>
           <div style={{ padding: '0.6rem 0 1rem' }}>
             {block.note && (
@@ -223,13 +252,44 @@ export default async function EntryPage({
                 {block.note}
               </p>
             )}
-            {backlinks.length ? (
+            {backlinks.length > 0 && (
               <div className="card-grid">
                 {backlinks.map((item) => (
                   <EntryCard key={item.id} entry={item} />
                 ))}
               </div>
-            ) : (
+            )}
+            {/*
+              §27: the mentions that did not come from another artikel's body —
+              a dossier's werkaantekeningen, an infobox field, a card on a wall,
+              a speld on a landkaart. Grouped by where they came from, and only
+              the groups that have something in them: §22's reading face prints
+              what is filled in and leaves the rest out, and an empty heading is
+              exactly the blank row that rule forbids.
+            */}
+            {mentionGroups.map((group) => (
+              <div key={group.key} style={{ marginTop: '0.9rem' }}>
+                <h3 className="tiny muted" style={{ margin: '0 0 0.35rem', fontWeight: 600 }}>
+                  {words[group.word]}
+                </h3>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {group.items.map((mention) => (
+                    <li
+                      key={`${mention.kind}:${mention.id}:${mention.detail}`}
+                      className="row"
+                      style={{ padding: '0.25rem 0' }}
+                    >
+                      <Icon name={group.icon} size={15} style={{ color: 'var(--ink-muted)' }} />
+                      <Link className="small" href={mention.href}>
+                        {mention.name}
+                      </Link>
+                      {mention.detail && <span className="tiny muted">— {mention.detail}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {!backlinks.length && !mentions.length && (
               <p className="muted small" style={{ margin: 0 }}>
                 {typeText.noBacklinks ?? (
                   <>
@@ -370,6 +430,14 @@ export default async function EntryPage({
   return (
     <>
       <LivePage place={entryKey(entry.id)} watch={['cases', 'maps', 'types']} />
+      {/*
+        §31: the dossiers this artikel is filed in — already behind
+        `visibleCaseCondition`, because `listCasesForEntry` took this viewer.
+        Every reference box under here offers what is in them first. A ranking
+        and nothing more: rule 1 is untouched, and the boost is thrown away on
+        the server for any dossier this viewer may not open.
+      */}
+      <PreferredCases ids={cases.map((item) => item.id)}>
       <EntryView
         entry={{
           id: entry.id,
@@ -414,6 +482,7 @@ export default async function EntryPage({
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}
         mapsOfThis={mapsOfThis}
+        origin={origin}
         caseLinks={caseLinks}
         /*
          * §22: the face this artikel opens in. The person's own setting from
@@ -429,6 +498,7 @@ export default async function EntryPage({
           confidential: item.viewMode !== 'all',
         }))}
       />
+      </PreferredCases>
     </>
   );
 }

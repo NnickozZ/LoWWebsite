@@ -3,6 +3,7 @@ import { mapFieldsRoomKey, pinFieldsRoomKey } from '@/lib/live/keys';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
+import { recomputeMapMentions } from '@/lib/entries/mentions';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { uniqueSlug } from '@/lib/slug';
@@ -408,20 +409,48 @@ export function addPin(mapId: string, input: NewPin, actor: { id: string; isKeep
     logActivity({ actorId: actor.id, verb: 'map.pinned', meta: { mapId, pinId: id, name } });
   }
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, mapId)).run();
+  // §27: what this landkaart's spelden name.
+  recomputeMapMentions(mapId);
   return getPin(id, actor)!;
 }
 
+/** One wording for "not yours", so the route and the service cannot drift apart. */
+export const PIN_IS_SOMEONE_ELSE_S =
+  'Die speld is van iemand anders. Alleen wie hem zette, of een Keeper, mag eraan.';
+
 function ownPin(pinId: string, actor: { id: string; isKeeper: boolean }) {
   const pin = db
-    .select({ id: schema.mapPins.id, mapId: schema.mapPins.mapId, createdBy: schema.mapPins.createdBy })
+    .select({
+      id: schema.mapPins.id,
+      mapId: schema.mapPins.mapId,
+      kind: schema.mapPins.kind,
+      createdBy: schema.mapPins.createdBy,
+    })
     .from(schema.mapPins)
     .where(eq(schema.mapPins.id, pinId))
     .get();
   if (!pin) throw new Error('Speld niet gevonden');
   if (!actor.isKeeper && pin.createdBy !== actor.id) {
-    throw new Error('Die speld is van iemand anders. Alleen wie hem zette, of een Keeper, mag eraan.');
+    throw new Error(PIN_IS_SOMEONE_ELSE_S);
   }
   return pin;
+}
+
+/**
+ * §10 as a question rather than an exception, so a route can answer 403 before
+ * it does anything. A landkaart has no `view_mode`/`edit_mode` of its own — it
+ * is not one of `lib/access.ts`'s three targets — so the rule that governs a
+ * speld is the one this file has always had: whoever set it, or a Keeper.
+ * `ownPin` stays the backstop; this only lets the answer be the right number.
+ */
+export function viewerCanEditPin(pinId: string, actor: { id: string; isKeeper: boolean }): boolean {
+  const pin = db
+    .select({ createdBy: schema.mapPins.createdBy })
+    .from(schema.mapPins)
+    .where(eq(schema.mapPins.id, pinId))
+    .get();
+  if (!pin) return false;
+  return actor.isKeeper || pin.createdBy === actor.id;
 }
 
 export function updatePin(
@@ -448,6 +477,71 @@ export function updatePin(
     if (typeof values.text === 'string') fields.text = values.text;
     resetFieldsInRoom(pinFieldsRoomKey(pinId), fields);
   }
+  // §27: a renamed or rewritten speld says something else about the artikelen.
+  recomputeMapMentions(pin.mapId);
+  return getPin(pinId, actor)!;
+}
+
+/**
+ * A note speld becomes the speld of an artikel, in place.
+ *
+ * The prikbord has had this since §8 (`onConvertToEntry` in `BoardCanvas`):
+ * you write "de boot lag hier" on a card during a session, and afterwards the
+ * card turns into the artikel it was always going to be, without moving. A
+ * speld is the same thought on a landkaart, so it is the same shape — the note
+ * seeds the artikel's name and one-liner, the artikel comes back, and the thing
+ * on the wall keeps its place.
+ *
+ * Two rules meet here. §10: only whoever set the speld, or a Keeper, may touch
+ * it — the route asks `viewerCanEditPin` first and answers 403. §1: the artikel
+ * has to be one this writer may actually see, so it goes through
+ * `visibleEntryCondition` exactly as `addPin` does; an id that resolves to
+ * nothing is refused rather than stored, which would leave a speld pointing at
+ * a page nobody can open.
+ *
+ * The name and the text are *cleared*, not kept. §19: an entry speld carries an
+ * id and nothing else, and its name is looked up per viewer in `shapePin` —
+ * a name left in the row would be a second, stale copy that no longer follows
+ * a rename, and the text has already become the artikel's one-liner, so keeping
+ * it would only be the same sentence stored twice. `addPin` writes an entry
+ * speld with neither; after this one there is no way to tell the two apart.
+ */
+export function convertPinToEntry(
+  pinId: string,
+  entryId: string,
+  actor: { id: string; isKeeper: boolean },
+): MapPin {
+  const pin = ownPin(pinId, actor);
+  if (pin.kind !== 'note') throw new Error('Deze speld staat al voor een artikel.');
+
+  const entry = db
+    .select({ id: schema.entries.id })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(actor)))
+    .get();
+  if (!entry) throw new Error('Artikel niet gevonden');
+
+  db.update(schema.mapPins)
+    .set({ kind: 'entry', entryId: entry.id, name: '', text: '', updatedAt: now() })
+    .where(eq(schema.mapPins.id, pinId))
+    .run();
+  db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
+
+  // §21: the note's name and text were a shared field room, and somebody may
+  // still have the speld open. The row is the truth, so the room is brought
+  // into line with what was just written to it — empty, both of them.
+  resetFieldsInRoom(pinFieldsRoomKey(pinId), { name: '', text: '' });
+
+  // §27: the speld stopped being a note and became the artikel itself, so what
+  // it says about the archive changed twice over.
+  recomputeMapMentions(pin.mapId);
+
+  logActivity({
+    actorId: actor.id,
+    verb: 'map.pinned',
+    entryId: entry.id,
+    meta: { mapId: pin.mapId, pinId, from: 'note' },
+  });
   return getPin(pinId, actor)!;
 }
 
@@ -455,6 +549,8 @@ export function removePin(pinId: string, actor: { id: string; isKeeper: boolean 
   const pin = ownPin(pinId, actor);
   db.delete(schema.mapPins).where(eq(schema.mapPins.id, pinId)).run();
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
+  // §27: a speld that has been pulled names nothing.
+  recomputeMapMentions(pin.mapId);
 }
 
 /** Where a fiche is on the maps — for the "Op de landkaart" block on its page. */

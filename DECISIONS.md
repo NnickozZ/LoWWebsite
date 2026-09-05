@@ -952,3 +952,90 @@ Deliberately *not* added, though each would have been the obvious reach:
 - a zip library — `lib/zip.mjs` is a small deflate writer and reader;
 - `next/image` — assets are already resized by `sharp` and served by our own
   route handler behind the login.
+
+---
+
+## Round 8 — 5 September 2026
+
+Five things were wrong at once and they were fixed together. What follows is
+why each was decided the way it was, in the order the answers matter.
+
+**A picture arrives by one road.** Pasting worked in two places out of six, and
+where it worked it read `clipboardData.files` only — so a screenshot, which is
+the commonest picture anybody pastes, was silently ignored everywhere. The fix
+was not six paste handlers but one reader (`imageFromClipboard`) and, per
+place, the upload the file dialog already used. The temptation the code now
+resists is checking the size in the paste handler: a second ceiling and a
+second wording for "too large" is precisely how the two roads drift apart.
+`lib/assets.ts` keeps both ceilings and the server weighs the bytes that
+actually arrived, exactly as before.
+
+**A frame with nothing in it is not a frame.** A notitie on a prikbord came
+into the world with its picture frame open and nothing to put in it. Decided
+twice on purpose: a creation default per card kind (`defaultShowImage`, pure)
+and a render guard that refuses to draw an empty frame whatever the saved flag
+says. No board was migrated — old walls repair themselves at draw time, which
+is the version of this fix that cannot go wrong halfway.
+
+**The cork stopped being text, and stopped scrolling.** Text selection on a
+board fought the board's own selection rectangle over the same drag. Switching
+it off exposed the older bug underneath: `.board-viewport` was `overflow:
+hidden`, which still makes a *scroll* box, so any browser-initiated "reveal
+this" slid the whole wall out from under the transform that is supposed to be
+its only position — and nothing put it back. `overflow: clip` removes the scroll
+box; the `onScroll` reset covers Safari 15. In the same family: a new card is
+now laid down where you can see it, overlapping a little if it must, rather
+than in the first clear spot which on a 390 px phone was reliably off-screen.
+That one was found by a golden flow failing on the phone project only, and it
+had been latent for months — the card used to be forty pixels taller, which was
+just enough to keep its middle inside the view.
+
+**Herkomst is a living reference.** §24 gave a voorwerp or a clue the dossier it
+was born in, printed in front of its name so that two knives in two
+investigations are two knives. It was written once and never again, so moving
+the knife left the wiki lying. It now follows `case_entries` by itself — out of
+the last dossier and the prefix goes with it — with `origin_pinned` for the
+person who chose one on purpose. The alternative, deriving the prefix live from
+`case_entries` and storing nothing, was rejected for one reason: then nobody can
+*decide*, and a clue in three dossiers would take whichever the query answered
+first. An artikel in no dossier at all keeps its plain name and gains a "Zonder
+dossier" chip rather than a stale prefix, because the archive saying "this is
+adrift" is more use than the archive quietly remembering somewhere it no longer
+is.
+
+**A soort's address is a Keeper's to change.** `Relieken` shipped as `object`
+and `Voorwerpen` as `item`: the labels moved and the slugs could not. Renaming
+was chosen over a redirect table — for forty people an old `/wiki/object` in
+somebody's notes is worth a plain warning, not a second table and a permanent
+migration path. `entry_types.id` *is* the slug, so it is a small cascade in one
+transaction, and `seedBaseline` has to remember the rename or a restart puts the
+old address back as a second, empty soort.
+
+**"Genoemd in" counts everything now.** A dossier's notes, an infobox field, a
+section, a card on a wall and a speld on a map all name artikelen and none of
+them said so. `entry_mentions` is derived exactly like `entry_links` — rebuilt
+from the source on every save, disposable, rebuilt from scratch at start-up when
+empty. The one decision worth writing down is what a mention the reader may not
+follow does: it is **absent**, not MISSING. Rule 19 stamps MISSING on a board
+card because a wall you are already looking at has to say something; a list of
+mentions has no such duty, and "an investigation you cannot see mentions you"
+gives the investigation away whether it is named or not.
+
+**A dossier's tabs became a decision.** They followed what happened to be filed,
+so a fresh investigation had no Clues shelf until a clue existed somewhere else
+to file — backwards. `cases.tab_types` null keeps the old behaviour for every
+dossier that never asks; a list pins those shelves open. It is deliberately not
+a filter: a soort with something filed here keeps its tab whatever the list
+says, so a change of mind can never hide what is in a file.
+
+**Two more fonts, and the stamps keep theirs.** Atkinson Hyperlegible and
+OpenDyslexic, both bundled through `@fontsource` (nothing fetched at runtime,
+§13). Two rather than one because the evidence for OpenDyslexic is thin and
+people differ; the default stays the archive's own. `--stamp-face` is
+deliberately untouched — a dyslexia setting that flattens the whole archive into
+one font takes the archive away rather than making it readable.
+
+**Requires `npm ci`.** `@fontsource/atkinson-hyperlegible` and
+`@fontsource/opendyslexic`, both `^5.3.0`, both build-time asset packages like
+the three already here.
+

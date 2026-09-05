@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db, schema, sqlite } from '@/lib/db';
 import { nameTheirCases, type EntrySummary } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
+import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { rankBy } from './fuzzy';
 
 const SUMMARY_COLUMNS = {
@@ -20,6 +21,8 @@ const SUMMARY_COLUMNS = {
   visibility: schema.entries.visibility,
   isLocked: schema.entries.isLocked,
   originCaseId: schema.entries.originCaseId,
+  // §24: so a search result can carry the "Zonder dossier" chip too.
+  typeCaseOnly: schema.entryTypes.caseOnly,
   updatedAt: schema.entries.updatedAt,
 } as const;
 
@@ -116,14 +119,59 @@ export function searchEntries(
 }
 
 /**
+ * §31: the artikelen filed in these dossiers.
+ *
+ * Rule 1 runs through the middle of this. The ids arrive from a browser, so
+ * they are put through `visibleCaseCondition` before anything is looked up in
+ * them: a dossier this viewer may not open contributes nothing, and the shape
+ * of the answer never tells them whether that dossier exists or what is in it.
+ * What comes back is only ever used as an `ORDER BY` over rows that were
+ * already visible — never as a wider `WHERE`.
+ */
+function entriesFiledIn(caseIds: readonly string[], viewer: Viewer): Set<string> {
+  if (!caseIds.length) return new Set();
+
+  const mayOpen = db
+    .select({ id: schema.cases.id })
+    .from(schema.cases)
+    .where(and(inArray(schema.cases.id, [...caseIds]), visibleCaseCondition(viewer)))
+    .all()
+    .map((row) => row.id);
+  if (!mayOpen.length) return new Set();
+
+  return new Set(
+    db
+      .select({ entryId: schema.caseEntries.entryId })
+      .from(schema.caseEntries)
+      .where(inArray(schema.caseEntries.caseId, mayOpen))
+      .all()
+      .map((row) => row.entryId),
+  );
+}
+
+/**
+ * A suggestion, plus the one thing the list itself has to say about it: §31,
+ * this one is already in the dossier you are writing in. It is a decoration on
+ * a row that was going to be there anyway, which is why it lives here and not
+ * on `EntrySummary` — nothing in the archive is filed under it.
+ */
+export type Suggestion = EntrySummary & { inPreferredCase?: boolean };
+
+/**
  * The "Did you mean…" list under the name field of the New entry sheet, and the
  * @ / [[ autocomplete. Names only, tightly ranked.
+ *
+ * §31: `preferCaseIds` are the dossiers the person is writing inside. Anything
+ * filed in one of them sorts above everything else and the rest of the ranking
+ * is unchanged underneath, because in an investigation the thing you are about
+ * to name is nearly always something already on this desk. It is an order, not
+ * a filter: nothing is added to the list and nothing is taken out of it.
  */
 export function suggestEntries(
   viewer: Viewer,
   query: string,
-  options: { limit?: number; typeSlugs?: string[] } = {},
-): EntrySummary[] {
+  options: { limit?: number; typeSlugs?: string[]; preferCaseIds?: string[] } = {},
+): Suggestion[] {
   const q = query.trim();
   if (!q) return [];
   let candidates = visibleEntries(viewer);
@@ -131,8 +179,33 @@ export function suggestEntries(
     const allowed = new Set(options.typeSlugs);
     candidates = candidates.filter((e) => allowed.has(e.typeSlug));
   }
-  const ranked = rankBy(candidates, q, (entry) => [entry.name], options.limit ?? 5).map(
-    (s) => s.item,
+
+  const limit = options.limit ?? 5;
+  const preferred = entriesFiledIn(options.preferCaseIds ?? [], viewer);
+
+  /*
+   * With a boost in play the ranking is done wider than the list is long and
+   * cut afterwards. Ranking to `limit` first and lifting second would drop a
+   * match from this very dossier that happened to sit seventh, which is the
+   * one row this whole feature exists to put on top.
+   */
+  const ranked = rankBy(
+    candidates,
+    q,
+    (entry) => [entry.name],
+    preferred.size ? Math.max(limit * 5, 40) : limit,
   );
-  return nameTheirCases(ranked, viewer);
+
+  const ordered = preferred.size
+    ? [
+        ...ranked.filter((s) => preferred.has(s.item.id)),
+        ...ranked.filter((s) => !preferred.has(s.item.id)),
+      ]
+    : ranked;
+
+  const named = nameTheirCases(
+    ordered.slice(0, limit).map((s) => s.item),
+    viewer,
+  );
+  return named.map((entry) => ({ ...entry, inPreferredCase: preferred.has(entry.id) }));
 }

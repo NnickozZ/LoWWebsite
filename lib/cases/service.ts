@@ -4,10 +4,13 @@ import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
 import type { AccessMode, CoverCrop } from '@/lib/db/schema';
 import { docToText } from '@/lib/entries/doc';
+import { recomputeCaseMentions } from '@/lib/entries/mentions';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
+import { reconcileOrigin } from '@/lib/entries/origin';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
 import { caseFieldsRoomKey } from '@/lib/live/keys';
+import { cleanTabTypes } from './tabs';
 import { visibleCaseCondition } from './visibility';
 
 export type CaseStatus = 'open' | 'cold' | 'closed';
@@ -38,6 +41,12 @@ export type CaseSummary = {
   createdBy: string | null;
   coverAssetId: string | null;
   coverCrop: CoverCrop | null;
+  /**
+   * §30: the soorten whose tabs this dossier always has. Null — the default —
+   * is "whatever is filed here decides", which is what every dossier did
+   * before there was a list. See lib/cases/tabs.ts.
+   */
+  tabTypes: string[] | null;
   updatedAt: number;
   createdAt: number;
 };
@@ -54,6 +63,7 @@ const CASE_COLUMNS = {
   createdBy: schema.cases.createdBy,
   coverAssetId: schema.cases.coverAssetId,
   coverCrop: schema.cases.coverCrop,
+  tabTypes: schema.cases.tabTypes,
   updatedAt: schema.cases.updatedAt,
   createdAt: schema.cases.createdAt,
 } as const;
@@ -73,6 +83,8 @@ const ENTRY_COLUMNS = {
   tags: schema.entries.tags,
   visibility: schema.entries.visibility,
   isLocked: schema.entries.isLocked,
+  /** §24: part of an `EntrySummary`, so a card can ask `isAdrift` of it. */
+  typeCaseOnly: schema.entryTypes.caseOnly,
   updatedAt: schema.entries.updatedAt,
 } as const;
 
@@ -273,6 +285,9 @@ export function addEntryToCase(
     .values({ caseId, entryId, addedBy: userId, note })
     .onConflictDoNothing()
     .run();
+  // §24: an artikel that had no dossier now has one. `reconcileOrigin` decides
+  // whether that is where it came from; a pinned origin it leaves alone.
+  reconcileOrigin(entryId);
   touchCase(caseId, userId);
   logActivity({ actorId: userId, verb: 'case.entry_added', caseId, entryId });
 }
@@ -281,6 +296,9 @@ export function removeEntryFromCase(caseId: string, entryId: string, userId: str
   db.delete(schema.caseEntries)
     .where(and(eq(schema.caseEntries.caseId, caseId), eq(schema.caseEntries.entryId, entryId)))
     .run();
+  // §24: taken out of the dossier it said it came from, it moves to the oldest
+  // one it is still in, or admits to having none.
+  reconcileOrigin(entryId);
   touchCase(caseId, userId);
   logActivity({ actorId: userId, verb: 'case.entry_removed', caseId, entryId });
 }
@@ -405,6 +423,9 @@ export function updateCase(
   }
 
   writeCaseRevision(caseId, user.id);
+  // §27: the artikelen these working notes name. Hung off the service, not off
+  // the room, so a save from either road is counted (rule 13).
+  if (patch.notes !== undefined) recomputeCaseMentions(caseId);
   logActivity({ actorId: user.id, verb: 'case.edited', caseId });
   // §20: the shared notes follow the archive when written around the room.
   if (patch.notes !== undefined && !options.live) resetRoom(`case:${caseId}:notes`, patch.notes);
@@ -415,6 +436,41 @@ export function updateCase(
     if (typeof values.summary === 'string') fields.summary = values.summary;
     resetFieldsInRoom(caseFieldsRoomKey(caseId), fields);
   }
+  return getCaseById(caseId)!;
+}
+
+/**
+ * §30: which soorten belong in this dossier.
+ *
+ * Its own function rather than another key on `CasePatch`, because it is not
+ * a field of the file the way its name and its one-liner are: it is the shape
+ * of the file, it is validated against the soorten that actually exist, and it
+ * writes no revision — a Keeper deciding a fresh investigation should have an
+ * Aanwijzingen shelf has not edited the dossier's contents.
+ *
+ * The write goes through the ORM, so §21's change reader publishes `case:{id}`
+ * and the second person looking at this dossier gets the new tab strip without
+ * touching anything. `null` puts it back on automatic.
+ */
+export function setCaseTabTypes(caseId: string, tabTypes: unknown): CaseSummary {
+  const existing = db
+    .select({ id: schema.cases.id })
+    .from(schema.cases)
+    .where(eq(schema.cases.id, caseId))
+    .get();
+  if (!existing) throw new Error('Dossier niet gevonden');
+
+  const known = db
+    .select({ slug: schema.entryTypes.slug })
+    .from(schema.entryTypes)
+    .all()
+    .map((row) => row.slug);
+
+  db.update(schema.cases)
+    .set({ tabTypes: cleanTabTypes(tabTypes, known), updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(schema.cases.id, caseId))
+    .run();
+
   return getCaseById(caseId)!;
 }
 

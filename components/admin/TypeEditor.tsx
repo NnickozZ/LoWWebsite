@@ -1,7 +1,9 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@/components/Icon';
+import { useUi } from '@/components/ui/UiProvider';
+import { slugify } from '@/lib/slug';
 import { BORDER_OPTIONS } from '@/components/borders';
 import { PageBlocksEditor, type TypeLite } from '@/components/admin/PageBlocksEditor';
 import { FIELD_KINDS } from '@/lib/fieldKinds';
@@ -67,14 +69,66 @@ export function TypeEditor({
   types: TypeLite[];
   words: Words;
 }) {
+  const ui = useUi();
   const [save, saveAction, saving] = useActionState<AdminState, FormData>(saveTypeAction, {});
   const [remove, removeAction] = useActionState<AdminState, FormData>(deleteTypeAction, {});
+  const [label, setLabel] = useState(type.label);
+  const [slug, setSlug] = useState(type.slug);
   const [fields, setFields] = useState<FieldDef[]>(type.fields);
   const [blocks, setBlocks] = useState<PageBlock[]>(type.blocks);
   const [pageText, setPageText] = useState<TypeText>(type.pageText);
   const [icon, setIcon] = useState(type.icon);
   const [colour, setColour] = useState(type.colour);
   const [caseOnly, setCaseOnly] = useState(type.caseOnly);
+
+  /*
+   * §11: a rename of the *address* is not an ordinary save. It moves every
+   * artikel of this soort, and it breaks every `/wiki/<oude-slug>` link and
+   * every saved filter URL that names it — so the sheet asks first, and only
+   * when the address really changed. `confirmed` is what stops the second,
+   * programmatic submit from asking all over again.
+   */
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmed = useRef(false);
+  const slugChanged = Boolean(slug.trim()) && slugify(slug) !== type.slug;
+  // The nudge that fixes Relieken and Voorwerpen: the seed could rename the
+  // words but not the addresses, so `object` still sits under "Relieken".
+  const suggestion = slugify(label);
+  const mismatched = Boolean(label.trim()) && suggestion !== slug;
+
+  async function guardSubmit(event: FormEvent<HTMLFormElement>) {
+    if (confirmed.current) {
+      confirmed.current = false;
+      return;
+    }
+    // The delete button submits this same form with its own action; it has
+    // nothing to do with the address.
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    if (submitter?.hasAttribute('formaction')) return;
+    if (!slugChanged) return;
+
+    event.preventDefault();
+    const yes = await ui.confirm({
+      title: 'Adres van deze soort wijzigen?',
+      message: (
+        <>
+          <p style={{ margin: '0 0 0.5rem' }}>
+            <code>/wiki/{type.slug}</code> wordt <code>/wiki/{slugify(slug)}</code>. Alles in het
+            archief verhuist mee: de {words.entryPlural} van deze soort, de velden en de lijsten die
+            deze soort noemen.
+          </p>
+          <p style={{ margin: 0 }}>
+            Oude links naar <code>/wiki/{type.slug}</code> en opgeslagen filter-links werken daarna
+            niet meer. Die staan buiten het archief, dus die kan het archief niet meeverhuizen.
+          </p>
+        </>
+      ),
+      confirmLabel: 'Adres wijzigen',
+    });
+    if (!yes) return;
+    confirmed.current = true;
+    formRef.current?.requestSubmit();
+  }
 
   function patchField(index: number, patch: Partial<FieldDef>) {
     setFields((current) =>
@@ -102,7 +156,13 @@ export function TypeEditor({
         </span>
       </summary>
 
-      <form action={saveAction} className="stack" style={{ padding: '0.7rem 0 1rem' }}>
+      <form
+        ref={formRef}
+        action={saveAction}
+        onSubmit={guardSubmit}
+        className="stack"
+        style={{ padding: '0.7rem 0 1rem' }}
+      >
         <input type="hidden" name="typeId" value={type.id} />
         <input type="hidden" name="fields" value={JSON.stringify(fields)} />
         <input type="hidden" name="blocks" value={JSON.stringify(blocks)} />
@@ -117,8 +177,49 @@ export function TypeEditor({
               id={`label-${type.id}`}
               className="input"
               name="label"
-              defaultValue={type.label}
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
             />
+          </span>
+          {/* §11: the address, beside the name, because they are one thing said
+              twice — and the line under it is the URL it actually makes. */}
+          <span style={{ flex: '1 1 12rem' }}>
+            <label className="label" htmlFor={`slug-${type.id}`}>
+              Adres (slug)
+            </label>
+            <input
+              id={`slug-${type.id}`}
+              className="input"
+              name="slug"
+              value={slug}
+              spellCheck={false}
+              autoCapitalize="none"
+              onChange={(event) => setSlug(event.target.value)}
+            />
+            <span className="tiny muted" style={{ display: 'block', marginTop: '0.2rem' }}>
+              /wiki/{slug.trim() ? slugify(slug) : '…'}
+            </span>
+            {/*
+              The nudge, not the fix: `Relieken` still lives at `object` and
+              `Voorwerpen` at `item`, because the seed could rename the words
+              and not the addresses. Nothing is renamed on its own — moving
+              every artikel of a soort and breaking every old link is a thing a
+              person decides. This only says so, and fills in the answer.
+            */}
+            {mismatched && (
+              <span className="tiny" style={{ display: 'block', marginTop: '0.3rem' }}>
+                Het adres van deze soort (<code>{slug}</code>) hoort niet meer bij de naam (
+                {label.trim()}).{' '}
+                <button
+                  type="button"
+                  className="btn btn-small btn-ghost"
+                  onClick={() => setSlug(suggestion)}
+                >
+                  <Icon name="edit" size={13} />
+                  {suggestion} gebruiken
+                </button>
+              </span>
+            )}
           </span>
           <span>
             <label className="label" htmlFor={`colour-${type.id}`}>
@@ -367,6 +468,19 @@ export function TypeEditor({
             </div>
           </div>
         </div>
+
+        {/*
+          §11: plain Dutch, above the save, and always — not only once the
+          address has been touched. Somebody about to rename a soort should read
+          what it costs before they type, not after.
+        */}
+        <p className="small muted" style={{ margin: 0, maxWidth: '46rem' }}>
+          <strong>Let op bij het adres.</strong> Verander je het adres, dan verhuist alles in het
+          archief automatisch mee: de {words.entryPlural} van deze soort, en elk veld en elke lijst
+          die deze soort noemt. Wat níet meeverhuist zijn links van buiten:{' '}
+          <code>/wiki/{type.slug}</code> en opgeslagen filter-links met dit adres erin werken daarna
+          niet meer.
+        </p>
 
         {save.error && <p className="error-note">{save.error}</p>}
         {save.ok && <p className="small muted">{save.ok}</p>}

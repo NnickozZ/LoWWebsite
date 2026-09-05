@@ -1,15 +1,25 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
-import { uploadForm } from '@/lib/upload';
+import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
 import { saveSiteAction, setLogoAction, type AdminState } from '@/app/(app)/admin/actions';
 import { defaultIntro } from '@/lib/intro';
 import { UploadProbe } from './UploadProbe';
 
-/** §11's Site pane: name, tagline, the welcome on the start page, logo, accent colour. */
+/**
+ * §11's Site pane: name, tagline, the welcome on the start page, logo, accent
+ * colour.
+ *
+ * §30: the logo can be pasted as well as picked — a logo is almost always
+ * something copied out of another page or cropped in a paint program, which is
+ * the clipboard shape that has no file behind it. Every text field on this pane
+ * is guarded by `pasteIsForTyping`, so pasting a tagline is still pasting a
+ * tagline; only a picture is caught, and it goes up the same road as the file
+ * dialog, with the same ceiling and the same refusal.
+ */
 export function SiteForm({
   name,
   tagline,
@@ -48,6 +58,24 @@ export function SiteForm({
       setUploading(false);
     }
   }
+
+  // The listener is bound once and reads the freshest `upload` through a ref:
+  // `upload` is redeclared on every render, and re-binding a document listener
+  // on each keystroke in this form is the mistake README rule 14 is about.
+  const uploadRef = useRef<(file: File) => void>(() => {});
+  uploadRef.current = (file: File) => void upload(file);
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (pasteIsForTyping(event.target)) return;
+      const picture = imageFromClipboard(event);
+      if (!picture) return;
+      event.preventDefault();
+      uploadRef.current(picture);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
 
   return (
     <form action={action} className="stack" style={{ maxWidth: 520 }}>
@@ -140,6 +168,9 @@ export function SiteForm({
             </button>
           )}
         </div>
+        <p className="tiny muted" style={{ margin: '0.25rem 0 0' }}>
+          Of plak een afbeelding — Ctrl+V, op een Mac Cmd+V.
+        </p>
         <input
           ref={fileRef}
           type="file"

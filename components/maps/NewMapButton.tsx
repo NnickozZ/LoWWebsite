@@ -1,15 +1,22 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
-import { uploadForm } from '@/lib/upload';
+import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
 
 /**
  * §19: the Keeper hangs a map. One sheet: a picture and a name, and the map
  * is on the shelf with no pins yet.
+ *
+ * §30: the picture may also be pasted. A map is very often a screenshot of
+ * something else — and a screenshot is exactly the shape of clipboard that has
+ * no file behind it, so `imageFromClipboard` is what reads it. Pasting only
+ * *chooses* the picture, as the file dialog does; nothing goes up until
+ * Ophangen, which is also where the one size ceiling is (`/api/maps` answers
+ * with the Keeper's 100 MB and its own wording).
  */
 export function NewMapButton() {
   const ui = useUi();
@@ -19,10 +26,38 @@ export function NewMapButton() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  /**
+   * A pasted File cannot be put into an `<input type=file>` — the browser will
+   * not let anything set its value — so the sheet has to say for itself which
+   * picture it is holding, or a paste looks like it did nothing.
+   */
+  const [pasted, setPasted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  /**
+   * The listener lives only while the sheet is open, so a paste anywhere else
+   * on the page is nobody's business but the page's. A paste into the name or
+   * the description is text and stays text (`pasteIsForTyping`).
+   */
+  useEffect(() => {
+    if (!open) return;
+    const onPaste = (event: ClipboardEvent) => {
+      if (pasteIsForTyping(event.target)) return;
+      const picture = imageFromClipboard(event);
+      if (!picture) return;
+      event.preventDefault();
+      setFile(picture);
+      setPasted(true);
+      setError(null);
+      if (fileRef.current) fileRef.current.value = '';
+      setName((current) => current || picture.name.replace(/\.[a-z0-9]+$/i, ''));
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [open]);
 
   async function submit() {
     if (!file) {
@@ -76,12 +111,19 @@ export function NewMapButton() {
                 onChange={(event) => {
                   const chosen = event.target.files?.[0] ?? null;
                   setFile(chosen);
+                  setPasted(false);
                   if (chosen && !name) setName(chosen.name.replace(/\.[a-z0-9]+$/i, ''));
                 }}
               />
               <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
                 Een scan, een tekening, een schermafbeelding — tot 100 MB. Grote kaarten blijven scherp tot 3200 px.
+                Of plak er een: Ctrl+V, op een Mac Cmd+V.
               </p>
+              {pasted && file && (
+                <p className="tiny" style={{ margin: '0.2rem 0 0' }}>
+                  Geplakt: {file.name}
+                </p>
+              )}
             </div>
             <div>
               <label className="label" htmlFor="new-map-name">

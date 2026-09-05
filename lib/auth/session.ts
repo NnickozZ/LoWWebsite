@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
+import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 import { newId, randomToken } from '@/lib/ids';
 
 export const COOKIE_NAME = 'zcf_session';
@@ -18,6 +19,8 @@ export type SessionUser = {
   lastSeenAt: number | null;
   /** §22: which face an artikel opens in for this person; '' follows their role. */
   articleMode: ArticleModePref;
+  /** §29: the face they read in; '' is the archive's own. */
+  readingFont: ReadingFont;
 };
 
 function hashToken(token: string) {
@@ -83,6 +86,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       isDisabled: schema.users.isDisabled,
       lastSeenAt: schema.users.lastSeenAt,
       articleMode: schema.users.articleMode,
+      readingFont: schema.users.readingFont,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
@@ -120,6 +124,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     lastSeenAt: previousLastSeen,
     // A row written before migration 0008 has no value; read it defensively.
     articleMode: cleanArticleModePref(row.articleMode),
+    // Same defensiveness: a row written before this column existed has null.
+    readingFont: cleanReadingFont(row.readingFont),
   };
 }
 

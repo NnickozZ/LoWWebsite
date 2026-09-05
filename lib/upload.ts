@@ -63,3 +63,73 @@ export async function uploadForm<T>(
     return { ok: false, error: NO_CONNECTION, status: 0 };
   }
 }
+
+/* ------------------------------------------------------------- the clipboard */
+
+/**
+ * §30: a picture that arrives on the clipboard.
+ *
+ * Every place in the archive that takes a picture takes one from a file
+ * dialog, and one or two of them also took a paste — which meant the answer to
+ * "can I just paste a screenshot in?" was "somewhere, yes". It is one function
+ * because there is one right answer and it is not obvious: a browser puts an
+ * image on the clipboard in two different shapes. Copying a file in Finder or
+ * Explorer gives `clipboardData.files`; copying a picture *out of a web page*
+ * or taking a screenshot with the system tool gives an `image/*` item under
+ * `clipboardData.items` with no file behind it until you ask, and that one has
+ * no name — Chrome calls it `image.png`, Firefox calls it nothing at all. So
+ * anything that only reads `.files` silently ignores the most common paste
+ * there is.
+ *
+ * The name matters more than it looks: the board names a photo card after the
+ * file, and "image.png" on nine cards is nine cards called image. So a pasted
+ * picture with no name of its own gets a dated one.
+ *
+ * The size ceiling is *not* here. It belongs where the upload happens, which
+ * already knows whose ceiling applies (`uploadLimitFor`) — and it is checked
+ * again on the server on the bytes that actually arrived (§ `lib/assets.ts`).
+ * A paste is a file like any other and goes through exactly the same gate.
+ */
+export function imageFromClipboard(event: ClipboardEvent): File | null {
+  const data = event.clipboardData;
+  if (!data) return null;
+
+  const dropped = Array.from(data.files ?? []).find((file) => file.type.startsWith('image/'));
+  if (dropped) return dropped;
+
+  for (const item of Array.from(data.items ?? [])) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+    const file = item.getAsFile();
+    if (!file) continue;
+    return namedPaste(file);
+  }
+  return null;
+}
+
+/** A pasted picture with no name of its own gets a dated one. */
+function namedPaste(file: File): File {
+  const plain = !file.name || file.name === 'image.png' || file.name === 'blob';
+  if (!plain) return file;
+  const stamp = new Date()
+    .toISOString()
+    .slice(0, 16)
+    .replace('T', ' ')
+    .replace(':', '.');
+  const extension = file.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+  return new File([file], `Geplakt ${stamp}.${extension}`, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
+/**
+ * True when a paste should be left alone: the person is typing in a field, and
+ * what they meant was the text on the clipboard. A picture pasted *into* prose
+ * is the editor's own business (`RichEditor` handles it), and this is for
+ * everything that is not prose — a board, a map, a cover.
+ */
+export function pasteIsForTyping(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element || typeof element.closest !== 'function') return false;
+  return Boolean(element.closest('input, textarea, [contenteditable="true"], .ProseMirror'));
+}

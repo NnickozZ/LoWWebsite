@@ -613,6 +613,63 @@ export function MapCanvas({
     [map.id, ui, words.entry, words.map, words.mapPin],
   );
 
+  /**
+   * §8: a note speld becomes the speld of an artikel, without moving.
+   *
+   * The sibling of `onConvertToEntry` on a prikbord: the same sheet, seeded the
+   * same way (the note's name becomes the artikel's name, its text the
+   * one-liner), and when the artikel comes back the thing on the wall is
+   * patched in place rather than pulled and re-set. No `caseId` here — a
+   * prikbord can hang off a dossier, a landkaart hangs off nothing.
+   */
+  const convertToEntry = useCallback(
+    (pin: MapPin, seed: { name: string; text: string }) => {
+      ui.openNewEntry({
+        // What is on the screen, not what was last pulled: the name and text of
+        // a note speld are a shared field room, and the sheet's own copy is the
+        // newest one this person has (§21, §25).
+        name: seed.name,
+        shortDescription: seed.text,
+        onCreated: (created) => {
+          void (async () => {
+            setBusy(true);
+            try {
+              const response = await fetch(`/api/maps/${map.id}/pins/${pin.id}`, {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ entryId: created.id }),
+              });
+              const data = (await response.json()) as { pin?: MapPin; error?: string };
+              if (!response.ok || !data.pin) {
+                // The artikel was made either way, so say what did not happen:
+                // it is the speld that is still a notitie, not the writing.
+                ui.toast(data.error ?? `De ${words.mapPin} is niet omgezet.`);
+                return;
+              }
+              const saved = data.pin;
+              setPins((current) => current.map((p) => (p.id === saved.id ? saved : p)));
+              // The speld's legend key changed with its kind; a soort that was
+              // switched off would hide the speld that was just converted.
+              setHidden((current) => {
+                if (!current.has(legendKey(saved))) return current;
+                const next = new Set(current);
+                next.delete(legendKey(saved));
+                writeHidden(map.id, next);
+                return next;
+              });
+              ui.toast(`${created.name} staat nu op ${map.name}.`);
+            } catch {
+              ui.toast('Geen verbinding.');
+            } finally {
+              setBusy(false);
+            }
+          })();
+        },
+      });
+    },
+    [map.id, map.name, ui, words.mapPin],
+  );
+
   /* ------------------------------------------------------------ render */
 
   const selected = selectedId ? (pins.find((p) => p.id === selectedId) ?? null) : null;
@@ -900,6 +957,7 @@ export function MapCanvas({
             setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
             onSave={(patch) => void savePin(selected.id, patch)}
             onRemove={() => void removePin(selected)}
+            onConvert={(seed) => convertToEntry(selected, seed)}
             liveUser={liveUser}
           />
         </Sheet>
@@ -929,6 +987,7 @@ function PinSheet({
   setBy,
   onSave,
   onRemove,
+  onConvert,
   liveUser,
 }: {
   pin: MapPin;
@@ -937,6 +996,8 @@ function PinSheet({
   setBy: string | null;
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
+  /** §8: turn this notitie into an artikel, in place. */
+  onConvert: (seed: { name: string; text: string }) => void;
   liveUser: LiveUser;
 }) {
   // §21: a note pin's name and text are shared fields — typed into by whoever
@@ -945,11 +1006,29 @@ function PinSheet({
   if (pin.kind === 'note' && mayEdit) {
     return (
       <LiveFields room={pinFieldsRoomKey(pin.id)} state="" user={liveUser} canEdit>
-        <PinSheetBody pin={pin} busy={busy} mayEdit={mayEdit} setBy={setBy} onSave={onSave} onRemove={onRemove} />
+        <PinSheetBody
+          pin={pin}
+          busy={busy}
+          mayEdit={mayEdit}
+          setBy={setBy}
+          onSave={onSave}
+          onRemove={onRemove}
+          onConvert={onConvert}
+        />
       </LiveFields>
     );
   }
-  return <PinSheetBody pin={pin} busy={busy} mayEdit={mayEdit} setBy={setBy} onSave={onSave} onRemove={onRemove} />;
+  return (
+    <PinSheetBody
+      pin={pin}
+      busy={busy}
+      mayEdit={mayEdit}
+      setBy={setBy}
+      onSave={onSave}
+      onRemove={onRemove}
+      onConvert={onConvert}
+    />
+  );
 }
 
 function PinSheetBody({
@@ -959,6 +1038,7 @@ function PinSheetBody({
   setBy,
   onSave,
   onRemove,
+  onConvert,
 }: {
   pin: MapPin;
   busy: boolean;
@@ -966,6 +1046,7 @@ function PinSheetBody({
   setBy: string | null;
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
+  onConvert: (seed: { name: string; text: string }) => void;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -1054,13 +1135,39 @@ function PinSheetBody({
         </p>
       )}
 
+      {mayEdit && pin.kind === 'note' && (
+        <p className="tiny muted" style={{ margin: 0 }}>
+          De naam en de tekst hierboven worden de naam en de eerste regel van het {words.entry}; de{' '}
+          {words.mapPin} blijft staan waar hij staat.
+        </p>
+      )}
+
       {mayEdit && (
-        <p style={{ margin: 0 }}>
+        <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
+          {/*
+            §8: the same offer a notitie on a prikbord has had — what was
+            scribbled during a session becomes the artikel it was always going
+            to be, and the speld stays exactly where it was put. Only for a
+            notitie: a speld that already stands for an artikel has nothing to
+            become.
+          */}
+          {pin.kind === 'note' && (
+            <button
+              type="button"
+              className="btn btn-small btn-primary"
+              disabled={busy}
+              onClick={() => onConvert({ name, text })}
+            >
+              <Icon name="plus" size={14} />
+              Maak er een {words.entry} van
+            </button>
+          )}
+          <span className="spacer" />
           <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={onRemove}>
             <Icon name="trash" size={14} />
             {words.mapPin.charAt(0).toUpperCase() + words.mapPin.slice(1)} weghalen
           </button>
-        </p>
+        </div>
       )}
     </div>
   );

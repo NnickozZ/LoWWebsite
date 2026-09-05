@@ -1,7 +1,9 @@
+import { viewerCanEdit } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { displayNameOf } from '@/lib/characters';
+import { setEntryOrigin } from '@/lib/entries/origin';
 import { setEntryReveals } from '@/lib/entries/secrets';
 import { getEntryFieldsForViewer, softDeleteEntry, updateEntry, type EntryPatch } from '@/lib/entries/service';
 
@@ -24,7 +26,33 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   try {
     const user = await requireUser();
     const { id } = await ctx.params;
-    const patch = (await request.json()) as EntryPatch & { revealedTo?: string[] };
+    const patch = (await request.json()) as EntryPatch & {
+      revealedTo?: string[];
+      /** §24: the dossier this artikel came from, chosen by hand. */
+      originCaseId?: string | null;
+      /** False hands it back to "volgt vanzelf" and reconciles at once. */
+      originPinned?: boolean;
+    };
+
+    /*
+     * §24: where an artikel came from is not one of the fields §6 patches — it
+     * is a small act of its own, and §10 says a write asks `lib/access.ts`
+     * first. So it is answered here, before `updateEntry`, and 403 rather than
+     * quietly becoming a proposal: "dit komt uit dossier X" is not a sentence
+     * for a review queue.
+     */
+    if (patch.originPinned !== undefined || patch.originCaseId !== undefined) {
+      if (!viewerCanEdit('entry', id, user)) {
+        return json({ error: 'Je mag dit artikel niet bewerken.' }, { status: 403 });
+      }
+      setEntryOrigin(
+        id,
+        { caseId: patch.originCaseId ?? null, pinned: patch.originPinned !== false },
+        user,
+      );
+      delete patch.originCaseId;
+      delete patch.originPinned;
+    }
 
     // §9: who an entry is revealed to is a Keeper's list, not a field on the
     // entry, so it rides along on the same save but is written separately.

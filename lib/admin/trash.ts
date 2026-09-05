@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { logActivity, logAudit, reindexEntry } from '@/lib/entries/service';
+import { entryIdsInCase, reconcileOrigin } from '@/lib/entries/origin';
 import { forgetStoredState } from '@/lib/live/docs';
 
 /**
@@ -385,6 +386,17 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     // The boards keep their contents and their rights; they simply stop
     // hanging off a dossier that no longer exists.
     db.update(schema.boards).set({ caseId: null }).where(eq(schema.boards.caseId, id)).run();
+    // §24: the artikelen survive it (rule 21), so the ones that said they came
+    // from here have to be told where they came from now. Read before the
+    // filings go, reconciled after. A *pinned* origin is normally nobody's to
+    // move but the person who set it — except that the thing they pinned it to
+    // is about to stop existing, so the pin goes with it and the artikel
+    // follows the rule again.
+    const orphaned = entryIdsInCase(id);
+    db.update(schema.entries)
+      .set({ originPinned: false })
+      .where(eq(schema.entries.originCaseId, id))
+      .run();
     db.delete(schema.caseEntries).where(eq(schema.caseEntries.caseId, id)).run();
     db.delete(schema.caseMembers).where(eq(schema.caseMembers.caseId, id)).run();
     db.delete(schema.caseRevisions).where(eq(schema.caseRevisions.caseId, id)).run();
@@ -393,6 +405,12 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
       .where(and(eq(schema.accessGrants.targetType, 'case'), eq(schema.accessGrants.targetId, id)))
       .run();
     db.delete(schema.cases).where(eq(schema.cases.id, id)).run();
+    for (const entryId of orphaned) reconcileOrigin(entryId);
+    // One that was pinned here but never filed here is not in `orphaned`.
+    db.update(schema.entries)
+      .set({ originCaseId: null })
+      .where(eq(schema.entries.originCaseId, id))
+      .run();
   } else if (kind === 'board') {
     db.delete(schema.boardRevisions).where(eq(schema.boardRevisions.boardId, id)).run();
     db.delete(schema.activity).where(eq(schema.activity.boardId, id)).run();

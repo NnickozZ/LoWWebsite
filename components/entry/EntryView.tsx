@@ -36,6 +36,7 @@ import { capitalise } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
+import { OriginLine, type OriginCaseLite } from './OriginLine';
 import { FieldsEditor, FieldsView, fieldValue, type CaseRefs } from './FieldsEditor';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
@@ -136,6 +137,7 @@ export function EntryView({
   onMaps,
   mapsToPlace,
   mapsOfThis,
+  origin,
   live,
   liveFields,
   defaultMode,
@@ -188,6 +190,19 @@ export function EntryView({
    * drawing is of it. A Keeper hooks one up on the landkaart's own page.
    */
   mapsOfThis: { slug: string; name: string }[];
+  /**
+   * §24: where this artikel came from. `case` is the herkomst-dossier resolved
+   * for this viewer on the server (null when there is none, or when it is one
+   * they may not be told about); `pinned` is whether a person chose it rather
+   * than it following the filing on its own; `offer` is whether the question
+   * means anything for this soort at all — a persoon in the wiki gets no
+   * dossier line, a clue does.
+   */
+  origin: {
+    case: OriginCaseLite | null;
+    pinned: boolean;
+    offer: boolean;
+  };
   /**
    * §20: the shared text, handed over in the page. `state` is the Yjs document
    * as the server had it; `canEdit` is the room's gate for this viewer.
@@ -757,6 +772,25 @@ export function EntryView({
           )}
           {/* §21: who is here and whether the line is up now sit in the shell's strip, for every page alike. */}
         </div>
+
+        {/*
+          §24: the eyebrow. Which dossier this came out of, above the title,
+          where a wiki article puts the series it belongs to — and where a
+          player who has just opened a clue from a search result needs it. The
+          lists print "Zaak Vlissingen: De brief" because a list has one line
+          per artikel; the page has room to say it properly and link it. The
+          "In: …" chips lower down are a different fact and stay where they are.
+        */}
+        {(origin.case || origin.offer) && (
+          <OriginLine
+            entryId={entry.id}
+            origin={origin.case}
+            pinned={origin.pinned}
+            cases={cases.map((item) => ({ id: item.id, slug: item.slug, name: item.name }))}
+            canEdit={access.canEdit}
+            reading={reading}
+          />
+        )}
 
         {/*
           §22: reading, the title is a heading and the one-liner is a

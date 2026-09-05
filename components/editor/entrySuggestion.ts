@@ -10,6 +10,8 @@ export type SuggestionEntry = {
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
+  /** §31: this one is already in the dossier being written in. A flag, not a name. */
+  inCase?: boolean;
 };
 
 export type SuggestionItem =
@@ -29,6 +31,13 @@ type Host = {
   update: (state: SuggestionRenderState | null) => void;
   /** Opens the New entry sheet, resolving to the created entry or null. */
   requestCreate: (name: string) => Promise<SuggestionEntry | null>;
+  /**
+   * §31: the dossiers this text lives in. Read through a ref every time the
+   * list is fetched rather than baked in when the plugin is built — the
+   * editor's ProseMirror plugins are made once and live as long as the editor,
+   * and the dossiers an artikel is in can change under it.
+   */
+  preferCaseIds: () => string[];
 };
 
 function insertEntry(editor: Editor, range: Range, entry: SuggestionEntry) {
@@ -71,7 +80,11 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
       const items: SuggestionItem[] = [];
       if (typed.length >= 1) {
         try {
-          const response = await fetch(`/api/suggest?q=${encodeURIComponent(typed)}&limit=6`);
+          const cases = host.preferCaseIds();
+          const prefer = cases.length ? `&cases=${cases.map(encodeURIComponent).join(',')}` : '';
+          const response = await fetch(
+            `/api/suggest?q=${encodeURIComponent(typed)}&limit=6${prefer}`,
+          );
           if (response.ok) {
             const data = (await response.json()) as { entries: SuggestionEntry[] };
             for (const entry of data.entries ?? []) items.push({ kind: 'entry', entry });

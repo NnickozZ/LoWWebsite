@@ -5,6 +5,13 @@
 @import '@fontsource/source-sans-3/600.css';
 @import '@fontsource/archivo-narrow/500.css';
 @import '@fontsource/archivo-narrow/700.css';
+/* §29: the two reading faces a person may switch to in Jouw account. Bundled,
+   like the three above — nothing is fetched at runtime — and the browser only
+   downloads the files once a `[data-font]` block below actually asks for one. */
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+@import '@fontsource/opendyslexic/400.css';
+@import '@fontsource/opendyslexic/700.css';
 
 /* ----------------------------------------------------------------- tokens */
 :root {
@@ -57,6 +64,42 @@
     --link: #8fb8dd;
     color-scheme: dark;
   }
+}
+
+/* ----------------------------------------------------- §29: reading faces */
+/*
+ * Jouw account → Lettertype. `data-font` is written on one wrapper inside the
+ * signed-in layout, which is all a cascading custom property needs: re-point
+ * `--serif` and `--sans` there and every screen under it follows without a
+ * single component knowing the setting exists.
+ *
+ * The `:root:has(…)` half is not decoration. A `Sheet` renders through a
+ * portal onto <body>, *outside* that wrapper, so the wrapper alone would leave
+ * every sheet and toast in the archive's own face. Naming the same variables
+ * on the root as well puts them above everything, portals included. Browsers
+ * without `:has()` still get the whole page proper via the first selector.
+ *
+ * `--stamp-face` is deliberately absent. The stamps, the file tabs and the
+ * type on a cover are the archive; swapping those too would flatten the whole
+ * thing into one font, which is not accessibility, it is losing the archive.
+ * See lib/readingFont.ts.
+ */
+[data-font='atkinson'],
+:root:has([data-font='atkinson']) {
+  --serif: 'Atkinson Hyperlegible', 'Source Serif 4', Georgia, serif;
+  --sans: 'Atkinson Hyperlegible', 'Source Sans 3', system-ui, sans-serif;
+}
+
+[data-font='opendyslexic'],
+:root:has([data-font='opendyslexic']) {
+  --serif: 'OpenDyslexic', 'Source Serif 4', Georgia, serif;
+  --sans: 'OpenDyslexic', 'Source Sans 3', system-ui, sans-serif;
+  /*
+   * OpenDyslexic runs large and bottom-heavy: at the archive's 1.55 the lines
+   * touch. A unitless line-height is inherited as the number, so naming it on
+   * both selectors above sets it once rather than twice over.
+   */
+  line-height: 1.68;
 }
 
 /* ------------------------------------------------------------------ reset */
@@ -1254,7 +1297,20 @@ details.section[open] > summary::before {
 
 .board-viewport {
   position: relative;
+  /*
+   * The cork is placed by one transform on `.board-world` (§15's rule: the
+   * position lives in the transformed layer). `overflow: hidden` hides what
+   * falls outside it, but a hidden box is still a *scroll* box: anything the
+   * browser does on its own — revealing a focused textarea on a card near the
+   * edge, an assistive "scroll this into view", a test driver — scrolls it,
+   * and then the wall has moved somewhere the board's own pan knows nothing
+   * about and never puts back. `overflow: clip` clips without making a scroll
+   * box at all, so there is nothing to scroll. `hidden` stays underneath it for
+   * browsers that do not know `clip` (Safari before 16), where `onScroll` in
+   * `BoardCanvas` puts it back instead.
+   */
   overflow: hidden;
+  overflow: clip;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   height: calc(100dvh - 320px);
@@ -1986,6 +2042,65 @@ details.section[open] > summary::before {
   box-shadow: 1px 1px 0 rgba(40, 26, 12, 0.28);
   pointer-events: none;
   z-index: 3;
+}
+
+/* "Foto" opens the file dialog; the clipboard is the way nobody guesses. */
+.board-paste-hint {
+  display: none;
+}
+@media (min-width: 768px) {
+  .board-paste-hint {
+    display: inline;
+  }
+}
+
+/* ------------------------------------------------- selecting on the cork */
+/*
+ * A corkboard is a thing you drag, and the browser's answer to a drag is to
+ * sweep a text selection across everything it passes — pick up one card and
+ * half the wall turns blue. So the cork and the paper on it are not text: the
+ * stage, the cards and the pins select nothing at all, and `-webkit-touch-
+ * callout` keeps iOS from offering to copy a card when a finger rests on it.
+ *
+ * Then the text you are actually *in* is handed back, the same way the map's
+ * legend is handed back inside a stage that is otherwise not selectable: the
+ * note being written in, the board's search box and its name, the drawer and
+ * the bar along the bottom — every one of them is a place where selecting a
+ * word is the point. A sheet needs no rule of its own: it is portalled to the
+ * body and was never inside the cork to begin with.
+ *
+ * The board's own selection rectangle is untouched by any of this. That box is
+ * drawn by the board (§20, `PointerFrame`) out of pointer coordinates, not by
+ * the browser out of a text range, and switching the browser's off is exactly
+ * what stops the two from fighting over the same drag.
+ */
+.board-viewport,
+.board-world,
+.board-card,
+.board-pincard,
+.board-pin,
+.board-anchor,
+.board-string-label {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.board-card-text-input,
+.board-inspector,
+.board-tray,
+.board-name-input,
+#board-search,
+#board-tray-filter {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+/* Except the cards in the drawer, which are dragged onto the cork: a drag that
+   starts on one is carrying an artikel, never sweeping up its name. */
+.board-tray-card {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* --------------------------------------------------------- who else is here */
@@ -3816,4 +3931,66 @@ details.section[open] > summary::before {
   .map-cursor {
     transition: none;
   }
+}
+
+/* --------------------------------------------------- §24: waar iets vandaan komt */
+
+/* A chip that is a remark rather than a label: "Zonder dossier". Grey on grey,
+   so it reads as an aside beside a name and never as the name itself. */
+.chip-muted {
+  color: var(--ink-muted);
+  border-color: var(--rule);
+  background: transparent;
+  font-size: 0.62rem;
+  padding: 0.05rem 0.4rem;
+}
+
+/* The eyebrow above an artikel's title: which dossier it came from. It is one
+   line at reading width, it wraps rather than pushes the title about, and on a
+   phone it sits directly above the heading like every other eyebrow. */
+.entry-origin {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.15rem;
+  min-width: 0;
+}
+.entry-origin a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 22rem;
+}
+.entry-origin a:hover {
+  border-bottom-color: var(--ink-muted);
+}
+.entry-origin .entry-origin-set {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  min-height: 30px;
+  padding: 0 0.45rem;
+}
+/* The menu itself: a small sheet under the eyebrow, not a floating layer —
+   there is no room for one on a phone and no need for one anywhere. */
+.entry-origin-menu {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  max-width: 22rem;
+}
+.entry-origin-menu li {
+  margin: 0;
+}
+.entry-origin-menu button {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
 }

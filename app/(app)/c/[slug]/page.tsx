@@ -19,6 +19,7 @@ import {
   listCaseMembers,
 } from '@/lib/cases/service';
 import { listEntryTypes } from '@/lib/entries/service';
+import { planCaseTabs, type CaseTabSource } from '@/lib/cases/tabs';
 import { Icon } from '@/components/Icon';
 import { deleteCaseAction } from './actions';
 import { articleModeFor } from '@/lib/entries/mode';
@@ -28,8 +29,17 @@ export const dynamic = 'force-dynamic';
 /** §7's tab list. Anything else keeps its own tab so nothing filed here is lost. */
 const MERGED_PEOPLE = { key: 'people', label: 'Personen', typeSlugs: ['character', 'investigator'] };
 // §24: the two soorten that are made here come first after the people — they
-// are what an investigation actually produces.
-const TAB_ORDER = ['people', 'item', 'clue', 'location', 'object', 'abnormality'];
+// are what an investigation actually produces. *Which* two is asked of the
+// soorten themselves (`caseOnly`), not written down as slugs: §11 lets a Keeper
+// rename a soort all the way into its address, and a hard-coded `item` would
+// quietly stop matching the day `item` became `voorwerpen`.
+const TAB_ORDER = (soorten: { slug: string; caseOnly: boolean }[]) => [
+  'people',
+  ...soorten.filter((type) => type.caseOnly).map((type) => type.slug),
+  'location',
+  'object',
+  'abnormality',
+];
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await getSessionUser();
@@ -93,36 +103,62 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         }
       : null;
 
-  // Build one group per §7 tab, then one for any other type that has entries.
-  const groups: CaseGroup[] = [];
-
+  // Build one candidate tab per §7 group, then let §30 say which of them the
+  // file actually has and in what order. Everything with something filed in it
+  // survives either way, so this can only ever *add* shelves.
   const peopleTypes = types.filter((t) => MERGED_PEOPLE.typeSlugs.includes(t.slug));
-  groups.push({
-    key: MERGED_PEOPLE.key,
-    label: MERGED_PEOPLE.label,
-    icon: peopleTypes[0]?.icon ?? 'person',
-    colour: peopleTypes[0]?.colour ?? 'var(--ink-muted)',
-    typeSlugs: MERGED_PEOPLE.typeSlugs,
-    entries: entries.filter((e) => MERGED_PEOPLE.typeSlugs.includes(e.typeSlug)),
-  });
+  const candidates: CaseGroup[] = [
+    {
+      key: MERGED_PEOPLE.key,
+      label: MERGED_PEOPLE.label,
+      icon: peopleTypes[0]?.icon ?? 'person',
+      colour: peopleTypes[0]?.colour ?? 'var(--ink-muted)',
+      typeSlugs: MERGED_PEOPLE.typeSlugs,
+      entries: entries.filter((e) => MERGED_PEOPLE.typeSlugs.includes(e.typeSlug)),
+      pinned: false,
+    },
+    ...types
+      .filter((type) => !MERGED_PEOPLE.typeSlugs.includes(type.slug))
+      .map((type) => ({
+        key: type.slug,
+        label: type.label,
+        icon: type.icon,
+        colour: type.colour,
+        typeSlugs: [type.slug],
+        entries: entries.filter((e) => e.typeSlug === type.slug),
+        pinned: false,
+      })),
+  ];
 
-  for (const type of types) {
-    if (MERGED_PEOPLE.typeSlugs.includes(type.slug)) continue;
-    groups.push({
-      key: type.slug,
-      label: type.label,
-      icon: type.icon,
-      colour: type.colour,
-      typeSlugs: [type.slug],
-      entries: entries.filter((e) => e.typeSlug === type.slug),
+  const sortOrderOf = new Map(types.map((type) => [type.slug, type.sortOrder]));
+  const sources: CaseTabSource[] = candidates.map((group) => ({
+    key: group.key,
+    typeSlugs: group.typeSlugs,
+    count: group.entries.length,
+    // The merged Personen tab takes the earlier of its two soorten.
+    sortOrder: Math.min(
+      ...group.typeSlugs.map((slug) => sortOrderOf.get(slug) ?? Number.MAX_SAFE_INTEGER),
+    ),
+  }));
+
+  const byKey = new Map(candidates.map((group) => [group.key, group]));
+  const groups: CaseGroup[] = planCaseTabs(sources, record.tabTypes, TAB_ORDER(types))
+    .map((tab) => {
+      const group = byKey.get(tab.key)!;
+      return { ...group, pinned: tab.pinned };
     });
-  }
 
-  groups.sort((a, b) => {
-    const ai = TAB_ORDER.indexOf(a.key);
-    const bi = TAB_ORDER.indexOf(b.key);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-  });
+  // Every soort, for the "Tabbladen" sheet: what it is called, what it looks
+  // like, whether it is one that only exists inside a dossier (§24), and how
+  // many of them are filed here — so ticking one off is never a blind choice.
+  const soorten = types.map((type) => ({
+    slug: type.slug,
+    label: type.label,
+    icon: type.icon,
+    colour: type.colour,
+    caseOnly: type.caseOnly,
+    count: entries.filter((e) => e.typeSlug === type.slug).length,
+  }));
 
   // §21: the name and the one-liner as shared fields.
   const fieldsAdmission = user ? admit(caseFieldsRoomKey(record.id), user) : null;
@@ -147,6 +183,8 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         coverCrop: record.coverCrop,
       }}
       groups={groups}
+      soorten={soorten}
+      tabTypes={record.tabTypes ?? null}
       members={members}
       allUsers={allUsers}
       boards={boards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}

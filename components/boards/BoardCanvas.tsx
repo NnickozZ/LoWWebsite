@@ -16,6 +16,7 @@ import {
   CARD_SIZE,
   cardRef,
   cardSize,
+  defaultShowImage,
   endpointsEqual,
   headOf,
   isCardEnd,
@@ -41,7 +42,7 @@ import { BoardTray, type TrayEntry } from './BoardTray';
 import { offerToFileEntry } from './offerToFile';
 import { syncLabel, useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
-import { uploadForm } from '@/lib/upload';
+import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 
 const MIN_ZOOM = 0.25;
@@ -180,6 +181,14 @@ export function BoardCanvas({
   const fileRef = useRef<HTMLInputElement>(null);
   /** Which card an incoming file belongs to, or 'new' for a fresh photo card. */
   const photoTarget = useRef<string | 'new'>('new');
+  /**
+   * Where the hand last was on the cork, in board coordinates. A pasted
+   * picture lands there rather than in the middle of the view: you paste where
+   * you are looking. Null when the pointer has left the board or never was on
+   * it (a paste straight after a page load, or one made with the keyboard),
+   * and then the centre of the view is the honest answer.
+   */
+  const pointerAt = useRef<{ x: number; y: number } | null>(null);
   const undoStack = useRef<Snapshot[]>([]);
   const dragMoved = useRef(false);
   /** Which card was already selected when the current press began. */
@@ -463,7 +472,82 @@ export function BoardCanvas({
           }
         }
       }
-      return fallback ?? { x: originX, y: originY };
+
+      /*
+       * Nothing free *and* in sight. On a phone that is the ordinary case
+       * rather than the exception: the view is about two cards wide and two
+       * tall, and the search steps a whole card at a time, so the third card
+       * added to a wall has nowhere clear left on the screen at all.
+       *
+       * The old answer was to take the first clear spot anywhere, which put
+       * the card outside the view — you press "Nieuwe notitie" on a phone and
+       * nothing appears, because it was laid down above the top edge. A wall is
+       * perfectly happy with two bits of paper overlapping; a card you cannot
+       * see is no card at all. So a spot in sight wins over a spot that is
+       * clear, and the overlap is offset the way a desk stacks paper: a little
+       * down and to the right each time, still inside the view.
+       */
+      /*
+       * How tall a card really is. `CARD_SIZE` is the nominal card the document
+       * reasons in — the room `freeSpotNear` reserves, the box `cardAt` hit-tests
+       * — but the paper itself grows to fit what is written on it, so a framed
+       * card is nearer 290 px than 250. Placement is the one job where guessing
+       * short is the dangerous way round: it is what put a card half a card's
+       * height below the bottom edge, near enough to look right and far enough
+       * that the browser scrolled the whole cork to reach it. So ask the wall.
+       */
+      const measured = viewportRef.current?.querySelector('.board-card') as HTMLElement | null;
+      const paper = Math.max(size.height, measured ? measured.offsetHeight : 0);
+
+      /*
+       * Nothing free *and* in sight, which on a phone is the ordinary case
+       * rather than the exception: the view is about two cards wide and two
+       * tall and the ring search steps a whole card at a time, so the third
+       * card added to a wall has nowhere clear left on the screen at all.
+       *
+       * The old answer was the first clear spot *anywhere*, which laid the card
+       * down outside the view — you press "Nieuwe notitie" on a phone and
+       * nothing appears, because it went above the top edge. A wall is happy
+       * with two bits of paper overlapping; a card you cannot see is not a card
+       * at all. So a spot in sight beats a spot that is clear, and among the
+       * spots in sight the one that covers the least of what is already there
+       * wins — which keeps the middle of every earlier card reachable, and is
+       * what a person does with paper anyway: lay it in the gap.
+       */
+      const cascaded = view
+        ? (() => {
+            const margin = 12;
+            const minX = view.left + margin;
+            const minY = view.top + margin;
+            const maxX = Math.max(minX, view.right - size.width - margin);
+            const maxY = Math.max(minY, view.bottom - paper - margin);
+
+            const overlap = (x: number, y: number) =>
+              cards.reduce((total, card) => {
+                const other = cardSize(card);
+                const w = Math.min(x + size.width, card.x + other.width) - Math.max(x, card.x);
+                const h = Math.min(y + paper, card.y + other.height) - Math.max(y, card.y);
+                return total + (w > 0 && h > 0 ? w * h : 0);
+              }, 0);
+
+            const step = 24;
+            let best = { x: Math.round(minX), y: Math.round(minY), score: Infinity, near: Infinity };
+            for (let x = minX; x <= maxX + 0.5; x += step) {
+              for (let y = minY; y <= maxY + 0.5; y += step) {
+                const score = overlap(x, y);
+                // Ties go to the spot nearest where the person was looking.
+                const near = (x - originX) ** 2 + (y - originY) ** 2;
+                if (score < best.score || (score === best.score && near < best.near)) {
+                  best = { x: Math.round(x), y: Math.round(y), score, near };
+                }
+                if (score === 0 && near === 0) break;
+              }
+            }
+            return { x: best.x, y: best.y };
+          })()
+        : null;
+
+      return cascaded ?? fallback ?? { x: originX, y: originY };
     },
     [cards, viewport],
   );
@@ -481,7 +565,11 @@ export function BoardCanvas({
         assetId: null,
         crop: null,
         border: null,
-        showImage: card.kind !== 'pin',
+        // Only a card that has something to show opens its frame; the rule and
+        // the reasoning live in `defaultShowImage`. A caller that knows better
+        // — the photo card, which is made around a picture — says so below and
+        // wins, because `...card` comes after.
+        showImage: defaultShowImage(card.kind),
         ...card,
         x: card.x ?? spot.x,
         y: card.y ?? spot.y,
@@ -587,8 +675,20 @@ export function BoardCanvas({
     fileRef.current?.click();
   }, []);
 
+  /**
+   * A picture onto the wall. One road for every way a file can arrive — the
+   * file dialog and the clipboard both end up here — which is what keeps the
+   * size ceiling honest: it is `/api/assets` that weighs the bytes against
+   * `uploadLimitFor` and answers `tooLargeMessage`, and `readUploadResponse`
+   * that turns a bare 413 from the web server in front of it into
+   * `PROXY_TOO_LARGE`. A paste is a file like any other and gets exactly that
+   * gate and exactly those words, because it takes the same road.
+   *
+   * `at` is a board point when we know where the hand was; without it the card
+   * lands in the middle of the view, as the file dialog has always done.
+   */
   const uploadPhoto = useCallback(
-    async (file: File) => {
+    async (file: File, at?: { x: number; y: number } | null) => {
       setUploading(true);
       try {
         const form = new FormData();
@@ -607,8 +707,17 @@ export function BoardCanvas({
             kind: 'photo',
             assetId: data.asset.id,
             crop: fresh,
+            // Said out loud rather than left to the default: this one card is
+            // made *around* a picture, so its frame is the whole point of it.
+            showImage: true,
             name: file.name.replace(/\.[^.]+$/, ''),
             text: '',
+            ...(at
+              ? {
+                  x: Math.round(at.x - CARD_WIDTH / 2),
+                  y: Math.round(at.y - CARD_SIZE.height / 2),
+                }
+              : {}),
           });
           setSelected(new Set([placed.id]));
           setSelectedStringId(null);
@@ -629,6 +738,52 @@ export function BoardCanvas({
     [addCard, patchCard, ui],
   );
 
+  /**
+   * §30: the same picture, arriving on the clipboard.
+   *
+   * A screenshot of a map, a portrait copied out of a browser tab, a photo
+   * copied in Explorer — all of it was a trip through the file dialog, and a
+   * screenshot had to be saved to disk first. The gesture people already try
+   * is Ctrl+V on the wall, so that is what this is; everything after the file
+   * has been found is the file dialog's own road, down to the toasts.
+   *
+   * With exactly one card selected and that card not an artikel card, the
+   * picture becomes *that* card's photo — the same thing "Foto vervangen"
+   * does, and the same card the inspector offers it for. An artikel card is
+   * left out for the reason the inspector leaves it out: its picture is the
+   * artikel's cover and belongs on the artikel, not on one wall.
+   */
+  const pasteImage = useCallback(
+    (event: ClipboardEvent) => {
+      // A viewer who may not touch this wall pastes nothing onto it.
+      if (readOnly) return;
+      // One upload at a time: two in flight would race for `photoTarget`.
+      if (uploading) return;
+      // The clipboard belongs to whoever is typing — a note's text, the search
+      // box, a name being renamed, any field in an open sheet.
+      if (pasteIsForTyping(event.target)) return;
+      // A sheet or the lightbox is on top of the board; a paste there is not
+      // the board's, even when it lands on something that is not a field.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('[role="dialog"], .sheet, .board-lightbox')) return;
+      if (accessOpen || lightbox) return;
+
+      const file = imageFromClipboard(event);
+      if (!file) return;
+      event.preventDefault();
+
+      const single = selectedCards.length === 1 ? selectedCards[0] : null;
+      photoTarget.current = single && single.kind !== 'entry' ? single.id : 'new';
+      void uploadPhoto(file, photoTarget.current === 'new' ? pointerAt.current : null);
+    },
+    [accessOpen, lightbox, readOnly, selectedCards, uploadPhoto, uploading],
+  );
+
+  useEffect(() => {
+    document.addEventListener('paste', pasteImage);
+    return () => document.removeEventListener('paste', pasteImage);
+  }, [pasteImage]);
+
   /* ------------------------------------------------------------- pointer */
 
   function selectCard(cardId: string, additive: boolean) {
@@ -641,6 +796,16 @@ export function BoardCanvas({
     });
   }
 
+  /*
+   * A card is *not* given `preventDefault()` here, and that is deliberate.
+   * Cancelling a pointerdown suppresses the compatibility mouse events the
+   * browser builds a double-click out of, and a double-click is this card's
+   * entire vocabulary: open the artikel, open the picture, start writing. The
+   * blue sweep that preventDefault was wanted for is already gone — `.board-card`
+   * carries `user-select: none`, so a drag that begins on a card selects
+   * nothing at all, here or anywhere else on the page. The two places on a card
+   * that are drags and nothing else — the pin head and the crop — do refuse it.
+   */
   function onCardPointerDown(event: React.PointerEvent, cardId: string) {
     if (event.button !== 0) return;
 
@@ -648,6 +813,7 @@ export function BoardCanvas({
     if (croppingId === cardId) {
       const card = cardById.get(cardId);
       if (!card) return;
+      event.preventDefault();
       cropDrag.current = {
         startX: event.clientX,
         startY: event.clientY,
@@ -685,6 +851,10 @@ export function BoardCanvas({
 
   function onPinPointerDown(event: React.PointerEvent, cardId: string) {
     if (!interactive) return;
+    // A pin head is a drag and nothing else — no click, no focus, no text —
+    // so refusing the default here costs nothing and stops the string from
+    // dragging a blue selection along behind it.
+    event.preventDefault();
     const point = toBoard(event.clientX, event.clientY);
     setSelected(new Set());
     setSelectedStringId(null);
@@ -699,6 +869,8 @@ export function BoardCanvas({
   ) {
     if (!interactive) return;
     event.stopPropagation();
+    // Same as the pin head: a grip is only ever dragged.
+    event.preventDefault();
     const point = toBoard(event.clientX, event.clientY);
     pushUndo();
     setDrawing({
@@ -722,10 +894,30 @@ export function BoardCanvas({
     if (
       target.closest('.board-card') ||
       target.closest('.board-inspector') ||
+      // The drawer and its spine sit inside the viewport, so a press in the
+      // filter box bubbled out here and panned the wall out from under it.
+      target.closest('.board-tray') ||
+      target.closest('.board-tray-spine') ||
       target.closest('.board-end-handle')
     ) {
       return;
     }
+
+    /*
+     * Bare cork, and this press is a pan or a marquee. Both are drags, and the
+     * browser's own answer to a drag is to sweep a text selection across the
+     * page — the cards, the toolbar, whatever is above the board. `user-select:
+     * none` on the cork stops it from selecting anything *in* here; refusing
+     * the default stops the gesture from being read as a selection at all.
+     *
+     * The one thing the default would have done that is worth keeping is
+     * moving focus off whatever was being typed in, so do that by hand — the
+     * board's name saves on blur, and it would otherwise never lose focus.
+     * Nothing on bare cork wants focus, and nothing on it answers a click.
+     */
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) active.blur?.();
+    event.preventDefault();
 
     setSelected(new Set());
     setSelectedStringId(null);
@@ -750,6 +942,8 @@ export function BoardCanvas({
     if (event.pointerType !== 'touch' && live.state === 'live') {
       live.reportPointer({ cursor: toBoard(event.clientX, event.clientY) });
     }
+    // Remembered for the paste, which has no coordinates of its own.
+    if (event.pointerType !== 'touch') pointerAt.current = toBoard(event.clientX, event.clientY);
 
     if (cropDrag.current && croppingId) {
       const rect = viewportRef.current?.getBoundingClientRect();
@@ -1556,10 +1750,14 @@ export function BoardCanvas({
           className="btn btn-small"
           onClick={() => askForPhoto('new')}
           disabled={uploading}
+          title="Kies een afbeelding, of plak er een met Ctrl+V"
         >
           <Icon name="camera" size={15} />
           {uploading ? 'Uploaden…' : 'Foto'}
         </button>
+        {/* Nobody finds a paste that is not written down. Hidden on a phone,
+            where there is no clipboard gesture on the cork to find. */}
+        <span className="tiny muted board-paste-hint">of plak een afbeelding</span>
         <button
           type="button"
           className="btn btn-small"
@@ -1585,7 +1783,24 @@ export function BoardCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onPointerLeave={() => live.reportPointer({ cursor: null })}
+        /*
+         * The wall's position is the transform on `.board-world`, and nothing
+         * else. `overflow: clip` means this box cannot be scrolled at all where
+         * the browser knows that word; where it does not, this puts back what
+         * the browser scrolled behind the board's back — a focused field being
+         * revealed, an assistive jump — because a cork that has quietly slid
+         * 100 px is one where every card is a little to the left of where it
+         * says it is, strings included.
+         */
+        onScroll={(event) => {
+          const box = event.currentTarget;
+          if (box.scrollLeft !== 0) box.scrollLeft = 0;
+          if (box.scrollTop !== 0) box.scrollTop = 0;
+        }}
+        onPointerLeave={() => {
+          pointerAt.current = null;
+          live.reportPointer({ cursor: null });
+        }}
         onWheel={onWheel}
         onTouchMove={onTouchMove}
         onTouchEnd={() => {
@@ -1891,6 +2106,12 @@ export function BoardCanvas({
           cropping={Boolean(croppingId)}
           busy={uploading}
           canCrop={Boolean(singleSelected?.showImage && selectedImage?.assetId)}
+          /* A card with nothing to put in a frame no longer draws one whatever
+             the flag says, so "Foto tonen" on a bare notitie would be a button
+             that does nothing at all. Offered where there is something to show
+             — a picture, or a soort icon to stand in until there is one, which
+             is the same question `BoardCard` asks itself. */
+          canShowImage={Boolean(selectedImage?.assetId || selectedSubject)}
           hasOwnPhoto={Boolean(singleSelected?.assetId)}
           inheritedBorderLabel={
             selectedSubject?.border ? borderLabel(selectedSubject.border) : null

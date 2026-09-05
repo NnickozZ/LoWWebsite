@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { ArticleModePref } from '@/lib/entries/mode';
+import type { ReadingFont } from '@/lib/readingFont';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import {
   blob,
@@ -34,6 +35,11 @@ export const users = sqliteTable(
      * 'edit' to edit, '' to follow their role. See `lib/entries/mode.ts`.
      */
     articleMode: text('article_mode').$type<ArticleModePref>().notNull().default(''),
+    /**
+     * §29: which face this person reads in. '' is the archive's own; the two
+     * alternatives are bundled locally, so nothing is fetched at runtime.
+     */
+    readingFont: text('reading_font').$type<ReadingFont>().notNull().default(''),
   },
   (t) => [uniqueIndex('users_username_lower_idx').on(t.usernameLower)],
 );
@@ -171,6 +177,12 @@ export const entries = sqliteTable(
      * a glance. Null for everything born in the wiki itself.
      */
     originCaseId: text('origin_case_id'),
+    /**
+     * §24: false means `originCaseId` follows `case_entries` on its own — taken
+     * out of the dossier it names and it moves, or empties. True means somebody
+     * chose that dossier on purpose and nothing may move it but them.
+     */
+    originPinned: integer('origin_pinned', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
     updatedBy: text('updated_by'),
     createdAt: integer('created_at').notNull().default(now),
@@ -258,6 +270,36 @@ export const entryLinks = sqliteTable(
   ],
 );
 
+/**
+ * §27: a mention of an artikel that did not come from another artikel.
+ *
+ * `entry_links` is artikel-to-artikel and stays that way. This is the same
+ * idea with a source that is a dossier's notes, an infobox field, a card on a
+ * prikbord or a speld on a landkaart. Like `entry_links` it is *derived*:
+ * rebuilt from the source document on every save, so it can never say
+ * something the text does not. Nothing is read out of it without the reader's
+ * own visibility rule for whatever `fromKind` names (rule 1).
+ */
+export const entryMentions = sqliteTable(
+  'entry_mentions',
+  {
+    toEntryId: text('to_entry_id').notNull(),
+    fromKind: text('from_kind')
+      .$type<'case' | 'board' | 'map' | 'field' | 'section'>()
+      .notNull(),
+    /** The dossier / prikbord / landkaart / artikel the mention sits in. */
+    fromId: text('from_id').notNull(),
+    /** What to print after the source: a field's label, a card's name. */
+    detail: text('detail').notNull().default(''),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [
+    primaryKey({ columns: [t.toEntryId, t.fromKind, t.fromId, t.detail] }),
+    index('entry_mentions_to_idx').on(t.toEntryId),
+    index('entry_mentions_from_idx').on(t.fromKind, t.fromId),
+  ],
+);
+
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(),
   kind: text('kind').$type<'image' | 'file'>().notNull().default('image'),
@@ -290,6 +332,12 @@ export const cases = sqliteTable(
     coverAssetId: text('cover_asset_id'),
     /** How the Case Files grid squares off the cover; the dossier shows it whole. */
     coverCrop: text('cover_crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /**
+     * §28: which soorten belong in this dossier, as type slugs. Null is "let the
+     * tabs follow whatever is filed here", which is what every dossier did
+     * before; a list means those tabs are always there, empty or not.
+     */
+    tabTypes: text('tab_types', { mode: 'json' }).$type<string[] | null>(),
     createdBy: text('created_by'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),

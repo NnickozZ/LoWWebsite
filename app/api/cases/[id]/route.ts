@@ -1,7 +1,13 @@
 import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { getCaseById, getCaseBySlug, updateCase, type CasePatch } from '@/lib/cases/service';
+import {
+  getCaseById,
+  getCaseBySlug,
+  setCaseTabTypes,
+  updateCase,
+  type CasePatch,
+} from '@/lib/cases/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +31,21 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     const { id } = await ctx.params;
     assertEditable(id, user);
 
-    const patch = (await request.json()) as CasePatch;
-    return json({ case: updateCase(id, patch, user) });
+    const body = (await request.json()) as CasePatch & { tabTypes?: unknown };
+
+    /*
+     * §30: which soorten this dossier has tabs for. Its own branch rather than
+     * a key on the patch: the shape of the file is not one of its fields, and
+     * `setCaseTabTypes` validates the slugs against the soorten that exist
+     * instead of trusting whatever arrived. §10 has already answered here —
+     * `assertEditable` above is the 403, so the sheet being hidden for a player
+     * is a courtesy and this is the rule.
+     */
+    if ('tabTypes' in body) {
+      return json({ case: setCaseTabTypes(id, body.tabTypes) });
+    }
+
+    return json({ case: updateCase(id, body, user) });
   } catch (err) {
     return apiError(err);
   }

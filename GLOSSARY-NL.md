@@ -396,3 +396,23 @@ Personen (was *Personages* until 5 September 2026; one word, *personen*,
 everywhere) · Onderzoekers · Locaties · Voorwerpen en relieken · Aanwijzingen ·
 Abnormaliteiten · Facties · Gebeurtenissen · Overlevering en folklore ·
 Sessieverslagen. Field labels and select options are in lib/db/seed.mjs.
+
+## Round 8 — nieuwe woorden op het scherm
+
+| Nederlands | Waar | Wat het is |
+|---|---|---|
+| **Tabbladen** | knop in de kop van een dossier | Welke soorten dit dossier altijd een tabblad geven, ook als er nog niets in staat. |
+| **Automatisch** | in dat blad | De tabbladen volgen wat er in het dossier ligt — de stand waarin elk dossier begint. |
+| **Wat een onderzoek oplevert** | in dat blad | De soorten die alleen in een dossier gemaakt worden (voorwerp, aanwijzing), vooraan aangeboden. |
+| **Uit dit dossier** | mapje naast een suggestie | Dit artikel ligt al in het dossier waarin je schrijft; daarom staat het bovenaan. |
+| **Zonder dossier** | grijs chipje naast een naam | Een voorwerp of aanwijzing die in geen enkel dossier meer ligt. Beheer → Soorten artikelen houdt de lijst bij. |
+| **Uit: …** | boven de titel van een artikel | Het dossier waar dit artikel vandaan komt. Volgt vanzelf mee; een Keeper kan hem vastzetten. |
+| **Volgt vanzelf** | in dat menu | De herkomst volgt de dossiers waar het artikel in ligt, in plaats van vast te staan. |
+| **Adres (slug)** | Beheer → Soorten artikelen | Het stukje van de URL van een soort (`/wiki/relieken`). Hernoemen verplaatst alles in het archief mee; oude links van buiten breken. |
+| **Maak er een artikel van** | speld op een landkaart | Zet een notitie-speld om in een echt artikel, op dezelfde plek. |
+| **of plak een afbeelding** | overal waar een foto gevraagd wordt | Ctrl+V (op een Mac Cmd+V) werkt net zo goed als het bestandsvenster. |
+| **Lettertype** | Jouw account | Waarin jij het archief leest. Alleen voor jou. |
+| **Archief** | Lettertype | De letter van het archief zelf. |
+| **Beter leesbaar** | Lettertype | Atkinson Hyperlegible: letters die op elkaar lijken zijn uit elkaar getrokken. |
+| **Dyslexie** | Lettertype | OpenDyslexic: elke letter is onderaan verzwaard. |
+

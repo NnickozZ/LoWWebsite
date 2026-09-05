@@ -16,11 +16,15 @@ import {
 } from '@/lib/auth/session';
 import { logAudit } from '@/lib/entries/service';
 import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
+import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 
 export type AccountState = { error?: string; ok?: string };
 
 /** The mode form answers with the choice that landed, so the chips can follow. */
 export type ArticleModeState = AccountState & { mode?: ArticleModePref };
+
+/** The same trick for the letter: the answer comes back, so no reload is needed. */
+export type ReadingFontState = AccountState & { font?: ReadingFont };
 
 /**
  * §22: "hoe een artikel opengaat" in Jouw account. Everyone has this dial —
@@ -37,6 +41,26 @@ export async function setArticleModeAction(
   db.update(schema.users).set({ articleMode: mode }).where(eq(schema.users.id, user.id)).run();
 
   return { ok: 'Opgeslagen.', mode };
+}
+
+/**
+ * §29: "Lettertype" in Jouw account. The choice is per account, not per
+ * device, because the person who needs it needs it on the phone in the tent as
+ * much as on the laptop. The empty string is the archive's own letter.
+ *
+ * The layout reads it out of the session on the next render, so the change is
+ * on every page of the archive the moment this returns.
+ */
+export async function setReadingFontAction(
+  _prev: ReadingFontState,
+  formData: FormData,
+): Promise<ReadingFontState> {
+  const user = await requireUser();
+  const font = cleanReadingFont(formData.get('font'));
+
+  db.update(schema.users).set({ readingFont: font }).where(eq(schema.users.id, user.id)).run();
+
+  return { ok: 'Opgeslagen.', font };
 }
 
 export async function changePasswordAction(

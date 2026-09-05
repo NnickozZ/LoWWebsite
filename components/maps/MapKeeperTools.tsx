@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { EntryPicker, type EntryRef } from '@/components/entry/EntryPicker';
-import { uploadForm } from '@/lib/upload';
+import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
 import type { MapSummary } from '@/lib/maps/service';
 
 /**
@@ -16,6 +16,12 @@ import type { MapSummary } from '@/lib/maps/service';
  * the island map"; this says "this drawing is the lighthouse" — the floor plan
  * of a building, the chart of a harbour — and it is what puts a "Landkaart van
  * dit artikel" link on the artikel's own page.
+ *
+ * §30: a new drawing can be pasted as well as picked. The listener is bound
+ * only while this panel is unfolded — the rest of the map page belongs to the
+ * spelden, and a Keeper who pastes with the panel shut has not asked to redraw
+ * anything. Pasting goes down exactly the same road as the file dialog, so it
+ * meets the same ceiling and reads the same refusal back (`replacePicture`).
  */
 export function MapKeeperTools({
   map,
@@ -32,7 +38,13 @@ export function MapKeeperTools({
   const [description, setDescription] = useState(map.description);
   const [busy, setBusy] = useState(false);
   const [entry, setEntry] = useState<EntryRef | null>(ofEntry);
+  const [panelOpen, setPanelOpen] = useState(false);
   const dirty = name.trim() !== map.name || description.trim() !== map.description;
+
+  // The freshest `replacePicture`, read through a ref: the listener is bound
+  // once per unfolding and must not be torn down and rebuilt on every keystroke
+  // in the name field (README rule 14, the same shape a Sheet uses).
+  const replaceRef = useRef<(file: File) => void>(() => {});
 
   /**
    * The coupling saves the moment it is chosen rather than waiting for the
@@ -101,6 +113,21 @@ export function MapKeeperTools({
     }
   }
 
+  replaceRef.current = (file: File) => void replacePicture(file);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onPaste = (event: ClipboardEvent) => {
+      if (pasteIsForTyping(event.target)) return;
+      const picture = imageFromClipboard(event);
+      if (!picture) return;
+      event.preventDefault();
+      replaceRef.current(picture);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [panelOpen]);
+
   async function takeDown() {
     const yes = await ui.confirm({
       title: `${map.name} van de muur halen?`,
@@ -124,7 +151,11 @@ export function MapKeeperTools({
   }
 
   return (
-    <details className="section" style={{ marginTop: '1rem' }}>
+    <details
+      className="section"
+      style={{ marginTop: '1rem' }}
+      onToggle={(event) => setPanelOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
       <summary>
         <Icon name="shield" size={14} /> Deze {words.map} ({words.keeper})
       </summary>
@@ -182,6 +213,7 @@ export function MapKeeperTools({
               }}
             />
           </label>
+          <span className="tiny muted">of plak een afbeelding</span>
           <span className="spacer" />
           <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={() => void takeDown()}>
             <Icon name="trash" size={14} />

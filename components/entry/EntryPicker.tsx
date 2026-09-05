@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { entryDisplayName } from '@/lib/entries/caseName';
+import { AdriftChip } from '@/components/entry/AdriftChip';
+import { preferredCasesParam, usePreferredCases } from './PreferredCases';
 
 export type EntryRef = {
   id: string;
@@ -24,6 +26,10 @@ type Suggestion = {
   shortDescription: string;
   /** §24: the dossier a voorwerp or clue was made in, when it was. */
   originCaseName?: string | null;
+  /** §31: this one is in the dossier you are writing in. A flag, not a name. */
+  inCase?: boolean;
+  /** §24: and whether it is in no dossier at all. */
+  adrift?: boolean;
 };
 
 /**
@@ -47,6 +53,9 @@ export function EntryPicker({
   onClear: () => void;
 }) {
   const ui = useUi();
+  // §31: the dossiers this box is being used inside, if any. Their contents
+  // sort first; everything else is still in the list, underneath.
+  const preferCases = usePreferredCases();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Suggestion[]>([]);
@@ -61,9 +70,10 @@ export function EntryPicker({
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       const types = ofType?.length ? `&types=${ofType.join(',')}` : '';
+      const cases = preferredCasesParam(preferCases);
       try {
         const response = await fetch(
-          `/api/suggest?q=${encodeURIComponent(typed)}&limit=6${types}`,
+          `/api/suggest?q=${encodeURIComponent(typed)}&limit=6${types}${cases}`,
           { signal: controller.signal },
         );
         if (!response.ok) return;
@@ -77,7 +87,7 @@ export function EntryPicker({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, open, ofType]);
+  }, [query, open, ofType, preferCases]);
 
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
@@ -135,10 +145,24 @@ export function EntryPicker({
                 <Icon name={entry.typeIcon} size={15} style={{ color: entry.typeColour }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <strong>{entryDisplayName(entry.name, entry.originCaseName)}</strong>
+                  {/* §24: a clue in no dossier — the same remark the wiki makes. */}
+                  {entry.adrift && <AdriftChip />}
                   <span className="tiny muted" style={{ display: 'block' }}>
                     {entry.typeLabel}
                   </span>
                 </span>
+                {/* §31: why this row is at the top. A folder and nothing else —
+                    naming the dossier would tell a reader an investigation
+                    exists, which is not this list's to say. */}
+                {entry.inCase && (
+                  <span
+                    title="Uit dit dossier"
+                    style={{ color: 'var(--ink-muted)', flex: '0 0 auto', display: 'inline-flex' }}
+                  >
+                    <Icon name="folder" size={13} />
+                    <span className="visually-hidden">Uit dit dossier</span>
+                  </span>
+                )}
               </button>
             </li>
           ))}

@@ -6,6 +6,7 @@ import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
+import { recomputeFieldMentions } from './mentions';
 import { visibleEntryCondition, type Viewer } from './visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { publishSaved, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
@@ -47,6 +48,13 @@ export type EntrySummary = {
   /** §24: the dossier this artikel was made in, if it was made in one. */
   originCaseId: string | null;
   /**
+   * §24: does this artikel's soort only exist inside a dossier? Carried on the
+   * summary because a list has to be able to ask "is this one adrift?"
+   * (`isAdrift`) without a second query per row — a persoon with no dossier is
+   * ordinary, a clue with none is a loose end.
+   */
+  typeCaseOnly: boolean;
+  /**
    * The name of that dossier, for this viewer — filled in by `nameTheirCases`,
    * absent otherwise. Never read straight off the row: a dossier's name is not
    * public, so it is resolved behind `visibleCaseCondition` like every other
@@ -76,6 +84,7 @@ export const SUMMARY_COLUMNS = {
   isLocked: schema.entries.isLocked,
   viewMode: schema.entries.viewMode,
   originCaseId: schema.entries.originCaseId,
+  typeCaseOnly: schema.entryTypes.caseOnly,
   createdBy: schema.entries.createdBy,
   createdAt: schema.entries.createdAt,
   updatedAt: schema.entries.updatedAt,
@@ -263,6 +272,8 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
 
   reindexEntry(id);
   recomputeLinks(id, body);
+  // §27: made with its infobox already filled in — the mentions come with it.
+  if (input.fields) recomputeFieldMentions(id);
   writeRevision(id, input.createdBy, 'aangemaakt');
   logActivity({ actorId: input.createdBy, verb: 'entry.created', entryId: id });
 
@@ -327,6 +338,8 @@ export function getEntryBySlug(slug: string, viewer: Viewer) {
       body: schema.entries.body,
       bodyText: schema.entries.bodyText,
       fields: schema.entries.fields,
+      /** §24: whether a person chose the herkomst-dossier, or it follows. */
+      originPinned: schema.entries.originPinned,
       keeperNotes: schema.entries.keeperNotes,
       status: schema.entries.status,
       viewMode: schema.entries.viewMode,
@@ -622,6 +635,10 @@ export function updateEntry(
   db.update(schema.entries).set(values).where(eq(schema.entries.id, entryId)).run();
 
   if (patch.body !== undefined) recomputeLinks(entryId, patch.body);
+  // §27: an infobox that points at another artikel is a mention of it. Read
+  // back off the merged row rather than off the patch, because §6 patches one
+  // field at a time and the table has to hold what the infobox now says.
+  if (patch.fields !== undefined) recomputeFieldMentions(entryId);
   if (
     patch.name !== undefined ||
     patch.shortDescription !== undefined ||
@@ -737,6 +754,8 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
     .where(eq(schema.entries.id, revision.entryId))
     .run();
   recomputeLinks(revision.entryId, snapshot.body);
+  // §27: an old version puts an old infobox back, so it puts its mentions back too.
+  recomputeFieldMentions(revision.entryId);
   reindexEntry(revision.entryId);
   logActivity({ actorId: user.id, verb: 'entry.restored_revision', entryId: revision.entryId });
   // §20: the shared document follows the archive, never the other way round.
@@ -867,6 +886,7 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
         isLocked: row.isLocked,
         viewMode: row.viewMode,
         originCaseId: row.originCaseId,
+        typeCaseOnly: row.typeCaseOnly,
         createdBy: row.createdBy,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

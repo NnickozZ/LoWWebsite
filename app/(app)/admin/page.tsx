@@ -12,9 +12,9 @@ import { getSessionUser } from '@/lib/auth/session';
 import { db, schema } from '@/lib/db';
 import { relativeTime } from '@/lib/diff';
 import { destroyEffects, listArchivedThings, listBoardRevisions, listCaseRevisions, listTrash } from '@/lib/admin/trash';
-import { listTypesForAdmin } from '@/lib/admin/types';
+import { listAdriftEntries, listTypesForAdmin } from '@/lib/admin/types';
 import { getWordOverrides } from '@/lib/admin/words';
-import { resolveWords } from '@/lib/words';
+import { capitalise, resolveWords } from '@/lib/words';
 import { charactersWorn } from '@/lib/characters';
 import { listPendingEdits } from '@/lib/entries/review';
 import {
@@ -64,6 +64,8 @@ const AUDIT_LABELS: Record<string, string> = {
   'entry_type.created': 'soort artikel aangemaakt',
   'entry_type.edited': 'soort artikel bewerkt',
   'entry_type.deleted': 'soort artikel verwijderd',
+  // §11: the address of a soort, which moves every artikel under it.
+  'entry_type.renamed': 'adres van een soort gewijzigd',
   'site.settings_changed': 'site-instellingen gewijzigd',
   'site.logo_changed': 'logo gewijzigd',
   'site.words_changed': 'woorden van het archief gewijzigd',
@@ -105,6 +107,8 @@ export default async function AdminPage({
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
   const pending = listPendingEdits();
   const types = listTypesForAdmin();
+  // §24: the clues and voorwerpen that ended up in no dossier at all.
+  const adrift = listAdriftEntries();
   const wordOverrides = getWordOverrides();
   const words = resolveWords(wordOverrides);
   // What a self-filling list may look through, and which of their fields point
@@ -259,6 +263,40 @@ export default async function AdminPage({
             <TypeEditor key={type.id} type={type} types={typeChoices} words={words} />
           ))}
           <NewTypeForm />
+
+          {/*
+            §24: the loose ends. A soort that only exists inside a dossier can
+            still end up in none — the last dossier holding it was emptied, or
+            one was destroyed from the bin and its artikelen survived it. The
+            wiki marks each one where it lists it; this is the whole set, so
+            they can be filed again rather than quietly lost.
+          */}
+          <section className="section" style={{ marginTop: '1.2rem' }}>
+            <h3 style={{ marginTop: 0 }}>{words.noCase}</h3>
+            <p className="small muted" style={{ maxWidth: '46rem' }}>
+              {words.entryPlural} van een soort die je alleen in een {words.case} maakt, en die nu
+              in geen enkel {words.case} staan. Open er een en voeg hem ergens aan toe; daarna
+              staat de {words.case}-naam er in de wiki weer voor.
+            </p>
+            {!adrift.length ? (
+              <p className="small muted" style={{ margin: 0 }}>
+                Niets zwerft rond. {capitalise(words.entryPlural)} van zulke soorten zitten
+                allemaal ergens.
+              </p>
+            ) : (
+              <ul className="row-wrap" style={{ listStyle: 'none', margin: 0, padding: 0, gap: '0.35rem' }}>
+                {adrift.map((item) => (
+                  <li key={item.id}>
+                    <Link className="chip" href={`/e/${item.slug}`}>
+                      <Icon name="file" size={12} />
+                      {item.name}
+                      <span className="muted">{item.typeLabel}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </>
       ),
     },

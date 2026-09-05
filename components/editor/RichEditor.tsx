@@ -12,11 +12,12 @@ import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { usePreferredCases } from '@/components/entry/PreferredCases';
 import { documentExtensions } from '@/lib/editor/extensions';
 import { makeEntrySuggestion, type SuggestionEntry, type SuggestionRenderState } from './entrySuggestion';
 import { SuggestionPopup } from './SuggestionPopup';
 import type { LiveUser } from './useLiveDoc';
-import { uploadForm } from '@/lib/upload';
+import { imageFromClipboard, uploadForm } from '@/lib/upload';
 
 /**
  * §20: when the text is a room, the editor binds to the shared Yjs document
@@ -70,6 +71,16 @@ export function RichEditor({
   live?: LiveBinding | null;
 }) {
   const ui = useUi();
+  /*
+   * §31: the dossiers this text lives in, so `@` and `[[` offer what is
+   * already in them first. Held in a ref because the two Suggestion plugins are
+   * built once, when the editor is created, and would otherwise close over the
+   * list as it was at that moment.
+   */
+  const preferCases = usePreferredCases();
+  const preferCasesRef = useRef(preferCases);
+  preferCasesRef.current = preferCases;
+
   const [suggestState, setSuggestState] = useState<SuggestionRenderState | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
@@ -121,7 +132,11 @@ export function RichEditor({
       Extension.create({
         name: 'entrySuggestions',
         addProseMirrorPlugins() {
-          const host = { update: setSuggestState, requestCreate };
+          const host = {
+            update: setSuggestState,
+            requestCreate,
+            preferCaseIds: () => preferCasesRef.current,
+          };
           // Each Suggestion instance needs its own plugin key, or ProseMirror
           // refuses the second one ("different instances of a keyed plugin").
           return [
@@ -175,9 +190,20 @@ export function RichEditor({
         }
         return false;
       },
-      handlePaste: (view, event) => {
-        const file = Array.from(event.clipboardData?.files ?? [])[0];
-        if (!file || !file.type.startsWith('image/')) return false;
+      /*
+       * §30: a picture on the clipboard becomes a picture in the prose. This
+       * read `clipboardData.files[0]` and nothing else, which is the one shape
+       * a *screenshot* never has — so pasting a screenshot into an artikel did
+       * nothing at all. `imageFromClipboard` reads both shapes and names the
+       * nameless one.
+       *
+       * Returning false is what keeps prose working: everything that is not a
+       * picture — text, HTML, a whole pasted article — falls straight through
+       * to Tiptap and is handled exactly as it was before.
+       */
+      handlePaste: (_view, event) => {
+        const file = imageFromClipboard(event);
+        if (!file) return false;
         event.preventDefault();
         void uploadImage(file);
         return true;
@@ -285,7 +311,7 @@ export function RichEditor({
           </ToolbarButton>
           <span className="spacer" />
           <span className="tiny muted" style={{ alignSelf: 'center', paddingRight: '0.3rem' }}>
-            @ of [[ om te koppelen
+            @ of [[ om te koppelen · of plak een afbeelding
           </span>
         </div>
       )}

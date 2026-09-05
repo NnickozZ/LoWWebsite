@@ -6,7 +6,8 @@ import { Thumb } from './Cover';
 import { Icon } from './Icon';
 import { useUi } from './ui/UiProvider';
 import type { EntrySummary } from '@/lib/entries/service';
-import { entryDisplayName } from '@/lib/entries/caseName';
+import { entryDisplayName, isAdrift } from '@/lib/entries/caseName';
+import { AdriftChip } from './entry/AdriftChip';
 
 type Results = { names: EntrySummary[]; bodies: EntrySummary[] };
 
@@ -28,6 +29,13 @@ function ResultRow({ entry }: { entry: EntrySummary }) {
       />
       <span style={{ flex: 1, minWidth: 0 }}>
         <strong>{entryDisplayName(entry.name, entry.originCaseName)}</strong>
+        {/* §24: in no dossier at all — a loose end, said out loud. */}
+        {isAdrift(entry) && (
+          <>
+            {' '}
+            <AdriftChip />
+          </>
+        )}
         <span className="tiny muted clamp-2" style={{ display: 'block' }}>
           {entry.shortDescription}
         </span>

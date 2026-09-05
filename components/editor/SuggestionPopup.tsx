@@ -61,6 +61,18 @@ export function SuggestionPopup({ state }: { state: SuggestionRenderState | null
                 {item.entry.typeLabel}
               </span>
             </span>
+            {/* §31: a folder on the rows that come from the dossier this text
+                is in, so the order at the top is legible rather than magic.
+                The icon only — the dossier's name is not this list's to say. */}
+            {item.entry.inCase && (
+              <span
+                title="Uit dit dossier"
+                style={{ color: 'var(--ink-muted)', flex: '0 0 auto', display: 'inline-flex' }}
+              >
+                <Icon name="folder" size={14} />
+                <span className="visually-hidden">Uit dit dossier</span>
+              </span>
+            )}
           </button>
         ) : (
           <button

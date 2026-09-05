@@ -8,6 +8,7 @@ import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
 import { ArticleModeForm } from './ArticleModeForm';
+import { ReadingFontForm } from './ReadingFontForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { logoutAction, logoutEverywhereAction } from './actions';
 
@@ -111,6 +112,13 @@ export default async function YouPage() {
             Hoe een {words.entry} of een {words.case} opengaat als je erop klikt.
           </p>
           <ArticleModeForm current={user.articleMode} isKeeper={user.isKeeper} />
+
+          <hr className="rule" />
+          <h2 id="lettertype">Lettertype</h2>
+          <p className="small muted">
+            Waarin je het archief leest. Alleen voor jou, op elk apparaat waar je inlogt.
+          </p>
+          <ReadingFontForm current={user.readingFont} />
         </>
       )}
 

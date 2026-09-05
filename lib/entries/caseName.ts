@@ -27,3 +27,25 @@ export function entryDisplayName(
 export function hasCasePrefix(originCaseName?: string | null): boolean {
   return Boolean(originCaseName?.trim());
 }
+
+/**
+ * §24: is this one adrift — a soort that only exists inside a dossier, in no
+ * dossier at all?
+ *
+ * It happens: the last dossier holding a clue is emptied, or a dossier goes in
+ * the bin. `entryDisplayName` then prints the plain name, which is right and is
+ * also silent about it, so the archive says so out loud with a small grey chip
+ * beside the name wherever it *lists* one — and Beheer keeps the list of them,
+ * so they can be filed again rather than quietly lost.
+ *
+ * Asked of the id, never of the name: a reader who may not open the dossier is
+ * given no name (§1) and that is not the same fact at all. The soort's own
+ * `case_only` is what makes the question meaningful — a persoon with no dossier
+ * is just a persoon.
+ */
+export function isAdrift(entry: {
+  typeCaseOnly?: boolean | null;
+  originCaseId?: string | null;
+}): boolean {
+  return Boolean(entry.typeCaseOnly) && !entry.originCaseId;
+}

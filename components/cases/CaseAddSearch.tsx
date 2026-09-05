@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { entryDisplayName } from '@/lib/entries/caseName';
+import { AdriftChip } from '@/components/entry/AdriftChip';
 
 type Suggestion = {
   id: string;
@@ -16,6 +17,8 @@ type Suggestion = {
   typeIcon: string;
   typeColour: string;
   originCaseName?: string | null;
+  /** §24: and whether it is in no dossier at all. */
+  adrift?: boolean;
 };
 
 /**
@@ -112,6 +115,8 @@ export function CaseAddSearch({
                 <Icon name={entry.typeIcon} size={16} style={{ color: entry.typeColour }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <strong>{entryDisplayName(entry.name, entry.originCaseName)}</strong>
+                  {/* §24: a clue in no dossier — the same remark the wiki makes. */}
+                  {entry.adrift && <AdriftChip />}
                   <span className="tiny muted" style={{ display: 'block' }}>
                     {entry.typeLabel}
                   </span>

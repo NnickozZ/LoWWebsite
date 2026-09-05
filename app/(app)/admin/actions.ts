@@ -246,6 +246,9 @@ export async function saveTypeAction(_prev: AdminState, formData: FormData): Pro
       typeId,
       {
         label: String(formData.get('label') ?? ''),
+        // §11: the address. Only sent when it actually changed, so an ordinary
+        // save never runs the cascade — and the sheet has already asked.
+        ...(formData.get('slug') === null ? {} : { slug: String(formData.get('slug')) }),
         icon: String(formData.get('icon') ?? ''),
         colour: String(formData.get('colour') ?? ''),
         border: String(formData.get('border') ?? ''),
