@@ -20,6 +20,7 @@ import {
   listSections,
 } from '@/lib/entries/secrets';
 import { listDerivedEntries } from '@/lib/entries/derived';
+import { articleModeFor } from '@/lib/entries/mode';
 import {
   getBacklinks,
   getEntryBySlug,
@@ -401,6 +402,12 @@ export default async function EntryPage({
         playedBy={playedBy}
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}
+        /*
+         * §22: the face this artikel opens in. The person's own setting from
+         * Jouw account, or — until they set one — what their role does: a
+         * Keeper writes the archive, everyone else came to read it.
+         */
+        defaultMode={articleModeFor(user?.articleMode, isKeeper)}
         openAddMore={query.new === '1'}
         cases={cases.map((item) => ({
           id: item.id,

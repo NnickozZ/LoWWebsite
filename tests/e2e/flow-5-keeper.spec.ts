@@ -62,7 +62,9 @@ test('recovery: an audited password reveal, and a section revealed to a player',
 
   // -- the player cannot see it -------------------------------------------
   await player.goto(entryUrl);
-  await expect(player.getByLabel('Naam')).toHaveValue(entryName);
+  // §22: a player reads. The name is the artikel's heading here, not an input
+  // — which is the stronger thing to assert anyway: they got the page.
+  await expect(player.getByRole('heading', { name: entryName })).toBeVisible();
   await expect(player.getByText('Wat er echt in de kelder ligt')).toHaveCount(0);
   await expect(player.getByText('gietijzeren luik')).toHaveCount(0);
 

@@ -328,15 +328,18 @@ app/
     search/          instant search, one soort at a time
     admin/           users, review queue, types and pages, words, trash,
                      history, site, export, log
-    you/             account, and the wardrobe of characters
+    you/             account, the wardrobe of characters, and the choice of
+                     which face an artikel opens on (ArticleModeForm)
   api/               entries, cases, boards, maps, characters, access, assets,
                      search, suggest, admin
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
-  entry/             cover, the list crop, type fields (also as an infobox),
-                     tags, the autosave hook, the proposals panel, the
-                     outline of the page (EntryOutline)
+  entry/             cover (its tools behind one "Afbeelding" menu), the list
+                     crop, type fields — as a form on the editing face and as
+                     printed facts on the reading one (`FieldsView`) — tags,
+                     the autosave hook, the proposals panel, the outline of
+                     the page (EntryOutline)
   cases/             the dossier, its add-boxes and cards
   boards/            the canvas, the card, the inspector, the sync hook
   maps/              the map canvas (pan, zoom, pins, legend), the Keeper's
@@ -355,7 +358,8 @@ lib/
   db/                schema, migrations, seeds, the connection
   entries/           the entry service, the document helpers, visibility,
                      sections and reveals (secrets.ts), the review queue,
-                     the wiki's filter vocabulary
+                     the wiki's filter vocabulary, and mode.ts — reading or
+                     editing, and whose default is which
   admin/             trash and history, the entry-type editor, the word list
   cases/             the case service and its visibility rule
   boards/            the board service, the pure merge rule, and the live hub
@@ -382,7 +386,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Fifteen rules worth knowing before changing anything:
+Eighteen rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -519,3 +523,20 @@ Fifteen rules worth knowing before changing anything:
     `resetFieldsInRoom` for exactly the fields it wrote — never the whole
     record, or a field someone is typing in would be reset under their hands.
     Rule 13 still holds: the archive is the truth, the room follows it.
+18. **An artikel has two faces, and the reading one has no inputs in it.**
+    §22. `EntryView` renders either the editing page this archive always had
+    or a reading page shaped like any wiki article — a heading, a lead, the
+    picture and the facts in one box on the right, prose underneath.
+    `lib/entries/mode.ts` decides which a person lands on: their own setting
+    from Jouw account, or, until they set one, their role — a Keeper writes so
+    a Keeper edits, everyone else came to read. The toggle in the header
+    crosses over, and it is not a right: a player who may only propose gets
+    the editing face too, their changes simply travel as proposals (§10, §17).
+    Two things follow for anything new on that page. Reading must be a *hard*
+    no — `LiveBody` and `SectionsEditor` take a `readOnly` that no room may
+    overrule, because the room's answer is about rights and this is about
+    which face the reader asked for. And the reading face prints what is
+    filled in and leaves the rest out: an empty field is not a blank row, an
+    empty hand-filled list is not a list, and an artikel with no picture has
+    no empty frame in its margin. A new block that is a form on one face needs
+    a printed shape on the other, or it does not belong on the reading page.

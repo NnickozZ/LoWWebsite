@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
 import { LiveField, useLiveFields } from '@/components/live/LiveFields';
 import type { FieldDef } from '@/lib/db/schema';
@@ -107,6 +107,101 @@ function StringField({
     },
   };
   return multiline ? <LiveField as="textarea" {...common} /> : <LiveField {...common} />;
+}
+
+
+/* -------------------------------------------------------------- reading */
+
+/**
+ * §22: one field's value as something to read rather than something to fill
+ * in. Returns null when the field is empty, which is what lets the reading
+ * infobox leave empty rows out altogether — a wiki's infobox lists the facts
+ * that are known, not every fact the template could hold.
+ */
+export function fieldValue(field: FieldDef, value: unknown): ReactNode | null {
+  switch (field.kind) {
+    case 'text':
+    case 'longtext':
+    case 'date':
+    case 'select': {
+      const text = typeof value === 'string' ? value.trim() : '';
+      if (!text) return null;
+      return field.kind === 'longtext' ? (
+        <span style={{ whiteSpace: 'pre-wrap' }}>{text}</span>
+      ) : (
+        text
+      );
+    }
+
+    case 'entry_link': {
+      const entry = asEntryRef(value);
+      if (!entry) return null;
+      return <EntryChip entry={entry} />;
+    }
+
+    case 'entry_links': {
+      const entries = asEntryRefs(value);
+      if (!entries.length) return null;
+      return (
+        <span className="row-wrap" style={{ gap: '0.25rem' }}>
+          {entries.map((entry) => (
+            <EntryChip key={entry.id} entry={entry} />
+          ))}
+        </span>
+      );
+    }
+
+    case 'user_link': {
+      const user = (value as { id?: string; username?: string } | null) ?? null;
+      return user?.username ? user.username : null;
+    }
+
+    // A case link and a map pin have no reading shape of their own yet; the
+    // maps a fiche is on are listed under the header instead.
+    default:
+      return null;
+  }
+}
+
+function EntryChip({ entry }: { entry: EntryRef }) {
+  return (
+    <a
+      className="entry-chip"
+      href={`/e/${entry.slug}`}
+      data-entry-id={entry.id}
+      style={
+        entry.colour
+          ? ({ ['--chip-colour' as string]: entry.colour } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {entry.name}
+    </a>
+  );
+}
+
+/**
+ * §22: the infobox while reading — the same two-column shape the editing one
+ * has, so nothing jumps when you switch faces, but every value is text.
+ * Renders nothing at all when not one field is filled in.
+ */
+export function FieldsView({ fields, values }: { fields: FieldDef[]; values: Values }) {
+  const rows = fields.flatMap((field) => {
+    const shown = fieldValue(field, values[field.key]);
+    return shown === null ? [] : [{ field, shown }];
+  });
+  if (!rows.length) return null;
+
+  return (
+    <div className="stack fields-compact fields-view">
+      {rows.map(({ field, shown }) => (
+        <div key={field.key}>
+          <span className="label">{field.label}</span>
+          <div className="field-value">{shown}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /** Renders the Keeper-configured fields for this entry type (§5). */

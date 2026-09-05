@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { editArticle, inviteCode, signIn } from './helpers';
 
 /**
  * §20: two people in one fiche's text.
@@ -47,6 +47,9 @@ test('what one person types, the other sees as it is typed — and it is saved',
   const other = await otherCtx.newPage();
   await signUpAs(other, `Aagje ${stamp}`);
   await other.goto(path);
+  // §22: a player lands on the reading face, where the text is live but has no
+  // caret. This test is about two people typing, so ask for the other face.
+  await editArticle(other);
   await expect(other.locator('.live-dot-live')).toBeVisible({ timeout: 15_000 });
 
   // Both see each other on the strip.
@@ -104,6 +107,9 @@ test('someone who may only look sees the text live, and proposes rather than typ
   const reader = await readerCtx.newPage();
   await signUpAs(reader, `Lezer ${stamp}`);
   await reader.goto(path);
+  // §22: proposing is an act of editing, so the button for it is on the
+  // editing face. The reading face shows this same text and nothing to press.
+  await editArticle(reader);
   await expect(reader.locator('.live-dot-live')).toBeVisible({ timeout: 15_000 });
 
   // Read-only: no contenteditable, but the owner's typing still arrives.

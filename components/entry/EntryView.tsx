@@ -32,9 +32,10 @@ import {
 } from '@/lib/pageBlocks';
 import type { CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
 import { capitalise } from '@/lib/words';
+import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
-import { FieldsEditor } from './FieldsEditor';
+import { FieldsEditor, FieldsView, fieldValue } from './FieldsEditor';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
 import { TagsEditor } from './TagsEditor';
@@ -82,13 +83,29 @@ function autosize(element: HTMLTextAreaElement | null) {
 export type EntryCaseLite = { id: string; slug: string; name: string; confidential: boolean };
 
 /**
- * The artikel page (reworked 5 Sep 2026).
+ * The artikel page (reworked 5 Sep 2026; two faces since §22).
+ *
+ * §22. The page has a *reading* face and an *editing* face, and the toggle at
+ * the top of the header switches between them. Reading is what a wiki article
+ * looks like to anybody who has ever used one: a title, the picture and the
+ * facts in a box on the right, prose underneath, and not one input. Editing is
+ * the page this archive had before, every line a field. Which face you land in
+ * is your own setting (Jouw account → Lezen of bewerken); until you set it,
+ * your role decides — a Keeper writes the archive so a Keeper lands in
+ * editing, everyone else came to read.
+ *
+ * The editing face is not a right. A player who may only propose can open it
+ * too; their changes simply travel as proposals (§10, §17). What the two faces
+ * separate is intent, not permission — the old page asked everyone to fill in
+ * a form whether they had come to write or only to look something up.
  *
  * Two columns on a wide screen: the text — body, sections, lists, backlinks,
  * history, in the order the Keeper gave the soort — down the left, and a
- * sidebar on the right holding "Meer info" (the fields and tags as an infobox,
- * editable in place) and "Op deze pagina" (an outline that scrolls along and
- * marks where you are). Rights, visibility, Keeper notes and the bin sit at
+ * sidebar on the right holding the picture with "Meer info" directly under it
+ * as one box (§22: the wiki shape — Wikipedia, Fandom and everything after
+ * them put the image at the top of the infobox, and a reader arriving from any
+ * of those already knows to look there), then "Op deze pagina" (an outline
+ * that scrolls along and marks where you are). Rights, visibility, Keeper notes and the bin sit at
  * the foot of the text under one heading, "Beheer van dit artikel", so that
  * reading and managing are two different places. Under 1024 px the infobox
  * folds up under the header and the outline becomes a row of chips.
@@ -118,6 +135,7 @@ export function EntryView({
   mapsToPlace,
   live,
   liveFields,
+  defaultMode,
 }: {
   entry: EntryViewData;
   knownTags: string[];
@@ -160,10 +178,31 @@ export function EntryView({
   live: { room: string; state: string; sv: string; canEdit: boolean; user: LiveUser } | null;
   /** §21: the name, the one-liner and the infobox texts as shared fields. */
   liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
+  /**
+   * §22: the face this artikel opens in — this person's own setting, already
+   * resolved against their role on the server. The toggle overrides it for
+   * this artikel; the setting itself only changes in Jouw account.
+   */
+  defaultMode: ArticleMode;
 }) {
   const ui = useUi();
   const router = useRouter();
   const wide = useIsWide();
+
+  /**
+   * §22: which face this artikel is wearing. Per artikel and per visit, like
+   * Wikipedia's own Lezen/Bewerken — the setting decides where you land, not
+   * where you are stuck. Somebody who is not signed in has nothing to edit
+   * with, so for them there is one face and no toggle.
+   *
+   * A brand-new artikel (`?new=1`) opens in editing whatever the setting says:
+   * you have just made it, so you are here to fill it in.
+   */
+  const canToggle = Boolean(access.viewerId);
+  const [mode, setMode] = useState<ArticleMode>(
+    !canToggle ? 'view' : openAddMore ? 'edit' : defaultMode,
+  );
+  const reading = mode === 'view';
 
   const [name, setName] = useState(entry.name);
   const [shortDescription, setShortDescription] = useState(entry.shortDescription);
@@ -287,8 +326,12 @@ export function EntryView({
         if (cancelled) return;
         const active = document.activeElement as HTMLElement | null;
         const focusedId = active?.id ?? '';
-        if (!fieldsShared && focusedId !== 'entry-name') setName((current) => (current === data.name ? current : data.name));
-        if (!fieldsShared && focusedId !== 'entry-lead') {
+        // §22: while reading there is no input to fight over, so the fetched
+        // value always wins — otherwise a name changed by someone else would
+        // never reach a reader whose room happens to be writable.
+        const holdFields = fieldsShared && !readingRef.current;
+        if (!holdFields && focusedId !== 'entry-name') setName((current) => (current === data.name ? current : data.name));
+        if (!holdFields && focusedId !== 'entry-lead') {
           setShortDescription((current) => (current === data.shortDescription ? current : data.shortDescription));
         }
         setTags((current) => (JSON.stringify(current) === JSON.stringify(data.tags) ? current : data.tags));
@@ -313,7 +356,11 @@ export function EntryView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedAt, entry.id]);
 
-  useEffect(() => autosize(leadRef.current), [shortDescription]);
+  // Read inside the refresh effect above, which must not re-run on a toggle.
+  const readingRef = useRef(reading);
+  readingRef.current = reading;
+
+  useEffect(() => autosize(leadRef.current), [shortDescription, reading]);
 
   const words = ui.words;
 
@@ -338,8 +385,10 @@ export function EntryView({
       if (block.kind === 'body') {
         items.push({ id: `block-${block.id}`, label: heading || 'Tekst', icon: 'file' });
       } else if (block.kind === 'sections') {
-        // A player without sections has nothing to jump to here.
-        if (!isKeeper && sectionTitles.length === 0) continue;
+        // Nobody without sections has anything to jump to here — and while
+        // reading that includes a Keeper, who is not being offered the
+        // "Sectie toevoegen" button either.
+        if ((!isKeeper || reading) && sectionTitles.length === 0) continue;
         items.push({ id: `block-${block.id}`, label: heading || capitalise(words.sectionPlural), icon: 'book' });
         for (const section of sectionTitles) {
           items.push({ id: `section-${section.id}`, label: section.title || 'Zonder titel', level: 1 });
@@ -354,7 +403,7 @@ export function EntryView({
     }
     if (showManage) items.push({ id: 'block-manage', label: words.manage, icon: 'shield' });
     return items;
-  }, [entry.typeBlocks, isKeeper, sectionTitles, showManage, words]);
+  }, [entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
 
   /** On a phone the infobox is one more thing to jump to. */
   const phoneOutline = useMemo<OutlineItem[]>(
@@ -364,7 +413,37 @@ export function EntryView({
 
   /* ---------------------------------------------------------- the infobox */
 
-  const infoboxBody = (
+  /**
+   * §22: reading, the infobox is the facts that are *known* — a filled field
+   * and a tag each get a row, an empty one gets nothing. That is the whole
+   * difference between an infobox and a form: a form has to show you every
+   * slot, an infobox only has to show you what is in them. An artikel whose
+   * fields are all still empty therefore has no infobox at all while reading,
+   * rather than a box of blank labels in its margin.
+   */
+  const readableFields =
+    entry.typeFields.length > 0 ? (
+      <FieldsView fields={entry.typeFields} values={fields} />
+    ) : null;
+  const hasReadableInfo = Boolean(readableFields) || tags.length > 0;
+
+  const infoboxBody = reading ? (
+    <div className="stack entry-infobox-body">
+      {readableFields}
+      {tags.length > 0 && (
+        <div className="infobox-tags">
+          <span className="label">Tags</span>
+          <div className="row-wrap" style={{ gap: '0.3rem' }}>
+            {tags.map((tag) => (
+              <a key={tag} className="tag" href={`/wiki?tag=${encodeURIComponent(tag)}`}>
+                {tag}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  ) : (
     <div className="stack entry-fields entry-infobox-body">
       {fieldsBlock?.note && (
         <p className="tiny muted" style={{ margin: 0 }}>
@@ -398,7 +477,9 @@ export function EntryView({
     </div>
   );
 
-  const infobox = fieldsBlock ? (
+  const showInfobox = Boolean(fieldsBlock) && (!reading || hasReadableInfo);
+
+  const infobox = showInfobox ? (
     wide ? (
       <section id="block-info" className="entry-infobox" aria-labelledby="infobox-title">
         <h2 id="infobox-title" className="entry-infobox-title">
@@ -407,12 +488,49 @@ export function EntryView({
         {infoboxBody}
       </section>
     ) : (
-      <details id="block-info" className="section entry-infobox entry-infobox-folded" open={fieldsBlock.open || openAddMore}>
+      <details
+        id="block-info"
+        className="section entry-infobox entry-infobox-folded"
+        open={fieldsBlock!.open || openAddMore || reading}
+      >
         <summary>{infoboxHeading}</summary>
         <div style={{ padding: '0.6rem 0 0.8rem' }}>{infoboxBody}</div>
       </details>
     )
   ) : null;
+
+  /* -------------------------------------------------------------- the figure */
+
+  /**
+   * §22: the picture, at the top of the sidebar with the facts under it. There
+   * is nothing to show reading an artikel that has no picture, and nothing
+   * would be an empty frame in the margin — so on that one case the figure is
+   * dropped and the box starts at the infobox.
+   */
+  const showFigure = !reading || Boolean(cover.assetId);
+  const figure = showFigure ? (
+    <CoverEditor
+      assetId={cover.assetId}
+      crop={cover.crop}
+      alt={entry.name}
+      icon={entry.typeIcon}
+      colour={entry.typeColour}
+      readOnly={reading}
+      onChange={(next) => {
+        setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
+        set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });
+      }}
+    />
+  ) : null;
+
+  /** The picture and the facts read as one box; either half may be missing. */
+  const asideBox =
+    figure || infobox ? (
+      <div className={`entry-aside-box${wide ? '' : ' entry-aside-box-stacked'}`}>
+        {figure}
+        {infobox}
+      </div>
+    ) : null;
 
   /* ------------------------------------------------------------ the blocks */
 
@@ -450,8 +568,11 @@ export function EntryView({
                 state={live.state}
                 user={live.user}
                 canEdit={live.canEdit}
+                /* §22: reading is the reader's own choice, not the room's. */
+                readOnly={reading}
                 placeholder={entry.typeText.bodyPlaceholder || DEFAULT_BODY_PLACEHOLDER}
-                proposals
+                /* Proposing is an act of editing; it belongs on that face. */
+                proposals={!reading}
                 onPropose={(doc) => {
                   set({ body: doc });
                   void flush();
@@ -462,6 +583,7 @@ export function EntryView({
             ) : (
               <RichEditor
                 initialDoc={entry.body}
+                editable={!reading}
                 placeholder={entry.typeText.bodyPlaceholder || DEFAULT_BODY_PLACEHOLDER}
                 onChange={(doc) => set({ body: doc })}
               />
@@ -477,6 +599,7 @@ export function EntryView({
               entryId={entry.id}
               sections={sections}
               isKeeper={isKeeper}
+              readOnly={reading}
               users={revealUsers}
               cases={revealCases}
               liveUser={live?.user ?? null}
@@ -485,35 +608,42 @@ export function EntryView({
           </div>
         );
 
-      case 'links':
+      case 'links': {
         // The chosen entries live in `entries.fields` under the block's own
         // key, so they save through the ordinary autosave and the picker,
         // chips and remove buttons are the ones a field already has.
+        const linkField: FieldDef = {
+          key: block.key ?? block.id,
+          label: heading || 'Lijst',
+          kind: 'entry_links',
+          ofType: block.ofType,
+        };
+        // §22: reading, an empty hand-filled list is not a list — it is an
+        // invitation to fill one in, which is the other face's business.
+        if (reading && !fieldValue(linkField, fields[linkField.key])) return null;
         return (
-          <details key={block.id} id={anchor} className="section entry-block" open={block.open}>
+          <details key={block.id} id={anchor} className="section entry-block" open={block.open || reading}>
             <summary>{heading || 'Lijst'}</summary>
             <div className="stack" style={{ padding: '0.6rem 0 1rem' }}>
               {note}
-              <FieldsEditor
-                hideLabels
-                fields={[
-                  {
-                    key: block.key ?? block.id,
-                    label: heading || 'Lijst',
-                    kind: 'entry_links',
-                    ofType: block.ofType,
-                  },
-                ]}
-                values={fields}
-                onChange={(patch) => {
-                  const next = { ...fields, ...patch };
-                  setFields(next);
-                  set({ fields: patch });
-                }}
-              />
+              {reading ? (
+                <div>{fieldValue(linkField, fields[linkField.key])}</div>
+              ) : (
+                <FieldsEditor
+                  hideLabels
+                  fields={[linkField]}
+                  values={fields}
+                  onChange={(patch) => {
+                    const next = { ...fields, ...patch };
+                    setFields(next);
+                    set({ fields: patch });
+                  }}
+                />
+              )}
             </div>
           </details>
         );
+      }
 
       // Everything else is a read, rendered on the server and handed over as a
       // slot. Wrapped in a keyed Fragment rather than trusting the slot to have
@@ -535,19 +665,9 @@ export function EntryView({
   /* ------------------------------------------------------------ the header */
 
   const header = (
-    <div className="entry-head">
-      <CoverEditor
-        assetId={cover.assetId}
-        crop={cover.crop}
-        alt={entry.name}
-        icon={entry.typeIcon}
-        colour={entry.typeColour}
-        onChange={(next) => {
-          setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
-          set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });
-        }}
-      />
-
+    /* §22: one column. The picture moved to the sidebar, so the header is the
+       title and what surrounds it — there is no second column left to fill. */
+    <div className="entry-head entry-head-solo">
       <div style={{ minWidth: 0 }}>
         <div className="row-wrap" style={{ marginBottom: '0.4rem' }}>
           <span className="chip" style={{ borderColor: entry.typeColour, color: entry.typeColour }}>
@@ -575,55 +695,95 @@ export function EntryView({
           {/*
             One word for both roads to the archive: the autosave of the
             fields, and the room the text lives in. "Opslaan…" while either
-            is on its way; "Opgeslagen" once both have landed.
+            is on its way; "Opgeslagen" once both have landed. Reading, there
+            is nothing on its way, so the word is not there either.
           */}
-          <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-            {state === 'dirty' || state === 'saving' || liveStatus.save === 'saving' || fieldsStatus.save === 'saving'
-              ? saveLabel('saving')
-              : state === 'pending' || state === 'error'
-                ? saveLabel(state)
-                : state === 'saved' || liveStatus.save === 'saved' || fieldsStatus.save === 'saved'
-                  ? saveLabel('saved')
-                  : ''}
-          </p>
+          {!reading && (
+            <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
+              {state === 'dirty' || state === 'saving' || liveStatus.save === 'saving' || fieldsStatus.save === 'saving'
+                ? saveLabel('saving')
+                : state === 'pending' || state === 'error'
+                  ? saveLabel(state)
+                  : state === 'saved' || liveStatus.save === 'saved' || fieldsStatus.save === 'saved'
+                    ? saveLabel('saved')
+                    : ''}
+            </p>
+          )}
+          {/* §22: the two faces. Wikipedia's own pair of words, in ours. */}
+          {canToggle && (
+            <button
+              type="button"
+              className={`btn btn-small entry-mode-toggle${reading ? '' : ' entry-mode-toggle-on'}`}
+              aria-pressed={!reading}
+              onClick={() => {
+                // Anything half-typed goes to the archive before the inputs
+                // that hold it leave the page.
+                if (!reading) void flush();
+                setMode(reading ? 'edit' : 'view');
+              }}
+            >
+              <Icon name={reading ? 'edit' : 'eye'} size={14} />
+              {reading ? 'Bewerken' : 'Lezen'}
+            </button>
+          )}
           {/* §21: who is here and whether the line is up now sit in the shell's strip, for every page alike. */}
         </div>
 
-        <label className="visually-hidden" htmlFor="entry-name">
-          Naam
-        </label>
-        <LiveField
-          field="name"
-          id="entry-name"
-          className="title-input"
-          value={name}
-          onValue={(next, meta) => {
-            setName(next);
-            if (!meta.live) set({ name: next });
-          }}
-          onBlur={() => void flush()}
-        />
+        {/*
+          §22: reading, the title is a heading and the one-liner is a
+          paragraph — the two things every article on the web opens with. An
+          empty one-liner simply is not there, where the editing face has to
+          keep the box and its placeholder.
+        */}
+        {reading ? (
+          <>
+            <h1 className="entry-title">{name}</h1>
+            {shortDescription.trim() && <p className="entry-lead">{shortDescription}</p>}
+          </>
+        ) : (
+          <>
+            <label className="visually-hidden" htmlFor="entry-name">
+              Naam
+            </label>
+            <LiveField
+              field="name"
+              id="entry-name"
+              className="title-input"
+              value={name}
+              onValue={(next, meta) => {
+                setName(next);
+                if (!meta.live) set({ name: next });
+              }}
+              onBlur={() => void flush()}
+            />
 
-        <label className="visually-hidden" htmlFor="entry-lead">
-          Korte beschrijving
-        </label>
-        <LiveField
-          as="textarea"
-          field="shortDescription"
-          id="entry-lead"
-          ref={leadRef}
-          className="lead-input"
-          rows={1}
-          placeholder={entry.typeText.descriptionPlaceholder || DEFAULT_DESCRIPTION_PLACEHOLDER}
-          value={shortDescription}
-          onValue={(next, meta) => {
-            setShortDescription(next);
-            if (!meta.live) set({ shortDescription: next });
-          }}
-          onBlur={() => void flush()}
-        />
+            <label className="visually-hidden" htmlFor="entry-lead">
+              Korte beschrijving
+            </label>
+            <LiveField
+              as="textarea"
+              field="shortDescription"
+              id="entry-lead"
+              ref={leadRef}
+              className="lead-input"
+              rows={1}
+              placeholder={entry.typeText.descriptionPlaceholder || DEFAULT_DESCRIPTION_PLACEHOLDER}
+              value={shortDescription}
+              onValue={(next, meta) => {
+                setShortDescription(next);
+                if (!meta.live) set({ shortDescription: next });
+              }}
+              onBlur={() => void flush()}
+            />
+          </>
+        )}
 
-        {tags.length > 0 && (
+        {/*
+          The tags are in the infobox too. Editing, that one is the control and
+          this row is the echo; reading, the infobox row is the only one, so
+          this echo would be the same list printed twice on one screen.
+        */}
+        {tags.length > 0 && !reading && (
           <div className="row-wrap" style={{ marginTop: '0.3rem' }}>
             {tags.map((tag) => (
               <a key={tag} className="tag" href={`/wiki?tag=${encodeURIComponent(tag)}`}>
@@ -847,21 +1007,24 @@ export function EntryView({
   /* -------------------------------------------------------------- render */
 
   const article = (
-    <article className="page-wide entry-page">
+    <article className={`page-wide entry-page${reading ? ' entry-page-reading' : ''}`}>
       {header}
 
-      {!access.canEdit && (
+      {/* Only worth saying on the face where it changes what happens next. */}
+      {!reading && !access.canEdit && (
         <p className="small entry-readonly-note">
           <Icon name="lock" size={13} /> Je kunt dit {words.entry} lezen. Wat je verandert gaat als
           voorstel naar de eigenaar.
         </p>
       )}
 
+      {/* On a narrow screen the picture and the facts sit under the header,
+          where a phone wiki puts them, and above the jump chips. */}
+      {!wide && asideBox}
+
       {!wide && <EntryOutline items={phoneOutline} shape="row" label={words.onThisPage} />}
 
       <div className={`entry-layout${wide ? ' entry-layout-wide' : ''}`}>
-        {!wide && infobox}
-
         <div className="entry-main">
           {entry.typeBlocks.map((block) => renderBlock(block))}
           {manage}
@@ -869,7 +1032,7 @@ export function EntryView({
 
         {wide && (
           <aside className="entry-aside">
-            {infobox}
+            {asideBox}
             <div className="entry-aside-sticky">
               <EntryOutline items={outline} shape="column" label={words.onThisPage} />
             </div>

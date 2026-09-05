@@ -34,3 +34,31 @@ export async function signUp(page: Page, username: string, password: string) {
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
   await page.waitForURL('**/');
 }
+
+/**
+ * §22: an artikel opens on the face this person asked for, and a freshly
+ * signed-up player's face is reading. A test that means to type into the page
+ * has to ask for the editing one first, exactly as a person would — the toggle
+ * at the top of the header. Already editing (a Keeper, or a page reached with
+ * `?new=1`), this does nothing.
+ */
+export async function editArticle(page: Page) {
+  const toggle = page.locator('.entry-mode-toggle');
+  await toggle.waitFor({ state: 'visible', timeout: 15_000 });
+  if ((await toggle.innerText()).trim() === 'Bewerken') {
+    await toggle.click();
+    // The inputs replace the prose on the next render; give React the frame.
+    await page.locator('#entry-name').waitFor({ state: 'visible', timeout: 10_000 });
+  }
+}
+
+/**
+ * §22: the image tools live behind one "Afbeelding" button now. Opens that
+ * menu and picks one of them. With no picture yet there is no menu — the one
+ * thing to do is a button of its own — so this is only for an artikel that
+ * already has a cover.
+ */
+export async function imageMenu(page: Page, item: RegExp | string) {
+  await page.locator('.cover-menu-button').click();
+  await page.getByRole('menuitem', { name: item }).click();
+}

@@ -15,8 +15,29 @@ import {
   requireUser,
 } from '@/lib/auth/session';
 import { logAudit } from '@/lib/entries/service';
+import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
 
 export type AccountState = { error?: string; ok?: string };
+
+/** The mode form answers with the choice that landed, so the chips can follow. */
+export type ArticleModeState = AccountState & { mode?: ArticleModePref };
+
+/**
+ * §22: "hoe een artikel opengaat" in Jouw account. Everyone has this dial —
+ * a Keeper who would rather read, a player who would rather write. The empty
+ * string puts it back on the role's own default.
+ */
+export async function setArticleModeAction(
+  _prev: ArticleModeState,
+  formData: FormData,
+): Promise<ArticleModeState> {
+  const user = await requireUser();
+  const mode = cleanArticleModePref(formData.get('mode'));
+
+  db.update(schema.users).set({ articleMode: mode }).where(eq(schema.users.id, user.id)).run();
+
+  return { ok: 'Opgeslagen.', mode };
+}
 
 export async function changePasswordAction(
   _prev: AccountState,

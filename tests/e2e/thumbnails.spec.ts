@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join, resolve } from 'node:path';
-import { signIn } from './helpers';
+import { imageMenu, signIn } from './helpers';
 
 const fixturePhoto = join(resolve(__dirname, '../..'), 'data-e2e', 'fixture-photo.png');
 
@@ -32,7 +32,7 @@ test('a zoomed cover stays inside its thumbnail in the feed', async ({ page }, t
   await expect(page.locator('.entry-cover-whole img')).toHaveCSS('object-fit', 'contain');
 
   // The list crop is a separate, smaller frame. Open it and zoom in.
-  await page.getByRole('button', { name: 'Bijsnijden voor lijsten' }).click();
+  await imageMenu(page, /Bijsnijden voor lijsten/);
   const frame = page.locator('.entry-crop-frame');
   await expect(frame).toBeVisible();
   const cover = (await frame.boundingBox())!;

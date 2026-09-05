@@ -7,6 +7,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
+import { ArticleModeForm } from './ArticleModeForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { logoutAction, logoutEverywhereAction } from './actions';
 
@@ -99,6 +100,17 @@ export default async function YouPage() {
               </li>
             ))}
           </ul>
+        </>
+      )}
+
+      {user && (
+        <>
+          <hr className="rule" />
+          <h2 id="lezen-of-bewerken">Lezen of bewerken</h2>
+          <p className="small muted">
+            Hoe een {words.entry} opengaat als je erop klikt.
+          </p>
+          <ArticleModeForm current={user.articleMode} isKeeper={user.isKeeper} />
         </>
       )}
 

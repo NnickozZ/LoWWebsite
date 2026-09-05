@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
+import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
 import { newId, randomToken } from '@/lib/ids';
 
 export const COOKIE_NAME = 'zcf_session';
@@ -15,6 +16,8 @@ export type SessionUser = {
   username: string;
   isKeeper: boolean;
   lastSeenAt: number | null;
+  /** §22: which face an artikel opens in for this person; '' follows their role. */
+  articleMode: ArticleModePref;
 };
 
 function hashToken(token: string) {
@@ -79,6 +82,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       isKeeper: schema.users.isKeeper,
       isDisabled: schema.users.isDisabled,
       lastSeenAt: schema.users.lastSeenAt,
+      articleMode: schema.users.articleMode,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
@@ -114,6 +118,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     isKeeper: row.isKeeper,
     // The value from *before* this visit — that is what "since you were last here" means.
     lastSeenAt: previousLastSeen,
+    // A row written before migration 0008 has no value; read it defensively.
+    articleMode: cleanArticleModePref(row.articleMode),
   };
 }
 

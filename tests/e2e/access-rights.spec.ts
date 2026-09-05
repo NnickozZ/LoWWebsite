@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { editArticle, inviteCode, signIn } from './helpers';
 
 /**
  * §17: who may look, and who may touch.
@@ -94,6 +94,9 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
   const other = await otherCtx.newPage();
   await signUpAs(other, `Lezer ${stamp}`);
   await other.goto(path);
+  // §22: a player lands on the reading face; the note about proposals belongs
+  // to the editing one, where it changes what the next keystroke does.
+  await editArticle(other);
   await expect(other.getByText(/Je kunt dit artikel lezen/)).toBeVisible();
   await other.getByLabel('Korte beschrijving').fill('Voorstel van een lezer');
   await other.getByLabel('Korte beschrijving').blur();
@@ -102,6 +105,7 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
 
   // Nothing landed on the fiche itself…
   await page.reload();
+  await editArticle(page);
   await expect(page.getByLabel('Korte beschrijving')).toHaveValue('');
   // …but the owner has it waiting, and takes it.
   await expect(page.locator('summary', { hasText: 'Voorstellen (1)' })).toBeVisible();

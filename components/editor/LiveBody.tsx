@@ -19,12 +19,19 @@ import { liveBodyJSON, useLiveDoc, type LivePerson, type LiveSave, type LiveStat
  * Someone who may look but not type gets the same live text, read-only, and a
  * button that opens a *copy* to edit and send as a proposal (§10, §17). The
  * shared text is never touched by a proposal until the owner takes it.
+ *
+ * §22: `readOnly` is a harder no than `canEdit`. `canEdit` is the page's guess
+ * at the gate and the room may overrule it — that is how rights granted while
+ * you are sitting on the page reach you. `readOnly` is the *reader's* own
+ * choice of face, which no room may overrule; without it a Keeper reading an
+ * artikel would find the room handing them a caret anyway.
  */
 export function LiveBody({
   room,
   state,
   user,
   canEdit,
+  readOnly = false,
   placeholder,
   proposals = false,
   onPropose,
@@ -37,6 +44,8 @@ export function LiveBody({
   user: LiveUser;
   /** The room's gate for this viewer, as the page computed it. */
   canEdit: boolean;
+  /** §22: this reader is on the reading face. Nothing the room says overrules it. */
+  readOnly?: boolean;
   placeholder?: string;
   /** Offer the proposal road to someone who may only look. */
   proposals?: boolean;
@@ -47,7 +56,7 @@ export function LiveBody({
   const ui = useUi();
   const words = ui.words;
   const live = useLiveDoc({ room, user, initialState: state });
-  const mayType = live.canEdit ?? canEdit;
+  const mayType = !readOnly && (live.canEdit ?? canEdit);
   const [proposing, setProposing] = useState(false);
   const [proposalDoc, setProposalDoc] = useState<unknown>(null);
 

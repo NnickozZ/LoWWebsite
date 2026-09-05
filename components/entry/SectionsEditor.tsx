@@ -37,18 +37,28 @@ function SectionText({
   section,
   user,
   editable,
+  readOnly = false,
   placeholder,
   onChange,
 }: {
   section: SectionLite;
   user: LiveUser | null;
   editable: boolean;
+  /** §22: the reading face. A harder no than `editable` — see `LiveBody`. */
+  readOnly?: boolean;
   placeholder?: string;
   onChange: (doc: unknown) => void;
 }) {
   const [status, setStatus] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
   if (!section.live || !user) {
-    return <RichEditor initialDoc={section.body} editable={editable} placeholder={placeholder} onChange={onChange} />;
+    return (
+      <RichEditor
+        initialDoc={section.body}
+        editable={editable && !readOnly}
+        placeholder={placeholder}
+        onChange={onChange}
+      />
+    );
   }
   return (
     <>
@@ -57,6 +67,7 @@ function SectionText({
         state={section.live.state}
         user={user}
         canEdit={editable && section.live.canEdit}
+        readOnly={readOnly}
         placeholder={placeholder}
         onStatus={setStatus}
       />
@@ -89,6 +100,7 @@ export function SectionsEditor({
   users,
   cases,
   liveUser,
+  readOnly = false,
   onOutlineChange,
 }: {
   entryId: string;
@@ -98,6 +110,12 @@ export function SectionsEditor({
   cases: RevealableCase[];
   /** §20: this person's name and ink in the shared text; null when not signed in. */
   liveUser: LiveUser | null;
+  /**
+   * §22: the reading face. A Keeper reading gets exactly what a player reading
+   * gets — the sections they may see, as prose, with no title inputs, no
+   * visibility chips and no "Sectie toevoegen".
+   */
+  readOnly?: boolean;
   /** The page's outline follows the titles: told on every add, rename and removal. */
   onOutlineChange?: (sections: { id: string; title: string }[]) => void;
 }) {
@@ -153,15 +171,21 @@ export function SectionsEditor({
     router.refresh();
   }
 
-  if (!isKeeper) {
-    // Read-only: the sections a player may see, in order, as part of the entry.
+  if (!isKeeper || readOnly) {
+    // Read-only: the sections this person may see, in order, as part of the entry.
     if (!sections.length) return null;
     return (
       <>
         {sections.map((section) => (
           <section key={section.id} id={`section-${section.id}`} className="entry-section">
             <h2 className="entry-section-title">{section.title || 'Zonder titel'}</h2>
-            <SectionText section={section} user={liveUser} editable={false} onChange={() => undefined} />
+            <SectionText
+              section={section}
+              user={liveUser}
+              editable={false}
+              readOnly
+              onChange={() => undefined}
+            />
           </section>
         ))}
       </>

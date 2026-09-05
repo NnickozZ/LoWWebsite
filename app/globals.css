@@ -855,6 +855,11 @@ a.card:hover {
        whatever shape it is, so it needs somewhere to be legible. */
     grid-template-columns: 220px 1fr;
   }
+  /* §22: the artikel's picture moved to the right-hand column, so its header
+     has nothing to put beside the title any more. A dossier still has. */
+  .entry-head-solo {
+    grid-template-columns: 1fr;
+  }
 }
 .entry-cover {
   aspect-ratio: 3 / 4;
@@ -984,6 +989,20 @@ details.section[open] > summary::before {
 }
 .lead-input:hover {
   border-color: var(--rule);
+}
+/* §22: the reading face of those two. The same type at the same size, so a
+   switch between faces moves nothing on the page except the frame. */
+.entry-title {
+  font-family: var(--serif);
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 0.3rem;
+}
+.entry-lead {
+  font-size: 1.08rem;
+  line-height: 1.5;
+  margin: 0 0 0.3rem;
 }
 .lead-input:focus {
   border-color: var(--ink-muted);
@@ -2058,6 +2077,67 @@ details.section[open] > summary::before {
   object-fit: contain;
 }
 
+/* §22: the picture and whatever hangs off it, as one thing in the sidebar. */
+.entry-figure {
+  margin: 0;
+}
+.entry-figure-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+/* The image tools, behind one button. Same popover manners as the Filters
+   panel: hangs under its button, closes on an outside click and on Escape. */
+.cover-menu-anchor {
+  position: relative;
+}
+.cover-menu-button {
+  gap: 0.35rem;
+}
+.cover-menu-caret {
+  transform: rotate(90deg);
+  color: var(--ink-muted);
+}
+.cover-menu-button[aria-expanded='true'] .cover-menu-caret {
+  transform: rotate(-90deg);
+}
+.cover-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 30;
+  min-width: 13.5rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 4px 4px 0 rgba(31, 27, 22, 0.18);
+  padding: 0.25rem;
+}
+.cover-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 0.5rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.cover-menu button:hover,
+.cover-menu button:focus-visible {
+  background: var(--paper-dark);
+}
+.cover-menu-danger {
+  color: var(--stamp-red);
+}
+
 .entry-crop-row {
   /* Stacked, because this lives in the narrow cover column. */
   display: flex;
@@ -2716,6 +2796,99 @@ details.section[open] > summary::before {
   margin: 0 0 0.4rem;
   font-size: 1.15rem;
 }
+/*
+ * §22: reading, the text is text. The editor's frame — the box, the paper, the
+ * 180 px of room to type into — is scaffolding for writing, and an article
+ * that keeps it looks like a form somebody forgot to submit. Tiptap still
+ * renders the same nodes underneath; only its furniture goes.
+ */
+.entry-page-reading .editor-body {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  min-height: 0;
+}
+.entry-page-reading .editor-body .ProseMirror {
+  outline: none;
+  /* The 160 px is somewhere to start typing. Reading, it is 160 px of nothing
+     between the last line of the text and whatever comes after it. */
+  min-height: 0;
+}
+.entry-page-reading .editor-body .ProseMirror > :first-child {
+  margin-top: 0;
+}
+.entry-page-reading .editor-body .ProseMirror > :last-child {
+  margin-bottom: 0;
+}
+.entry-page-reading .entry-section {
+  margin-bottom: 1.4rem;
+}
+
+/* §22: the toggle between the two faces. */
+.entry-mode-toggle {
+  gap: 0.35rem;
+}
+.entry-mode-toggle-on {
+  border-color: var(--ink);
+  background: var(--paper-raised);
+}
+/*
+ * §22: the picture and the facts as one box, the shape every wiki uses. The
+ * frame lives on the wrapper so the two halves share one border and one
+ * shadow instead of stacking two of each; either half may be missing (an
+ * artikel with no picture, an artikel whose soort has no fields).
+ */
+.entry-aside-box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
+}
+.entry-aside-box > .entry-figure {
+  padding: 0.5rem 0.5rem 0;
+}
+.entry-aside-box > .entry-figure:only-child {
+  padding-bottom: 0.5rem;
+}
+.entry-aside-box > .entry-figure .entry-cover-whole,
+.entry-aside-box > .entry-figure .entry-cover {
+  box-shadow: none;
+}
+.entry-aside-box > .entry-figure .entry-cover-whole img {
+  /* Beside the prose, not instead of it: the picture keeps its own shape but
+     may not push the facts below the fold. */
+  max-height: 26rem;
+}
+.entry-aside-box > .entry-infobox {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+/*
+ * Under 1024 px there is no sidebar to be a box in: the picture sits under the
+ * header at its own width and the facts stay the fold they already were, so
+ * the wrapper gives up its frame and hands both halves theirs back.
+ */
+.entry-aside-box-stacked {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.entry-aside-box-stacked > .entry-figure {
+  padding: 0;
+}
+.entry-aside-box-stacked > .entry-figure .entry-cover-whole,
+.entry-aside-box-stacked > .entry-figure .entry-cover {
+  box-shadow: var(--shadow);
+}
+.entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
+  max-height: 68vh;
+}
+
 /* The infobox: the facts of the artikel, label beside value. */
 .entry-infobox {
   border: 1px solid var(--rule);
@@ -2768,6 +2941,19 @@ details.section[open] > summary::before {
 }
 .fields-compact .textarea {
   min-height: 72px;
+}
+/* §22: the same two-column shape, with text where the inputs were. */
+.fields-view > div {
+  padding: 0.3rem 0;
+}
+.fields-view .label {
+  padding-top: 0.08rem;
+}
+.fields-view .field-value {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 .infobox-tags {
   padding-top: 0.2rem;
@@ -2874,7 +3060,8 @@ details.section[open] > summary::before {
 @media (min-width: 1024px) {
   .entry-layout-wide {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
+    /* §22: 20 px wider than before — the column holds the picture now. */
+    grid-template-columns: minmax(0, 1fr) 320px;
     column-gap: 2.5rem;
     /* Stretch (the default) on purpose: the sidebar has to be as tall as the
        text for its sticky outline to have anything to stick along. */

@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { ArticleModePref } from '@/lib/entries/mode';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import {
   blob,
@@ -28,6 +29,11 @@ export const users = sqliteTable(
     lastSeenAt: integer('last_seen_at'),
     /** §18: the character this person is currently wearing; null means "just me". */
     activeCharacterId: text('active_character_id'),
+    /**
+     * §22: which face an artikel opens in for this person — 'view' to read,
+     * 'edit' to edit, '' to follow their role. See `lib/entries/mode.ts`.
+     */
+    articleMode: text('article_mode').$type<ArticleModePref>().notNull().default(''),
   },
   (t) => [uniqueIndex('users_username_lower_idx').on(t.usernameLower)],
 );

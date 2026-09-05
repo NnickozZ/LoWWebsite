@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { editArticle, inviteCode, signIn } from './helpers';
 
 /**
  * Phase 3 (§9–§11) beyond golden flow 5: entry-level visibility and its leaks,
@@ -87,6 +87,9 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
   const player = await context.newPage();
   await signUpPlayer(player, playerName);
   await player.goto(url);
+  // §22: a player lands on the reading face; editing a locked artikel is the
+  // thing under test, so ask for the face that can.
+  await editArticle(player);
   await player.getByLabel('Korte beschrijving').fill('Pompt zout water het land in.');
   await player.getByLabel('Korte beschrijving').blur();
   await expect(player.locator('.toast', { hasText: 'ter beoordeling' })).toBeVisible();

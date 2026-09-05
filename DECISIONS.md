@@ -848,6 +848,79 @@ first run. The provider notes the tab's own non-GET fetches and `LivePage`
 ignores a `changed` within 2.5 s of one. The tab has already refreshed
 itself after a write wherever it needed to.
 
+## Phase 8 — Two faces for an artikel
+
+**A page that asks everyone to fill in a form.**
+Every artikel was an editing page. The title was an input, the one-liner was a
+textarea with a placeholder in it, and the infobox was a form with a blank row
+for every field the soort could hold — whether you had come to write the thing
+or to look up which street the lighthouse is on. Most visits to a wiki are
+reads. So the page has two faces now: *lezen*, shaped like any wiki article a
+reader has ever seen, and *bewerken*, the page that was already there.
+
+**The setting is a preference, the toggle is a face.**
+`users.article_mode` holds `''`, `'view'` or `'edit'`, and the empty string —
+the default, and what migration 0008 gives every existing row — means "whatever
+my role does". A Keeper writes the archive, so a Keeper lands in bewerken;
+everyone else came to read, so they land in lezen. Both may say otherwise in
+Jouw account, and the answer is a preference about *landing*, never a right:
+the toggle in the header crosses over for anybody signed in, including a player
+who may only propose. Their changes travel as proposals exactly as they did
+(§10, §17); what the faces separate is intent, not permission.
+
+A per-artikel toggle rather than a sticky one, on purpose. Wikipedia's Read and
+Edit tabs work that way and the mental model is worth more than the two clicks
+it costs a Keeper who is on a writing session — and that Keeper has a setting
+that puts them in bewerken every time. The one override is `?new=1`: you have
+just made this artikel, so you are here to fill it in.
+
+**Reading has to be a harder no than "you may not edit".**
+`LiveBody` took its answer from the room — `live.canEdit ?? canEdit` — which is
+right for rights, because rights can change while you sit on the page and the
+room is what knows. It is wrong for a face: a Keeper who chose to read would
+have been handed a caret anyway, since the room quite correctly says they may
+type. So `readOnly` is a separate, stronger prop that no room overrules, and
+`SectionsEditor` takes the same one and falls into the read-only path it
+already had for players. The two questions were being answered by one boolean;
+they are different questions.
+
+**An infobox is not a form with the labels showing.**
+A form has to show every slot, because you cannot fill in a slot you cannot
+see. An infobox only has to show what is *in* them — that is the whole
+difference, and it is why a wiki's infobox is short. So `FieldsView` prints the
+fields that are filled and drops the rest; an artikel whose fields are all
+empty has no infobox at all while reading, rather than a box of blank labels in
+its margin. The same rule runs down the page: a hand-filled list with nothing
+in it is not rendered, an artikel with no picture has no empty frame, and the
+editor's own furniture — its border, its paper, its 160 px of room to type
+into — is gone, because an article that keeps it looks like a form somebody
+forgot to submit.
+
+**The picture moved to the right, and its tools went with it.**
+It was 220 px in the header, beside the title. It is now the top of the box
+whose lower half is "Meer info", in the sidebar that already held the infobox
+and the outline — the shape Wikipedia, Fandom and everything after them
+settled on, so a reader arriving from any of those already knows where to look.
+The frame lives on the wrapper rather than on each half, so the two read as one
+box; either half may be missing. Under 1024 px there is no sidebar, so the
+wrapper gives up its frame and the picture sits under the header at its own
+width, where a phone wiki puts it.
+
+The three image tools — replace, crop for lists, remove — were a row of three
+buttons under the picture. In a 320 px column that wraps to three lines of
+chrome standing between the reader and the facts, so they went behind one
+"Afbeelding" button, with the Filters popover's manners: closes on an outside
+click, closes on Escape. With no picture yet there is only one thing to do, so
+that case stays a plain button rather than a menu of one.
+
+**What it cost the tests.**
+Four e2e specs assumed a signed-up player lands on an editing page, which is
+exactly the assumption that changed. They ask for the face now, through
+`editArticle()` in the helpers — which is what a person does. One of them got
+*better* for it: `flow-5-keeper` asserted the player could see an artikel by
+finding an input with its name in it, and now asserts the heading, which is the
+stronger claim.
+
 ## Dependencies
 
 §13 says to ask before adding a dependency. Three additions, all of them serving
