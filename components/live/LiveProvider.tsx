@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PublicPerson } from '@/lib/live/hub';
+import type { InkFrame } from '@/lib/ink/types';
 
 /**
  * §21: one tab's end of the site line.
@@ -59,6 +60,10 @@ export type LiveValue = {
   setPlace: (place: string | null, holding?: string[]) => void;
   setHolding: (holding: string[]) => void;
   reportPointer: (frame: PointerFrame | null) => void;
+  /** §33: frames of a stroke this tab is drawing, for everyone else at its place. */
+  reportInk: (frames: InkFrame[]) => void;
+  /** §33: be told of frames other people at this place are drawing. */
+  onInk: (callback: (clientId: string, frames: InkFrame[]) => void) => () => void;
   /** Everyone else at this tab's place. */
   people: PublicPerson[];
   /** Everyone else's hand at this tab's place, freshest first. */
@@ -104,6 +109,7 @@ type Outgoing = {
   watch?: string[];
   place?: { key: string; holding?: string[] } | null;
   cursor?: PointerFrame;
+  ink?: InkFrame[];
   join?: { key: string; y: number }[];
   leave?: string[];
   updates?: { key: string; u: string }[];
@@ -129,6 +135,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const placeRef = useRef<{ key: string; holding: string[] } | null>(null);
   const rooms = useRef<Map<string, { yClient: number; handlers: RoomHandlers }>>(new Map());
   const changeListeners = useRef<Set<(keys: string[]) => void>>(new Set());
+  const inkListeners = useRef<Set<(clientId: string, frames: InkFrame[]) => void>>(new Set());
 
   /* ---------------------------------------------------- one's own writes */
 
@@ -246,6 +253,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         if (partial.watch) current.watch = partial.watch;
         if (partial.place !== undefined) current.place = partial.place;
         if (partial.cursor) current.cursor = partial.cursor;
+        if (partial.ink) current.ink = [...(current.ink ?? []), ...partial.ink];
         if (partial.join) current.join = [...(current.join ?? []), ...partial.join];
         if (partial.leave) current.leave = [...(current.leave ?? []), ...partial.leave];
         if (partial.updates) current.updates = [...(current.updates ?? []), ...partial.updates];
@@ -343,6 +351,16 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         }
       });
 
+      source.addEventListener('ink', (event) => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data) as { place: string; c: string; f: InkFrame[] };
+          if (data.place !== placeRef.current?.key || data.c === clientId || !Array.isArray(data.f)) return;
+          for (const listener of inkListeners.current) listener(data.c, data.f);
+        } catch {
+          /* ignore */
+        }
+      });
+
       source.addEventListener('room', (event) => {
         try {
           const data = JSON.parse((event as MessageEvent).data) as { k: string; e: string; d: unknown };
@@ -434,6 +452,22 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     },
     [post],
   );
+
+  /** §33: a stroke's frames ride the same POST as everything else; the hook that draws batches them. */
+  const reportInk = useCallback(
+    (frames: InkFrame[]) => {
+      if (!placeRef.current || !frames.length) return;
+      void post({ ink: frames });
+    },
+    [post],
+  );
+
+  const onInk = useCallback((callback: (clientId: string, frames: InkFrame[]) => void) => {
+    inkListeners.current.add(callback);
+    return () => {
+      inkListeners.current.delete(callback);
+    };
+  }, []);
 
   /* ----------------------------------------------------- the public face */
 
@@ -537,6 +571,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       setPlace,
       setHolding,
       reportPointer,
+      reportInk,
+      onInk,
       people,
       pointers,
       joinRoom,
@@ -544,7 +580,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       stripHidden,
       ownWriteAt,
     }),
-    [clientId, status, watch, onChanged, setPlace, setHolding, reportPointer, people, pointers, joinRoom, stripHidden, ownWriteAt],
+    [clientId, status, watch, onChanged, setPlace, setHolding, reportPointer, reportInk, onInk, people, pointers, joinRoom, stripHidden, ownWriteAt],
   );
 
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;

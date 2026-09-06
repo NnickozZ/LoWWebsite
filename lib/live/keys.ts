@@ -9,7 +9,8 @@
  *
  *   entry:{id}      one artikel · case:{id} one dossier · board:{id} one
  *                   prikbord · map:{id} one landkaart · pin:{id} one speld ·
- *                   timeline:{id} one tijdlijn · event:{id} one gebeurtenis
+ *                   timeline:{id} one tijdlijn · event:{id} one gebeurtenis ·
+ *                   ink:{id} the tekenlaag on a prikbord, landkaart or tijdlijn
  *   entries, cases, boards, maps, timelines, types, words, site, users,
  *   characters, feed
  *                   "something in this collection changed" — a list page's key
@@ -24,7 +25,7 @@
 
 export const ID = '[A-Za-z0-9_-]{1,64}';
 
-const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event):(${ID})$`);
+const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event|ink):(${ID})$`);
 const ROOM_KEY = new RegExp(
   `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields)$`,
 );
@@ -58,11 +59,13 @@ export const mapKey = (id: string) => `map:${id}`;
 export const pinKey = (id: string) => `pin:${id}`;
 export const timelineKey = (id: string) => `timeline:${id}`;
 export const eventKey = (id: string) => `event:${id}`;
+/** §33: the tekenlaag on the thing with this id (a prikbord, landkaart or tijdlijn). */
+export const inkKey = (id: string) => `ink:${id}`;
 /** A wiki soort's list page, as a place. */
 export const typePagePlace = (slug: string) => `page:/wiki/${slug}`;
 export const pagePlace = (path: string) => `page:${path}`;
 
-export type RecordKind = 'entry' | 'case' | 'board' | 'map' | 'pin' | 'timeline' | 'event';
+export type RecordKind = 'entry' | 'case' | 'board' | 'map' | 'pin' | 'timeline' | 'event' | 'ink';
 
 export function parseRecordKey(key: string): { kind: RecordKind; id: string } | null {
   const match = RECORD_KEY.exec(key);

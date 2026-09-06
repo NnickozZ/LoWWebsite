@@ -13,6 +13,8 @@ import { db, schema } from '@/lib/db';
 import { getMapBySlug, listPins } from '@/lib/maps/service';
 import { visibleEntryCondition } from '@/lib/entries/visibility';
 import { and, eq, inArray } from 'drizzle-orm';
+import { inkForViewer } from '@/lib/ink/merge';
+import { getInk } from '@/lib/ink/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,6 +83,7 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
         liveUser={{ name: (user && peopleNames[user.id]) || user?.username || '', colour: presenceColour(user?.id ?? '') }}
         map={map}
         initialPins={pins}
+        initialInk={inkForViewer(getInk(map.id), user?.id ?? null)}
         viewerId={user?.id ?? ''}
         isKeeper={Boolean(user?.isKeeper)}
         peopleNames={peopleNames}

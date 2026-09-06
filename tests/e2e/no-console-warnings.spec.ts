@@ -77,6 +77,42 @@ test('no console errors or warnings while walking the archive', async ({ page })
     await page.getByTestId('timeline-settings').click();
     await page.waitForTimeout(300);
     await page.keyboard.press('Escape');
+    // §33: the tekenlaag — a line, a gum, an undo, and the toolbar away again.
+    await page.getByTestId('ink-pen').click();
+    const stage = (await page.getByTestId('timeline-stage').boundingBox())!;
+    await page.mouse.move(stage.x + 120, stage.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(stage.x + 260, stage.y + 140, { steps: 8 });
+    await page.mouse.up();
+    await page.getByTestId('ink-eraser').click();
+    await page.mouse.move(stage.x + 180, stage.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(stage.x + 190, stage.y + 160, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    await page.getByTestId('ink-undo').click();
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Escape');
+  }
+
+  // §33: the same on a prikbord, where the sheet also carries the Keeper's switch.
+  await page.goto('/boards');
+  const walls = page.locator('a[href^="/b/"]');
+  const boardHref = (await walls.count()) ? await walls.first().getAttribute('href') : null;
+  if (boardHref) {
+    await page.goto(boardHref);
+    await page.waitForTimeout(300);
+    await page.getByTestId('ink-pen').click();
+    const wall = (await page.locator('.board-viewport').boundingBox())!;
+    await page.mouse.move(wall.x + 120, wall.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(wall.x + 260, wall.y + 140, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Rechten' }).click();
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Escape');
   }
 
   expect(complaints, `browser console was not clean:\n${complaints.join('\n')}`).toEqual([]);

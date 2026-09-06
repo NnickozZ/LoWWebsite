@@ -1,0 +1,126 @@
+/**
+ * §33: the tekenlaag — free-hand drawing on a prikbord, a landkaart or a
+ * tijdlijn. Types and limits only; no imports, so the browser bundle and the
+ * server share one definition without dragging anything else along.
+ *
+ * A stroke is a record, never a bitmap. That is what lets several people draw
+ * at once without one overwriting the other (the merge is "add and sort"),
+ * what lets a gum be undone, and what keeps the document small: a stroke is a
+ * few hundred numbers, a bitmap of a wall is megabytes.
+ *
+ * **The gum is a stroke too.** `mode: 'erase'` is drawn with
+ * `destination-out`, in the same time order as everything else, so it takes
+ * away only what was there *before* it and anything drawn afterwards sits on
+ * top again. A real, pixel-precise gum without ever cutting a stroke in two —
+ * which is the operation that would have made the merge hard. The price is
+ * that erased ink stays in the data, invisible, until a Keeper wipes the
+ * layer; `INK_STROKE_LIMIT` is the ceiling that keeps that honest.
+ */
+
+export type InkMode = 'ink' | 'erase';
+
+/**
+ * The eight colours, in the order they sit in the toolbar: zwart, wit, rood,
+ * oranje, geel, groen, blauw, paars. Stored by index, never as CSS, so nothing
+ * a client sends ends up inside a canvas call.
+ */
+export const INK_COLOURS = [
+  '#1f1a15',
+  '#f6f1e6',
+  '#c0392b',
+  '#d9711c',
+  '#e0b62a',
+  '#2f6b4f',
+  '#1f4e79',
+  '#5b3a78',
+] as const;
+
+export const INK_COLOUR_NAMES = ['zwart', 'wit', 'rood', 'oranje', 'geel', 'groen', 'blauw', 'paars'] as const;
+
+/** The three brushes, as a width in screen pixels at zoom 1: dun, normaal, dik. */
+export const INK_BRUSHES = [3, 6, 12] as const;
+
+/** The gum is wider than the widest brush: you erase a mistake, not trace it. */
+export const INK_ERASER_WIDTH = 22;
+
+/** Widths are stored in the place's own units; this is the sanity ceiling. */
+export const INK_MAX_WIDTH = 4000;
+
+/** Numbers per stroke: `[x, y, p, x, y, p, …]`, so 2 000 points. */
+export const INK_MAX_POINTS = 6000;
+
+/** Strokes per layer. Past this the server refuses new ones until a Keeper wipes it. */
+export const INK_STROKE_LIMIT = 2000;
+
+/** How long a lifted stroke is remembered, and how many — the corkboard's rule (§8). */
+export const INK_TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const INK_TOMBSTONE_LIMIT = 500;
+
+export type InkStroke = {
+  /** Made by the client; `s_` and ten characters. */
+  id: string;
+  /** The account that drew it. Server-side; a viewer is only ever told `mine`. */
+  by?: string;
+  /** Server time at saving, milliseconds. The one order everything is drawn in. */
+  at: number;
+  mode: InkMode;
+  /** Index into `INK_COLOURS`. Ignored when erasing. */
+  colour: number;
+  /** In the place's own units (board units, picture pixels, screen pixels on a tijdlijn). */
+  width: number;
+  /** `[x, y, p, x, y, p, …]` — `p` is pen pressure 0..1, 1 without a pen. */
+  points: number[];
+};
+
+/** A stroke as a browser sees it: who drew it is reduced to "was it you". */
+export type InkStrokeView = Omit<InkStroke, 'by'> & { mine?: boolean };
+
+export type InkLayer = {
+  /** Sorted by `at`, then id. */
+  strokes: InkStroke[];
+  /** Stroke id → when it was lifted (undo). */
+  deleted: Record<string, number>;
+  /** The Keeper's switch. Off: nobody draws or erases; what is there stays. */
+  enabled: boolean;
+  /** When a Keeper last wiped the layer, or null. */
+  clearedAt: number | null;
+};
+
+export type InkLayerView = Omit<InkLayer, 'strokes' | 'deleted'> & { strokes: InkStrokeView[] };
+
+/** What a client sends. Everything optional; the server decides what it may do. */
+export type InkPatch = {
+  strokes?: unknown[];
+  /** Ids of one's own strokes to lift. */
+  undo?: unknown[];
+  /** Keeper only. */
+  enabled?: unknown;
+  /** Keeper only: wipe the layer. */
+  clear?: unknown;
+};
+
+/** Where a tekenlaag can hang. */
+export type InkKind = 'board' | 'map' | 'timeline';
+export const INK_KINDS: readonly InkKind[] = ['board', 'map', 'timeline'];
+
+export function isInkKind(value: unknown): value is InkKind {
+  return typeof value === 'string' && (INK_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * One frame of a stroke in progress, on the wire to everyone else at the
+ * place: the stroke's id and look, and the points added *since the last
+ * frame*. `e` marks the last frame; `a` says the stroke was abandoned (a
+ * second finger arrived, a key was pressed) and should be thrown away. Never
+ * stored, never merged — a frame is sight, and the save that follows the
+ * hand lifting is what makes it true.
+ */
+export type InkFrame = {
+  id: string;
+  m: InkMode;
+  k: number;
+  w: number;
+  p: number[];
+  e?: 1;
+  a?: 1;
+};

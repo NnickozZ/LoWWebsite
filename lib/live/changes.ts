@@ -55,6 +55,10 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   timelines: { row: 'timeline', refs: { case_id: 'case' }, lists: ['timelines'] },
   timeline_events: { row: 'event', refs: { timeline_id: 'timeline', entry_id: 'entry' }, lists: ['timelines'] },
   users: { lists: ['users'] },
+  // §33: a stroke moves the tekenlaag's own key and nothing else — not the
+  // prikbord, landkaart or tijdlijn it is drawn on, whose pages would otherwise
+  // re-render on every stroke.
+  ink_layers: { refs: { target_id: 'ink' }, lists: [] },
   site_settings: { lists: ['site', 'words', 'types'] },
 };
 

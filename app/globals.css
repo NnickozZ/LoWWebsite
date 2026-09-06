@@ -4326,3 +4326,175 @@ details.section[open] > summary::before {
     font-size: 0.72rem;
   }
 }
+
+/* ------------------------------------------------------------------ §33 */
+/*
+ * The tekenlaag. `.ink-layer` is the canvas, laid over the whole stage and
+ * under whatever the stage holds (cards, spelden, gebeurtenissen): it comes
+ * first in the DOM and carries no z-index, so the transformed world paints
+ * over it. `.ink-capture` is the sheet that takes the hand while the
+ * tekenmodus is on, above everything but the toolbar and the sheets.
+ */
+.ink-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+.ink-capture {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ink-capture-erase {
+  cursor: cell;
+}
+.ink-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.85;
+  box-shadow: 0 0 0 1px #fbf7ee, 0 0 0 2px rgba(31, 27, 22, 0.55);
+  pointer-events: none;
+  will-change: transform;
+}
+.ink-ring-hidden {
+  display: none;
+}
+
+.ink-toolbar {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 31;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  max-width: calc(100% - 1rem);
+  flex-wrap: wrap;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: default;
+}
+.ink-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ink-tool:hover:not(:disabled) {
+  background: var(--paper-dark);
+}
+.ink-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ink-tool-on {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.ink-tool-on:hover:not(:disabled) {
+  background: var(--ink);
+}
+.ink-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--rule);
+  margin: 0 0.15rem;
+}
+.ink-colours,
+.ink-brushes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.ink-colour {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--paper-raised);
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--rule);
+  cursor: pointer;
+}
+.ink-colour-on {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.ink-brush {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+.ink-brush-on {
+  border-color: var(--ink);
+  background: var(--paper-dark);
+}
+.ink-brush-dot {
+  display: block;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.ink-saving {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  padding: 0 0.3rem;
+}
+.ink-keeper {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--rule);
+}
+/* Where something else already has the top-left corner (a landkaart's legend). */
+.ink-toolbar-bottom {
+  top: auto;
+  bottom: 0.5rem;
+}
+/*
+ * On a prikbord every other corner is taken — the inspector bottom-left, the
+ * tray top-right — and the top-left is bare cork people click to let go of a
+ * selection, so the toolbar sits bottom-right; on a phone the inspector spans
+ * the bottom, so there it moves up to the top-left.
+ */
+.ink-toolbar-board {
+  top: auto;
+  left: auto;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  justify-content: flex-end;
+}
+@media (max-width: 767px) {
+  .ink-toolbar-board {
+    top: 0.5rem;
+    left: 0.5rem;
+    right: auto;
+    bottom: auto;
+  }
+}

@@ -15,6 +15,8 @@ import { cardRef } from '@/lib/boards/merge';
 import { listCaseEntries, listCases } from '@/lib/cases/service';
 import { listMaps } from '@/lib/maps/service';
 import { listTimelines } from '@/lib/timelines/service';
+import { inkForViewer } from '@/lib/ink/merge';
+import { getInk } from '@/lib/ink/service';
 import type { CoverCrop } from '@/lib/db/schema';
 
 export const dynamic = 'force-dynamic';
@@ -82,6 +84,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       pickableCases={pickableCases}
       pickableTimelines={pickableTimelines}
       readOnly={!mayEdit}
+      initialInk={inkForViewer(getInk(board.id), user?.id ?? null)}
       access={{
         settings:
           mayManage || board.accessLocked

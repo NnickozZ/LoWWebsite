@@ -44,6 +44,11 @@ import { offerToFileEntry } from './offerToFile';
 import { syncLabel, useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
 import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
+import { InkCanvas } from '@/components/ink/InkCanvas';
+import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
+import { useElementSize } from '@/components/ink/useElementSize';
+import { useInk } from '@/components/ink/useInk';
+import type { InkLayerView } from '@/lib/ink/types';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 
 const MIN_ZOOM = 0.25;
@@ -109,9 +114,12 @@ export function BoardCanvas({
   pickableTimelines,
   readOnly,
   access,
+  initialInk,
 }: {
   boardId: string;
   boardName: string;
+  /** §33: the tekenlaag, as this viewer may see it. */
+  initialInk: InkLayerView;
   /** §17: may look, not touch. Every write path below is switched off. */
   readOnly: boolean;
   access: {
@@ -289,6 +297,25 @@ export function BoardCanvas({
       setName((current) => (current === remoteName ? current : remoteName));
     },
   });
+
+  /**
+   * §33: the tekenlaag. Its own hook and its own line (the site line, not
+   * the board hub), because it is not the board: drawing is for everyone who
+   * may look, including a viewer this wall is read-only for.
+   */
+  const ink = useInk({ kind: 'board', id: boardId, initial: initialInk, onError: (message) => ui.toast(message) });
+  const inkTool = useInkTool();
+  const inkActive = inkTool.active && ink.enabled;
+  const viewportSize = useElementSize(viewportRef);
+  const inkProject = useCallback(
+    (x: number, y: number) => ({ x: viewport.x + x * viewport.zoom, y: viewport.y + y * viewport.zoom }),
+    [viewport],
+  );
+  // The switch turned off under an open toolbar closes it.
+  useEffect(() => {
+    if (!ink.enabled && inkTool.active) inkTool.setActive(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ink.enabled]);
 
   /**
    * One card, resolved. Everything that has to know what a card *is* — the
@@ -907,7 +934,11 @@ export function BoardCanvas({
       // filter box bubbled out here and panned the wall out from under it.
       target.closest('.board-tray') ||
       target.closest('.board-tray-spine') ||
-      target.closest('.board-end-handle')
+      target.closest('.board-end-handle') ||
+      // §33: a press on the tekenlaag's sheet or its toolbar is a stroke or a
+      // click, never a pan.
+      target.closest('.ink-capture') ||
+      target.closest('.ink-toolbar')
     ) {
       return;
     }
@@ -1257,6 +1288,7 @@ export function BoardCanvas({
 
       if (event.key === 'Escape') {
         if (lightbox) setLightbox(null);
+        else if (inkTool.active) inkTool.setActive(false);
         else if (croppingId) setCroppingId(null);
         else if (drawing) setDrawing(null);
         else if (!typing) {
@@ -1266,6 +1298,14 @@ export function BoardCanvas({
         return;
       }
       if (typing) return;
+
+      // §33: in the tekenmodus, Ctrl+Z takes back your own last stroke — for
+      // a viewer too, who has no cards to undo.
+      if (inkActive && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        ink.undo();
+        return;
+      }
 
       if (readOnly) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
@@ -1285,7 +1325,7 @@ export function BoardCanvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, selectedStringId, croppingId, drawing, lightbox, removeCards, removeString, undo, readOnly]);
+  }, [selected, selectedStringId, croppingId, drawing, lightbox, removeCards, removeString, undo, readOnly, inkActive, inkTool, ink]);
 
   /** If the pointer leaves the board mid-drag, finish rather than stick. */
   useEffect(() => {
@@ -1872,6 +1912,18 @@ export function BoardCanvas({
           placeEntry(entry, point);
         }}
       >
+        {/* §33: the tekenlaag, under the cork's cards and strings. */}
+        <InkCanvas
+          className="ink-layer"
+          strokes={ink.strokes}
+          stableCount={ink.stableCount}
+          project={inkProject}
+          widthScale={viewport.zoom}
+          viewKey={`${viewport.x},${viewport.y},${viewport.zoom}`}
+          width={viewportSize.width}
+          height={viewportSize.height}
+        />
+
         <div className="board-world" style={world}>
           <svg
             className="board-strings"
@@ -2116,7 +2168,38 @@ export function BoardCanvas({
           ))}
         </div>
 
-        {!cards.length && (
+        {inkActive && (
+          <InkCapture
+            tool={inkTool.tool}
+            toContent={toBoard}
+            widthScale={viewport.zoom}
+            onBegin={ink.begin}
+            onExtend={ink.extend}
+            onEnd={ink.end}
+            onAbort={ink.abort}
+          />
+        )}
+        {ink.enabled && (
+          <InkToolbar
+            className="ink-toolbar-board"
+            active={inkTool.active}
+            tool={inkTool.tool}
+            onActive={(next) => {
+              inkTool.setActive(next);
+              if (next) {
+                setSelected(new Set());
+                setSelectedStringId(null);
+                setCroppingId(null);
+              }
+            }}
+            onTool={inkTool.setTool}
+            canUndo={ink.canUndo}
+            onUndo={ink.undo}
+            saving={ink.saving}
+          />
+        )}
+
+        {!cards.length && !inkActive && (
           <div className="board-empty">
             <p
               style={{
@@ -2234,6 +2317,24 @@ export function BoardCanvas({
             viewerId={access.viewerId}
             nouns={{ this: `dit ${ui.words.board}` }}
           />
+          {access.isKeeper && (
+            <InkKeeperControls
+              enabled={ink.enabled}
+              strokeCount={ink.layer.strokes.length}
+              noun={`dit ${ui.words.board}`}
+              onSetEnabled={(enabled) => void ink.keeper({ enabled })}
+              onClear={() =>
+                void ui
+                  .confirm({
+                    title: 'Tekenlaag wissen?',
+                    message: `Alle streken op dit ${ui.words.board} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
+                    confirmLabel: 'Wissen',
+                    danger: true,
+                  })
+                  .then((yes) => yes && ink.keeper({ clear: true }))
+              }
+            />
+          )}
         </Sheet>
       )}
 

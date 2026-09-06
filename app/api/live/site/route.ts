@@ -10,6 +10,7 @@ import {
   connection as findConnection,
   disconnect,
   forgetRoom,
+  publishInk,
   publishPointer,
   rememberRoom,
   roomSender,
@@ -19,6 +20,8 @@ import {
   type SitePointer,
 } from '@/lib/live/hub';
 import { isRoomKey, isWellFormedKey } from '@/lib/live/keys';
+import { readInkFrame } from '@/lib/ink/merge';
+import type { InkFrame } from '@/lib/ink/types';
 import { admit } from '@/lib/live/rooms';
 
 export const dynamic = 'force-dynamic';
@@ -129,6 +132,8 @@ type Body = {
   watch?: unknown;
   place?: { key?: unknown; holding?: unknown } | null;
   cursor?: { x?: unknown; y?: unknown; m?: unknown };
+  /** §33: frames of a stroke being drawn, in order. */
+  ink?: unknown;
   join?: unknown;
   leave?: unknown;
   updates?: unknown;
@@ -180,6 +185,13 @@ export async function POST(request: Request) {
     if (body.cursor) {
       const frame = pointerFrame(clientId, body.cursor);
       if (frame) publishPointer(line, frame);
+    }
+
+    if (Array.isArray(body.ink)) {
+      // Like a pointer frame: let through on the strength of the line, which
+      // passed the place's gate when it was opened. Checked number by number.
+      const frames = body.ink.slice(0, 40).map(readInkFrame).filter((f): f is InkFrame => f !== null);
+      if (frames.length) publishInk(line, frames);
     }
 
     if (Array.isArray(body.leave)) {

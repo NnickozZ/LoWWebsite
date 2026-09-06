@@ -446,3 +446,20 @@ Sessieverslagen. Field labels and select options are in lib/db/seed.mjs.
 | **Tijdlijn** | prullenbak, en het kaartje op een prikbord | De soort van het ding. |
 | **gezet door {naam}** | uitklapvenster | Wie de gebeurtenis zette (§18: het karakter). |
 
+
+## Ronde 10 — de tekenlaag (§33)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Tekenen** (het potlood) | rechtsonder op een prikbord (op een telefoon linksboven), linksboven op een tijdlijn, linksonder op een landkaart | Zet de tekenmodus aan: slepen tekent nu in plaats van kaarten te verplaatsen of te schuiven. Nogmaals klikken of Esc zet hem uit. |
+| **Tekenen uit** | hetzelfde knopje, als hij aan staat | |
+| zwart · wit · rood · oranje · geel · groen · blauw · paars | de kleurstippen | De acht kleuren. De laatste keuze wordt onthouden. |
+| **Dun** · **Normaal** · **Dik** | de drie stippen | De dikte van de lijn, gemeten op het scherm bij de zoom waarop je tekent; hij groeit en krimpt daarna mee. |
+| **Gum** | de werkbalk | Gumt precies wat eronder ligt, ook van anderen. Een gumbeurt is zelf een streek: wat er daarna getekend wordt ligt er weer bovenop. |
+| **Laatste streek ongedaan maken** (Ctrl+Z) | de werkbalk | Alleen je eigen streken, alleen die van deze zitting. Buiten de tekenmodus is Ctrl+Z voor de kaarten. |
+| **Opslaan…** | de werkbalk | De streek is onderweg naar het archief. |
+| **Tekenen toegestaan** | Rechten (prikbord), onder de landkaart, Instellingen (tijdlijn) — alleen Keepers | Uit: niemand kan meer tekenen of gummen; wat er staat blijft staan, voor iedereen. |
+| **Tekenlaag wissen** | zelfde plek | Alle streken weg, definitief, na een bevestiging. Staat in het logboek. |
+| **Tekenen staat uit op dit onderdeel.** | melding | Iemand probeerde te tekenen terwijl de Keeper het uitgezet had. |
+| **De tekenlaag is vol. Vraag een Keeper hem te wissen.** | melding | Tweeduizend streken is de grens; uitgegumde inkt telt mee tot de laag gewist is. |
+| **tekenlaag**, **streek**, **potlood**, **gum** | in de tekst van de site | De laag, één lijn erop, en de twee gereedschappen. |

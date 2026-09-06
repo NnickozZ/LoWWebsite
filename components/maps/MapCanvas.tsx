@@ -13,6 +13,10 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
+import { InkCanvas } from '@/components/ink/InkCanvas';
+import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
+import { useInk } from '@/components/ink/useInk';
+import type { InkLayerView } from '@/lib/ink/types';
 
 /**
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
@@ -97,9 +101,12 @@ export function MapCanvas({
   isKeeper,
   peopleNames,
   liveUser,
+  initialInk,
 }: {
   map: MapSummary;
   initialPins: MapPin[];
+  /** §33: the tekenlaag, as this viewer may see it. */
+  initialInk: InkLayerView;
   viewerId: string;
   isKeeper: boolean;
   /** §21: this person's name and ink, for the shared fields of a note pin. */
@@ -313,6 +320,40 @@ export function MapCanvas({
   // pulled again the moment the archive says so — except the one under this
   // person's own hand, which lands where they put it.
   const live = useLive();
+
+  // §33: the tekenlaag, in picture pixels under the same pan and zoom as the
+  // picture. Its width scales with the zoom like the picture does.
+  const ink = useInk({ kind: 'map', id: map.id, initial: initialInk, onError: (message) => ui.toast(message) });
+  const inkTool = useInkTool();
+  const inkActive = inkTool.active && ink.enabled;
+  const inkProject = useCallback((x: number, y: number) => ({ x: view.tx + x * view.zoom, y: view.ty + y * view.zoom }), [view]);
+  const inkToContent = useCallback(
+    (clientX: number, clientY: number) => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      const v = viewRef.current;
+      return { x: (clientX - (rect?.left ?? 0) - v.tx) / v.zoom, y: (clientY - (rect?.top ?? 0) - v.ty) / v.zoom };
+    },
+    [],
+  );
+  useEffect(() => {
+    if (!ink.enabled && inkTool.active) inkTool.setActive(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ink.enabled]);
+  useEffect(() => {
+    if (!inkTool.active) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (event.key === 'Escape') inkTool.setActive(false);
+      else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        ink.undo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [inkTool, ink]);
+
   const draggingRef = useRef<string | null>(null);
   draggingRef.current = dragging;
   useLiveChanges([mapKey(map.id)], () => {
@@ -851,6 +892,18 @@ export function MapCanvas({
           <img src={assetUrl(map.assetId)} alt={map.name} width={map.width} height={map.height} draggable={false} />
         </div>
 
+        {/* §33: the tekenlaag, over the picture and under the spelden. */}
+        <InkCanvas
+          className="ink-layer"
+          strokes={ink.strokes}
+          stableCount={ink.stableCount}
+          project={inkProject}
+          widthScale={view.zoom}
+          viewKey={`${view.tx},${view.ty},${view.zoom}`}
+          width={stageSize.w}
+          height={stageSize.h}
+        />
+
         {/* The pins: stage pixels, never scaled — see the note at the top. */}
         <div className="map-pins">
           {shown.map((pin) => {
@@ -910,6 +963,34 @@ export function MapCanvas({
           )}
         </div>
 
+        {inkActive && (
+          <InkCapture
+            tool={inkTool.tool}
+            toContent={inkToContent}
+            widthScale={view.zoom}
+            onBegin={ink.begin}
+            onExtend={ink.extend}
+            onEnd={ink.end}
+            onAbort={ink.abort}
+            stopPropagation
+          />
+        )}
+        {ink.enabled && !placing && (
+          <InkToolbar
+            className="ink-toolbar-bottom"
+            active={inkTool.active}
+            tool={inkTool.tool}
+            onActive={(next) => {
+              inkTool.setActive(next);
+              if (next) setSelectedId(null);
+            }}
+            onTool={inkTool.setTool}
+            canUndo={ink.canUndo}
+            onUndo={ink.undo}
+            saving={ink.saving}
+          />
+        )}
+
         {!isPhone &&
           (legendOpen ? (
             <aside
@@ -946,7 +1027,27 @@ export function MapCanvas({
       <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
         {shown.length} van {pins.length} {pins.length === 1 ? pinWord : words.mapPinPlural} te zien
         {' · '}sleep om te schuiven, scroll of knijp om te zoomen
+        {ink.enabled && <> · het potlood tekent op de {mapWord}, Esc stopt</>}
       </p>
+
+      {isKeeper && (
+        <InkKeeperControls
+          enabled={ink.enabled}
+          strokeCount={ink.layer.strokes.length}
+          noun={`deze ${mapWord}`}
+          onSetEnabled={(enabled) => void ink.keeper({ enabled })}
+          onClear={() =>
+            void ui
+              .confirm({
+                title: 'Tekenlaag wissen?',
+                message: `Alle streken op deze ${mapWord} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
+                confirmLabel: 'Wissen',
+                danger: true,
+              })
+              .then((yes) => yes && ink.keeper({ clear: true }))
+          }
+        />
+      )}
 
       {selected && (
         <Sheet onClose={() => setSelectedId(null)} labelledBy="pin-title">

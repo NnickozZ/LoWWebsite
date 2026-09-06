@@ -12,6 +12,8 @@ import { displayNames } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { timelineKey } from '@/lib/live/keys';
 import { getTimelineBySlug, listEvents } from '@/lib/timelines/service';
+import { inkForViewer } from '@/lib/ink/merge';
+import { getInk } from '@/lib/ink/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,6 +113,7 @@ export default async function TimelinePage({
         }}
         placing={place ? { entryId: place, name: placeName } : null}
         focusEventId={focus || null}
+        initialInk={inkForViewer(getInk(timeline.id), user?.id ?? null)}
       />
     </div>
   );

@@ -13,6 +13,10 @@ import type { LiveUser } from '@/components/editor/useLiveDoc';
 import type { AccessSettings } from '@/lib/access';
 import { timelineKey } from '@/lib/live/keys';
 import type { TimelineEvent, TimelineSummary } from '@/lib/timelines/service';
+import { InkCanvas } from '@/components/ink/InkCanvas';
+import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
+import { useInk } from '@/components/ink/useInk';
+import type { InkLayerView } from '@/lib/ink/types';
 import {
   fitView,
   floorTo,
@@ -88,9 +92,12 @@ export function TimelineCanvas({
   access,
   placing,
   focusEventId,
+  initialInk,
 }: {
   timeline: TimelineSummary;
   initialEvents: TimelineEvent[];
+  /** §33: the tekenlaag, as this viewer may see it. */
+  initialInk: InkLayerView;
   canEdit: boolean;
   viewerId: string;
   isKeeper: boolean;
@@ -162,6 +169,50 @@ export function TimelineCanvas({
   /* ------------------------------------------------------------- geometry */
 
   const xOf = useCallback((at: number) => (view ? (at - view.origin) * view.pxPerSecond : 0), [view]);
+
+  /* ----------------------------------------------------------------- ink */
+
+  // §33: the tekenlaag. A stroke's x is a *moment* (seconds, like a
+  // gebeurtenis) and its y a fraction of the stage's height, so a circle
+  // round 1887 stays round 1887 when the axis is shifted or zoomed, and
+  // still sits on the axis on a narrower screen. Widths are screen pixels:
+  // the axis has no zoom in the sense a cork has.
+  const ink = useInk({ kind: 'timeline', id: timeline.id, initial: initialInk, onError: (message) => ui.toast(message) });
+  const inkTool = useInkTool();
+  const inkActive = inkTool.active && ink.enabled;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const stageHRef = useRef(stageH);
+  stageHRef.current = stageH;
+  const inkProject = useCallback(
+    (at: number, f: number) => ({ x: view ? (at - view.origin) * view.pxPerSecond : 0, y: f * stageH }),
+    [view, stageH],
+  );
+  const inkToContent = useCallback((clientX: number, clientY: number) => {
+    const rect = stageRef.current?.getBoundingClientRect();
+    const v = viewRef.current;
+    const sx = clientX - (rect?.left ?? 0);
+    const sy = clientY - (rect?.top ?? 0);
+    return { x: v ? v.origin + sx / v.pxPerSecond : 0, y: sy / stageHRef.current };
+  }, []);
+  useEffect(() => {
+    if (!ink.enabled && inkTool.active) inkTool.setActive(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ink.enabled]);
+  useEffect(() => {
+    if (!inkTool.active) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (event.key === 'Escape') inkTool.setActive(false);
+      else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        ink.undo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [inkTool, ink]);
 
   const placed = useMemo<Placed[]>(() => {
     if (!view) return [];
@@ -295,7 +346,8 @@ export function TimelineCanvas({
 
   function onDoubleClick(event: React.MouseEvent) {
     if (!canEdit || !view) return;
-    if ((event.target as HTMLElement).closest('.timeline-event, .timeline-popout')) return;
+    // §33: two quick dots with the potlood are two dots, not a new gebeurtenis.
+    if ((event.target as HTMLElement).closest('.timeline-event, .timeline-popout, .ink-capture, .ink-toolbar')) return;
     const el = stageRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -544,6 +596,17 @@ export function TimelineCanvas({
         onDoubleClick={onDoubleClick}
         data-testid="timeline-stage"
       >
+        {/* §33: the tekenlaag, under the axis and the gebeurtenissen. */}
+        <InkCanvas
+          className="ink-layer"
+          strokes={ink.strokes}
+          stableCount={ink.stableCount}
+          project={inkProject}
+          widthScale={1}
+          viewKey={`${view?.origin ?? 0},${view?.pxPerSecond ?? 0},${stageH},${width}`}
+          width={width}
+          height={stageH}
+        />
         <div className="timeline-axis" style={{ top: axisY }} />
         {ticks.map((tick) => (
           <div
@@ -585,7 +648,34 @@ export function TimelineCanvas({
           );
         })}
 
-        {!events.length && (
+        {inkActive && (
+          <InkCapture
+            tool={inkTool.tool}
+            toContent={inkToContent}
+            widthScale={1}
+            onBegin={ink.begin}
+            onExtend={ink.extend}
+            onEnd={ink.end}
+            onAbort={ink.abort}
+            stopPropagation
+          />
+        )}
+        {ink.enabled && (
+          <InkToolbar
+            active={inkTool.active}
+            tool={inkTool.tool}
+            onActive={(next) => {
+              inkTool.setActive(next);
+              if (next) setExpanded(new Set());
+            }}
+            onTool={inkTool.setTool}
+            canUndo={ink.canUndo}
+            onUndo={ink.undo}
+            saving={ink.saving}
+          />
+        )}
+
+        {!events.length && !inkActive && (
           <p className="timeline-empty small muted">
             {canEdit
               ? `Nog geen ${words.eventPlural}. Dubbelklik op de as, of gebruik '${cap(words.event)} toevoegen'.`
@@ -660,6 +750,24 @@ export function TimelineCanvas({
             onSave={saveSettings}
             onDelete={() => void deleteTimeline()}
           />
+          {isKeeper && (
+            <InkKeeperControls
+              enabled={ink.enabled}
+              strokeCount={ink.layer.strokes.length}
+              noun={`deze ${words.timeline}`}
+              onSetEnabled={(enabled) => void ink.keeper({ enabled })}
+              onClear={() =>
+                void ui
+                  .confirm({
+                    title: 'Tekenlaag wissen?',
+                    message: `Alle streken op deze ${words.timeline} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
+                    confirmLabel: 'Wissen',
+                    danger: true,
+                  })
+                  .then((yes) => yes && ink.keeper({ clear: true }))
+              }
+            />
+          )}
         </Sheet>
       )}
     </div>

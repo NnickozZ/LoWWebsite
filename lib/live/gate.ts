@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { getMapById, getPin } from '@/lib/maps/service';
 import { getEvent, getTimelineById } from '@/lib/timelines/service';
+import { inkTargetById } from '@/lib/ink/service';
 import { COLLECTION_KEYS, ID, KEEPER_KEYS, PAGE_PLACES, parseRecordKey } from './keys';
 
 /**
@@ -67,6 +68,9 @@ export function canWatch(key: string, viewer: Viewer): boolean {
       return Boolean(getTimelineById(record.id, viewer));
     case 'event':
       return Boolean(getEvent(record.id, viewer));
+    // §33: a tekenlaag is seen by whoever may see what it is drawn on.
+    case 'ink':
+      return Boolean(inkTargetById(record.id, viewer));
     default:
       return false;
   }

@@ -1154,3 +1154,89 @@ its frame). No `timeline:{id}:fields` room for the name and description — the
 settings sheet saves with a button, like a landkaart's. Field rooms and
 existing spelden with a doubled name are not repaired by the code.
 
+
+## Round 10 — 6 September 2026: de tekenlaag (§33)
+
+Nick asked for free-hand drawing on prikborden, landkaarten and tijdlijnen: a
+simple brush with colours and sizes, a gum, everyone able to rub out everyone
+else's lines, the strokes *behind* the cards, and a Keeper's switch per wall,
+map and axis that stops all drawing universally. Eight questions were put to
+him first and the answers shaped everything below: a **pixel-precise** gum
+(not stroke-at-a-time); drawing for **everyone who may see** the thing (not
+only who may edit); the switch **freezes** what is there rather than hiding or
+wiping it; a **fixed row of eight** colours; on a tijdlijn ink **sticks to the
+years**; a **potlood button** that stays on until Esc; strokes **anonymous** on
+screen; Ctrl+Z, a Keeper's wipe and pen pressure in, an eye to hide the layer
+out.
+
+**A stroke is a record, and the gum is a stroke.** The pixel-precise gum was
+the one answer that could have made this hard: cutting strokes in two means
+geometry, splits that two people make at once, and a merge that is no longer
+"append". Instead a gum is a stroke with `mode: 'erase'`, painted with
+`destination-out`, and everything is painted in the server's time order — so
+a gum takes away exactly what was under it when it was made, and a line drawn
+afterwards sits on top again, which is what a real gum does. Nothing is ever
+modified after it is saved; the merge is append, drop what is tombstoned, sort.
+The cost is that erased ink stays in the row, invisible, which is why the layer
+has a ceiling (2 000 strokes) and a Keeper's wipe, and why the message at the
+ceiling says whom to ask.
+
+**Seeing is the gate, and this is written down as an exception.** Every other
+write in the archive asks `viewerCanEdit` (README rule 10). Nick's answer was
+that a viewer without edit rights may draw and may rub out — the layer is a
+shared scribble, not the work — so `lib/ink/service.ts` asks only whether the
+viewer may *see* the prikbord, landkaart or tijdlijn. README rule 33 says so in
+so many words, so that a future reader does not "repair" it, and
+`tests/unit/ink-service.test.ts` asserts it from the side of a viewer the edit
+dial shuts out.
+
+**Its own table, its own key, its own line.** The first plan put the layer in
+`boards.state` and in a column on `maps` and `timelines`. That would have made
+every saved stroke a change to the prikbord (a pull of the whole wall for
+everyone on it) and to the landkaart or tijdlijn (a `router.refresh()` of the
+page for everyone watching it) — once a second while somebody draws. So the
+layer lives in `ink_layers`, keyed by the thing's id, moves only `ink:{id}`
+(gated like the thing it hangs on, in `lib/live/gate.ts`), and every one of the
+three places pulls it through `useInk` on the site line. The board hub
+(`lib/boards/live.ts`) is untouched; README rule 7 of §21 still holds.
+
+**Frames are sight.** While a hand draws, the new points go out on the site
+line every 60 ms as `ink` frames — the same idea as pointer frames — so the
+others watch the line appear. A frame carries an id, a look and coordinates,
+nothing about who; the save that follows the hand lifting is what makes the
+stroke true, and a finished stroke is kept on the receiving screen ("settling")
+until the pull brings the real one, so it never blinks out in between. One
+pull when the line comes up closes the gap between the page's render and the
+line being open (a stroke saved in that moment would otherwise be missed until
+the next signal).
+
+**Coordinates are the place's own.** A stroke on a prikbord is in board units,
+on a landkaart in picture pixels, and on a tijdlijn its x is *seconds* and its
+y a fraction of the stage's height — so a circle round 1887 stays round 1887
+when the axis is shifted or zoomed, and still sits on the axis on a narrower
+screen. Widths are stored in the same units (a tijdlijn's in screen pixels,
+since the axis has no zoom in the cork's sense) and scale with the zoom like
+the picture does. `InkCanvas` draws in screen pixels through a `project`
+function the place hands it and knows nothing else; the saved part of the
+layer is painted once into an offscreen canvas and copied, so a wall with a
+thousand strokes is not repainted sixty times a second while someone draws.
+
+**The hand.** The tekenmodus lays a transparent sheet over the stage that takes
+the pointer; the cards, spelden and gebeurtenissen underneath get nothing, so
+a drag draws instead of moving. Esc, the potlood again, or the Keeper's switch
+going off under you takes it away. One pointer draws; a second one (a pinch)
+abandons the stroke rather than drawing a line to wherever the second finger
+landed — on a phone you pan and zoom with the potlood off. Pen pressure widens
+the line (0.4–1× the chosen width); a mouse or a finger draws at 1.
+
+**Undo is your own, this sitting.** Ctrl+Z in the tekenmodus lifts your own
+last stroke by tombstone — the corkboard's rule, so a screen that still shows
+it cannot send it back — and only the strokes of this tab-session, so a
+reloaded page has nothing to undo. No redo. A viewer's Ctrl+Z is the ink's
+even on a wall they may not edit; outside the tekenmodus it is the cards'.
+
+**Not done, on purpose.** No shapes, no text, no straight lines. No layers per
+person, no "only my strokes". No name on a stroke on screen (the row keeps the
+account for the logbook). No eye to hide the layer for yourself. No export as
+a picture (trivial later: canvas → PNG). No migration of anything: the table
+is new and empty.

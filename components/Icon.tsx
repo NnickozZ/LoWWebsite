@@ -48,6 +48,10 @@ const PATHS: Record<string, string> = {
   fit: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5',
   note: 'M5 4h11l3 3v13H5zM8 10h8M8 14h6',
   mapPin: 'M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11ZM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  // §33: the tekenlaag — a pencil, a gum, and an arrow that takes the last line back.
+  pencil: 'M14.5 4.5l5 5L8 21H3v-5zM12 7l5 5',
+  eraser: 'M14 4l6 6-8.5 8.5a2 2 0 0 1-2.8 0L4.5 14.3a2 2 0 0 1 0-2.8zM9 19.5 5 15.5M20 20h-9',
+  undo: 'M9 14 4 9l5-5M4 9h10a5.5 5.5 0 0 1 0 11h-3',
 };
 
 export type IconName = keyof typeof PATHS | string;

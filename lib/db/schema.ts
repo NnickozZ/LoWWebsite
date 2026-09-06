@@ -601,3 +601,20 @@ export const liveDocs = sqliteTable('live_docs', {
   state: blob('state', { mode: 'buffer' }).notNull(),
   updatedAt: integer('updated_at').notNull().default(now),
 });
+
+/**
+ * §33: the tekenlaag of a prikbord, a landkaart or a tijdlijn — one row per
+ * thing drawn on, keyed by that thing's id (ids are unique across the three
+ * tables). `layer` is the strokes and their tombstones (`lib/ink/merge.ts`);
+ * `enabled` is the Keeper's switch, a column so a page can read it without
+ * parsing the layer. Its own table rather than a column on each of the three,
+ * so a stroke saved every second while someone draws does not move
+ * `boards`/`maps`/`timelines` and re-render every page that watches them.
+ */
+export const inkLayers = sqliteTable('ink_layers', {
+  targetId: text('target_id').primaryKey(),
+  kind: text('kind').$type<'board' | 'map' | 'timeline'>().notNull(),
+  layer: text('layer', { mode: 'json' }).$type<unknown>().notNull().default({}),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at').notNull().default(now),
+});

@@ -1,6 +1,7 @@
 import { presenceColour } from '@/lib/boards/live';
 import { setChangeDelivery } from './changes';
 import type { RoomEvent } from './docs';
+import type { InkFrame } from '@/lib/ink/types';
 
 /**
  * §21: the site line — one open connection per tab, for everything live.
@@ -20,6 +21,9 @@ import type { RoomEvent } from './docs';
  *   `presence`  who is standing where this tab is standing (its *place*),
  *               with the cards or pins they are holding.
  *   `pointer`   somebody's hand at this place — coordinates, nothing else.
+ *   `ink`       somebody's pen at this place (§33): the points a stroke in
+ *               progress gained since the last frame, so the others watch
+ *               it being drawn. Sight, not state — never stored.
  *   `room`      a frame from a room of shared text this tab has joined,
  *               multiplexed: `{k: room key, e: event, d: data}`.
  *
@@ -43,6 +47,7 @@ export type SiteEvent =
   | { event: 'changed'; data: { keys: string[]; at: number } }
   | { event: 'presence'; data: { place: string; people: PublicPerson[] } }
   | { event: 'pointer'; data: { place: string } & SitePointer }
+  | { event: 'ink'; data: { place: string; c: string; f: InkFrame[] } }
   | { event: 'room'; data: { k: string; e: RoomEvent['event']; d: unknown } };
 
 export type Connection = {
@@ -267,6 +272,18 @@ export function publishPointer(connection: Connection, frame: SitePointer) {
   for (const other of set) {
     if (other === connection || other.clientId === connection.clientId) continue;
     safeSend(other, { event: 'pointer', data: { place, ...frame } });
+  }
+}
+
+/** §33: somebody's pen moved at their place. Fanned out like a pointer frame, and remembered by nobody. */
+export function publishInk(connection: Connection, frames: InkFrame[]) {
+  const place = connection.place;
+  if (!place || !frames.length) return;
+  const set = hub.places.get(place);
+  if (!set) return;
+  for (const other of set) {
+    if (other === connection || other.clientId === connection.clientId) continue;
+    safeSend(other, { event: 'ink', data: { place, c: connection.clientId, f: frames } });
   }
 }
 

@@ -362,7 +362,8 @@ app/
                      which face an artikel or dossier opens on
                      (ArticleModeForm)
   api/               entries, cases, boards, maps, timelines, characters,
-                     access, assets, search, suggest, admin
+                     access, assets, search, suggest, admin, ink (§33: the
+                     tekenlaag of a prikbord, landkaart or tijdlijn)
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
@@ -384,6 +385,10 @@ components/
                      folded-out windows), the sheets around it (the date form,
                      a new gebeurtenis, an existing one, the settings) and
                      the "Nieuwe tijdlijn" button
+  ink/               §33: the tekenlaag — the canvas (InkCanvas), the
+                     toolbar, the sheet that takes the hand and the Keeper's
+                     switch (InkTools), and the hook that owns the strokes,
+                     the frames and the saves (useInk)
   access/            the two dials (kijken, bewerken) and their checkboxes
   you/               the character switcher and the wardrobe
   ui/                the new-entry and new-case sheets, the yes/no sheet,
@@ -423,6 +428,10 @@ lib/
                      gebeurtenissen behind the artikel's rule)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
+  ink/               §33: the tekenlaag — types.ts (the stroke, the eight
+                     colours, the limits), merge.ts (pure: append, sort,
+                     tombstones, the view for one person), service.ts (the
+                     one gate that is *seeing*, the Keeper's switch and wipe)
   editor/            the one list of Tiptap extensions both halves build from
   search/            fuzzy ranking, the search service
 access.ts            §17: who may look and who may touch, as one SQL condition
@@ -798,6 +807,32 @@ Thirty-two rules worth knowing before changing anything:
     collection; rule 17 through the `event:{id}:fields` room; rule 19 through
     a fourth card kind with a fourth resolver; rule 21 through `listTrash` /
     `destroyFromTrash('timeline')`; rule 26 through `recomputeTimelineMentions`.
+
+33. **Drawing is for everyone who may look, and a gum is a stroke.** §33. The
+    tekenlaag on a prikbord, a landkaart or a tijdlijn is the one write in the
+    archive that asks *may this person see it* and nothing more — rule 10's
+    `viewerCanEdit` does not apply, by Nick's decision: the layer is a shared
+    scribble over the work, not the work, it holds no archive content, and
+    "everyone may rub out everyone's lines" is the point. The edit dial still
+    guards everything underneath it. Do not "fix" this by adding the boolean
+    to `lib/ink/service.ts`; `tests/unit/ink-service.test.ts` asserts it from
+    the side of a viewer the edit dial shuts out. A stroke is a record
+    (`lib/ink/types.ts`), never a bitmap, and the gum is a stroke too, painted
+    with `destination-out` in the server's time order — so it takes away only
+    what was there before it, nothing is ever cut in two, and the merge stays
+    "append and sort". Undo lifts a stroke by tombstone, the corkboard's rule
+    (rule 2's tombstones), so a stale screen cannot put it back. The Keeper's
+    switch is a column; off means 403 for every stroke and undo and the
+    strokes stay where they are; only a Keeper flips it or wipes, and both go
+    to the audit log. The layer has its own table, its own key (`ink:{id}`,
+    gated like the thing it hangs on) and its own line — never the board
+    hub, never a column on `boards`/`maps`/`timelines`, so a stroke a second
+    does not re-render every page that watches those. Frames of a stroke in
+    progress ride the site line like pointer frames: sight, never state
+    (rule 20). Coordinates are the place's own — board units, picture pixels,
+    and on a tijdlijn *seconds* for x and a fraction of the stage for y, so a
+    circle round 1887 stays round 1887. `InkCanvas` draws in screen pixels
+    through a `project` function the place supplies; it knows nothing else.
     The frame of anything without a picture starts *shut* — a gebeurtenis, and
     since this round an artikel card on a wall too (`defaultShowImage(kind,
     hasPicture)`) — and the button that opens it is where the soort's icon
