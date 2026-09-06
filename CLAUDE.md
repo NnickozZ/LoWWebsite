@@ -278,10 +278,19 @@ no shell on that machine, so the loop is:
    file, and `device_commit_files` accepts `fileUuid` instead of `stagedPath`.
    One `SendUserFile` call with an array, then one `device_commit_files` call
    pairing each uuid with its `devicePath`, delivers everything just the same.
-4. **Do not push.** The git proxy has no credential for this repo, and their
+4. **A deleted file is not delivered — it is a job for the user, and it must be
+   the first thing you tell them.** The bridge writes files and cannot remove
+   one, so a file this round deleted still sits on their disk, goes into their
+   commit, and breaks their build on the next `npm run build` — a stale
+   component importing an export that no longer exists. Run
+   `git diff --name-status <base> HEAD | grep '^D'` before delivering; if it is
+   not empty, put the exact `git rm` line **at the top of the closing message**,
+   not in a commit message and not in the round note, where it will be missed.
+   Round 13 buried two deletions and cost the user a broken VPS build.
+5. **Do not push.** The git proxy has no credential for this repo, and their
    working tree holds the same files uncommitted — a push would make their next
    `pull` fight their own tree. They commit locally.
-5. Write a round note to the Claude project (`claude/round-N-….md`), in the shape
+6. Write a round note to the Claude project (`claude/round-N-….md`), in the shape
    of the existing ones: what was asked, what was decided and why, the rules that
    must not be broken, what was deliberately left undone, and the test numbers.
 
