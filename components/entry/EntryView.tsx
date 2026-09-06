@@ -101,16 +101,27 @@ export type EntryCaseLite = { id: string; slug: string; name: string; confidenti
  * separate is intent, not permission — the old page asked everyone to fill in
  * a form whether they had come to write or only to look something up.
  *
- * Two columns on a wide screen: the text — body, sections, lists, backlinks,
- * history, in the order the Keeper gave the soort — down the left, and a
- * sidebar on the right holding the picture with "Meer info" directly under it
- * as one box (§22: the wiki shape — Wikipedia, Fandom and everything after
- * them put the image at the top of the infobox, and a reader arriving from any
- * of those already knows to look there), then "Op deze pagina" (an outline
- * that scrolls along and marks where you are). Rights, visibility, Keeper notes and the bin sit at
- * the foot of the text under one heading, "Beheer van dit artikel", so that
- * reading and managing are two different places. Under 1024 px the infobox
- * folds up under the header and the outline becomes a row of chips.
+ * Three columns on a wide screen (§25), in this order across the page: the
+ * text — title, body, sections, lists, backlinks, history, in the order the
+ * Keeper gave the soort — then "Op deze pagina" in a narrow middle column (an
+ * outline that scrolls along and marks where you are), then a sidebar holding
+ * the picture with "Meer info" directly under it as one box (§22: the wiki
+ * shape — Wikipedia, Fandom and everything after them put the image at the top
+ * of the infobox, and a reader arriving from any of those already knows to
+ * look there). The outline stands beside the text it is a signpost for, not
+ * under the facts: it is not a fact about the artikel. Rights, visibility,
+ * Keeper notes and the bin sit at the foot of the text under one heading,
+ * "Beheer van dit artikel", so that reading and managing are two different
+ * places.
+ *
+ * There is exactly one wide layout and one narrow one, and the whole page
+ * turns on `useIsWide` at 1280 px — the same number as the `@media` block
+ * around `.entry-layout-wide` in `app/globals.css`, which is where the
+ * arithmetic for it is written down. Under 1280 px the header comes first, the
+ * picture and the infobox fold up under it at full width, the outline becomes
+ * a row of jump chips, and the text runs on alone underneath. Nothing between
+ * those two shapes: the outline used to step back under the infobox between
+ * 1024 and 1279 px, which made a designed layout look like a bug.
  *
  * The shapes are borrowed, on purpose: Wikipedia and Fandom put a page's facts
  * in an infobox beside the prose, Notion, Craft and Google Docs keep an
@@ -1193,7 +1204,10 @@ export function EntryView({
    * signpost for the text, not a fact about the artikel, so standing it beside
    * the text rather than underneath the infobox is where it belongs — and the
    * 2.5rem of nothing that used to be there was the widest empty space on the
-   * page. Narrow screens are unchanged: picture, then jump chips, then text.
+   * page. It stays there at every width where these three divs exist at all:
+   * `useIsWide` is 1280 px and so is the grid's media query, so the page has
+   * one wide shape and never rearranges itself halfway across a screen.
+   * Narrow screens are unchanged: header, picture, jump chips, then text.
    */
   const article = (
     <article className={`page-wide entry-page${reading ? ' entry-page-reading' : ''}`}>

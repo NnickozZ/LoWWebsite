@@ -911,12 +911,18 @@ forgot to submit.
 **The picture moved to the right, and its tools went with it.**
 It was 220 px in the header, beside the title. It is now the top of the box
 whose lower half is "Meer info", in the sidebar that already held the infobox
-and the outline — the shape Wikipedia, Fandom and everything after them
-settled on, so a reader arriving from any of those already knows where to look.
-The frame lives on the wrapper rather than on each half, so the two read as one
-box; either half may be missing. Under 1024 px there is no sidebar, so the
-wrapper gives up its frame and the picture sits under the header at its own
-width, where a phone wiki puts it.
+and — at that point — the outline as well: the shape Wikipedia, Fandom and
+everything after them settled on, so a reader arriving from any of those
+already knows where to look. The frame lives on the wrapper rather than on each
+half, so the two read as one box; either half may be missing. Below the width
+at which there is a sidebar at all, the wrapper gives up its frame and the
+picture sits under the header at its own width, where a phone wiki puts it.
+
+Two numbers in that paragraph have since moved, and are left standing here
+because they are what was decided *here*. §25, the next day, took the outline
+out of the sidebar and stood it beside the text, so the sidebar holds the
+picture and "Meer info" and nothing else; and round 12 moved the width from
+1024 px to 1280 px. Both are in "Round 7", below.
 
 The three image tools — replace, crop for lists, remove — were a row of three
 buttons under the picture. In a 320 px column that wraps to three lines of
@@ -964,6 +970,97 @@ Deliberately *not* added, though each would have been the obvious reach:
 - a zip library — `lib/zip.mjs` is a small deflate writer and reader;
 - `next/image` — assets are already resized by `sharp` and served by our own
   route handler behind the login.
+
+---
+
+## Round 7 — 5 September 2026: soorten, en de indeling van de artikelpagina (§25)
+
+Round 7 (`47b9225`) changed 73 files and wrote not one line in this file, which
+is how a decision that was made on purpose comes to look like a regression a day
+later. Most of what it did is written down in the project note
+`claude/round-7-soorten-en-indeling.md` and left there: two `case_only` soorten
+and migration `0010`, the dossier printed in front of a clue's name rather than
+stored in it, a bin for prikborden and landkaarten, and the two rights panels
+merged into one with a line saying that both have to agree (README rule 24, the
+other half of §25). What belongs *here* is the one thing somebody has since had
+to reconstruct from a diff: why "Op deze pagina" stands where it stands.
+
+**The title and the one-liner belong to the text, so they moved into the text
+column.** The header used to run the full width above the grid, which pushed the
+picture and *Meer info* a title-and-a-lead down the page: a lot of empty paper
+beside a heading, and the two halves of the artikel beginning at different
+heights. Nick's ask was "titel en korte beschrijving smaller, afbeelding en Meer
+info bovenaan uitgelijnd", and moving the header inside `.entry-main` answers
+both at once — everything starts at the top edge together, and the title wraps
+at reading width instead of at screen width. It is also the truer statement: a
+title is the first line of the text, not a banner over the furniture.
+
+**The outline moved into the gap that opened, because it is a signpost for the
+text and not a fact about the artikel.** An infobox is a list of facts; "Op deze
+pagina" is a list of places in the prose. Standing it under the infobox said the
+first thing about it and standing it beside the text says the second, and Nick
+had already asked for it "naar links, in de negatieve ruimte" — which is exactly
+where the space was: the 2.5rem gutter between the two old columns was the widest
+piece of nothing on the page. So the wide artikel is three columns, left to
+right: **text, signpost, facts**.
+
+### 6 September: one wide layout, not two (round 12)
+
+Nick reported that "Op deze pagina" was "again" sitting between the picture and
+the text and feared the round-7 move had been undone. It had not: there is one
+move in the history and no move back. What he was looking at was worse in a
+quieter way — **the page had two different wide layouts**. `WIDE` in
+`components/useIsPhone.ts` said 1024 px and the `@media` block around
+`.entry-layout-wide` said 1280 px, so between those two widths React rendered
+the rail and the stylesheet had nowhere to put it: the outline dropped back
+under the infobox. Drag a window across 1280 px and the page rearranged itself
+in front of you, which is indistinguishable from a bug. The top-of-file comment
+in `EntryView.tsx` still described the pre-round-7 two-column design as well, so
+the file contradicted itself for anyone checking.
+
+So there is one wide layout now. The three columns begin at **1280 px**, the
+1024–1279 exception is deleted, `WIDE` is 1280, and the dead
+`.entry-aside-sticky` rule (nothing has carried that class since §25) went with
+it.
+
+**Why 1280, in numbers, because the exception existed for a real reason.** The
+grid gets the screen less the 220 px sidenav and two 2rem page gutters —
+`min(1200, V − 220 − 64)`. Three columns cost a fixed 563.2 px of that: a 12rem
+rail, a 320 px sidebar and two 1.6rem gutters. What is left is the measure the
+prose is read at (counting a character as the usual ≈8 px at 16 px type):
+
+| Screen | Grid | Text measure | ≈ characters |
+|---|---|---|---|
+| 1024 px | 740 | 177 | 22 |
+| 1208 px | 924 | 361 | 45 |
+| 1280 px | 996 | 433 | 54 |
+
+At 1024 px the text column is 22 characters wide, which is a newspaper column
+with the newspaper taken away — that is why round 7 wrote the exception rather
+than simply letting three columns run down to the sidebar's own breakpoint. The
+true floor is about 1208 px, where the measure reaches the 45 characters a line
+of prose wants at the bottom of its range; 1280 is the first round number above
+it and leaves the reader some air. The cost is stated plainly: **a screen
+between 1024 and 1279 px loses its sidebar** and reads at full width, with the
+picture and the facts folded under the header and the outline as a row of chips
+— which is not a new shape, it is the shape every screen below 1024 px already
+had.
+
+**Two numbers that have to be one number.** This is the general lesson and it is
+worth more than the layout. `WIDE` in `useIsPhone.ts` decides whether the rail
+and the sidebar are *rendered at all*; the `@media` block decides where the grid
+*puts* them. Neither is wrong on its own and neither can be read from the other,
+so the only thing keeping them honest is that somebody remembers. They are
+1280 px in both places now and both places say so in a comment pointing at the
+other. A layout split between a hook and a stylesheet has this failure mode
+permanently available; the fix is to write the pairing down where each half
+lives.
+
+And an assertion that was simply missing. `round-7.spec.ts` checked the column
+order at one width, which cannot see a page that has two wide shapes. The new
+test asserts the order — and that the three columns still start level — at
+**1300 px and 1440 px**, either side of nothing in particular, which is the
+point: nothing may change shape anywhere above the breakpoint.
 
 ---
 
@@ -1308,9 +1405,12 @@ offset copies of the quadratic rather than a thin stripe knocked out of a thick
 one — there is nothing to knock it out of, because the layer is transparent and
 the gap would show the cork and whatever card is behind it.
 
-Widths are **board units**, so a thread grows and shrinks with the zoom. That
-is deliberately unlike the tekenlaag, whose widths are screen pixels: a piece
-of string is a thing on the wall, ink is on the glass. The string bar gave up
+Widths are **board units**, so a thread grows and shrinks with the zoom.
+(The sentence that stood here — "deliberately unlike the tekenlaag, whose
+widths are screen pixels: a piece of string is a thing on the wall, ink is on
+the glass" — was wrong about the prikbord, and is corrected in Round 12 below.
+Ink on a wall has always been in board units too, and always grew with the
+zoom; the screen-pixel width was the *tijdlijn's* alone.) The string bar gave up
 its "Sleep een uiteinde…" hint to make room (slepen still works, it was simply
 the least useful thing in a bar that now holds a label, six colours, four
 thicknesses, a kind and a delete), and between 768 and 1199 px it wraps
@@ -1745,3 +1845,136 @@ so a page that has already answered a click keeps its plain `fill`.
 **Where Round 11 finishes.** 157 passed and 25 skipped across desktop and phone
 against a production build (Round 10 finished at 137 / 21), 539 unit tests in 40
 files (Round 10: 450 in 37), `tsc --noEmit` clean and `npm run build` clean.
+
+---
+
+## Round 12 — 6 September 2026: één brede indeling (§25), en inkt die met de as meegroeit (§33)
+
+Two fixes Nick reported, and nothing else, on purpose. Round 11 was seven items
+and ran to six hours; this one was scoped at two and about four, so that each
+could be understood all the way down instead of patched at the surface. Both
+turned out to be the same species of fault — **one thing measured in two units
+at once** — which is worth saying before either is described, because that is
+the shape to look for next time.
+
+**"Op deze pagina" had not moved. The page had two shapes.** Nick saw the
+outline back between the picture and the text and reasonably read it as the
+round-7 layout being undone. It was not: there is one move in the history and no
+move back. What there was is a hook and a stylesheet holding different numbers —
+`WIDE` at 1024 px, the grid's `@media` at 1280 — so between those two widths
+React rendered a rail the CSS had nowhere to put, and the page had a *second*
+wide layout in which the outline stepped back under the infobox. The whole
+argument, the arithmetic behind 1280 px and the assertion that was missing from
+`round-7.spec.ts` are in the Round 7 chapter above, where the original decision
+now lives as well.
+
+The part worth keeping here is the diagnosis rather than the fix. Nobody
+introduced a regression and nothing was moved back. Round 7 wrote its
+`@media (max-width: 1279px)` exception into the stylesheet and left `WIDE` in
+the hook at the 1024 px §22 had put there — so the page's shape was decided in
+two files that had never been asked to agree, and one of them was updated. A
+layout split between a hook and a stylesheet has this failure permanently
+available, and the only defence is to name the pairing in both files, which is
+now done in both files.
+
+**A drawing on a tijdlijn was stretched by the zoom.** Nick: *"Op de tijdlijn is
+het zoomen echt een probleem met de drawings. Die worden helemaal gestretched."*
+A tijdlijn stroke was written in two spaces at once — its x an absolute moment
+in seconds, its y a *fraction of the stage's height*. On the glass that is
+`x·pxPerSecond` against `y·stageH`, and only one of those two factors is the
+zoom. So a circle drawn round 1887 was an ellipse at every zoom but the one it
+was made at, stretched horizontally by exactly the ratio of the two, and the
+ratio is not small: a jaren-tijdlijn's zoom already spans 200×, and the whole
+range from `MIN_PX_PER_SECOND` (a thousand years across a thousand pixels) to
+200 px per second on a seconden-tijdlijn is nearly ten orders of magnitude. The
+same mismatch squashed a drawing vertically on a telephone against a desktop,
+because `stageH` is a measured height and not a shared unit at all.
+
+**Nick's decision: a drawing grows and shrinks with the tijdlijn**, like ink on
+a prikbord. The alternative — ink that keeps its size while the years slide
+under it — is defensible for an annotation but wrong for a drawing: a circle
+round a decade is a claim about that decade, and it has to stay round it and
+stay the same shape. That needs both axes in one unit, and the only unit a
+tijdlijn has is the second. Hence **format v1**: x is the absolute moment
+(unchanged), y is *seconds from the axis*, the width is in seconds, and all
+three are multiplied by the one `pxPerSecond` on the way to the screen. One
+scalar on both axes and on the thickness is a similarity, so every angle and
+every ratio survives every zoom, the drawing no longer knows how tall the stage
+is, and the gum stays exactly over what it took away.
+
+The arithmetic is a new pure module, `lib/timelines/inkSpace.ts` — `projectInk`,
+`inkFromScreen`, `inkWidthScale`, `TIMELINE_INK_FORMAT` — with no React and no
+canvas in it, so `tests/unit/timeline-ink-space.test.ts` (16 tests) can pin down
+the shape of a drawing without a browser. That is where it belonged anyway: it
+sits beside `time.ts` and `moment.ts`, the other two pure pieces of a tijdlijn.
+
+**Old strokes are not rewritten, and the flag rides on the stroke.** Rule 33
+says a stroke is immutable once saved and the merge is append, sort and
+tombstone; a migration here would be the first thing in this archive to edit a
+saved stroke. It would also have to *guess*: converting a v0 y back to seconds
+needs the `stageH` it was drawn at, which is not recorded and was never the same
+twice — a telephone, a desktop and a rotated telephone are three different
+numbers. So `v` lives on each stroke (`v: 1`, absent means v0), never on the
+layer, and a tekenlaag holds both formats side by side for ever. `normaliseStroke`
+copies it deliberately, because a whitelist that dropped it would read an old
+stroke back as v0 — or a new one as v0 — and draw it in the wrong place for good.
+
+**The seam is accepted and named.** A v1 gum drawn over v0 ink drifts apart when
+the axis is zoomed, because the two are no longer in one space. It can only
+happen to a drawing that was already on disk before this round, it is visible
+only *while* zooming, and the answer if it ever bites somebody is a Keeper
+wiping that layer — which is one click and already exists. Writing that down is
+the point: an accepted seam that nobody has written down is just a bug waiting
+to be rediscovered.
+
+**The clamp was the trap in this round.** `INK_MAX_WIDTH`'s 0.1–4000 is a fence
+around a number of board units or picture pixels, and it is nonsense around a
+number of seconds. A 3 px brush at the finest zoom is 0.015 s, which the 0.1
+floor would have fattened to twenty pixels on the glass; the same brush at the
+coarsest is about 10⁸ s, which the 4000 ceiling would have shaved to something
+invisible. Three decimal places are equally meaningless at 10⁻². So v1 has
+bounds of its own (`INK_V1_MIN_WIDTH` 1e-6 … `INK_V1_MAX_WIDTH` 1e12) and keeps
+six *significant figures*. And the same treatment had to reach `readInkFrame`,
+not only `normaliseStroke`: a frame is what everybody else's screen draws while
+a hand is still moving, so a v1 stroke read back through v0 bounds would arrive
+twenty pixels thick and snap to its real size the moment the hand lifted.
+
+**`InkCanvas` still knows nothing about places, which is what made this cheap.**
+It was already given a `project` from the place; it is now also given each
+stroke's `v` as an opaque third argument, and `widthScale` may be a number (one
+rule for the whole layer) or a function of `v` (a layer holding two formats).
+`BoardCanvas` and `MapCanvas` were **not edited at all** and still compile,
+because a function of two parameters satisfies a type of three and a number
+still satisfies the union. A component that had learned what a tijdlijn is would
+have had to learn what a prikbord is too.
+
+**Which corrects something Round 11 wrote down.** That chapter says the
+tekenlaag's widths are screen pixels, "a piece of string is a thing on the wall,
+ink is on the glass". That was never true of a prikbord: `useInk` stores
+`screenWidth / widthScale` and `BoardCanvas` passes `viewport.zoom`, so ink on a
+wall is in board units and has always grown with the zoom exactly as a draad
+does. Round 10 had it right — "widths are stored in the same units … and scale
+with the zoom like the picture does" — and the tijdlijn's screen-pixel width was
+the one exception, because `widthScale` there was the literal `1`. After this
+round there is no exception left: on all three surfaces a streek is in the
+place's own units and grows with the view.
+
+**The test that could not have caught it.** "a tijdlijn takes ink that sticks to
+the years" pans the axis and reloads the page, and neither can see this bug: a
+pan leaves `pxPerSecond` alone, and it is the *only* factor that differs between
+the two spaces. It zooms now, and asserts the two things v1 promises — the
+y-extent grows with the axis, and the aspect ratio holds (a ratio because
+zooming about the middle of the stage also moves the drawing, and a ratio is
+blind to that). A second spec draws a line, gums across it, zooms out and
+asserts that the share of the line that is gone is the share that was gone
+before — which is the gum's *width* being in the same space as the ink, and
+would drift the moment it was not. Both were proved by reverting to v0 and
+watching them fail, which is the only way to know a regression test regresses.
+
+**Where Round 12 finishes.** Deliberately small: one new pure module, one new
+unit file of 16 tests, a new column-order assertion at two widths in
+`round-7.spec.ts`, and two zoom assertions in `ink.spec.ts` — plus the two
+comments that had been contradicting the code they stood on. No migration, no
+new dependency, no schema change, and nothing on the wire that an old client
+could not read. The suite figures belong with the round note for this round in
+the Claude project, where they are the number the full run actually produced.

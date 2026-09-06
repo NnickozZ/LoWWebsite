@@ -51,6 +51,32 @@ export const INK_ERASERS = [12, 24, 48] as const;
 /** Widths are stored in the place's own units; this is the sanity ceiling. */
 export const INK_MAX_WIDTH = 4000;
 
+/**
+ * Which space a stroke's numbers are in. Absent — and it is absent on every
+ * stroke saved before round 12 — means v0: whatever the place meant then. `1`
+ * is the tijdlijn's similarity space (x an absolute moment in seconds, y
+ * seconds from the axis, width in seconds), where a drawing grows and shrinks
+ * with the zoom the way ink on a prikbord does.
+ *
+ * The flag rides on the *stroke*, never on the layer: a stroke is immutable
+ * once saved (§33), nothing is ever migrated, and so a tekenlaag holds both
+ * formats side by side forever. A v0 stroke is read and drawn by the v0
+ * formula, byte for byte as it always was.
+ */
+export type InkFormat = 1;
+
+/**
+ * A v1 width is measured in the same unit as its coordinates, and on a
+ * tijdlijn that unit runs from a second to a millennium — a 3 px brush is
+ * 0.015 at the finest zoom and about 10^8 at the coarsest. `INK_MAX_WIDTH`
+ * would clamp both ends into nonsense, so v1 has bounds of its own, wide
+ * enough for every scale and still a fence against a client sending Infinity.
+ */
+export const INK_V1_MIN_WIDTH = 1e-6;
+export const INK_V1_MAX_WIDTH = 1e12;
+/** Significant figures kept on a v1 width; three decimals would be useless at 10^-2. */
+export const INK_V1_WIDTH_DIGITS = 6;
+
 /** Numbers per stroke: `[x, y, p, x, y, p, …]`, so 2 000 points. */
 export const INK_MAX_POINTS = 6000;
 
@@ -71,10 +97,12 @@ export type InkStroke = {
   mode: InkMode;
   /** Index into `INK_COLOURS`. Ignored when erasing. */
   colour: number;
-  /** In the place's own units (board units, picture pixels, screen pixels on a tijdlijn). */
+  /** In the place's own units (board units, picture pixels, seconds on a tijdlijn). */
   width: number;
   /** `[x, y, p, x, y, p, …]` — `p` is pen pressure 0..1, 1 without a pen. */
   points: number[];
+  /** Which space `points` and `width` are in. Absent is v0; see `InkFormat`. */
+  v?: InkFormat;
 };
 
 /** A stroke as a browser sees it: who drew it is reduced to "was it you". */
@@ -126,6 +154,8 @@ export type InkFrame = {
   k: number;
   w: number;
   p: number[];
+  /** The stroke's space, so a live frame is sized the way the saved stroke will be. */
+  v?: InkFormat;
   e?: 1;
   a?: 1;
 };

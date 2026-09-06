@@ -194,3 +194,37 @@ test('de artikelpagina staat in drie kolommen', async ({ page }, info) => {
   expect(rail.x).toBeGreaterThan(main.x + main.width - 1);
   expect(rail.x + rail.width).toBeLessThanOrEqual(aside.x + 1);
 });
+
+/**
+ * §25: one wide layout, not two. The columns used to be three above 1280 px
+ * and two below it, with "Op deze pagina" back under the picture — so the page
+ * rearranged itself halfway across a screen and the outline appeared to have
+ * moved on its own. The breakpoint (`useIsWide`, and the grid's media query,
+ * which are the same number) is 1280 px now and nothing changes shape above
+ * it. This is the assertion that was missing.
+ */
+test('de drie kolommen houden hun volgorde over de hele brede band', async ({ page }, info) => {
+  test.skip(info.project.name === 'phone', 'the three-column layout is a wide-screen thing');
+
+  await signIn(page, ...KEEPER);
+
+  // Just above the breakpoint, and a normal desktop.
+  for (const width of [1300, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/e/pier-boone');
+    await page.waitForTimeout(600);
+
+    await expect(page.locator('.entry-rail')).toBeVisible();
+
+    const main = (await page.locator('.entry-main').boundingBox())!;
+    const rail = (await page.locator('.entry-rail').boundingBox())!;
+    const aside = (await page.locator('.entry-aside').boundingBox())!;
+
+    // Text, signpost, facts — left to right, at either width.
+    expect(rail.x).toBeGreaterThan(main.x + main.width - 1);
+    expect(rail.x + rail.width).toBeLessThanOrEqual(aside.x + 1);
+    // And the three columns still begin at the same height.
+    const head = (await page.locator('.entry-main .entry-head').boundingBox())!;
+    expect(Math.abs(aside.y - head.y)).toBeLessThan(24);
+  }
+});

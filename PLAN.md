@@ -522,7 +522,9 @@ everything else here still holds.)*
       right. Rights, proposals, visibility, Keeper notes and the bin under
       one heading, *Beheer van dit artikel*, at the foot of the text
 - [x] Under 1024 px: *Meer info* folded under the header (open on a fresh
-      artikel), the outline as a row of chips
+      artikel), the outline as a row of chips. §25 made the wide face three
+      columns the next day and round 12 moved that width to 1280 px; the narrow
+      face is still exactly this one
 - [x] Every block carries an id (`block-…`, `section-…`) the outline jumps
       to; a folded block opens before the jump
 
@@ -734,6 +736,91 @@ Seven items, delivered together (see `DECISIONS.md`, Round 11; README rules 11,
       loops — for the "a page that has just navigated is not yet listening"
       race that made `round-6` (desktop) and `thumbnails` (phone) fail once and
       pass on a re-run
+
+## Round 12 — 6 September 2026: één brede indeling (§25), inkt die met de as meegroeit (§33)
+
+Two fixes Nick reported, scoped small on purpose after round 11 ran to seven
+items and six hours — about four hours, no migration, no new dependency (see
+`DECISIONS.md`, Round 12, and the Round 7 chapter it completes).
+
+### De kolommen van een artikel (§25)
+
+- [x] One wide layout, not two: the three columns begin at **1280 px**, and the
+      1024–1279 px exception that put *Op deze pagina* back under the picture is
+      deleted. It was not a regression — the outline has moved exactly once, in
+      round 7 — but the page changed shape mid-screen, which reads as one
+- [x] `WIDE` in `components/useIsPhone.ts` is 1280 px, the same number as the
+      `@media` block round `.entry-layout-wide`: the hook decides whether the
+      rail and the sidebar are *rendered*, the query decides where the grid
+      *puts* them, and their disagreement was the whole bug. Both files now
+      carry a comment naming the other
+- [x] The arithmetic behind 1280: the grid is `min(1200, V − 220 − 64)` and
+      three columns cost a fixed 563.2 px (a 12rem rail, a 320 px sidebar, two
+      1.6rem gutters), so the text measure is 177 px (~22 characters) at
+      1024 px, 361 px (45) at the real floor of ~1208 px, and 433 px (~54) at
+      1280 px. Cost, stated: 1024–1279 px loses its sidebar and reads at full
+      width — the shape every smaller screen already had
+- [x] The dead `.entry-aside-sticky` rule removed (nothing has carried the class
+      since §25), and `EntryView.tsx`'s top-of-file comment rewritten: it still
+      described the pre-round-7 two-column page, so the file contradicted itself
+- [x] `tests/e2e/round-7.spec.ts` asserts the column order — and that the three
+      columns still start level — at **1300 px and 1440 px**. The old spec
+      checked one width, which cannot see a page with two wide shapes
+
+### Inkt op een tijdlijn (§33, format v1)
+
+- [x] A tijdlijn streek is written in one space now: x an absolute moment, y
+      *seconds from the axis*, width in seconds, all three × `pxPerSecond`. A
+      drawing therefore grows and shrinks with the tijdlijn, like ink on a
+      prikbord (Nick's decision) — a circle round 1887 is a circle at every
+      zoom, and the gum stays over what it took away
+- [x] It was two spaces at once before: x scaled by the zoom, y by `stageH`,
+      which stretched a drawing by the ratio of the viewing zoom to the drawing
+      zoom (a jaren-tijdlijn's zoom alone spans 200×) and squashed it between a
+      phone and a desktop
+- [x] New pure module `lib/timelines/inkSpace.ts` — `projectInk`,
+      `inkFromScreen`, `inkWidthScale`, `TIMELINE_INK_FORMAT` — no React, no
+      canvas, tested by `tests/unit/timeline-ink-space.test.ts` (16 tests)
+- [x] **No stroke is rewritten.** The format rides on the stroke (`v?: 1`,
+      absent = v0), never on the layer, so a tekenlaag holds both for ever: a
+      stroke is immutable once saved (rule 33), and a migration would have to
+      guess the `stageH` each old one was drawn at, which was never recorded
+      and never twice the same. `normaliseStroke` copies `v` on purpose
+- [x] Accepted seam, written down rather than discovered: a v1 gum over v0 ink
+      drifts apart under zoom. Only on drawings already on disk, only while
+      zooming; the answer if it bites is a Keeper wiping that layer
+- [x] The clamp: `INK_MAX_WIDTH`'s 0.1–4000 would fatten a 3 px brush to twenty
+      pixels at the finest zoom and shave a year-scale one to invisible, so v1
+      has `INK_V1_MIN_WIDTH`/`INK_V1_MAX_WIDTH` (1e-6 … 1e12) and six
+      *significant figures*. `readInkFrame` applies the same bounds, or a live
+      frame of somebody else's v1 stroke arrives twenty pixels thick and snaps
+      to size when they lift their hand
+- [x] `InkCanvas` stays place-agnostic: `Project` takes the stroke's `v` as an
+      opaque third argument and `widthScale` may be `number | ((v) => number)`.
+      `BoardCanvas` and `MapCanvas` were not edited at all and still compile
+- [x] `ink.spec.ts`: the existing "a tijdlijn takes ink that sticks to the
+      years" could never catch this — it pans and reloads, and a pan leaves
+      `pxPerSecond` alone — so it zooms now and asserts the aspect ratio holds
+      while the y-extent grows; a second spec gums, zooms out and asserts the
+      erased share of the line holds. Both were proved by reverting to v0 and
+      watching them fail
+- [ ] Not done on purpose: no migration of v0 strokes, ever; and the round-11
+      leftovers were not touched (see `CLAUDE.md` §8, which also carries the
+      three things Nick asked for that were deferred out of this round — the
+      `photo` card becoming a `note`, a gebeurtenis from a board card, and the
+      tijdlijn's image tools matching the prikbord's)
+
+### Verification
+
+- [x] One new unit file, `timeline-ink-space.test.ts`, 16 tests: the v1
+      round-trip through the screen, the v0 formula unchanged number for
+      number, a drawing as a similarity of itself at every zoom, and a v1 width
+      surviving the trip through `normaliseStroke` and `readInkFrame`
+- [x] New e2e: the column order at 1300 and 1440 px (`round-7.spec.ts`), the
+      zoom assertions on a tijdlijn drawing and the gum that keeps its share
+      (`ink.spec.ts`)
+- [x] No migration, no dependency, no schema change, and nothing on the wire an
+      older client cannot read — a stroke without `v` is exactly what it was
 
 ## Not started (later phases)
 

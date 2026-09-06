@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { INK_COLOURS } from '@/lib/ink/types';
+import { INK_COLOURS, type InkFormat } from '@/lib/ink/types';
 import type { DisplayStroke } from './useInk';
 
 /**
@@ -11,8 +11,14 @@ import type { DisplayStroke } from './useInk';
  * units, picture pixels, seconds on an axis) into pixels on this canvas, and
  * `widthScale`, which does the same for a stroke's width. That is what lets
  * one component serve a corkboard that pans and zooms uniformly, a landkaart
- * that does the same, and a tijdlijn whose x is time and whose y is a
- * fraction of its height.
+ * that does the same, and a tijdlijn whose x is time.
+ *
+ * Both are handed the stroke's `v` — its space (`InkFormat`) — as an opaque
+ * third thing: a place that has written its strokes in more than one space
+ * over the years has to draw each of them by its own rule, and this file must
+ * not learn what any of those rules are. `widthScale` may therefore be a plain
+ * number (one rule for the whole layer) or a function of `v`; it is resolved
+ * once per stroke, in `drawStroke`.
  *
  * A gum is a stroke painted with `destination-out`, in time order, so it
  * takes out only what was under it when it was made (README §33).
@@ -24,7 +30,10 @@ import type { DisplayStroke } from './useInk';
  * with a thousand strokes would be repainted sixty times a second while
  * somebody drew a line on it.
  */
-export type Project = (x: number, y: number) => { x: number; y: number };
+export type Project = (x: number, y: number, v?: InkFormat) => { x: number; y: number };
+
+/** One number for every stroke, or one worked out from the stroke's space. */
+export type WidthScale = number | ((v?: InkFormat) => number);
 
 export function InkCanvas({
   strokes,
@@ -41,7 +50,7 @@ export function InkCanvas({
   stableCount: number;
   project: Project;
   /** Stroke width × this = screen pixels. */
-  widthScale: number;
+  widthScale: WidthScale;
   /** Changes whenever `project` or `widthScale` would give different answers (pan, zoom, resize). */
   viewKey: string;
   width: number;
@@ -84,7 +93,7 @@ type PaintInput = {
   strokes: DisplayStroke[];
   stableCount: number;
   project: Project;
-  widthScale: number;
+  widthScale: WidthScale;
   viewKey: string;
   width: number;
   height: number;
@@ -144,7 +153,7 @@ function paint(
 }
 
 /** One stroke, as a run of round-capped segments whose width follows the pen's pressure. */
-export function drawStroke(ctx: CanvasRenderingContext2D, stroke: DisplayStroke, project: Project, widthScale: number) {
+export function drawStroke(ctx: CanvasRenderingContext2D, stroke: DisplayStroke, project: Project, widthScale: WidthScale) {
   const pts = stroke.points;
   if (pts.length < 3) return;
   const erase = stroke.mode === 'erase';
@@ -153,12 +162,15 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: DisplayStroke,
   ctx.fillStyle = ctx.strokeStyle;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const base = Math.max(0.5, stroke.width * widthScale);
+  // The stroke's space, asked for once and then carried into every projection.
+  const v = stroke.v;
+  const scale = typeof widthScale === 'function' ? widthScale(v) : widthScale;
+  const base = Math.max(0.5, stroke.width * scale);
   const widthAt = (p: number) => base * (erase ? 1 : 0.4 + 0.6 * p);
 
   // A single point: a dot.
   if (pts.length < 6) {
-    const a = project(pts[0], pts[1]);
+    const a = project(pts[0], pts[1], v);
     ctx.beginPath();
     ctx.arc(a.x, a.y, widthAt(pts[2]) / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -176,10 +188,10 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: DisplayStroke,
   if (flat) {
     ctx.lineWidth = widthAt(pts[2]);
     ctx.beginPath();
-    let prev = project(pts[0], pts[1]);
+    let prev = project(pts[0], pts[1], v);
     ctx.moveTo(prev.x, prev.y);
     for (let i = 3; i < pts.length; i += 3) {
-      const next = project(pts[i], pts[i + 1]);
+      const next = project(pts[i], pts[i + 1], v);
       // Through the midpoints, so a jittery hand reads as one line.
       const mx = (prev.x + next.x) / 2;
       const my = (prev.y + next.y) / 2;
@@ -192,10 +204,10 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: DisplayStroke,
   }
 
   // A pen: segment by segment, each as wide as the pressure between its ends.
-  let prev = project(pts[0], pts[1]);
+  let prev = project(pts[0], pts[1], v);
   let prevP = pts[2];
   for (let i = 3; i < pts.length; i += 3) {
-    const next = project(pts[i], pts[i + 1]);
+    const next = project(pts[i], pts[i + 1], v);
     const p = pts[i + 2];
     ctx.lineWidth = widthAt((prevP + p) / 2);
     ctx.beginPath();

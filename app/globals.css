@@ -3228,9 +3228,11 @@ details.section[open] > summary::before {
   background: transparent;
 }
 /*
- * Under 1024 px there is no sidebar to be a box in: the picture sits under the
- * header at its own width and the facts stay the fold they already were, so
- * the wrapper gives up its frame and hands both halves theirs back.
+ * Under 1280 px (§25 — the width where the three columns begin, kept in step
+ * with `WIDE` in `components/useIsPhone.ts`) there is no sidebar to be a box
+ * in: the picture sits under the header at its own width and the facts stay
+ * the fold they already were, so the wrapper gives up its frame and hands both
+ * halves theirs back.
  */
 .entry-aside-box-stacked {
   border: none;
@@ -3436,16 +3438,33 @@ details.section[open] > summary::before {
   font-weight: 700;
   color: var(--ink-muted);
 }
-@media (min-width: 1024px) {
-  /*
-   * §25: text, signpost, facts.
-   *
-   * The header lives in the first column now, so all three start at the top
-   * edge of the page together and the title wraps at reading width. The middle
-   * column is the outline — it used to sit under the infobox, with 2.5rem of
-   * empty paper beside it; standing it next to the text it describes is both
-   * where it belongs and where the space already was.
-   */
+/*
+ * §25: text, signpost, facts — and only one wide shape of it.
+ *
+ * **1280 px here and `WIDE` in `components/useIsPhone.ts` are the same number
+ * and have to stay the same number.** That hook decides whether the rail and
+ * the sidebar are rendered at all; this query decides where the grid puts
+ * them. When they disagreed the page had two different wide layouts — three
+ * columns above 1280 px, and the outline back under the infobox between 1024
+ * and 1279 — so it changed shape mid-screen and a deliberate design read as a
+ * regression. One number, one wide layout.
+ *
+ * Why 1280. The grid gets the screen less the 220 px sidenav and 2×2rem of
+ * page padding — 996 px at this width. The rail (12rem), the sidebar (320 px)
+ * and two 1.6rem gutters take 563 px of that, leaving 433 px of text: about 54
+ * characters at 16 px, inside the 45–75 a line of prose wants. The true floor
+ * is nearer 1208 px, where the measure hits 45 characters; 1280 is the first
+ * round number above it and leaves the text somewhere to breathe. Below it the
+ * page is the narrow shape it has always had under 1024 px — header, picture
+ * and facts, jump chips, then one column of text — not a third layout.
+ *
+ * The header lives in the first column, so all three start at the top edge of
+ * the page together and the title wraps at reading width. The middle column is
+ * the outline — it used to sit under the infobox, with 2.5rem of empty paper
+ * beside it; standing it next to the text it describes is both where it
+ * belongs and where the space already was.
+ */
+@media (min-width: 1280px) {
   .entry-layout-wide {
     display: grid;
     /* §22: 20 px wider than before — the column holds the picture now. */
@@ -3453,32 +3472,6 @@ details.section[open] > summary::before {
     column-gap: 1.6rem;
     /* Stretch (the default) on purpose: the columns have to be as tall as the
        text for the sticky outline to have anything to stick along. */
-  }
-  /* Below 1280 px three columns leave the text too narrow to read, so the
-     outline steps back into the sidebar under the picture — exactly where it
-     stood before this round. The header stays in the text column either way. */
-  @media (max-width: 1279px) {
-    .entry-layout-wide {
-      grid-template-columns: minmax(0, 1fr) 320px;
-      column-gap: 2.5rem;
-    }
-    .entry-layout-wide > .entry-main {
-      grid-column: 1;
-      grid-row: 1 / span 2;
-    }
-    .entry-layout-wide > .entry-aside {
-      grid-column: 2;
-      grid-row: 1;
-    }
-    .entry-layout-wide > .entry-rail {
-      grid-column: 2;
-      grid-row: 2;
-      margin-top: 1.2rem;
-    }
-    .entry-rail-sticky {
-      position: static;
-      max-height: none;
-    }
   }
   .entry-rail {
     min-width: 0;
@@ -3495,13 +3488,6 @@ details.section[open] > summary::before {
     flex-direction: column;
     gap: 1.2rem;
     min-width: 0;
-  }
-  .entry-aside-sticky {
-    position: sticky;
-    top: 1rem;
-    max-height: calc(100dvh - 2rem);
-    overflow-y: auto;
-    scrollbar-width: thin;
   }
   /* §25: the header sits in the text column, so its own two-column grid is
      gone — it is the title, the one-liner and the chips, at reading width. */

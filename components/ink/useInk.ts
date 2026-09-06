@@ -7,6 +7,7 @@ import { inkKey } from '@/lib/live/keys';
 import {
   INK_BRUSHES,
   INK_ERASERS,
+  type InkFormat,
   type InkFrame,
   type InkKind,
   type InkLayerView,
@@ -37,7 +38,7 @@ import {
  * the next save" — the server sees the stroke land, then sees it lifted.
  */
 
-export type DisplayStroke = Pick<InkStrokeView, 'id' | 'mode' | 'colour' | 'width' | 'points'>;
+export type DisplayStroke = Pick<InkStrokeView, 'id' | 'mode' | 'colour' | 'width' | 'points' | 'v'>;
 
 /** `brush` and `eraser` are indices into `INK_BRUSHES` and `INK_ERASERS`. */
 export type InkTool = { mode: InkMode; colour: number; brush: number; eraser: number };
@@ -59,11 +60,20 @@ export function useInk({
   kind,
   id,
   initial,
+  format,
   onError,
 }: {
   kind: InkKind;
   id: string;
   initial: InkLayerView;
+  /**
+   * The space this place writes *new* strokes in, stamped on each one as it is
+   * begun. Left out means v0, which is what a prikbord and a landkaart have
+   * always written and what every stroke saved before round 12 is. The hook
+   * never reads it back: what a space means is the place's business, and a
+   * layer holds whatever mixture history left in it.
+   */
+  format?: InkFormat;
   /** A refusal from the server, in words for a toast. */
   onError?: (message: string) => void;
 }) {
@@ -208,7 +218,14 @@ export function useInk({
       } else {
         // A different stroke than the one buffered: send that one first.
         if (buffered) reportInk?.([buffered]);
-        const frame: InkFrame = { id: stroke.id, m: stroke.mode, k: stroke.colour, w: stroke.width, p: [...points] };
+        const frame: InkFrame = {
+          id: stroke.id,
+          m: stroke.mode,
+          k: stroke.colour,
+          w: stroke.width,
+          v: stroke.v,
+          p: [...points],
+        };
         if (flag) frame[flag] = 1;
         frameBuffer.current = frame;
       }
@@ -234,6 +251,8 @@ export function useInk({
    */
   const mayDrawRef = useRef(mayDraw);
   mayDrawRef.current = mayDraw;
+  const formatRef = useRef(format);
+  formatRef.current = format;
 
   const begin = useCallback(
     (tool: InkTool, x: number, y: number, pressure: number, widthScale: number) => {
@@ -248,6 +267,7 @@ export function useInk({
         colour: tool.colour,
         width: screenWidth / (widthScale || 1),
         points: [x, y, pressure],
+        v: formatRef.current,
       };
       currentRef.current = stroke;
       setCurrent(stroke);
@@ -328,7 +348,7 @@ export function useInk({
         } else {
           // A new stroke from this hand: whatever it was drawing before is over.
           if (known && known.points.length >= 6) finished.push(known);
-          stroke = { id: frame.id, mode: frame.m, colour: frame.k, width: frame.w, points: [...frame.p], at: now };
+          stroke = { id: frame.id, mode: frame.m, colour: frame.k, width: frame.w, v: frame.v, points: [...frame.p], at: now };
         }
         if (frame.a === 1) {
           map.delete(clientId);

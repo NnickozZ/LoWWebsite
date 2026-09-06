@@ -446,8 +446,10 @@ lib/
                      the ruling of the axis, where the tags go, and §35's
                      snapping and anchor), the service (tijdlijnen behind the
                      prikbord's dials, gebeurtenissen behind the artikel's
-                     rule) and moment.ts — §35: the one writer that keeps a
-                     dragged gebeurtenis and an artikel's date in step
+                     rule), moment.ts — §35: the one writer that keeps a
+                     dragged gebeurtenis and an artikel's date in step — and
+                     inkSpace.ts (§33, also pure: where a streek lives on an
+                     axis and how wide it is, in both stroke formats)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
   ink/               §33: the tekenlaag — types.ts (the stroke, the eight
@@ -909,10 +911,31 @@ Thirty-seven rules worth knowing before changing anything:
     hub, never a column on `boards`/`maps`/`timelines`, so a stroke a second
     does not re-render every page that watches those. Frames of a stroke in
     progress ride the site line like pointer frames: sight, never state
-    (rule 20). Coordinates are the place's own — board units, picture pixels,
-    and on a tijdlijn *seconds* for x and a fraction of the stage for y, so a
-    circle round 1887 stays round 1887. `InkCanvas` draws in screen pixels
-    through a `project` function the place supplies; it knows nothing else.
+    (rule 20). Coordinates are the place's own — board units on a prikbord,
+    picture pixels on a landkaart, and on a tijdlijn **seconds on both axes**:
+    x an absolute moment, y the seconds from the axis, and the width in
+    seconds too, all three multiplied by `pxPerSecond` on the way to the glass.
+    So a drawing on a tijdlijn is ink on the axis — it grows and shrinks with
+    the years the way ink on a prikbord grows with the cork (Nick's decision,
+    round 12), a circle round 1887 is a circle at every zoom and on every
+    screen, and the gum stays exactly over what it took away. That is
+    **format v1**, and it rides on the *stroke* as `v: 1`, never on the layer.
+    A stroke with no `v` is **v0** and is drawn by the old formula — x in
+    seconds, y a *fraction of the stage's height* — which is two spaces at
+    once: it stretched a drawing horizontally by the ratio of the viewing zoom
+    to the drawing zoom, and squashed it vertically between a phone and a
+    desktop. Nothing is migrated and nothing may be: a stroke is immutable once
+    saved, and the `stageH` an old one was drawn at was never recorded, so a
+    tekenlaag holds both formats for ever (`lib/ink/types.ts`, `InkFormat`).
+    The seam is accepted and named rather than hidden — a v1 gum over v0 ink
+    drifts apart under zoom, which can only happen to a drawing already on
+    disk, and the answer if it ever bites is a Keeper wiping that layer, not a
+    rewrite. `InkCanvas` draws in screen pixels through a `project` function
+    the place supplies, handed each stroke's own `v` as an opaque third
+    argument (and a `widthScale` that may be a number or a function of it);
+    it knows nothing else, which is why `BoardCanvas` and `MapCanvas` needed no
+    change at all.
+
     The frame of anything without a picture starts *shut* — a gebeurtenis, and
     since this round an artikel card on a wall too (`defaultShowImage(kind,
     hasPicture)`) — and the button that opens it is where the soort's icon
@@ -928,6 +951,18 @@ Thirty-seven rules worth knowing before changing anything:
     changed — a width was always a number clamped to 0.1–4000 in
     `lib/ink/merge.ts`, never an enumerated set, and the API route never looks
     at it, so every stroke drawn with the old single 22 px gum reads back as 22.
+
+    Since round 12 that clamp is the **v0** one. A v1 width is measured in the
+    same unit as its coordinates, and on a tijdlijn that unit runs from a
+    second to a millennium: 0.1–4000 would fatten a 3 px brush to twenty pixels
+    at the finest zoom and shave a year-scale one down to invisible. So v1
+    widths are clamped to `INK_V1_MIN_WIDTH`–`INK_V1_MAX_WIDTH`
+    (1e-6 … 1e12) and kept to six *significant figures* (`INK_V1_WIDTH_DIGITS`)
+    rather than three decimals, which mean nothing at 10⁻². `readInkFrame`
+    reads the frame's `v` and applies exactly the same bounds as
+    `normaliseStroke`, or a live frame of somebody else's v1 stroke would
+    arrive twenty pixels thick and snap to its real size the moment they lifted
+    their hand.
 
 34. **A landkaart and a tijdlijn take the screen.** §34. They are not read, they
     are *looked at*, so the page around them is one wrapping line of heading and
@@ -1066,6 +1101,13 @@ Thirty-seven rules worth knowing before changing anything:
     `aria-label` with the word and point at the sentence with
     `aria-describedby` instead — which is what a screen reader wants anyway, and
     what makes `getByLabel` mean one thing. The Dutch copy is unchanged.
+
+    The tekenlaag's geometry on an axis is pure too, and sits beside the rest
+    of the timeline's arithmetic: `lib/timelines/inkSpace.ts` — `projectInk`,
+    `inkFromScreen`, `inkWidthScale` and `TIMELINE_INK_FORMAT` — is the whole
+    of what turns a streek's seconds into pixels and back, in both of §33's
+    formats. No React and no canvas in it, so `tests/unit/timeline-ink-space.test.ts`
+    pins the shape of a drawing down without a browser.
 
     Not done on purpose: no ghosting of a drag in progress on other people's
     screens (the drop is one PATCH, and the change signal is what everyone else

@@ -344,7 +344,11 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
 
   await page.getByTestId('ink-pen').click();
   const box = await stageBox(page, '.timeline-stage');
-  await stroke(page, box.x + box.width * 0.4, box.y + 120, 20);
+  // On the axis, and starting at three tenths across: a zoom of 1.6 about the
+  // middle of the stage has to leave the whole line on the glass, on a 390 px
+  // phone as well as on a 1440 px desktop, or the box below is a box round a
+  // clipped line.
+  await stroke(page, box.x + box.width * 0.3, box.y + box.height / 2, 20);
   await expect(page.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
   const drawn = await settled(page);
   await page.keyboard.press('Escape');
@@ -360,6 +364,82 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
 
   await page.reload();
   await expect(page.getByTestId('timeline-stage')).toBeVisible();
-  const kept = await waitForInk(page, (i) => i.count > 0);
+  await waitForInk(page, (i) => i.count > 0);
+  const kept = await settled(page);
   expect(Math.abs(kept.count - drawn.count)).toBeLessThan(drawn.count * 0.15);
+
+  /*
+   * §33: zooming is not stretching. Until round 12 a stroke's x scaled with
+   * the axis and its y with the stage's height, so the same drawing was an
+   * ellipse at every zoom but the one it was made at — and panning, which is
+   * all the test above does, could never show it, because a pan leaves
+   * `pxPerSecond` alone. A drawing on a tijdlijn is ink on the axis now: at
+   * 1.6× it is 1.6× as big in *both* directions, so its shape is untouched.
+   *
+   * The aspect ratio is the assertion because it does not care where the
+   * drawing ended up — zooming about the middle of the stage moves it, and a
+   * ratio is blind to that.
+   */
+  const wasWide = kept.maxX - kept.minX;
+  const wasTall = kept.maxY - kept.minY;
+  await page.getByRole('button', { name: 'Inzoomen' }).click();
+  await waitForInk(page, (i) => i.maxY - i.minY > wasTall * 1.3);
+  const zoomed = await settled(page);
+  const grew = (zoomed.maxY - zoomed.minY) / wasTall;
+  expect(grew).toBeGreaterThan(1.4);
+  expect(grew).toBeLessThan(1.85);
+  const aspect = (zoomed.maxX - zoomed.minX) / (zoomed.maxY - zoomed.minY);
+  expect(Math.abs(aspect - wasWide / wasTall)).toBeLessThan((wasWide / wasTall) * 0.1);
+});
+
+test('a gum on a tijdlijn stays over what it took away when the axis is zoomed', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, 'Keeper', 'abbeytower34');
+  await page.goto('/timelines');
+  await page.getByRole('button', { name: /Nieuwe tijdlijn|Maak nieuwe tijdlijn/ }).first().click();
+  const sheet = page.getByRole('dialog', { name: 'Nieuwe tijdlijn' });
+  await sheet.getByLabel('Naam').fill(`Gumlijn ${Date.now().toString(36)}`);
+  await sheet.getByLabel('Dagen').check();
+  await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
+  await page.waitForURL('**/timelines/**');
+  await expect(page.getByTestId('timeline-stage')).toBeVisible();
+  await page.waitForTimeout(500);
+
+  const box = await stageBox(page, '.timeline-stage');
+  const midY = box.y + box.height / 2;
+
+  // 1. A line along the axis, and how much of the glass it covers — at this
+  //    zoom and at one step out. That ratio is what a shape costs in pixels
+  //    when the axis shrinks; everything below is measured against it.
+  await page.getByTestId('ink-pen').click();
+  await stroke(page, box.x + box.width * 0.3, midY, 20);
+  await expect(page.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
+  const inkIn = await settled(page);
+  await page.getByRole('button', { name: 'Uitzoomen' }).click();
+  await waitForInk(page, (i) => i.count > 0 && i.count < inkIn.count * 0.9);
+  const inkOut = await settled(page);
+  await page.getByRole('button', { name: 'Inzoomen' }).click();
+  await waitForInk(page, (i) => i.count > inkOut.count * 1.1);
+
+  // 2. A gum straight across the middle of it.
+  await page.getByTestId('ink-eraser').click();
+  await page.getByTestId('ink-eraser-2').click();
+  await sweep(page, box.x + box.width * 0.3 + 80, midY - 90);
+  await expect(page.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
+  const gummedIn = await settled(page);
+  expect(gummedIn.count).toBeLessThan(inkIn.count * 0.9);
+
+  // 3. Out one step again. A gum is a stroke in the same space as the ink, and
+  //    its width is in that space too, so both shrink by the same factor: the
+  //    share of the line that is gone must be the share that was gone before.
+  //    If the width did not scale, the gum's disc would cover a different
+  //    slice of the line at every zoom and this would drift.
+  await page.getByRole('button', { name: 'Uitzoomen' }).click();
+  await waitForInk(page, (i) => i.count > 0 && i.count < gummedIn.count * 0.9);
+  const gummedOut = await settled(page);
+
+  const erasedIn = 1 - gummedIn.count / inkIn.count;
+  const erasedOut = 1 - gummedOut.count / inkOut.count;
+  expect(erasedIn).toBeGreaterThan(0.1);
+  expect(Math.abs(erasedOut - erasedIn)).toBeLessThan(0.15);
 });

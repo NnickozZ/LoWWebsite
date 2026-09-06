@@ -14,10 +14,11 @@ import type { LiveUser } from '@/components/editor/useLiveDoc';
 import type { AccessSettings } from '@/lib/access';
 import { timelineKey } from '@/lib/live/keys';
 import type { TimelineEvent, TimelineSummary } from '@/lib/timelines/service';
-import { InkCanvas } from '@/components/ink/InkCanvas';
+import { InkCanvas, type Project } from '@/components/ink/InkCanvas';
 import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
 import { useInk } from '@/components/ink/useInk';
-import type { InkLayerView } from '@/lib/ink/types';
+import type { InkFormat, InkLayerView } from '@/lib/ink/types';
+import { TIMELINE_INK_FORMAT, inkFromScreen, inkWidthScale, projectInk } from '@/lib/timelines/inkSpace';
 import {
   anchorSpan,
   applyAnchor,
@@ -73,8 +74,8 @@ import {
  * column that is as tall as the screen, and this component *measures* what it
  * was given — width and height both — with one ResizeObserver. Everything that
  * used to be reckoned from a constant is reckoned from `stageH` now: the axis
- * across the middle, the ink layer's `project` (a stroke's y is a fraction of
- * the stage), the lanes the tags step out into, and where a folded-out window
+ * across the middle, the ink layer's `project` (which hangs a stroke off that
+ * axis), the lanes the tags step out into, and where a folded-out window
  * opens. The number below is only what to draw with in the one frame before
  * the first measurement; the floor is `.timeline-stage`'s own `min-height`.
  */
@@ -306,29 +307,54 @@ export function TimelineCanvas({
 
   /* ----------------------------------------------------------------- ink */
 
-  // §33: the tekenlaag. A stroke's x is a *moment* (seconds, like a
-  // gebeurtenis) and its y a fraction of the stage's height, so a circle
-  // round 1887 stays round 1887 when the axis is shifted or zoomed, and
-  // still sits on the axis on a narrower screen. Widths are screen pixels:
-  // the axis has no zoom in the sense a cork has.
-  const ink = useInk({ kind: 'timeline', id: timeline.id, initial: initialInk, onError: (message) => ui.toast(message) });
+  /*
+   * §33: the tekenlaag. A stroke lives in one similarity space, and the maths
+   * — both formats of it — is in `lib/timelines/inkSpace.ts`, where it can be
+   * tested without a browser. What matters here:
+   *
+   *   x  is a *moment* in seconds, like a gebeurtenis, so a circle round 1887
+   *      stays round 1887 however the axis is shifted;
+   *   y  is seconds from the axis, and the width is seconds too, so both axes
+   *      and the thickness are scaled by the one `pxPerSecond` — the drawing
+   *      grows and shrinks with the tijdlijn, a circle stays a circle at every
+   *      zoom, and the gum stays exactly over the ink it took away.
+   *
+   * That is v1. Strokes drawn before it have no `v` and are still drawn by the
+   * old rule (y a fraction of the stage, width in screen pixels); they are
+   * never rewritten. `project` and `widthScale` are handed each stroke's own
+   * space, so one layer can carry both.
+   */
+  const ink = useInk({
+    kind: 'timeline',
+    id: timeline.id,
+    initial: initialInk,
+    format: TIMELINE_INK_FORMAT,
+    onError: (message) => ui.toast(message),
+  });
   const inkTool = useInkTool();
   const inkActive = inkTool.active && ink.enabled;
   const viewRef = useRef(view);
   viewRef.current = view;
   const stageHRef = useRef(stageH);
   stageHRef.current = stageH;
-  const inkProject = useCallback(
-    (at: number, f: number) => ({ x: view ? (at - view.origin) * view.pxPerSecond : 0, y: f * stageH }),
+  const inkProject = useCallback<Project>(
+    (at, f, v) => projectInk(view, stageH, v, at, f),
     [view, stageH],
   );
   const inkToContent = useCallback((clientX: number, clientY: number) => {
     const rect = stageRef.current?.getBoundingClientRect();
-    const v = viewRef.current;
-    const sx = clientX - (rect?.left ?? 0);
-    const sy = clientY - (rect?.top ?? 0);
-    return { x: v ? v.origin + sx / v.pxPerSecond : 0, y: sy / stageHRef.current };
+    return inkFromScreen(
+      viewRef.current,
+      stageHRef.current,
+      TIMELINE_INK_FORMAT,
+      clientX - (rect?.left ?? 0),
+      clientY - (rect?.top ?? 0),
+    );
   }, []);
+  /** For a stroke already on the layer: v1 scales with the zoom, v0 does not. */
+  const inkWidthOf = useCallback((v?: InkFormat) => inkWidthScale(view?.pxPerSecond ?? 0, v), [view]);
+  /** For the stroke about to be drawn — the hook divides the brush's pixels by it. */
+  const inkWidthNow = inkWidthScale(view?.pxPerSecond ?? 0, TIMELINE_INK_FORMAT);
   useEffect(() => {
     if (!ink.enabled && inkTool.active) inkTool.setActive(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -898,7 +924,7 @@ export function TimelineCanvas({
           strokes={ink.strokes}
           stableCount={ink.stableCount}
           project={inkProject}
-          widthScale={1}
+          widthScale={inkWidthOf}
           viewKey={`${view?.origin ?? 0},${view?.pxPerSecond ?? 0},${stageH},${width}`}
           width={width}
           height={stageH}
@@ -965,7 +991,7 @@ export function TimelineCanvas({
           <InkCapture
             tool={inkTool.tool}
             toContent={inkToContent}
-            widthScale={1}
+            widthScale={inkWidthNow}
             onBegin={ink.begin}
             onExtend={ink.extend}
             onEnd={ink.end}

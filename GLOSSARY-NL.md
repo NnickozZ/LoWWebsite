@@ -73,7 +73,7 @@ change.
 | self-filling list | lijst die zichzelf vult | a reverse query, e.g. "Leden" |
 | hand-filled list | lijst die je zelf vult | a chosen list, e.g. "Bondgenoten" |
 | word list | Woorden | the Beheer pane that renames all of the above |
-| infobox (fields and tags beside the text) | Meer info | was *Meer toevoegen*; a card beside the text on a wide screen, folded under the header on a phone |
+| infobox (fields and tags beside the text) | Meer info | was *Meer toevoegen*; a card beside the text on a wide screen, folded under the header on anything narrower than 1280 px |
 | outline of the page | Op deze pagina | the list that scrolls along beside an artikel |
 | the managing foot of an artikel | Beheer van dit artikel | rights, proposals, visibility, Keeper notes, the bin |
 | the chosen few on a dossier | toegewezen | "Toegewezen: 3"; an artikel or prikbord says *gekozen personen* |
@@ -542,3 +542,15 @@ schrijft — alleen die vraag staat dan op het scherm — en pas je antwoord ope
 het blad waar je op klikte. Overal waar je gewoon begint te typen komt de vraag
 wél over de pagina heen: die pagina staat er daarna nog precies zo bij.
 Escape sluit altijd het bovenste blad, en verder niets.
+
+## Ronde 12 — geen nieuwe woorden
+
+Ronde 12 was twee reparaties (de kolommen van een artikel, §25, en inkt die met
+de as meegroeit, §33) en heeft **geen enkel woord op het scherm** toegevoegd of
+veranderd. Dit staat er zodat de volgende lezer niet hoeft te zoeken.
+
+Twee regels hierboven blijven waar en zijn alleen preciezer geworden: **Meer
+info** klapt onder de kop zodra het scherm smaller is dan 1280 px (dat was
+1024 px), en **Op deze pagina** staat op een breed scherm nog steeds naast de
+tekst — nergens anders meer, want de tweede brede indeling waarin het onder de
+afbeelding terugsprong bestaat niet meer.

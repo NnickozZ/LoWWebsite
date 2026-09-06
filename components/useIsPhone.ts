@@ -3,7 +3,18 @@
 import { useSyncExternalStore } from 'react';
 
 const PHONE = '(max-width: 767px)';
-const WIDE = '(min-width: 1024px)';
+/*
+ * §25: the width at which the artikel page becomes three columns.
+ *
+ * **This number and the `@media (min-width: 1280px)` block around
+ * `.entry-layout-wide` in `app/globals.css` are the same number and have to
+ * stay the same number.** This one decides whether the outline rail and the
+ * sidebar are rendered at all; that one decides where the grid puts them. Move
+ * one alone and React renders a rail the stylesheet has nowhere to put — which
+ * is exactly how the page ended up with two different wide layouts and an
+ * outline that jumped between the picture and the text at 1280 px.
+ */
+const WIDE = '(min-width: 1280px)';
 
 function subscribeTo(query: string) {
   return (onChange: () => void) => {
@@ -29,8 +40,11 @@ export function useIsPhone(): boolean {
 }
 
 /**
- * True from 1024 px: the width at which the artikel page has room for its
- * sidebar. Server-renders as true, for the same reason as above.
+ * True from 1280 px: the width at which the artikel page has room for all
+ * three of its columns — text, outline, sidebar (§25; see `WIDE` above, which
+ * must agree with `app/globals.css`). Under it the page is one column with the
+ * picture and the facts stacked under the header and the outline as a row of
+ * chips. Server-renders as true, for the same reason as above.
  */
 export function useIsWide(): boolean {
   return useSyncExternalStore(subscribeWide, wideNow, () => true);

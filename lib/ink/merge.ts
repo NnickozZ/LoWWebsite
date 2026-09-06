@@ -5,6 +5,10 @@ import {
   INK_STROKE_LIMIT,
   INK_TOMBSTONE_LIMIT,
   INK_TOMBSTONE_TTL_MS,
+  INK_V1_MAX_WIDTH,
+  INK_V1_MIN_WIDTH,
+  INK_V1_WIDTH_DIGITS,
+  type InkFormat,
   type InkFrame,
   type InkLayer,
   type InkLayerView,
@@ -31,6 +35,28 @@ const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFi
 
 /** Three decimals is plenty for a board unit or a second; it keeps the row small. */
 const round = (n: number) => Math.round(n * 1000) / 1000;
+
+/** The space a stroke or a frame claims to be in; anything else is v0. */
+const readFormat = (value: unknown): InkFormat | undefined => (value === 1 ? 1 : undefined);
+
+/**
+ * A width, clamped to what its space can mean.
+ *
+ * v0 is pixels or board units: 0.1 … 4000, three decimals, exactly as it has
+ * always been — a stroke already in a column must read back as the number that
+ * was written. v1 is the content unit itself, which on a tijdlijn spans ten
+ * orders of magnitude, so it gets bounds wide enough for a year scale and
+ * *significant figures* rather than decimals: three decimals would round a
+ * 3 px brush at the finest zoom (0.015) to something usable but a 12 px one at
+ * the coarsest (10^8) to noise, and the old 0.1 floor would fatten the first
+ * to twenty pixels.
+ */
+const inkWidth = (value: number, v: InkFormat | undefined, rounder: (n: number) => number): number =>
+  v === 1
+    ? Math.min(INK_V1_MAX_WIDTH, Math.max(INK_V1_MIN_WIDTH, Number(value.toPrecision(INK_V1_WIDTH_DIGITS))))
+    : Math.min(INK_MAX_WIDTH, Math.max(0.1, rounder(value)));
+
+const asIs = (n: number) => n;
 
 export function emptyInk(): InkLayer {
   return { strokes: [], deleted: {}, enabled: true, clearedAt: null };
@@ -61,7 +87,11 @@ export function normaliseStroke(input: unknown): InkStroke | null {
   if (!points) return null;
   const mode = raw.mode === 'erase' ? 'erase' : 'ink';
   const colour = finite(raw.colour) ? Math.min(INK_COLOURS.length - 1, Math.max(0, Math.round(raw.colour))) : 0;
-  const width = finite(raw.width) ? Math.min(INK_MAX_WIDTH, Math.max(0.1, round(raw.width))) : 1;
+  // The whitelist is the point of this function, so the space has to be copied
+  // over on purpose: a stroke that lost its `v` here would be read back as v0
+  // and drawn in the wrong place forever.
+  const v = readFormat(raw.v);
+  const width = finite(raw.width) ? inkWidth(raw.width, v, round) : 1;
   return {
     id: raw.id,
     by: typeof raw.by === 'string' && raw.by ? raw.by : undefined,
@@ -70,6 +100,7 @@ export function normaliseStroke(input: unknown): InkStroke | null {
     colour,
     width,
     points,
+    v,
   };
 }
 
@@ -225,13 +256,18 @@ export function readInkFrame(input: unknown): InkFrame | null {
   if (typeof raw.id !== 'string' || !STROKE_ID.test(raw.id)) return null;
   const points = Array.isArray(raw.p) ? raw.p.slice(0, 600) : [];
   if (points.some((n) => !finite(n))) return null;
+  // The same space, and so the same width bounds, as the stroke this frame is
+  // a glimpse of — otherwise a v1 line under somebody else's hand arrives at
+  // the wrong thickness and jumps to its real one the moment they lift it.
+  const v = readFormat(raw.v);
   const out: InkFrame = {
     id: raw.id,
     m: raw.m === 'erase' ? 'erase' : 'ink',
     k: finite(raw.k) ? Math.min(INK_COLOURS.length - 1, Math.max(0, Math.round(raw.k))) : 0,
-    w: finite(raw.w) ? Math.min(INK_MAX_WIDTH, Math.max(0.1, raw.w)) : 1,
+    w: finite(raw.w) ? inkWidth(raw.w, v, asIs) : 1,
     p: points.map((n) => round(n)),
   };
+  if (v) out.v = v;
   if (raw.e === 1) out.e = 1;
   if (raw.a === 1) out.a = 1;
   return out;
