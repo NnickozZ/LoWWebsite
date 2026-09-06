@@ -6,11 +6,17 @@ import { BORDER_OPTIONS } from '@/components/borders';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import {
+  DEFAULT_STRING_STYLE,
+  DEFAULT_STRING_WIDTH,
   STRING_COLOURS,
   STRING_COLOUR_KEYS,
+  STRING_STYLES,
+  STRING_WIDTH_PRESETS,
+  stringColourValue,
   type BoardCard,
   type BoardString,
   type StringColour,
+  type StringStyle,
 } from '@/lib/boards/merge';
 
 /** What each stored colour key is called on screen. */
@@ -21,6 +27,18 @@ const COLOUR_NAMES: Record<StringColour, string> = {
   green: 'groen',
   gold: 'goud',
   violet: 'paars',
+};
+
+/** The four thicknesses on the bar, in the order `STRING_WIDTH_PRESETS` has them. */
+const WIDTH_NAMES = ['Dun', 'Normaal', 'Dik', 'Extra dik'];
+
+/** What each stored style key is called on screen. */
+const STYLE_NAMES: Record<StringStyle, string> = {
+  solid: 'Vol',
+  dashed: 'Streepjes',
+  dotted: 'Stippels',
+  double: 'Dubbel',
+  dashdot: 'Streep-stip',
 };
 
 /**
@@ -43,6 +61,8 @@ export function BoardInspector({
   borderValue,
   onLabelChange,
   onColourChange,
+  onWidthChange,
+  onStyleChange,
   onRemoveString,
   onCrop,
   onDoneCropping,
@@ -79,6 +99,8 @@ export function BoardInspector({
   borderValue: string;
   onLabelChange: (label: string) => void;
   onColourChange: (colour: StringColour) => void;
+  onWidthChange: (width: number) => void;
+  onStyleChange: (style: StringStyle) => void;
   onRemoveString: () => void;
   onCrop: () => void;
   onDoneCropping: () => void;
@@ -165,7 +187,47 @@ export function BoardInspector({
           ))}
         </span>
 
-        <span className="small muted board-inspector-hint">Sleep een uiteinde om het te verplaatsen.</span>
+        <span className="board-swatches" role="radiogroup" aria-label="Dikte van de draad">
+          {STRING_WIDTH_PRESETS.map((width, index) => (
+            <button
+              key={width}
+              type="button"
+              role="radio"
+              aria-checked={(line.width ?? DEFAULT_STRING_WIDTH) === width}
+              aria-label={WIDTH_NAMES[index]}
+              title={WIDTH_NAMES[index]}
+              className={`board-swatch board-swatch-width${
+                (line.width ?? DEFAULT_STRING_WIDTH) === width ? ' board-swatch-on' : ''
+              }`}
+              onClick={() => onWidthChange(width)}
+            >
+              {/* The dot shows the thickness itself rather than describing it. */}
+              <span
+                className="board-swatch-line"
+                aria-hidden="true"
+                style={{ height: `${width}px`, background: stringColourValue(line.colour) }}
+              />
+            </button>
+          ))}
+        </span>
+
+        <span className="board-border-field">
+          <label className="eyebrow" htmlFor="string-style">
+            Soort draad
+          </label>
+          <select
+            id="string-style"
+            className="board-border-select"
+            value={line.style ?? DEFAULT_STRING_STYLE}
+            onChange={(event) => onStyleChange(event.target.value as StringStyle)}
+          >
+            {STRING_STYLES.map((key) => (
+              <option key={key} value={key}>
+                {STYLE_NAMES[key]}
+              </option>
+            ))}
+          </select>
+        </span>
 
         <button type="button" className="btn btn-small btn-danger" onClick={onRemoveString}>
           <Icon name="trash" size={14} />

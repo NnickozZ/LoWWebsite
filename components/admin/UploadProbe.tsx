@@ -10,17 +10,17 @@ import { readUploadResponse } from '@/lib/upload';
  *
  * Posts bodies of growing size to `/api/health/upload` until one is refused,
  * then says what that means. The steps sit just past the archive's own two
- * ceilings (10 MB for a player, 100 MB for a Keeper) and just past nginx's
- * default (1 MB), so the outcome names the culprit: a refusal at 1.5 MB is
- * an untouched nginx, a refusal at 11 MB a proxy set to 10m, a pass at 101 MB
- * means the web server is out of the way and only the archive's own limits
- * apply. Sending 101 MB takes a while on a home line, which is why the steps
- * are climbed one at a time and the screen says which one is in the air.
+ * ceilings (2 MB for a player, 20 MB for a Keeper) and just past nginx's
+ * default (1 MB), so the outcome names the culprit: a refusal at 1.5 MB is an
+ * untouched nginx, a refusal at 3 MB a proxy that only clears a player, a pass
+ * at 21 MB means the web server is out of the way and only the archive's own
+ * limits apply. The steps are climbed one at a time and the screen says which
+ * one is in the air, because the last one takes a moment on a home line.
  */
-const STEPS_MB = [1.5, 11, 101];
+const STEPS_MB = [1.5, 3, 21];
 
 /**
- * `/admin?tab=site&probe=1.5,11,25` climbs other steps — to pin a ceiling
+ * `/admin?tab=site&probe=1.5,3,25` climbs other steps — to pin a ceiling
  * down, or (the tests) to stay under what a browser harness can carry.
  */
 function stepsFrom(raw: string | null): number[] {
@@ -74,7 +74,7 @@ export function UploadProbe() {
     <div>
       <span className="label">Uploadlimiet van de webserver</span>
       <p className="tiny muted" style={{ margin: '0 0 0.45rem' }}>
-        Het archief laat spelers 10 MB en Keepers 100 MB uploaden, maar de webserver vóór het archief
+        Het archief laat spelers 2 MB en Keepers 20 MB uploaden, maar de webserver vóór het archief
         (nginx, Caddy, een paneel) heeft een eigen grens — bij nginx 1 MB tenzij anders ingesteld. Deze
         test stuurt {steps.map((mb) => `${mb} MB`).join(', ')} aan lege bytes naar het archief en meldt waar
         het stokt.
@@ -94,7 +94,7 @@ export function UploadProbe() {
       {outcome.kind === 'ok' && (
         <p className="small" style={{ margin: '0.5rem 0 0' }}>
           <Icon name="check" size={14} /> De webserver laat minstens {outcome.mb} MB door
-          {outcome.mb >= 100 ? ': genoeg voor spelers (10 MB) en de Keeper (100 MB).' : '.'}
+          {outcome.mb >= 20 ? ': genoeg voor spelers (2 MB) en de Keeper (20 MB).' : '.'}
         </p>
       )}
 
@@ -111,10 +111,10 @@ export function UploadProbe() {
                 <code> server </code>-blok van deze site (meestal in <code>/etc/nginx/sites-enabled/</code>)
                 de regel
               </p>
-              <pre className="probe-snippet">client_max_body_size 100m;</pre>
+              <pre className="probe-snippet">client_max_body_size 25m;</pre>
               <p style={{ margin: '0.4rem 0 0' }}>
                 en herlaad met <code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>. Bij Apache heet
-                het <code>LimitRequestBody 104857600</code>; Caddy heeft geen grens. Daarna deze test nog eens.
+                het <code>LimitRequestBody 26214400</code>; Caddy heeft geen grens. Daarna deze test nog eens.
               </p>
             </>
           ) : (

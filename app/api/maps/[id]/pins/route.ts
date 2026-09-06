@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { addPin, getMapById, listPins, type NewPin } from '@/lib/maps/service';
@@ -19,6 +20,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { id } = await ctx.params;
     if (!getMapById(id)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
     const body = (await request.json()) as Partial<NewPin> & { x?: unknown; y?: unknown };

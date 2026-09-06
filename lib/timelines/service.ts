@@ -4,13 +4,25 @@ import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
 import type { AccessMode, CoverCrop, TimelineScale } from '@/lib/db/schema';
 import { recomputeTimelineMentions } from '@/lib/entries/mentions';
+import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { newId } from '@/lib/ids';
 import { resetFieldsInRoom } from '@/lib/live/docs';
 import { eventFieldsRoomKey } from '@/lib/live/keys';
 import { uniqueSlug } from '@/lib/slug';
-import { clampPrecision, isScale, type Precision, type Scale } from './time';
+import { moveEntryEvents, momentOnTimeline, writeEntryDate } from './moment';
+import {
+  anchorUnitsFor,
+  applyAnchor,
+  clampPrecision,
+  clampToAnchor,
+  isAnchorUnit,
+  isScale,
+  type AnchorUnit,
+  type Precision,
+  type Scale,
+} from './time';
 
 /**
  * §32: tijdlijnen.
@@ -45,6 +57,13 @@ export type TimelineSummary = {
   caseName: string | null;
   caseSlug: string | null;
   scale: Scale;
+  /**
+   * §35: "deze tijdlijn speelt op 3 oktober 1931" — the moment this tijdlijn
+   * is *of*, and how much of it is meant. Null together when it is of nothing
+   * in particular, which is every tijdlijn until somebody says otherwise.
+   */
+  anchorAt: number | null;
+  anchorUnit: AnchorUnit | null;
   /** §17 */
   viewMode: AccessMode;
   editMode: AccessMode;
@@ -98,6 +117,8 @@ const TIMELINE_COLUMNS = {
   caseName: schema.cases.name,
   caseSlug: schema.cases.slug,
   scale: schema.timelines.scale,
+  anchorAt: schema.timelines.anchorAt,
+  anchorUnit: schema.timelines.anchorUnit,
   viewMode: schema.timelines.viewMode,
   editMode: schema.timelines.editMode,
   accessLocked: schema.timelines.accessLocked,
@@ -108,7 +129,8 @@ const TIMELINE_COLUMNS = {
 
 const now = () => Math.floor(Date.now() / 1000);
 
-type Actor = { id: string; isKeeper: boolean };
+/** §18b: whoever is acting, and the onderzoeker they are acting as. */
+type Actor = Author;
 
 const NAME_MAX = 120;
 const TEXT_MAX = 4000;
@@ -187,7 +209,12 @@ export function listTimelines(viewer: Viewer, options: TimelineListOptions = {})
     counts.set(row.timelineId, (counts.get(row.timelineId) ?? 0) + Number(row.n));
   }
 
-  const shaped = kept.map((row) => ({ ...row, scale: asScale(row.scale), eventCount: counts.get(row.id) ?? 0 }));
+  const shaped = kept.map((row) => ({
+    ...row,
+    scale: asScale(row.scale),
+    ...readAnchor(row),
+    eventCount: counts.get(row.id) ?? 0,
+  }));
   if (options.sort === 'size') shaped.sort((a, b) => (b.eventCount ?? 0) - (a.eventCount ?? 0));
   return shaped;
 }
@@ -199,6 +226,20 @@ export function listTimelinesForCase(caseId: string, viewer: Viewer): TimelineSu
 
 function asScale(value: unknown): Scale {
   return isScale(value) ? value : 'day';
+}
+
+/**
+ * §35: the two anchor columns are one fact, so they are read as one: an
+ * unknown unit, or a unit without a moment, is no anchor at all.
+ */
+function readAnchor(row: { anchorAt: number | null; anchorUnit: string | null }): {
+  anchorAt: number | null;
+  anchorUnit: AnchorUnit | null;
+} {
+  if (!isAnchorUnit(row.anchorUnit) || typeof row.anchorAt !== 'number' || !Number.isFinite(row.anchorAt)) {
+    return { anchorAt: null, anchorUnit: null };
+  }
+  return { anchorAt: Math.trunc(row.anchorAt), anchorUnit: row.anchorUnit };
 }
 
 function loadTimeline(where: ReturnType<typeof eq>, viewer: Viewer): TimelineSummary | undefined {
@@ -217,7 +258,7 @@ function loadTimeline(where: ReturnType<typeof eq>, viewer: Viewer): TimelineSum
       .get();
     if (!parent) return undefined;
   }
-  return { ...row, scale: asScale(row.scale) };
+  return { ...row, scale: asScale(row.scale), ...readAnchor(row) };
 }
 
 /** The tijdlijn, if this viewer may see it. There is no other way to load one. */
@@ -246,12 +287,46 @@ function slugTaken(candidate: string) {
   );
 }
 
+/**
+ * §35: the anchor, checked. It is one fact in two columns, so both or neither;
+ * and it must be *coarser* than the measure — a tijdlijn of days that is "of"
+ * one day would have nothing left to show.
+ */
+export function readAnchorInput(
+  anchorAt: unknown,
+  anchorUnit: unknown,
+  scale: Scale,
+): { anchorAt: number | null; anchorUnit: AnchorUnit | null } {
+  if (anchorAt === null || anchorAt === undefined || anchorUnit === null || anchorUnit === undefined) {
+    if ((anchorAt ?? null) !== null || (anchorUnit ?? null) !== null) {
+      throw new Error('Een vast moment heeft een tijdstip én een maat nodig.');
+    }
+    return { anchorAt: null, anchorUnit: null };
+  }
+  if (!isAnchorUnit(anchorUnit)) throw new Error('Onbekende maat voor het vaste moment.');
+  if (typeof anchorAt !== 'number' || !Number.isFinite(anchorAt)) throw new Error('Wanneer speelt deze tijdlijn?');
+  if (!anchorUnitsFor(scale).includes(anchorUnit)) {
+    throw new Error('Het vaste moment moet grover zijn dan de maat van de tijdlijn.');
+  }
+  return { anchorAt: Math.trunc(anchorAt), anchorUnit };
+}
+
 export function createTimeline(
-  input: { name: string; caseId?: string | null; scale?: Scale; description?: string; isPrivate?: boolean },
+  input: {
+    name: string;
+    caseId?: string | null;
+    scale?: Scale;
+    description?: string;
+    isPrivate?: boolean;
+    anchorAt?: number | null;
+    anchorUnit?: AnchorUnit | null;
+  },
   actor: Actor,
 ): TimelineSummary {
   const name = input.name.trim().slice(0, NAME_MAX) || 'Naamloze tijdlijn';
   const id = newId();
+  const scale = isScale(input.scale) ? input.scale : 'day';
+  const anchor = readAnchorInput(input.anchorAt ?? null, input.anchorUnit ?? null, scale);
   db.insert(schema.timelines)
     .values({
       id,
@@ -259,13 +334,15 @@ export function createTimeline(
       slug: uniqueSlug(name, slugTaken),
       description: (input.description ?? '').trim().slice(0, 2000),
       caseId: input.caseId ?? null,
-      scale: isScale(input.scale) ? input.scale : 'day',
+      scale,
+      anchorAt: anchor.anchorAt,
+      anchorUnit: anchor.anchorUnit,
       viewMode: input.isPrivate ? 'private' : 'all',
       editMode: input.isPrivate ? 'private' : 'all',
       createdBy: actor.id,
     })
     .run();
-  logActivity({ actorId: actor.id, verb: 'timeline.created', caseId: input.caseId ?? null, meta: { timelineId: id, name } });
+  logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.created', caseId: input.caseId ?? null, meta: { timelineId: id, name } });
   return getTimelineById(id, actor)!;
 }
 
@@ -273,10 +350,14 @@ export type TimelinePatch = {
   name?: string;
   description?: string;
   scale?: Scale;
+  /** §35: both together, or both null to take the anchor away. */
+  anchorAt?: number | null;
+  anchorUnit?: AnchorUnit | null;
 };
 
 export function updateTimeline(id: string, patch: TimelinePatch, actor: Actor): TimelineSummary {
   if (!viewerCanEditTimeline(id, actor)) throw new Error('Je mag deze tijdlijn niet bewerken.');
+  const before = getTimelineById(id, actor)!;
   const values: Partial<typeof schema.timelines.$inferInsert> = { updatedAt: now() };
   if (typeof patch.name === 'string') {
     const name = patch.name.trim().slice(0, NAME_MAX);
@@ -288,6 +369,22 @@ export function updateTimeline(id: string, patch: TimelinePatch, actor: Actor): 
     if (!isScale(patch.scale)) throw new Error('Onbekende maat.');
     values.scale = patch.scale as TimelineScale;
   }
+  /*
+   * §35: the anchor is read against the measure this tijdlijn will *have* —
+   * a sheet that makes the axis finer and pins it to a day in one save is one
+   * act, not two. A re-measure that leaves the old anchor no longer coarser
+   * than the scale drops it rather than refusing: the measure is what the
+   * Keeper just asked for.
+   */
+  const scaleAfter = (values.scale as Scale | undefined) ?? before.scale;
+  if (patch.anchorAt !== undefined || patch.anchorUnit !== undefined) {
+    const anchor = readAnchorInput(patch.anchorAt ?? null, patch.anchorUnit ?? null, scaleAfter);
+    values.anchorAt = anchor.anchorAt;
+    values.anchorUnit = anchor.anchorUnit;
+  } else if (before.anchorUnit && !anchorUnitsFor(scaleAfter).includes(before.anchorUnit)) {
+    values.anchorAt = null;
+    values.anchorUnit = null;
+  }
   db.update(schema.timelines).set(values).where(eq(schema.timelines.id, id)).run();
   return getTimelineById(id, actor)!;
 }
@@ -297,7 +394,7 @@ export function softDeleteTimeline(id: string, actor: Actor) {
   if (!viewerCanEditTimeline(id, actor)) throw new Error('Je mag deze tijdlijn niet verwijderen.');
   const row = getTimelineById(id, actor);
   db.update(schema.timelines).set({ deletedAt: now(), updatedAt: now() }).where(eq(schema.timelines.id, id)).run();
-  logActivity({ actorId: actor.id, verb: 'timeline.deleted', caseId: row?.caseId ?? null, meta: { timelineId: id } });
+  logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.deleted', caseId: row?.caseId ?? null, meta: { timelineId: id } });
 }
 
 /** The ids among these this viewer may open — for a wall's tijdlijn cards (rule 19). */
@@ -449,8 +546,16 @@ export function addEvent(timelineId: string, input: NewEvent, actor: Actor): Tim
   if (!viewerCanEdit('timeline', timelineId, actor)) throw new Error('Je mag deze tijdlijn niet bewerken.');
 
   const id = newId();
-  const at = asMoment(input.at);
   const precision = clampPrecision(isScale(input.precision) ? input.precision : timeline.scale, timeline.scale);
+  // §35: an anchored tijdlijn is *of* its day; nothing lands outside it, even
+  // if a client asks. The moment itself is taken as given (the date form
+  // already builds it out of whole parts) — only the drag snaps.
+  const at = clampToAnchor(
+    applyAnchor(asMoment(input.at), timeline.anchorAt, timeline.anchorUnit),
+    precision,
+    timeline.anchorAt,
+    timeline.anchorUnit,
+  );
   const text = (input.text ?? '').trim().slice(0, TEXT_MAX);
 
   if (input.kind === 'entry') {
@@ -473,16 +578,28 @@ export function addEvent(timelineId: string, input: NewEvent, actor: Actor): Tim
         // soort's icon waits behind a button (Nick, 6 Sep 2026).
         showImage: Boolean(entry.cover),
         createdBy: actor.id,
+        characterId: actor.characterId ?? null,
       })
       .run();
-    logActivity({ actorId: actor.id, verb: 'timeline.event_added', entryId: entry.id, caseId: timeline.caseId, meta: { timelineId, eventId: id } });
+    logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.event_added', entryId: entry.id, caseId: timeline.caseId, meta: { timelineId, eventId: id } });
   } else {
     const name = (input.name ?? '').trim().slice(0, NAME_MAX);
     if (!name) throw new Error('Geef de gebeurtenis een naam.');
     db.insert(schema.timelineEvents)
-      .values({ id, timelineId, kind: 'note', name, text, at, precision, showImage: false, createdBy: actor.id })
+      .values({
+        id,
+        timelineId,
+        kind: 'note',
+        name,
+        text,
+        at,
+        precision,
+        showImage: false,
+        createdBy: actor.id,
+        characterId: actor.characterId ?? null,
+      })
       .run();
-    logActivity({ actorId: actor.id, verb: 'timeline.event_added', caseId: timeline.caseId, meta: { timelineId, eventId: id, name } });
+    logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.event_added', caseId: timeline.caseId, meta: { timelineId, eventId: id, name } });
   }
   db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, timelineId)).run();
   // §27: what this tijdlijn's gebeurtenissen name.
@@ -498,6 +615,9 @@ function ownEvent(eventId: string, actor: Actor) {
       id: schema.timelineEvents.id,
       timelineId: schema.timelineEvents.timelineId,
       kind: schema.timelineEvents.kind,
+      entryId: schema.timelineEvents.entryId,
+      at: schema.timelineEvents.at,
+      precision: schema.timelineEvents.precision,
       assetId: schema.timelineEvents.assetId,
     })
     .from(schema.timelineEvents)
@@ -532,11 +652,21 @@ export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, op
   const event = ownEvent(eventId, actor);
   const timeline = getTimelineById(event.timelineId, actor)!;
   const values: Partial<typeof schema.timelineEvents.$inferInsert> = { updatedAt: now() };
-  if (patch.at !== undefined) values.at = asMoment(patch.at);
   if (patch.precision !== undefined) {
     if (!isScale(patch.precision)) throw new Error('Onbekende precisie.');
     values.precision = clampPrecision(patch.precision, timeline.scale);
   }
+  /*
+   * §35: a moved gebeurtenis lands on a whole unit of *its own* precision —
+   * an artikel known only as "1931" stays on its year however far the axis is
+   * zoomed in — and never outside an anchored tijdlijn's day. The client does
+   * the same sum while the hand is moving; this is the one that counts.
+   */
+  const shownPrecision = clampPrecision(
+    (values.precision as Precision | undefined) ?? (isScale(event.precision) ? event.precision : timeline.scale),
+    timeline.scale,
+  );
+  if (patch.at !== undefined) values.at = momentOnTimeline(asMoment(patch.at), shownPrecision, timeline);
   if (typeof patch.name === 'string' && event.kind === 'note') {
     const name = patch.name.trim().slice(0, NAME_MAX);
     if (!name) throw new Error('Een gebeurtenis heeft een naam nodig.');
@@ -568,6 +698,18 @@ export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, op
   }
   // §27: a renamed or rewritten gebeurtenis says something else about the artikelen.
   if (values.name !== undefined || values.text !== undefined) recomputeTimelineMentions(event.timelineId);
+  /*
+   * §35: moving an artikel gebeurtenis moves the artikel. The date in its
+   * infobox is rewritten to the moment it was dropped on — through
+   * `lib/timelines/moment.ts`, never through `updateEntry`, so a drag by
+   * somebody who may edit this tijdlijn is a move and not a proposal — and
+   * because "the last drag wins", the same artikel's gebeurtenissen on every
+   * other tijdlijn follow, each re-snapped and re-anchored to its own.
+   */
+  if (values.at !== undefined && event.kind === 'entry' && event.entryId) {
+    writeEntryDate(event.entryId, values.at as number, shownPrecision);
+    moveEntryEvents(event.entryId, values.at as number, { except: eventId });
+  }
   return getEvent(eventId, actor)!;
 }
 
@@ -597,7 +739,7 @@ export function convertEventToEntry(eventId: string, entryId: string, actor: Act
   // §21: somebody may still have the note's sheet open; the row is the truth.
   resetFieldsInRoom(eventFieldsRoomKey(eventId), { name: '' });
   recomputeTimelineMentions(event.timelineId);
-  logActivity({ actorId: actor.id, verb: 'timeline.event_added', entryId: entry.id, meta: { timelineId: event.timelineId, eventId, from: 'note' } });
+  logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.event_added', entryId: entry.id, meta: { timelineId: event.timelineId, eventId, from: 'note' } });
   return getEvent(eventId, actor)!;
 }
 

@@ -14,6 +14,100 @@
  * Pure and client-safe — no database, no React.
  */
 
+/* ------------------------------------------------------ the two ceilings */
+
+/**
+ * How much one upload may weigh. Two ceilings (Nick, 6 Sep 2026): 2 MB for a
+ * player, 20 MB for a Keeper. The player's number is low on purpose — a phone
+ * photograph out of the camera is three or four times that, and the archive
+ * stores a 1600 px webp of it in the end anyway, so the megabytes a phone
+ * sends up are megabytes nobody ever sees. Rather than refuse them, the
+ * browser shrinks the picture to fit before it is sent (`fitUpload` in
+ * `components/shrinkImage.ts`), so a player never meets the ceiling at all;
+ * the Keeper's 20 MB is for the scan of a map, which goes up as it is.
+ *
+ * These live here, not in `lib/assets.ts`, because `lib/assets.ts` opens the
+ * database and loads sharp: a client component cannot import from it, and the
+ * shrinking happens in the browser. `lib/assets.ts` re-exports them, so the
+ * API routes and the server keep reading them where they always did.
+ *
+ * The ceiling is enforced on the server and nowhere else — twice, on the size
+ * the browser declared and again on the bytes that arrived. What the browser
+ * does is courtesy. Two things sit outside the app entirely: a reverse proxy
+ * in front of the server (nginx's `client_max_body_size` defaults to 1 MB and
+ * must be raised to at least 25m), and sharp's own pixel ceiling
+ * (`limitInputPixels`, ~268 MP), which is what stops a big scan from eating
+ * the box's memory.
+ */
+export const PLAYER_UPLOAD_BYTES = 2 * 1024 * 1024;
+export const KEEPER_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+export function uploadLimitFor(viewer: { isKeeper: boolean } | null | undefined): number {
+  return viewer?.isKeeper ? KEEPER_UPLOAD_BYTES : PLAYER_UPLOAD_BYTES;
+}
+
+/** "2 MB" / "20 MB" — for the sentence under an upload button and the error. */
+export function uploadLimitLabel(bytes: number): string {
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+export function tooLargeMessage(limitBytes: number): string {
+  return `Die afbeelding is groter dan de limiet van ${uploadLimitLabel(limitBytes)}.`;
+}
+
+/** Said once, gently, when the browser made the picture fit rather than refuse it. */
+export const SHRUNK_NOTICE = 'De afbeelding was te groot en is verkleind.';
+
+/** When even the smallest step is still over the ceiling. */
+export function couldNotShrinkMessage(limitBytes: number): string {
+  return `Die afbeelding is groter dan de limiet van ${uploadLimitLabel(limitBytes)} en werd ook verkleind niet klein genoeg.`;
+}
+
+/**
+ * Which pictures may be re-encoded to fit. The server accepts JPEG, PNG,
+ * WebP, GIF, AVIF and TIFF (`ACCEPTED` in `lib/assets.ts`); two of that list
+ * are left alone here on purpose. A GIF may be animated, and a canvas knows
+ * only the first frame — a silently flattened animation is worse than being
+ * told the file is too big. An SVG is not a picture of pixels at all (and the
+ * server does not take one anyway). Anything that is not on this list is not
+ * touched either; the server's own words then say what is wrong with it.
+ */
+const REENCODABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/tiff']);
+
+export function mayReencodeType(mime: string): boolean {
+  return REENCODABLE.has(mime.toLowerCase().split(';')[0]?.trim() ?? '');
+}
+
+/**
+ * The ladder the shrinker climbs down: full size first (a re-encode to JPEG
+ * at 0.82 alone often halves a phone's photograph without losing a pixel),
+ * then progressively smaller, stopping at the first step that fits.
+ */
+export const SHRINK_SCALES = [1, 0.85, 0.7, 0.55, 0.42, 0.3] as const;
+
+/**
+ * The pixel sizes to try, in order, for a picture of this size. Pure, so it
+ * can be tested without a canvas: the aspect ratio is kept, nothing is ever
+ * enlarged, a step that rounds to the same size as the one before it is
+ * dropped, and no edge is allowed to round down to nothing.
+ */
+export function shrinkSteps(width: number, height: number): Array<{ width: number; height: number }> {
+  if (!(width > 0) || !(height > 0)) return [];
+  const steps: Array<{ width: number; height: number }> = [];
+  for (const scale of SHRINK_SCALES) {
+    const next = {
+      width: Math.max(1, Math.round(width * Math.min(scale, 1))),
+      height: Math.max(1, Math.round(height * Math.min(scale, 1))),
+    };
+    const last = steps[steps.length - 1];
+    if (last && last.width === next.width && last.height === next.height) continue;
+    steps.push(next);
+  }
+  return steps;
+}
+
+/* --------------------------------------------------------- the answer */
+
 export type UploadResult<T> = { ok: true; data: T } | { ok: false; error: string; status: number };
 
 /** What a refusal by the web server (not the archive) reads as. */
@@ -85,10 +179,12 @@ export async function uploadForm<T>(
  * file, and "image.png" on nine cards is nine cards called image. So a pasted
  * picture with no name of its own gets a dated one.
  *
- * The size ceiling is *not* here. It belongs where the upload happens, which
- * already knows whose ceiling applies (`uploadLimitFor`) — and it is checked
- * again on the server on the bytes that actually arrived (§ `lib/assets.ts`).
- * A paste is a file like any other and goes through exactly the same gate.
+ * The size ceiling is *not* applied here. The numbers live at the top of this
+ * file, but weighing a picture against them belongs where the upload happens,
+ * which already knows whose ceiling applies (`ui.uploadLimit`), shrinks the
+ * picture if it has to (`fitUpload`), and is checked again on the server on
+ * the bytes that actually arrived (§ `lib/assets.ts`). A paste is a file like
+ * any other and goes through exactly the same gate.
  */
 export function imageFromClipboard(event: ClipboardEvent): File | null {
   const data = event.clipboardData;

@@ -144,6 +144,123 @@ export function floorTo(at: number, unit: Scale): number {
   }
 }
 
+/** Exact seconds per unit, for the units that have one. */
+const UNIT_STEP: Record<'day' | 'hour' | 'minute' | 'second', number> = {
+  day: 86400,
+  hour: 3600,
+  minute: 60,
+  second: 1,
+};
+
+/**
+ * The same moment, `n` units later (or earlier, for a negative `n`) — the
+ * calendar's step, not a multiplication: a month after 31 January is the last
+ * day of February, and a year after 29 February 1932 is 28 February 1933,
+ * because `partsToSeconds` keeps a day inside the month that was asked for.
+ * Days and finer are plain seconds: the archive's clock is UTC with no
+ * daylight saving, so an hour is always an hour.
+ */
+export function addUnits(at: number, unit: Scale, n: number): number {
+  if (!Number.isFinite(n) || n === 0) return at;
+  const step = Math.trunc(n);
+  const p = secondsToParts(at);
+  switch (unit) {
+    case 'year':
+      return partsToSeconds({ ...p, year: p.year + step });
+    case 'month': {
+      const total = p.year * 12 + (p.month - 1) + step;
+      const year = Math.floor(total / 12);
+      return partsToSeconds({ ...p, year, month: total - year * 12 + 1 });
+    }
+    default:
+      return at + step * UNIT_STEP[unit];
+  }
+}
+
+/**
+ * The *nearest* boundary of the unit — what a dragged gebeurtenis lands on.
+ * `floorTo` is for ruling the axis (a tick is the start of its unit); this is
+ * for a hand that let go halfway through a day and meant one of the two. The
+ * midpoint rounds up, so half a day past noon is tomorrow.
+ */
+export function snapTo(at: number, unit: Scale): number {
+  if (unit === 'second') return Math.round(at);
+  const lo = floorTo(at, unit);
+  const hi = addUnits(lo, unit, 1);
+  return at - lo >= hi - at ? hi : lo;
+}
+
+/* ------------------------------------------------------------ the anchor */
+
+/**
+ * §35: a zoomed-in tijdlijn may say which day (or month, or year) it is *of* —
+ * "deze tijdlijn speelt op 3 oktober 1931". The anchor is one moment plus the
+ * unit it is known to, and it must be *coarser* than the tijdlijn's own scale:
+ * a tijdlijn measured in minutes can be a day, a tijdlijn measured in days
+ * cannot be (it would have nothing left to measure).
+ *
+ * What it does is small and total: every moment on the axis has its components
+ * from the year down to the anchor's unit overwritten with the anchor's, so a
+ * new gebeurtenis needs only its hour and minute, and neither a drag nor a
+ * double-click can leave the day.
+ */
+export type AnchorUnit = 'year' | 'month' | 'day';
+
+export const ANCHOR_UNITS: AnchorUnit[] = ['year', 'month', 'day'];
+
+export const ANCHOR_UNIT_LABELS: Record<AnchorUnit, string> = {
+  year: 'Een jaar',
+  month: 'Een maand',
+  day: 'Eén dag',
+};
+
+export function isAnchorUnit(value: unknown): value is AnchorUnit {
+  return typeof value === 'string' && (ANCHOR_UNITS as string[]).includes(value);
+}
+
+/** May a tijdlijn measured like this be anchored at all, and to which units? */
+export function anchorUnitsFor(scale: Scale): AnchorUnit[] {
+  return ANCHOR_UNITS.filter((unit) => RANK[unit] < RANK[scale]);
+}
+
+/** The components the anchor fixes: the year, down to its own unit. */
+export function anchorParts(anchorAt: number, anchorUnit: AnchorUnit): Partial<TimeParts> {
+  const p = secondsToParts(anchorAt);
+  if (anchorUnit === 'year') return { year: p.year };
+  if (anchorUnit === 'month') return { year: p.year, month: p.month };
+  return { year: p.year, month: p.month, day: p.day };
+}
+
+/**
+ * The moment `at`, moved onto the anchor's day (or month, or year): everything
+ * from the year down to the anchor's unit is the anchor's, everything finer is
+ * kept. "14:30, whenever" on a 3 October 1931 tijdlijn is 3 October 1931,
+ * 14:30 — which is the whole of the auto-fill.
+ */
+export function applyAnchor(at: number, anchorAt: number | null, anchorUnit: AnchorUnit | null): number {
+  if (anchorAt === null || anchorUnit === null) return at;
+  return partsToSeconds({ ...secondsToParts(at), ...anchorParts(anchorAt, anchorUnit) });
+}
+
+/** The stretch of time an anchored tijdlijn is allowed to show: its own unit, once. */
+export function anchorSpan(anchorAt: number, anchorUnit: AnchorUnit): { from: number; to: number } {
+  const from = floorTo(anchorAt, anchorUnit);
+  return { from, to: addUnits(from, anchorUnit, 1) };
+}
+
+/**
+ * A moment held inside the anchor's span, still on a boundary of `unit`. The
+ * last moment of the span is the start of its last whole `unit`, never the
+ * first second of the next day.
+ */
+export function clampToAnchor(at: number, unit: Scale, anchorAt: number | null, anchorUnit: AnchorUnit | null): number {
+  if (anchorAt === null || anchorUnit === null) return at;
+  const { from, to } = anchorSpan(anchorAt, anchorUnit);
+  if (at < from) return from;
+  if (at >= to) return floorTo(to - 1, unit);
+  return at;
+}
+
 /* ------------------------------------------------------------- printing */
 
 export const MONTHS_NL = [

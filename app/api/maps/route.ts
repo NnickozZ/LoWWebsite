@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { MAP_EDGE, storeImage, tooLargeMessage, uploadLimitFor } from '@/lib/assets';
@@ -19,6 +20,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     if (!user.isKeeper) return json({ error: 'Alleen een Keeper hangt landkaarten op.' }, { status: 403 });
     const form = await request.formData();
     const file = form.get('file');

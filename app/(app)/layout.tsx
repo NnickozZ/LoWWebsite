@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { AppShell } from '@/components/AppShell';
+import { AuthorProvider } from '@/components/you/AuthorProvider';
+import { uploadLimitFor } from '@/lib/assets';
 import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
@@ -63,16 +65,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div data-font={fontAttr}>
       {accentCss && <style>{accentCss}</style>}
-      <AppShell
-        types={types}
-        words={words}
-        me={me}
-        siteName={settings?.name ?? 'Zeeland Case Files'}
-        tagline={settings?.tagline ?? ''}
-        logoAssetId={settings?.logoAssetId ?? null}
-      >
-        {children}
-      </AppShell>
+      {/*
+       * §18b: who this *window* is writing as. Above the shell on purpose —
+       * it has to put the window's remembered answer where the `fetch` patch
+       * can see it before the first request leaves and before `LiveProvider`
+       * opens its `EventSource`, and only a component that renders earlier
+       * than they do can promise that.
+       */}
+      <AuthorProvider me={me} words={words}>
+        <AppShell
+          types={types}
+          words={words}
+          me={me}
+          uploadLimit={uploadLimitFor(me)}
+          siteName={settings?.name ?? 'Zeeland Case Files'}
+          tagline={settings?.tagline ?? ''}
+          logoAssetId={settings?.logoAssetId ?? null}
+        >
+          {children}
+        </AppShell>
+      </AuthorProvider>
     </div>
   );
 }

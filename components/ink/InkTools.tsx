@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
-import { INK_BRUSHES, INK_COLOUR_NAMES, INK_COLOURS, INK_ERASER_WIDTH, type InkMode } from '@/lib/ink/types';
+import { INK_BRUSHES, INK_COLOUR_NAMES, INK_COLOURS, INK_ERASERS, type InkMode } from '@/lib/ink/types';
 import type { InkTool } from './useInk';
 import { MIN_STEP_PX } from './useInk';
 
@@ -10,8 +10,11 @@ import { MIN_STEP_PX } from './useInk';
  * §33: the toolbar and the hand.
  *
  * `InkToolbar` floats in a corner of the stage: a potlood that switches the
- * tekenmodus on, and — while it is on — the eight colours, the three brushes,
- * the gum and an undo button (for a phone, where there is no Ctrl+Z).
+ * tekenmodus on, and — while it is on — the eight colours, three diktes, the
+ * gum and an undo button (for a phone, where there is no Ctrl+Z). The three
+ * diktes are one slot: with the potlood they are the brushes, with the gum
+ * they are the gummen. A second row would wrap the toolbar on a telephone,
+ * and the two are never wanted at once.
  *
  * `InkCapture` is the transparent sheet laid over the stage while the
  * tekenmodus is on. It takes the pointer so the cards, spelden and
@@ -22,7 +25,7 @@ import { MIN_STEP_PX } from './useInk';
 
 const TOOL_KEY = 'ink-tool';
 
-const DEFAULT_TOOL: InkTool = { mode: 'ink', colour: 2, brush: 1 };
+const DEFAULT_TOOL: InkTool = { mode: 'ink', colour: 2, brush: 1, eraser: 1 };
 
 function readTool(): InkTool {
   try {
@@ -33,6 +36,8 @@ function readTool(): InkTool {
       mode: 'ink',
       colour: typeof parsed.colour === 'number' && parsed.colour >= 0 && parsed.colour < INK_COLOURS.length ? parsed.colour : DEFAULT_TOOL.colour,
       brush: typeof parsed.brush === 'number' && parsed.brush >= 0 && parsed.brush < INK_BRUSHES.length ? parsed.brush : DEFAULT_TOOL.brush,
+      // Absent in what was stored before the gum had diktes: the middle one.
+      eraser: typeof parsed.eraser === 'number' && parsed.eraser >= 0 && parsed.eraser < INK_ERASERS.length ? parsed.eraser : DEFAULT_TOOL.eraser,
     };
   } catch {
     return DEFAULT_TOOL;
@@ -50,7 +55,7 @@ export function useInkTool() {
     setToolState((current) => {
       const next = { ...current, ...patch };
       try {
-        window.localStorage.setItem(TOOL_KEY, JSON.stringify({ colour: next.colour, brush: next.brush }));
+        window.localStorage.setItem(TOOL_KEY, JSON.stringify({ colour: next.colour, brush: next.brush, eraser: next.eraser }));
       } catch {
         /* a browser without storage still draws */
       }
@@ -59,6 +64,13 @@ export function useInkTool() {
   }, []);
   return { tool, setTool, active, setActive };
 }
+
+/**
+ * What a gum looks like in the toolbar. A ring, not a dot: a dot is ink you
+ * put down, a ring is ink you take away. The drawn sizes are not the real
+ * widths — 48 px would not fit a 28 px button — but they rank the same.
+ */
+const GUM_RINGS = [10, 14, 20] as const;
 
 export function InkToolbar({
   active,
@@ -105,7 +117,8 @@ export function InkToolbar({
       {active && (
         <>
           <span className="ink-sep" aria-hidden="true" />
-          <span className="ink-colours" role="radiogroup" aria-label="Kleur">
+          {/* Dimmed while the gum is out, so it is never a question which of the two is in the hand. */}
+          <span className={`ink-colours${tool.mode === 'erase' ? ' ink-colours-off' : ''}`} role="radiogroup" aria-label="Kleur">
             {INK_COLOURS.map((colour, index) => (
               <button
                 key={colour}
@@ -122,23 +135,43 @@ export function InkToolbar({
             ))}
           </span>
           <span className="ink-sep" aria-hidden="true" />
-          <span className="ink-brushes" role="radiogroup" aria-label="Dikte">
-            {INK_BRUSHES.map((px, index) => (
-              <button
-                key={px}
-                type="button"
-                role="radio"
-                aria-checked={tool.mode === 'ink' && tool.brush === index}
-                className={`ink-brush${tool.mode === 'ink' && tool.brush === index ? ' ink-brush-on' : ''}`}
-                title={['Dun', 'Normaal', 'Dik'][index]}
-                aria-label={['Dun', 'Normaal', 'Dik'][index]}
-                onClick={() => onTool({ mode: 'ink', brush: index })}
-                data-testid={`ink-brush-${index}`}
-              >
-                <span className="ink-brush-dot" style={{ width: px + 2, height: px + 2 }} />
-              </button>
-            ))}
-          </span>
+          {tool.mode === 'erase' ? (
+            <span className="ink-brushes" role="radiogroup" aria-label="Gumdikte">
+              {INK_ERASERS.map((px, index) => (
+                <button
+                  key={px}
+                  type="button"
+                  role="radio"
+                  aria-checked={tool.eraser === index}
+                  className={`ink-brush${tool.eraser === index ? ' ink-brush-on' : ''}`}
+                  title={['Kleine gum', 'Normale gum', 'Grote gum'][index]}
+                  aria-label={['Kleine gum', 'Normale gum', 'Grote gum'][index]}
+                  onClick={() => onTool({ mode: 'erase', eraser: index })}
+                  data-testid={`ink-eraser-${index}`}
+                >
+                  <span className="ink-gum-ring" style={{ width: GUM_RINGS[index], height: GUM_RINGS[index] }} />
+                </button>
+              ))}
+            </span>
+          ) : (
+            <span className="ink-brushes" role="radiogroup" aria-label="Dikte">
+              {INK_BRUSHES.map((px, index) => (
+                <button
+                  key={px}
+                  type="button"
+                  role="radio"
+                  aria-checked={tool.mode === 'ink' && tool.brush === index}
+                  className={`ink-brush${tool.mode === 'ink' && tool.brush === index ? ' ink-brush-on' : ''}`}
+                  title={['Dun', 'Normaal', 'Dik'][index]}
+                  aria-label={['Dun', 'Normaal', 'Dik'][index]}
+                  onClick={() => onTool({ mode: 'ink', brush: index })}
+                  data-testid={`ink-brush-${index}`}
+                >
+                  <span className="ink-brush-dot" style={{ width: px + 2, height: px + 2 }} />
+                </button>
+              ))}
+            </span>
+          )}
           <span className="ink-sep" aria-hidden="true" />
           <button
             type="button"
@@ -210,7 +243,7 @@ export function InkCapture({
     el.style.transform = `translate(${event.clientX - rect.left}px, ${event.clientY - rect.top}px)`;
   };
 
-  const size = tool.mode === 'erase' ? INK_ERASER_WIDTH : INK_BRUSHES[tool.brush];
+  const size = tool.mode === 'erase' ? INK_ERASERS[tool.eraser] ?? INK_ERASERS[1] : INK_BRUSHES[tool.brush] ?? INK_BRUSHES[1];
 
   return (
     <div

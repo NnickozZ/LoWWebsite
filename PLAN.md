@@ -323,7 +323,9 @@ Phases 1 and 2 of the brief, as a checklist. Tick items as they land; keep this 
       home feed, a dossier's activity, a fiche's history, who is at a wall, "X
       also edited this", proposals, dossier member initials, the reveal picker
       and the rights checkboxes; the account name stays as the tooltip and in
-      Beheer
+      Beheer. *(Reversed by Round 11's §18b: the karakter is written into the
+      row and read back from there, and this display-time lookup is now only
+      the fallback for rows written before that.)*
 
 ### 19. Maps
 
@@ -469,6 +471,11 @@ Sixteen points, delivered together (see `DECISIONS.md`, Phase 6).
 
 ### Uploads
 
+*(The numbers below are what Phase 6 shipped. Round 11 lowered them to 2 MB and
+20 MB, moved the probe's steps to 1.5 / 3 / 21 MB and the nginx line to
+`client_max_body_size 25m;`, and made the browser shrink rather than refuse —
+everything else here still holds.)*
+
 - [x] A player's picture may weigh 10 MB, a Keeper's 100 MB
       (`uploadLimitFor`), checked on the declared size before the body is read
       and on the bytes that arrived; every upload route and every message say
@@ -530,6 +537,203 @@ Sixteen points, delivered together (see `DECISIONS.md`, Phase 6).
       fresh artikel, the dossier's tab row without a bar, the Keeper's welcome
       text on Start and its default when cleared; `entry-live`, `maps`,
       `sort-filter` and `flow-1` also on `next dev`
+
+## Rounds 8, 9 and 10
+
+Nick's list of 5 September, tijdlijnen (§32) and de tekenlaag (§33) were
+delivered as rounds rather than as phases of the brief, and their reasoning is
+in `DECISIONS.md` under those headings; README rules 26–33 are what they left
+behind. Nothing is outstanding from them except the two things Round 9 and
+Round 10 wrote down as *not done, on purpose* — and one of those, dragging a
+gebeurtenis along the axis, is in the round below.
+
+## Round 11 — 6 September 2026: gummen, draden, het volle scherm, de as, en wie er schrijft
+
+Seven items, delivered together (see `DECISIONS.md`, Round 11; README rules 11,
+30, 33, 34, 35, 36 and 37).
+
+### De tekenlaag
+
+- [x] Three gummen (`INK_ERASERS = [12, 24, 48]`) where there was one 22 px
+      gum, on the same strip of three dots as the brushes: with the potlood
+      they are *Dun · Normaal · Dik*, with the gum *Kleine gum · Normale gum ·
+      Grote gum*, drawn as rings rather than discs, and the eight colours dim
+      while the gum is out
+- [x] Nothing on the wire changed and nothing was migrated — a width was always
+      a number clamped to 0.1–4000 — so every old 22 px stroke reads back as 22;
+      `ink-tool` in `localStorage` gained an `eraser` index with a default
+
+### De draad op een prikbord
+
+- [x] Four thicknesses (*Dun · Normaal · Dik · Extra dik* = 1.5/2/4/6.5 board
+      units, default 2, clamped 1–8, rounded to a tenth) and five kinds
+      (*Vol · Streepjes · Stippels · Dubbel · Streep-stip*), both stored on the
+      string and normalised on every read, so no board was migrated
+- [x] Width and dash travel as `--string-w` / `--string-dash` custom properties
+      (a CSS rule beats a presentation attribute — the trap the colour fell into
+      once), and selection *adds* two units instead of replacing the width
+- [x] The hit path is the unbroken centre curve for every kind, widening with
+      the string, so a dashed thread is catchable in its gaps; *Dubbel* is two
+      offset copies of the curve, not a stripe knocked out of one
+- [x] The bar gave up its "Sleep een uiteinde…" hint and wraps between 768 and
+      1199 px
+
+### Uploaden
+
+- [x] The ceilings are 2 MB for a player and 20 MB for a Keeper; the numbers
+      moved to `lib/upload.ts` (pure, so the browser may read them) and
+      `lib/assets.ts` re-exports them and still enforces them twice
+- [x] `uploadLimitFor(me)` reaches every screen as `ui.uploadLimit`, so the
+      sentence under an upload field says the reader's own ceiling
+- [x] `fitUpload` (`components/shrinkImage.ts`) re-encodes an oversized picture
+      to JPEG at 0.82 down a ladder of scales and sends the first that fits,
+      saying "De afbeelding was te groot en is verkleind."; a GIF and an SVG are
+      never re-encoded and get the ordinary refusal; the server still weighs the
+      declared size and the bytes that arrived
+- [x] `client_max_body_size 25m;` (Apache `LimitRequestBody 26214400`), and the
+      probe climbs 1.5 / 3 / 21 MB
+
+### Het volle scherm (§34)
+
+- [x] `.page-canvas` — a viewport-tall column that undoes `.page-wide`'s 1200 px
+      cap, gives back half the gutter either side and stops at the tab bar plus
+      `env(safe-area-inset-bottom)`; `.main`'s paddings are named so the canvas
+      can measure against them, and `:last-child` takes the bottom one back so a
+      page that is only a canvas does not scroll
+- [x] `.canvas-head`: one wrapping baseline row (~64 px, was ~140), description
+      hidden under 768 px, and `padding-right: 2.5rem` holding the corner for
+      the live strip
+- [x] The fourth thing eating the screen: `.live-strip` is a `float` in
+      `main.main`, and a flex `.page-canvas` is kept clear of floats rather than
+      flowing round one — 26 px of column *and* both half-gutter margins, on
+      every screen. On a canvas page it comes out of the flow
+      (`.main:has(.page-canvas) .live-strip`, absolute, in the column's
+      top-right corner)
+- [x] The landkaart's tekenlaag switch goes below the fold with the Keeper's
+      other tools: `InkKeeperControls` portalled from `MapCanvas` into
+      `#map-underfold`, the Keeper-only div the map page renders between
+      `.page-canvas` and `MapKeeperTools`. That one move took the phone stage
+      from 61.7% of the screen to 75.1%. The tijdlijn never had it — its ink
+      switch is in the Instellingen sheet
+- [x] `TimelineCanvas` measures width *and* height with one `ResizeObserver`
+      instead of `STAGE_H_DESKTOP` / `STAGE_H_PHONE`, unclamped in TS (the ink
+      layer is drawn at those pixels; the floor lives in the CSS), and the tag
+      lanes follow the measured height
+- [x] `tests/e2e/canvas-fills-the-screen.spec.ts`; `placeAt` in `maps.spec.ts`
+      takes its fraction from `.map-world` rather than the stage
+- [x] Measured: desktop stage 1188 × 758 (84% of the screen), phone landkaart
+      374 × 634 (75%), phone tijdlijn 374 × 574 (68%), no horizontal overflow at
+      any size, and the invariant `stage width === main width − var(--page-pad)`
+- [ ] The prikbord adopts `.page-canvas` — deliberately left for its own round;
+      `.board-viewport` still carries `calc(100dvh - 320px)` / `- 205px`
+
+### De as (§35)
+
+- [x] A gebeurtenis is dragged along the axis and lands on a whole unit of its
+      own precision; the drop is one PATCH and a press that did not move is
+      still the click that folds the window out
+- [x] Moving an artikel gebeurtenis rewrites `entries.fields.date`, and editing
+      that field moves every gebeurtenis of that artikel — last drag wins, both
+      legs through the single writer `lib/timelines/moment.ts` (plain drizzle,
+      never `updateEntry`; a `busy` flag stops them circling)
+- [x] `anchor_at` + `anchor_unit` (migration `0014_timeline_anchor`): a tijdlijn
+      finer than a day may *speel op* one day, month or year — the components
+      are overwritten from the year down, and the anchor fences the axis
+      (clamped origin, a zoom floor of one span, the same clamp in the service)
+- [x] The fence reads the span and the stage width out of a **ref**, so `fence`
+      and `moveView` are stable: as a `useCallback` over `[span, width]` they
+      changed identity on every anchor and every measure, while `zoomAt` and
+      `addEvent` went on holding the first `moveView` — no span, no width, no
+      fence — and eight zoom-outs walked an anchored tijdlijn out to
+      22 sep – 15 okt while panning stayed clamped
+- [x] `addEvent`, `patchEvent` and `removeEvent` end with `router.refresh()`:
+      `/timelines/[slug]` is a server component, and without it the browser's
+      own Back button lands on the RSC payload from before the write and the
+      tijdlijn comes back empty. Known gap: `MapCanvas` still does not do this
+      for a speld that has been moved
+- [x] The scale radios carry `aria-label` (the word) and `aria-describedby`
+      (the sentence under it), so "Uren — Tot op het uur. Eén dag, één nacht."
+      stops being a radio called *Eén dag*; the Dutch copy is unchanged
+- [x] Placing is one click: a double-click hands the sheet a finished moment
+      with a *Wijzig* behind it, and `?place=` reads the artikel's own date
+- [ ] Not done on purpose: mid-drag ghosting on the live line, dragging between
+      lanes or tijdlijnen, a rubber-band, and `convertEventToEntry` pushing its
+      moment into the new artikel's date
+
+### Wie er schrijft (§18b)
+
+- [x] Every browser window asks a player once — *Met wie ben je nu aan het
+      schrijven?* — remembers it in `sessionStorage` and sends it as
+      `X-Character`; the header is resolved against the fiches the account holds
+      (`lib/auth/author.ts`) and lands on `SessionUser.characterId`, so no route
+      signature carries it and a Keeper always resolves to null
+- [x] Migration `0015_character_attribution`: a nullable `character_id` on
+      `entry_revisions`, `activity`, `audit_log`, `pending_edits`,
+      `case_revisions`, `board_revisions`, `map_pins` and `timeline_events`,
+      never backfilled — NULL still reads the old way
+- [x] `attributed()` / `displayNames()` prefer the recorded id; the revision
+      window and the prikbord's once-a-minute revision compare the karakter as
+      well as the account
+- [x] `requireAuthor` at the top of every mutating handler a player can reach,
+      and one line in `admit()` for the rooms of shared text; three doors open
+      on purpose (`/api/characters`, `/api/client-error`, the live lines), and
+      `?as=` on `/api/live/site` because an `EventSource` sends no headers
+- [x] `AuthorProvider` above `AppShell`, setting the value from a `useState`
+      initialiser and a `useLayoutEffect` so it is in the module box before the
+      first request and before the line opens; `active_character_id` is
+      deliberately not written when a window answers
+- [x] A player with no onderzoeker gets a standing banner and read-only inputs,
+      except that `requireAuthorOrFirstCharacter` lets them make artikelen
+      (`POST /api/entries` only) and tie one on
+- [x] The question is a sheet, so it is never asked from inside one: `ask()` for
+      an editing surface, `ensureAuthor(then)` for the two "nieuw …" roads —
+      the action held, the question asked alone, released by the answer in the
+      same commit (and run synchronously when there is nothing to ask)
+- [x] `lib/sheetStack.ts` makes `Sheet` survive a pile anyway, because the
+      `needsAuthor` refusal is asynchronous and can land over any open sheet:
+      Escape, Tab, the backdrop and the scroll lock belong to the top sheet,
+      `z-index` counts up with the depth, and the `n` shortcut no longer fires
+      while a sheet is open
+- [ ] Still stacking sheets, surviving rather than right by design — a future
+      round: `MapCanvas` (`removePin`'s confirm; the new-speld sheet opening the
+      new-artikel sheet), `TimelineCanvas` (`removeEvent`, the ink-clear
+      confirm), `EventSheets` (new-gebeurtenis → new-artikel), `BoardCanvas`
+      (the ink-clear confirm inside the access sheet). `AddToCaseButton` is the
+      one that already asks first
+- [x] Presence answers a different question from a log: `presenceNames` /
+      `windowPresenceName` for the strip, the cursors, the carets and the ink (a
+      Keeper is their account name, per window); `displayNames` unchanged for
+      feeds and logs; the maps and timelines pages build two name maps
+- [ ] Still per account, on purpose for now: the "gezet door {naam}" labels on a
+      landkaart and a tijdlijn, and the account inside an ink stroke's JSON.
+      `updateEvent` / `updatePin` write no activity row at all (pre-existing)
+
+### Verification
+
+- [x] 539 unit tests in 40 files (round 10: 450 in 37), `tsc --noEmit` clean,
+      `npm run build` clean
+- [x] Playwright against a production build, desktop and phone: **157 passed /
+      25 skipped** (round 10: 137 / 21)
+- [x] New unit suites: `authorship.test.ts`, `author-choice.test.ts`,
+      `sheet-stack.test.ts`, and the additions to `characters.test.ts`,
+      `board-merge.test.ts`, `ink-merge.test.ts`, `upload.test.ts`,
+      `timeline-time.test.ts` and `timelines.test.ts`
+- [x] Playwright: `canvas-fills-the-screen.spec.ts`; the presence-versus-feed
+      spec in `board-live.spec.ts`, which renames the Keeper's word to
+      *Spelleider* so the two rules can fail independently; string thickness and
+      kind in `board-strings-borders.spec.ts`; the drag and the anchor in
+      `timelines.spec.ts`; and the specs whose signed-up players now need an
+      onderzoeker before they may write
+- [x] Two test-side truths, both product-shaped: `waitForURL('**/e/**')` is
+      already true when you are standing on an artikel, so a helper that makes
+      several in a row waits for the address to *change*; and a gum is a streek,
+      so a spec that gums twice presses Ctrl+Z twice before the undo button may
+      go dead
+- [x] `fillWhenReady` in `tests/e2e/helpers.ts` — fill until the field still
+      holds it a beat later, the counterpart of the press-until-it-answers
+      loops — for the "a page that has just navigated is not yet listening"
+      race that made `round-6` (desktop) and `thumbnails` (phone) fail once and
+      pass on a re-run
 
 ## Not started (later phases)
 

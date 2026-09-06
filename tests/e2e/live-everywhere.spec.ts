@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editCase, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editCase, inviteCode, signIn } from './helpers';
 
 /**
  * §21: live is every page.
@@ -19,6 +19,17 @@ async function signUpAs(page: Page, name: string) {
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
   await page.waitForURL('**/');
+}
+
+/*
+ * §18b: filing a dossier and typing its name are both writing, so the player
+ * who does either needs an onderzoeker first — made the way a real player
+ * makes theirs. The name carries the account's inside it, because the strip
+ * and the tag on a field print the onderzoeker.
+ */
+async function signUpWriting(page: Page, name: string) {
+  await signUpAs(page, name);
+  await becomeInvestigator(page, `Onderzoeker ${name}`);
 }
 
 /** Creates a dossier through the API, as the signed-in browser. Returns its path. */
@@ -45,7 +56,7 @@ test('a list grows on the other screen, people see each other, and a name typed 
 
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
-  await signUpAs(other, `Aagje ${stamp}`);
+  await signUpWriting(other, `Aagje ${stamp}`);
 
   // The player files a new dossier; the Keeper's list, never reloaded, shows it.
   const { path } = await newCase(other, `Zaak ${stamp}`);

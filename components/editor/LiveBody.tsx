@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
 import { RichEditor } from './RichEditor';
 import { liveBodyJSON, useLiveDoc, type LivePerson, type LiveSave, type LiveStatus, type LiveUser } from './useLiveDoc';
 
@@ -56,7 +57,14 @@ export function LiveBody({
   const ui = useUi();
   const words = ui.words;
   const live = useLiveDoc({ room, user, initialState: state });
-  const mayType = !readOnly && (live.canEdit ?? canEdit);
+  /*
+   * §18b: a third no, harder than both the others. `canEdit` is the room's,
+   * `readOnly` is the reader's own choice of face, and this is the archive's:
+   * without an onderzoeker there is no name to file a word under, so there is
+   * no typing and no proposing either.
+   */
+  const hasAuthor = useMayType();
+  const mayType = hasAuthor && !readOnly && (live.canEdit ?? canEdit);
   const [proposing, setProposing] = useState(false);
   const [proposalDoc, setProposalDoc] = useState<unknown>(null);
 
@@ -84,7 +92,7 @@ export function LiveBody({
         live={{ doc: live.doc, provider: live.provider, user }}
       />
 
-      {proposals && !mayType && !proposing && (
+      {proposals && hasAuthor && !mayType && !proposing && (
         <p className="row-wrap" style={{ margin: '0.5rem 0 0' }}>
           <button
             type="button"

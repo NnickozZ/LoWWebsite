@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
@@ -51,6 +52,8 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { target, id } = parseTarget(new URL(request.url));
     const body = (await request.json()) as AccessPatch;
     const patch: AccessPatch = {};

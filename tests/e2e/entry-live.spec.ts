@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editArticle, inviteCode, signIn } from './helpers';
 
 /**
  * §20: two people in one fiche's text.
@@ -18,6 +18,18 @@ async function signUpAs(page: Page, name: string) {
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
   await page.waitForURL('**/');
+}
+
+/*
+ * §18b: typing in a shared text is writing, so a player who is going to type
+ * here needs an onderzoeker — and gets one the way a real player does, by
+ * making the artikel that becomes them. The onderzoeker carries the account's
+ * name inside its own, because the caret and the strip print the *onderzoeker*
+ * and the assertions below are about being able to tell two people apart.
+ */
+async function signUpWriting(page: Page, name: string) {
+  await signUpAs(page, name);
+  await becomeInvestigator(page, `Onderzoeker ${name}`);
 }
 
 async function newEntry(page: Page, name: string): Promise<string> {
@@ -45,7 +57,7 @@ test('what one person types, the other sees as it is typed — and it is saved',
 
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
-  await signUpAs(other, `Aagje ${stamp}`);
+  await signUpWriting(other, `Aagje ${stamp}`);
   await other.goto(path);
   // §22: a player lands on the reading face, where the text is live but has no
   // caret. This test is about two people typing, so ask for the other face.
@@ -96,7 +108,7 @@ test('someone who may only look sees the text live, and proposes rather than typ
   test.setTimeout(150_000);
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
 
-  await signUpAs(page, `Eigenaar ${stamp}`);
+  await signUpWriting(page, `Eigenaar ${stamp}`);
   const path = await newEntry(page, `Dagboek ${stamp}`);
   await page.waitForTimeout(800);
   await page.locator('summary', { hasText: /^\s*Rechten/ }).click();
@@ -105,7 +117,7 @@ test('someone who may only look sees the text live, and proposes rather than typ
 
   const readerCtx = await browser.newContext();
   const reader = await readerCtx.newPage();
-  await signUpAs(reader, `Lezer ${stamp}`);
+  await signUpWriting(reader, `Lezer ${stamp}`);
   await reader.goto(path);
   // §22: proposing is an act of editing, so the button for it is on the
   // editing face. The reading face shows this same text and nothing to press.

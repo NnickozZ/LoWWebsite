@@ -91,16 +91,26 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
               <legend className="label">Gemeten in</legend>
               {SCALES.map((option) => (
                 <label key={option} className={`timeline-scale-option${scale === option ? ' timeline-scale-option-on' : ''}`}>
+                  {/*
+                   * The measure is the name of this choice; the line under it
+                   * is what the choice *means*. Without saying so the two run
+                   * together into one accessible name — "Seconden. Tot op de
+                   * seconde. De laatste twee minuten." is then a radio called
+                   * "minuten" as much as the one above it is — so the name is
+                   * the word and the sentence is its description.
+                   */}
                   <input
                     type="radio"
                     name="new-timeline-scale"
                     value={option}
                     checked={scale === option}
                     onChange={() => setScale(option)}
+                    aria-label={SCALE_LABELS[option]}
+                    aria-describedby={`new-timeline-scale-${option}-hint`}
                   />
                   <span>
                     <strong>{SCALE_LABELS[option]}</strong>
-                    <span className="tiny muted" style={{ display: 'block' }}>
+                    <span className="tiny muted" id={`new-timeline-scale-${option}-hint`} style={{ display: 'block' }}>
                       {SCALE_HINTS[option]}
                     </span>
                   </span>

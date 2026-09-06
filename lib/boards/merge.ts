@@ -163,12 +163,38 @@ export type StringColour = keyof typeof STRING_COLOURS;
 export const STRING_COLOUR_KEYS = Object.keys(STRING_COLOURS) as StringColour[];
 export const DEFAULT_STRING_COLOUR: StringColour = 'red';
 
+/**
+ * How thick a string is, in **board units** — the same units a card's position
+ * is in, so a thread grows and shrinks with the zoom exactly like the 2 every
+ * board was drawn with before this existed. That is deliberate, and unlike the
+ * tekenlaag, whose widths are measured on the screen: a piece of string is a
+ * thing on the wall, not ink on the glass.
+ *
+ * The bar offers four of them; the range is what is *allowed*, so a value off
+ * the wire is clamped rather than refused.
+ */
+export const STRING_WIDTH_MIN = 1;
+export const STRING_WIDTH_MAX = 8;
+export const DEFAULT_STRING_WIDTH = 2;
+export const STRING_WIDTH_PRESETS = [1.5, 2, 4, 6.5] as const;
+
+/**
+ * And how it is drawn. Stored as a key for the same reason a colour is: nothing
+ * a client sends ends up inside a style attribute.
+ */
+export const STRING_STYLES = ['solid', 'dashed', 'dotted', 'double', 'dashdot'] as const;
+export type StringStyle = (typeof STRING_STYLES)[number];
+export const DEFAULT_STRING_STYLE: StringStyle = 'solid';
+
 export type BoardString = {
   id: string;
   from: Endpoint;
   to: Endpoint;
   label: string;
   colour: StringColour;
+  /** Board units. Defaults to 2, which is what every board looked like before. */
+  width: number;
+  style: StringStyle;
 };
 
 export type Viewport = { x: number; y: number; zoom: number };
@@ -260,6 +286,51 @@ export function stringColourValue(colour: StringColour | undefined): string {
 }
 
 /**
+ * A thickness off the wire, or out of a board saved before this existed, made
+ * safe: anything that is not a finite number becomes the default 2, and the
+ * rest is clamped to the allowed range and rounded to a tenth of a unit.
+ */
+export function normaliseStringWidth(input: unknown): number {
+  const raw = clampNumber(input, DEFAULT_STRING_WIDTH);
+  const rounded = Math.round(raw * 10) / 10;
+  return Math.min(STRING_WIDTH_MAX, Math.max(STRING_WIDTH_MIN, rounded));
+}
+
+function normaliseStringStyle(input: unknown): StringStyle {
+  return typeof input === 'string' && (STRING_STYLES as readonly string[]).includes(input)
+    ? (input as StringStyle)
+    : DEFAULT_STRING_STYLE;
+}
+
+/** Keeps `1.5 * 2.2` from reaching a style attribute as 3.3000000000000003. */
+function tidy(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * The dash pattern for a style, in board units, scaled to the thickness so a
+ * thick dashed line has long dashes rather than a dotted look.
+ *
+ * `undefined` means an unbroken line: `solid`, and `double`, which is two whole
+ * strokes side by side rather than a pattern (see `stringPathOffset` on the
+ * canvas). Round caps are already on, which is what turns a zero-length dash
+ * into a dot.
+ */
+export function stringDash(style: StringStyle | undefined, width: number): string | undefined {
+  const w = normaliseStringWidth(width);
+  switch (style) {
+    case 'dashed':
+      return `${tidy(w * 3)} ${tidy(w * 2.2)}`;
+    case 'dotted':
+      return `${tidy(w * 0.01)} ${tidy(w * 2.4)}`;
+    case 'dashdot':
+      return `${tidy(w * 3)} ${tidy(w * 2)} ${tidy(w * 0.01)} ${tidy(w * 2)}`;
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Accepts the old shape — a bare card id — as well as the current one, so a
  * board saved before loose ends existed still opens.
  */
@@ -319,6 +390,11 @@ function normaliseString(line: unknown): BoardString | null {
     to,
     label: typeof raw.label === 'string' ? raw.label.slice(0, 200) : '',
     colour: normaliseColour(raw.colour),
+    // A board saved before strings had a thickness or a kind gets the look it
+    // has always had. No migration: the state is one JSON blob, and the
+    // defaults are applied every time it is read.
+    width: normaliseStringWidth(raw.width),
+    style: normaliseStringStyle(raw.style),
   };
 }
 

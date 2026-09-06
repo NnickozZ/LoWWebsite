@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editArticle, inviteCode, signIn } from './helpers';
 
 /**
  * §17: who may look, and who may touch.
@@ -20,14 +20,31 @@ async function signUpAs(page: Page, name: string) {
   await page.waitForURL('**/');
 }
 
+/*
+ * §18b: everybody in this file writes something — a dial is a write, a
+ * proposal is a write, and even the refusals asserted here have to be
+ * refusals about *rights* rather than about who is holding the pen. So each
+ * player makes their onderzoeker first, the way a real one does: the archive
+ * lets a speler with nobody make an artikel, and that artikel becomes them.
+ */
+async function signUpWriting(page: Page, name: string) {
+  await signUpAs(page, name);
+  await becomeInvestigator(page, `Onderzoeker ${name}`);
+}
+
 /** The entry page folds its rights behind a <summary>, not a button. */
 async function openRights(page: Page) {
   await page.locator('summary', { hasText: /^\s*Rechten/ }).click();
 }
 
 async function newEntry(page: Page, name: string): Promise<string> {
-  await page.keyboard.press('n');
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  // The `n` shortcut needs the page hydrated; right after a navigation it may
+  // not be yet, so press again until the sheet answers.
+  for (let attempt = 0; attempt < 8 && !(await sheet.isVisible()); attempt++) {
+    await page.keyboard.press('n');
+    await page.waitForTimeout(400);
+  }
   await sheet.getByLabel('Naam').fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
@@ -41,7 +58,7 @@ test('a private fiche is nobody else\'s, and a Keeper sees it anyway', async ({ 
   const entryName = `Geheim dagboek ${stamp}`;
 
   // The owner: a player, not a Keeper.
-  await signUpAs(page, ownerName);
+  await signUpWriting(page, ownerName);
   const path = await newEntry(page, entryName);
   await page.waitForTimeout(1200);
 
@@ -81,7 +98,7 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
   const entryName = `Logboek ${stamp}`;
 
-  await signUpAs(page, `Eigenaar ${stamp}`);
+  await signUpWriting(page, `Eigenaar ${stamp}`);
   const path = await newEntry(page, entryName);
   await page.waitForTimeout(1000);
 
@@ -92,7 +109,7 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
 
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
-  await signUpAs(other, `Lezer ${stamp}`);
+  await signUpWriting(other, `Lezer ${stamp}`);
   await other.goto(path);
   // §22: a player lands on the reading face; the note about proposals belongs
   // to the editing one, where it changes what the next keystroke does.
@@ -122,7 +139,7 @@ test('a private board is created private, and a chosen person may look but not p
   test.setTimeout(150_000);
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
 
-  await signUpAs(page, `Eigenaar ${stamp}`);
+  await signUpWriting(page, `Eigenaar ${stamp}`);
   await page.goto('/boards');
   await page.getByRole('button', { name: /Privé prikbord/ }).click();
   await page.waitForURL('**/b/**');
@@ -134,7 +151,9 @@ test('a private board is created private, and a chosen person may look but not p
   const strangerCtx = await browser.newContext();
   const stranger = await strangerCtx.newPage();
   const strangerName = `Vreemde ${stamp}`;
-  await signUpAs(stranger, strangerName);
+  // Their own onderzoeker, so the API's "no" below is about the prikbord's
+  // rights and not about §18b's question.
+  await signUpWriting(stranger, strangerName);
   await stranger.goto('/boards');
   await expect(stranger.getByText(`Muur ${stamp}`)).toHaveCount(0);
   const direct = await stranger.goto(boardUrl);

@@ -1,8 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { canManageAccess, loadAccessRow } from '@/lib/access';
-import { displayNames } from '@/lib/characters';
+import { characterNames, displayNames } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { docToText } from '@/lib/entries/doc';
+import type { Author } from '@/lib/auth/author';
 import { logActivity, logAudit, updateEntry, type EntryPatch } from '@/lib/entries/service';
 import { visibleEntryCondition } from '@/lib/entries/visibility';
 
@@ -74,6 +75,8 @@ export function listPendingEdits(entryId?: string): PendingEdit[] {
       entryId: schema.pendingEdits.entryId,
       proposedSnapshot: schema.pendingEdits.proposedSnapshot,
       proposedBy: schema.pendingEdits.proposedBy,
+      /** §18b: the onderzoeker the proposal was written as. NULL: before §18b. */
+      writtenAs: schema.pendingEdits.characterId,
       createdAt: schema.pendingEdits.createdAt,
       entryName: schema.entries.name,
       entrySlug: schema.entries.slug,
@@ -104,9 +107,14 @@ export function listPendingEdits(entryId?: string): PendingEdit[] {
         : [],
     ),
   );
+  // §18b: per row, not per account — one person may have two proposals open
+  // under two names, and the queue has to say which onderzoeker wrote which.
+  const recorded = characterNames(rows.map((row) => row.writtenAs));
 
   return rows.map((row) => {
     const named = row.proposedBy ? names.get(row.proposedBy) : undefined;
+    const written =
+      row.writtenAs && !row.proposedByIsKeeper ? recorded.get(row.writtenAs) : undefined;
     const snapshot = (row.proposedSnapshot ?? {}) as Record<string, unknown>;
     const current: Record<string, unknown> = {
       name: row.entryName,
@@ -133,7 +141,7 @@ export function listPendingEdits(entryId?: string): PendingEdit[] {
       entrySlug: row.entrySlug,
       entryName: row.entryName,
       proposedBy: row.proposedBy,
-      proposedByName: named?.label ?? row.proposedByName,
+      proposedByName: written ?? named?.label ?? row.proposedByName,
       proposedByAccount: named?.account ?? row.proposedByName,
       createdAt: row.createdAt,
       fields,
@@ -157,7 +165,7 @@ export function countPendingEdits(): number {
  */
 export function approvePendingEdit(
   pendingId: string,
-  reviewer: { id: string; isKeeper: boolean },
+  reviewer: Author,
   note = '',
 ) {
   const row = db
@@ -172,7 +180,9 @@ export function approvePendingEdit(
   const patch = Object.fromEntries(
     Object.entries(snapshot).filter(([key]) => key in FIELD_LABELS),
   ) as EntryPatch;
-  updateEntry(row.entryId, patch, { id: reviewer.id, isKeeper: true });
+  // §18b: applied as the reviewer, under the onderzoeker *they* are writing
+  // as — the proposer's own is kept on the pending row, where it was made.
+  updateEntry(row.entryId, patch, { id: reviewer.id, isKeeper: true, characterId: reviewer.characterId ?? null });
 
   db.update(schema.pendingEdits)
     .set({
@@ -184,9 +194,15 @@ export function approvePendingEdit(
     .where(eq(schema.pendingEdits.id, pendingId))
     .run();
 
-  logActivity({ actorId: reviewer.id, verb: 'entry.edit_approved', entryId: row.entryId });
+  logActivity({
+    actorId: reviewer.id,
+    characterId: reviewer.characterId ?? null,
+    verb: 'entry.edit_approved',
+    entryId: row.entryId,
+  });
   logAudit({
     actorId: reviewer.id,
+    characterId: reviewer.characterId ?? null,
     action: 'pending_edit.approved',
     targetType: 'entry',
     targetId: row.entryId,
@@ -196,7 +212,7 @@ export function approvePendingEdit(
 
 export function rejectPendingEdit(
   pendingId: string,
-  reviewer: { id: string; isKeeper: boolean },
+  reviewer: Author,
   note = '',
 ) {
   const row = db
@@ -219,6 +235,7 @@ export function rejectPendingEdit(
 
   logAudit({
     actorId: reviewer.id,
+    characterId: reviewer.characterId ?? null,
     action: 'pending_edit.rejected',
     targetType: 'entry',
     targetId: row.entryId,

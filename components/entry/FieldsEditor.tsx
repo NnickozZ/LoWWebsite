@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
 import { LiveField, useLiveFields } from '@/components/live/LiveFields';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import type { FieldDef } from '@/lib/db/schema';
 import type { CaseRef } from '@/lib/cases/service';
 import { caseIdsIn } from '@/lib/entries/caseFields';
@@ -251,7 +252,7 @@ export function FieldsEditor({
   fields,
   values,
   onChange,
-  readOnly = false,
+  readOnly: locked = false,
   hideLabels = false,
   compact = false,
   cases = {},
@@ -275,10 +276,19 @@ export function FieldsEditor({
    */
   hideLabels?: boolean;
 }) {
+  /*
+   * §18b: without an onderzoeker there is no name to file a change under, so
+   * every box in the infobox is a printed fact rather than a field — and the
+   * first touch of anyone who has not yet chosen asks who they are writing as.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  const readOnly = locked || !mayType;
+
   if (!fields.length) return null;
 
   return (
-    <div className={compact ? 'stack fields-compact' : 'stack'}>
+    <div className={compact ? 'stack fields-compact' : 'stack'} {...gate}>
       {fields.map((field) => {
         const value = values[field.key];
         const set = (next: unknown) => onChange({ [field.key]: next });

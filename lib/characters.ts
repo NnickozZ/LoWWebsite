@@ -14,10 +14,25 @@ import { logActivity } from '@/lib/entries/service';
  * Nothing about rights lives here. §17 is per account; a character is a name
  * a person wears, and taking it off changes nothing about what they may open.
  *
- * Attribution is resolved at display time from whoever is active *now*, not
- * recorded per act. Switching character re-labels a person's past too — which,
- * for a campaign wiki, is the honest reading: the person did those things, and
- * this is who they are being. The account name is always one tooltip away.
+ * **Attribution is recorded, not re-derived** (§18b). It used to be the other
+ * way: every label was looked up from whoever was active *now*, so switching
+ * character re-labelled a person's past as well. That was defensible while one
+ * account meant one investigator at a time. It stopped being defensible when
+ * the archive started asking each browser window "Met wie ben je nu aan het
+ * schrijven?" — a player who plays two onderzoekers in two windows would have
+ * seen both windows' work collapse under whichever name they last picked, and
+ * the log would have lied about who found what. So the karakter is written into
+ * the row at the moment of the act (`character_id`, migration 0015) and read
+ * back from there.
+ *
+ * The old behaviour is not gone, it is the *fallback*. A row with a NULL
+ * `character_id` was written before the archive asked, and is still labelled
+ * from the account's karakter of the day — nothing was backfilled, so a feed
+ * from last month reads exactly as it read last month. `attributed()` and
+ * `displayNames()` prefer the recorded id and fall through to the live lookup
+ * when there is none.
+ *
+ * The account name is always one tooltip away, either way.
  */
 
 export type CharacterLite = {
@@ -177,7 +192,34 @@ export function activeCharacterNames(userIds: string[]): Map<string, string> {
   return new Map(rows.map((row) => [row.userId, row.name]));
 }
 
-export type Named = { id: string; username: string; isKeeper: boolean };
+/**
+ * §18b: the names of these fiches, by entry id — for a row that recorded which
+ * karakter wrote it. No visibility rule and no tie check: it is a name that was
+ * printed once already, and looking it up again must not turn it into a blank.
+ * A fiche in the bin has no name here, and the caller falls back to the account.
+ */
+export function characterNames(entryIds: (string | null | undefined)[]): Map<string, string> {
+  const ids = [...new Set(entryIds.filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return new Map();
+  const rows = db
+    .select({ id: schema.entries.id, name: schema.entries.name })
+    .from(schema.entries)
+    .where(and(inArray(schema.entries.id, ids), isNull(schema.entries.deletedAt)))
+    .all();
+  return new Map(rows.map((row) => [row.id, row.name]));
+}
+
+/**
+ * One person as a feed prints them. `characterId` is the karakter *this row*
+ * recorded (§18b); leave it out and the label falls back to whoever the person
+ * is wearing now, which is what every row written before §18b gets.
+ */
+export type Named = {
+  id: string;
+  username: string;
+  isKeeper: boolean;
+  characterId?: string | null;
+};
 
 /**
  * `displayName(...)` for a list: the shape every feed and log wants — what to
@@ -187,11 +229,15 @@ export function displayNames(
   people: Named[],
   keeperWord = 'Keeper',
 ): Map<string, { label: string; account: string }> {
-  const characters = activeCharacterNames(people.map((p) => p.id));
+  const worn = activeCharacterNames(people.map((p) => p.id));
+  // §18b: the karakter each row recorded, resolved in one more query.
+  const recorded = characterNames(people.map((p) => p.characterId));
   const out = new Map<string, { label: string; account: string }>();
   for (const person of people) {
+    const written = person.characterId ? recorded.get(person.characterId) : undefined;
     out.set(person.id, {
-      label: person.isKeeper ? keeperWord : (characters.get(person.id) ?? person.username),
+      // A Keeper is always the Keeper's word, whatever a row happens to carry.
+      label: person.isKeeper ? keeperWord : (written ?? worn.get(person.id) ?? person.username),
       account: person.username,
     });
   }
@@ -210,16 +256,111 @@ export function displayNameOf(userId: string | null, keeperWord = 'Keeper'): { l
   return displayNames([user], keeperWord).get(userId) ?? null;
 }
 
-/** The shape every log row already carries: an account, its name, its Keeper flag. */
-export type Actor = { actorId: string | null; actorName: string | null; actorIsKeeper: boolean };
+/**
+ * The same pair again, for the live layer only — ghost cursors, the "ook hier"
+ * strip, the caret in a shared text, the hand on a card, the ink someone is
+ * drawing. A player is unchanged: they are the Onderzoeker they are wearing.
+ * A Keeper is their account name, not the Keeper's word.
+ *
+ * The split is deliberate. A log says what the Keeper *did* — one voice, one
+ * word, §11 — and a Keeper is always the Keeper there. A presence strip says
+ * *who is here*, and a room full of identical "Keeper" arrows is not a name:
+ * two Keepers at one prikbord could not tell each other apart, and neither
+ * could anyone watching them. So `displayNames` stays exactly as it is, and
+ * only the live layer calls these.
+ *
+ * §18b changes nothing here either: a `characterId` on a `Named` is what a row
+ * once recorded, and presence is not about a row — it is about who is standing
+ * in this room *now*. These two deliberately ignore it. What the live line does
+ * do is resolve the name from the *window's* karakter before it ever gets here
+ * (`app/api/live/site/route.ts`), so two windows of one account show as two
+ * investigators.
+ */
+export function presenceNames(
+  people: Named[],
+  keeperWord = 'Keeper',
+): Map<string, { label: string; account: string }> {
+  const characters = activeCharacterNames(people.map((p) => p.id));
+  const out = new Map<string, { label: string; account: string }>();
+  for (const person of people) {
+    out.set(person.id, {
+      // `username` is notNull, so this only falls back for a blank one.
+      label: person.isKeeper
+        ? person.username.trim() || keeperWord
+        : (characters.get(person.id) ?? person.username),
+      account: person.username,
+    });
+  }
+  return out;
+}
+
+/** One person's presence label, for the places that only ever have one. */
+export function presenceNameOf(
+  userId: string | null,
+  keeperWord = 'Keeper',
+): { label: string; account: string } | null {
+  if (!userId) return null;
+  const user = db
+    .select({ id: schema.users.id, username: schema.users.username, isKeeper: schema.users.isKeeper })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+  if (!user) return null;
+  return presenceNames([user], keeperWord).get(userId) ?? null;
+}
+
+/**
+ * §18b: the name the live layer shows for *this browser window*.
+ *
+ * `presenceNameOf` answers per account — the karakter that account is wearing
+ * now. That was the same thing while a person had one window; it is not, now
+ * that each window chooses. This is the one the live line, the strip, the
+ * ghost cursors and the carets use, so a person playing two onderzoekers in
+ * two tabs is two people on the wall rather than one name twice.
+ *
+ * A Keeper is their account name, exactly as `presenceNames` has it: on a
+ * strip the Keeper's word is not a name.
+ */
+export function windowPresenceName(
+  user: { id: string; username: string; isKeeper: boolean; characterId?: string | null } | null,
+  keeperWord = 'Keeper',
+): string {
+  if (!user) return '';
+  if (!user.isKeeper && user.characterId) {
+    const worn = characterNames([user.characterId]).get(user.characterId);
+    if (worn) return worn;
+  }
+  return (
+    presenceNames([{ id: user.id, username: user.username, isKeeper: user.isKeeper }], keeperWord).get(user.id)
+      ?.label ?? user.username
+  );
+}
+
+/**
+ * The shape every log row already carries: an account, its name, its Keeper
+ * flag — and, since §18b, the karakter the row was written as. A row with
+ * `characterId` null was written before the archive asked, and falls back to
+ * the account's karakter of the day.
+ */
+export type Actor = {
+  actorId: string | null;
+  actorName: string | null;
+  actorIsKeeper: boolean;
+  characterId?: string | null;
+};
 
 /** What a log row prints for its actor, and the account behind it for the tooltip. */
 export type Attributed = { actorLabel: string | null; actorAccount: string | null };
 
 /**
  * Re-labels a feed: `actorName` stays the account, `actorLabel` becomes the
- * character the person is wearing right now (or the Keeper's word). One query
- * for the whole list, so a page can call this on every feed it shows.
+ * karakter the row was *written as* — or, for a row from before §18b, the one
+ * that person is wearing right now. Two queries for the whole list, so a page
+ * can call this on every feed it shows.
+ *
+ * Note that the fallback is per account and the recorded name is per row: one
+ * account may appear twice in one feed under two names, which is the whole
+ * point — that is two investigators at the same table.
  */
 export function attributed<T extends Actor>(items: T[], keeperWord = 'Keeper'): (T & Attributed)[] {
   const people: Named[] = [];
@@ -229,12 +370,17 @@ export function attributed<T extends Actor>(items: T[], keeperWord = 'Keeper'): 
     seen.add(item.actorId);
     people.push({ id: item.actorId, username: item.actorName ?? '', isKeeper: item.actorIsKeeper });
   }
+  // Whoever they are wearing now, for the rows that recorded nothing…
   const names = displayNames(people, keeperWord);
+  // …and the names of the karakters the rows themselves name.
+  const recorded = characterNames(items.map((item) => item.characterId));
   return items.map((item) => {
     const named = item.actorId ? names.get(item.actorId) : undefined;
+    const written = item.characterId ? recorded.get(item.characterId) : undefined;
     return {
       ...item,
-      actorLabel: named?.label ?? item.actorName,
+      // A Keeper is always the Keeper's word, whatever a row happens to carry.
+      actorLabel: (item.actorIsKeeper ? undefined : written) ?? named?.label ?? item.actorName,
       actorAccount: named?.account ?? item.actorName,
     };
   });

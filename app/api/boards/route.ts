@@ -1,4 +1,5 @@
 import { viewerCanEdit } from '@/lib/access';
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { createBoard, listBoards } from '@/lib/boards/service';
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const body = (await request.json()) as {
       name?: string;
       caseId?: string;
@@ -65,6 +68,8 @@ export async function POST(request: Request) {
       name: name || 'Naamloos prikbord',
       caseId: body.caseId ?? null,
       createdBy: user.id,
+      // §18b: hung *as* somebody.
+      characterId: user.characterId,
       isPrivate: body.isPrivate === true,
     });
     return json({ board });

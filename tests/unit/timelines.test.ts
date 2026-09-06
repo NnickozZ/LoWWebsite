@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { partsToSeconds } from '@/lib/timelines/time';
+import { formatWhen, partsToSeconds } from '@/lib/timelines/time';
 
 /**
  * §32: tijdlijnen and their gebeurtenissen, behind the archive's rules.
@@ -28,6 +28,7 @@ type Deps = {
   sqlite: typeof import('@/lib/db').sqlite;
   service: typeof import('@/lib/timelines/service');
   createEntry: typeof import('@/lib/entries/service').createEntry;
+  updateEntry: typeof import('@/lib/entries/service').updateEntry;
   trash: typeof import('@/lib/admin/trash');
   canWatch: typeof import('@/lib/live/gate').canWatch;
   keysOfStatement: typeof import('@/lib/live/changes').keysOfStatement;
@@ -50,6 +51,7 @@ beforeAll(async () => {
     sqlite: dbModule.sqlite,
     service: await import('@/lib/timelines/service'),
     createEntry: (await import('@/lib/entries/service')).createEntry,
+    updateEntry: (await import('@/lib/entries/service')).updateEntry,
     trash: await import('@/lib/admin/trash'),
     canWatch: (await import('@/lib/live/gate')).canWatch,
     keysOfStatement: (await import('@/lib/live/changes')).keysOfStatement,
@@ -240,6 +242,134 @@ describe('gebeurtenissen', () => {
     expect(deps.keysOfStatement('update "timelines" set "name" = ? where "timelines"."id" = ?', ['x', 't1'])).toEqual(
       expect.arrayContaining(['timelines', 'timeline:t1']),
     );
+    // §35: and so does a move — the gebeurtenis that was dragged, and the
+    // artikel whose date it just rewrote.
+    expect(
+      deps.keysOfStatement('update "timeline_events" set "at" = ?, "updated_at" = ? where "timeline_events"."id" = ?', [1, 2, 'e1']),
+    ).toEqual(expect.arrayContaining(['timelines', 'event:e1']));
+    expect(
+      deps.keysOfStatement('update "entries" set "fields" = ?, "updated_at" = ? where "entries"."id" = ?', ['{}', 2, 'a1']),
+    ).toEqual(expect.arrayContaining(['entries', 'feed', 'entry:a1']));
+  });
+});
+
+/**
+ * §35: a gebeurtenis is dragged, and the artikel behind it moves with it.
+ *
+ *  1. Dragging an artikel gebeurtenis rewrites `entries.fields.date` and
+ *     nothing else in that infobox — through `lib/timelines/moment.ts`, never
+ *     `updateEntry`, so it is a move and not a proposal.
+ *  2. Editing the artikel's date is the same fact from the other side: every
+ *     gebeurtenis of it, on every tijdlijn, moves.
+ *  3. The last drag wins: the same artikel on two tijdlijnen moves on both,
+ *     each snapped to its own gebeurtenis's precision.
+ *  4. An anchored tijdlijn fills a new gebeurtenis in and fences the axis.
+ */
+describe('dragging a gebeurtenis, and the artikel behind it', () => {
+  const APRIL_2 = partsToSeconds({ year: 1931, month: 4, day: 2 });
+
+  function fieldsOf(entryId: string): Record<string, unknown> {
+    const row = deps.sqlite.prepare('SELECT fields FROM entries WHERE id = ?').get(entryId) as { fields: string };
+    return JSON.parse(row.fields) as Record<string, unknown>;
+  }
+
+  it('writes the moment into the artikel\'s date, and touches nothing else in the infobox', () => {
+    const line = deps.service.createTimeline({ name: 'De sleep', scale: 'day' }, BRAM);
+    const art = deps.createEntry({
+      typeSlug: 'event',
+      name: 'De sleepboot',
+      createdBy: BRAM.id,
+      fields: { place: 'Vlissingen' },
+    });
+    const event = deps.service.addEvent(line.id, { kind: 'entry', entryId: art.id, at: MARCH_12, precision: 'day' }, BRAM);
+
+    // Let go three days and twenty hours along: the nearest whole day is the 16th.
+    const moved = deps.service.updateEvent(event.id, { at: MARCH_12 + 86400 * 3 + 3600 * 20 }, BRAM);
+    expect(formatWhen(moved.at, moved.precision)).toBe('16 maart 1931');
+    expect(fieldsOf(art.id)).toEqual({ place: 'Vlissingen', date: '16 maart 1931' });
+
+    // A losse gebeurtenis has no artikel to write to, and writes to none.
+    const note = deps.service.addEvent(line.id, { kind: 'note', name: 'Mist', at: MARCH_12 }, BRAM);
+    const nudged = deps.service.updateEvent(note.id, { at: MARCH_12 + 3600 * 20 }, BRAM);
+    expect(formatWhen(nudged.at, nudged.precision)).toBe('13 maart 1931');
+  });
+
+  it('and the other way round: the artikel\'s date moves every gebeurtenis of it', () => {
+    const line = deps.service.createTimeline({ name: 'Heen en terug', scale: 'day' }, BRAM);
+    const art = deps.createEntry({ typeSlug: 'event', name: 'De terugweg', createdBy: BRAM.id });
+    const event = deps.service.addEvent(line.id, { kind: 'entry', entryId: art.id, at: MARCH_12, precision: 'day' }, BRAM);
+
+    const saved = deps.updateEntry(art.id, { fields: { date: '2 april 1931' } }, BRAM);
+    expect(saved.status).toBe('saved');
+    const after = deps.service.getEvent(event.id, BRAM)!;
+    expect(after.at).toBe(APRIL_2);
+    expect(after.precision).toBe('day');
+
+    // A date nobody can read moves nothing.
+    deps.updateEntry(art.id, { fields: { date: 'ergens in de zomer' } }, BRAM);
+    expect(deps.service.getEvent(event.id, BRAM)!.at).toBe(APRIL_2);
+  });
+
+  it('the last drag wins: the same artikel on two tijdlijnen moves on both', () => {
+    const days = deps.service.createTimeline({ name: 'De dagen', scale: 'day' }, BRAM);
+    const years = deps.service.createTimeline({ name: 'De jaren', scale: 'year' }, BRAM);
+    const art = deps.createEntry({ typeSlug: 'event', name: 'De vondst in twee lijnen', createdBy: BRAM.id });
+    const onDays = deps.service.addEvent(days.id, { kind: 'entry', entryId: art.id, at: MARCH_12, precision: 'day' }, BRAM);
+    const onYears = deps.service.addEvent(
+      years.id,
+      { kind: 'entry', entryId: art.id, at: partsToSeconds({ year: 1931 }), precision: 'year' },
+      BRAM,
+    );
+
+    // Dragged on the tijdlijn of days, to 9 May 1932.
+    deps.service.updateEvent(onDays.id, { at: partsToSeconds({ year: 1932, month: 5, day: 9 }) }, BRAM);
+    expect(fieldsOf(art.id).date).toBe('9 mei 1932');
+    // The tag on the tijdlijn of years went with it — snapped to its own
+    // precision, which is a year: it does not learn a day it never knew.
+    const year = deps.service.getEvent(onYears.id, BRAM)!;
+    expect(year.at).toBe(partsToSeconds({ year: 1932 }));
+    expect(formatWhen(year.at, year.precision)).toBe('1932');
+    expect(deps.service.getEvent(onDays.id, BRAM)!.at).toBe(partsToSeconds({ year: 1932, month: 5, day: 9 }));
+  });
+
+  it('a tijdlijn that speelt op één dag: coarser than the measure, and nothing leaves the day', () => {
+    const OCT_3 = partsToSeconds({ year: 1931, month: 10, day: 3 });
+    const night = deps.service.createTimeline({ name: 'De nacht in het pakhuis', scale: 'minute' }, BRAM);
+    expect(night.anchorAt).toBeNull();
+    expect(night.anchorUnit).toBeNull();
+
+    // Half an anchor is no anchor, and an hour is not a unit a tijdlijn plays on.
+    expect(() => deps.service.updateTimeline(night.id, { anchorAt: OCT_3 }, BRAM)).toThrow(/tijdstip/);
+    expect(() =>
+      deps.service.updateTimeline(night.id, { anchorAt: OCT_3, anchorUnit: 'hour' as never }, BRAM),
+    ).toThrow(/maat/);
+
+    const anchored = deps.service.updateTimeline(night.id, { anchorAt: OCT_3, anchorUnit: 'day' }, BRAM);
+    expect(anchored.anchorAt).toBe(OCT_3);
+    expect(anchored.anchorUnit).toBe('day');
+
+    // A tijdlijn measured in days cannot *be* one day.
+    const plain = deps.service.createTimeline({ name: 'Gewone dagen', scale: 'day' }, BRAM);
+    expect(() => deps.service.updateTimeline(plain.id, { anchorAt: OCT_3, anchorUnit: 'day' }, BRAM)).toThrow(/grover/);
+
+    // Auto-fill: a moment from another century keeps only its time of day.
+    const shot = deps.service.addEvent(
+      night.id,
+      { kind: 'note', name: 'Een schot', at: partsToSeconds({ year: 1887, month: 4, day: 19, hour: 23, minute: 5 }), precision: 'minute' },
+      BRAM,
+    );
+    expect(formatWhen(shot.at, shot.precision)).toBe('3 oktober 1931, 23:05');
+
+    // The fence: dragged three days along, it is still that night.
+    const dragged = deps.service.updateEvent(shot.id, { at: OCT_3 + 86400 * 3 + 3600 * 22 + 60 * 30 }, BRAM);
+    expect(formatWhen(dragged.at, dragged.precision)).toBe('3 oktober 1931, 22:30');
+
+    // Made in one act, and taken away by a coarser measure.
+    const made = deps.service.createTimeline({ name: 'Die avond', scale: 'minute', anchorAt: OCT_3, anchorUnit: 'day' }, BRAM);
+    expect(made.anchorUnit).toBe('day');
+    const remeasured = deps.service.updateTimeline(made.id, { scale: 'day' }, BRAM);
+    expect(remeasured.anchorAt).toBeNull();
+    expect(remeasured.anchorUnit).toBeNull();
   });
 });
 

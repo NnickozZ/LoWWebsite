@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
 import { recomputeMapMentions } from '@/lib/entries/mentions';
+import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { uniqueSlug } from '@/lib/slug';
@@ -89,7 +90,7 @@ const MAP_COLUMNS = {
 
 const now = () => Math.floor(Date.now() / 1000);
 
-function requireKeeper(actor: { id: string; isKeeper: boolean }) {
+function requireKeeper(actor: Author) {
   if (!actor.isKeeper) throw new Error('Alleen een Keeper hangt landkaarten op.');
 }
 
@@ -172,7 +173,7 @@ function slugTaken(candidate: string) {
 
 export function createMap(
   input: { name: string; assetId: string; width: number; height: number; description?: string },
-  actor: { id: string; isKeeper: boolean },
+  actor: Author,
 ): MapSummary {
   requireKeeper(actor);
   const name = input.name.trim().slice(0, 120);
@@ -196,7 +197,7 @@ export function createMap(
       createdBy: actor.id,
     })
     .run();
-  logActivity({ actorId: actor.id, verb: 'map.created', meta: { mapId: id, name } });
+  logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'map.created', meta: { mapId: id, name } });
   return getMapById(id)!;
 }
 
@@ -215,7 +216,7 @@ export type MapPatch = {
 export function updateMap(
   id: string,
   patch: MapPatch,
-  actor: { id: string; isKeeper: boolean },
+  actor: Author,
   options: { live?: boolean } = {},
 ): MapSummary {
   requireKeeper(actor);
@@ -260,10 +261,10 @@ export function updateMap(
 }
 
 /** Soft: the picture and the pins stay on disk, the map leaves the shelf. */
-export function deleteMap(id: string, actor: { id: string; isKeeper: boolean }) {
+export function deleteMap(id: string, actor: Author) {
   requireKeeper(actor);
   db.update(schema.maps).set({ deletedAt: now(), updatedAt: now() }).where(eq(schema.maps.id, id)).run();
-  logActivity({ actorId: actor.id, verb: 'map.deleted', meta: { mapId: id } });
+  logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'map.deleted', meta: { mapId: id } });
 }
 
 /* ------------------------------------------------------------------ pins */
@@ -377,7 +378,7 @@ export type NewPin =
   | { kind: 'entry'; entryId: string; x: number; y: number }
   | { kind: 'note'; name: string; text?: string; x: number; y: number };
 
-export function addPin(mapId: string, input: NewPin, actor: { id: string; isKeeper: boolean }): MapPin {
+export function addPin(mapId: string, input: NewPin, actor: Author): MapPin {
   if (!getMapById(mapId)) throw new Error('Landkaart niet gevonden');
   const id = newId();
   if (input.kind === 'entry') {
@@ -388,9 +389,24 @@ export function addPin(mapId: string, input: NewPin, actor: { id: string; isKeep
       .get();
     if (!entry) throw new Error('Artikel niet gevonden');
     db.insert(schema.mapPins)
-      .values({ id, mapId, kind: 'entry', entryId: entry.id, x: clamp01(input.x), y: clamp01(input.y), createdBy: actor.id })
+      .values({
+        id,
+        mapId,
+        kind: 'entry',
+        entryId: entry.id,
+        x: clamp01(input.x),
+        y: clamp01(input.y),
+        createdBy: actor.id,
+        characterId: actor.characterId ?? null,
+      })
       .run();
-    logActivity({ actorId: actor.id, verb: 'map.pinned', entryId: entry.id, meta: { mapId, pinId: id } });
+    logActivity({
+      actorId: actor.id,
+      characterId: actor.characterId ?? null,
+      verb: 'map.pinned',
+      entryId: entry.id,
+      meta: { mapId, pinId: id },
+    });
   } else {
     const name = (input.name ?? '').trim().slice(0, 120);
     if (!name) throw new Error('Geef de speld een naam.');
@@ -404,9 +420,15 @@ export function addPin(mapId: string, input: NewPin, actor: { id: string; isKeep
         x: clamp01(input.x),
         y: clamp01(input.y),
         createdBy: actor.id,
+        characterId: actor.characterId ?? null,
       })
       .run();
-    logActivity({ actorId: actor.id, verb: 'map.pinned', meta: { mapId, pinId: id, name } });
+    logActivity({
+      actorId: actor.id,
+      characterId: actor.characterId ?? null,
+      verb: 'map.pinned',
+      meta: { mapId, pinId: id, name },
+    });
   }
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, mapId)).run();
   // §27: what this landkaart's spelden name.
@@ -418,7 +440,7 @@ export function addPin(mapId: string, input: NewPin, actor: { id: string; isKeep
 export const PIN_IS_SOMEONE_ELSE_S =
   'Die speld is van iemand anders. Alleen wie hem zette, of een Keeper, mag eraan.';
 
-function ownPin(pinId: string, actor: { id: string; isKeeper: boolean }) {
+function ownPin(pinId: string, actor: Author) {
   const pin = db
     .select({
       id: schema.mapPins.id,
@@ -443,7 +465,7 @@ function ownPin(pinId: string, actor: { id: string; isKeeper: boolean }) {
  * speld is the one this file has always had: whoever set it, or a Keeper.
  * `ownPin` stays the backstop; this only lets the answer be the right number.
  */
-export function viewerCanEditPin(pinId: string, actor: { id: string; isKeeper: boolean }): boolean {
+export function viewerCanEditPin(pinId: string, actor: Author): boolean {
   const pin = db
     .select({ createdBy: schema.mapPins.createdBy })
     .from(schema.mapPins)
@@ -456,7 +478,7 @@ export function viewerCanEditPin(pinId: string, actor: { id: string; isKeeper: b
 export function updatePin(
   pinId: string,
   patch: { x?: number; y?: number; name?: string; text?: string },
-  actor: { id: string; isKeeper: boolean },
+  actor: Author,
   options: { live?: boolean } = {},
 ): MapPin {
   const pin = ownPin(pinId, actor);
@@ -509,7 +531,7 @@ export function updatePin(
 export function convertPinToEntry(
   pinId: string,
   entryId: string,
-  actor: { id: string; isKeeper: boolean },
+  actor: Author,
 ): MapPin {
   const pin = ownPin(pinId, actor);
   if (pin.kind !== 'note') throw new Error('Deze speld staat al voor een artikel.');
@@ -538,6 +560,7 @@ export function convertPinToEntry(
 
   logActivity({
     actorId: actor.id,
+    characterId: actor.characterId ?? null,
     verb: 'map.pinned',
     entryId: entry.id,
     meta: { mapId: pin.mapId, pinId, from: 'note' },
@@ -545,7 +568,7 @@ export function convertPinToEntry(
   return getPin(pinId, actor)!;
 }
 
-export function removePin(pinId: string, actor: { id: string; isKeeper: boolean }) {
+export function removePin(pinId: string, actor: Author) {
   const pin = ownPin(pinId, actor);
   db.delete(schema.mapPins).where(eq(schema.mapPins.id, pinId)).run();
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();

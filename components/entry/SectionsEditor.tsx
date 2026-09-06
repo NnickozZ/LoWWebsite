@@ -8,6 +8,7 @@ import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useUi } from '@/components/ui/UiProvider';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
@@ -100,7 +101,7 @@ export function SectionsEditor({
   users,
   cases,
   liveUser,
-  readOnly = false,
+  readOnly: locked = false,
   onOutlineChange,
 }: {
   entryId: string;
@@ -123,6 +124,14 @@ export function SectionsEditor({
   const router = useRouter();
   const [sections, setSections] = useState(initial);
   const [busy, setBusy] = useState(false);
+  /*
+   * §18b: no onderzoeker, no writing — and a sectie is a write like any other.
+   * Folded into `readOnly` so the printed shape below (which a Keeper reading
+   * already gets) is what everyone without a name to sign with gets too.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  const readOnly = locked || !mayType;
 
   const tell = onOutlineChange;
   useEffect(() => {
@@ -193,7 +202,7 @@ export function SectionsEditor({
   }
 
   return (
-    <section className="entry-sections">
+    <section className="entry-sections" {...gate}>
       <div className="row" style={{ marginBottom: '0.5rem' }}>
         <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{ui.words.sectionPlural.charAt(0).toUpperCase() + ui.words.sectionPlural.slice(1)}</h2>
         <div className="spacer" />

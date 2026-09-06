@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, inviteCode, openRights, signIn } from './helpers';
+import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, openRights, signIn } from './helpers';
 
 /**
  * Phase 3 (§9–§11) beyond golden flow 5: entry-level visibility and its leaks,
@@ -15,6 +15,16 @@ async function newEntry(page: Page, typeSlug: string, name: string) {
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   return new URL(page.url()).pathname;
+}
+
+/*
+ * §18b: proposing an edit is writing, so a player who is going to propose one
+ * makes their onderzoeker first — the artikel a speler with nobody is allowed
+ * to make, tied on as themselves.
+ */
+async function signUpWriting(page: Page, name: string) {
+  await signUpPlayer(page, name);
+  await becomeInvestigator(page, `Onderzoeker ${name}`);
 }
 
 async function signUpPlayer(page: Page, name: string, password = 'duikerklok') {
@@ -33,7 +43,7 @@ test('a Keeper-only entry leaks nowhere', async ({ page, browser }, testInfo) =>
 
   await signIn(page, 'Keeper', 'abbeytower34');
   const url = await newEntry(page, 'location', secret);
-  await page.getByLabel('Korte beschrijving').fill('Waar het water vandaan komt.');
+  await fillWhenReady(page.getByLabel('Korte beschrijving'), 'Waar het water vandaan komt.');
   await page.getByLabel('Korte beschrijving').blur();
 
   await openRights(page);
@@ -73,7 +83,7 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
 
   await signIn(page, 'Keeper', 'abbeytower34');
   const url = await newEntry(page, 'location', entryName);
-  await page.getByLabel('Korte beschrijving').fill('Pompt sinds de drift de verkeerde kant op.');
+  await fillWhenReady(page.getByLabel('Korte beschrijving'), 'Pompt sinds de drift de verkeerde kant op.');
   await page.getByLabel('Korte beschrijving').blur();
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
@@ -85,11 +95,14 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
   // The player edits it, and is told where the edit went.
   const context = await browser.newContext();
   const player = await context.newPage();
-  await signUpPlayer(player, playerName);
+  await signUpWriting(player, playerName);
   await player.goto(url);
   // §22: a player lands on the reading face; editing a locked artikel is the
   // thing under test, so ask for the face that can.
   await editArticle(player);
+  // A plain fill: this page has already answered a click (`editArticle`), so
+  // React is behind its inputs — and a second fill here would be a second
+  // voorstel in the queue.
   await player.getByLabel('Korte beschrijving').fill('Pompt zout water het land in.');
   await player.getByLabel('Korte beschrijving').blur();
   await expect(player.locator('.toast', { hasText: 'ter beoordeling' })).toBeVisible();

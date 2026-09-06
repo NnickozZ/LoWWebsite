@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { CharacterWardrobe } from '@/components/you/CharacterSwitcher';
+import { WritingAsLine } from '@/components/you/AuthorProvider';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
@@ -63,6 +64,12 @@ export default async function YouPage() {
         <>
           <hr className="rule" />
           <h2 id="karakters">{words.yourCharacters}</h2>
+          {/*
+           * §18b: the side menu has no room on a phone, so the wardrobe is
+           * where a phone switches karakter — and therefore where the window's
+           * onderzoeker has to be visible and changeable too.
+           */}
+          <WritingAsLine />
           <CharacterWardrobe me={me} />
         </>
       )}

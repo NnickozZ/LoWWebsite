@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
+import { useMayStartEntry } from '@/components/you/AuthorProvider';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
 import { capitalise } from '@/lib/words';
@@ -95,6 +96,21 @@ export function NewEntrySheet({
     nameRef.current?.focus();
     nameRef.current?.select();
   }, []);
+
+  /*
+   * §18b: opening this sheet *is* an act of writing — there is nothing else it
+   * could be — so the window has to have said who it is writing as. It has:
+   * the question is asked *before* this sheet opens, by `ensureAuthor` inside
+   * `useUi().openNewEntry`, which is the only door in. It used to be asked
+   * from here, on mount, and that put the question on top of this sheet — two
+   * sheets at once, and an Escape that closed the wrong one.
+   *
+   * There is nothing to ask a speler with no onderzoeker, who is the one
+   * person this sheet must still work for: the artikel they are about to make
+   * is the onderzoeker they have not got. Hence `mayStartEntry` and not
+   * `mayType` on the button below.
+   */
+  const mayStartEntry = useMayStartEntry();
 
   // "Did you mean…" — up to 5 existing entries with similar names.
   useEffect(() => {
@@ -259,7 +275,7 @@ export function NewEntrySheet({
         className="btn btn-primary"
         style={{ width: '100%' }}
         onClick={create}
-        disabled={!name.trim() || busy}
+        disabled={!mayStartEntry || !name.trim() || busy}
       >
         {busy ? 'Opbergen…' : 'Aanmaken'}
       </button>

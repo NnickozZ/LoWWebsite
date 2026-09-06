@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PublicPerson } from '@/lib/live/hub';
 import type { InkFrame } from '@/lib/ink/types';
+import { announceAuthorNeeded, isAuthorRefusal } from '@/lib/authorSignal';
 
 /**
  * §21: one tab's end of the site line.
@@ -22,6 +23,55 @@ import type { InkFrame } from '@/lib/ink/types';
  * entries"; a change to either calls the page back; the page decides what to
  * re-read. The wire carries a signal, never the document.
  */
+
+/* ------------------------------------------------- §18b: who is writing */
+
+/**
+ * The onderzoeker *this browser window* is writing as, as an id, or `''` while
+ * the window has not chosen.
+ *
+ * It lives here — a module-level box, not React state — for one reason: the
+ * `fetch` patch below has to read it, and that patch is installed once for the
+ * life of the tab. A value read out of a closure would be the one that existed
+ * when the effect ran. The prompt (part 2) sets it before anything can be
+ * typed, and reads its remembered answer out of `sessionStorage`, which is
+ * exactly the "once per window" lifetime the choice is supposed to have.
+ *
+ * The server never believes this: `lib/auth/author.ts` resolves whatever
+ * arrives against the fiches the account actually holds. This is a convenience
+ * for the person, not a credential.
+ */
+let writingAs = '';
+
+/** Part 2 calls this when the person answers "Met wie ben je nu aan het schrijven?". */
+export function setWritingAs(characterId: string | null) {
+  writingAs = characterId ?? '';
+}
+
+/** What this window is writing as right now — `''` when it has not chosen. */
+export function writingAsNow(): string {
+  return writingAs;
+}
+
+/** The header the choice travels on. One name, shared with `lib/auth/author.ts`. */
+export const CHARACTER_HEADER = 'X-Character';
+
+/**
+ * Open the line again, right now.
+ *
+ * A module box for the same reason `writingAs` is one: the thing that has to
+ * call it — the sheet that asks "Met wie ben je nu aan het schrijven?" — sits
+ * *above* this provider in the tree (it has to, so that it can set the value
+ * before this provider's effect ever runs), and so cannot reach the context.
+ * There is exactly one `LiveProvider` per tab, and the closure below no-ops
+ * once its own mount has stopped, so a Strict Mode remount simply replaces it.
+ */
+let reopenLine: (() => void) | null = null;
+
+/** Reopen the site line so its URL carries the window's onderzoeker anew. */
+export function reconnectLive() {
+  reopenLine?.();
+}
 
 export type LiveStatus = 'connecting' | 'live' | 'offline';
 
@@ -147,19 +197,68 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     };
     window.fetch = function patchedFetch(input: RequestInfo | URL, init?: RequestInit) {
       let own = false;
+      let sameOrigin = false;
       try {
         const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        const sameOrigin = url.startsWith('/') || url.startsWith(window.location.origin);
+        sameOrigin = url.startsWith('/') || url.startsWith(window.location.origin);
         own = method !== 'GET' && method !== 'HEAD' && sameOrigin && !url.includes('/api/live/');
       } catch {
         own = false;
+        sameOrigin = false;
       }
       if (own) note();
+      /*
+       * §18b: every request to this origin carries the onderzoeker this window
+       * is writing as. Here rather than at each call site because there are
+       * dozens of them and one forgotten header is one act filed under the
+       * wrong name — and on *every* request, not only writes, because the live
+       * line and the pages read it too (presence, and the read-only banner).
+       *
+       * Only same-origin, and only when the window has chosen. Requests that
+       * pass a `Request` object keep it: the header is added to a clone, so a
+       * caller's own headers are never dropped.
+       */
+      if (sameOrigin && writingAs) {
+        try {
+          if (input instanceof Request) {
+            const withHeader = new Request(input);
+            withHeader.headers.set(CHARACTER_HEADER, writingAs);
+            input = withHeader;
+          } else {
+            const headers = new Headers(init?.headers ?? undefined);
+            headers.set(CHARACTER_HEADER, writingAs);
+            init = { ...init, headers };
+          }
+        } catch {
+          // A header we could not attach is a request the server answers from
+          // the account's own karakter. Never a reason to drop the request.
+        }
+      }
       const result = original.call(window, input, init);
       // Marked again when the answer is in: the write has landed by then, and
       // the echo follows it.
       if (own) result.then(note, note);
+      /*
+       * §18b, the other direction: a write the archive refused for want of an
+       * onderzoeker comes back as a 400 carrying `needsAuthor`. That is a
+       * question, not an error, and it is read here — the one place that sees
+       * every request — rather than at fifty call sites that each have their
+       * own way of showing a failure. The body is read off a *clone*, so the
+       * caller still gets an untouched one.
+       */
+      if (own) {
+        void result.then((response) => {
+          if (response.status !== 400) return;
+          void response
+            .clone()
+            .json()
+            .then((body: unknown) => {
+              if (isAuthorRefusal(response.status, body)) announceAuthorNeeded();
+            })
+            .catch(() => undefined);
+        }, () => undefined);
+      }
       return result;
     };
     return () => {
@@ -289,7 +388,15 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       }
       source?.close();
       connectionRef.current = null;
-      source = new EventSource(`/api/live/site?c=${encodeURIComponent(clientId)}`);
+      /*
+       * §18b: an `EventSource` cannot carry a header, so this one line carries
+       * the window's onderzoeker in the URL instead — same value, same
+       * server-side check (`resolveCharacter`), and it only ever decides the
+       * name on the presence strip. Everything that *writes* goes up by POST,
+       * where the `X-Character` header does the work.
+       */
+      const as = writingAs ? `&as=${encodeURIComponent(writingAs)}` : '';
+      source = new EventSource(`/api/live/site?c=${encodeURIComponent(clientId)}${as}`);
 
       source.addEventListener('hello', (event) => {
         try {
@@ -387,6 +494,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       failures = 0;
       open();
     };
+    // §18b: the sheet above this provider reopens the line through here, so
+    // that the name on everyone else's presence strip follows the answer.
+    reopenLine = () => reconnectRef.current();
     open();
 
     const heartbeat = setInterval(() => {

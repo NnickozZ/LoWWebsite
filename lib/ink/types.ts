@@ -40,8 +40,13 @@ export const INK_COLOUR_NAMES = ['zwart', 'wit', 'rood', 'oranje', 'geel', 'groe
 /** The three brushes, as a width in screen pixels at zoom 1: dun, normaal, dik. */
 export const INK_BRUSHES = [3, 6, 12] as const;
 
-/** The gum is wider than the widest brush: you erase a mistake, not trace it. */
-export const INK_ERASER_WIDTH = 22;
+/**
+ * The three gummen, as a width in screen pixels at zoom 1: klein, normaal,
+ * groot. Every one of them is wider than the brush of the same rank — you
+ * erase a mistake, not trace it — and the widest takes a whole line away in
+ * one sweep.
+ */
+export const INK_ERASERS = [12, 24, 48] as const;
 
 /** Widths are stored in the place's own units; this is the sanity ceiling. */
 export const INK_MAX_WIDTH = 4000;

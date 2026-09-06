@@ -542,11 +542,17 @@ a.card:hover {
   box-shadow: inset 2px 0 0 var(--stamp-red);
 }
 
+/* The three parts of the main column's padding are named, because a page that
+   hands the screen to a canvas (`.page-canvas`) has to measure against them:
+   the height it may take is the viewport less the top padding and whatever
+   stands along the bottom. Change one of these and the canvas follows. */
 .main {
   --page-pad: 1rem;
+  --main-pad-t: 1rem;
+  --main-pad-b: calc(var(--tabs-h) + 1.5rem);
   flex: 1;
   min-width: 0;
-  padding: 1rem var(--page-pad) calc(var(--tabs-h) + 1.5rem);
+  padding: var(--main-pad-t) var(--page-pad) var(--main-pad-b);
 }
 
 .page {
@@ -556,6 +562,103 @@ a.card:hover {
 .page-wide {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+/* --------------------------------------------------------- a page that is a canvas
+   §34: a landkaart and a tijdlijn are not read, they are *looked at*, so they
+   take the screen: one wrapping line of heading (`.canvas-head`) and then the
+   canvas, as tall as what is left. Three things used to eat that screen — the
+   1200 px cap on `.page-wide`, the page padding, and a magic height on the
+   stage itself — and this is where the first two are undone.
+
+   The half-gutter negative margin keeps a thin margin either side, so the
+   canvas's border still reads as a border and does not become the edge of the
+   screen. The height stops at the tab bar (plus the phone's own safe area,
+   which `.tabs` also allows for) — and when there is nothing under the canvas
+   the bottom padding, which exists only to clear that same bar, is taken back,
+   so such a page does not scroll at all. Anything rendered *after* the canvas
+   — the Keeper's tools — keeps that padding and sits below the fold. */
+.page-wide:has(> .page-canvas) {
+  max-width: none;
+}
+.page-canvas {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 calc(var(--page-pad) * -0.5);
+  height: calc(100dvh - var(--main-pad-t) - var(--tabs-h) - env(safe-area-inset-bottom));
+}
+.page-canvas:last-child {
+  margin-bottom: calc(var(--main-pad-b) * -1);
+}
+
+/* The fourth thing that ate the screen, and the one that hid behind the other
+   three: `.live-strip` is a *float* in the main column, and a `.page-canvas`
+   is a flex container — an independent formatting context, which the browser
+   keeps clear of floats rather than letting it flow around one. Beside the
+   strip the whole column was squeezed to the space left over (26 px of it on
+   every screen: the strip's 21.4 plus its 8 px left margin less its -3.2 right
+   one) *and* the half-gutter margins above were dropped on the floor with it.
+   On a page that is a canvas the strip therefore comes out of the flow
+   altogether and hangs in the column's top corner, where `.canvas-head` keeps
+   a hand's breadth free for it. */
+.main:has(.page-canvas) .live-strip {
+  position: absolute;
+  float: none;
+  top: var(--main-pad-t);
+  right: var(--page-pad);
+  margin: 0;
+}
+
+/* The one line of heading: eyebrow, name, what it is a map of, and the
+   description, all on one wrapping baseline row — about 64 px where the old
+   stacked block took 140. The description is the first thing to go on a
+   phone, where every line of it is a line off the canvas. */
+.canvas-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.6rem;
+  min-width: 0;
+  margin: 0 0 0.4rem;
+  /* The corner the live strip hangs in, now that it no longer floats here and
+     pushes the heading aside: the strip's own width plus the half-gutter the
+     canvas reaches past the column. Enough for the dot it is nearly always
+     reduced to; a strip that has grown a word ("geen verbinding") lies over
+     the tail of the description, which is what its own background is for. */
+  padding-right: 2.5rem;
+  /* One line of heading is one line of heading: it gives way to nothing, even
+     on a phone held sideways where the column is very short. */
+  flex: 0 0 auto;
+}
+.canvas-head > * {
+  margin: 0;
+  min-width: 0;
+}
+.canvas-head h1 {
+  font-size: clamp(1.1rem, 2.6vw, 1.6rem);
+  line-height: 1.2;
+  margin: 0;
+}
+.canvas-head .canvas-head-of {
+  white-space: nowrap;
+}
+.canvas-head .canvas-head-desc {
+  display: none;
+  flex: 1 1 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (min-width: 768px) {
+  .canvas-head .canvas-head-desc {
+    display: block;
+  }
+  .page-canvas {
+    /* No tab bar up here (`.tabs` is `display: none`): a hand's breadth is
+       enough. */
+    height: calc(100dvh - var(--main-pad-t) - 0.75rem);
+  }
 }
 
 .masthead {
@@ -657,7 +760,9 @@ a.card:hover {
     display: none;
   }
   .main {
-    padding: 1.5rem 2rem 3rem;
+    --page-pad: 2rem;
+    --main-pad-t: 1.5rem;
+    --main-pad-b: 3rem;
   }
   .fab {
     display: none;
@@ -703,6 +808,16 @@ a.card:hover {
     transform: translateY(16px);
     opacity: 0.6;
   }
+}
+/*
+ * §18b: the panel takes focus when it opens, so that a sheet coming up over an
+ * editor takes the caret out of the text underneath — otherwise the person
+ * goes on typing into a page they can no longer see. It is a container, not a
+ * control, so it does not draw a ring round itself for it.
+ */
+.sheet:focus,
+.sheet:focus-visible {
+  outline: none;
 }
 .sheet-handle {
   width: 40px;
@@ -1349,23 +1464,33 @@ details.section[open] > summary::before {
  * No `stroke` here on purpose. A presentation attribute loses to any CSS rule,
  * so declaring the colour in this class would silently override the per-string
  * colour set on the element and every board would be red.
+ *
+ * The same trap swallowed the thickness and the dash pattern, which are per
+ * string too: they come in as custom properties set on the element — a custom
+ * property is a value, not a rule, so nothing here overrides anything — and the
+ * fallbacks are the look every board had before either was settable.
  */
 .board-string {
   fill: none;
-  stroke-width: 2;
+  stroke-width: var(--string-w, 2px);
+  stroke-dasharray: var(--string-dash, none);
   stroke-linecap: round;
 }
-/* 2 px of string is not a target: this invisible one is what you actually hit. */
+/* 2 px of string is not a target: this invisible one is what you actually hit.
+   It is the centre curve for every kind of string, and it stays unbroken, so a
+   dashed one can be clicked in its gaps like the piece of string it is. */
 .board-string-hit {
   fill: none;
   stroke: transparent;
-  stroke-width: 18;
+  stroke-width: var(--string-hit, 18px);
   stroke-linecap: round;
   pointer-events: stroke;
   cursor: pointer;
 }
+/* Selection adds to the thickness rather than replacing it, or picking one up
+   would flatten every thread on the wall to the same weight. */
 .board-string-selected {
-  stroke-width: 4;
+  stroke-width: calc(var(--string-w, 2px) + 2px);
   filter: drop-shadow(0 0 3px rgba(31, 78, 121, 0.9));
 }
 .board-string-drawing {
@@ -1554,6 +1679,15 @@ details.section[open] > summary::before {
     flex: 0 1 260px;
   }
 }
+/* A selected string now carries a label, six colours, four thicknesses and a
+   kind. On a narrow desktop that is more than one row, and the board clips what
+   it cannot hold — so between the two breakpoints the bar wraps upward rather
+   than pushing its delete button off the cork. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .board-inspector {
+    flex-wrap: wrap;
+  }
+}
 .board-inspector-title {
   display: inline-flex;
   align-items: center;
@@ -1596,6 +1730,20 @@ details.section[open] > summary::before {
   border-color: var(--paper);
   outline: 2px solid var(--ink);
   outline-offset: 1px;
+}
+/* The thickness dots are the same dot with a piece of string drawn across it,
+   each at the thickness it stands for — the four widths are easier to compare
+   than to name. */
+.board-swatch-width {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper-raised);
+}
+.board-swatch-line {
+  display: block;
+  width: 15px;
+  border-radius: 3px;
 }
 
 /* ------------------------------------------------------------ board zoom */
@@ -2833,6 +2981,48 @@ details.section[open] > summary::before {
   height: 42px;
 }
 
+/* --------------------------------------------- §18b who is writing, in here */
+/*
+ * The account's karakter and the window's onderzoeker read as one block under
+ * the masthead, with one rule under the pair rather than one under each.
+ */
+.who-block {
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 0.6rem;
+}
+.who-block > .who {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0.35rem;
+}
+.who-writing {
+  padding: 0 0.6rem 0.6rem;
+}
+.who-writing .who-name {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.author-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--stamp-red);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.author-banner svg {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  color: var(--ink-muted);
+}
+
 /* ---------------------------------------------------------- §14 sort & filter */
 .sortbar {
   display: flex;
@@ -3490,9 +3680,11 @@ details.section[open] > summary::before {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 1 1 auto;
 }
 .map-toolbar {
   margin-bottom: 0.5rem;
+  flex: 0 0 auto;
 }
 .map-stage {
   position: relative;
@@ -3500,8 +3692,14 @@ details.section[open] > summary::before {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  height: calc(100dvh - var(--tabs-h) - 12rem);
-  min-height: 320px;
+  /* §34: the stage takes what the page-canvas column has left over, and no
+     longer guesses at the height of everything above it. `MapCanvas` measures
+     it with a ResizeObserver, so the fit, the zoom and the tekenlaag all
+     follow. The floor is for a phone held sideways, where what is left over
+     is very little. */
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 220px;
   border: 1px solid var(--rule);
   background:
     radial-gradient(circle at 1px 1px, rgba(31, 27, 22, 0.12) 1px, transparent 0) 0 0 / 14px 14px,
@@ -3513,12 +3711,6 @@ details.section[open] > summary::before {
 }
 .map-stage-placing {
   cursor: crosshair;
-}
-@media (min-width: 768px) {
-  .map-stage {
-    height: calc(100dvh - 11rem);
-    min-height: 420px;
-  }
 }
 .map-world {
   position: absolute;
@@ -3637,6 +3829,11 @@ details.section[open] > summary::before {
   max-height: none;
   box-shadow: none;
   margin-bottom: 0.5rem;
+  /* §34: in flow above the stage, in a column that is exactly as tall as the
+     screen — so a long legend gives way and scrolls itself rather than
+     pushing the stage off the bottom. */
+  min-height: 0;
+  overflow: auto;
 }
 /* Folded: one small button in the corner the panel would have covered. */
 .map-legend-toggle {
@@ -4006,13 +4203,29 @@ details.section[open] > summary::before {
    never clipped, so a window near the top can open upward past the edge. */
 .timeline-frame {
   position: relative;
+  /* §34: a column between the toolbar and the line of counts, with the stage
+     taking everything in between. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 /* The stage and its windows share one box, so a window's `top` is the stage's. */
 .timeline-stage-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 .timeline-toolbar {
   margin-bottom: 0.5rem;
+  flex: 0 0 auto;
+}
+/* The line of counts under the axis, and the last thing in the column. */
+.timeline-count {
+  flex: 0 0 auto;
+  margin: 0.4rem 0 0;
 }
 .timeline-stage {
   position: relative;
@@ -4020,6 +4233,10 @@ details.section[open] > summary::before {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  /* §34: no height of its own any more — it takes what the column has left and
+     `TimelineCanvas` measures it. The floor is a phone held sideways. */
+  flex: 1 1 auto;
+  min-height: 220px;
   border: 1px solid var(--rule);
   background: var(--paper-raised);
   cursor: grab;
@@ -4090,9 +4307,28 @@ details.section[open] > summary::before {
   width: 0;
   height: 0;
   z-index: 2;
+  /* §35: a gebeurtenis is dragged along the axis with a mouse or a finger.
+     The press is not refused (a tag is clicked as well as dragged, rule 31's
+     reasoning for a card), so the sweep is stopped here instead, and the
+     browser is told not to scroll or zoom the page under the hand. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 .timeline-event-open {
   z-index: 3;
+}
+/* While the hand has one: it rides above the others and loses its shadow-play. */
+.timeline-event-dragging {
+  z-index: 4;
+}
+.timeline-event-dragging .timeline-tag,
+.timeline-event-dragging .timeline-marker {
+  cursor: grabbing;
+}
+.timeline-event-dragging .timeline-tag {
+  background: var(--paper-dark);
+  box-shadow: 0 2px 0 rgba(31, 27, 22, 0.35);
 }
 .timeline-stem {
   position: absolute;
@@ -4290,6 +4526,26 @@ details.section[open] > summary::before {
   padding-left: 0.45rem;
   padding-right: 0.3rem;
 }
+/* §35: the part of a date an anchored tijdlijn does not ask for, printed as
+   the fact it is — "3 oktober 1931" — with only the free boxes beside it. */
+.timeline-date-fixed {
+  margin: 0 0 0.3rem;
+  font-family: var(--stamp-face);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.timeline-anchor-picker {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.timeline-anchor-picker > legend {
+  padding: 0;
+  margin-bottom: 0.3rem;
+}
 .timeline-scale-picker {
   display: grid;
   gap: 0.3rem;
@@ -4440,6 +4696,13 @@ details.section[open] > summary::before {
 .ink-colour-on {
   box-shadow: 0 0 0 2px var(--ink);
 }
+/*
+ * While the gum is out the colours are dimmed: the three diktes beside them
+ * are then the gum's, and a colour still picks the potlood straight back up.
+ */
+.ink-colours-off {
+  opacity: 0.5;
+}
 .ink-brush {
   display: inline-flex;
   align-items: center;
@@ -4460,6 +4723,13 @@ details.section[open] > summary::before {
   display: block;
   border-radius: 50%;
   background: var(--ink);
+}
+/* The gum's diktes sit in the same slot as the brushes, but hollow: a ring takes away. */
+.ink-gum-ring {
+  display: block;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: transparent;
 }
 .ink-saving {
   font-family: var(--sans);

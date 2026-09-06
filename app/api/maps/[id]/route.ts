@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { MAP_EDGE, storeImage, tooLargeMessage, uploadLimitFor } from '@/lib/assets';
@@ -13,6 +14,8 @@ export const maxDuration = 60;
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     if (!user.isKeeper) return json({ error: 'Alleen een Keeper verandert een landkaart.' }, { status: 403 });
     const { id } = await ctx.params;
     if (!getMapById(id)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
@@ -39,6 +42,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     if (!user.isKeeper) return json({ error: 'Alleen een Keeper haalt een landkaart weg.' }, { status: 403 });
     const { id } = await ctx.params;
     if (!getMapById(id)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });

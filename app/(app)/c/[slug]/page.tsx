@@ -7,7 +7,7 @@ import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
-import { attributed, charactersWorn, displayNames } from '@/lib/characters';
+import { attributed, charactersWorn, displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { snapshot } from '@/lib/live/docs';
 import { admit, caseRoomKey } from '@/lib/live/rooms';
@@ -100,7 +100,8 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           state: snapshot(admission.spec).state,
           canEdit: admission.canEdit,
           user: {
-            name: displayNames([{ id: user.id, username: user.username, isKeeper: user.isKeeper }], words.keeper).get(user.id)?.label ?? user.username,
+            // §21: a caret says who is here, so a Keeper is their account name.
+            name: windowPresenceName(user, words.keeper),
             colour: presenceColour(user.id),
           },
         }

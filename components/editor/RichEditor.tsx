@@ -17,7 +17,9 @@ import { documentExtensions } from '@/lib/editor/extensions';
 import { makeEntrySuggestion, type SuggestionEntry, type SuggestionRenderState } from './entrySuggestion';
 import { SuggestionPopup } from './SuggestionPopup';
 import type { LiveUser } from './useLiveDoc';
-import { imageFromClipboard, uploadForm } from '@/lib/upload';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 
 /**
  * §20: when the text is a room, the editor binds to the shared Yjs document
@@ -60,7 +62,7 @@ export function RichEditor({
   initialDoc,
   placeholder = 'Schrijf op wat er gebeurd is…',
   onChange,
-  editable = true,
+  editable: allowed = true,
   live,
 }: {
   initialDoc: unknown;
@@ -71,6 +73,14 @@ export function RichEditor({
   live?: LiveBinding | null;
 }) {
   const ui = useUi();
+  /*
+   * §18b: a speler with no onderzoeker has nothing the archive would accept a
+   * word under, so the caret is not offered — and the first touch of anyone
+   * who has not yet said who they are writing as asks the question.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  const editable = allowed && mayType;
   /*
    * §31: the dossiers this text lives in, so `@` and `[[` offer what is
    * already in them first. Held in a ref because the two Suggestion plugins are
@@ -230,14 +240,21 @@ export function RichEditor({
   const uploadImage = useCallback(
     async (file: File) => {
       if (!editor) return;
+      // §30: a picture over the ceiling is shrunk to fit, not turned away.
+      const fitted = await fitUpload(file, ui.uploadLimit);
+      if ('error' in fitted) {
+        ui.toast(fitted.error);
+        return;
+      }
+      if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', fitted.file);
       const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
       if (!result.ok) {
         ui.toast(result.error);
         return;
       }
-      editor.chain().focus().setImage({ src: `/api/assets/${result.data.asset.id}`, alt: file.name }).run();
+      editor.chain().focus().setImage({ src: `/api/assets/${result.data.asset.id}`, alt: fitted.file.name }).run();
     },
     [editor, ui],
   );
@@ -251,7 +268,7 @@ export function RichEditor({
   }
 
   return (
-    <div>
+    <div {...gate}>
       {editable && (
         <div className="editor-toolbar">
           <ToolbarButton

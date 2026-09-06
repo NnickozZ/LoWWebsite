@@ -4,7 +4,8 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
-import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { saveSiteAction, setLogoAction, type AdminState } from '@/app/(app)/admin/actions';
 import { defaultIntro } from '@/lib/intro';
 import { UploadProbe } from './UploadProbe';
@@ -43,8 +44,15 @@ export function SiteForm({
   async function upload(file: File) {
     setUploading(true);
     try {
+      // §30: a logo that is too heavy is shrunk to fit rather than refused.
+      const fitted = await fitUpload(file, ui.uploadLimit);
+      if ('error' in fitted) {
+        ui.toast(fitted.error);
+        return;
+      }
+      if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', fitted.file);
       const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
       if (!result.ok) {
         ui.toast(result.error);

@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { isScale } from '@/lib/timelines/time';
@@ -16,6 +17,8 @@ export const dynamic = 'force-dynamic';
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string; eventId: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { eventId } = await ctx.params;
     if (!viewerCanEditEvent(eventId, user)) return json({ error: TIMELINE_NOT_YOURS }, { status: 403 });
     const body = (await request.json()) as {
@@ -50,6 +53,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string; eventId: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { eventId } = await ctx.params;
     if (!viewerCanEditEvent(eventId, user)) return json({ error: TIMELINE_NOT_YOURS }, { status: 403 });
     removeEvent(eventId, user);

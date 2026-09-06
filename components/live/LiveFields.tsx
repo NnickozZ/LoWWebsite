@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useState, type ComponentType, t
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 
 export { textDelta } from '@/lib/live/textDelta';
 
@@ -99,11 +100,22 @@ export type FieldProps = InputProps | TextareaProps;
 
 export function LiveField(props: FieldProps) {
   const fields = useContext(FieldsContext);
+  /*
+   * §18b: one gate for every short text in the archive — an artikel's name and
+   * one-liner, a dossier's, an infobox field, the name on a speld, the words a
+   * tijdlijn keeps about a gebeurtenis. Both roads are covered, the room's
+   * bound input and the plain one, because a person with no onderzoeker must
+   * not be typing into either. Nobody passes the capture handlers themselves,
+   * so setting them here takes nothing away.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  const gated = { ...props, ...gate, readOnly: props.readOnly || !mayType } as FieldProps;
   if (fields) {
     const Bound = fields.Bound;
-    return <Bound {...props} fields={fields} />;
+    return <Bound {...gated} fields={fields} />;
   }
-  return <PlainField {...props} />;
+  return <PlainField {...gated} />;
 }
 
 function PlainField(props: FieldProps) {

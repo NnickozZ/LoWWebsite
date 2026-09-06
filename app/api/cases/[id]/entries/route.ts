@@ -1,4 +1,5 @@
 import { viewerCanEdit } from '@/lib/access';
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
@@ -29,6 +30,8 @@ function assertEditable(id: string, viewer: { id: string; isKeeper: boolean }) {
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { id } = await ctx.params;
     assertEditable(id, user);
 
@@ -43,8 +46,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!body.entryId) return json({ error: 'Geen artikel opgegeven.' }, { status: 400 });
 
     if (body.cropOnly) setCaseEntryCrop(id, body.entryId, cleanCrop(body.crop));
-    else if (body.noteOnly) setCaseEntryNote(id, body.entryId, body.note ?? '', user.id);
-    else addEntryToCase(id, body.entryId, user.id, body.note ?? '');
+    else if (body.noteOnly) setCaseEntryNote(id, body.entryId, body.note ?? '', user);
+    else addEntryToCase(id, body.entryId, user, body.note ?? '');
 
     return json({ ok: true });
   } catch (err) {
@@ -55,13 +58,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { id } = await ctx.params;
     assertEditable(id, user);
 
     const entryId = new URL(request.url).searchParams.get('entryId');
     if (!entryId) return json({ error: 'Geen artikel opgegeven.' }, { status: 400 });
 
-    removeEntryFromCase(id, entryId, user.id);
+    removeEntryFromCase(id, entryId, user);
     return json({ ok: true });
   } catch (err) {
     return apiError(err);

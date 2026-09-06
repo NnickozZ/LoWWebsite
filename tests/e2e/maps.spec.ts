@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { becomeInvestigator, inviteCode, signIn } from './helpers';
 
 /**
  * §19: maps.
@@ -19,6 +19,16 @@ async function signUpAs(page: Page, name: string) {
   await page.waitForURL('**/');
 }
 
+/*
+ * §18b: a speld is a write, so a player who sets one needs an onderzoeker —
+ * and so does a player whose refusal is supposed to be about *not being a
+ * Keeper*, or the archive answers the other question first.
+ */
+async function signUpWriting(page: Page, name: string) {
+  await signUpAs(page, name);
+  await becomeInvestigator(page, `Onderzoeker ${name}`);
+}
+
 async function picture(): Promise<Buffer> {
   const sharp = (await import('sharp')).default;
   return sharp({ create: { width: 900, height: 600, channels: 3, background: '#d9d2b8' } })
@@ -33,10 +43,18 @@ async function openLegend(page: Page) {
   return page.locator('.map-legend');
 }
 
+/**
+ * A fraction of the *picture*, not of the stage.
+ *
+ * §34: the stage fills the screen now, so it is a good deal taller than the
+ * map hung in it and a fraction of the stage can land on bare cork beside the
+ * paper — where a tap places nothing, because a speld only goes on the map
+ * (`toPicture` … `inside`). `.map-world` is the picture itself, transform and
+ * all, so a fraction of *its* box is a fraction of the map at any fit or zoom.
+ */
 async function placeAt(page: Page, fx: number, fy: number) {
-  const stage = page.getByRole('application');
-  const box = await stage.boundingBox();
-  if (!box) throw new Error('no stage');
+  const box = await page.locator('.map-world').boundingBox();
+  if (!box) throw new Error('no map');
   await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
 }
 
@@ -123,7 +141,7 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   // A player sees both pins but may not pull the Keeper's.
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
-  await signUpAs(other, `Kaartlezer ${stamp}`);
+  await signUpWriting(other, `Kaartlezer ${stamp}`);
   await other.goto(mapUrl);
   await expect(other.locator('.map-pin')).toHaveCount(2);
   await other.locator('.map-pin', { hasText: 'Hier lag de boot' }).click();
@@ -154,7 +172,7 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
 });
 
 test('a player cannot hang a map', async ({ page }, info) => {
-  await signUpAs(page, `Geen keeper ${info.project.name}-${Date.now().toString(36)}`);
+  await signUpWriting(page, `Geen keeper ${info.project.name}-${Date.now().toString(36)}`);
   await page.goto('/maps');
   await expect(page.getByRole('button', { name: 'Landkaart ophangen' })).toHaveCount(0);
   const refused = await page.request.post('/api/maps', {

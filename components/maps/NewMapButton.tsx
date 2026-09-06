@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
-import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, pasteIsForTyping, uploadForm, uploadLimitLabel, SHRUNK_NOTICE } from '@/lib/upload';
 
 /**
  * §19: the Keeper hangs a map. One sheet: a picture and a name, and the map
@@ -16,7 +17,10 @@ import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
  * no file behind it, so `imageFromClipboard` is what reads it. Pasting only
  * *chooses* the picture, as the file dialog does; nothing goes up until
  * Ophangen, which is also where the one size ceiling is (`/api/maps` answers
- * with the Keeper's 100 MB and its own wording).
+ * with whoever's ceiling applies and its own wording). The sentence under the
+ * field says that number rather than spelling one out, because it is the
+ * Keeper's 20 MB for a Keeper and a player's 2 MB for a player, and a picture
+ * heavier than it is shrunk to fit on the way out (`fitUpload`).
  */
 export function NewMapButton() {
   const ui = useUi();
@@ -67,8 +71,16 @@ export function NewMapButton() {
     setBusy(true);
     setError(null);
     try {
+      // A drawing over the ceiling is shrunk to fit before it goes up; only
+      // one that cannot be made to fit comes back as an error.
+      const fitted = await fitUpload(file, ui.uploadLimit);
+      if ('error' in fitted) {
+        setError(fitted.error);
+        return;
+      }
+      if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
       const form = new FormData();
-      form.set('file', file);
+      form.set('file', fitted.file);
       form.set('name', name.trim() || file.name.replace(/\.[a-z0-9]+$/i, ''));
       form.set('description', description);
       // The answer is read for what it is: the archive's JSON, or the web
@@ -116,7 +128,8 @@ export function NewMapButton() {
                 }}
               />
               <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
-                Een scan, een tekening, een schermafbeelding — tot 100 MB. Grote kaarten blijven scherp tot 3200 px.
+                Een scan, een tekening, een schermafbeelding — tot {uploadLimitLabel(ui.uploadLimit)}. Grote kaarten
+                blijven scherp tot 3200 px.
                 Of plak er een: Ctrl+V, op een Mac Cmd+V.
               </p>
               {pasted && file && (

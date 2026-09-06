@@ -110,6 +110,12 @@ export async function POST(request: Request, ctx: { params: Promise<{ room: stri
     const clientId = String(body.clientId ?? '').slice(0, 40);
     if (!clientId) return json({ error: 'Geen client-id.' }, { status: 400 });
 
+    /*
+     * §18b: no `requireAuthor` on this line, deliberately. A player who has
+     * not said who they are writing as may still *watch* a room — see the
+     * text, see other people's carets — and `admit` has already come back with
+     * `canEdit: false` for them, which the next line refuses on.
+     */
     const admission = admit(key, user);
     if (!admission) return json({ error: 'Niet gevonden.' }, { status: 404 });
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn, signUp } from './helpers';
+import { becomeInvestigator, signIn, signUp } from './helpers';
 
 /**
  * §8, live: two people at one wall.
@@ -67,6 +67,52 @@ test('a card added on one screen appears on the other, with no reload', async ({
   await context.close();
 });
 
+test('a thread made thicker on one screen thickens on the other', async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'phone', '§8: running string needs a pointer');
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const boardUrl = await newBoard(page);
+  await addEntryCard(page, 'Pier Boone');
+  await addEntryCard(page, 'Sister Clasina');
+
+  const context = await browser.newContext();
+  const watcher = await context.newPage();
+  await signIn(watcher, 'Keeper', 'abbeytower34');
+  await watcher.goto(boardUrl);
+  await expect(watcher.locator('.board-card', { hasText: 'Sister Clasina' })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  // Run a string between the two cards. It reaches the other wall at the width
+  // every board has drawn since there were strings at all.
+  const first = page.locator('.board-card', { hasText: 'Pier Boone' }).first();
+  const second = page.locator('.board-card', { hasText: 'Sister Clasina' }).first();
+  const pin = (await first.locator('.board-pin').boundingBox())!;
+  const target = (await second.boundingBox())!;
+  await page.mouse.move(pin.x + pin.width / 2, pin.y + pin.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(watcher.locator('.board-string')).toHaveCount(1, { timeout: 15_000 });
+  // Nothing is selected over there, so this is the thread's own thickness.
+  const thickness = () =>
+    watcher.locator('.board-string').first().evaluate((n) => getComputedStyle(n).strokeWidth);
+  await expect.poll(thickness, { timeout: 15_000 }).toMatch(/^2(px)?$/);
+
+  // Thicken it here; the other wall — never reloaded — grows it too.
+  await page
+    .locator('.board-inspector')
+    .getByRole('radio', { name: 'Extra dik', exact: true })
+    .click();
+  await expect.poll(thickness, { timeout: 15_000 }).toMatch(/^6\.5(px)?$/);
+
+  await context.close();
+});
+
 test('each person is on the strip, and their hand shows on the card they hold', async ({
   page,
   browser,
@@ -75,6 +121,9 @@ test('each person is on the strip, and their hand shows on the card they hold', 
 
   const stamp = Date.now().toString(36).slice(-5);
   const playerName = `Anneke ${stamp}`;
+  // §18b: picking a card up is a hand on the wall, and the wall names the
+  // *onderzoeker*. So the player makes one first, the way a real player does.
+  const character = `Onderzoeker ${playerName}`;
 
   await signIn(page, 'Keeper', 'abbeytower34');
   const boardUrl = await newBoard(page);
@@ -84,6 +133,7 @@ test('each person is on the strip, and their hand shows on the card they hold', 
   const context = await browser.newContext();
   const player = await context.newPage();
   await signUp(player, playerName, 'duikerklok');
+  await becomeInvestigator(player, character);
   await player.goto(boardUrl);
   await expect(player.locator('.board-card', { hasText: 'De Schorre' })).toBeVisible({
     timeout: 15_000,
@@ -97,7 +147,7 @@ test('each person is on the strip, and their hand shows on the card they hold', 
   await player.locator('.board-card', { hasText: 'De Schorre' }).click();
   const held = page.locator('.board-held');
   await expect(held).toHaveCount(1, { timeout: 15_000 });
-  await expect(held.locator('.board-held-name')).toHaveText(playerName);
+  await expect(held.locator('.board-held-name')).toHaveText(character);
 
   // Letting go clears it, rather than leaving a border on the wall for ever.
   await player.locator('.board-viewport').click({ position: { x: 12, y: 12 } });
@@ -225,6 +275,101 @@ test('the other hand is on the wall: a pointer, and a card that travels before i
   await expect(cursor).toHaveCount(0, { timeout: 10_000 });
 
   await context.close();
+});
+
+/**
+ * §11 against §21, with the two words pulled apart.
+ *
+ * Every other "Keeper" in this file passes whichever rule the code follows,
+ * because the seeded Keeper account is *called* Keeper. So this one renames the
+ * word to "Spelleider" first: after that, a feed row that says "Keeper" is
+ * reading the account, and an arrow that says "Spelleider" is reading the word,
+ * and either is a bug. A log says what the Keeper did; a strip says who is
+ * here, and the word is the same for every Keeper in the room.
+ */
+test('the feed says the Keeper’s word; presence says their account', async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name === 'phone', '§8: no pointer to show under 768 px');
+  test.setTimeout(120_000);
+  const stamp = Date.now().toString(36).slice(-5);
+  const entryName = `Vuurtoren ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+
+  // §11: the Keeper renames the Keeper.
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Woorden' }).click();
+  await page.getByLabel('De spelleider', { exact: true }).fill('Spelleider');
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByText(/^Opgeslagen\./)).toBeVisible();
+
+  try {
+    // Something for the feed to say, by the Keeper.
+    const status = await page.evaluate(async (name) => {
+      const response = await fetch('/api/entries', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, typeSlug: 'location' }),
+      });
+      return response.status;
+    }, entryName);
+    expect(status).toBe(200);
+
+    const boardUrl = await newBoard(page);
+    await addEntryCard(page, 'De Schorre');
+
+    // A second account, so what the player sees is a Keeper and not themselves.
+    const context = await browser.newContext();
+    const player = await context.newPage();
+    await signUp(player, `Griet ${stamp}`, 'onderzeeboot');
+    await player.goto(boardUrl);
+    await expect(player.locator('.board-card', { hasText: 'De Schorre' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // The wall's own strip: the account, not the word.
+    const onTheWall = player.locator('.board-people .board-person').first();
+    await expect(onTheWall).toHaveAttribute('title', 'Keeper', { timeout: 15_000 });
+
+    // The arrow over the cork carries the same name.
+    const viewport = (await page.locator('.board-viewport').boundingBox())!;
+    await page.mouse.move(viewport.x + 300, viewport.y + 300);
+    await page.mouse.move(viewport.x + 340, viewport.y + 320, { steps: 6 });
+    const cursor = player.locator('.board-cursor');
+    await expect(cursor).toHaveCount(1, { timeout: 10_000 });
+    await expect(cursor.locator('.board-cursor-name')).toHaveText('Keeper');
+
+    // And so does the hand on the card the Keeper picks up.
+    await page.locator('.board-card', { hasText: 'De Schorre' }).first().click();
+    const held = player.locator('.board-held');
+    await expect(held).toHaveCount(1, { timeout: 15_000 });
+    await expect(held.locator('.board-held-name')).toHaveText('Keeper');
+
+    // One screen, both rules: the start page names the Keeper twice, and the
+    // two names differ on purpose. "Ook hier" is the account…
+    await page.goto('/');
+    await player.goto('/');
+    await expect(player.getByTestId('live-strip')).toHaveClass(/live-strip-live/, { timeout: 15_000 });
+    const alsoHere = player.getByTestId('live-strip').locator('.board-person').first();
+    await expect(alsoHere).toHaveAttribute('title', 'Keeper', { timeout: 15_000 });
+
+    // …and the feed under it is the word, with the account in the tooltip.
+    const row = player.locator('.feed-item').filter({ hasText: entryName }).first();
+    await expect(row.locator('strong').first()).toHaveText('Spelleider');
+    await expect(row.locator('strong').first()).toHaveAttribute('title', 'Keeper');
+
+    await context.close();
+  } finally {
+    // Every other test in this run reads the default word, so put it back even
+    // when something above fails.
+    await page.goto('/admin');
+    await page.getByRole('tab', { name: 'Woorden' }).click();
+    await page.getByLabel('De spelleider', { exact: true }).fill('');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByText(/^Opgeslagen\./)).toBeVisible();
+  }
 });
 
 test('the box someone drags round the wall is on everyone else’s wall too', async ({

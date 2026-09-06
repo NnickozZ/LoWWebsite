@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db';
 import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
 import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 import { newId, randomToken } from '@/lib/ids';
+import { readCharacterHeader, resolveCharacter } from '@/lib/auth/author';
 
 export const COOKIE_NAME = 'zcf_session';
 /** §4: 90-day rolling expiry. */
@@ -21,6 +22,14 @@ export type SessionUser = {
   articleMode: ArticleModePref;
   /** §29: the face they read in; '' is the archive's own. */
   readingFont: ReadingFont;
+  /**
+   * §18b: the onderzoeker this *window* is writing as — the validated
+   * `X-Character` header, or the account's own `active_character_id` when the
+   * window has not said. Always `null` for a Keeper: a Keeper is always the
+   * Keeper. Everything a person writes is recorded under this, and a player
+   * with `null` here may not write at all (`requireAuthor`).
+   */
+  characterId: string | null;
 };
 
 function hashToken(token: string) {
@@ -87,6 +96,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       lastSeenAt: schema.users.lastSeenAt,
       articleMode: schema.users.articleMode,
       readingFont: schema.users.readingFont,
+      activeCharacterId: schema.users.activeCharacterId,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
@@ -116,10 +126,24 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       .where(eq(schema.users.id, row.id));
   }
 
+  /*
+   * §18b: who this *window* is writing as. The header is the window's answer to
+   * "Met wie ben je nu aan het schrijven?", checked against the fiches this
+   * account holds; a header naming anyone else falls through to the account's
+   * own choice, which is what every window used before there was a question.
+   * A Keeper is asked nothing and gets nothing.
+   */
+  let characterId: string | null = null;
+  if (!row.isKeeper) {
+    const asked = await readCharacterHeader();
+    characterId = (asked ? resolveCharacter(row.id, asked) : null) ?? row.activeCharacterId ?? null;
+  }
+
   return {
     id: row.id,
     username: row.username,
     isKeeper: row.isKeeper,
+    characterId,
     // The value from *before* this visit — that is what "since you were last here" means.
     lastSeenAt: previousLastSeen,
     // A row written before migration 0008 has no value; read it defensively.

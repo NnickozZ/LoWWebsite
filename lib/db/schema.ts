@@ -250,6 +250,8 @@ export const entryRevisions = sqliteTable(
     entryId: text('entry_id').notNull(),
     snapshot: text('snapshot', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     editedBy: text('edited_by'),
+    /** §18: the karakter its author was wearing when this was written. NULL: before §18b. */
+    characterId: text('character_id'),
     createdAt: integer('created_at').notNull().default(now),
     note: text('note').notNull().default(''),
   },
@@ -375,6 +377,8 @@ export const caseRevisions = sqliteTable('case_revisions', {
   caseId: text('case_id').notNull(),
   snapshot: text('snapshot', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
   editedBy: text('edited_by'),
+  /** §18: the karakter its author was wearing when this was written. NULL: before §18b. */
+  characterId: text('character_id'),
   createdAt: integer('created_at').notNull().default(now),
 });
 
@@ -398,6 +402,8 @@ export const boardRevisions = sqliteTable('board_revisions', {
   boardId: text('board_id').notNull(),
   snapshot: text('snapshot', { mode: 'json' }).$type<unknown>().notNull(),
   editedBy: text('edited_by'),
+  /** §18: the karakter its author was wearing when this was written. NULL: before §18b. */
+  characterId: text('character_id'),
   createdAt: integer('created_at').notNull().default(now),
 });
 
@@ -408,6 +414,8 @@ export const pendingEdits = sqliteTable('pending_edits', {
     .$type<Record<string, unknown>>()
     .notNull(),
   proposedBy: text('proposed_by'),
+  /** §18: the karakter its author was wearing when this was written. NULL: before §18b. */
+  characterId: text('character_id'),
   createdAt: integer('created_at').notNull().default(now),
   status: text('status').$type<'pending' | 'approved' | 'rejected'>().notNull().default('pending'),
   reviewedBy: text('reviewed_by'),
@@ -420,6 +428,8 @@ export const auditLog = sqliteTable(
   {
     id: text('id').primaryKey(),
     actorId: text('actor_id'),
+    /** §18: the karakter its author was wearing when this was written. NULL: before §18b. */
+    characterId: text('character_id'),
     action: text('action').notNull(),
     targetType: text('target_type').notNull().default(''),
     targetId: text('target_id').notNull().default(''),
@@ -434,6 +444,8 @@ export const activity = sqliteTable(
   {
     id: text('id').primaryKey(),
     actorId: text('actor_id'),
+    /** §18: the karakter its author was wearing when this was written. NULL: before §18b. */
+    characterId: text('character_id'),
     verb: text('verb').notNull(),
     entryId: text('entry_id'),
     caseId: text('case_id'),
@@ -518,6 +530,8 @@ export const mapPins = sqliteTable(
     x: real('x').notNull().default(0.5),
     y: real('y').notNull().default(0.5),
     createdBy: text('created_by'),
+    /** §18: the karakter whoever set it was wearing. NULL: before §18b. */
+    characterId: text('character_id'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
   },
@@ -540,6 +554,14 @@ export const timelines = sqliteTable(
     description: text('description').notNull().default(''),
     caseId: text('case_id'),
     scale: text('scale').$type<TimelineScale>().notNull().default('day'),
+    /**
+     * §35: "deze tijdlijn speelt op 3 oktober 1931". One moment and the unit
+     * it is known to — always coarser than `scale` — or nothing at all. Both
+     * columns are null together; see `lib/timelines/time.ts` for what an
+     * anchor does (it fills a new gebeurtenis in and fences the axis).
+     */
+    anchorAt: integer('anchor_at'),
+    anchorUnit: text('anchor_unit').$type<'year' | 'month' | 'day'>(),
     /** §17 */
     viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
     editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
@@ -581,6 +603,8 @@ export const timelineEvents = sqliteTable(
     /** False hides the picture frame — the default while there is nothing to show in it. */
     showImage: integer('show_image', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
+    /** §18: the karakter whoever set it was wearing. NULL: before §18b. */
+    characterId: text('character_id'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
   },

@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
@@ -14,6 +15,8 @@ export const dynamic = 'force-dynamic';
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string; pinId: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { pinId } = await ctx.params;
     const body = (await request.json()) as {
       x?: unknown;
@@ -52,6 +55,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string; pinId: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { pinId } = await ctx.params;
     removePin(pinId, user);
     return json({ ok: true });

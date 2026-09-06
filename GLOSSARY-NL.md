@@ -350,7 +350,7 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | What goes here? | Wat komt hier? |
 | Note ‘X’ — a loose note on the map; type its text on the pin | Notitie ‘X’ zetten — een losse aantekening op de landkaart; de tekst typ je zo op de speld |
 | ‘X’ as a new entry — in the wiki and on this spot | ‘X’ als nieuw artikel aanmaken — komt in de wiki én op deze plek |
-| Up to 100 MB (a map) / That picture is over the limit of 10 MB. | tot 100 MB / Die afbeelding is groter dan de limiet van 10 MB. |
+| Up to 20 MB (a map) / That picture is over the limit of 2 MB. | tot 20 MB / Die afbeelding is groter dan de limiet van 2 MB. — the number is the reader's own ceiling (`ui.uploadLimit`), 2 MB for a speler and 20 MB for a Keeper since Round 11 |
 | The file is over what the web server allows… | Het bestand is groter dan de webserver toelaat. Dit is niet de limiet van het archief zelf maar van de webserver ervoor (bij nginx: client_max_body_size). |
 | Test the upload limit / n MB on its way / n MB was refused / lets at least n MB through | Uploadlimiet testen / n MB onderweg / n MB werd geweigerd / laat minstens n MB door |
 | The archive is not answering right now. Try again shortly. | Het archief antwoordt even niet. Probeer het zo opnieuw. |
@@ -463,3 +463,82 @@ Sessieverslagen. Field labels and select options are in lib/db/seed.mjs.
 | **Tekenen staat uit op dit onderdeel.** | melding | Iemand probeerde te tekenen terwijl de Keeper het uitgezet had. |
 | **De tekenlaag is vol. Vraag een Keeper hem te wissen.** | melding | Tweeduizend streken is de grens; uitgegumde inkt telt mee tot de laag gewist is. |
 | **tekenlaag**, **streek**, **potlood**, **gum** | in de tekst van de site | De laag, één lijn erop, en de twee gereedschappen. |
+
+## Ronde 11 — gummen, draden, verkleinen, het volle scherm, de as, en wie er schrijft
+
+### De tekenlaag: drie gummen (§33)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Kleine gum** · **Normale gum** · **Grote gum** | dezelfde drie stippen, als de gum in de hand is | De dikte van de gum (12, 24 en 48 px op het scherm). De stippen zijn dan ringetjes: een stip is inkt die je neerlegt, een ring is inkt die je weghaalt. |
+| **Gumdikte** | de naam van dat groepje (voor een schermlezer) | Met het potlood heet hetzelfde groepje **Dikte** en zijn het **Dun · Normaal · Dik**. |
+
+De acht kleuren staan gedempt zolang de gum in de hand is, zodat nooit de vraag
+is welk gereedschap je vasthebt. **tekenlaag**, **streek**, **potlood** en
+**gum** staan al in ronde 10.
+
+### De draad op een prikbord
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Dikte van de draad** | de balk onderaan het prikbord, bij een gekozen draad | Vier diktes, in bordeenheden — de draad groeit dus mee met de zoom, anders dan een streek. |
+| **Dun** · **Normaal** · **Dik** · **Extra dik** | die vier knopjes | 1,5 · 2 · 4 · 6,5. **Normaal** is wat elk prikbord altijd al had. |
+| **Soort draad** | ernaast | Hoe de draad getekend wordt. |
+| **Vol** · **Streepjes** · **Stippels** · **Dubbel** · **Streep-stip** | dat keuzelijstje | **Dubbel** is twee draden naast elkaar, geen streep uit één draad gesneden. |
+
+De hint *Sleep een uiteinde om het te verplaatsen.* is uit de balk verdwenen:
+er stond meer in dan er paste. Slepen kan nog gewoon.
+
+### Uploaden en verkleinen (§30)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **De afbeelding was te groot en is verkleind.** | melding, overal waar een foto gekozen of geplakt wordt | De browser heeft de foto zelf kleiner gemaakt zodat hij past. Eén regel, één keer. |
+| **Die afbeelding is groter dan de limiet van {n} MB en werd ook verkleind niet klein genoeg.** | melding | Zelfs de kleinste stap paste niet. |
+| **Die afbeelding is groter dan de limiet van {n} MB.** | melding | Ongewijzigd — en wat een GIF of een SVG krijgt, want die worden nooit verkleind. |
+| **tot {n} MB** | onder het bestandsveld | 2 MB voor een speler, 20 MB voor een Keeper. |
+| **Het archief laat spelers 2 MB en Keepers 20 MB uploaden…** | Beheer → Site → Uploadlimiet testen | De test stuurt 1,5 · 3 · 21 MB en noemt `client_max_body_size 25m;` (bij Apache `LimitRequestBody 26214400`). |
+
+### Het volle scherm: waar dingen dan staan (§34)
+
+Er is niets nieuws te lezen op een landkaart of een tijdlijn — er is minder te
+lezen, en dat is de bedoeling. Twee dingen zijn wel verhuisd.
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Tekenen toegestaan** · **Tekenlaag wissen** | op een landkaart: ónder de kaart, bij de andere gereedschappen van de Keeper — je scrollt ernaartoe | Ze zijn gereedschap, geen deel van de kaart. Op een tijdlijn stonden ze altijd al in **Instellingen**, op een prikbord bij **Rechten**. |
+| **live** · **verbinden…** · **geen verbinding** | het stipje rechtsboven in de kolom | Op een pagina die één grote kaart of tijdlijn is hangt het in de hoek bóven de kaart in plaats van in de tekst mee te lopen. Alleen het stipje is te zien tot er iets mis is. |
+
+### De tijdlijn: verzetten en een vast moment (§35)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **sleep een {gebeurtenis} om hem te verzetten** | de regel onder de as | Een gebeurtenis schuift over de as en landt op een hele eenheid van zijn eigen precisie. |
+| **Wijzig** | het blad van een nieuwe gebeurtenis | Het moment dat je aanwees staat er als één regel; hiermee vraag je de datumvakjes alsnog. |
+| **Deze {tijdlijn} speelt op…** | Instellingen, alleen bij een maat fijner dan dagen | Het vaste moment van de tijdlijn. |
+| **Geen vast moment** / **Een jaar** / **Een maand** / **Eén dag** | daaronder | Hoeveel van de datum vastligt. Altijd grover dan de maat van de tijdlijn. |
+| **Geef een dag op en elke nieuwe {gebeurtenis} vraagt alleen nog het tijdstip.** | uitleg zonder vast moment | |
+| **Elke nieuwe {gebeurtenis} begint op dit moment, en de as komt er niet meer vanaf.** | uitleg mét vast moment | Het vaste moment is ook een hek: verder pannen of uitzoomen dan die ene dag kan niet. |
+| **De dag staat vast; vul in wat je van het tijdstip weet.** | boven de datumvakjes van een vastgezette tijdlijn | Tegenover *Het jaar is genoeg; wat je verder weet vul je in.* |
+| **speelt op {datum}** | de regel onder de as | Waar deze tijdlijn zich afspeelt. |
+| **Wanneer speelt deze tijdlijn?** · **Een vast moment heeft een tijdstip én een maat nodig.** · **Onbekende maat voor het vaste moment.** · **Het vaste moment moet grover zijn dan de maat van de tijdlijn.** · **Onbekend vast moment.** | meldingen | De vijf manieren waarop een vast moment geweigerd wordt. |
+
+### Met wie je schrijft (§18b)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Met wie ben je nu aan het schrijven?** | een blad, één keer per browservenster | Alleen onderzoekers staan erin: als jezelf schrijven bestaat niet meer. |
+| **Alles wat je in dit venster typt komt op naam van deze onderzoeker. Een ander venster kan een andere kiezen.** | in dat blad | Waarom het per venster gaat. |
+| **Je schrijft als** | onder de karakterwissel in het menu, en boven de kleerkast op Jij | Wat er nu op je volgende regel komt te staan. Klik erop om te wisselen. |
+| **nog niemand** | in die regel | Er is nog niets gekozen én het account draagt niets. |
+| **Je hebt nog geen onderzoeker, dus je kunt alleen lezen.** | een blijvende melding bovenaan elke pagina | Voor een speler zonder onderzoeker. De melding wijst de weg naar buiten: maak een artikel en koppel het aan je account. |
+| **Je hebt nog geen onderzoeker, dus je kunt hier alleen lezen.** | melding, bij een knop die dicht blijft | Hetzelfde, waar het gebeurt. |
+| **Kies eerst met wie je schrijft.** | antwoord van het archief | Het archief weigert een schrijfactie zonder onderzoeker; de browser stelt daarop de vraag hierboven. |
+| **{Karakters} beheren** | onderaan dat blad | Naar de kleerkast op Jij. Het woord komt uit Beheer → Woorden. |
+
+De vraag is zelf een blad, en daarom komt hij nooit óver een ander blad heen.
+Op **Nieuw artikel** en **Nieuw dossier** wordt eerst gevraagd met wie je
+schrijft — alleen die vraag staat dan op het scherm — en pas je antwoord opent
+het blad waar je op klikte. Overal waar je gewoon begint te typen komt de vraag
+wél over de pagina heen: die pagina staat er daarna nog precies zo bij.
+Escape sluit altijd het bovenste blad, en verder niets.

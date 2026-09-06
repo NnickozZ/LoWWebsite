@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 
 /** Free-form tags, lower-cased, autocompleted from what already exists (§6). */
 export function TagsEditor({
@@ -14,6 +15,13 @@ export function TagsEditor({
   onChange: (next: string[]) => void;
 }) {
   const [draft, setDraft] = useState('');
+  /*
+   * §18b: a tag is a change to an artikel, and a change wants a name on it.
+   * With no onderzoeker the tags are printed and neither the box nor the
+   * little crosses do anything.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
 
   const matches = useMemo(() => {
     const typed = draft.trim().toLowerCase();
@@ -34,7 +42,7 @@ export function TagsEditor({
   }
 
   return (
-    <div>
+    <div {...gate}>
       <div className="row-wrap" style={{ marginBottom: '0.4rem' }}>
         {tags.map((tag) => (
           <span key={tag} className="tag">
@@ -42,6 +50,7 @@ export function TagsEditor({
             <button
               type="button"
               aria-label={`${tag} verwijderen`}
+              disabled={!mayType}
               onClick={() => onChange(tags.filter((t) => t !== tag))}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
             >
@@ -55,6 +64,7 @@ export function TagsEditor({
         <input
           className="input"
           value={draft}
+          readOnly={!mayType}
           placeholder="Tag toevoegen…"
           onChange={(event) => setDraft(event.target.value)}
           onBlur={() => draft.trim() && add(draft)}

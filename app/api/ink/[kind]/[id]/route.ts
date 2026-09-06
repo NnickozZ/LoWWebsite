@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { inkForViewer } from '@/lib/ink/merge';
@@ -40,6 +41,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ kind: stri
   try {
     const { user, found } = await target(ctx);
     if (!found) return json({ error: 'Niet gevonden.' }, { status: 404 });
+    // §18b: a player who has not said who they are writing as does not draw.
+    requireAuthor(user);
     const patch = (await request.json()) as InkPatch;
     const result = applyInk(found, patch, user);
     return json({ layer: inkForViewer(result.layer, user.id), refused: result.refused });

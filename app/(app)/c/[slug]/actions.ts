@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { viewerCanEdit } from '@/lib/access';
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { getCaseById, getCaseBySlug, softDeleteCase } from '@/lib/cases/service';
 
@@ -18,6 +19,8 @@ import { getCaseById, getCaseBySlug, softDeleteCase } from '@/lib/cases/service'
  */
 export async function deleteCaseAction(formData: FormData) {
   const user = await requireUser();
+  // §18b: a player who has not said who they are writing as does not write.
+  requireAuthor(user);
   const caseId = String(formData.get('caseId') ?? '');
 
   // The same two checks every write to a dossier makes: it has to exist, this
@@ -26,7 +29,7 @@ export async function deleteCaseAction(formData: FormData) {
   if (!summary || !getCaseBySlug(summary.slug, user)) throw new Error('Dossier niet gevonden');
   if (!viewerCanEdit('case', caseId, user)) throw new Error('Je mag dit dossier niet bewerken.');
 
-  softDeleteCase(caseId, user.id);
+  softDeleteCase(caseId, user);
   revalidatePath('/cases');
   redirect('/cases');
 }

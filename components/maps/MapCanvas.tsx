@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
@@ -11,6 +12,7 @@ import type { LiveUser } from '@/components/editor/useLiveDoc';
 import { mapKey, pinFieldsRoomKey } from '@/lib/live/keys';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { useIsPhone } from '@/components/useIsPhone';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
 import { InkCanvas } from '@/components/ink/InkCanvas';
@@ -94,6 +96,29 @@ function writeLegendOpen(open: boolean) {
   }
 }
 
+/** The empty div a landkaart's page leaves below the canvas, for `UnderFold`. */
+const UNDER_FOLD_ID = 'map-underfold';
+
+/**
+ * §34: the landkaart takes the screen, so anything in the canvas column that is
+ * neither the one line of heading nor the canvas is a line taken off the map.
+ * The Keeper's tekenlaag switch is a *tool* — 132 px of one on a telephone,
+ * which is the difference between a map that fills three-quarters of the screen
+ * and one that fills five-eighths — and it belongs below the fold with the rest
+ * of the Keeper's tools, in the slot the page leaves after `.page-canvas` (the
+ * tijdlijn's answer to the same question is its Instellingen sheet).
+ *
+ * It is put there after mount rather than rendered where it stands, so the
+ * block never shows in the column and then jumps out of it. No slot — a
+ * player's page, where there is nothing below the fold — means nothing to
+ * place.
+ */
+function UnderFold({ children }: { children: ReactNode }) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById(UNDER_FOLD_ID)), []);
+  return slot ? createPortal(children, slot) : null;
+}
+
 export function MapCanvas({
   map,
   initialPins,
@@ -119,6 +144,17 @@ export function MapCanvas({
   const router = useRouter();
   const search = useSearchParams();
   const isPhone = useIsPhone();
+  /*
+   * §18b: a speld says who set it ("Gezet door …"), so setting one asks for a
+   * name first. Without an onderzoeker the landkaart is a picture with pins on
+   * it: it pans, it zooms, its legend works, and nothing on it moves.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  // Read by the callbacks below, which are built once and would otherwise
+  // close over the answer as it was then.
+  const mayTypeRef = useRef(mayType);
+  mayTypeRef.current = mayType;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
@@ -292,7 +328,9 @@ export function MapCanvas({
     }
     const place = search.get('place');
     const placeName = search.get('name');
-    if (place) setPlacing({ mode: 'entry', entryId: place, entryName: placeName ?? words.entry });
+    // §18b: "Zet op de landkaart" arrives as a URL; without an onderzoeker
+    // there is nothing to set, so the crosshair never comes up.
+    if (place && mayTypeRef.current) setPlacing({ mode: 'entry', entryId: place, entryName: placeName ?? words.entry });
   }, [centreOn, pins, search, stageSize.w, words.entry]);
 
   /* ----------------------------------------------------------- pointer */
@@ -409,7 +447,7 @@ export function MapCanvas({
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   };
 
-  const mayMove = (pin: MapPin) => isKeeper || pin.createdBy === viewerId;
+  const mayMove = (pin: MapPin) => mayType && (isKeeper || pin.createdBy === viewerId);
 
   const onStagePointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0 && event.pointerType === 'mouse') return;
@@ -591,6 +629,8 @@ export function MapCanvas({
 
   const createPin = useCallback(
     async (input: Record<string, unknown>) => {
+      // §18b: nothing to sign a speld with. The archive would refuse it too.
+      if (!mayTypeRef.current) return null;
       setBusy(true);
       try {
         const response = await fetch(`/api/maps/${map.id}/pins`, {
@@ -814,7 +854,7 @@ export function MapCanvas({
   );
 
   return (
-    <div className="map-page">
+    <div className="map-page" {...gate}>
       <div className="row-wrap map-toolbar">
         {placing ? (
           <>
@@ -832,6 +872,7 @@ export function MapCanvas({
           <button
             type="button"
             className="btn btn-primary btn-small"
+            disabled={!mayType}
             onClick={() => {
               setSelectedId(null);
               setPlacing({ mode: 'pick' });
@@ -1031,22 +1072,24 @@ export function MapCanvas({
       </p>
 
       {isKeeper && (
-        <InkKeeperControls
-          enabled={ink.enabled}
-          strokeCount={ink.layer.strokes.length}
-          noun={`deze ${mapWord}`}
-          onSetEnabled={(enabled) => void ink.keeper({ enabled })}
-          onClear={() =>
-            void ui
-              .confirm({
-                title: 'Tekenlaag wissen?',
-                message: `Alle streken op deze ${mapWord} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
-                confirmLabel: 'Wissen',
-                danger: true,
-              })
-              .then((yes) => yes && ink.keeper({ clear: true }))
-          }
-        />
+        <UnderFold>
+          <InkKeeperControls
+            enabled={ink.enabled}
+            strokeCount={ink.layer.strokes.length}
+            noun={`deze ${mapWord}`}
+            onSetEnabled={(enabled) => void ink.keeper({ enabled })}
+            onClear={() =>
+              void ui
+                .confirm({
+                  title: 'Tekenlaag wissen?',
+                  message: `Alle streken op deze ${mapWord} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
+                  confirmLabel: 'Wissen',
+                  danger: true,
+                })
+                .then((yes) => yes && ink.keeper({ clear: true }))
+            }
+          />
+        </UnderFold>
       )}
 
       {selected && (

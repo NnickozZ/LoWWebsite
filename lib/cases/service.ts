@@ -5,6 +5,7 @@ import { uniqueSlug } from '@/lib/slug';
 import type { AccessMode, CoverCrop } from '@/lib/db/schema';
 import { docToText } from '@/lib/entries/doc';
 import { recomputeCaseMentions } from '@/lib/entries/mentions';
+import type { Author } from '@/lib/auth/author';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
 import { reconcileOrigin } from '@/lib/entries/origin';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -94,6 +95,8 @@ export function createCase(input: {
   name: string;
   summary?: string;
   createdBy: string | null;
+  /** §18b: the onderzoeker it is being opened as. */
+  characterId?: string | null;
 }): CaseSummary {
   const name = input.name.trim();
   if (!name) throw new Error('Geef het dossier eerst een naam.');
@@ -124,8 +127,13 @@ export function createCase(input: {
       .run();
   }
 
-  writeCaseRevision(id, input.createdBy);
-  logActivity({ actorId: input.createdBy, verb: 'case.created', caseId: id });
+  writeCaseRevision(id, input.createdBy, input.characterId ?? null);
+  logActivity({
+    actorId: input.createdBy,
+    characterId: input.characterId ?? null,
+    verb: 'case.created',
+    caseId: id,
+  });
   return getCaseById(id)!;
 }
 
@@ -275,12 +283,22 @@ export function touchCase(caseId: string, userId: string | null) {
   if (userId) void userId;
 }
 
+/**
+ * §18b: `by` is an account id — what a script or a test hands it — or the
+ * session user, whose onderzoeker is then recorded with the act.
+ */
+export type ActedBy = string | Author | null;
+const actorId = (by: ActedBy) => (by === null ? null : typeof by === 'string' ? by : by.id);
+const actorCharacter = (by: ActedBy) =>
+  by === null || typeof by === 'string' ? null : (by.characterId ?? null);
+
 export function addEntryToCase(
   caseId: string,
   entryId: string,
-  userId: string | null,
+  by: ActedBy,
   note = '',
 ) {
+  const userId = actorId(by);
   db.insert(schema.caseEntries)
     .values({ caseId, entryId, addedBy: userId, note })
     .onConflictDoNothing()
@@ -289,10 +307,11 @@ export function addEntryToCase(
   // whether that is where it came from; a pinned origin it leaves alone.
   reconcileOrigin(entryId);
   touchCase(caseId, userId);
-  logActivity({ actorId: userId, verb: 'case.entry_added', caseId, entryId });
+  logActivity({ actorId: userId, characterId: actorCharacter(by), verb: 'case.entry_added', caseId, entryId });
 }
 
-export function removeEntryFromCase(caseId: string, entryId: string, userId: string | null) {
+export function removeEntryFromCase(caseId: string, entryId: string, by: ActedBy) {
+  const userId = actorId(by);
   db.delete(schema.caseEntries)
     .where(and(eq(schema.caseEntries.caseId, caseId), eq(schema.caseEntries.entryId, entryId)))
     .run();
@@ -300,21 +319,22 @@ export function removeEntryFromCase(caseId: string, entryId: string, userId: str
   // one it is still in, or admits to having none.
   reconcileOrigin(entryId);
   touchCase(caseId, userId);
-  logActivity({ actorId: userId, verb: 'case.entry_removed', caseId, entryId });
+  logActivity({ actorId: userId, characterId: actorCharacter(by), verb: 'case.entry_removed', caseId, entryId });
 }
 
 export function setCaseEntryNote(
   caseId: string,
   entryId: string,
   note: string,
-  userId: string | null,
+  by: ActedBy,
 ) {
+  const userId = actorId(by);
   db.update(schema.caseEntries)
     .set({ note })
     .where(and(eq(schema.caseEntries.caseId, caseId), eq(schema.caseEntries.entryId, entryId)))
     .run();
   touchCase(caseId, userId);
-  logActivity({ actorId: userId, verb: 'case.note_changed', caseId, entryId });
+  logActivity({ actorId: userId, characterId: actorCharacter(by), verb: 'case.note_changed', caseId, entryId });
 }
 
 /** This case's own crop of the cover. Null means "use the entry's". */
@@ -397,7 +417,7 @@ export type CasePatch = Partial<{
 export function updateCase(
   caseId: string,
   patch: CasePatch,
-  user: { id: string; isKeeper: boolean },
+  user: Author,
   options: { live?: boolean } = {},
 ) {
   const existing = db.select().from(schema.cases).where(eq(schema.cases.id, caseId)).get();
@@ -422,11 +442,11 @@ export function updateCase(
     db.update(schema.cases).set(values).where(eq(schema.cases.id, caseId)).run();
   }
 
-  writeCaseRevision(caseId, user.id);
+  writeCaseRevision(caseId, user.id, user.characterId ?? null);
   // §27: the artikelen these working notes name. Hung off the service, not off
   // the room, so a save from either road is counted (rule 13).
   if (patch.notes !== undefined) recomputeCaseMentions(caseId);
-  logActivity({ actorId: user.id, verb: 'case.edited', caseId });
+  logActivity({ actorId: user.id, characterId: user.characterId ?? null, verb: 'case.edited', caseId });
   // §20: the shared notes follow the archive when written around the room.
   if (patch.notes !== undefined && !options.live) resetRoom(`case:${caseId}:notes`, patch.notes);
   // §21: so do the name and the one-liner, which are shared fields.
@@ -474,17 +494,21 @@ export function setCaseTabTypes(caseId: string, tabTypes: unknown): CaseSummary 
   return getCaseById(caseId)!;
 }
 
-export function softDeleteCase(caseId: string, userId: string) {
+export function softDeleteCase(caseId: string, by: ActedBy) {
   db.update(schema.cases)
     .set({ deletedAt: Math.floor(Date.now() / 1000) })
     .where(eq(schema.cases.id, caseId))
     .run();
-  logActivity({ actorId: userId, verb: 'case.deleted', caseId });
+  logActivity({ actorId: actorId(by), characterId: actorCharacter(by), verb: 'case.deleted', caseId });
 }
 
 const REVISION_COALESCE_SECONDS = 5 * 60;
 
-export function writeCaseRevision(caseId: string, editedBy: string | null) {
+export function writeCaseRevision(
+  caseId: string,
+  editedBy: string | null,
+  characterId: string | null = null,
+) {
   const row = db.select().from(schema.cases).where(eq(schema.cases.id, caseId)).get();
   if (!row) return;
 
@@ -508,7 +532,13 @@ export function writeCaseRevision(caseId: string, editedBy: string | null) {
     memberIds: listCaseMembers(caseId).map((m) => m.id),
   };
 
-  if (latest && latest.editedBy === editedBy && nowSeconds - latest.createdAt < REVISION_COALESCE_SECONDS) {
+  // §18b: one account, two onderzoekers, two revisions — never one merged row.
+  if (
+    latest &&
+    latest.editedBy === editedBy &&
+    (latest.characterId ?? null) === characterId &&
+    nowSeconds - latest.createdAt < REVISION_COALESCE_SECONDS
+  ) {
     db.update(schema.caseRevisions)
       .set({ snapshot, createdAt: nowSeconds })
       .where(eq(schema.caseRevisions.id, latest.id))
@@ -517,7 +547,7 @@ export function writeCaseRevision(caseId: string, editedBy: string | null) {
   }
 
   db.insert(schema.caseRevisions)
-    .values({ id: newId(), caseId, snapshot, editedBy })
+    .values({ id: newId(), caseId, snapshot, editedBy, characterId })
     .run();
 }
 
@@ -531,6 +561,8 @@ export type CaseActivityItem = {
   actorId: string | null;
   actorName: string | null;
   actorIsKeeper: boolean;
+  /** §18b: the onderzoeker it was written as, as recorded. NULL: before §18b. */
+  characterId: string | null;
   /** §18: filled in by `attributed()` on the page; the account name until then. */
   actorLabel?: string | null;
   actorAccount?: string | null;
@@ -549,6 +581,7 @@ export function listCaseActivity(caseId: string, viewer: Viewer, limit = 120): C
       actorId: schema.users.id,
       actorName: schema.users.username,
       actorIsKeeper: schema.users.isKeeper,
+      writtenAs: schema.activity.characterId,
       entryId: schema.activity.entryId,
       entryName: schema.entries.name,
       entrySlug: schema.entries.slug,
@@ -586,6 +619,7 @@ export function listCaseActivity(caseId: string, viewer: Viewer, limit = 120): C
       actorId: row.actorId,
       actorName: row.actorName,
       actorIsKeeper: Boolean(row.actorIsKeeper),
+      characterId: row.writtenAs,
       entryName: row.entryName,
       entrySlug: row.entrySlug,
       boardName: row.boardName,

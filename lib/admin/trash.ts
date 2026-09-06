@@ -10,6 +10,12 @@ import { forgetStoredState } from '@/lib/live/docs';
  * entry is invisible to a player by `visibleEntryCondition`, so there is no
  * second rule to keep in step.
  *
+ * §18b: nothing in this file carries a `characterId`, and that is the rule
+ * rather than an omission — every act here is a Keeper's, and a Keeper is
+ * always the Keeper. The same holds for `lib/admin/types.ts` and
+ * `lib/admin/words.ts`, and for the section and reveal work in
+ * `lib/entries/secrets.ts`.
+ *
  * The bin does now have a bottom (`destroyFromTrash`). A Keeper who has to be
  * able to throw something away for good — a page written by mistake, a name
  * that should never have been typed — could not, and "restore only" is not a

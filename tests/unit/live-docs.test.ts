@@ -24,8 +24,13 @@ let sqlite: typeof import('@/lib/db').sqlite;
 let service: typeof import('@/lib/entries/service');
 
 const KEEPER = { id: 'keeper-1', isKeeper: true };
-const BRAM = { id: 'bram', isKeeper: false };
-const AAGJE = { id: 'aagje', isKeeper: false };
+/*
+ * §18b: a player carries the onderzoeker their window is writing as. Every
+ * `admit` here is about rights, not about names, but a player with no karakter
+ * is refused the pen — so the two players in this file each hold one.
+ */
+const BRAM = { id: 'bram', isKeeper: false, characterId: 'vandijk' };
+const AAGJE = { id: 'aagje', isKeeper: false, characterId: 'nel' };
 
 const para = (text: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });
 
@@ -207,6 +212,15 @@ describe('the gate', () => {
   it('is the §10 lock: a locked fiche is read-only for a player', () => {
     expect(rooms.admit('entry:opslot:body', BRAM)?.canEdit).toBe(false);
     expect(rooms.admit('entry:opslot:body', KEEPER)?.canEdit).toBe(true);
+  });
+  it('is §18b: a player who has not said who they are writing as may look, not type', () => {
+    const { characterId, ...noName } = BRAM;
+    void characterId;
+    // The room is still there — being refused the pen is not being refused the room.
+    expect(rooms.admit('entry:vanbram:body', noName)).not.toBeNull();
+    expect(rooms.admit('entry:vanbram:body', noName)?.canEdit).toBe(false);
+    // A Keeper never has one, and is never stopped by this.
+    expect(rooms.admit('entry:vanbram:body', { id: 'keeper-1', isKeeper: true })?.canEdit).toBe(true);
   });
   it('a hidden section is nobody\'s room but the Keeper\'s; revealed, it opens read-only', () => {
     expect(rooms.admit('section:s1', BRAM)).toBeNull();

@@ -159,6 +159,113 @@ test.describe('board strings and borders', () => {
     await expect(page.locator('.board-pintag')).toHaveText('who paid?');
   });
 
+  test('a string can be made thicker and dotted, and stays that way', async ({ page }) => {
+    await signIn(page, 'Keeper', 'abbeytower34');
+    await newBoard(page);
+    await pinEntry(page, 'Pier Boone');
+    await pinEntry(page, 'Sister Clasina');
+
+    const first = page.locator('.board-card', { hasText: 'Pier Boone' }).first();
+    const second = page.locator('.board-card', { hasText: 'Sister Clasina' }).first();
+    const pin = (await first.locator('.board-pin').boundingBox())!;
+    const target = (await second.boundingBox())!;
+    await dragFrom(
+      page,
+      { x: pin.x + pin.width / 2, y: pin.y + pin.height / 2 },
+      { x: target.x + target.width / 2, y: target.y + target.height / 2 },
+    );
+
+    const inspector = page.locator('.board-inspector');
+    await expect(inspector).toBeVisible();
+    // A label, so there is a chip to pick the string up by afterwards.
+    await page.getByLabel('Bijschrift').fill('dezelfde boot');
+    await page.getByLabel('Bijschrift').press('Enter');
+
+    await inspector.getByRole('radio', { name: 'Dik', exact: true }).click();
+    await inspector.getByLabel('Soort draad').selectOption('dotted');
+
+    // Assert what is painted, not the attribute — a CSS rule beats a
+    // presentation attribute, which is how the colour once reached the label
+    // and never the line. The selection adds two units, so let it go first.
+    await page.keyboard.press('Escape');
+    await expect(inspector).toBeHidden();
+    const painted = () =>
+      page.locator('.board-string').first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        return `${style.strokeWidth} | ${style.strokeDasharray}`;
+      });
+    // 4 units thick, and a zero-length dash under a round cap: dots.
+    await expect.poll(painted).toMatch(/^4(px)? \| 0\.04(px)?,? 9\.6(px)?$/);
+
+    await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
+    await page.reload();
+    await expect(page.locator('.board-string')).toHaveCount(1);
+    await expect.poll(painted).toMatch(/^4(px)? \| 0\.04(px)?,? 9\.6(px)?$/);
+
+    // And the bar comes back holding what was chosen.
+    await page.locator('.board-string-label').click();
+    await expect(inspector.getByLabel('Soort draad')).toHaveValue('dotted');
+    await expect(inspector.getByRole('radio', { name: 'Dik', exact: true })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  test('a dashed string can still be caught in one of its gaps', async ({ page }) => {
+    await signIn(page, 'Keeper', 'abbeytower34');
+    await newBoard(page);
+    await pinEntry(page, 'Pier Boone');
+    await pinEntry(page, 'Sister Clasina');
+
+    const first = page.locator('.board-card', { hasText: 'Pier Boone' }).first();
+    const second = page.locator('.board-card', { hasText: 'Sister Clasina' }).first();
+    const pin = (await first.locator('.board-pin').boundingBox())!;
+    const target = (await second.boundingBox())!;
+    await dragFrom(
+      page,
+      { x: pin.x + pin.width / 2, y: pin.y + pin.height / 2 },
+      { x: target.x + target.width / 2, y: target.y + target.height / 2 },
+    );
+
+    const inspector = page.locator('.board-inspector');
+    await expect(inspector).toBeVisible();
+    await inspector.getByRole('radio', { name: 'Extra dik', exact: true }).click();
+    await inspector.getByLabel('Soort draad').selectOption('dashed');
+    await page.keyboard.press('Escape');
+    await expect(inspector).toBeHidden();
+
+    // Walk along the curve to a point squarely inside a gap, and turn it into
+    // a place on the screen. The hit path is the unbroken centre line, so a
+    // string with holes in it is still a piece of string you can grab.
+    const gap = await page.locator('.board-string').first().evaluate((node) => {
+      const path = node as SVGPathElement;
+      const pattern = getComputedStyle(path)
+        .strokeDasharray.split(/[\s,]+/)
+        .map((part) => parseFloat(part));
+      if (pattern.length < 2) return null;
+      const [dash, hole] = pattern;
+      const total = path.getTotalLength();
+      const ctm = path.getScreenCTM();
+      if (!ctm) return null;
+      for (let at = total * 0.35; at < total * 0.6; at += 0.25) {
+        const into = at % (dash + hole);
+        // The middle of a hole, not its edge, where anti-aliasing lives.
+        if (into > dash + hole * 0.4 && into < dash + hole * 0.6) {
+          const point = path.getPointAtLength(at);
+          const on = new DOMPoint(point.x, point.y).matrixTransform(ctm);
+          return { x: on.x, y: on.y };
+        }
+      }
+      return null;
+    });
+    expect(gap).not.toBeNull();
+
+    await page.mouse.click(gap!.x, gap!.y);
+    // The string's own field: proof it is the string that was selected, not a
+    // card the click fell through to.
+    await expect(page.getByLabel('Bijschrift')).toBeVisible();
+  });
+
   test('a card takes its border from its type, and can be overridden', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await newBoard(page);

@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
+import type { Author } from '@/lib/auth/author';
 import { db, schema, sqlite } from '@/lib/db';
 import type { AccessMode, CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
@@ -11,6 +12,7 @@ import { visibleEntryCondition, type Viewer } from './visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { publishSaved, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
 import { entryFieldsRoomKey } from '@/lib/live/keys';
+import { syncEventsFromEntryDate } from '@/lib/timelines/moment';
 
 export type EntryTypeRow = {
   id: string;
@@ -171,8 +173,18 @@ const REVISION_COALESCE_SECONDS = 5 * 60;
  * Snapshots the entry. Consecutive edits by the same person inside five minutes
  * replace the previous snapshot rather than piling up — autosave would otherwise
  * write a revision every keystroke pause.
+ *
+ * §18b: "the same person" means the same account *and* the same onderzoeker.
+ * One account holding two investigators is two writers as far as the history is
+ * concerned, and coalescing on the account alone would quietly merge them into
+ * whichever name happened to be first.
  */
-export function writeRevision(entryId: string, editedBy: string | null, note = '') {
+export function writeRevision(
+  entryId: string,
+  editedBy: string | null,
+  note = '',
+  characterId: string | null = null,
+) {
   const entry = db.select().from(schema.entries).where(eq(schema.entries.id, entryId)).get();
   if (!entry) return;
 
@@ -202,6 +214,7 @@ export function writeRevision(entryId: string, editedBy: string | null, note = '
   if (
     latest &&
     latest.editedBy === editedBy &&
+    (latest.characterId ?? null) === characterId &&
     nowSeconds - latest.createdAt < REVISION_COALESCE_SECONDS &&
     !note
   ) {
@@ -213,7 +226,7 @@ export function writeRevision(entryId: string, editedBy: string | null, note = '
   }
 
   db.insert(schema.entryRevisions)
-    .values({ id: newId(), entryId, snapshot, editedBy, note })
+    .values({ id: newId(), entryId, snapshot, editedBy, characterId, note })
     .run();
 }
 
@@ -227,6 +240,8 @@ export type CreateEntryInput = {
   fields?: Record<string, unknown>;
   tags?: string[];
   createdBy: string | null;
+  /** §18b: the onderzoeker it is being made as. */
+  characterId?: string | null;
   /**
    * §24: the dossier this is being made in. Required for a `caseOnly` soort —
    * a voorwerp or a clue is found *during* an investigation, and one with no
@@ -274,8 +289,13 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
   recomputeLinks(id, body);
   // §27: made with its infobox already filled in — the mentions come with it.
   if (input.fields) recomputeFieldMentions(id);
-  writeRevision(id, input.createdBy, 'aangemaakt');
-  logActivity({ actorId: input.createdBy, verb: 'entry.created', entryId: id });
+  writeRevision(id, input.createdBy, 'aangemaakt', input.characterId ?? null);
+  logActivity({
+    actorId: input.createdBy,
+    characterId: input.characterId ?? null,
+    verb: 'entry.created',
+    entryId: id,
+  });
 
   return getEntrySummaryById(id)!;
 }
@@ -532,7 +552,7 @@ export type SaveResult =
 export function updateEntry(
   entryId: string,
   patch: EntryPatch,
-  user: { id: string; isKeeper: boolean },
+  user: Author,
   options: {
     /**
      * §20: the save is the shared document writing itself back. Anything else
@@ -545,6 +565,11 @@ export function updateEntry(
 ): SaveResult {
   const entry = db.select().from(schema.entries).where(eq(schema.entries.id, entryId)).get();
   if (!entry) throw new Error('Artikel niet gevonden');
+
+  // §18b: the onderzoeker this window is writing as — recorded on everything
+  // this call leaves behind: the revision, the feed row, the audit line, and a
+  // proposal that has to wait for a Keeper.
+  const writtenAs = user.characterId ?? null;
 
   // §17: someone who may see this fiche but not change it gets the same road
   // a locked fiche offers everyone — the edit becomes a proposal for the owner
@@ -559,6 +584,7 @@ export function updateEntry(
           entryId,
           proposedSnapshot: patch as Record<string, unknown>,
           proposedBy: user.id,
+          characterId: writtenAs,
         })
         .run();
       return { status: 'pending' };
@@ -572,6 +598,7 @@ export function updateEntry(
         entryId,
         proposedSnapshot: patch as Record<string, unknown>,
         proposedBy: user.id,
+        characterId: writtenAs,
       })
       .run();
     return { status: 'pending' };
@@ -585,6 +612,7 @@ export function updateEntry(
     if (patch.visibility !== undefined && patch.visibility !== entry.visibility) {
       logAudit({
         actorId: user.id,
+        characterId: writtenAs,
         action: 'entry.visibility_changed',
         targetType: 'entry',
         targetId: entryId,
@@ -594,6 +622,7 @@ export function updateEntry(
     if (patch.isLocked !== undefined && patch.isLocked !== entry.isLocked) {
       logAudit({
         actorId: user.id,
+        characterId: writtenAs,
         action: patch.isLocked ? 'entry.locked' : 'entry.unlocked',
         targetType: 'entry',
         targetId: entryId,
@@ -639,6 +668,11 @@ export function updateEntry(
   // back off the merged row rather than off the patch, because §6 patches one
   // field at a time and the table has to hold what the infobox now says.
   if (patch.fields !== undefined) recomputeFieldMentions(entryId);
+  // §35: the infobox's date and this artikel's gebeurtenissen are one fact.
+  // Editing the date here moves every tag of it on every tijdlijn, each
+  // re-snapped to its own precision and re-anchored to its own axis; the
+  // other direction (a tag dragged) writes this field back the same way.
+  if (patch.fields !== undefined) syncEventsFromEntryDate(entryId);
   if (
     patch.name !== undefined ||
     patch.shortDescription !== undefined ||
@@ -647,8 +681,8 @@ export function updateEntry(
   ) {
     reindexEntry(entryId);
   }
-  writeRevision(entryId, user.id);
-  logActivity({ actorId: user.id, verb: 'entry.edited', entryId });
+  writeRevision(entryId, user.id, '', writtenAs);
+  logActivity({ actorId: user.id, characterId: writtenAs, verb: 'entry.edited', entryId });
 
   // §20: keep the room honest, and tell whoever has the page open.
   const room = `entry:${entryId}:body`;
@@ -689,7 +723,18 @@ export function liveFieldValues(
   return out;
 }
 
-export function softDeleteEntry(entryId: string, userId: string) {
+/**
+ * §18b: the `by` of the acts below takes either a bare account id — the old
+ * shape, still what a script or a test hands it — or the session user, whose
+ * onderzoeker is then recorded with the act. Nothing else changes.
+ */
+export type ActedBy = string | Author;
+const actorId = (by: ActedBy) => (typeof by === 'string' ? by : by.id);
+const actorCharacter = (by: ActedBy) => (typeof by === 'string' ? null : (by.characterId ?? null));
+
+export function softDeleteEntry(entryId: string, by: ActedBy) {
+  const userId = actorId(by);
+  const characterId = actorCharacter(by);
   // §17: to the trash is an edit like any other.
   if (!viewerCanEdit('entry', entryId, viewerOf(userId))) {
     throw new Error('Je mag dit artikel niet bewerken.');
@@ -704,9 +749,10 @@ export function softDeleteEntry(entryId: string, userId: string) {
     .where(eq(schema.entries.id, entryId))
     .run();
   reindexEntry(entryId);
-  logActivity({ actorId: userId, verb: 'entry.deleted', entryId });
+  logActivity({ actorId: userId, characterId, verb: 'entry.deleted', entryId });
   logAudit({
     actorId: userId,
+    characterId,
     action: 'entry.deleted',
     targetType: 'entry',
     targetId: entryId,
@@ -714,17 +760,25 @@ export function softDeleteEntry(entryId: string, userId: string) {
   });
 }
 
-export function restoreEntry(entryId: string, userId: string) {
+export function restoreEntry(entryId: string, by: ActedBy) {
+  const userId = actorId(by);
+  const characterId = actorCharacter(by);
   db.update(schema.entries)
     .set({ deletedAt: null, updatedBy: userId })
     .where(eq(schema.entries.id, entryId))
     .run();
   reindexEntry(entryId);
-  logActivity({ actorId: userId, verb: 'entry.restored', entryId });
-  logAudit({ actorId: userId, action: 'entry.restored', targetType: 'entry', targetId: entryId });
+  logActivity({ actorId: userId, characterId, verb: 'entry.restored', entryId });
+  logAudit({
+    actorId: userId,
+    characterId,
+    action: 'entry.restored',
+    targetType: 'entry',
+    targetId: entryId,
+  });
 }
 
-export function restoreRevision(revisionId: string, user: { id: string; isKeeper: boolean }) {
+export function restoreRevision(revisionId: string, user: Author) {
   const revision = db
     .select()
     .from(schema.entryRevisions)
@@ -737,7 +791,7 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
   }
 
   const snapshot = revision.snapshot as Record<string, unknown>;
-  writeRevision(revision.entryId, user.id, 'voor het terugzetten');
+  writeRevision(revision.entryId, user.id, 'voor het terugzetten', user.characterId ?? null);
   db.update(schema.entries)
     .set({
       name: snapshot.name as string,
@@ -756,8 +810,15 @@ export function restoreRevision(revisionId: string, user: { id: string; isKeeper
   recomputeLinks(revision.entryId, snapshot.body);
   // §27: an old version puts an old infobox back, so it puts its mentions back too.
   recomputeFieldMentions(revision.entryId);
+  // §35: and its date, so the gebeurtenissen go back with it.
+  syncEventsFromEntryDate(revision.entryId);
   reindexEntry(revision.entryId);
-  logActivity({ actorId: user.id, verb: 'entry.restored_revision', entryId: revision.entryId });
+  logActivity({
+    actorId: user.id,
+    characterId: user.characterId ?? null,
+    verb: 'entry.restored_revision',
+    entryId: revision.entryId,
+  });
   // §20: the shared document follows the archive, never the other way round.
   resetRoom(`entry:${revision.entryId}:body`, snapshot.body ?? null);
   resetFieldsInRoom(
@@ -778,6 +839,8 @@ export function listRevisions(entryId: string) {
       createdAt: schema.entryRevisions.createdAt,
       note: schema.entryRevisions.note,
       editedBy: schema.entryRevisions.editedBy,
+      /** §18b: the onderzoeker who wrote it, as recorded. NULL falls back to the account's. */
+      characterId: schema.entryRevisions.characterId,
       username: schema.users.username,
       isKeeper: schema.users.isKeeper,
     })
@@ -801,6 +864,8 @@ export function getRevision(revisionId: string) {
 
 export function logActivity(input: {
   actorId: string | null;
+  /** §18b: the onderzoeker the actor was writing as. Null for a Keeper, and for an account act. */
+  characterId?: string | null;
   verb: string;
   entryId?: string | null;
   caseId?: string | null;
@@ -811,6 +876,7 @@ export function logActivity(input: {
     .values({
       id: newId(),
       actorId: input.actorId,
+      characterId: input.characterId ?? null,
       verb: input.verb,
       entryId: input.entryId ?? null,
       caseId: input.caseId ?? null,
@@ -824,10 +890,12 @@ export type FeedItem = {
   id: string;
   verb: string;
   createdAt: number;
-  /** The account. §18: pages turn this into a character name with `displayNames`. */
+  /** The account. §18: pages turn this into a character name with `attributed`. */
   actorId: string | null;
   actorName: string | null;
   actorIsKeeper: boolean;
+  /** §18b: the onderzoeker it was written as, as recorded. NULL: before §18b. */
+  characterId: string | null;
   entry: EntrySummary | null;
 };
 
@@ -845,6 +913,7 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
       actorId: schema.users.id,
       actorName: schema.users.username,
       actorIsKeeper: schema.users.isKeeper,
+      writtenAs: schema.activity.characterId,
     })
     .from(schema.activity)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.activity.entryId))
@@ -859,7 +928,8 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
   const seen = new Set<string>();
   const out: FeedItem[] = [];
   for (const row of rows) {
-    const key = `${row.actorName}:${row.slug}:${row.verb}`;
+    // §18b: one account wearing two names is two people in the feed.
+    const key = `${row.actorName}:${row.writtenAs ?? ''}:${row.slug}:${row.verb}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({
@@ -869,6 +939,7 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
       actorId: row.actorId,
       actorName: row.actorName,
       actorIsKeeper: Boolean(row.actorIsKeeper),
+      characterId: row.writtenAs,
       entry: {
         id: row.id,
         slug: row.slug,
@@ -899,6 +970,8 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
 
 export function logAudit(input: {
   actorId: string | null;
+  /** §18b: the onderzoeker the actor was writing as. Null for a Keeper, and for an account act. */
+  characterId?: string | null;
   action: string;
   targetType?: string;
   targetId?: string;
@@ -908,6 +981,7 @@ export function logAudit(input: {
     .values({
       id: newId(),
       actorId: input.actorId,
+      characterId: input.characterId ?? null,
       action: input.action,
       targetType: input.targetType ?? '',
       targetId: input.targetId ?? '',

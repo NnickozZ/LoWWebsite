@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
 import type { PendingEdit } from '@/lib/entries/review';
 
 /**
@@ -20,6 +21,12 @@ export function ProposalsPanel({
   initial: PendingEdit[];
 }) {
   const ui = useUi();
+  /*
+   * §18b: taking a voorstel over rewrites the artikel, and rejecting one
+   * writes a note back — both are acts, and an act wants a name. Without an
+   * onderzoeker the queue is still readable; the two buttons are not.
+   */
+  const mayType = useMayType();
   const [proposals, setProposals] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -85,6 +92,7 @@ export function ProposalsPanel({
             )}
             <input
               className="input"
+              readOnly={!mayType}
               placeholder="Een woord terug (mag leeg)"
               value={notes[proposal.id] ?? ''}
               onChange={(event) => setNotes({ ...notes, [proposal.id]: event.target.value })}
@@ -94,7 +102,7 @@ export function ProposalsPanel({
               <button
                 type="button"
                 className="btn btn-small btn-primary"
-                disabled={busy === proposal.id}
+                disabled={!mayType || busy === proposal.id}
                 onClick={() => void decide(proposal.id, 'approve')}
               >
                 <Icon name="check" size={14} /> Overnemen
@@ -102,7 +110,7 @@ export function ProposalsPanel({
               <button
                 type="button"
                 className="btn btn-small btn-ghost"
-                disabled={busy === proposal.id}
+                disabled={!mayType || busy === proposal.id}
                 onClick={() => void decide(proposal.id, 'reject')}
               >
                 Afwijzen

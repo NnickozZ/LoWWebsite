@@ -7,11 +7,15 @@ import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import type { AccessSettings } from '@/lib/access';
 import { eventFieldsRoomKey } from '@/lib/live/keys';
 import type { TimelineEvent, TimelineSummary } from '@/lib/timelines/service';
 import {
+  ANCHOR_UNIT_LABELS,
+  anchorUnitsFor,
+  applyAnchor,
   formatWhen,
   parseDutchDate,
   partsToSeconds,
@@ -19,11 +23,13 @@ import {
   SCALE_HINTS,
   SCALE_LABELS,
   secondsToParts,
+  type AnchorUnit,
   type Precision,
   type Scale,
   type TimeParts,
 } from '@/lib/timelines/time';
-import { imageFromClipboard, uploadForm } from '@/lib/upload';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 
 /**
  * §32: the sheets around a tijdlijn — the date form, a new gebeurtenis, an
@@ -63,6 +69,22 @@ export function draftFromMoment(at: number | null, precision: Precision | null, 
 }
 
 /**
+ * §35: the head of a draft, as the anchor has it. Whatever the boxes were
+ * filled from — a double-click, an artikel's infobox, an empty form — the
+ * year, month and day of an anchored tijdlijn are the tijdlijn's own.
+ */
+export function withAnchor(draft: DateDraft, anchor: { at: number; unit: AnchorUnit } | null, scale: Scale): DateDraft {
+  if (!anchor) return draft;
+  const head = draftFromMoment(anchor.at, anchor.unit, scale);
+  const depth = ORDER.indexOf(anchor.unit);
+  const out = { ...draft };
+  ORDER.forEach((key, index) => {
+    if (index <= depth) out[key] = head[key];
+  });
+  return out;
+}
+
+/**
  * What a draft says: the moment, and how much of it was filled in. The boxes
  * are read from the year down and stop at the first empty one — "1931, March,
  * no day" is March 1931, and a day typed without a month is not a day.
@@ -85,25 +107,40 @@ export function readDraft(draft: DateDraft, scale: Scale): { at: number; precisi
   return { at: partsToSeconds(parts), precision };
 }
 
-/** The boxes a tijdlijn of this scale asks for: the year, down to the scale. */
+/**
+ * The boxes a tijdlijn of this scale asks for: the year, down to the scale.
+ *
+ * §35: on an anchored tijdlijn the head of the date is not asked for at all —
+ * "3 oktober 1931" is printed as a fact and only the boxes finer than the
+ * anchor are open. The draft still *holds* those parts (they are seeded from
+ * the anchor), so `readDraft` reads exactly what it always read.
+ */
 export function DateFields({
   draft,
   onChange,
   scale,
   idPrefix,
   autoFocus,
+  anchor,
 }: {
   draft: DateDraft;
   onChange: (next: DateDraft) => void;
   scale: Scale;
   idPrefix: string;
   autoFocus?: boolean;
+  anchor?: { at: number; unit: AnchorUnit } | null;
 }) {
   const depth = ORDER.indexOf(scale);
-  const shown = ORDER.slice(0, depth + 1);
+  const fixed = anchor ? ORDER.indexOf(anchor.unit) : -1;
+  const shown = ORDER.slice(fixed + 1, depth + 1);
   const read = readDraft(draft, scale);
   return (
     <div>
+      {anchor && (
+        <p className="timeline-date-fixed" data-testid="timeline-anchor-fixed">
+          {formatWhen(anchor.at, anchor.unit)}
+        </p>
+      )}
       <div className="timeline-date-fields">
         {shown.map((key, index) => (
           <label key={key} className="timeline-date-field">
@@ -124,7 +161,9 @@ export function DateFields({
       <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
         {read
           ? `Dit wordt: ${formatWhen(read.at, read.precision)}`
-          : 'Het jaar is genoeg; wat je verder weet vul je in.'}
+          : anchor
+            ? 'De dag staat vast; vul in wat je van het tijdstip weet.'
+            : 'Het jaar is genoeg; wat je verder weet vul je in.'}
       </p>
     </div>
   );
@@ -166,12 +205,34 @@ export function NewEventSheet({
 }) {
   const ui = useUi();
   const words = ui.words;
+  /*
+   * §18b: a gebeurtenis carries the name of whoever put it there ("gezet door
+   * …"), so there has to be a name. The tijdlijn behind this sheet already
+   * refuses to open it without one; this is the second lock on the same door.
+   */
+  const mayType = useMayType();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<Suggestion[]>([]);
   const [chosen, setChosen] = useState<{ kind: 'entry'; id: string; name: string } | { kind: 'note'; name: string } | null>(
     preselected ? { kind: 'entry', id: preselected.entryId, name: preselected.name } : null,
   );
-  const [draft, setDraft] = useState<DateDraft>(() => draftFromMoment(initialAt, null, timeline.scale));
+  /*
+   * §35: the anchor of the tijdlijn, if it has one. A new gebeurtenis starts
+   * on its day — the boxes for the year, the month and the day are filled in
+   * and not shown — so a tijdlijn of 3 October 1931 only ever asks the time.
+   */
+  const anchor = timeline.anchorAt !== null && timeline.anchorUnit !== null
+    ? { at: timeline.anchorAt, unit: timeline.anchorUnit }
+    : null;
+  const [draft, setDraft] = useState<DateDraft>(() =>
+    withAnchor(draftFromMoment(initialAt, null, timeline.scale), anchor, timeline.scale),
+  );
+  /*
+   * A moment that was chosen on the axis is shown as a line of print with a
+   * "Wijzig" behind it: placing a gebeurtenis by double-clicking is one click
+   * and no form, and the form is there for when the click was not quite right.
+   */
+  const [askDate, setAskDate] = useState(initialAt === null);
   const [text, setText] = useState('');
   const typed = query.trim();
 
@@ -213,7 +274,10 @@ export function NewEventSheet({
       for (const candidate of candidates) {
         const parsed = parseDutchDate(candidate);
         if (parsed) {
-          setDraft(draftFromMoment(parsed.at, parsed.precision, timeline.scale));
+          // §35: on an anchored tijdlijn even a date out of the infobox is
+          // read onto this tijdlijn's own day; only its time survives.
+          const at = anchor ? applyAnchor(parsed.at, anchor.at, anchor.unit) : parsed.at;
+          setDraft(withAnchor(draftFromMoment(at, parsed.precision, timeline.scale), anchor, timeline.scale));
           return;
         }
       }
@@ -339,7 +403,23 @@ export function NewEventSheet({
             <p className="label" style={{ margin: '0 0 0.3rem' }}>
               Wanneer
             </p>
-            <DateFields draft={draft} onChange={setDraft} scale={timeline.scale} idPrefix="new-event" autoFocus={!initialAt} />
+            {askDate ? (
+              <DateFields
+                draft={draft}
+                onChange={(next) => setDraft(withAnchor(next, anchor, timeline.scale))}
+                scale={timeline.scale}
+                idPrefix="new-event"
+                autoFocus={initialAt === null}
+                anchor={anchor}
+              />
+            ) : (
+              <div className="row" style={{ gap: '0.5rem', alignItems: 'center' }}>
+                <strong data-testid="new-event-when">{when ? formatWhen(when.at, when.precision) : ''}</strong>
+                <button type="button" className="btn btn-ghost btn-small" onClick={() => setAskDate(true)}>
+                  Wijzig
+                </button>
+              </div>
+            )}
           </div>
           <div>
             <label className="label" htmlFor="new-event-text">
@@ -355,7 +435,7 @@ export function NewEventSheet({
             />
           </div>
           <p style={{ margin: 0 }}>
-            <button type="button" className="btn btn-primary" disabled={!ready} onClick={() => void submit()} data-testid="new-event-submit">
+            <button type="button" className="btn btn-primary" disabled={!ready || !mayType} onClick={() => void submit()} data-testid="new-event-submit">
               <Icon name="plus" size={15} />
               Op de {words.timeline} zetten
             </button>
@@ -436,11 +516,19 @@ function EditEventBody({
 }) {
   const ui = useUi();
   const words = ui.words;
+  /* §18b: same lock as the new-gebeurtenis sheet, on the same door. */
+  const mayType = useMayType();
   const room = useLiveFields();
   const shared = Boolean(room?.canEdit);
   const [name, setName] = useState(event.name);
   const [text, setText] = useState(event.text);
-  const [draft, setDraft] = useState<DateDraft>(() => draftFromMoment(event.at, event.precision, timeline.scale));
+  const anchor =
+    timeline.anchorAt !== null && timeline.anchorUnit !== null
+      ? { at: timeline.anchorAt, unit: timeline.anchorUnit }
+      : null;
+  const [draft, setDraft] = useState<DateDraft>(() =>
+    withAnchor(draftFromMoment(event.at, event.precision, timeline.scale), anchor, timeline.scale),
+  );
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const dirtyWords = !shared && (name !== event.name || text !== event.text);
@@ -456,8 +544,15 @@ function EditEventBody({
   async function upload(file: File) {
     setUploading(true);
     try {
+      // Too heavy is not a refusal: the picture is made to fit first.
+      const fitted = await fitUpload(file, ui.uploadLimit);
+      if ('error' in fitted) {
+        ui.toast(fitted.error);
+        return;
+      }
+      if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', fitted.file);
       const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
       if (!result.ok) {
         ui.toast(result.error);
@@ -533,7 +628,7 @@ function EditEventBody({
             <button
               type="button"
               className="btn btn-small btn-primary"
-              disabled={busy || (event.kind === 'note' && !name.trim())}
+              disabled={busy || !mayType || (event.kind === 'note' && !name.trim())}
               onClick={() => void onSave(event.kind === 'note' ? { name, text } : { text })}
             >
               Opslaan
@@ -546,13 +641,19 @@ function EditEventBody({
         <p className="label" style={{ margin: '0 0 0.3rem' }}>
           Wanneer
         </p>
-        <DateFields draft={draft} onChange={setDraft} scale={timeline.scale} idPrefix="event" />
+        <DateFields
+          draft={draft}
+          onChange={(next) => setDraft(withAnchor(next, anchor, timeline.scale))}
+          scale={timeline.scale}
+          idPrefix="event"
+          anchor={anchor}
+        />
         {dateChanged && when && (
           <p style={{ margin: '0.4rem 0 0' }}>
             <button
               type="button"
               className="btn btn-small btn-primary"
-              disabled={busy}
+              disabled={busy || !mayType}
               onClick={() => void onSave({ at: when.at, precision: when.precision })}
               data-testid="event-date-save"
             >
@@ -620,7 +721,7 @@ function EditEventBody({
 
       <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
         {event.kind === 'note' && (
-          <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => onConvert({ name, text })}>
+          <button type="button" className="btn btn-small btn-primary" disabled={busy || !mayType} onClick={() => onConvert({ name, text })}>
             <Icon name="plus" size={14} />
             Maak er een {words.entry} van
           </button>
@@ -653,17 +754,49 @@ export function TimelineSettingsSheet({
   isKeeper: boolean;
   viewerId: string;
   access: AccessSettings;
-  onSave: (patch: { name?: string; description?: string; scale?: Scale }) => Promise<boolean>;
+  onSave: (patch: {
+    name?: string;
+    description?: string;
+    scale?: Scale;
+    anchorAt?: number | null;
+    anchorUnit?: AnchorUnit | null;
+  }) => Promise<boolean>;
   onDelete: () => void;
 }) {
   const ui = useUi();
   const words = ui.words;
+  /* §18b: renaming a tijdlijn is a write like any other. */
+  const mayType = useMayType();
   const [name, setName] = useState(timeline.name);
   const [description, setDescription] = useState(timeline.description);
   const [scale, setScale] = useState<Scale>(timeline.scale);
-  const dirty = name.trim() !== timeline.name || description.trim() !== timeline.description || scale !== timeline.scale;
   const scaleChanged = scale !== timeline.scale;
   const current = useMemo(() => SCALE_LABELS[timeline.scale], [timeline.scale]);
+
+  /*
+   * §35: "Deze tijdlijn speelt op…". Only a tijdlijn measured finer than a day
+   * is ever *of* a day — a tijdlijn of days that is one day has nothing left
+   * to show — so the block appears with the measure the sheet is about to
+   * save, not the one on the row.
+   */
+  const anchorUnits = anchorUnitsFor(scale);
+  const [anchorUnit, setAnchorUnit] = useState<AnchorUnit | ''>(timeline.anchorUnit ?? '');
+  const [anchorDraft, setAnchorDraft] = useState<DateDraft>(() =>
+    draftFromMoment(timeline.anchorAt, timeline.anchorUnit, timeline.anchorUnit ?? 'day'),
+  );
+  const anchorWhen = anchorUnit ? readDraft(anchorDraft, anchorUnit) : null;
+  const anchorOffered = anchorUnits.length > 0;
+  const anchorReady = !anchorUnit || Boolean(anchorWhen);
+  const anchorChanged =
+    anchorOffered && ((timeline.anchorUnit ?? '') !== anchorUnit || (anchorWhen ? anchorWhen.at : null) !== timeline.anchorAt);
+
+  const dirty =
+    name.trim() !== timeline.name ||
+    description.trim() !== timeline.description ||
+    scaleChanged ||
+    anchorChanged ||
+    // Taking the measure back to days or coarser takes an anchor away with it.
+    (!anchorOffered && timeline.anchorUnit !== null);
 
   return (
     <div className="stack">
@@ -692,10 +825,22 @@ export function TimelineSettingsSheet({
         <legend className="label">Gemeten in</legend>
         {SCALES.map((option) => (
           <label key={option} className={`timeline-scale-option${scale === option ? ' timeline-scale-option-on' : ''}`}>
-            <input type="radio" name="timeline-scale" value={option} checked={scale === option} onChange={() => setScale(option)} />
+            {/* The name is the measure, the sentence its description — the
+                same reasoning as the new-tijdlijn sheet, where "Tot op het
+                uur. Eén dag, één nacht." would otherwise make the Uren radio
+                answer to "Eén dag" as loudly as the anchor's own does. */}
+            <input
+              type="radio"
+              name="timeline-scale"
+              value={option}
+              checked={scale === option}
+              onChange={() => setScale(option)}
+              aria-label={SCALE_LABELS[option]}
+              aria-describedby={`timeline-scale-${option}-hint`}
+            />
             <span>
               <strong>{SCALE_LABELS[option]}</strong>
-              <span className="tiny muted" style={{ display: 'block' }}>
+              <span className="tiny muted" id={`timeline-scale-${option}-hint`} style={{ display: 'block' }}>
                 {SCALE_HINTS[option]}
               </span>
             </span>
@@ -708,12 +853,66 @@ export function TimelineSettingsSheet({
           was ingevuld blijft bewaard en komt terug als je de maat weer fijner zet.
         </p>
       )}
+
+      {anchorOffered && (
+        <fieldset className="timeline-anchor-picker" data-testid="timeline-anchor">
+          <legend className="label">Deze {words.timeline} speelt op…</legend>
+          <div className="row-wrap" style={{ gap: '0.3rem' }}>
+            <label className={`timeline-scale-option${anchorUnit === '' ? ' timeline-scale-option-on' : ''}`}>
+              <input
+                type="radio"
+                name="timeline-anchor-unit"
+                value=""
+                checked={anchorUnit === ''}
+                onChange={() => setAnchorUnit('')}
+              />
+              <span>
+                <strong>Geen vast moment</strong>
+              </span>
+            </label>
+            {anchorUnits.map((unit) => (
+              <label key={unit} className={`timeline-scale-option${anchorUnit === unit ? ' timeline-scale-option-on' : ''}`}>
+                <input
+                  type="radio"
+                  name="timeline-anchor-unit"
+                  value={unit}
+                  checked={anchorUnit === unit}
+                  onChange={() => setAnchorUnit(unit)}
+                />
+                <span>
+                  <strong>{ANCHOR_UNIT_LABELS[unit]}</strong>
+                </span>
+              </label>
+            ))}
+          </div>
+          {anchorUnit && (
+            <div style={{ marginTop: '0.4rem' }}>
+              <DateFields draft={anchorDraft} onChange={setAnchorDraft} scale={anchorUnit} idPrefix="timeline-anchor" />
+            </div>
+          )}
+          <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
+            {anchorUnit
+              ? `Elke nieuwe ${words.event} begint op dit moment, en de as komt er niet meer vanaf.`
+              : `Geef een dag op en elke nieuwe ${words.event} vraagt alleen nog het tijdstip.`}
+          </p>
+        </fieldset>
+      )}
+
       <p style={{ margin: 0 }}>
         <button
           type="button"
           className="btn btn-primary btn-small"
-          disabled={!dirty || busy || !name.trim()}
-          onClick={() => void onSave({ name: name.trim(), description: description.trim(), scale })}
+          disabled={!dirty || busy || !mayType || !name.trim() || !anchorReady}
+          onClick={() =>
+            void onSave({
+              name: name.trim(),
+              description: description.trim(),
+              scale,
+              // Both together, or both null — the two columns are one fact.
+              anchorAt: anchorOffered && anchorUnit && anchorWhen ? anchorWhen.at : null,
+              anchorUnit: anchorOffered && anchorUnit && anchorWhen ? anchorUnit : null,
+            })
+          }
           data-testid="timeline-settings-save"
         >
           Opslaan

@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addUnits,
+  ANCHOR_UNITS,
+  anchorParts,
+  anchorSpan,
+  anchorUnitsFor,
+  applyAnchor,
   chooseStep,
   clampPrecision,
+  clampToAnchor,
+  isAnchorUnit,
+  snapTo,
   fitView,
   floorTo,
   formatWhen,
@@ -171,5 +180,95 @@ describe('where the tags go', () => {
     const items = Array.from({ length: 12 }, (_, i) => ({ id: String(i), x: 100 + i, width: 150 }));
     const spots = placeTags(items, 3);
     expect(Math.max(...[...spots.values()].map((s) => s.lane))).toBe(2);
+  });
+});
+
+/**
+ * §35: dragging and the anchor. `snapTo` is what a hand lands on, `addUnits`
+ * the calendar's own step, and `applyAnchor` / `anchorSpan` are the whole of
+ * "deze tijdlijn speelt op 3 oktober 1931" — the auto-fill and the fence.
+ */
+
+describe('stepping and snapping', () => {
+  it('steps a calendar month, not thirty days', () => {
+    const jan31 = partsToSeconds({ year: 1931, month: 1, day: 31 });
+    expect(secondsToParts(addUnits(jan31, 'month', 1))).toMatchObject({ year: 1931, month: 2, day: 28 });
+    expect(secondsToParts(addUnits(jan31, 'month', 13))).toMatchObject({ year: 1932, month: 2, day: 29 });
+    expect(secondsToParts(addUnits(jan31, 'month', -1))).toMatchObject({ year: 1930, month: 12, day: 31 });
+    expect(addUnits(jan31, 'day', 1)).toBe(jan31 + 86400);
+    expect(addUnits(jan31, 'minute', 3)).toBe(jan31 + 180);
+    expect(addUnits(jan31, 'year', 0)).toBe(jan31);
+  });
+
+  it('snaps to the nearest boundary, the midpoint upward', () => {
+    const noon = partsToSeconds({ year: 1931, month: 3, day: 12, hour: 12 });
+    // Exactly halfway through the day: the later day.
+    expect(snapTo(noon, 'day')).toBe(partsToSeconds({ year: 1931, month: 3, day: 13 }));
+    expect(snapTo(noon - 1, 'day')).toBe(partsToSeconds({ year: 1931, month: 3, day: 12 }));
+    expect(snapTo(partsToSeconds({ year: 1931, month: 3, day: 12, hour: 5 }), 'day')).toBe(
+      partsToSeconds({ year: 1931, month: 3, day: 12 }),
+    );
+    expect(snapTo(partsToSeconds({ year: 1931, month: 3, day: 12, hour: 14, minute: 40 }), 'hour')).toBe(
+      partsToSeconds({ year: 1931, month: 3, day: 12, hour: 15 }),
+    );
+  });
+
+  it('snaps across the end of a month and a year, in the 1930s', () => {
+    const late = partsToSeconds({ year: 1931, month: 1, day: 31, hour: 20 });
+    expect(late).toBeLessThan(0);
+    expect(snapTo(late, 'day')).toBe(partsToSeconds({ year: 1931, month: 2, day: 1 }));
+    // Two-thirds through February: March, not "day 29".
+    expect(snapTo(partsToSeconds({ year: 1931, month: 2, day: 20 }), 'month')).toBe(
+      partsToSeconds({ year: 1931, month: 3 }),
+    );
+    expect(snapTo(partsToSeconds({ year: 1931, month: 10 }), 'year')).toBe(partsToSeconds({ year: 1932 }));
+    expect(snapTo(partsToSeconds({ year: 1931, month: 3 }), 'year')).toBe(partsToSeconds({ year: 1931 }));
+  });
+
+  it('a year-grained moment stays on its year, however fine the axis is ruled', () => {
+    // What a drag does: the unit is the gebeurtenis's own precision.
+    const somewhere = partsToSeconds({ year: 1931, month: 7, day: 2, hour: 9, minute: 12 });
+    expect(secondsToParts(snapTo(somewhere, 'year'))).toMatchObject({ year: 1931, month: 1, day: 1, hour: 0 });
+  });
+});
+
+describe('a tijdlijn that speelt op one day', () => {
+  const anchorAt = partsToSeconds({ year: 1931, month: 10, day: 3 });
+
+  it('only a coarser unit than the measure may be the anchor', () => {
+    expect(anchorUnitsFor('minute')).toEqual(['year', 'month', 'day']);
+    expect(anchorUnitsFor('day')).toEqual(['year', 'month']);
+    expect(anchorUnitsFor('year')).toEqual([]);
+    expect(ANCHOR_UNITS).toEqual(['year', 'month', 'day']);
+    expect(isAnchorUnit('day')).toBe(true);
+    expect(isAnchorUnit('hour')).toBe(false);
+  });
+
+  it('rewrites the year, the month and the day and keeps the hour and the minute', () => {
+    const elsewhere = partsToSeconds({ year: 1887, month: 4, day: 19, hour: 22, minute: 5, second: 9 });
+    const moved = applyAnchor(elsewhere, anchorAt, 'day');
+    expect(secondsToParts(moved)).toEqual({ year: 1931, month: 10, day: 3, hour: 22, minute: 5, second: 9 });
+    expect(formatWhen(moved, 'minute')).toBe('3 oktober 1931, 22:05');
+    // A month anchor leaves the day alone; no anchor leaves everything alone.
+    expect(secondsToParts(applyAnchor(elsewhere, anchorAt, 'month'))).toMatchObject({ year: 1931, month: 10, day: 19 });
+    expect(applyAnchor(elsewhere, null, null)).toBe(elsewhere);
+    expect(anchorParts(anchorAt, 'month')).toEqual({ year: 1931, month: 10 });
+  });
+
+  it('is one unit wide, and nothing gets out of it', () => {
+    const { from, to } = anchorSpan(anchorAt + 3600 * 7, 'day');
+    expect(from).toBe(anchorAt);
+    expect(to).toBe(anchorAt + 86400);
+    expect(anchorSpan(anchorAt, 'month')).toEqual({
+      from: partsToSeconds({ year: 1931, month: 10 }),
+      to: partsToSeconds({ year: 1931, month: 11 }),
+    });
+
+    // The fence: before the day, after it, and the last whole minute of it.
+    expect(clampToAnchor(from - 5000, 'minute', anchorAt, 'day')).toBe(from);
+    expect(clampToAnchor(to + 5000, 'minute', anchorAt, 'day')).toBe(to - 60);
+    expect(formatWhen(clampToAnchor(to + 5000, 'minute', anchorAt, 'day'), 'minute')).toBe('3 oktober 1931, 23:59');
+    expect(clampToAnchor(from + 60, 'minute', anchorAt, 'day')).toBe(from + 60);
+    expect(clampToAnchor(to + 5000, 'minute', null, null)).toBe(to + 5000);
   });
 });

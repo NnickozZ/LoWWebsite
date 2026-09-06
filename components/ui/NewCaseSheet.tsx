@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import { useMayType } from '@/components/you/AuthorProvider';
 import { Sheet } from './Sheet';
 
 export type CreatedCase = {
@@ -34,6 +35,13 @@ export function NewCaseSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * §18b: opening this sheet is an act of writing, so the question comes
+   * *before* it — `ensureAuthor` inside `useUi().openNewCase`, the only door
+   * in. Asking from here put a sheet on top of a sheet.
+   */
+  const mayType = useMayType();
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -126,7 +134,7 @@ export function NewCaseSheet({
         className="btn btn-primary"
         style={{ width: '100%' }}
         onClick={create}
-        disabled={!name.trim() || busy}
+        disabled={!mayType || !name.trim() || busy}
       >
         {busy ? 'Openen…' : 'Openen'}
       </button>

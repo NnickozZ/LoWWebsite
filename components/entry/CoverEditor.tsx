@@ -5,8 +5,10 @@ import { assetUrl } from '@/components/Cover';
 import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import type { CoverCrop } from '@/lib/db/schema';
-import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 
 /**
  * §6: upload from device or paste from clipboard.
@@ -40,7 +42,7 @@ export function CoverEditor({
   alt,
   icon,
   colour,
-  readOnly = false,
+  readOnly: locked = false,
   onChange,
 }: {
   assetId: string | null;
@@ -53,6 +55,14 @@ export function CoverEditor({
   onChange: (next: { coverAssetId: string | null; coverCrop: CoverCrop | null }) => void;
 }) {
   const ui = useUi();
+  /*
+   * §18b: the picture is part of the artikel, and hanging one there is a write
+   * like any other. With no onderzoeker there is the picture and no tools —
+   * exactly the reading face, which is what "alleen lezen" means.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  const readOnly = locked || !mayType;
   const [busy, setBusy] = useState(false);
   const [cropping, setCropping] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -68,8 +78,15 @@ export function CoverEditor({
     async (file: File) => {
       setBusy(true);
       try {
+        // §30: too heavy is not a refusal — the picture is made to fit first.
+        const fitted = await fitUpload(file, ui.uploadLimit);
+        if ('error' in fitted) {
+          ui.toast(fitted.error);
+          return;
+        }
+        if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
         const form = new FormData();
-        form.append('file', file);
+        form.append('file', fitted.file);
         const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
         if (!result.ok) {
           ui.toast(result.error);
@@ -147,7 +164,7 @@ export function CoverEditor({
   if (readOnly) return <figure className="entry-figure">{picture}</figure>;
 
   return (
-    <figure className="entry-figure">
+    <figure className="entry-figure" {...gate}>
       {picture}
 
       <div className="entry-figure-tools">

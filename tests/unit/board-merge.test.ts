@@ -12,7 +12,11 @@ import {
   TOMBSTONE_TTL_MS,
   placementRotation,
   stringColourValue,
+  stringDash,
+  DEFAULT_STRING_STYLE,
+  DEFAULT_STRING_WIDTH,
   STRING_COLOURS,
+  STRING_WIDTH_PRESETS,
   type BoardCard,
   type BoardState,
   type BoardString,
@@ -41,7 +45,16 @@ function card(id: string, over: Partial<BoardCard> = {}): BoardCard {
 
 /** Card ids for brevity; the model stores endpoints, so wrap them here. */
 function line(id: string, from: string, to: string, over: Partial<BoardString> = {}): BoardString {
-  return { id, from: { card: from }, to: { card: to }, label: '', colour: 'red', ...over };
+  return {
+    id,
+    from: { card: from },
+    to: { card: to },
+    label: '',
+    colour: 'red',
+    width: DEFAULT_STRING_WIDTH,
+    style: 'solid',
+    ...over,
+  };
 }
 
 function at(x: number, y: number): Endpoint {
@@ -243,7 +256,7 @@ describe('placement and bounds', () => {
   });
 });
 
-describe('string colour', () => {
+describe('string colour, thickness and kind', () => {
   it('keeps a known colour and falls back for anything else', () => {
     const state = normaliseState({
       cards: [card('a'), card('b'), card('c')],
@@ -278,6 +291,87 @@ describe('string colour', () => {
     expect(merged.strings[0].colour).toBe('green');
     expect(merged.strings[0].label).toBe('seen together');
     expect(merged.cards).toHaveLength(2);
+  });
+
+  it('keeps a thickness inside the range and rounds it to a tenth', () => {
+    const state = normaliseState({
+      cards: [card('a'), card('b'), card('c')],
+      strings: [
+        line('s1', 'a', 'b', { width: 6.5 }),
+        { id: 's2', from: { card: 'b' }, to: { card: 'c' }, label: '', width: 4.04 },
+      ],
+    });
+    expect(state.strings.find((s) => s.id === 's1')!.width).toBe(6.5);
+    expect(state.strings.find((s) => s.id === 's2')!.width).toBe(4);
+  });
+
+  it('clamps a thickness below 1 and above 8, and refuses anything that is not a number', () => {
+    const state = normaliseState({
+      cards: [card('a'), card('b'), card('c'), card('d')],
+      strings: [
+        { id: 's1', from: { card: 'a' }, to: { card: 'b' }, label: '', width: 0.2 },
+        { id: 's2', from: { card: 'b' }, to: { card: 'c' }, label: '', width: 400 },
+        { id: 's3', from: { card: 'c' }, to: { card: 'd' }, label: '', width: '4px' },
+      ],
+    });
+    const widthOf = (id: string) => state.strings.find((s) => s.id === id)!.width;
+    expect(widthOf('s1')).toBe(1);
+    expect(widthOf('s2')).toBe(8);
+    // Nothing but a finite number reaches a style attribute; the rest is the default.
+    expect(widthOf('s3')).toBe(DEFAULT_STRING_WIDTH);
+  });
+
+  it('keeps a known kind of string and falls back for anything else', () => {
+    const state = normaliseState({
+      cards: [card('a'), card('b'), card('c')],
+      strings: [
+        line('s1', 'a', 'b', { style: 'dashdot' }),
+        { id: 's2', from: { card: 'b' }, to: { card: 'c' }, label: '', style: 'zigzag' },
+      ],
+    });
+    expect(state.strings.find((s) => s.id === 's1')!.style).toBe('dashdot');
+    expect(state.strings.find((s) => s.id === 's2')!.style).toBe(DEFAULT_STRING_STYLE);
+  });
+
+  it('opens a board saved before a string had a thickness or a kind', () => {
+    // The state is one JSON blob and there is no migration: every board that
+    // was ever saved comes back as the 2-unit unbroken line it was drawn as.
+    const state = normaliseState({
+      cards: [card('a'), card('b')],
+      strings: [{ id: 's1', from: { card: 'a' }, to: { card: 'b' }, label: 'old', colour: 'blue' }],
+    });
+    expect(state.strings[0].width).toBe(2);
+    expect(state.strings[0].style).toBe('solid');
+    expect(state.strings[0].colour).toBe('blue');
+    expect(state.strings[0].label).toBe('old');
+  });
+
+  it('merges a thickness change without touching the label or the colour', () => {
+    const thick = STRING_WIDTH_PRESETS[2];
+    const merged = mergeBoardState(base, {
+      strings: [line('s1', 'a', 'b', { label: 'seen together', width: thick })],
+    });
+    expect(merged.strings[0].width).toBe(thick);
+    expect(merged.strings[0].label).toBe('seen together');
+    expect(merged.strings[0].colour).toBe('red');
+    expect(merged.cards).toHaveLength(2);
+  });
+
+  it('gives every kind of string its dash pattern, scaled to the thickness', () => {
+    // Unbroken: nothing to dash, and a double line is two whole strokes.
+    expect(stringDash('solid', 2)).toBeUndefined();
+    expect(stringDash('double', 4)).toBeUndefined();
+    expect(stringDash(undefined, 2)).toBeUndefined();
+
+    expect(stringDash('dashed', 2)).toBe('6 4.4');
+    // A zero-length dash under a round cap is a dot.
+    expect(stringDash('dotted', 2)).toBe('0.02 4.8');
+    expect(stringDash('dashdot', 2)).toBe('6 4 0.02 4');
+
+    // Thicker string, longer dashes — otherwise a fat dashed line reads as dots.
+    expect(stringDash('dashed', 6.5)).toBe('19.5 14.3');
+    // And a thickness off the wire is clamped here too.
+    expect(stringDash('dashed', 400)).toBe(stringDash('dashed', 8));
   });
 });
 
@@ -385,14 +479,14 @@ describe('string endpoints', () => {
   it('merges an end moved onto another card', () => {
     const withThird = { ...base, cards: [...base.cards, card('c')] };
     const merged = mergeBoardState(withThird, {
-      strings: [{ id: 's1', from: { card: 'a' }, to: { card: 'c' }, label: 'seen together', colour: 'red' }],
+      strings: [line('s1', 'a', 'c', { label: 'seen together' })],
     });
     expect(merged.strings[0].to).toEqual({ card: 'c' });
   });
 
   it('merges an end pulled off onto bare cork', () => {
     const merged = mergeBoardState(base, {
-      strings: [{ id: 's1', from: { card: 'a' }, to: at(900, 120), label: '', colour: 'red' }],
+      strings: [{ ...line('s1', 'a', 'b'), to: at(900, 120) }],
     });
     expect(merged.strings[0].to).toEqual({ x: 900, y: 120 });
   });

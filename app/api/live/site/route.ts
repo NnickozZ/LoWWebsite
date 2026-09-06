@@ -1,7 +1,8 @@
 import { getWords } from '@/lib/admin/words';
+import { resolveCharacter } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { displayNames } from '@/lib/characters';
+import { windowPresenceName } from '@/lib/characters';
 import { newId } from '@/lib/ids';
 import { applyClientAwareness, applyClientUpdate, join, warm } from '@/lib/live/docs';
 import { canWatch } from '@/lib/live/gate';
@@ -61,9 +62,20 @@ export async function GET(request: Request) {
     if (!clientId) return json({ error: 'Geen client-id.' }, { status: 400 });
 
     const words = getWords();
-    const name =
-      displayNames([{ id: user.id, username: user.username, isKeeper: user.isKeeper }], words.keeper).get(user.id)?.label ??
-      user.username;
+    /*
+     * §21: everything on this line says *who is here* — the strip, the ghost
+     * cursors, the carets, the ink. A player is their character; a Keeper is
+     * their account name, because the word is the same for all of them.
+     *
+     * §18b: and "their character" means *this window's*. The line is opened
+     * per tab and carries the tab's `X-Character`, so two windows of one
+     * account stand on the strip as two investigators — which is exactly what
+     * a person playing two onderzoekers at one table needs to see.
+     */
+    // An `EventSource` cannot set a header, so the stream URL says it instead —
+    // resolved by the same check, and only ever a name on a strip.
+    const asked = resolveCharacter(user.id, url.searchParams.get('as'));
+    const name = windowPresenceName({ ...user, characterId: asked ?? user.characterId }, words.keeper);
 
     const encoder = new TextEncoder();
     const connectionId = newId();
@@ -158,6 +170,13 @@ function pointerFrame(clientId: string, raw: Body['cursor']): SitePointer | null
   return { c: clientId, x, y, m };
 }
 
+/*
+ * §18b: this line is never gated by `requireAuthor`. Presence, pointers, ink
+ * frames and awareness are what a person who may only *look* still gets to do
+ * and be seen doing. Typing is refused where it should be: `admit` hands back
+ * `canEdit: false` for an authorless player, and the update is named in
+ * `refused` like any other.
+ */
 export async function POST(request: Request) {
   try {
     const user = await requireUser();

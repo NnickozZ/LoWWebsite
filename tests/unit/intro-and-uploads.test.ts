@@ -30,24 +30,24 @@ describe('the start page welcome', () => {
 });
 
 describe('upload limits', () => {
-  it('a player gets 10 MB, a Keeper 100 MB', () => {
+  it('a player gets 2 MB, a Keeper 20 MB — re-exported from lib/upload', () => {
     expect(assets.uploadLimitFor({ isKeeper: false })).toBe(assets.PLAYER_UPLOAD_BYTES);
     expect(assets.uploadLimitFor({ isKeeper: true })).toBe(assets.KEEPER_UPLOAD_BYTES);
     expect(assets.uploadLimitFor(null)).toBe(assets.PLAYER_UPLOAD_BYTES);
-    expect(assets.PLAYER_UPLOAD_BYTES).toBe(10 * 1024 * 1024);
-    expect(assets.KEEPER_UPLOAD_BYTES).toBe(100 * 1024 * 1024);
+    expect(assets.PLAYER_UPLOAD_BYTES).toBe(2 * 1024 * 1024);
+    expect(assets.KEEPER_UPLOAD_BYTES).toBe(20 * 1024 * 1024);
   });
 
   it('says the limit in the message', () => {
-    expect(assets.uploadLimitLabel(assets.PLAYER_UPLOAD_BYTES)).toBe('10 MB');
-    expect(assets.tooLargeMessage(assets.KEEPER_UPLOAD_BYTES)).toBe('Die afbeelding is groter dan de limiet van 100 MB.');
+    expect(assets.uploadLimitLabel(assets.PLAYER_UPLOAD_BYTES)).toBe('2 MB');
+    expect(assets.tooLargeMessage(assets.KEEPER_UPLOAD_BYTES)).toBe('Die afbeelding is groter dan de limiet van 20 MB.');
   });
 
   it('refuses a player’s picture over the ceiling before looking at it', async () => {
     const big = Buffer.alloc(assets.PLAYER_UPLOAD_BYTES + 1);
-    await expect(assets.storeImage(big, 'groot.png', 'image/png', 'bram')).rejects.toThrow(/10 MB/);
+    await expect(assets.storeImage(big, 'groot.png', 'image/png', 'bram')).rejects.toThrow(/2 MB/);
     await expect(
       assets.storeImage(big, 'groot.png', 'image/png', 'keeper', { limitBytes: assets.KEEPER_UPLOAD_BYTES }),
-    ).rejects.not.toThrow(/10 MB/);
+    ).rejects.not.toThrow(/2 MB/);
   });
 });

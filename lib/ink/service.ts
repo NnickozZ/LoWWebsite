@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getBoard } from '@/lib/boards/service';
 import { db, schema } from '@/lib/db';
+import type { Author } from '@/lib/auth/author';
 import { logAudit } from '@/lib/entries/service';
 import type { Viewer } from '@/lib/entries/visibility';
 import { getMapById } from '@/lib/maps/service';
@@ -95,7 +96,7 @@ export class InkRefused extends Error {
 export function applyInk(
   target: InkTarget,
   patch: InkPatch,
-  actor: { id: string; isKeeper: boolean },
+  actor: Author,
 ): InkWriteResult {
   const row = readRow(target.id);
   const stored = row ? { ...normaliseInk(row.layer), enabled: row.enabled } : emptyInk();
@@ -129,6 +130,7 @@ export function applyInk(
   if (wantsSwitch) {
     logAudit({
       actorId: actor.id,
+      characterId: actor.characterId ?? null,
       action: enabled ? 'ink.enabled' : 'ink.disabled',
       targetType: target.kind,
       targetId: target.id,
@@ -138,6 +140,7 @@ export function applyInk(
   if (wantsClear) {
     logAudit({
       actorId: actor.id,
+      characterId: actor.characterId ?? null,
       action: 'ink.cleared',
       targetType: target.kind,
       targetId: target.id,

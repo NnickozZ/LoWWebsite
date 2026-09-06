@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveChanges, useLiveOptional } from '@/components/live/LiveProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
 import { inkKey } from '@/lib/live/keys';
 import {
   INK_BRUSHES,
-  INK_ERASER_WIDTH,
+  INK_ERASERS,
   type InkFrame,
   type InkKind,
   type InkLayerView,
@@ -38,7 +39,8 @@ import {
 
 export type DisplayStroke = Pick<InkStrokeView, 'id' | 'mode' | 'colour' | 'width' | 'points'>;
 
-export type InkTool = { mode: InkMode; colour: number; brush: number };
+/** `brush` and `eraser` are indices into `INK_BRUSHES` and `INK_ERASERS`. */
+export type InkTool = { mode: InkMode; colour: number; brush: number; eraser: number };
 
 /** Own frames go out at most this often; the points in between are batched. */
 const FRAME_MS = 60;
@@ -66,6 +68,15 @@ export function useInk({
   onError?: (message: string) => void;
 }) {
   const live = useLiveOptional();
+  /*
+   * §18b: rule 33 says drawing asks only whether you may *look* — the edit
+   * dial does not reach the tekenlaag. It still asks who is drawing: a streek
+   * is a write, `/api/ink` is behind `requireAuthor` like every other, and a
+   * speler with no onderzoeker would draw a line the archive threw away. So
+   * the pencil is not offered to them, which is a different question from the
+   * Keeper's switch and is folded into the same `enabled` the toolbar reads.
+   */
+  const mayDraw = useMayType();
   const [layer, setLayer] = useState<InkLayerView>(initial);
   const [pending, setPending] = useState<DisplayStroke[]>([]);
   const [current, setCurrent] = useState<DisplayStroke | null>(null);
@@ -221,9 +232,16 @@ export function useInk({
    * Start a stroke. `width` is already in the place's own units — the caller
    * divides the brush's screen width by its zoom — and `x`/`y` likewise.
    */
+  const mayDrawRef = useRef(mayDraw);
+  mayDrawRef.current = mayDraw;
+
   const begin = useCallback(
     (tool: InkTool, x: number, y: number, pressure: number, widthScale: number) => {
-      const screenWidth = tool.mode === 'erase' ? INK_ERASER_WIDTH : INK_BRUSHES[tool.brush] ?? INK_BRUSHES[1];
+      // §18b: belt and braces behind `enabled` — a hand already on the glass
+      // when the answer changed must not start a streek nobody may sign.
+      if (!mayDrawRef.current) return;
+      const screenWidth =
+        tool.mode === 'erase' ? INK_ERASERS[tool.eraser] ?? INK_ERASERS[1] : INK_BRUSHES[tool.brush] ?? INK_BRUSHES[1];
       const stroke: DisplayStroke = {
         id: newStrokeId(),
         mode: tool.mode,
@@ -413,7 +431,7 @@ export function useInk({
     layer,
     strokes,
     stableCount,
-    enabled: layer.enabled,
+    enabled: layer.enabled && mayDraw,
     drawing: current !== null,
     saving,
     canUndo,

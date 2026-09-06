@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
@@ -27,6 +28,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const { id } = await ctx.params;
     if (!canReview(id, user)) {
       return json({ error: 'Alleen de eigenaar of een Keeper beoordeelt dit.' }, { status: 403 });

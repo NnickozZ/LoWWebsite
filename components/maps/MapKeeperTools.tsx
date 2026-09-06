@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { EntryPicker, type EntryRef } from '@/components/entry/EntryPicker';
-import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import type { MapSummary } from '@/lib/maps/service';
 
 /**
@@ -99,8 +100,15 @@ export function MapKeeperTools({
   async function replacePicture(file: File) {
     setBusy(true);
     try {
+      // Shrunk to fit if it has to be; the server still weighs what arrives.
+      const fitted = await fitUpload(file, ui.uploadLimit);
+      if ('error' in fitted) {
+        ui.toast(fitted.error);
+        return;
+      }
+      if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
       const form = new FormData();
-      form.set('file', file);
+      form.set('file', fitted.file);
       const result = await uploadForm<{ map: { slug: string } }>(`/api/maps/${map.id}`, form, 'PATCH');
       if (!result.ok) {
         ui.toast(result.error);

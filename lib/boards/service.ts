@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { viewableCondition } from '@/lib/access';
+import type { Author } from '@/lib/auth/author';
 import { db, schema } from '@/lib/db';
 import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
@@ -157,6 +158,8 @@ export function createBoard(input: {
   name: string;
   caseId?: string | null;
   createdBy: string | null;
+  /** §18b: the onderzoeker it is being hung as. */
+  characterId?: string | null;
   /** §17: "Privé prikbord" sets both dials to private in one go. */
   isPrivate?: boolean;
 }): BoardSummary {
@@ -174,6 +177,7 @@ export function createBoard(input: {
     .run();
   logActivity({
     actorId: input.createdBy,
+    characterId: input.characterId ?? null,
     verb: 'board.created',
     boardId: id,
     caseId: input.caseId ?? null,
@@ -195,7 +199,7 @@ const REVISION_EVERY_SECONDS = 60;
 export function saveBoard(
   boardId: string,
   patch: BoardPatch,
-  user: { id: string },
+  user: { id: string; characterId?: string | null },
 ): BoardState {
   const row = db.select().from(schema.boards).where(eq(schema.boards.id, boardId)).get();
   if (!row || row.deletedAt) throw new Error('Prikbord niet gevonden');
@@ -213,20 +217,32 @@ export function saveBoard(
   // the patch is one client's half of the wall.
   recomputeBoardMentions(boardId, merged);
 
+  const characterId = user.characterId ?? null;
   const latest = db
-    .select({ createdAt: schema.boardRevisions.createdAt })
+    .select({
+      createdAt: schema.boardRevisions.createdAt,
+      editedBy: schema.boardRevisions.editedBy,
+      characterId: schema.boardRevisions.characterId,
+    })
     .from(schema.boardRevisions)
     .where(eq(schema.boardRevisions.boardId, boardId))
     .orderBy(desc(schema.boardRevisions.createdAt))
     .limit(1)
     .get();
 
-  if (!latest || nowSeconds - latest.createdAt >= REVISION_EVERY_SECONDS) {
+  // §18b: the minute's rest only holds for one writer. A second hand on the
+  // wall — another account, or another onderzoeker of the same one — starts a
+  // revision of its own, or its work would go into the archive under a name
+  // that is not theirs.
+  const sameHand =
+    latest && latest.editedBy === user.id && (latest.characterId ?? null) === characterId;
+  if (!latest || !sameHand || nowSeconds - latest.createdAt >= REVISION_EVERY_SECONDS) {
     db.insert(schema.boardRevisions)
-      .values({ id: newId(), boardId, snapshot: merged, editedBy: user.id })
+      .values({ id: newId(), boardId, snapshot: merged, editedBy: user.id, characterId })
       .run();
     logActivity({
       actorId: user.id,
+      characterId,
       verb: 'board.changed',
       boardId,
       caseId: row.caseId ?? null,
@@ -249,12 +265,18 @@ export function renameBoard(boardId: string, name: string) {
     .run();
 }
 
-export function softDeleteBoard(boardId: string, userId: string) {
+export function softDeleteBoard(boardId: string, by: string | Author) {
+  const userId = typeof by === 'string' ? by : by.id;
   db.update(schema.boards)
     .set({ deletedAt: Math.floor(Date.now() / 1000) })
     .where(eq(schema.boards.id, boardId))
     .run();
-  logActivity({ actorId: userId, verb: 'board.deleted', boardId });
+  logActivity({
+    actorId: userId,
+    characterId: typeof by === 'string' ? null : (by.characterId ?? null),
+    verb: 'board.deleted',
+    boardId,
+  });
 }
 
 export type BoardEntryFacts = {

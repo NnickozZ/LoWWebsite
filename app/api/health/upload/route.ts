@@ -7,7 +7,7 @@ export const maxDuration = 300;
 /**
  * The upload probe behind Beheer → Site → "Uploadlimiet testen".
  *
- * The archive lets a player send 10 MB and a Keeper 100 MB, but whatever
+ * The archive lets a player send 2 MB and a Keeper 20 MB, but whatever
  * sits in front of the server has a ceiling of its own — nginx says 413 to
  * anything over 1 MB unless `client_max_body_size` is raised — and from a
  * browser the two look the same. This route swallows a body of any size

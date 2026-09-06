@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { assetUrl } from '@/components/Cover';
 import { borderLabel } from '@/components/borders';
@@ -10,6 +10,7 @@ import { AccessEditor, type AccessSettings } from '@/components/access/AccessEdi
 import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
 import { useUi } from '@/components/ui/UiProvider';
+import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { capitalise } from '@/lib/words';
 import {
   boardBounds,
@@ -17,17 +18,21 @@ import {
   cardRef,
   cardSize,
   defaultShowImage,
+  DEFAULT_STRING_STYLE,
+  DEFAULT_STRING_WIDTH,
   endpointsEqual,
   headOf,
   isCardEnd,
   placementRotation,
   sameEnds,
   stringColourValue,
+  stringDash,
   type BoardCard,
   type BoardState,
   type BoardString,
   type Endpoint,
   type StringColour,
+  type StringStyle,
   type Viewport,
 } from '@/lib/boards/merge';
 import type {
@@ -43,7 +48,8 @@ import { BoardTray, type TrayEntry } from './BoardTray';
 import { offerToFileEntry } from './offerToFile';
 import { syncLabel, useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
-import { imageFromClipboard, pasteIsForTyping, uploadForm } from '@/lib/upload';
+import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
+import { fitUpload } from '@/components/shrinkImage';
 import { InkCanvas } from '@/components/ink/InkCanvas';
 import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
 import { useElementSize } from '@/components/ink/useElementSize';
@@ -93,6 +99,25 @@ function stringPath(ax: number, ay: number, bx: number, by: number) {
   return `M ${ax} ${ay} Q ${midX} ${midY + sag} ${bx} ${by}`;
 }
 
+/**
+ * The same curve, shifted sideways along the chord's normal — the two strands
+ * of a "dubbel" string.
+ *
+ * Knocking a thinner line out of a thick one would have been less code and
+ * would have shown the cork (and any card behind the string) straight through
+ * the gap, because there is nothing to knock it out *of*: the layer is
+ * transparent.
+ */
+function stringPathOffset(ax: number, ay: number, bx: number, by: number, offset: number) {
+  const length = Math.hypot(bx - ax, by - ay) || 1;
+  const dx = (-(by - ay) / length) * offset;
+  const dy = ((bx - ax) / length) * offset;
+  const midX = (ax + bx) / 2 + dx;
+  const midY = (ay + by) / 2 + dy;
+  const sag = sagOf(ax, ay, bx, by);
+  return `M ${ax + dx} ${ay + dy} Q ${midX} ${midY + sag} ${bx + dx} ${by + dy}`;
+}
+
 function sagOf(ax: number, ay: number, bx: number, by: number) {
   return Math.min(60, Math.hypot(bx - ax, by - ay) * 0.16);
 }
@@ -112,7 +137,7 @@ export function BoardCanvas({
   pickableMaps,
   pickableCases,
   pickableTimelines,
-  readOnly,
+  readOnly: locked,
   access,
   initialInk,
 }: {
@@ -226,6 +251,16 @@ export function BoardCanvas({
   } | null>(null);
   const pan = useRef<{ startX: number; startY: number; from: Viewport } | null>(null);
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+
+  /*
+   * §18b: a speler with no onderzoeker may look at the wall and touch nothing
+   * on it. Folded into the `readOnly` §17 already threads through every write
+   * path here rather than added beside it — one gate is one thing to get
+   * right, and the wall has forty places that ask.
+   */
+  const mayType = useMayType();
+  const gate = useAuthorGate();
+  const readOnly = locked || !mayType;
 
   // §8: no dragging or string-drawing on screens under 768 px. Selecting and
   // editing still work, or the inspector would be unreachable on a phone.
@@ -720,6 +755,10 @@ export function BoardCanvas({
    * `PROXY_TOO_LARGE`. A paste is a file like any other and gets exactly that
    * gate and exactly those words, because it takes the same road.
    *
+   * Being the one road is also why the shrinking sits here and not in two
+   * handlers: a photograph off a phone is heavier than a player's ceiling, so
+   * `fitUpload` re-encodes it to fit before it goes up, and says so once.
+   *
    * `at` is a board point when we know where the hand was; without it the card
    * lands in the middle of the view, as the file dialog has always done.
    */
@@ -727,8 +766,14 @@ export function BoardCanvas({
     async (file: File, at?: { x: number; y: number } | null) => {
       setUploading(true);
       try {
+        const fitted = await fitUpload(file, ui.uploadLimit);
+        if ('error' in fitted) {
+          ui.toast(fitted.error);
+          return;
+        }
+        if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
         const form = new FormData();
-        form.append('file', file);
+        form.append('file', fitted.file);
         const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
         if (!result.ok) {
           ui.toast(result.error);
@@ -1150,6 +1195,8 @@ export function BoardCanvas({
             to: end,
             label: '',
             colour: 'red',
+            width: DEFAULT_STRING_WIDTH,
+            style: DEFAULT_STRING_STYLE,
           };
           commit({ cards: nextCards, strings: [...strings, line] });
           // Select it, so the inspector is right there to label and colour it.
@@ -1868,6 +1915,7 @@ export function BoardCanvas({
       <div
         className="board-viewport"
         ref={viewportRef}
+        {...gate}
         onPointerDown={onSurfacePointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1939,19 +1987,54 @@ export function BoardCanvas({
               const d = stringPath(a.x, a.y, b.x, b.y);
               const colour = stringColourValue(line.colour);
               const isSelected = line.id === selectedStringId;
+              // Board units, inside `.board-world`, which is scaled by the zoom
+              // — so a thread grows and shrinks with the wall, like string.
+              const width = line.width ?? DEFAULT_STRING_WIDTH;
+              const dash = stringDash(line.style, width);
+              // "Dubbel" is two thinner strands either side of the centre; the
+              // two together carry the thickness that was asked for.
+              const strands =
+                line.style === 'double'
+                  ? [width * 0.45, -width * 0.45].map((offset) => ({
+                      d: stringPathOffset(a.x, a.y, b.x, b.y, offset),
+                      width: width * 0.4,
+                    }))
+                  : [{ d, width }];
               return (
                 <g key={line.id}>
-                  {/* A wide invisible path, because 2 px of string is not a target. */}
+                  {/*
+                    A wide invisible path, because 2 px of string is not a
+                    target — the centre curve for every kind of string, and
+                    unbroken, so a dashed one can be caught in its gaps too.
+                  */}
                   <path
                     className="board-string-hit"
                     d={d}
+                    style={{ '--string-hit': `${Math.max(18, width * 3)}px` } as CSSProperties}
                     onPointerDown={(event) => onStringPointerDown(event, line.id)}
                   />
-                  <path
-                    className={`board-string${isSelected ? ' board-string-selected' : ''}`}
-                    d={d}
-                    stroke={colour}
-                  />
+                  {/*
+                    Width and dash travel as custom properties, never as
+                    presentation attributes: `.board-string` is a CSS rule and
+                    would beat an attribute every time, which is the trap the
+                    colour fell into once already.
+                  */}
+                  {strands.map((strand, index) => (
+                    <path
+                      key={index}
+                      className={`board-string${isSelected ? ' board-string-selected' : ''}`}
+                      d={strand.d}
+                      stroke={colour}
+                      style={
+                        {
+                          // px, because inside an SVG one CSS pixel *is* one
+                          // user unit — and a unit keeps `calc()` happy.
+                          '--string-w': `${strand.width}px`,
+                          '--string-dash': dash ?? 'none',
+                        } as CSSProperties
+                      }
+                    />
+                  ))}
                 </g>
               );
             })}
@@ -2265,6 +2348,12 @@ export function BoardCanvas({
           onLabelChange={(label) => selectedString && patchString(selectedString.id, { label })}
           onColourChange={(colour: StringColour) =>
             selectedString && patchString(selectedString.id, { colour })
+          }
+          onWidthChange={(width: number) =>
+            selectedString && patchString(selectedString.id, { width })
+          }
+          onStyleChange={(style: StringStyle) =>
+            selectedString && patchString(selectedString.id, { style })
           }
           onRemoveString={() => selectedString && removeString(selectedString.id)}
           onCrop={() => singleSelected && setCroppingId(singleSelected.id)}

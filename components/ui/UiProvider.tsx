@@ -11,6 +11,9 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthorOptional } from '@/components/you/AuthorProvider';
+import { openSheetCount } from '@/lib/sheetStack';
+import { PLAYER_UPLOAD_BYTES } from '@/lib/upload';
 import { DEFAULT_WORDS, type Words } from '@/lib/words';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
 import { NewCaseSheet, type NewCasePrefill, type CreatedCase } from './NewCaseSheet';
@@ -63,6 +66,14 @@ type UiValue = {
    * with `useUi().words` rather than hard-coding a term.
    */
   words: Words;
+  /**
+   * How many bytes this person's upload may weigh — the Keeper's ceiling or a
+   * player's, decided on the server by `uploadLimitFor(me)` in the layout and
+   * carried down here so every upload button can say the number and every
+   * upload can shrink a picture to fit it (`fitUpload`). It is not the gate:
+   * the gate is `/api/assets`, which weighs the bytes that arrived.
+   */
+  uploadLimit: number;
   toast: (message: string, action?: { label: string; onAction: () => void }) => void;
   /** Asks, in a sheet; resolves true for the yes, false for the no or a dismissal. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
@@ -81,10 +92,13 @@ export function useUi(): UiValue {
 export function UiProvider({
   types,
   words = DEFAULT_WORDS,
+  uploadLimit = PLAYER_UPLOAD_BYTES,
   children,
 }: {
   types: EntryTypeLite[];
   words?: Words;
+  /** Defaults to a player's ceiling — the smaller of the two is the safe one. */
+  uploadLimit?: number;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -120,13 +134,72 @@ export function UiProvider({
     setTimeout(() => setToasts((current) => current.filter((t) => t.id !== id)), 6000);
   }, []);
 
-  const openNewEntry = useCallback((next?: NewEntryPrefill) => {
-    setEntryPrefill(next ?? {});
-  }, []);
+  /*
+   * §18b: a speler with no onderzoeker cannot make a dossier, so that sheet
+   * does not open for them at all — a sheet whose one button is dead is a
+   * worse answer than a line saying why. The banner at the top of the page is
+   * the standing explanation; this is the answer to the button.
+   *
+   * The "nieuw artikel" sheet is the exception, and the only one: an
+   * onderzoeker *is* an artikel tied to an account, so this is how somebody
+   * with none stops having none. The archive lets that one write through
+   * (`requireAuthorOrFirstCharacter`), so the button must too — the `+`, the
+   * `n` shortcut and the sheet all read `mayStartEntry` instead.
+   */
+  const author = useAuthorOptional();
+  const mayType = author ? author.mayType : true;
+  const mayStartEntry = author ? author.mayStartEntry : true;
+  const refuse = useCallback(() => {
+    toast('Je hebt nog geen onderzoeker, dus je kunt hier alleen lezen.');
+  }, [toast]);
 
-  const openNewCase = useCallback((next?: NewCasePrefill) => {
-    setCasePrefill(next ?? {});
-  }, []);
+  /*
+   * §18b: "ask, then do". Opening either of these *is* an act of writing, so a
+   * window that has not said who it is writing as has to answer first — and
+   * the answer is itself a sheet, so it cannot come up over one. `ensureAuthor`
+   * holds the opening back, asks alone, and releases it in the same commit
+   * that closes the question; a window with nothing to answer (a Keeper, one
+   * that has already chosen, a speler with no onderzoeker at all) goes straight
+   * through, synchronously, so the click that opened the sheet is not lost.
+   *
+   * Outside the shell — a component in a test harness, with no provider above
+   * it — there is nobody to ask, and the server is the real gate anyway.
+   */
+  const ensureAuthor = author?.ensureAuthor;
+  const askThen = useCallback(
+    (then: () => void) => {
+      if (ensureAuthor) ensureAuthor(then);
+      else then();
+    },
+    [ensureAuthor],
+  );
+
+  const openNewEntry = useCallback(
+    (next?: NewEntryPrefill) => {
+      if (!mayStartEntry) {
+        refuse();
+        return;
+      }
+      askThen(() => setEntryPrefill(next ?? {}));
+    },
+    [mayStartEntry, refuse, askThen],
+  );
+
+  const openNewCase = useCallback(
+    (next?: NewCasePrefill) => {
+      if (!mayType) {
+        refuse();
+        return;
+      }
+      askThen(() => setCasePrefill(next ?? {}));
+    },
+    [mayType, refuse, askThen],
+  );
+
+  // The `n` shortcut is bound once for the life of the shell, so it reads the
+  // opener through a ref rather than closing over the one that existed then.
+  const openNewEntryRef = useRef(openNewEntry);
+  openNewEntryRef.current = openNewEntry;
 
   // §6: `n` opens a new entry, `/` goes to search.
   useEffect(() => {
@@ -136,10 +209,17 @@ export function UiProvider({
         target &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+      /*
+       * §18b: a sheet on the screen owns the keyboard. `n` used to reach past
+       * one — the focus a sheet leaves behind is not a field, so the check
+       * above waves it through — and opened a second sheet over the first.
+       */
+      if (openSheetCount() > 0) return;
 
       if (event.key === 'n') {
         event.preventDefault();
-        setEntryPrefill({});
+        // §18b: the shortcut goes the same way the button does.
+        openNewEntryRef.current();
       } else if (event.key === '/') {
         event.preventDefault();
         router.push('/search');
@@ -179,8 +259,8 @@ export function UiProvider({
   );
 
   const value = useMemo<UiValue>(
-    () => ({ types, words, toast, confirm, openNewEntry, openNewCase }),
-    [types, words, toast, confirm, openNewEntry, openNewCase],
+    () => ({ types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase }),
+    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase],
   );
 
   return (

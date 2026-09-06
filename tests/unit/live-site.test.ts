@@ -33,8 +33,13 @@ let entries: typeof import('@/lib/entries/service');
 let cases: typeof import('@/lib/cases/service');
 
 const KEEPER = { id: 'keeper-1', isKeeper: true };
-const BRAM = { id: 'bram', isKeeper: false };
-const AAGJE = { id: 'aagje', isKeeper: false };
+/*
+ * §18b: a player carries the onderzoeker their window is writing as. Every
+ * `admit` here is about rights, not about names, but a player with no karakter
+ * is refused the pen — so the two players in this file each hold one.
+ */
+const BRAM = { id: 'bram', isKeeper: false, characterId: 'vandijk' };
+const AAGJE = { id: 'aagje', isKeeper: false, characterId: 'nel' };
 
 type Event = { event: string; data: unknown };
 

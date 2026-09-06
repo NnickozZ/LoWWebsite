@@ -5,36 +5,33 @@ import sharp from 'sharp';
 import { eq } from 'drizzle-orm';
 import { ASSETS_DIR, db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
+import { PLAYER_UPLOAD_BYTES, tooLargeMessage } from '@/lib/upload';
 
 /**
- * How much one upload may weigh. Two ceilings (Nick, 5 Sep 2026): a player's
- * photo of a handout is a phone picture, 10 MB is plenty; a Keeper hanging a
- * scanned map or a full-resolution painting gets 100 MB. Checked twice — on
- * the size the browser declared, before the body is read, and again on the
- * bytes that actually arrived — so a mislabelled file cannot slip past.
+ * How much one upload may weigh: 2 MB for a player, 20 MB for a Keeper
+ * (Nick, 6 Sep 2026). The numbers and the three functions around them moved
+ * to `lib/upload.ts`, which is pure — this file opens the database and loads
+ * sharp, so a client component could never import from it, and the browser
+ * now needs the ceiling too: an oversized player's picture is shrunk to fit
+ * before it is sent rather than refused. They are re-exported here because
+ * this is where the server has always read them, and because the ceiling is
+ * *enforced* here and nowhere else: checked twice, on the size the browser
+ * declared before the body is read, and again on the bytes that actually
+ * arrived, so neither a mislabelled file nor a browser that skipped the
+ * shrinking can slip past.
  *
- * Two things sit outside this file: a reverse proxy in front of the server
+ * Two things sit outside the app: a reverse proxy in front of the server
  * (nginx's `client_max_body_size` defaults to 1 MB and must be raised to at
- * least 100m), and sharp's own pixel ceiling (`limitInputPixels`, ~268 MP by
- * default), which is what stops a 100 MB scan from eating the box's memory.
+ * least 25m), and sharp's own pixel ceiling (`limitInputPixels`, ~268 MP by
+ * default), which is what stops a big scan from eating the box's memory.
  */
-export const PLAYER_UPLOAD_BYTES = 10 * 1024 * 1024;
-export const KEEPER_UPLOAD_BYTES = 100 * 1024 * 1024;
-/** Kept for anything that only knows the old name; the player's ceiling. */
-export const MAX_UPLOAD_BYTES = PLAYER_UPLOAD_BYTES;
-
-export function uploadLimitFor(viewer: { isKeeper: boolean } | null | undefined): number {
-  return viewer?.isKeeper ? KEEPER_UPLOAD_BYTES : PLAYER_UPLOAD_BYTES;
-}
-
-/** "10 MB" / "100 MB" — for the sentence under an upload button and the error. */
-export function uploadLimitLabel(bytes: number): string {
-  return `${Math.round(bytes / (1024 * 1024))} MB`;
-}
-
-export function tooLargeMessage(limitBytes: number): string {
-  return `Die afbeelding is groter dan de limiet van ${uploadLimitLabel(limitBytes)}.`;
-}
+export {
+  PLAYER_UPLOAD_BYTES,
+  KEEPER_UPLOAD_BYTES,
+  uploadLimitFor,
+  uploadLimitLabel,
+  tooLargeMessage,
+} from '@/lib/upload';
 
 const MAX_EDGE = 1600;
 /** The 400 px thumbnail of §6: the feed's 42x56 and the search list. */

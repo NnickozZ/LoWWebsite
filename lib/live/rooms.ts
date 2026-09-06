@@ -49,6 +49,14 @@ export type Admission = {
   canEdit: boolean;
 };
 
+/**
+ * §18b: the same viewer every gate here already took, plus the onderzoeker the
+ * *window* is writing as. Optional, so a test or a page that only asks "is
+ * there a room?" can pass a plain viewer; a player who has not chosen is
+ * refused the pen below, not the room.
+ */
+export type RoomViewer = (NonNullable<Viewer> & { characterId?: string | null }) | null;
+
 const ENTRY_KEY = /^entry:([A-Za-z0-9_-]{1,64}):body$/;
 const SECTION_KEY = /^section:([A-Za-z0-9_-]{1,64})$/;
 const CASE_KEY = /^case:([A-Za-z0-9_-]{1,64}):notes$/;
@@ -283,7 +291,23 @@ function sectionAdmission(sectionId: string, viewer: Viewer): Admission | null {
 }
 
 /** The room behind a key, if this viewer may be in it. Null is "no such room" — never "no". */
-export function admit(key: string, viewer: Viewer): Admission | null {
+export function admit(key: string, viewer: RoomViewer): Admission | null {
+  const admission = roomFor(key, viewer);
+  if (!admission) return null;
+  /*
+   * §18b: a player who has not said who they are writing as may read the room
+   * and watch other people's carets, but may not type in it. One line, here,
+   * rather than in every branch — and deliberately *not* in `lib/access.ts`,
+   * whose `canEdit` is per account and would lock out every Keeper, none of
+   * whom ever has a karakter.
+   *
+   * The editors already honour `canEdit`, so this alone makes them read-only.
+   */
+  if (viewer && !viewer.isKeeper && !viewer.characterId) return { ...admission, canEdit: false };
+  return admission;
+}
+
+function roomFor(key: string, viewer: Viewer): Admission | null {
   const entryMatch = ENTRY_KEY.exec(key);
   if (entryMatch) return entryAdmission(entryMatch[1], viewer);
   const entryFieldsMatch = ENTRY_FIELDS_KEY.exec(key);

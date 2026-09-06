@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn, signUp } from './helpers';
+import { becomeInvestigator, signIn, signUp } from './helpers';
 
 /**
  * §33: the tekenlaag — free-hand drawing on a prikbord, a landkaart and a
@@ -79,6 +79,14 @@ async function stroke(page: Page, x: number, y: number, steps = 30) {
   await page.mouse.up();
 }
 
+/** A straight sweep 180 px down the stage from (x, y) — the shape of a gum's stroke. */
+async function sweep(page: Page, x: number, y: number) {
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 180, { steps: 10 });
+  await page.mouse.up();
+}
+
 async function newBoard(page: Page): Promise<string> {
   await page.goto('/boards');
   await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
@@ -106,6 +114,9 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
   const context = await browser.newContext();
   const other = await context.newPage();
   await signUp(other, `Tekenaar ${stamp}`, 'duikerklok');
+  // §18b: a streek is a write, and the pencil is not offered to a speler with
+  // no onderzoeker. So they make one first, the way a real player does.
+  await becomeInvestigator(other, `Onderzoeker Tekenaar ${stamp}`);
   await other.goto(boardUrl);
   await expect(other.locator('.board-viewport')).toBeVisible();
   await expect(other.getByTestId('ink-pen')).toBeVisible();
@@ -135,18 +146,29 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
   const afterReload = await waitForInk(other, (i) => i.count > 0);
   expect(Math.abs(afterReload.count - drawn.count)).toBeLessThan(drawn.count * 0.1);
 
-  // 2. The other person — no edit rights needed — rubs part of it out.
+  // 2. The other person — no edit rights needed — rubs part of it out, with
+  //    the smallest gum: the three diktes stand where the brushes stood.
   await other.getByTestId('ink-pen').click();
   await other.getByTestId('ink-eraser').click();
+  await other.getByTestId('ink-eraser-0').click();
   const obox = await stageBox(other, '.board-viewport');
-  await other.mouse.move(obox.x + 260, obox.y + 120);
-  await other.mouse.down();
-  await other.mouse.move(obox.x + 260, obox.y + 300, { steps: 10 });
-  await other.mouse.up();
+  await sweep(other, obox.x + 230, obox.y + 120);
   const erased = await waitForInk(page, (i) => i.count < afterReload.count);
   expect(erased.count).toBeLessThan(afterReload.count);
   await expect(other.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
-  await settled(page);
+  const afterSmall = await settled(page);
+  const tookSmall = afterReload.count - afterSmall.count;
+  expect(tookSmall).toBeGreaterThan(0);
+
+  // The same sweep with the largest gum, one band further along the line:
+  // four times as wide, so it must take materially more away.
+  await other.getByTestId('ink-eraser-2').click();
+  await sweep(other, obox.x + 300, obox.y + 120);
+  await waitForInk(page, (i) => i.count < afterSmall.count);
+  await expect(other.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
+  const afterLarge = await settled(page);
+  expect(afterSmall.count - afterLarge.count).toBeGreaterThan(tookSmall * 2);
+
   await page.reload();
   await expect(page.locator('.board-viewport')).toBeVisible();
   const erasedOnDisk = await waitForInk(page, (i) => i.count > 0);
@@ -162,11 +184,27 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
   await page.keyboard.press('Control+z');
   const undone = await waitForInk(other, (i) => i.count < more.count - 50);
   expect(Math.abs(undone.count - erasedOnDisk.count)).toBeLessThan(erasedOnDisk.count * 0.1 + 20);
-  // The other person may not undo the Keeper's strokes: their button has nothing to lift.
+  /*
+   * The other person's undo lifts their *own* hand and nobody else's. A gum is
+   * itself a streek, so what is on their stack is the two sweeps of step 2 —
+   * the small gum and the large one — and not one of the Keeper's four lines.
+   * So: two undos, and only then is there nothing left to lift.
+   */
+  const beforeUndo = await settled(other);
+  await expect(other.getByTestId('ink-undo')).toBeEnabled();
+  await other.keyboard.press('Control+z');
+  await other.waitForTimeout(800);
   await expect(other.getByTestId('ink-undo')).toBeEnabled();
   await other.keyboard.press('Control+z');
   await other.waitForTimeout(800);
   await expect(other.getByTestId('ink-undo')).toBeDisabled();
+  // And lifting a gum puts back what it took: the Keeper's first line is whole
+  // again on the screen that rubbed it out.
+  await waitForInk(other, (i) => i.count > beforeUndo.count + 50);
+  // And the Keeper's button answers only to the Keeper's hand: the one line
+  // they drew since the reload is the one they lifted a moment ago, so their
+  // stack is empty as well — the two undos over there put nothing back on it.
+  await expect(page.getByTestId('ink-undo')).toBeDisabled();
 
   await context.close();
 });
@@ -209,6 +247,9 @@ test('the Keeper turns drawing off for everyone, and wipes the layer', async ({ 
   const context = await browser.newContext();
   const other = await context.newPage();
   await signUp(other, `Speler ${stamp}`, 'duikerklok');
+  // §18b: with an onderzoeker of their own, the 403s below are about the
+  // Keeper's switch and not about who is holding the pencil.
+  await becomeInvestigator(other, `Onderzoeker Speler ${stamp}`);
   await other.goto(boardUrl);
   await expect(other.getByTestId('ink-pen')).toBeVisible();
   await other.getByTestId('ink-pen').click();

@@ -2,7 +2,7 @@ import { getWords } from '@/lib/admin/words';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getBoard } from '@/lib/boards/service';
-import { displayNameOf } from '@/lib/characters';
+import { windowPresenceName } from '@/lib/characters';
 import {
   clearPresence,
   publishPointer,
@@ -37,8 +37,9 @@ const HEARTBEAT_MS = 20_000;
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    // §18: on the wall, a person is the character they are wearing.
-    const shownName = displayNameOf(user.id, getWords().keeper)?.label ?? user.username;
+    // §18: on the wall, a person is the character they are wearing; a Keeper
+    // is their account name, so two Keepers are two people (§21, presence).
+    const shownName = windowPresenceName(user, getWords().keeper);
     const { id } = await ctx.params;
     // Exactly the check every other board read makes; a player who cannot open
     // the board cannot listen to it either, nor learn who is standing at it.
@@ -149,6 +150,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
  * account (it passed the check when the line was opened); anything else goes
  * through the same `getBoard` gate as every read.
  */
+// §18b: presence only — never gated by `requireAuthor`. Somebody who may only
+// look is still somebody standing at the wall, and the save that follows a drag
+// goes through `/api/boards/[id]`, which is gated.
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
@@ -173,8 +177,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     }
 
     if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
-    // §18: on the wall, a person is the character they are wearing.
-    const shownName = displayNameOf(user.id, getWords().keeper)?.label ?? user.username;
+    // §18: on the wall, a person is the character they are wearing; a Keeper
+    // is their account name, so two Keepers are two people (§21, presence).
+    const shownName = windowPresenceName(user, getWords().keeper);
 
     if (isFrame) {
       // A frame from a tab the hub had forgotten (reaped, or the server

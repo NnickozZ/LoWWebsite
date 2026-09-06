@@ -10,6 +10,7 @@ import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
 import { UiProvider, useUi, type EntryTypeLite } from '@/components/ui/UiProvider';
 import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
+import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
 import type { Words } from '@/lib/words';
 
 /**
@@ -61,8 +62,17 @@ function Nav({
           <span className="masthead-name">{siteName}</span>
           {tagline && <span className="masthead-tagline">{tagline}</span>}
         </div>
-        {/* §18: who you are being — under the masthead, above the places. */}
-        <CharacterSwitcher me={me} />
+        {/*
+         * §18: who you are being — under the masthead, above the places.
+         * §18b: and, right under it, who this *window* is writing as. The two
+         * belong together: the first is the account's karakter, the second is
+         * this window's, and seeing them one above the other is the whole
+         * explanation of why they can differ.
+         */}
+        <div className="who-block">
+          <CharacterSwitcher me={me} />
+          <WritingAsLine />
+        </div>
         {NAV.map((item) => (
           <Link key={item.href} href={item.href} aria-current={isCurrent(pathname, item.href) ? 'page' : undefined}>
             <Icon name={item.icon} size={18} />
@@ -108,6 +118,7 @@ export function AppShell({
   types,
   words,
   me,
+  uploadLimit,
   siteName,
   tagline,
   logoAssetId,
@@ -118,19 +129,33 @@ export function AppShell({
   words: Words;
   /** §18: this account, and the characters it may wear. */
   me: Me;
+  /**
+   * How heavy a picture this person may send up — a player's 2 MB or the
+   * Keeper's 20 MB, decided on the server (`uploadLimitFor`) because the role
+   * is the server's to know. Every upload reads it from `useUi()`.
+   */
+  uploadLimit: number;
   siteName: string;
   tagline: string;
   logoAssetId: string | null;
   children: ReactNode;
 }) {
   return (
-    <UiProvider types={types} words={words}>
+    <UiProvider types={types} words={words} uploadLimit={uploadLimit}>
       {/* §21: one live line per tab, for every page inside the shell. */}
       <LiveProvider>
         <div className="shell">
           <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} />
           <main className="main">
             <LiveStrip />
+            {/*
+             * §18b: a speler with no onderzoeker may read the whole archive
+             * and write none of it. The notice stands at the top of every page
+             * inside the shell rather than beside each input, because there is
+             * no page where they *can* write and no toast that survives long
+             * enough to be read.
+             */}
+            <ReadOnlyBanner words={words} />
             {children}
           </main>
         </div>

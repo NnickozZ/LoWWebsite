@@ -25,6 +25,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
   loading: () => <div className="editor-body" aria-busy="true" />,
 });
 import { useUi } from '@/components/ui/UiProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
 import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
 import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/service';
@@ -167,7 +168,14 @@ export function CaseDossier({
    * may type: without it, choosing to read would still leave a caret blinking
    * in the notes.
    */
-  const mayEdit = access.canEdit;
+  /*
+   * §18b: a third kind of "no", and the hardest of the three. `readOnly` is
+   * about rights, `reading` is about the face asked for, and this is about
+   * having a name to sign with at all: a speler with no onderzoeker may open
+   * every dossier in the archive and change none of them.
+   */
+  const hasAuthor = useMayType();
+  const mayEdit = access.canEdit && hasAuthor;
   const canToggle = Boolean(access.viewerId);
   const [mode, setMode] = useState<ArticleMode>(canToggle ? defaultMode : 'view');
   const reading = mode === 'view';

@@ -50,10 +50,11 @@ test('shots', async ({ page }, info) => {
   await page.waitForURL('**/maps/**');
   await page.waitForTimeout(600);
 
-  const stage = page.getByRole('application');
-  const box = (await stage.boundingBox())!;
+  // §34: a fraction of the picture, not of the stage — the stage fills the
+  // screen now and a speld only goes on the map itself.
   const place = async (fx: number, fy: number) => {
     await page.getByRole('button', { name: 'Speld zetten' }).click();
+    const box = (await page.locator('.map-world').boundingBox())!;
     await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
   };
   await place(0.45, 0.45);

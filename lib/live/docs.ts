@@ -8,6 +8,7 @@ import {
   removeAwarenessStates,
 } from 'y-protocols/awareness';
 import { prosemirrorJSONToYXmlFragment, updateYFragment, yXmlFragmentToProsemirrorJSON } from 'y-prosemirror';
+import type { Author } from '@/lib/auth/author';
 import { db, schema } from '@/lib/db';
 import { documentSchema } from './schema';
 
@@ -65,8 +66,11 @@ export type RoomSpec = {
   kind?: RoomKind;
   /** The stored value to seed from when no Yjs state exists yet: ProseMirror JSON, or the fields. */
   seed: () => unknown;
-  /** Writes the shared document back into the archive, as this person. */
-  persist: (value: unknown, actor: { id: string; isKeeper: boolean }) => void;
+  /**
+   * Writes the shared document back into the archive, as this person — and,
+   * §18b, as the onderzoeker whose keystrokes last reached the room.
+   */
+  persist: (value: unknown, actor: Author) => void;
 };
 
 /** The fields of a `fields` room, as a plain object. */
@@ -88,8 +92,13 @@ type Room = {
   subscribers: Map<string, Subscriber>;
   dirty: boolean;
   persistTimer: ReturnType<typeof setTimeout> | null;
-  /** The last person whose keystrokes reached this room: who the save is by. */
-  lastActor: { id: string; isKeeper: boolean } | null;
+  /**
+   * The last person whose keystrokes reached this room: who the save is by.
+   * §18b: and which onderzoeker they were writing as, so text typed through
+   * Yjs is attributed exactly like text typed into a form. Two windows of one
+   * account are two authors here, and whichever typed last owns the save.
+   */
+  lastActor: Author | null;
   idleSince: number;
 };
 
@@ -345,7 +354,7 @@ export function join(
 }
 
 /** A tab's keystrokes. Applied to the room; the doc's own listener fans them out. */
-export function applyClientUpdate(key: string, clientId: string, update: string, actor: { id: string; isKeeper: boolean }) {
+export function applyClientUpdate(key: string, clientId: string, update: string, actor: Author) {
   const room = hub.rooms.get(key);
   if (!room) return false;
   room.lastActor = actor;

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 const root = resolve(__dirname, '../..');
 
@@ -33,6 +33,99 @@ export async function signUp(page: Page, username: string, password: string) {
   await page.getByLabel('Wachtwoord nogmaals').fill(password);
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
   await page.waitForURL('**/');
+}
+
+/** A name as a locator: a substring match that survives punctuation in it. */
+function nameLike(name: string): RegExp {
+  return new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+}
+
+/**
+ * §18b: the window's answer to "Met wie ben je nu aan het schrijven?".
+ *
+ * A speler who has just tied their first onderzoeker on has a name on their
+ * account but not in *this window*, so the archive would stand the blocking
+ * sheet in front of the very next keystroke. That is the right behaviour and
+ * the wrong moment to meet it in the middle of another test, so this answers
+ * it deliberately, from the one place both viewports have the switch: the line
+ * above the wardrobe on the Jij page.
+ */
+export async function writeAs(page: Page, character: string) {
+  await page.goto('/you');
+  // Scoped to the page body: the line is on the Jij page *and* in the side
+  // menu, and a bare test id would be two elements on a desktop.
+  const line = page.getByRole('main').getByTestId('writing-as');
+  await line.waitFor({ state: 'visible', timeout: 15_000 });
+  const sheet = page.getByRole('dialog', { name: 'Met wie ben je nu aan het schrijven?' });
+  // Clicked again until it answers: a button that is on screen is not yet a
+  // button that is listening, and this runs straight after a navigation.
+  await pressUntil(page, () => line.click({ timeout: 5000 }), sheet);
+  await sheet.getByRole('radio', { name: nameLike(character) }).click();
+  await sheet.waitFor({ state: 'detached', timeout: 15_000 });
+}
+
+/**
+ * Does the thing until the thing it opens is on screen. Every "press n until
+ * the sheet answers" loop in this suite is the same idea: right after a
+ * navigation React may not have picked the page up yet, and a click into a
+ * page that is not listening is silence rather than an error.
+ */
+async function pressUntil(
+  page: Page,
+  /** Bounded by a timeout of its own: a press that cannot land must not hang. */
+  act: () => Promise<void>,
+  target: ReturnType<Page['locator']>,
+  attempts = 8,
+) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (await target.isVisible().catch(() => false)) return;
+    // A press that lands takes its own button off the screen sometimes (the
+    // wardrobe's does), so a later attempt failing to find it is not a failure
+    // — the check at the top of the loop is the one that decides.
+    await act().catch(() => undefined);
+    await page.waitForTimeout(400);
+  }
+  await target.waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+/**
+ * §18b: give a freshly signed-up speler an onderzoeker, exactly the way a real
+ * one gets theirs — make the artikel, tie it on, say who this window is.
+ *
+ * The archive lets somebody with no onderzoeker at all make an artikel and
+ * nothing else (`requireAuthorOrFirstCharacter`), because an onderzoeker *is*
+ * an artikel tied to an account and there is no other road to the first one.
+ * Every test whose player goes on to write anything — a dossier, a proposal, a
+ * card, a streek, a speld — walks that road here first, rather than borrowing
+ * a fiche the Keeper wrote for them.
+ *
+ * The name matters more than it looks: presence, carets, the hand on a card
+ * and the feed all print the *onderzoeker*, not the account. A test that
+ * asserts a name on screen should hand the same one in.
+ *
+ * Leaves the browser back on the start page, where signing up left it, so it
+ * drops in after any `signUp` without moving the test's own ground. Returns
+ * the path of the artikel that is now their onderzoeker.
+ */
+export async function becomeInvestigator(page: Page, character: string): Promise<string> {
+  await page.goto('/');
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  await pressUntil(page, () => newEntryButton(page).click({ timeout: 5000 }), sheet);
+  await sheet.getByLabel('Naam').fill(character);
+  await sheet.getByRole('button', { name: 'Aanmaken' }).click();
+  await page.waitForURL('**/e/**');
+  const path = new URL(page.url()).pathname;
+
+  const said = page.getByText(`Je speelt nu als ${character}.`);
+  await pressUntil(
+    page,
+    () => page.getByRole('button', { name: 'Dit is mijn karakter' }).click({ timeout: 5000 }),
+    said,
+  );
+
+  await writeAs(page, character);
+  await page.goto('/');
+  return path;
 }
 
 /**
@@ -95,4 +188,28 @@ export async function newCaseBoard(page: Page) {
   if (await tab.isVisible().catch(() => false)) await tab.click();
   await page.getByRole('button', { name: /Maak nieuw prikbord voor dit dossier/ }).click();
   await page.waitForURL('**/b/**');
+}
+
+/**
+ * Fill a field on a page that has only just arrived.
+ *
+ * Every input in this archive is on the screen before React has picked it up:
+ * the server draws it, and for a moment — longest on the first page that pulls
+ * a chunk of script the browser has never seen — it is a box with nothing
+ * behind it. A `fill` that lands in that gap puts the letters in the DOM and
+ * the render that follows wipes them: nothing was typed as far as the archive
+ * is concerned, so nothing is saved and the save state never moves off "".
+ * A person is far too slow to hit that window; Playwright is not, which is why
+ * this shows up as one desktop run in ten and never on the phone.
+ *
+ * So: fill, and fill again, until the field is still holding what it was given
+ * a beat later — the same "press it until it answers" loop the sheets above
+ * use, for exactly the same reason.
+ */
+export async function fillWhenReady(field: Locator, text: string) {
+  await expect(async () => {
+    await field.fill(text);
+    await field.page().waitForTimeout(300);
+    expect(await field.inputValue()).toBe(text);
+  }).toPass({ timeout: 20_000 });
 }

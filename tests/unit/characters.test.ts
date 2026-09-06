@@ -147,10 +147,46 @@ describe('what the archive prints', () => {
     expect(feed[0].actorAccount).toBe('Bram');
   });
 
-  it('switching re-labels the past too', () => {
+  /*
+   * §18b changed what this test is about. It used to say "switching re-labels
+   * the past too", which was the rule: nothing recorded a karakter, so every
+   * label came from whoever was active now. Rows now carry the onderzoeker
+   * they were written as, and only rows that carry *nothing* — everything from
+   * before §18b, and every account act — still read this way. That fallback is
+   * what this test now pins; the recorded side is in `authorship.test.ts`.
+   */
+  it('a row that recorded nobody is still labelled from who is worn now', () => {
     deps.setActiveCharacter('bram', 'nel', BRAM);
     expect(deps.displayNameOf('bram')?.label).toBe('Nel de Visser');
     deps.setActiveCharacter('bram', 'vandijk', BRAM);
+    expect(deps.displayNameOf('bram')?.label).toBe('Onderzoeker Van Dijk');
+  });
+
+  it('presence names a Keeper by their account, however the word is set', () => {
+    const names = deps.presenceNames(
+      [
+        { id: 'bram', username: 'Bram', isKeeper: false },
+        { id: 'aagje', username: 'Aagje', isKeeper: false },
+        { id: 'keeper-1', username: 'Keeper', isKeeper: true },
+      ],
+      'Spelleider',
+    );
+    // A player is unchanged: the character they are wearing, or their account.
+    expect(names.get('bram')).toEqual({ label: 'Onderzoeker Van Dijk', account: 'Bram' });
+    expect(names.get('aagje')).toEqual({ label: 'Aagje', account: 'Aagje' });
+    // The strip says who is here, so the Keeper's word is not a name.
+    expect(names.get('keeper-1')).toEqual({ label: 'Keeper', account: 'Keeper' });
+  });
+
+  it('a blank username falls back to the Keeper word', () => {
+    const names = deps.presenceNames([{ id: 'keeper-1', username: '   ', isKeeper: true }], 'Spelleider');
+    expect(names.get('keeper-1')?.label).toBe('Spelleider');
+  });
+
+  it('one presence name, straight from the account', () => {
+    expect(deps.presenceNameOf('keeper-1', 'Spelleider')).toEqual({ label: 'Keeper', account: 'Keeper' });
+    expect(deps.presenceNameOf('bram', 'Spelleider')?.label).toBe('Onderzoeker Van Dijk');
+    expect(deps.presenceNameOf(null)).toBeNull();
   });
 
   it('knows who plays a fiche', () => {

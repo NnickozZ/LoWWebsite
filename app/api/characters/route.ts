@@ -16,6 +16,10 @@ export const dynamic = 'force-dynamic';
  * Everything here is about *your own* account; a Keeper may pass `userId` to
  * tie or untie a character for someone else (the player who forgot, the new
  * arrival), never to wear one. A Keeper wears nothing — they are the Keeper.
+ *
+ * §18b: the one set of writes deliberately *not* behind `requireAuthor`. This
+ * is where a person gets an onderzoeker in the first place; a gate here would
+ * lock out exactly the people it is meant to help.
  */
 
 function whose(user: { id: string; isKeeper: boolean }, body: { userId?: unknown }): string {

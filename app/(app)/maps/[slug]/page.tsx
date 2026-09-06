@@ -8,7 +8,7 @@ import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
-import { displayNames } from '@/lib/characters';
+import { displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { getMapBySlug, listPins } from '@/lib/maps/service';
 import { visibleEntryCondition } from '@/lib/entries/visibility';
@@ -55,40 +55,56 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
   const names = displayNames(people, words.keeper);
   const peopleNames = Object.fromEntries([...names.entries()].map(([id, n]) => [id, n.label]));
 
+  /*
+   * §21 vs §11: one list of people, two jobs. `peopleNames` is attribution —
+   * who set this speld — and stays a feed: a Keeper is the Keeper's word. The
+   * live name is presence — who is standing here — where the word is not a
+   * name, so a Keeper is their account.
+   */
+  const liveName = windowPresenceName(user, words.keeper);
+
   return (
     <div className="page-wide">
-      <LivePage place={mapKey(map.id)} watch={['entries']} pointers={false} />
-      <div className="row" style={{ marginBottom: '0.4rem', alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0 }}>
-          <p className="eyebrow" style={{ margin: 0 }}>
+      {/*
+       * §34: the map takes the screen. Everything that used to stand above it
+       * — the eyebrow, the name, what it is a map of, the description — is one
+       * wrapping line now (`.canvas-head`), and the canvas has the rest.
+       */}
+      <div className="page-canvas">
+        <LivePage place={mapKey(map.id)} watch={['entries']} pointers={false} />
+        <header className="canvas-head">
+          <p className="eyebrow">
             <Link href="/maps" style={{ color: 'inherit' }}>
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {words.navMaps}
             </Link>
           </p>
-          <h1 style={{ margin: 0 }}>{map.name}</h1>
+          <h1>{map.name}</h1>
           {ofEntry && (
-            <p className="small" style={{ margin: '0.2rem 0 0' }}>
+            <p className="small canvas-head-of">
               De {words.map} van <Link href={`/e/${ofEntry.slug}`}>{ofEntry.name}</Link>
             </p>
           )}
-          {map.description && (
-            <p className="small muted" style={{ margin: '0.2rem 0 0' }}>
-              {map.description}
-            </p>
-          )}
-        </div>
+          {map.description && <p className="small muted canvas-head-desc">{map.description}</p>}
+        </header>
+
+        <MapCanvas
+          liveUser={{ name: liveName, colour: presenceColour(user?.id ?? '') }}
+          map={map}
+          initialPins={pins}
+          initialInk={inkForViewer(getInk(map.id), user?.id ?? null)}
+          viewerId={user?.id ?? ''}
+          isKeeper={Boolean(user?.isKeeper)}
+          peopleNames={peopleNames}
+        />
       </div>
 
-      <MapCanvas
-        liveUser={{ name: (user && peopleNames[user.id]) || user?.username || '', colour: presenceColour(user?.id ?? '') }}
-        map={map}
-        initialPins={pins}
-        initialInk={inkForViewer(getInk(map.id), user?.id ?? null)}
-        viewerId={user?.id ?? ''}
-        isKeeper={Boolean(user?.isKeeper)}
-        peopleNames={peopleNames}
-      />
-
+      {/* The Keeper's tools are below the fold: a landkaart is looked at far
+          more often than it is re-hung. The empty div is where `MapCanvas`
+          puts the tekenlaag switch — it is a tool like the rest of them, and
+          inside the canvas column it was 132 px off the map on a telephone.
+          Both are Keeper-only, so a player's page is still nothing but the
+          canvas and does not scroll (`.page-canvas:last-child`). */}
+      {user?.isKeeper && <div id="map-underfold" />}
       {user?.isKeeper && (
         <MapKeeperTools
           map={map}

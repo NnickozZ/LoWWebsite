@@ -8,7 +8,7 @@ import {
   normaliseStroke,
   readInkFrame,
 } from '@/lib/ink/merge';
-import { INK_MAX_POINTS, INK_STROKE_LIMIT, INK_TOMBSTONE_TTL_MS } from '@/lib/ink/types';
+import { INK_ERASERS, INK_MAX_POINTS, INK_STROKE_LIMIT, INK_TOMBSTONE_TTL_MS } from '@/lib/ink/types';
 
 /**
  * §33: the tekenlaag's merge, pure. The concurrency cases are the ones the
@@ -47,6 +47,16 @@ describe('reading a stroke', () => {
     expect(normaliseStroke(stroke('s_1', { points: [] }))).toBeNull();
     expect(normaliseStroke(stroke('s_1', { mode: 'paint' }))!.mode).toBe('ink');
     expect(normaliseStroke(stroke('s_1', { mode: 'erase' }))!.mode).toBe('erase');
+  });
+
+  it('a width is a range and not a list, so every gum dikte — and the one there used to be — passes through', () => {
+    // The three gummen the toolbar offers, unchanged in both directions.
+    for (const width of INK_ERASERS) {
+      expect(normaliseStroke(stroke('s_1', { mode: 'erase', width }))!.width).toBe(width);
+    }
+    // And the single gum of before it had diktes: a stroke already in a column
+    // is still read as exactly what was drawn, never widened or narrowed.
+    expect(normaliseStroke(stroke('s_1', { mode: 'erase', width: 22 }))!.width).toBe(22);
   });
 
   it('a layer out of the column: duplicates dropped, tombstoned ones gone, sorted by time', () => {

@@ -1,3 +1,4 @@
+import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { storeImage, tooLargeMessage, uploadLimitFor } from '@/lib/assets';
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    // §18b: a player who has not said who they are writing as does not write.
+    requireAuthor(user);
     const form = await request.formData();
     const file = form.get('file');
     if (!(file instanceof File)) return json({ error: 'Er is geen bestand meegestuurd.' }, { status: 400 });

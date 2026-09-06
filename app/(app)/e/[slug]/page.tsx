@@ -10,7 +10,7 @@ import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
-import { activeCharacter, displayNames, listCharacters, playersOf } from '@/lib/characters';
+import { activeCharacter, attributed, listCharacters, playersOf, windowPresenceName } from '@/lib/characters';
 import { canReview, listPendingEdits } from '@/lib/entries/review';
 import { diffLines, relativeTime } from '@/lib/diff';
 import { docToText } from '@/lib/entries/doc';
@@ -91,7 +91,7 @@ export default async function EntryPage({
    */
   const mentions = listMentions(entry.id, user);
   const mentionGroups = groupMentions(mentions);
-  const revisions = listRevisions(entry.id);
+  const revisionRows = listRevisions(entry.id);
   const knownTags = listAllTags(user);
   const cases = listCasesForEntry(entry.id, user);
   const isKeeper = Boolean(user?.isKeeper);
@@ -116,11 +116,19 @@ export default async function EntryPage({
   // §11: what this soort's page is made of, and the words it uses.
   const words = getWords();
 
-  // §18: history rows carry the account; the page shows the character.
-  const editorNames = displayNames(
-    revisions.flatMap((r) =>
-      r.editedBy ? [{ id: r.editedBy, username: r.username ?? '', isKeeper: Boolean(r.isKeeper) }] : [],
-    ),
+  /*
+   * §18b: a history row says which onderzoeker wrote it, and the page prints
+   * *that* — not whoever the account is wearing now. `attributed` reads the
+   * recorded id and falls back to the live lookup for rows written before the
+   * archive asked, so one account can stand in this list twice under two names.
+   */
+  const revisions = attributed(
+    revisionRows.map((r) => ({
+      ...r,
+      actorId: r.editedBy,
+      actorName: r.username,
+      actorIsKeeper: Boolean(r.isKeeper),
+    })),
     words.keeper,
   );
 
@@ -174,7 +182,8 @@ export default async function EntryPage({
   // line will apply, so a viewer never gets a room the line would refuse.
   const liveUser = user
     ? {
-        name: displayNames([{ id: user.id, username: user.username, isKeeper: user.isKeeper }], words.keeper).get(user.id)?.label ?? user.username,
+        // §21: a caret says who is here, so a Keeper is their account name.
+        name: windowPresenceName(user, words.keeper),
         colour: presenceColour(user.id),
       }
     : null;
@@ -391,9 +400,7 @@ export default async function EntryPage({
                 >
                   <Icon name="clock" size={15} style={{ color: 'var(--ink-muted)' }} />
                   <span className="small" style={{ flex: 1 }}>
-                    <span title={revision.editedBy ? editorNames.get(revision.editedBy)?.account : undefined}>
-                      {(revision.editedBy && editorNames.get(revision.editedBy)?.label) ?? 'Iemand'}
-                    </span>
+                    <span title={revision.actorAccount ?? undefined}>{revision.actorLabel ?? 'Iemand'}</span>
                     {revision.note ? ` — ${revision.note}` : ''}
                   </span>
                   <span className="tiny muted">{relativeTime(revision.createdAt)}</span>

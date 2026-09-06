@@ -1,4 +1,5 @@
 import { viewerCanEdit } from '@/lib/access';
+import { requireAuthorOrFirstCharacter } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { addEntryToCase, getCaseById, getCaseBySlug } from '@/lib/cases/service';
@@ -9,6 +10,14 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    /*
+     * §18b: a player who has not said who they are writing as does not write —
+     * with one exception, and this route is it. Somebody who holds no
+     * onderzoeker at all is here to make the artikel that will become their
+     * first one, and there is no other road to it. The moment they have one
+     * this is gated like everything else.
+     */
+    requireAuthorOrFirstCharacter(user);
     const body = (await request.json()) as {
       typeSlug?: string;
       name?: string;
@@ -53,10 +62,12 @@ export async function POST(request: Request) {
       shortDescription: body.shortDescription ?? '',
       tags: body.tags ?? [],
       createdBy: user.id,
+      // §18b: made *as* somebody — recorded on the artikel's first revision.
+      characterId: user.characterId,
       originCaseId,
     });
 
-    if (originCaseId) addEntryToCase(originCaseId, entry.id, user.id);
+    if (originCaseId) addEntryToCase(originCaseId, entry.id, user);
 
     return json({ entry });
   } catch (err) {
