@@ -137,9 +137,15 @@ export function cardImage(card: BoardCardModel, subject?: CardSubject) {
  * The border this card draws: its own override, else the one its subject wears,
  * else what the card *is* — a pinned photograph gets a print's white margin, a
  * bare note gets a hairline.
+ *
+ * "Is a photograph" is now *has a picture of its own*, not `kind === 'photo'`:
+ * a pasted picture makes a notitie carrying an `assetId` (see `uploadPhoto` in
+ * `BoardCanvas`), and it should look exactly like the print it looked like
+ * before. The old kind is still asked after so that a `photo` card whose
+ * picture was taken away keeps the frame it was hung with.
  */
 export function cardBorder(card: BoardCardModel, subject?: CardSubject): string {
-  return card.border ?? subject?.border ?? (card.kind === 'photo' ? 'solid' : 'plain');
+  return card.border ?? subject?.border ?? (card.kind === 'photo' || card.assetId ? 'solid' : 'plain');
 }
 
 /**
@@ -458,7 +464,11 @@ export function BoardCardView({
           </span>
         )}
 
-        {card.kind === 'note' && (
+        {/* A slip of paper that stands for nothing yet is the one that can
+            become something. `photo` is here for the walls hung before a
+            pasted picture became a notitie: those cards were the only ones
+            with no way off the wall, and this is the way. */}
+        {(card.kind === 'note' || card.kind === 'photo') && (
           <button
             type="button"
             className="board-make-entry"

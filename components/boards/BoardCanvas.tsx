@@ -816,11 +816,28 @@ export function BoardCanvas({
         if (photoTarget.current === 'new') {
           const placed = addCard({
             id: newCardId(),
-            kind: 'photo',
+            /*
+             * A picture pinned to the wall is a *notitie with a picture on it*,
+             * not a third thing. `photo` was that third thing: it looked like a
+             * card, held a title and words like a card, and was the one kind of
+             * card with no way off the wall — no "Artikel aanmaken", because
+             * that button asks `kind === 'note'`. Nick's word for it was an
+             * in-between: you pasted a photograph of a document, wrote what it
+             * was underneath, and then could do nothing with it.
+             *
+             * So a pasted or chosen picture makes a `note` that happens to have
+             * an `assetId`. Everything a notitie can do it can now do — be
+             * written on, be tied on with string, become an artikel and carry
+             * its picture over as that artikel's cover. `photo` stays in
+             * `CardKind` and is still read, drawn and converted, because every
+             * wall already hung is full of them; nothing new is made with it.
+             */
+            kind: 'note',
             assetId: data.asset.id,
             crop: fresh,
-            // Said out loud rather than left to the default: this one card is
-            // made *around* a picture, so its frame is the whole point of it.
+            // Said out loud rather than left to the default (`note` starts with
+            // its frame shut): this one card is made *around* a picture, so its
+            // frame is the whole point of it.
             showImage: true,
             name: file.name.replace(/\.[^.]+$/, ''),
             text: '',
@@ -2228,14 +2245,33 @@ export function BoardCanvas({
                   // an artikel made here is made in it.
                   caseId: caseId ?? undefined,
                   onCreated: (created) => {
+                    /*
+                     * A picture pinned to this card comes along as the new
+                     * artikel's cover, crop and all. Without this the road out
+                     * of a pasted photograph lost the photograph: you pasted a
+                     * document, made an artikel of it, and the artikel came
+                     * into the world blank while the picture stayed behind on
+                     * one wall. The card keeps its own copy too — that is what
+                     * it is already drawing — so a refused patch (a viewer's
+                     * write turned into a voorstel, a connection that dropped)
+                     * costs the cover and never the picture.
+                     */
+                    const carried = card.assetId ?? null;
+                    if (carried) {
+                      void fetch(`/api/entries/${created.id}`, {
+                        method: 'PATCH',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ coverAssetId: carried, coverCrop: card.crop ?? null }),
+                      }).then(() => router.refresh());
+                    }
                     setEntries((current) => ({
                       ...current,
                       [created.id]: {
                         id: created.id,
                         slug: created.slug,
                         name: created.name,
-                        coverAssetId: null,
-                        coverCrop: null,
+                        coverAssetId: carried,
+                        coverCrop: carried ? (card.crop ?? null) : null,
                         typeIcon: created.typeIcon,
                         typeColour: created.typeColour,
                         typeBorder: 'solid',
@@ -2247,7 +2283,9 @@ export function BoardCanvas({
                       kind: 'entry',
                       entryId: created.id,
                       name: created.name,
-                      // A freshly written artikel has no cover yet: the frame stays as it was.
+                      // A freshly written artikel has no cover of its own unless
+                      // this card just gave it one: either way the frame stays
+                      // exactly as it was.
                     });
                     offerToFile(created.id, created.name);
                   },

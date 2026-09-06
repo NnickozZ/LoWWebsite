@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, editCase, signIn, signUp } from './helpers';
+import { editArticle, editCase, pasteImage, signIn, signUp } from './helpers';
 
 /**
  * §32: tijdlijnen.
@@ -343,4 +343,55 @@ test('a tijdlijn that speelt op one day fills it in and will not leave it', asyn
   const zoomed = (await tag.boundingBox())!;
   expect(Math.abs(zoomed.x - before.x)).toBeLessThan(2);
   await expect(tag).toHaveAttribute('title', '3 oktober 1931, 22:30');
+});
+
+
+/**
+ * §30 on the axis, round 14: Ctrl+V puts a picture on a tijdlijn.
+ *
+ * The road existed on either side of this one — the cork takes a paste, and so
+ * does a gebeurtenis's blad once it is open — and the axis itself was the hole
+ * between them: to make a gebeurtenis *of* a picture you first had to fill in
+ * a form for a thing you had not named. Now the paste makes the gebeurtenis at
+ * the moment under the hand, hangs the picture on it, and opens its blad,
+ * because the one thing a paste cannot guess is what the picture is *of*.
+ */
+test('een geplakte afbeelding wordt een losse gebeurtenis met die afbeelding', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const fileName = `bewijsstuk-${stamp}.png`;
+  const expected = `bewijsstuk-${stamp}`;
+
+  await signIn(page, ...KEEPER);
+  await page.goto('/timelines');
+  await newTimeline(page, `Geplakt bewijs ${stamp}`);
+
+  await pasteImage(page, fileName);
+
+  // The blad opens on what was just made, with the caret already in its name.
+  const sheet = page.getByRole('dialog').filter({ has: page.locator('#event-title') });
+  await expect(sheet.locator('#event-title')).toHaveText(expected, { timeout: 25_000 });
+  await expect(sheet.locator('.event-picture-preview')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+
+  // And it is on the axis, folded open, with the picture at the head of the
+  // window — which opens full size when it is clicked.
+  const popout = page.getByTestId('timeline-popout');
+  await expect(popout).toBeVisible();
+  await expect(popout.getByRole('heading', { name: expected })).toBeVisible();
+  const picture = popout.getByRole('button', { name: /afbeelding groot bekijken/ });
+  await expect(picture).toBeVisible();
+  await picture.click();
+  await expect(page.locator('.board-lightbox')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.board-lightbox')).toBeHidden();
+
+  // The picture survives a reload: it is on the gebeurtenis, not in this tab.
+  // The tag is what is clicked — a `.timeline-event` is a positioning box with
+  // its stem and its tag inside it, and has no box of its own to aim at.
+  await page.reload();
+  await page.getByTestId('timeline-event').first().locator('.timeline-tag').click();
+  await expect(page.getByTestId('timeline-popout').locator('img')).toHaveCount(1);
 });

@@ -10,6 +10,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { useIsPhone } from '@/components/useIsPhone';
+import { fitUpload } from '@/components/shrinkImage';
+import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import type { AccessSettings } from '@/lib/access';
 import { timelineKey } from '@/lib/live/keys';
@@ -283,6 +285,15 @@ export function TimelineCanvas({
     | { mode: 'settings' }
   >(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * A picture on the axis, looked at properly. A folded-out window is 250 px
+   * wide, which is a thumbnail — and the commonest thing anybody pastes onto a
+   * tijdlijn is a screenshot of something with writing on it, which at that
+   * size is a grey smudge. So the picture in a window is a button, and it
+   * opens the full file over the whole screen, exactly as a card on a prikbord
+   * does (§30). Same gesture, same escape, same styling.
+   */
+  const [lightbox, setLightbox] = useState<{ assetId: string; name: string } | null>(null);
 
   /* ----------------------------------------------------------------- live */
 
@@ -540,6 +551,8 @@ export function TimelineCanvas({
   };
   const gesture = useRef<Gesture | null>(null);
   const [grabbing, setGrabbing] = useState(false);
+  /** The moment the hand was last over, or null before it has been anywhere. */
+  const pointerAt = useRef<number | null>(null);
 
   function onPointerDown(event: React.PointerEvent) {
     if (!view) return;
@@ -567,8 +580,15 @@ export function TimelineCanvas({
   }
 
   function onPointerMove(event: React.PointerEvent) {
-    const g = gesture.current;
     const el = stageRef.current;
+    // Where the hand last was on the axis, in seconds. §30's paste has no
+    // coordinates of its own, so this is what tells it *when* the picture goes;
+    // recorded before the gesture is looked at, because most of the time there
+    // is no gesture — the hand is simply over the stage.
+    if (el && view) {
+      pointerAt.current = view.origin + (event.clientX - el.getBoundingClientRect().left) / view.pxPerSecond;
+    }
+    const g = gesture.current;
     if (!g || !el || !g.pointers.has(event.pointerId)) return;
     const rect = el.getBoundingClientRect();
     const p = { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -622,8 +642,14 @@ export function TimelineCanvas({
 
   /* -------------------------------------------------------------- writes */
 
-  const addEvent = useCallback(
-    async (input: NewEventInput): Promise<boolean> => {
+  /**
+   * The one road onto the axis. It hands the gebeurtenis back rather than a
+   * yes/no, because a pasted picture needs the thing it just made in order to
+   * put the picture on it; `addEvent` below is the same road for every caller
+   * that only wants to know whether it worked.
+   */
+  const createEvent = useCallback(
+    async (input: NewEventInput): Promise<TimelineEvent | null> => {
       setBusy(true);
       try {
         const response = await fetch(`/api/timelines/${timeline.id}/events`, {
@@ -634,7 +660,7 @@ export function TimelineCanvas({
         const data = (await response.json()) as { event?: TimelineEvent; error?: string };
         if (!response.ok || !data.event) {
           ui.toast(data.error ?? `De ${words.event} is niet gezet.`);
-          return false;
+          return null;
         }
         const created = data.event;
         setEvents((current) => [...current.filter((e) => e.id !== created.id), created].sort((a, b) => a.at - b.at));
@@ -649,15 +675,20 @@ export function TimelineCanvas({
         });
         if (placing) router.replace(`/timelines/${timeline.slug}`);
         refreshArchive();
-        return true;
+        return created;
       } catch {
         ui.toast('Geen verbinding.');
-        return false;
+        return null;
       } finally {
         setBusy(false);
       }
     },
-    [timeline.id, timeline.slug, ui, words.event, width, placing, router, refreshArchive],
+    [timeline.id, timeline.slug, ui, words.event, width, placing, router, refreshArchive, moveView],
+  );
+
+  const addEvent = useCallback(
+    async (input: NewEventInput): Promise<boolean> => Boolean(await createEvent(input)),
+    [createEvent],
   );
 
   /**
@@ -734,6 +765,109 @@ export function TimelineCanvas({
     },
     [timeline.id, ui, refreshArchive],
   );
+
+  // Escape shuts the full-size picture, wherever the focus happens to be.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setLightbox(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
+
+  /* ------------------------------------------------------------- pasting */
+
+  /**
+   * §30, on the axis: a picture on the clipboard becomes a losse gebeurtenis
+   * where the hand is.
+   *
+   * The road already existed twice over — the prikbord takes a paste on the
+   * bare cork, and the blad of a gebeurtenis takes one while it is open — and
+   * the tijdlijn itself was the hole between them: you could give a picture to
+   * a gebeurtenis that already existed, and you could not make one *of* a
+   * picture without first filling in a form for a thing you had not named yet.
+   * Ctrl+V is the gesture people try, so that is what this is.
+   *
+   * Everything after the file is found is the file dialog's own road, exactly
+   * as rule 30 asks: `fitUpload` shrinks a photograph that is over the reader's
+   * ceiling and says so once, `/api/assets` weighs it, and the toasts are the
+   * ones the sheet already uses. Then two writes, in this order: the
+   * gebeurtenis is put down at the moment under the hand, and the picture is
+   * hung on it. The blad opens on top, because the one thing the paste cannot
+   * guess is what this is a picture *of* — the name is a filename until
+   * somebody says otherwise, and the caret is already in that box.
+   *
+   * `sheet` is checked because `EditEventSheet` listens for a paste of its own
+   * while it is open; without that guard one Ctrl+V would both give the open
+   * gebeurtenis its picture and make a second one.
+   */
+  const [uploading, setUploading] = useState(false);
+
+  const pasteImage = useCallback(
+    (paste: ClipboardEvent) => {
+      if (!canEdit || !view || !width || uploading) return;
+      // Somebody typing wants the text on their clipboard, not a gebeurtenis.
+      if (pasteIsForTyping(paste.target)) return;
+      // A blad is open on top of the axis; a paste there is not the axis's, and
+      // the blad has a listener of its own.
+      if (sheet) return;
+      if ((paste.target as HTMLElement | null)?.closest?.('.sheet')) return;
+      // The full-size picture is over the stage; a paste there is not the axis's.
+      if (lightbox) return;
+      // §33: with the potlood out, the stage belongs to the tekenlaag.
+      if (inkActive) return;
+
+      const file = imageFromClipboard(paste);
+      if (!file) return;
+      paste.preventDefault();
+
+      const moment = pointerAt.current ?? view.origin + width / 2 / view.pxPerSecond;
+      const at = onAxis(moment, timeline.scale);
+
+      void (async () => {
+        setUploading(true);
+        try {
+          const fitted = await fitUpload(file, ui.uploadLimit);
+          if ('error' in fitted) {
+            ui.toast(fitted.error);
+            return;
+          }
+          if (fitted.shrunk) ui.toast(SHRUNK_NOTICE);
+          const form = new FormData();
+          form.append('file', fitted.file);
+          const result = await uploadForm<{ asset: { id: string } }>('/api/assets', form);
+          if (!result.ok) {
+            ui.toast(result.error);
+            return;
+          }
+          const created = await createEvent({
+            kind: 'note',
+            // `imageFromClipboard` already dates a nameless paste ("Geplakt
+            // 2026-09-06 14.02"), so this is a real name almost always.
+            name: file.name.replace(/\.[^.]+$/, '') || 'Afbeelding',
+            at,
+            precision: timeline.scale,
+            text: '',
+          });
+          if (!created) return;
+          await patchEvent(created.id, { assetId: result.data.asset.id, showImage: true });
+          setSheet({ mode: 'edit', eventId: created.id });
+        } finally {
+          setUploading(false);
+        }
+      })();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canEdit, view, width, uploading, sheet, lightbox, inkActive, onAxis, timeline.scale, ui, createEvent, patchEvent],
+  );
+
+  useEffect(() => {
+    document.addEventListener('paste', pasteImage);
+    return () => document.removeEventListener('paste', pasteImage);
+  }, [pasteImage]);
 
   const removeEvent = useCallback(
     async (event: TimelineEvent) => {
@@ -1044,6 +1178,8 @@ export function TimelineCanvas({
                 onClose={() => toggle(event.id)}
                 onEdit={() => setSheet({ mode: 'edit', eventId: event.id })}
                 onShowImage={() => void patchEvent(event.id, { showImage: true })}
+                onHideImage={() => void patchEvent(event.id, { showImage: false })}
+                onViewFull={(assetId) => setLightbox({ assetId, name: event.name })}
               />
             );
           })}
@@ -1060,6 +1196,10 @@ export function TimelineCanvas({
           <>
             {' '}· sleep een {words.event} om hem te verzetten · dubbelklik op de as voor een {words.event} op dat
             moment
+            {/* Nobody finds a paste that is not written down — the same
+                sentence the prikbord carries, in the same tiny grey line. */}
+            {!isPhone && <> · plak een afbeelding voor een losse {words.event} met die afbeelding erop</>}
+            {uploading && <> · uploaden…</>}
           </>
         )}
       </p>
@@ -1117,6 +1257,25 @@ export function TimelineCanvas({
           )}
         </Sheet>
       )}
+
+      {/* The same full-screen picture the prikbord opens, and the same class,
+          so the two are one look and one set of rules rather than two. */}
+      {lightbox && (
+        <div
+          className="board-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.name || 'Afbeelding'}
+          onClick={() => setLightbox(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={assetUrl(lightbox.assetId, 'full')} alt={lightbox.name || ''} />
+          <button type="button" className="btn btn-small" aria-label="Sluiten">
+            <Icon name="close" size={16} />
+            Sluiten
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1138,6 +1297,8 @@ function Popout({
   onClose,
   onEdit,
   onShowImage,
+  onHideImage,
+  onViewFull,
 }: {
   event: TimelineEvent;
   side: Side;
@@ -1149,6 +1310,8 @@ function Popout({
   onClose: () => void;
   onEdit: () => void;
   onShowImage: () => void;
+  onHideImage: () => void;
+  onViewFull: (assetId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
@@ -1181,18 +1344,41 @@ function Popout({
       <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
         <Icon name="close" size={14} />
       </button>
-      {framed && (
-        <div className="timeline-popout-picture">
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
+      {/*
+        The picture runs the full width of the window and keeps its own shape
+        up to a ceiling, instead of being a bordered 4:3 square floating inside
+        the window's padding. Two things were wrong with the square: a picture
+        in a box in a box reads as a form field rather than a photograph, and
+        4:3 `cover` is a crop, so the one thing people actually paste onto a
+        tijdlijn — a screenshot of something with writing on it — arrived with
+        its top and bottom cut off. Now a wide picture is shown whole and only
+        a very tall one is trimmed, from the top down, where the writing is.
+
+        And it is a button: 250 px is a thumbnail, so a click opens the file
+        over the whole screen.
+      */}
+      {framed &&
+        (image ? (
+          <button
+            type="button"
+            className="timeline-popout-picture"
+            title="Klik om de afbeelding groot te bekijken"
+            aria-label={`${event.name} — afbeelding groot bekijken`}
+            onClick={() => onViewFull(image)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={assetUrl(image, 'card')} alt="" />
-          ) : (
-            <span className="timeline-popout-placeholder">
-              <Icon name={event.kind === 'entry' ? (event.entry?.typeIcon ?? 'file') : 'note'} size={36} />
+            <span className="timeline-popout-zoom" aria-hidden="true">
+              <Icon name="zoomIn" size={13} />
             </span>
-          )}
-        </div>
-      )}
+          </button>
+        ) : (
+          <div className="timeline-popout-picture timeline-popout-picture-empty">
+            <span className="timeline-popout-placeholder">
+              <Icon name={event.kind === 'entry' ? (event.entry?.typeIcon ?? 'file') : 'note'} size={30} />
+            </span>
+          </div>
+        ))}
       <p className="timeline-popout-when tiny">{formatWhen(event.at, event.precision)}</p>
       <h3 className="timeline-popout-name">{event.name}</h3>
       {event.kind === 'entry' && event.entry?.typeLabel && (
@@ -1218,15 +1404,19 @@ function Popout({
             Bewerken
           </button>
         )}
-        {canEdit && !framed && (
+        {/* One switch, both ways. It used to appear only while the frame was
+            shut, so a window whose picture you did not want stayed that way
+            until you opened its blad — the button that turns a thing on is the
+            button that turns it off. */}
+        {canEdit && (
           <button
             type="button"
             className="btn btn-ghost btn-small"
-            title={image ? 'Afbeelding tonen' : 'Sjabloonafbeelding tonen'}
-            aria-label={image ? 'Afbeelding tonen' : 'Sjabloonafbeelding tonen'}
-            onClick={onShowImage}
+            title={framed ? 'Afbeelding verbergen' : image ? 'Afbeelding tonen' : 'Sjabloonafbeelding tonen'}
+            aria-label={framed ? 'Afbeelding verbergen' : image ? 'Afbeelding tonen' : 'Sjabloonafbeelding tonen'}
+            onClick={framed ? onHideImage : onShowImage}
           >
-            <Icon name="camera" size={13} />
+            <Icon name={framed ? 'eyeOff' : 'camera'} size={13} />
           </button>
         )}
       </div>

@@ -1820,6 +1820,8 @@ details.section[open] > summary::before {
 }
 
 /* -------------------------------------------------------- board lightbox */
+/* Shared with the tijdlijn (§32): a picture in a folded-out window opens the
+   same way a picture on a card does, so it is one look and one set of rules. */
 .board-lightbox {
   position: fixed;
   inset: 0;
@@ -3492,7 +3494,7 @@ details.section[open] > summary::before {
   color: var(--ink-muted);
 }
 /*
- * §25: text, signpost, facts — and only one wide shape of it.
+ * §25: signpost, text, facts — and only one wide shape of it.
  *
  * **1280 px here and `WIDE` in `components/useIsPhone.ts` are the same number
  * and have to stay the same number.** That hook decides whether the rail and
@@ -3511,17 +3513,24 @@ details.section[open] > summary::before {
  * page is the narrow shape it has always had under 1024 px — header, picture
  * and facts, jump chips, then one column of text — not a third layout.
  *
- * The header lives in the first column, so all three start at the top edge of
- * the page together and the title wraps at reading width. The middle column is
- * the outline — it used to sit under the infobox, with 2.5rem of empty paper
- * beside it; standing it next to the text it describes is both where it
- * belongs and where the space already was.
+ * The header lives in the *text* column, so all three start at the top edge of
+ * the page together and the title wraps at reading width.
+ *
+ * The outline is the first column. It sat under the infobox once, then in the
+ * middle between the text and the picture; both were wrong for the same
+ * reason, which is that a signpost put among the content is read as content.
+ * In the margin — the empty paper between the hoofdmenu and the text — it is
+ * a rule down the side of the page that you glance at and leave, and the
+ * artikel's words and its picture are neighbours again. Nothing about the
+ * measure changes: the three columns and the two gutters are the same widths
+ * in the same total, only in a different order, so 1280 px is still 1280 px.
  */
 @media (min-width: 1280px) {
   .entry-layout-wide {
     display: grid;
-    /* §22: 20 px wider than before — the column holds the picture now. */
-    grid-template-columns: minmax(0, 1fr) 12rem 320px;
+    /* The signpost, the text, the facts. §22: the last column is 20 px wider
+       than it once was — it holds the picture now. */
+    grid-template-columns: 12rem minmax(0, 1fr) 320px;
     column-gap: 1.6rem;
     /* Stretch (the default) on purpose: the columns have to be as tall as the
        text for the sticky outline to have anything to stick along. */
@@ -4496,6 +4505,9 @@ details.section[open] > summary::before {
 }
 .timeline-popout-close {
   position: absolute;
+  /* Above the picture: both are positioned, and the picture comes after it in
+     the markup, so without this the full-bleed photograph paints over the X. */
+  z-index: 1;
   top: 0.3rem;
   right: 0.3rem;
   width: 26px;
@@ -4509,18 +4521,60 @@ details.section[open] > summary::before {
 .timeline-popout-close:hover {
   color: var(--ink);
 }
+/* With the picture full-bleed the close button now sits *on* it, so it needs a
+   ground of its own — a pale disc — or it is a grey cross on a photograph. */
+.timeline-popout:has(.timeline-popout-picture) .timeline-popout-close {
+  border-radius: 50%;
+  background: rgba(245, 241, 232, 0.85);
+  color: var(--ink);
+}
+.timeline-popout:has(.timeline-popout-picture) .timeline-popout-close:hover {
+  background: var(--paper);
+}
+/*
+ * The picture at the head of a folded-out window.
+ *
+ * It used to be a bordered 4:3 box inside the window's own padding — a frame
+ * within a frame, which reads as a form field rather than a photograph — and
+ * `object-fit: cover` on a fixed 4:3 meant the commonest thing anybody pastes
+ * onto a tijdlijn, a screenshot with writing on it, arrived with its top and
+ * bottom cut off.
+ *
+ * So: full-bleed out of the padding (negative margins the width of it), one
+ * hairline underneath to part it from the words, and the picture keeps its own
+ * shape up to a ceiling. Only a picture taller than the ceiling is trimmed, and
+ * from the top down (`object-position: 50% 0`), because the top of a document
+ * is where the writing starts. The window is 250 px wide, so the ceiling is
+ * about a 4:3 landscape — anything wider is shown whole.
+ */
 .timeline-popout-picture {
-  aspect-ratio: 4 / 3;
-  margin: 0 0 0.5rem;
+  display: block;
+  position: relative;
+  width: auto;
+  margin: -0.6rem -0.7rem 0.55rem;
+  padding: 0;
   overflow: hidden;
-  border: 1px solid var(--rule);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
   background: var(--paper-dark);
+  cursor: zoom-in;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 .timeline-popout-picture > img {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 190px;
   object-fit: cover;
+  object-position: 50% 0;
+}
+/* No picture, but a frame that was asked for: the soort's icon on a short
+   band rather than a tall empty rectangle pretending to be a photograph. */
+.timeline-popout-picture-empty {
+  cursor: default;
+  aspect-ratio: 16 / 6;
 }
 .timeline-popout-placeholder {
   display: flex;
@@ -4530,6 +4584,29 @@ details.section[open] > summary::before {
   height: 100%;
   color: var(--event-colour);
   opacity: 0.8;
+}
+/* "This gets bigger." Bottom-left, out of the way of the close button, and
+   only worth showing to a hand that has one. */
+.timeline-popout-zoom {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 3px 5px;
+  background: rgba(20, 18, 15, 0.66);
+  color: #f3eee2;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.timeline-popout-picture:hover .timeline-popout-zoom,
+.timeline-popout-picture:focus-visible .timeline-popout-zoom {
+  opacity: 1;
+}
+@media (hover: none) {
+  .timeline-popout-zoom {
+    opacity: 1;
+  }
 }
 .timeline-popout-when {
   margin: 0 1.6rem 0.1rem 0;
@@ -4548,6 +4625,19 @@ details.section[open] > summary::before {
   max-height: 9.5em;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+/* The picture on a gebeurtenis's blad: a postcard, not a stamp. `contain` on a
+   dark ground, so a tall screenshot and a wide photograph are both recognisable
+   without either being cropped — this is a preview, and the crop that matters
+   is the one the folded-out window makes. */
+.event-picture-preview {
+  display: block;
+  width: 150px;
+  height: 100px;
+  object-fit: contain;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
 }
 
 /* The date form: the year, then down to whatever the tijdlijn measures in. */

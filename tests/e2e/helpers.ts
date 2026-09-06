@@ -213,3 +213,33 @@ export async function fillWhenReady(field: Locator, text: string) {
     expect(await field.inputValue()).toBe(text);
   }).toPass({ timeout: 20_000 });
 }
+
+/**
+ * §30: a picture on the clipboard, pasted onto whatever is listening.
+ *
+ * The screens that take one — the cork, the axis, a gebeurtenis's blad — all
+ * listen on `document`, so this dispatches a real `paste` at `document.body`
+ * with a real `File` in a real `DataTransfer` and lets it bubble. Nothing is
+ * stubbed: `imageFromClipboard` reads it exactly as it reads a screenshot
+ * copied out of a browser tab, and everything after it is the ordinary upload.
+ *
+ * The name matters, because the card and the gebeurtenis are named after the
+ * file — so give each test its own and there is something unique to find.
+ */
+export async function pasteImage(page: Page, fileName: string) {
+  const bytes = readFileSync(join(root, 'data-e2e', 'fixture-photo.png')).toString('base64');
+  await page.evaluate(
+    ({ bytes, fileName }) => {
+      const binary = atob(bytes);
+      const buffer = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) buffer[i] = binary.charCodeAt(i);
+      const file = new File([buffer], fileName, { type: 'image/png' });
+      const carrier = new DataTransfer();
+      carrier.items.add(file);
+      document.body.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: carrier, bubbles: true, cancelable: true }),
+      );
+    },
+    { bytes, fileName },
+  );
+}

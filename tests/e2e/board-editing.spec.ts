@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join, resolve } from 'node:path';
-import { signIn } from './helpers';
+import { pasteImage, signIn } from './helpers';
 
 const fixturePhoto = join(resolve(__dirname, '../..'), 'data-e2e', 'fixture-photo.png');
 
@@ -82,6 +82,60 @@ test.describe('board editing', () => {
     await expect(page.locator('.board-string')).toHaveCount(1);
     await expect(page.locator('.board-string-label')).toHaveText('paid in guilders');
     await expect.poll(stroke).toBe('rgb(47, 107, 79)');
+  });
+
+  /**
+   * §30, round 14: a pasted picture is a *notitie* with a picture on it.
+   *
+   * It used to be a `photo` card — the one kind of card on a wall with no way
+   * off it, because "Artikel aanmaken" asks `kind === 'note'`. So you pasted a
+   * photograph of a document, wrote underneath what it was, and then could do
+   * nothing with it: Nick's "in-between ding". This walks the whole road the
+   * fix opens — paste, name it, make an artikel of it — and checks the picture
+   * arrives at the other end as the artikel's cover rather than being left
+   * behind on the wall.
+   */
+  test('a pasted picture is a notitie, and the artikel made from it keeps the picture', async ({ page }, info) => {
+    test.setTimeout(90_000);
+    const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+    await signIn(page, 'Keeper', 'abbeytower34');
+    await page.goto('/boards');
+    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+    await page.waitForURL('**/b/**');
+
+    // Nothing selected, so the paste makes a card of its own rather than
+    // replacing the picture on one that is already there.
+    await pasteImage(page, `bewijsstuk-${stamp}.png`);
+
+    const card = page.locator('.board-card', { hasText: `bewijsstuk-${stamp}` });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card.locator('img')).toHaveCount(1);
+
+    // A fresh picture drops into crop mode; leave it.
+    const inspector = page.locator('.board-inspector');
+    await inspector.getByRole('button', { name: 'Klaar' }).click();
+
+    // The point of the whole change: this card has a way off the wall.
+    const make = card.getByRole('button', { name: /aanmaken/ });
+    await expect(make).toBeVisible();
+    await make.click();
+
+    const sheet = page.getByRole('dialog', { name: /Nieuw artikel/ });
+    await expect(sheet).toBeVisible();
+    // The name comes over from the card; keep it, it is unique already.
+    await sheet.getByRole('button', { name: 'Aanmaken', exact: true }).click();
+    await expect(sheet).toBeHidden({ timeout: 20_000 });
+
+    // §8: the notitie became an entry card in place — no "aanmaken" left on it.
+    const entryCard = page.locator('.board-card', { hasText: `bewijsstuk-${stamp}` });
+    await expect(entryCard.getByRole('button', { name: /aanmaken/ })).toHaveCount(0);
+    await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
+
+    // And the picture is the new artikel's cover, not a thing left on one wall.
+    await entryCard.locator('.board-card-name').dblclick();
+    await page.waitForURL('**/e/**');
+    await expect(page.locator('.entry-figure .entry-cover-whole img').first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('a note gains a photo, is re-cropped, and opens full size', async ({ page }) => {

@@ -669,8 +669,12 @@ function EditEventBody({
         </p>
         <div className="row-wrap" style={{ gap: '0.4rem', alignItems: 'center' }}>
           {image ? (
+            /* A 56 px square told you an afbeelding existed and nothing about
+               which one — and it was square, so a screenshot arrived cropped
+               to its middle. This keeps the picture's own shape inside a
+               postcard-sized box, which is enough to recognise it by. */
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={assetUrl(image, 'thumb')} alt="" style={{ width: 56, height: 56, objectFit: 'cover', border: '1px solid var(--rule)' }} />
+            <img className="event-picture-preview" src={assetUrl(image, 'card')} alt="" />
           ) : (
             <span className="tiny muted">
               {event.kind === 'entry' ? `Het ${words.entry} heeft nog geen afbeelding.` : 'Nog geen afbeelding.'}
@@ -683,7 +687,7 @@ function EditEventBody({
             onClick={() => void onSave({ showImage: !event.showImage })}
             title={image ? undefined : 'Zonder afbeelding toont het kader het icoon van de soort'}
           >
-            <Icon name={event.showImage ? 'eye' : 'camera'} size={14} />
+            <Icon name={event.showImage ? 'eyeOff' : 'camera'} size={14} />
             {event.showImage ? 'Afbeelding verbergen' : image ? 'Afbeelding tonen' : 'Sjabloonafbeelding tonen'}
           </button>
           {event.kind === 'note' && (

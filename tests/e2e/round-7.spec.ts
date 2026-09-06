@@ -188,11 +188,13 @@ test('de artikelpagina staat in drie kolommen', async ({ page }, info) => {
   const aside = (await page.locator('.entry-aside').boundingBox())!;
   expect(Math.abs(aside.y - head.y)).toBeLessThan(24);
 
-  // And the outline stands between the text and the sidebar.
+  // And the outline stands in the margin, to the *left* of the text: a
+  // signpost among the content was read as content, and it split the artikel's
+  // words from the picture that belongs to them.
   const rail = (await page.locator('.entry-rail').boundingBox())!;
   const main = (await page.locator('.entry-main').boundingBox())!;
-  expect(rail.x).toBeGreaterThan(main.x + main.width - 1);
-  expect(rail.x + rail.width).toBeLessThanOrEqual(aside.x + 1);
+  expect(rail.x + rail.width).toBeLessThanOrEqual(main.x + 1);
+  expect(main.x + main.width).toBeLessThanOrEqual(aside.x + 1);
 });
 
 /**
@@ -202,6 +204,9 @@ test('de artikelpagina staat in drie kolommen', async ({ page }, info) => {
  * moved on its own. The breakpoint (`useIsWide`, and the grid's media query,
  * which are the same number) is 1280 px now and nothing changes shape above
  * it. This is the assertion that was missing.
+ *
+ * The order the columns hold is signpost, text, facts — the outline is the
+ * first column, in the page's own left margin, not the middle one.
  */
 test('de drie kolommen houden hun volgorde over de hele brede band', async ({ page }, info) => {
   test.skip(info.project.name === 'phone', 'the three-column layout is a wide-screen thing');
@@ -220,9 +225,9 @@ test('de drie kolommen houden hun volgorde over de hele brede band', async ({ pa
     const rail = (await page.locator('.entry-rail').boundingBox())!;
     const aside = (await page.locator('.entry-aside').boundingBox())!;
 
-    // Text, signpost, facts — left to right, at either width.
-    expect(rail.x).toBeGreaterThan(main.x + main.width - 1);
-    expect(rail.x + rail.width).toBeLessThanOrEqual(aside.x + 1);
+    // Signpost, text, facts — left to right, at either width.
+    expect(rail.x + rail.width).toBeLessThanOrEqual(main.x + 1);
+    expect(main.x + main.width).toBeLessThanOrEqual(aside.x + 1);
     // And the three columns still begin at the same height.
     const head = (await page.locator('.entry-main .entry-head').boundingBox())!;
     expect(Math.abs(aside.y - head.y)).toBeLessThan(24);

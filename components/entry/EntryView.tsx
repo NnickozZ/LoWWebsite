@@ -1207,11 +1207,14 @@ export function EntryView({
    * they moved into the text column: everything now begins at the top edge
    * together, and the title wraps at reading width instead of at screen width.
    *
-   * The outline moved into the gap that opened up between the two. It is a
-   * signpost for the text, not a fact about the artikel, so standing it beside
-   * the text rather than underneath the infobox is where it belongs — and the
-   * 2.5rem of nothing that used to be there was the widest empty space on the
-   * page. It stays there at every width where these three divs exist at all:
+   * The outline is the *first* column. It first went into the gap between the
+   * text and the infobox, which put a narrow third column of links between an
+   * artikel's words and its picture: the eye read it as content, and the two
+   * halves of the artikel no longer touched. A signpost is looked at on the
+   * way in and left alone after, so it belongs in the margin the page already
+   * has — the empty paper between the hoofdmenu and the text — and the text
+   * and the picture that belongs to it are neighbours again.
+   * It stays there at every width where these three divs exist at all:
    * `useIsWide` is 1280 px and so is the grid's media query, so the page has
    * one wide shape and never rearranges itself halfway across a screen.
    * Narrow screens are unchanged: header, picture, jump chips, then text.
@@ -1235,12 +1238,13 @@ export function EntryView({
       {!wide && <EntryOutline items={phoneOutline} shape="row" label={words.onThisPage} />}
 
       <div className={`entry-layout${wide ? ' entry-layout-wide' : ''}`}>
-        <div className="entry-main">
-          {wide && header}
-          {entry.typeBlocks.map((block) => renderBlock(block))}
-          {manage}
-        </div>
-
+        {/* §25: the outline is the first column, not the middle one. It is a
+            signpost you glance at and leave, so it belongs in the margin the
+            page already has — the empty paper between the hoofdmenu and the
+            text — rather than wedged between the text and its picture, where
+            it read as a third column of content and split the artikel in two.
+            The DOM order is the painted order, so the grid needs no `order`
+            and a keyboard walks the page left to right as it looks. */}
         {wide && (
           <div className="entry-rail">
             <div className="entry-rail-sticky">
@@ -1248,6 +1252,12 @@ export function EntryView({
             </div>
           </div>
         )}
+
+        <div className="entry-main">
+          {wide && header}
+          {entry.typeBlocks.map((block) => renderBlock(block))}
+          {manage}
+        </div>
 
         {wide && <aside className="entry-aside">{asideBox}</aside>}
       </div>

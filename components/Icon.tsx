@@ -12,6 +12,10 @@ const PATHS: Record<string, string> = {
   box: 'M3 8.5 12 4l9 4.5-9 4.5-9-4.5ZM3 8.5V16l9 4.5M21 8.5V16l-9 4.5M12 13v7.5',
   magnifier: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20 20l-4-4',
   eye: 'M2 12s3.8-6 10-6 10 6 10 6-3.8 6-10 6-10-6-10-6ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  // The same eye with a line through it: 'verbergen' is the twin of 'tonen'
+  // and a button that turns a thing off should not wear the icon that turns it on.
+  eyeOff:
+    'M2 12s3.8-6 10-6c1.7 0 3.2.4 4.5 1.1M22 12s-3.8 6-10 6c-1.7 0-3.2-.4-4.5-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18',
   flag: 'M5 21V4M5 4h11l-2 3.5L16 11H5',
   calendar: 'M4 6h16v15H4zM4 10h16M9 3v4M15 3v4',
   book: 'M5 4h9a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H5zM19 4v13',
