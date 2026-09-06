@@ -5,10 +5,11 @@ import type { FieldDef } from '@/lib/db/schema';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { cardRef, normaliseState, type BoardCard } from '@/lib/boards/merge';
 import { extractEntryLinks } from './doc';
+import { listTimelines } from '@/lib/timelines/service';
 import { canSeeSection, visibleEntryCondition, type Viewer } from './visibility';
 
 /**
- * §27: "Genoemd in", for the four places that are not another artikel's body.
+ * §27: "Genoemd in", for the places that are not another artikel's body.
  *
  * `entry_links` answers one question — which *artikel* points at this one —
  * and it stays exactly that. But an artikel is named in a dossier's working
@@ -39,7 +40,7 @@ import { canSeeSection, visibleEntryCondition, type Viewer } from './visibility'
  *    as loudly as a named one. Rule 1, on a table rule 1 had not reached yet.
  */
 
-export type MentionKind = 'case' | 'board' | 'map' | 'field' | 'section';
+export type MentionKind = 'case' | 'board' | 'map' | 'timeline' | 'field' | 'section';
 
 /** One thing a source says: which artikel, and what to print after the source. */
 export type MentionTarget = { toEntryId: string; detail?: string };
@@ -315,6 +316,35 @@ export function recomputeMapMentions(mapId: string): void {
   recomputeMentions('map', mapId, targets);
 }
 
+/** §32: a tijdlijn: its artikel gebeurtenissen, and what its notes (and the text under any gebeurtenis) say. */
+export function recomputeTimelineMentions(timelineId: string): void {
+  const events = db
+    .select({
+      kind: schema.timelineEvents.kind,
+      entryId: schema.timelineEvents.entryId,
+      name: schema.timelineEvents.name,
+      text: schema.timelineEvents.text,
+    })
+    .from(schema.timelineEvents)
+    .where(eq(schema.timelineEvents.timelineId, timelineId))
+    .all();
+
+  const targets: MentionTarget[] = [];
+  for (const event of events) {
+    if (event.kind === 'entry' && event.entryId) targets.push({ toEntryId: event.entryId });
+  }
+  const written = events.filter((event) => event.text);
+  if (written.length) {
+    const byName = entryNameIndex();
+    for (const event of written) {
+      for (const toEntryId of entryIdsInText(event.text, byName)) {
+        targets.push({ toEntryId, detail: event.kind === 'note' ? event.name : '' });
+      }
+    }
+  }
+  recomputeMentions('timeline', timelineId, targets);
+}
+
 /* ------------------------------------------------------------ the refill */
 
 /**
@@ -325,7 +355,7 @@ export function recomputeMapMentions(mapId: string): void {
  * Cheap enough to be unremarkable: a campaign wiki is a few hundred rows, and
  * every source is read once.
  */
-export function rebuildAllMentions(): { cases: number; entries: number; boards: number; maps: number } {
+export function rebuildAllMentions(): { cases: number; entries: number; boards: number; maps: number; timelines: number } {
   const cases = db.select({ id: schema.cases.id }).from(schema.cases).all();
   for (const row of cases) recomputeCaseMentions(row.id);
 
@@ -341,7 +371,10 @@ export function rebuildAllMentions(): { cases: number; entries: number; boards: 
   const maps = db.select({ id: schema.maps.id }).from(schema.maps).all();
   for (const row of maps) recomputeMapMentions(row.id);
 
-  return { cases: cases.length, entries: entries.length, boards: boards.length, maps: maps.length };
+  const timelines = db.select({ id: schema.timelines.id }).from(schema.timelines).all();
+  for (const row of timelines) recomputeTimelineMentions(row.id);
+
+  return { cases: cases.length, entries: entries.length, boards: boards.length, maps: maps.length, timelines: timelines.length };
 }
 
 /**
@@ -468,6 +501,26 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
     }
   }
 
+  /*
+   * Tijdlijnen — the same two conditions as a prikbord (its own dials and its
+   * dossier's), for the same reason; `listTimelines` is the one reader that
+   * applies both, so it is asked rather than re-derived here.
+   */
+  const timelineIds = idsOf('timeline');
+  if (timelineIds.length && viewer) {
+    const found = new Map(
+      listTimelines(viewer)
+        .filter((timeline) => timelineIds.includes(timeline.id))
+        .map((timeline) => [timeline.id, timeline] as const),
+    );
+    for (const row of rows) {
+      const source = row.kind === 'timeline' ? found.get(row.fromId) : undefined;
+      if (source) {
+        out.push({ kind: 'timeline', id: source.id, href: `/timelines/${source.slug}`, name: source.name, detail: row.detail });
+      }
+    }
+  }
+
   /* Artikelen — an infobox field, or one of the artikel's sections. */
   const entryIds = [...new Set([...idsOf('field'), ...idsOf('section')])];
   if (entryIds.length) {
@@ -570,6 +623,7 @@ export const MENTION_GROUPS: {
   { key: 'entry', kinds: ['field', 'section'], word: 'mentionedInEntries', icon: 'file' },
   { key: 'board', kinds: ['board'], word: 'mentionedOnBoards', icon: 'board' },
   { key: 'map', kinds: ['map'], word: 'mentionedOnMaps', icon: 'map' },
+  { key: 'timeline', kinds: ['timeline'], word: 'mentionedOnTimelines', icon: 'timeline' },
 ];
 
 /**

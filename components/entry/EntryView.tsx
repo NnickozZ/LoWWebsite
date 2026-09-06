@@ -137,6 +137,8 @@ export function EntryView({
   onMaps,
   mapsToPlace,
   mapsOfThis,
+  onTimelines,
+  timelinesToPlace,
   origin,
   live,
   liveFields,
@@ -190,6 +192,9 @@ export function EntryView({
    * drawing is of it. A Keeper hooks one up on the landkaart's own page.
    */
   mapsOfThis: { slug: string; name: string }[];
+  /** §32: where this artikel is on the tijdlijnen, and which it could still go on. */
+  onTimelines: { eventId: string; timelineSlug: string; timelineName: string; when: string }[];
+  timelinesToPlace: { slug: string; name: string }[];
   /**
    * §24: where this artikel came from. `case` is the herkomst-dossier resolved
    * for this viewer on the server (null when there is none, or when it is one
@@ -946,6 +951,46 @@ export function EntryView({
               >
                 <Icon name="map" size={12} />
                 Zet op een andere {words.map}…
+              </Link>
+            )}
+          </p>
+        )}
+
+        {/* §32: the same two sentences for tijdlijnen — where it *is* is a
+            fact, "zet op…" is an action. */}
+        {(onTimelines.length > 0 || (timelinesToPlace.length > 0 && !reading)) && (
+          <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
+            <span className="muted">{words.onTheTimeline}:</span>
+            {onTimelines.map((item) => (
+              <Link
+                key={item.eventId}
+                className="chip"
+                href={`/timelines/${item.timelineSlug}?event=${item.eventId}`}
+                title={item.when}
+              >
+                <Icon name="timeline" size={12} />
+                {item.timelineName}
+                <span className="muted"> · {item.when}</span>
+              </Link>
+            ))}
+            {!reading && timelinesToPlace.slice(0, timelinesToPlace.length > 3 ? 2 : 3).map((item) => (
+              <Link
+                key={item.slug}
+                className="chip chip-selectable"
+                href={`/timelines/${item.slug}?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
+                title={`Zet dit ${words.entry} op ${item.name}`}
+              >
+                <Icon name="timeline" size={12} />
+                Zet op {item.name}
+              </Link>
+            ))}
+            {!reading && timelinesToPlace.length > 3 && (
+              <Link
+                className="chip chip-selectable"
+                href={`/timelines?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
+              >
+                <Icon name="timeline" size={12} />
+                Zet op een andere {words.timeline}…
               </Link>
             )}
           </p>

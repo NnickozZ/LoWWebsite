@@ -8,8 +8,10 @@
  * client bundle can use it without dragging the database along.
  *
  *   entry:{id}      one artikel · case:{id} one dossier · board:{id} one
- *                   prikbord · map:{id} one landkaart · pin:{id} one speld
- *   entries, cases, boards, maps, types, words, site, users, characters, feed
+ *                   prikbord · map:{id} one landkaart · pin:{id} one speld ·
+ *                   timeline:{id} one tijdlijn · event:{id} one gebeurtenis
+ *   entries, cases, boards, maps, timelines, types, words, site, users,
+ *   characters, feed
  *                   "something in this collection changed" — a list page's key
  *   admin           Keeper-only: trash, proposals, audit
  *   page:/wiki      a fixed page as a *place* to stand, when it is about no
@@ -22,8 +24,10 @@
 
 export const ID = '[A-Za-z0-9_-]{1,64}';
 
-const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin):(${ID})$`);
-const ROOM_KEY = new RegExp(`^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields)$`);
+const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event):(${ID})$`);
+const ROOM_KEY = new RegExp(
+  `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields)$`,
+);
 
 /** Keys any signed-in person may watch: a list moved, nothing about which row. */
 export const COLLECTION_KEYS = [
@@ -31,6 +35,7 @@ export const COLLECTION_KEYS = [
   'cases',
   'boards',
   'maps',
+  'timelines',
   'types',
   'words',
   'site',
@@ -44,18 +49,20 @@ export type CollectionKey = (typeof COLLECTION_KEYS)[number];
 export const KEEPER_KEYS = ['admin'] as const;
 
 /** The fixed pages a person can stand on that are about no record. */
-export const PAGE_PLACES = ['/', '/cases', '/wiki', '/boards', '/maps', '/search', '/you', '/admin'] as const;
+export const PAGE_PLACES = ['/', '/cases', '/wiki', '/boards', '/maps', '/timelines', '/search', '/you', '/admin'] as const;
 
 export const entryKey = (id: string) => `entry:${id}`;
 export const caseKey = (id: string) => `case:${id}`;
 export const boardKey = (id: string) => `board:${id}`;
 export const mapKey = (id: string) => `map:${id}`;
 export const pinKey = (id: string) => `pin:${id}`;
+export const timelineKey = (id: string) => `timeline:${id}`;
+export const eventKey = (id: string) => `event:${id}`;
 /** A wiki soort's list page, as a place. */
 export const typePagePlace = (slug: string) => `page:/wiki/${slug}`;
 export const pagePlace = (path: string) => `page:${path}`;
 
-export type RecordKind = 'entry' | 'case' | 'board' | 'map' | 'pin';
+export type RecordKind = 'entry' | 'case' | 'board' | 'map' | 'pin' | 'timeline' | 'event';
 
 export function parseRecordKey(key: string): { kind: RecordKind; id: string } | null {
   const match = RECORD_KEY.exec(key);
@@ -71,11 +78,13 @@ export const entryFieldsRoomKey = (entryId: string) => `entry:${entryId}:fields`
 export const caseFieldsRoomKey = (caseId: string) => `case:${caseId}:fields`;
 export const mapFieldsRoomKey = (mapId: string) => `map:${mapId}:fields`;
 export const pinFieldsRoomKey = (pinId: string) => `pin:${pinId}:fields`;
+/** §32: the name and text of a note gebeurtenis on a tijdlijn. */
+export const eventFieldsRoomKey = (eventId: string) => `event:${eventId}:fields`;
 
 /** Which change keys a room's record answers to, so a page can watch both. */
 export function keysOfRoom(room: string): string[] {
   const parts = room.split(':');
-  if (parts.length >= 2 && ['entry', 'case', 'map', 'pin'].includes(parts[0])) return [`${parts[0]}:${parts[1]}`];
+  if (parts.length >= 2 && ['entry', 'case', 'map', 'pin', 'event'].includes(parts[0])) return [`${parts[0]}:${parts[1]}`];
   return [];
 }
 

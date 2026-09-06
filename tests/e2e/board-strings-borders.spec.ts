@@ -190,26 +190,29 @@ test.describe('board strings and borders', () => {
     await expect(page.locator('.board-card').first()).toHaveClass(/brd-solid/);
   });
 
-  test('the picture frame can be switched off', async ({ page }) => {
+  test('the picture frame starts shut on an artikel without a cover, and can be opened', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await newBoard(page);
     await pinEntry(page, 'Pier Boone');
 
+    // §32: Pier Boone has no cover, so the card comes into the world with its
+    // frame shut — no grey box with a soort icon in it. "Foto tonen" is where
+    // that icon waits.
     const card = page.locator('.board-card', { hasText: 'Pier Boone' }).first();
-    await expect(card.locator('.board-card-cover')).toHaveCount(1);
+    await expect(card.locator('.board-card-cover')).toHaveCount(0);
 
     await card.locator('.board-card-body').click();
     const inspector = page.locator('.board-inspector');
-    await inspector.getByRole('button', { name: 'Foto verbergen' }).click();
-    await expect(card.locator('.board-card-cover')).toHaveCount(0);
+    await inspector.getByRole('button', { name: 'Foto tonen' }).click();
+    await expect(card.locator('.board-card-cover')).toHaveCount(1);
 
     await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
     await page.reload();
-    await expect(page.locator('.board-card-cover')).toHaveCount(0);
+    await expect(page.locator('.board-card-cover')).toHaveCount(1);
 
     await page.locator('.board-card').first().locator('.board-card-body').click();
-    await inspector.getByRole('button', { name: 'Foto tonen' }).click();
-    await expect(page.locator('.board-card-cover')).toHaveCount(1);
+    await inspector.getByRole('button', { name: 'Foto verbergen' }).click();
+    await expect(page.locator('.board-card-cover')).toHaveCount(0);
   });
 
   test('pinning an entry to a case board offers to file it in the case', async ({
@@ -265,7 +268,8 @@ test('one click on a board card selects; only a double-click opens it', async ({
   await pinEntry(page, 'Pier Boone');
   const boardUrl = page.url();
 
-  const cover = page.locator('.board-card', { hasText: 'Pier Boone' }).first().locator('.board-card-cover');
+  // §32: an artikel without a cover has no frame; its name does the same job.
+  const cover = page.locator('.board-card', { hasText: 'Pier Boone' }).first().locator('.board-card-name');
   await cover.click();
   await expect(page.locator('.board-inspector')).toBeVisible();
   // Still on the wall: a stray click must never navigate.

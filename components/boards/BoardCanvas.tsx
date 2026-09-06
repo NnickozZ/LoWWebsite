@@ -35,6 +35,7 @@ import type {
   BoardEntryFacts,
   BoardMapFacts,
   BoardRefs,
+  BoardTimelineFacts,
 } from '@/lib/boards/service';
 import { BoardCardView, CARD_WIDTH, cardBorder, cardImage, subjectOf } from './BoardCard';
 import { BoardInspector } from './BoardInspector';
@@ -102,8 +103,10 @@ export function BoardCanvas({
   initialEntries,
   initialMaps,
   initialCases,
+  initialTimelines,
   pickableMaps,
   pickableCases,
+  pickableTimelines,
   readOnly,
   access,
 }: {
@@ -137,6 +140,9 @@ export function BoardCanvas({
    */
   pickableMaps: { id: string; name: string }[];
   pickableCases: { id: string; name: string }[];
+  /** §32: the tijdlijnen it points at, and the ones that could still go up. */
+  initialTimelines: Record<string, BoardTimelineFacts>;
+  pickableTimelines: { id: string; name: string }[];
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -147,6 +153,7 @@ export function BoardCanvas({
   const [entries, setEntries] = useState<Record<string, BoardEntryFacts>>(initialEntries);
   const [maps, setMaps] = useState<Record<string, BoardMapFacts>>(initialMaps);
   const [caseFacts, setCaseFacts] = useState<Record<string, BoardCaseFacts>>(initialCases);
+  const [timelineFacts, setTimelineFacts] = useState<Record<string, BoardTimelineFacts>>(initialTimelines);
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
@@ -240,6 +247,7 @@ export function BoardCanvas({
     setEntries((current) => ({ ...current, ...refs.entries }));
     setMaps((current) => ({ ...current, ...refs.maps }));
     setCaseFacts((current) => ({ ...current, ...refs.cases }));
+    setTimelineFacts((current) => ({ ...current, ...(refs.timelines ?? {}) }));
     // A card someone else deleted must not stay selected here: the inspector
     // would be editing something that no longer exists.
     const alive = new Set(state.cards.map((card) => card.id));
@@ -288,8 +296,8 @@ export function BoardCanvas({
    * so there is one place that knows how the three kinds are looked up.
    */
   const refs = useMemo<BoardRefs>(
-    () => ({ entries, maps, cases: caseFacts }),
-    [entries, maps, caseFacts],
+    () => ({ entries, maps, cases: caseFacts, timelines: timelineFacts }),
+    [entries, maps, caseFacts, timelineFacts],
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
@@ -562,6 +570,7 @@ export function BoardCanvas({
         entryId: null,
         mapId: null,
         caseId: null,
+        timelineId: null,
         assetId: null,
         crop: null,
         border: null,
@@ -1368,6 +1377,9 @@ export function BoardCanvas({
         entryId: entry.id,
         name: entry.name,
         text: '',
+        // §32: an artikel without a cover keeps its frame shut until somebody
+        // opens it; `undefined` (a caller that does not know) keeps the old answer.
+        showImage: defaultShowImage('entry', entry.coverAssetId === undefined ? undefined : Boolean(entry.coverAssetId)),
         ...(at
           ? { x: Math.round(at.x - CARD_WIDTH / 2), y: Math.round(at.y - CARD_SIZE.height / 2) }
           : {}),
@@ -1424,13 +1436,28 @@ export function BoardCanvas({
     [addCard, sync],
   );
 
-  /** Landkaarten and dossiers matching what is typed, and not already up. */
+  /** §32: a tijdlijn on the wall — the same shape as a landkaart card. */
+  const placeTimeline = useCallback(
+    (item: { id: string; name: string }) => {
+      setTimelineFacts((current) =>
+        current[item.id] ? current : { ...current, [item.id]: { id: item.id, slug: '', name: item.name, scale: 'day', missing: false } },
+      );
+      addCard({ id: newCardId(), kind: 'timeline', timelineId: item.id, name: item.name, text: '', showImage: false });
+      setSearch('');
+      setSuggestions([]);
+      void sync.saveNow();
+    },
+    [addCard, sync],
+  );
+
+  /** Landkaarten, dossiers and tijdlijnen matching what is typed, and not already up. */
   const otherMatches = useMemo(() => {
     const typed = search.trim();
-    if (!typed) return { maps: [], cases: [] };
+    if (!typed) return { maps: [], cases: [], timelines: [] };
     const onWall = {
       map: new Set(cards.filter((card) => card.kind === 'map').map((card) => card.mapId)),
       case: new Set(cards.filter((card) => card.kind === 'case').map((card) => card.caseId)),
+      timeline: new Set(cards.filter((card) => card.kind === 'timeline').map((card) => card.timelineId)),
     };
     const pick = <T extends { id: string; name: string }>(list: T[], up: Set<unknown>) =>
       list
@@ -1440,8 +1467,12 @@ export function BoardCanvas({
         .sort((a, b) => b.score - a.score)
         .slice(0, 3)
         .map((row) => row.item);
-    return { maps: pick(pickableMaps, onWall.map), cases: pick(pickableCases, onWall.case) };
-  }, [search, cards, pickableMaps, pickableCases]);
+    return {
+      maps: pick(pickableMaps, onWall.map),
+      cases: pick(pickableCases, onWall.case),
+      timelines: pick(pickableTimelines, onWall.timeline),
+    };
+  }, [search, cards, pickableMaps, pickableCases, pickableTimelines]);
 
   /** Everything in the case that is not already a card on this wall. */
   const trayEntries = useMemo(() => {
@@ -1452,10 +1483,14 @@ export function BoardCanvas({
   }, [caseEntries, cards]);
 
   async function addEntryCard(entryId: string, entryName: string) {
+    // §32: unknown until the preview answers; a card of an artikel without a
+    // cover starts with its frame shut (`defaultShowImage`).
+    let hasCover: boolean | undefined;
     const response = await fetch(`/api/preview?id=${encodeURIComponent(entryId)}`);
     if (response.ok) {
       const data = await response.json();
       if (data.entry) {
+        hasCover = Boolean(data.entry.coverAssetId);
         setEntries((current) => ({
           ...current,
           [entryId]: {
@@ -1478,6 +1513,7 @@ export function BoardCanvas({
       entryId,
       name: entryName,
       text: '',
+      showImage: defaultShowImage('entry', hasCover),
     });
     setSearch('');
     setSuggestions([]);
@@ -1707,6 +1743,19 @@ export function BoardCanvas({
                       <strong>{item.name}</strong>
                       <span className="tiny muted" style={{ display: 'block' }}>
                         {capitalise(ui.words.case)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {otherMatches.timelines.map((item) => (
+                <li key={`timeline-${item.id}`}>
+                  <button type="button" className="suggest-item" onClick={() => placeTimeline(item)}>
+                    <Icon name="timeline" size={16} style={{ color: 'var(--ink-muted)' }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <strong>{item.name}</strong>
+                      <span className="tiny muted" style={{ display: 'block' }}>
+                        {capitalise(ui.words.timeline)}
                       </span>
                     </span>
                   </button>
@@ -1953,6 +2002,7 @@ export function BoardCanvas({
                       kind: 'entry',
                       entryId: created.id,
                       name: created.name,
+                      // A freshly written artikel has no cover yet: the frame stays as it was.
                     });
                     offerToFile(created.id, created.name);
                   },

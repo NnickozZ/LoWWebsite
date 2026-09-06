@@ -141,7 +141,7 @@ export type Visibility = 'all' | 'keeper' | 'players';
  * when the Keeper allows it AND the owner allows it.
  */
 export type AccessMode = 'all' | 'some' | 'private';
-export type AccessTargetType = 'entry' | 'case' | 'board';
+export type AccessTargetType = 'entry' | 'case' | 'board' | 'timeline';
 
 export const entries = sqliteTable(
   'entries',
@@ -285,7 +285,7 @@ export const entryMentions = sqliteTable(
   {
     toEntryId: text('to_entry_id').notNull(),
     fromKind: text('from_kind')
-      .$type<'case' | 'board' | 'map' | 'field' | 'section'>()
+      .$type<'case' | 'board' | 'map' | 'timeline' | 'field' | 'section'>()
       .notNull(),
     /** The dossier / prikbord / landkaart / artikel the mention sits in. */
     fromId: text('from_id').notNull(),
@@ -522,6 +522,72 @@ export const mapPins = sqliteTable(
     updatedAt: integer('updated_at').notNull().default(now),
   },
   (t) => [index('map_pins_map_idx').on(t.mapId), index('map_pins_entry_idx').on(t.entryId)],
+);
+
+/**
+ * §32: a tijdlijn — a ruled axis with gebeurtenissen on it. Made like a
+ * prikbord: by anyone, with the owner's two dials (§17), loose or inside a
+ * dossier, into the bin and back. `scale` is how it is measured (see
+ * `lib/timelines/time.ts`): which boxes the date form offers and how the
+ * axis is ruled.
+ */
+export const timelines = sqliteTable(
+  'timelines',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    description: text('description').notNull().default(''),
+    caseId: text('case_id'),
+    scale: text('scale').$type<TimelineScale>().notNull().default('day'),
+    /** §17 */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+    deletedAt: integer('deleted_at'),
+  },
+  (t) => [uniqueIndex('timelines_slug_idx').on(t.slug), index('timelines_case_idx').on(t.caseId)],
+);
+
+export type TimelineScale = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second';
+
+/**
+ * §32: a gebeurtenis on a tijdlijn. Either an artikel (`entry_id`; any soort,
+ * and drawn large because an artikel is the archive saying "this mattered")
+ * or a loose note that exists nowhere but here (`name` + `text`). Both keep
+ * what the tijdlijn *says* about the moment — `text`, the picture, whether the
+ * picture frame is open — on the row, exactly as a card on a prikbord keeps
+ * its own text (§8): the artikel behind it is never written to from here.
+ *
+ * `at` is seconds since 1970 in a proleptic Gregorian calendar, no time zone;
+ * `precision` is how much of that moment is known. See `lib/timelines/time.ts`.
+ */
+export const timelineEvents = sqliteTable(
+  'timeline_events',
+  {
+    id: text('id').primaryKey(),
+    timelineId: text('timeline_id').notNull(),
+    kind: text('kind').$type<'entry' | 'note'>().notNull().default('note'),
+    entryId: text('entry_id'),
+    name: text('name').notNull().default(''),
+    text: text('text').notNull().default(''),
+    at: integer('at').notNull().default(0),
+    precision: text('precision').$type<TimelineScale>().notNull().default('day'),
+    /** A note's own picture; an artikel gebeurtenis borrows its artikel's cover. */
+    assetId: text('asset_id'),
+    /** False hides the picture frame — the default while there is nothing to show in it. */
+    showImage: integer('show_image', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [
+    index('timeline_events_timeline_idx').on(t.timelineId, t.at),
+    index('timeline_events_entry_idx').on(t.entryId),
+  ],
 );
 
 /**

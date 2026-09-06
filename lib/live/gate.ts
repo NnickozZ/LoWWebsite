@@ -4,6 +4,7 @@ import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { getMapById, getPin } from '@/lib/maps/service';
+import { getEvent, getTimelineById } from '@/lib/timelines/service';
 import { COLLECTION_KEYS, ID, KEEPER_KEYS, PAGE_PLACES, parseRecordKey } from './keys';
 
 /**
@@ -59,6 +60,13 @@ export function canWatch(key: string, viewer: Viewer): boolean {
       return Boolean(getMapById(record.id));
     case 'pin':
       return Boolean(getPin(record.id, viewer));
+    // §32: a tijdlijn is gated like a prikbord (its own dials, and its
+    // dossier's); a gebeurtenis follows its tijdlijn and, for an artikel
+    // gebeurtenis, the artikel.
+    case 'timeline':
+      return Boolean(getTimelineById(record.id, viewer));
+    case 'event':
+      return Boolean(getEvent(record.id, viewer));
     default:
       return false;
   }

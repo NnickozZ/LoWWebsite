@@ -10,17 +10,18 @@ import { normaliseBorder } from '@/lib/borders.mjs';
  * tag underneath that can be labelled. It is how a lead that has no entry yet
  * gets a place on the wall.
  *
- * `map` and `case` are the other two things this archive holds that a wall
- * might want to point at: the landkaart the harbour is drawn on, and the
- * dossier this all belongs to. They are cards like any other — draggable,
- * croppable, string can be run to them — and, like an entry card, they carry
- * only an id. What is behind that id is resolved per viewer, so a dossier
- * somebody may not open comes back as MISSING rather than as a name.
+ * `map`, `case` and `timeline` are the other things this archive holds that a
+ * wall might want to point at: the landkaart the harbour is drawn on, the
+ * dossier this all belongs to, the tijdlijn of the night it happened (§32).
+ * They are cards like any other — draggable, croppable, string can be run to
+ * them — and, like an entry card, they carry only an id. What is behind that
+ * id is resolved per viewer, so a dossier somebody may not open comes back as
+ * MISSING rather than as a name.
  */
-export type CardKind = 'entry' | 'note' | 'photo' | 'pin' | 'map' | 'case';
+export type CardKind = 'entry' | 'note' | 'photo' | 'pin' | 'map' | 'case' | 'timeline';
 
 /** The card kinds that stand for a record elsewhere in the archive. */
-export const REFERENCE_KINDS = ['entry', 'map', 'case'] as const;
+export const REFERENCE_KINDS = ['entry', 'map', 'case', 'timeline'] as const;
 
 /** Index cards are all one size; a pin is a head and a tag. */
 export const CARD_SIZE = { width: 160, height: 250 } as const;
@@ -56,13 +57,23 @@ export function cardSize(card: Pick<BoardCard, 'kind'>): { width: number; height
  * would have taken the picture off every landkaart card on the wall to spare
  * the rare one that is out of reach.
  *
+ * Since §32 the frame also stays shut on a card that stands for something
+ * *without* a picture, when the caller knows that (`hasPicture === false`): an
+ * artikel with no cover used to open every card with a grey box holding its
+ * soort's icon, and Nick asked for that placeholder to wait behind the
+ * "Foto tonen" button instead — the same rule a gebeurtenis on a tijdlijn
+ * follows. A caller that does not know (`undefined`) gets the old answer, and
+ * the frame is decided again at render time by whether anything turned up.
+ *
  * This is a *default*, not a normalisation: `normaliseState` keeps whatever a
  * saved card says, so no board already on the wall changes under it.
  * `BoardCard` then refuses to draw a frame with nothing in it whatever the
  * flag says, which is what quietly repairs the walls hung before this rule.
  */
-export function defaultShowImage(kind: CardKind): boolean {
-  return kind !== 'note' && kind !== 'pin';
+export function defaultShowImage(kind: CardKind, hasPicture?: boolean): boolean {
+  if (kind === 'note' || kind === 'pin') return false;
+  if ((kind === 'entry' || kind === 'case' || kind === 'timeline') && hasPicture === false) return false;
+  return true;
 }
 
 /**
@@ -71,11 +82,12 @@ export function defaultShowImage(kind: CardKind): boolean {
  * page that builds the props — asks once instead of three times.
  */
 export function cardRef(
-  card: Pick<BoardCard, 'kind' | 'entryId' | 'mapId' | 'caseId'>,
-): { kind: 'entry' | 'map' | 'case'; id: string } | null {
+  card: Pick<BoardCard, 'kind' | 'entryId' | 'mapId' | 'caseId' | 'timelineId'>,
+): { kind: 'entry' | 'map' | 'case' | 'timeline'; id: string } | null {
   if (card.kind === 'entry' && card.entryId) return { kind: 'entry', id: card.entryId };
   if (card.kind === 'map' && card.mapId) return { kind: 'map', id: card.mapId };
   if (card.kind === 'case' && card.caseId) return { kind: 'case', id: card.caseId };
+  if (card.kind === 'timeline' && card.timelineId) return { kind: 'timeline', id: card.timelineId };
   return null;
 }
 
@@ -102,6 +114,8 @@ export type BoardCard = {
   mapId?: string | null;
   /** Set for kind 'case' — the dossier this card stands for. */
   caseId?: string | null;
+  /** Set for kind 'timeline' — the tijdlijn this card stands for (§32). */
+  timelineId?: string | null;
   /** A picture belonging to this card. Notes may gain one after the fact. */
   assetId?: string | null;
   /** How that picture — or the entry's — sits in this card's frame. */
@@ -322,12 +336,14 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
             card.kind === 'photo' ||
             card.kind === 'pin' ||
             card.kind === 'map' ||
-            card.kind === 'case'
+            card.kind === 'case' ||
+            card.kind === 'timeline'
               ? card.kind
               : 'entry',
           entryId: card.entryId ?? null,
           mapId: card.mapId ?? null,
           caseId: card.caseId ?? null,
+          timelineId: card.timelineId ?? null,
           assetId: card.assetId ?? null,
           // Every card keeps its own crop: an entry card crops the entry's
           // cover for this board alone, and leaves every other list untouched.

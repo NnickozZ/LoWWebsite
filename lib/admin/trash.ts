@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { logActivity, logAudit, reindexEntry } from '@/lib/entries/service';
 import { entryIdsInCase, reconcileOrigin } from '@/lib/entries/origin';
@@ -22,7 +22,7 @@ import { forgetStoredState } from '@/lib/live/docs';
 
 export type TrashItem = {
   id: string;
-  kind: 'entry' | 'case' | 'board' | 'map';
+  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline';
   name: string;
   /** Where it would come back to, for the link after restoring. */
   href: string;
@@ -90,6 +90,22 @@ export function listTrash(limit = 200): TrashItem[] {
     .limit(limit)
     .all();
 
+  // §32: a tijdlijn goes the same road as a prikbord.
+  const timelines = db
+    .select({
+      id: schema.timelines.id,
+      name: schema.timelines.name,
+      slug: schema.timelines.slug,
+      detail: schema.cases.name,
+      deletedAt: schema.timelines.deletedAt,
+    })
+    .from(schema.timelines)
+    .leftJoin(schema.cases, eq(schema.cases.id, schema.timelines.caseId))
+    .where(isNotNull(schema.timelines.deletedAt))
+    .orderBy(desc(schema.timelines.deletedAt))
+    .limit(limit)
+    .all();
+
   return [
     ...entries.map((row) => ({
       id: row.id,
@@ -123,6 +139,14 @@ export function listTrash(limit = 200): TrashItem[] {
       detail: row.detail ?? '',
       deletedAt: row.deletedAt ?? 0,
     })),
+    ...timelines.map((row) => ({
+      id: row.id,
+      kind: 'timeline' as const,
+      name: row.name,
+      href: `/timelines/${row.slug}`,
+      detail: row.detail ?? '',
+      deletedAt: row.deletedAt ?? 0,
+    })),
   ].sort((a, b) => b.deletedAt - a.deletedAt);
 }
 
@@ -140,6 +164,11 @@ export function restoreFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
   } else if (kind === 'board') {
     db.update(schema.boards).set({ deletedAt: null }).where(eq(schema.boards.id, id)).run();
     logActivity({ actorId: keeperId, verb: 'board.restored', boardId: id });
+  } else if (kind === 'timeline') {
+    // §32: back on the shelf with every gebeurtenis still on it — they were
+    // never deleted with the tijdlijn, only hidden with it.
+    db.update(schema.timelines).set({ deletedAt: null }).where(eq(schema.timelines.id, id)).run();
+    logActivity({ actorId: keeperId, verb: 'timeline.restored', meta: { timelineId: id } });
   } else {
     // §19: back on the wall, with every speld still where it was — pins are
     // never deleted with the map, only hidden with it.
@@ -212,6 +241,16 @@ export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffe
         ),
       },
       {
+        label: 'gebeurtenissen op tijdlijnen',
+        count: rows(
+          db
+            .select({ id: schema.timelineEvents.id })
+            .from(schema.timelineEvents)
+            .where(eq(schema.timelineEvents.entryId, id))
+            .all(),
+        ),
+      },
+      {
         label: 'voorstellen',
         count: rows(
           db
@@ -274,6 +313,21 @@ export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffe
     ].filter((effect) => count(effect.count) > 0);
   }
 
+  if (kind === 'timeline') {
+    return [
+      {
+        label: 'gebeurtenissen erop',
+        count: rows(
+          db
+            .select({ id: schema.timelineEvents.id })
+            .from(schema.timelineEvents)
+            .where(eq(schema.timelineEvents.timelineId, id))
+            .all(),
+        ),
+      },
+    ].filter((effect) => count(effect.count) > 0);
+  }
+
   return [
     {
       label: 'spelden erop',
@@ -310,6 +364,14 @@ function roomsOf(kind: TrashItem['kind'], id: string): string[] {
       .all()
       .map((row) => `pin:${row.id}:fields`);
     return [`map:${id}:fields`, ...pins];
+  }
+  if (kind === 'timeline') {
+    return db
+      .select({ id: schema.timelineEvents.id })
+      .from(schema.timelineEvents)
+      .where(eq(schema.timelineEvents.timelineId, id))
+      .all()
+      .map((row) => `event:${row.id}:fields`);
   }
   return [];
 }
@@ -369,6 +431,9 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     db.delete(schema.caseEntries).where(eq(schema.caseEntries.entryId, id)).run();
     db.delete(schema.pendingEdits).where(eq(schema.pendingEdits.entryId, id)).run();
     db.delete(schema.mapPins).where(eq(schema.mapPins.entryId, id)).run();
+    // §32: a gebeurtenis that *was* this artikel is a mark that points at
+    // nothing; it goes the way a speld does. The tijdlijn stays.
+    db.delete(schema.timelineEvents).where(eq(schema.timelineEvents.entryId, id)).run();
     // §23: a landkaart that was a map *of* this artikel outlives it — it is a
     // picture the Keeper hung, not a thing the artikel owned. It simply stops
     // being of anything.
@@ -386,6 +451,8 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     // The boards keep their contents and their rights; they simply stop
     // hanging off a dossier that no longer exists.
     db.update(schema.boards).set({ caseId: null }).where(eq(schema.boards.caseId, id)).run();
+    // §32: and so do its tijdlijnen, which become loose tijdlijnen for the same reason.
+    db.update(schema.timelines).set({ caseId: null }).where(eq(schema.timelines.caseId, id)).run();
     // §24: the artikelen survive it (rule 21), so the ones that said they came
     // from here have to be told where they came from now. Read before the
     // filings go, reconciled after. A *pinned* origin is normally nobody's to
@@ -418,6 +485,16 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
       .where(and(eq(schema.accessGrants.targetType, 'board'), eq(schema.accessGrants.targetId, id)))
       .run();
     db.delete(schema.boards).where(eq(schema.boards.id, id)).run();
+  } else if (kind === 'timeline') {
+    // §32: the gebeurtenissen go with the tijdlijn — a note gebeurtenis exists
+    // nowhere else, and an artikel gebeurtenis is a mark on *this* axis. The
+    // artikelen themselves stay.
+    db.delete(schema.timelineEvents).where(eq(schema.timelineEvents.timelineId, id)).run();
+    db.delete(schema.activity).where(sql`json_extract(${schema.activity.meta}, '$.timelineId') = ${id}`).run();
+    db.delete(schema.accessGrants)
+      .where(and(eq(schema.accessGrants.targetType, 'timeline'), eq(schema.accessGrants.targetId, id)))
+      .run();
+    db.delete(schema.timelines).where(eq(schema.timelines.id, id)).run();
   } else {
     // §19: the spelden go with the map — they are places *on* it and mean
     // nothing without it. The artikelen those spelden pointed at do not.

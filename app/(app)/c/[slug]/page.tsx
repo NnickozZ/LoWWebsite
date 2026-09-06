@@ -12,6 +12,7 @@ import { db, schema } from '@/lib/db';
 import { snapshot } from '@/lib/live/docs';
 import { admit, caseRoomKey } from '@/lib/live/rooms';
 import { listBoardsForCase } from '@/lib/boards/service';
+import { listTimelinesForCase } from '@/lib/timelines/service';
 import {
   getCaseBySlug,
   listCaseActivity,
@@ -72,6 +73,8 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
   const entries = listCaseEntries(record.id, user);
   const types = listEntryTypes();
   const boards = listBoardsForCase(record.id, user);
+  // §32: the dossier's tijdlijnen, behind the same two rules as its prikborden.
+  const timelines = listTimelinesForCase(record.id, user);
   const words = getWords();
   // §18: the log names characters; the account stays in the tooltip.
   const activity = attributed(listCaseActivity(record.id, user), words.keeper);
@@ -169,7 +172,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
-      <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'users']} />
+      <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'timelines', 'users']} />
       <CaseDossier
       data={{
         id: record.id,
@@ -188,6 +191,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       members={members}
       allUsers={allUsers}
       boards={boards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}
+      timelines={timelines.map((t) => ({ id: t.id, slug: t.slug, name: t.name, updatedAt: t.updatedAt, scale: t.scale }))}
       activity={activity}
       liveNotes={liveNotes}
       lastSeenAt={user?.lastSeenAt ?? null}

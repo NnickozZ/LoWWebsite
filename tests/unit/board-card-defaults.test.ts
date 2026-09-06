@@ -18,17 +18,29 @@ describe('the picture frame a new card starts with', () => {
     expect(defaultShowImage('photo')).toBe(true);
   });
 
-  it('opens for the three kinds that stand for something in the archive', () => {
+  it('opens for the kinds that stand for something in the archive, when nobody knows better', () => {
     // Their picture is that thing's — a cover, the landkaart itself — or, until
     // there is one, the icon and colour of its soort, which is how you tell a
     // person from a place across a wall.
     expect(defaultShowImage('entry')).toBe(true);
     expect(defaultShowImage('map')).toBe(true);
     expect(defaultShowImage('case')).toBe(true);
+    expect(defaultShowImage('timeline')).toBe(true);
+  });
+
+  it('but stays shut when the caller knows there is no picture (§32)', () => {
+    // An artikel without a cover used to open every card with a grey box
+    // holding its soort's icon; that icon waits behind "Foto tonen" now.
+    expect(defaultShowImage('entry', false)).toBe(false);
+    expect(defaultShowImage('case', false)).toBe(false);
+    expect(defaultShowImage('entry', true)).toBe(true);
+    expect(defaultShowImage('entry', undefined)).toBe(true);
+    // A photo card is made around a picture whatever the caller says.
+    expect(defaultShowImage('photo', false)).toBe(true);
   });
 
   it('has an answer for every kind of card there is', () => {
-    const kinds: CardKind[] = ['entry', 'note', 'photo', 'pin', 'map', 'case'];
+    const kinds: CardKind[] = ['entry', 'note', 'photo', 'pin', 'map', 'case', 'timeline'];
     for (const kind of kinds) expect(typeof defaultShowImage(kind)).toBe('boolean');
   });
 });

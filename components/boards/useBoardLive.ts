@@ -149,6 +149,7 @@ export function useBoardLive({
         entries: BoardRefs['entries'];
         maps: BoardRefs['maps'];
         cases: BoardRefs['cases'];
+        timelines?: BoardRefs['timelines'];
       };
       // The user may have picked a card up between the request and the reply.
       if (!quietRef.current) {
@@ -156,7 +157,7 @@ export function useBoardLive({
         return;
       }
       owed.current = false;
-      onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases });
+      onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {} });
       onRenameRef.current(data.name);
       // Whatever those tabs were carrying is now where the document says.
       if (settling.current.size) {

@@ -7,8 +7,9 @@ import { liveFieldValues, updateEntry } from '@/lib/entries/service';
 import { updateSection } from '@/lib/entries/secrets';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { getPin, updateMap, updatePin } from '@/lib/maps/service';
+import { getEvent, updateEvent, viewerCanEditTimeline } from '@/lib/timelines/service';
 import type { FieldValues, RoomSpec } from './docs';
-import { caseFieldsRoomKey, entryFieldsRoomKey, mapFieldsRoomKey, pinFieldsRoomKey } from './keys';
+import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, mapFieldsRoomKey, pinFieldsRoomKey } from './keys';
 
 /**
  * §20: which rooms exist, and who gets in.
@@ -26,6 +27,9 @@ import { caseFieldsRoomKey, entryFieldsRoomKey, mapFieldsRoomKey, pinFieldsRoomK
  *   case:{id}:fields   name, summary
  *   map:{id}:fields    name, description (Keepers write; everyone reads)
  *   pin:{id}:fields    name, text of a note pin (its owner or a Keeper writes)
+ *   event:{id}:fields  name and text of a gebeurtenis on a tijdlijn (§32; a note's
+ *                      name, and the tijdlijn's own text under either kind —
+ *                      whoever may edit the tijdlijn writes)
  *
  * The gate is the *same* rule the page uses to decide whether to render the
  * text at all — `visibleEntryCondition` and `canSeeSection` for looking,
@@ -52,6 +56,7 @@ const ENTRY_FIELDS_KEY = /^entry:([A-Za-z0-9_-]{1,64}):fields$/;
 const CASE_FIELDS_KEY = /^case:([A-Za-z0-9_-]{1,64}):fields$/;
 const MAP_FIELDS_KEY = /^map:([A-Za-z0-9_-]{1,64}):fields$/;
 const PIN_FIELDS_KEY = /^pin:([A-Za-z0-9_-]{1,64}):fields$/;
+const EVENT_FIELDS_KEY = /^event:([A-Za-z0-9_-]{1,64}):fields$/;
 
 const asFields = (value: unknown): FieldValues =>
   value && typeof value === 'object'
@@ -136,6 +141,35 @@ function pinFieldsAdmission(pinId: string, viewer: Viewer): Admission | null {
         const texts = asFields(value);
         try {
           updatePin(pinId, { name: texts.name, text: texts.text }, actor, { live: true });
+        } catch {
+          // An empty name is refused by the service; the room keeps it until it is filled in.
+        }
+      },
+    },
+  };
+}
+
+/**
+ * §32: a gebeurtenis's own words — a note's name and text, an artikel
+ * gebeurtenis's text only (its name is the artikel's). The gate is the
+ * tijdlijn's: `getEvent` applies the tijdlijn's view dial (and its dossier's),
+ * and typing is the tijdlijn's edit dial — a gebeurtenis on a tijdlijn is
+ * everyone's who may work on that tijdlijn, like a card on a wall.
+ */
+function eventFieldsAdmission(eventId: string, viewer: Viewer): Admission | null {
+  if (!viewer) return null;
+  const event = getEvent(eventId, viewer);
+  if (!event) return null;
+  return {
+    canEdit: viewerCanEditTimeline(event.timelineId, viewer),
+    spec: {
+      key: eventFieldsRoomKey(eventId),
+      kind: 'fields',
+      seed: () => (event.kind === 'note' ? { name: event.name, text: event.text } : { text: event.text }),
+      persist: (value, actor) => {
+        const texts = asFields(value);
+        try {
+          updateEvent(eventId, { name: texts.name, text: texts.text }, actor, { live: true });
         } catch {
           // An empty name is refused by the service; the room keeps it until it is filled in.
         }
@@ -260,6 +294,8 @@ export function admit(key: string, viewer: Viewer): Admission | null {
   if (mapFieldsMatch) return mapFieldsAdmission(mapFieldsMatch[1], viewer);
   const pinFieldsMatch = PIN_FIELDS_KEY.exec(key);
   if (pinFieldsMatch) return pinFieldsAdmission(pinFieldsMatch[1], viewer);
+  const eventFieldsMatch = EVENT_FIELDS_KEY.exec(key);
+  if (eventFieldsMatch) return eventFieldsAdmission(eventFieldsMatch[1], viewer);
   const sectionMatch = SECTION_KEY.exec(key);
   if (sectionMatch) return sectionAdmission(sectionMatch[1], viewer);
   const caseMatch = CASE_KEY.exec(key);

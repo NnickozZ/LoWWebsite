@@ -36,6 +36,9 @@ import { presenceColour } from '@/lib/boards/live';
 import { snapshot } from '@/lib/live/docs';
 import { admit, entryRoomKey, sectionRoomKey } from '@/lib/live/rooms';
 import { listMaps, listMapsOfEntry, listPinsForEntry } from '@/lib/maps/service';
+import { listEventsForEntry, listTimelines } from '@/lib/timelines/service';
+import { formatWhen } from '@/lib/timelines/time';
+import { viewerCanEdit } from '@/lib/access';
 import { cleanTypeText, defaultBlockTitle, resolveBlocks } from '@/lib/pageBlocks';
 import { deleteEntryAction, restoreRevisionAction } from './actions';
 
@@ -140,6 +143,18 @@ export default async function EntryPage({
     .map((map) => ({ slug: map.slug, name: map.name }));
   // §23: and the landkaarten that are a drawing *of* this artikel.
   const mapsOfThis = listMapsOfEntry(entry.id).map((map) => ({ slug: map.slug, name: map.name }));
+  // §32: where this artikel is on the tijdlijnen, and which it could still go on.
+  const entryEvents = listEventsForEntry(entry.id, user);
+  const onTimelines = entryEvents.map((row) => ({
+    eventId: row.eventId,
+    timelineSlug: row.timelineSlug,
+    timelineName: row.timelineName,
+    when: formatWhen(row.at, row.precision),
+  }));
+  const onTimelineIds = new Set(entryEvents.map((row) => row.timelineId));
+  const timelinesToPlace = listTimelines(user)
+    .filter((timeline) => !onTimelineIds.has(timeline.id) && viewerCanEdit('timeline', timeline.id, user))
+    .map((timeline) => ({ slug: timeline.slug, name: timeline.name }));
   // §21: the dossiers this artikel's own fields point at. Only ids are stored;
   // the names are looked up here, behind the same visibility rule as every
   // other read, so a dossier the reader may not open is not named in their HTML.
@@ -482,6 +497,8 @@ export default async function EntryPage({
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}
         mapsOfThis={mapsOfThis}
+        onTimelines={onTimelines}
+        timelinesToPlace={timelinesToPlace}
         origin={origin}
         caseLinks={caseLinks}
         /*

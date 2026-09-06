@@ -134,9 +134,17 @@ export function BoundField(props: FieldProps & { fields: FieldsValue }) {
     text.observe(onChange);
     // The room may already differ from what the page rendered (a keystroke
     // landed between). Two ways round, and they are not the same.
+    //
+    // The handover waits for the room to have *loaded*. A sheet that joins a
+    // room without a snapshot (`state=""` — a speld's, a gebeurtenis's) has an
+    // empty local document until the line answers, and treating that emptiness
+    // as "nobody has typed here" seeded the parent's text into it — which the
+    // server's copy then landed on top of, so the name read twice, then three
+    // times, once per opening (found 6 Sep 2026, §32). Until `synced` this
+    // pass only follows the document; the first pass *after* it is the one.
     const now = text.toString();
-    const first = binding.current;
-    binding.current = false;
+    const first = binding.current && synced;
+    if (synced) binding.current = false;
 
     /*
      * Taking the field over from the plain input, with an empty room and a
@@ -162,7 +170,7 @@ export function BoundField(props: FieldProps & { fields: FieldsValue }) {
     }
     return () => text.unobserve(onChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, doc, origin, canEdit]);
+  }, [text, doc, origin, canEdit, synced]);
 
   /* ------------------------------------------------------------ others */
 

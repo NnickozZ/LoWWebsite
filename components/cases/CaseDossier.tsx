@@ -7,6 +7,8 @@ import { Icon } from '@/components/Icon';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
 import { capitalise } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
+import { NewTimelineButton } from '@/components/timelines/NewTimelineButton';
+import { SCALE_LABELS, type Scale } from '@/lib/timelines/time';
 import { Cover } from '@/components/Cover';
 import { CoverEditor } from '@/components/entry/CoverEditor';
 import type { ArticleMode } from '@/lib/entries/mode';
@@ -70,6 +72,8 @@ export type CaseAccess = {
 };
 
 export type BoardLite = { id: string; name: string; updatedAt: number };
+/** §32 */
+export type TimelineLite = { id: string; slug: string; name: string; updatedAt: number; scale: Scale };
 /** An account, and (§18) the character it is wearing, if any. */
 export type UserLite = { id: string; username: string; character?: string | null };
 
@@ -98,6 +102,7 @@ export function CaseDossier({
   members,
   allUsers,
   boards,
+  timelines,
   activity,
   lastSeenAt,
   isKeeper,
@@ -117,6 +122,8 @@ export function CaseDossier({
   members: UserLite[];
   allUsers: UserLite[];
   boards: BoardLite[];
+  /** §32: the dossier's tijdlijnen, already filtered for this viewer. */
+  timelines: TimelineLite[];
   activity: CaseActivityItem[];
   lastSeenAt: number | null;
   isKeeper: boolean;
@@ -222,6 +229,7 @@ export function CaseDossier({
       { key: 'overview', label: 'Overzicht', icon: 'file' },
       ...groups.map((group) => ({ key: group.key, label: group.label, icon: group.icon })),
       { key: 'board', label: 'Prikbord', icon: 'board' },
+      { key: 'timeline', label: 'Tijdlijn', icon: 'timeline' },
       { key: 'activity', label: 'Activiteit', icon: 'clock' },
     ];
   }, [groups]);
@@ -391,6 +399,42 @@ export function CaseDossier({
     </div>
   );
 
+  const timelineSection = (
+    <div>
+      {!locked && (
+        <div className="row-wrap" style={{ marginBottom: '0.9rem' }}>
+          <NewTimelineButton caseId={data.id} />
+        </div>
+      )}
+      {timelines.length ? (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {timelines.map((timeline) => (
+            <li key={timeline.id} style={{ borderBottom: '1px solid var(--rule)' }}>
+              <Link
+                href={`/timelines/${timeline.slug}`}
+                className="row"
+                style={{ color: 'inherit', textDecoration: 'none', padding: '0.7rem 0' }}
+              >
+                <Icon name="timeline" size={18} style={{ color: 'var(--ink-muted)' }} />
+                <span style={{ flex: 1 }}>{timeline.name}</span>
+                <span className="tiny muted">{SCALE_LABELS[timeline.scale].toLowerCase()}</span>
+                <span className="tiny muted">{relativeTime(timeline.updatedAt)}</span>
+                <Icon name="chevron" size={16} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="empty">
+          <p style={{ margin: 0 }}>Nog geen tijdlijn.</p>
+          <p className="small" style={{ margin: '0.4rem 0 0' }}>
+            Op een tijdlijn zie je in welke volgorde dit allemaal gebeurd is — en wat er tussen zit.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
   const activitySection = (
     <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
       {activity.map((item, index) => {
@@ -432,6 +476,7 @@ export function CaseDossier({
   const sectionFor = (key: string) => {
     if (key === 'overview') return overview;
     if (key === 'board') return boardSection;
+    if (key === 'timeline') return timelineSection;
     if (key === 'activity') return activitySection;
     const group = groups.find((g) => g.key === key);
     return group ? groupSection(group) : null;
@@ -784,6 +829,12 @@ function verbText(verb: string): string {
       return 'werkte aan prikbord';
     case 'board.deleted':
       return 'verwijderde prikbord';
+    case 'timeline.created':
+      return 'maakte tijdlijn';
+    case 'timeline.event_added':
+      return 'zette op de tijdlijn:';
+    case 'timeline.deleted':
+      return 'verwijderde tijdlijn';
     default:
       return 'wijzigde';
   }
@@ -797,6 +848,7 @@ function verbTail(verb: string): string {
     case 'case.entry_removed':
       return ' uit het dossier';
     case 'board.created':
+    case 'timeline.created':
       return ' aan';
     default:
       return '';

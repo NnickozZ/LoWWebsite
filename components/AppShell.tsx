@@ -13,7 +13,7 @@ import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
 import type { Words } from '@/lib/words';
 
 /**
- * The seven places in the menu. What each is *called* comes from Beheer →
+ * The eight places in the menu. What each is *called* comes from Beheer →
  * Woorden, so the labels are word keys rather than words; the hrefs and the
  * icons are the app's own and stay put.
  */
@@ -23,7 +23,8 @@ const NAV = [
   { href: '/wiki', word: 'navWiki', icon: 'book' },
   { href: '/boards', word: 'navBoards', icon: 'board' },
   { href: '/maps', word: 'navMaps', icon: 'map' },
-  // Seven tabs do not fit a phone with a word under each. The two whose icon
+  { href: '/timelines', word: 'navTimelines', icon: 'timeline' },
+  // Eight tabs do not fit a phone with a word under each. The two whose icon
   // everybody knows — a magnifier, a person — go without one there.
   { href: '/search', word: 'navSearch', icon: 'search', compact: true },
   { href: '/you', word: 'navYou', icon: 'you', compact: true },

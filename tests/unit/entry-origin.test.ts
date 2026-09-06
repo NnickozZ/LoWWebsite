@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { isAdrift } from '@/lib/entries/caseName';
-import { nextOriginCaseId } from '@/lib/entries/origin';
 
 /**
  * §24, second half: `entries.origin_case_id` as a living reference, and §11's
@@ -29,6 +28,15 @@ import { nextOriginCaseId } from '@/lib/entries/origin';
 
 const dir = mkdtempSync(join(tmpdir(), 'zcf-origin-'));
 process.env.DATA_DIR = dir;
+
+/*
+ * Imported *after* DATA_DIR is set, like everything else below: a static
+ * import of `lib/entries/origin` pulls `lib/access` and with it the database,
+ * which then opens `./data/app.db` — the real one — before this line runs.
+ * (Found 6 Sep 2026: the suite passed on a checkout with no ./data and failed
+ * on the second run, once that file held the keeper this test inserts.)
+ */
+let nextOriginCaseId: typeof import('@/lib/entries/origin').nextOriginCaseId;
 
 type Deps = {
   sqlite: typeof import('@/lib/db').sqlite;
@@ -68,6 +76,7 @@ beforeAll(async () => {
   const cases = await import('@/lib/cases/service');
   const origin = await import('@/lib/entries/origin');
   const types = await import('@/lib/admin/types');
+  nextOriginCaseId = origin.nextOriginCaseId;
   deps = {
     sqlite: dbModule.sqlite,
     seedBaseline: seed.seedBaseline,

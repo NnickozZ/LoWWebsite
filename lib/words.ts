@@ -68,17 +68,28 @@ export const WORD_GROUPS: WordGroup[] = [
         hint: 'Het artikel dat een speler als zichzelf draagt.',
       },
       { key: 'characterPlural', what: 'Meer karakters', fallback: 'karakters' },
+      // §32
+      { key: 'timeline', what: 'Eén tijdlijn', fallback: 'tijdlijn' },
+      { key: 'timelinePlural', what: 'Meer tijdlijnen', fallback: 'tijdlijnen' },
+      {
+        key: 'event',
+        what: 'Eén gebeurtenis op een tijdlijn',
+        fallback: 'gebeurtenis',
+        hint: 'Een merkteken op een tijdlijn: een artikel, of een losse aantekening die alleen daar bestaat.',
+      },
+      { key: 'eventPlural', what: 'Meer gebeurtenissen', fallback: 'gebeurtenissen' },
     ],
   },
   {
     title: 'Het menu',
-    note: 'De acht plekken in de zijbalk, en de balk onderaan op een telefoon.',
+    note: 'De negen plekken in de zijbalk, en de balk onderaan op een telefoon.',
     words: [
       { key: 'navHome', what: 'Start', fallback: 'Start' },
       { key: 'navCases', what: 'Dossiers', fallback: 'Dossiers' },
       { key: 'navWiki', what: 'Wiki', fallback: 'Wiki' },
       { key: 'navBoards', what: 'Prikborden', fallback: 'Prikborden' },
       { key: 'navMaps', what: 'Landkaarten', fallback: 'Landkaarten' },
+      { key: 'navTimelines', what: 'Tijdlijnen', fallback: 'Tijdlijnen' },
       { key: 'navSearch', what: 'Zoeken', fallback: 'Zoeken' },
       { key: 'navYou', what: 'Jij', fallback: 'Jij' },
       { key: 'navAdmin', what: 'Beheer', fallback: 'Beheer' },
@@ -94,6 +105,7 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'yourCharacters', what: 'De kop op de Jij-pagina', fallback: 'Jouw karakters' },
       { key: 'thisIsMyCharacter', what: 'De knop op een artikel', fallback: 'Dit is mijn karakter' },
       { key: 'onTheMap', what: 'De kop op een artikel met spelden', fallback: 'Op de landkaart' },
+      { key: 'onTheTimeline', what: 'De kop op een artikel dat op een tijdlijn staat', fallback: 'Op de tijdlijn' },
       // §24: waar een artikel vandaan komt, en wat er staat als dat nergens is.
       {
         key: 'fromCase',
@@ -136,6 +148,7 @@ export const WORD_GROUPS: WordGroup[] = [
       },
       { key: 'mentionedOnBoards', what: 'Genoemd in: het kopje boven de prikborden', fallback: 'Op prikborden' },
       { key: 'mentionedOnMaps', what: 'Genoemd in: het kopje boven de landkaarten', fallback: 'Op landkaarten' },
+      { key: 'mentionedOnTimelines', what: 'Genoemd in: het kopje boven de tijdlijnen', fallback: 'Op tijdlijnen' },
       { key: 'history', what: 'De kop boven de versies', fallback: 'Geschiedenis' },
       {
         key: 'visibilityAndReveals',

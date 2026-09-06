@@ -7,7 +7,7 @@ import type { Viewer } from '@/lib/entries/visibility';
 /**
  * §17: who may look, and who may touch.
  *
- * Every fiche, dossier and prikbord has an owner — whoever made it — and two
+ * Every fiche, dossier, prikbord and tijdlijn has an owner — whoever made it — and two
  * dials that owner turns: `view_mode` and `edit_mode`, each one of
  *
  *   'all'      everyone who is signed in. The default, because the archive is
@@ -56,6 +56,8 @@ const TABLES = {
   entry: schema.entries,
   case: schema.cases,
   board: schema.boards,
+  // §32: a tijdlijn wears the same two dials as a prikbord.
+  timeline: schema.timelines,
 } as const;
 
 /**

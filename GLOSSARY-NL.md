@@ -30,6 +30,8 @@ change.
 | board / clue board / boards | prikbord / prikborden | *het* prikbord |
 | map / maps | landkaart / landkaarten | *de* landkaart; never "kaart", which is a board's card |
 | map pin / pins | speld / spelden | on a landkaart; a *punaise* is on a prikbord |
+| timeline / timelines | tijdlijn / tijdlijnen | *de* tijdlijn (§32) |
+| event / events (on a timeline) | gebeurtenis / gebeurtenissen | a mark on a tijdlijn: an artikel, or a *losse gebeurtenis* that exists only there |
 | character / characters | karakter / karakters | the artikel a player wears (§18) |
 | (board) card | kaart | |
 | note (on a board) | notitie | |
@@ -80,7 +82,8 @@ change.
 ## Navigation
 
 Home → Start · Cases → Dossiers · Wiki → Wiki · Boards → Prikborden ·
-Search → Zoeken · You → Jij · Admin → Beheer
+Maps → Landkaarten · Timelines → Tijdlijnen · Search → Zoeken · You → Jij ·
+Admin → Beheer
 
 Admin panes: Gebruikers · Beoordelen · Soorten artikelen · Woorden · Prullenbak ·
 Geschiedenis · Site · Export · Logboek
@@ -415,4 +418,31 @@ Sessieverslagen. Field labels and select options are in lib/db/seed.mjs.
 | **Archief** | Lettertype | De letter van het archief zelf. |
 | **Beter leesbaar** | Lettertype | Atkinson Hyperlegible: letters die op elkaar lijken zijn uit elkaar getrokken. |
 | **Dyslexie** | Lettertype | OpenDyslexic: elke letter is onderaan verzwaard. |
+
+## Round 9 — tijdlijnen (§32)
+
+| Nederlands | Waar | Wat het is |
+|---|---|---|
+| **Tijdlijnen** | het menu, negende plek | De plank met tijdlijnen. |
+| **Nieuwe tijdlijn** / **Openbare tijdlijn** / **Privé tijdlijn** | de plank | Zoals bij prikborden: iedereen, of alleen jij en de Keepers. |
+| **Maak nieuwe tijdlijn voor dit dossier** | tabblad Tijdlijn in een dossier | Een tijdlijn die bij dit dossier hoort. |
+| **Gemeten in** — Jaren · Maanden · Dagen · Uren · Minuten · Seconden | nieuwe tijdlijn, en Instellingen | De maat van de as: welke vakjes de datum vraagt, en hoe fijn de as gedeeld is. |
+| **Gebeurtenis toevoegen** | de balk boven de tijdlijn | Een artikel uit het archief, een nieuw artikel, of een losse gebeurtenis. |
+| **Losse gebeurtenis** | in dat blad | Bestaat alleen op deze tijdlijn; nergens anders naar te verwijzen. |
+| **Wanneer** — Jaar, Maand, Dag, Uur, Minuut, Seconde | datumvakjes | Het jaar is genoeg; wat je verder weet vul je in. "Dit wordt: 12 maart 1931". |
+| **Wat de tijdlijn erover zegt** | een gebeurtenis | De tekst hoort bij de tijdlijn, niet bij het artikel erachter. |
+| **Op de tijdlijn zetten** | de knop onderaan het blad | |
+| **Alles tonen** / **Alles inklappen** | de balk | Alle uitklapvensters open, of dicht. Ze beginnen dicht. |
+| **Lees verder** | uitklapvenster van een artikel-gebeurtenis | Naar het artikel. |
+| **Bewerken** | uitklapvenster | Het blad van de gebeurtenis: naam, tekst, moment, afbeelding. |
+| **Sjabloonafbeelding tonen** / **Afbeelding tonen** / **Afbeelding verbergen** | blad van een gebeurtenis, en het camera-knopje | Het kader met het icoon van de soort, of de foto. Zonder foto begint het dicht — ook op een prikbord nu. |
+| **Afbeelding kiezen** / **Andere afbeelding** / **Afbeelding weghalen** | losse gebeurtenis | Alleen een losse gebeurtenis heeft een eigen foto; een artikel gebruikt zijn omslag. |
+| **Maak er een artikel van** | losse gebeurtenis | Wordt een artikel, op hetzelfde moment. |
+| **Van de tijdlijn halen** | blad van een gebeurtenis | Bij een artikel blijft het artikel; een losse gebeurtenis is dan weg. |
+| **Instellingen** | de balk | Naam, korte beschrijving, de maat, rechten, en de prullenbak. |
+| **Tijdlijn verwijderen** / **In de prullenbak** | Instellingen | Naar de prullenbak, met alles erop; een Keeper zet hem terug. |
+| **Op de tijdlijn:** / **Zet op {tijdlijn}** / **Zet op een andere tijdlijn…** | de artikelpagina | Waar dit artikel op een tijdlijn staat, en waar het nog heen kan. |
+| **Op tijdlijnen** | Genoemd in | Het kopje boven de tijdlijnen die dit artikel noemen. |
+| **Tijdlijn** | prullenbak, en het kaartje op een prikbord | De soort van het ding. |
+| **gezet door {naam}** | uitklapvenster | Wie de gebeurtenis zette (§18: het karakter). |
 

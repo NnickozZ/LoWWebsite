@@ -121,7 +121,7 @@ export async function restoreAction(formData: FormData) {
   const keeper = await requireKeeper();
   const kind = String(formData.get('kind') ?? '');
   const id = String(formData.get('id') ?? '');
-  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map') return;
+  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map' && kind !== 'timeline') return;
   restoreFromTrash(kind, id, keeper.id);
   revalidatePath('/admin');
   revalidatePath('/');
@@ -143,7 +143,7 @@ export async function destroyAction(_prev: AdminState, formData: FormData): Prom
   const typed = String(formData.get('confirmName') ?? '').trim();
   const expected = String(formData.get('name') ?? '').trim();
 
-  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map') {
+  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map' && kind !== 'timeline') {
     return { error: 'Onbekend soort.' };
   }
   // Case-insensitive, whitespace-collapsed: this is a guard against acting

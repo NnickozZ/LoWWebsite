@@ -26,7 +26,7 @@ export const CARD_WIDTH = 160;
  * from the first.
  */
 export type CardSubject = {
-  kind: 'entry' | 'map' | 'case';
+  kind: 'entry' | 'map' | 'case' | 'timeline';
   name: string;
   /** Where a double-click goes. */
   href: string;
@@ -76,6 +76,23 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
       // "Kaartrand" — the dashed edge of a printed map, which is what it is.
       border: 'dashed',
       noun: 'landkaart',
+    };
+  }
+
+  if (ref.kind === 'timeline') {
+    const timeline = refs.timelines?.[ref.id];
+    if (!timeline) return undefined;
+    return {
+      kind: 'timeline',
+      name: timeline.name,
+      href: `/timelines/${timeline.slug}`,
+      // A tijdlijn has no picture; its frame, when opened, shows the clock.
+      assetId: null,
+      crop: null,
+      icon: 'timeline',
+      colour: 'var(--ink-muted)',
+      border: 'dashed',
+      noun: 'tijdlijn',
     };
   }
 
@@ -180,7 +197,7 @@ export function BoardCardView({
 
   // Three kinds of card stand for something in the archive; all three go
   // MISSING the same way when what they stand for is gone or out of reach.
-  const refers = card.kind === 'entry' || card.kind === 'map' || card.kind === 'case';
+  const refers = card.kind === 'entry' || card.kind === 'map' || card.kind === 'case' || card.kind === 'timeline';
   const missing = refers && !subject;
   const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, subject);
   const zoomed = (imageCrop?.zoom ?? 1) > 1.05;

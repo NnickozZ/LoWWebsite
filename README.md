@@ -8,7 +8,7 @@ No email, no analytics, no third-party services, nothing fetched at runtime.
 One container, one SQLite file, up to about forty players.
 
 **Phases 1 and 2 are complete**: accounts, entries, linking, search, the theme,
-Case Files and clue boards — which are **live**: two people at one board see
+Case Files, clue boards and, since §32, tijdlijnen — which are **live**: two people at one board see
 each other's cards appear, and a coloured border round whatever the other is
 holding. Phase 3 is the Keeper's tools — reveal controls,
 review queue, trash, export — and, on top of it, the two things that let a Keeper
@@ -352,6 +352,8 @@ app/
     b/[id]/          the corkboard
     cases/ boards/   two of the index pages
     maps/            the shelf of maps, and one map with its pins
+    timelines/       the shelf of tijdlijnen, and one tijdlijn with its
+                     gebeurtenissen (§32)
     wiki/            browse, and browse-by-type (one row of soorten as tabs)
     search/          instant search, one soort at a time
     admin/           users, review queue, types and pages, words, trash,
@@ -359,8 +361,8 @@ app/
     you/             account, the wardrobe of characters, and the choice of
                      which face an artikel or dossier opens on
                      (ArticleModeForm)
-  api/               entries, cases, boards, maps, characters, access, assets,
-                     search, suggest, admin
+  api/               entries, cases, boards, maps, timelines, characters,
+                     access, assets, search, suggest, admin
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
@@ -378,6 +380,10 @@ components/
                      the "…and in the dossier too?" question (offerToFile)
   maps/              the map canvas (pan, zoom, pins, legend), the Keeper's
                      upload sheet and tools
+  timelines/         the tijdlijn: the stage (axis, ticks, tags, the
+                     folded-out windows), the sheets around it (the date form,
+                     a new gebeurtenis, an existing one, the settings) and
+                     the "Nieuwe tijdlijn" button
   access/            the two dials (kijken, bewerken) and their checkboxes
   you/               the character switcher and the wardrobe
   ui/                the new-entry and new-case sheets, the yes/no sheet,
@@ -411,6 +417,10 @@ lib/
                      what a card stands for, and the live hub (presence,
                      change signals, pointer frames)
   maps/              maps, pins, and the artikel a map is a map *of*
+  timelines/         §32: time.ts (pure: a moment as one integer, precision,
+                     the ruling of the axis, where the tags go) and the
+                     service (tijdlijnen behind the prikbord's dials,
+                     gebeurtenissen behind the artikel's rule)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
   editor/            the one list of Tiptap extensions both halves build from
@@ -432,7 +442,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Thirty-one rules worth knowing before changing anything:
+Thirty-two rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -762,3 +772,33 @@ Thirty-one rules worth knowing before changing anything:
     card is now laid down *in sight*: `freeSpotNear` prefers a spot on screen
     that overlaps a little over a clear spot outside the view, because on a phone
     the view is two cards wide and the old answer was a card you never saw.
+
+32. **A tijdlijn measures; a gebeurtenis is a moment on it, and the tijdlijn
+    keeps its own words about that moment.** §32. A tijdlijn is made like a
+    prikbord — by anyone, with the owner's two dials (`timeline` is the fourth
+    `AccessTargetType`), loose or in a dossier, into the bin and back — and
+    `scale` (jaren … seconden) is the one thing it asks before it exists: it
+    decides which boxes the date form offers and how the axis is ruled. A
+    moment is one integer (seconds, proleptic Gregorian, no time zone —
+    negative for the 1930s) plus a *precision*, so "1931" and "12 maart 1931,
+    14:30" both have a place and print as they were typed; `precision` is
+    clamped to the scale at *read* time, never rewritten, so a coarser measure
+    hides detail and a finer one brings it back. Every piece of it is pure in
+    `lib/timelines/time.ts` and `tests/unit/timeline-time.test.ts` is the
+    specification. A gebeurtenis is either an artikel (any soort; it wears the
+    soort's icon and colour and the larger mark, because an artikel is the
+    archive saying this mattered) or a *note* that exists on this axis and
+    nowhere else — it has no id anywhere but `timeline_events`, cannot be
+    pinned, mapped or named in a field, and becomes an artikel in place the
+    way a notitie on a wall does. Both keep the tijdlijn's own `text` and
+    picture frame on the row, like a card on a prikbord (rule 8's §8): the
+    artikel behind an artikel gebeurtenis is read for its name and cover and
+    never written to from here. Rule 1 holds through `visibleEventCondition`;
+    rule 16 through `timeline:{id}` / `event:{id}` keys and the `timelines`
+    collection; rule 17 through the `event:{id}:fields` room; rule 19 through
+    a fourth card kind with a fourth resolver; rule 21 through `listTrash` /
+    `destroyFromTrash('timeline')`; rule 26 through `recomputeTimelineMentions`.
+    The frame of anything without a picture starts *shut* — a gebeurtenis, and
+    since this round an artikel card on a wall too (`defaultShowImage(kind,
+    hasPicture)`) — and the button that opens it is where the soort's icon
+    waits.

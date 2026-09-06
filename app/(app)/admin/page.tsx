@@ -77,6 +77,7 @@ const TRASH_KINDS: Record<string, string> = {
   case: 'Dossier',
   board: 'Prikbord',
   map: 'Landkaart',
+  timeline: 'Tijdlijn',
 };
 
 export default async function AdminPage({

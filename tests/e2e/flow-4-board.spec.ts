@@ -147,12 +147,13 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
     await expect(page.locator('.board-string-label')).toContainText('seen together at the harbour');
   }
 
-  // -- a card's cover opens the entry ---------------------------------------
-  // A card that was not dragged, so nothing can be sitting on top of it.
+  // -- a card opens the entry -----------------------------------------------
+  // A card that was not dragged, so nothing can be sitting on top of it. §32:
+  // Sister Clasina has no cover, so the frame is shut; the name opens it.
   const cover = page
     .locator('.board-card', { hasText: 'Sister Clasina' })
     .first()
-    .locator('.board-card-cover');
+    .locator('.board-card-name');
   await cover.click();
   // One click only ever selects; a stray click must never yank you off the wall.
   await expect(page.locator('.board-inspector')).toBeVisible();

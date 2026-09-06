@@ -605,8 +605,11 @@ a.card:hover {
   flex-direction: column;
   gap: 0.1rem;
   justify-content: center;
-  padding: 0 0.1rem;
-  font-size: 0.56rem;
+  /* §32: eight tabs. Six labelled ones share what the two compact ones leave,
+     which at 390 px is about 52 px each — enough for LANDKAARTEN in the stamp
+     face at this size, and not a pixel more. */
+  padding: 0;
+  font-size: 0.54rem;
   font-family: var(--stamp-face);
   text-transform: uppercase;
   letter-spacing: 0;
@@ -619,7 +622,7 @@ a.card:hover {
   white-space: nowrap;
 }
 .tabs a.tab-compact {
-  flex: 0 0 44px;
+  flex: 0 0 40px;
 }
 .tabs a.tab-compact svg {
   width: 24px;
@@ -3993,4 +3996,333 @@ details.section[open] > summary::before {
   width: 100%;
   justify-content: flex-start;
   text-align: left;
+}
+
+/* ------------------------------------------------------------- §32 tijdlijnen */
+/* The stage is a strip of ruled paper with the axis across its middle. Nothing
+   in it is transformed (rule 15): every mark, tag and tick is placed in stage
+   pixels from one view, so the lettering is crisp at every zoom. The
+   folded-out windows are drawn by `.timeline-popouts`, a sibling layer that is
+   never clipped, so a window near the top can open upward past the edge. */
+.timeline-frame {
+  position: relative;
+}
+/* The stage and its windows share one box, so a window's `top` is the stage's. */
+.timeline-stage-wrap {
+  position: relative;
+}
+.timeline-toolbar {
+  margin-bottom: 0.5rem;
+}
+.timeline-stage {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  cursor: grab;
+}
+.timeline-stage-grabbing {
+  cursor: grabbing;
+}
+.timeline-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--ink);
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+.timeline-tick {
+  position: absolute;
+  width: 0;
+  height: 8px;
+  border-left: 1px solid var(--ink-muted);
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+/* The ruling of the paper follows the ticks, so a line on the page always
+   means a moment. */
+.timeline-tick::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -1000px;
+  bottom: -1000px;
+  border-left: 1px solid var(--rule);
+  opacity: 0.35;
+}
+.timeline-tick-major::before {
+  opacity: 0.7;
+}
+.timeline-tick > span {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  transform: translateX(-50%);
+  font-family: var(--stamp-face);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.timeline-tick-major {
+  height: 14px;
+  transform: translateY(-7px);
+  border-left-color: var(--ink);
+}
+.timeline-tick-major > span {
+  top: 20px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* One gebeurtenis: a mark on the axis, a stem, a tag at `--reach` from it —
+   above for `-up`, below for `-down`. */
+.timeline-event {
+  --event-colour: var(--ink-muted);
+  --reach: 46px;
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 2;
+}
+.timeline-event-open {
+  z-index: 3;
+}
+.timeline-stem {
+  position: absolute;
+  left: 0;
+  width: 0;
+  border-left: 1px dashed var(--event-colour);
+  pointer-events: none;
+}
+.timeline-event-up .timeline-stem {
+  bottom: 0;
+  height: var(--reach);
+}
+.timeline-event-down .timeline-stem {
+  top: 0;
+  height: var(--reach);
+}
+.timeline-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid var(--event-colour);
+  background: var(--paper);
+  color: var(--event-colour);
+  cursor: pointer;
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.25);
+}
+/* A note is a dot in ink; an artikel is a larger, squared mark wearing the
+   icon of its soort — the archive's way of saying this one mattered. */
+.timeline-event-note .timeline-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--event-colour);
+}
+.timeline-event-entry .timeline-marker {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-width: 2.5px;
+}
+.timeline-event-entry .timeline-marker > svg {
+  transform: rotate(-45deg);
+}
+.timeline-event-open .timeline-marker,
+.timeline-marker:hover {
+  background: var(--event-colour);
+  color: var(--paper);
+}
+.timeline-event-note.timeline-event-open .timeline-marker {
+  outline: 3px solid rgba(31, 27, 22, 0.2);
+}
+.timeline-tag {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  max-width: 170px;
+  height: 24px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--event-colour);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  line-height: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.timeline-event-entry .timeline-tag {
+  font-weight: 600;
+}
+.timeline-event-up .timeline-tag {
+  bottom: var(--reach);
+}
+.timeline-event-down .timeline-tag {
+  top: var(--reach);
+}
+.timeline-tag:hover,
+.timeline-event-open .timeline-tag {
+  background: var(--paper-dark);
+}
+.timeline-empty {
+  position: absolute;
+  left: 50%;
+  top: 25%;
+  transform: translateX(-50%);
+  margin: 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* The folded-out window. */
+.timeline-popouts {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.timeline-popout {
+  --event-colour: var(--ink-muted);
+  position: absolute;
+  pointer-events: auto;
+  padding: 0.6rem 0.7rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--event-colour);
+  background: var(--paper);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.18);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.timeline-popout-down {
+  border-top-width: 1px;
+  border-bottom: 3px solid var(--event-colour);
+}
+.timeline-popout-close {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.timeline-popout-close:hover {
+  color: var(--ink);
+}
+.timeline-popout-picture {
+  aspect-ratio: 4 / 3;
+  margin: 0 0 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+}
+.timeline-popout-picture > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.timeline-popout-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--event-colour);
+  opacity: 0.8;
+}
+.timeline-popout-when {
+  margin: 0 1.6rem 0.1rem 0;
+  font-family: var(--stamp-face);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--event-colour);
+}
+.timeline-popout-name {
+  margin: 0 1.4rem 0.2rem 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+.timeline-popout-text {
+  margin: 0;
+  max-height: 9.5em;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+/* The date form: the year, then down to whatever the tijdlijn measures in. */
+.timeline-date-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.timeline-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.timeline-date-field .input {
+  padding-left: 0.45rem;
+  padding-right: 0.3rem;
+}
+.timeline-scale-picker {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.timeline-scale-picker > legend {
+  padding: 0;
+  margin-bottom: 0.3rem;
+}
+.timeline-scale-option {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  cursor: pointer;
+}
+.timeline-scale-option input {
+  margin-top: 0.25rem;
+}
+.timeline-scale-option-on {
+  border-color: var(--ink);
+  background: var(--paper);
+}
+.timeline-shelf-row {
+  gap: 0.6rem;
+}
+@media (max-width: 767px) {
+  .timeline-tag {
+    max-width: 120px;
+    font-size: 0.72rem;
+  }
 }

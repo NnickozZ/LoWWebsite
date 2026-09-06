@@ -2,7 +2,7 @@ import { viewerCanEdit } from '@/lib/access';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getBoard, renameBoard, saveBoard, softDeleteBoard } from '@/lib/boards/service';
-import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps } from '@/lib/boards/service';
+import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps, resolveBoardTimelines } from '@/lib/boards/service';
 import { publishChange } from '@/lib/boards/live';
 import { cardRef, type BoardPatch, type BoardState } from '@/lib/boards/merge';
 import type { Viewer } from '@/lib/entries/visibility';
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
  * may not see comes back absent and is stamped MISSING on the wall.
  */
 function referencesOf(state: BoardState, viewer: Viewer) {
-  const ids = { entry: [] as string[], map: [] as string[], case: [] as string[] };
+  const ids = { entry: [] as string[], map: [] as string[], case: [] as string[], timeline: [] as string[] };
   for (const card of state.cards) {
     const ref = cardRef(card);
     if (ref) ids[ref.kind].push(ref.id);
@@ -25,6 +25,7 @@ function referencesOf(state: BoardState, viewer: Viewer) {
     entries: Object.fromEntries(resolveBoardEntries(ids.entry, viewer)),
     maps: Object.fromEntries(resolveBoardMaps(ids.map, viewer)),
     cases: Object.fromEntries(resolveBoardCases(ids.case, viewer)),
+    timelines: Object.fromEntries(resolveBoardTimelines(ids.timeline, viewer)),
   };
 }
 

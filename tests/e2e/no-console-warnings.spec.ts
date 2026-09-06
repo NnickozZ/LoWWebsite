@@ -54,9 +54,29 @@ test('no console errors or warnings while walking the archive', async ({ page })
     await page.waitForTimeout(300);
   }
 
-  for (const path of ['/', '/wiki', '/cases', '/boards', '/search?q=e', '/you']) {
+  for (const path of ['/', '/wiki', '/cases', '/boards', '/maps', '/timelines', '/search?q=e', '/you']) {
     await page.goto(path);
     await page.waitForTimeout(300);
+  }
+
+  // §32: a tijdlijn with something on it, its windows open, and its sheets.
+  await page.goto('/timelines');
+  const shelf = page.locator('a[href^="/timelines/"]');
+  const timelineHref = (await shelf.count()) ? await shelf.first().getAttribute('href') : null;
+  if (timelineHref) {
+    await page.goto(timelineHref);
+    await page.waitForTimeout(300);
+    const toggle = page.getByTestId('timeline-toggle-all');
+    if (await toggle.count()) {
+      await toggle.click();
+      await page.waitForTimeout(300);
+    }
+    await page.getByTestId('timeline-add').click();
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Escape');
+    await page.getByTestId('timeline-settings').click();
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Escape');
   }
 
   expect(complaints, `browser console was not clean:\n${complaints.join('\n')}`).toEqual([]);

@@ -1039,3 +1039,118 @@ one font takes the archive away rather than making it readable.
 `@fontsource/opendyslexic`, both `^5.3.0`, both build-time asset packages like
 the three already here.
 
+## Round 9 — 6 September 2026: tijdlijnen (§32)
+
+Nick asked for a tijdlijnen tool "like landkaarten and prikborden": its own tab,
+live, linkable from anywhere, gebeurtenissen that are artikelen and
+gebeurtenissen that are nothing but a mark, measured in anything from years to
+seconds, folding out up-down-up-down along the axis. Three questions were put
+to him first and the answers shaped everything below: *any* artikel may go on a
+tijdlijn (not only the Gebeurtenissen soort), rights are the prikbord's (not
+the landkaart's), and time is real calendar time (not a bare counter).
+
+**Time is one integer and a precision, not a string and not six columns.**
+Sorting needs one number; printing needs to know how much of it is known. So a
+moment is seconds since 1970 in a proleptic Gregorian calendar with no time
+zone — negative for the 1930s, which SQLite and JavaScript take in their stride
+— and `precision` is which unit the person actually filled in. Both are read
+through `lib/timelines/time.ts`, which is pure so the browser and the server
+cannot disagree about what "12 maart 1931" is. A six-column shape was
+considered and rejected: every list would need to build the number anyway, and
+a nullable `hour` column says "unknown" no better than a precision does.
+`Date.UTC` was rejected inside the conversion because it reads a year under a
+hundred as nineteen-something; `setUTCFullYear` does not.
+
+**The scale is a *measure*, and it clamps at read time.** A tijdlijn's `scale`
+decides which boxes the date form offers and how the axis is ruled, and an
+event on it is never printed finer than that measure. But the stored precision
+is left alone: set a tijdlijn of a night back to days and every "14:30" is
+hidden, not erased; set it to minutes again and it is all back. Rewriting the
+rows on a scale change was the obvious alternative and the wrong one — a slip
+of the radio button would have destroyed data nobody could get back.
+
+**A note gebeurtenis is not a thing in the archive.** Nick's line was "non-
+article events must be on a timeline and cannot be referenced somewhere else",
+and the cleanest way to make something unreferenceable is to give it no
+identity outside its table: a note has a row in `timeline_events` and nothing
+else — no slug, no page, no card kind, no mention row *about* it. What it
+*says* can still mention artikelen, exactly like a note card on a wall. And
+like that card and like a speld, it turns into an artikel in place when it
+turns out to matter (`convertEventToEntry`), so "was it important?" never has
+to be answered up front.
+
+**The tijdlijn keeps its own words.** "The details of an event on the timeline
+are curated on the timeline, even if it has a grander article behind it" —
+which is §8 for cards on a wall, re-stated. So `text`, the picture frame and
+(for a note) the picture are columns of the gebeurtenis, and the artikel
+behind an artikel gebeurtenis is read for its name and cover and never written
+to from here. The one place the two touch is on the way *in*: picking an
+artikel whose infobox has a date reads that date into the boxes, once, as a
+courtesy (`parseDutchDate`, best-effort, prefill only).
+
+**Alternating up, down, up, down — in time order, with lanes.** Nick asked
+for it in those words. In time order rather than creation order, because a
+tijdlijn is read left to right and the eye expects the rhythm to follow the
+axis. Two tags on one side that would still collide step out a lane (three
+lanes each side, then they overlap and the folded-out window sorts it out),
+which is the smallest rule that keeps a busy week readable without a layout
+engine. The geometry is pure (`placeTags`) and tested.
+
+**The windows start folded, and they are not state.** Which windows are open
+lives in the tab alone: a tijdlijn of forty gebeurtenissen with every window
+open is a wall of paper, and two people would otherwise fight over which are
+open. "Alles tonen" / "Alles inklappen" is one button that reads the current
+answer. A window opens *away* from the axis and measures itself after the
+first paint, because one near the top of the stage was climbing off the page —
+the first e2e run caught a "Lees verder" button that was visible, stable and
+outside the viewport. With no room above it is pushed down over its tag: a
+window you can read beats one that keeps its place off screen.
+
+**Rights are the prikbord's, not the landkaart's.** A landkaart is a picture
+the Keeper hung and a speld belongs to whoever set it; a tijdlijn is something
+anyone builds, in a dossier or loose, and a gebeurtenis on it belongs to
+whoever may work on that tijdlijn — like a card on a wall. So `timeline` is the
+fourth `AccessTargetType`, with the two dials, the bolt, the public-or-private
+choice at creation, and the dossier's own rule on top. This is also why the
+`event:{id}:fields` room is gated on the tijdlijn's edit dial rather than on
+who set the gebeurtenis.
+
+**Linkable from anywhere means four things.** A URL (`/timelines/{slug}`, and
+`?event=` to land on one gebeurtenis); a fourth card kind on a prikbord with a
+fourth resolver and no name in the JSON (rule 19); an "Op de tijdlijn" row and
+a "Zet op …" action on the artikel page, mirroring the landkaart's; and a
+"Genoemd in" group, derived like every other (rule 26). A dossier gets a
+Tijdlijn tab beside Prikbord.
+
+**A frame with nothing in it stays shut — on a wall now too.** Round 8 shut the
+empty frame on a notitie. Nick asked for the same on a gebeurtenis *and* on the
+prikbord: an artikel with no cover used to open every card with a grey box
+holding its soort's icon. `defaultShowImage(kind, hasPicture)` says no when the
+caller knows there is no picture, and the "Foto tonen" button is where the
+soort's icon waits. Creation-time only, as before: no wall was migrated, and a
+card whose caller did not know (`undefined`) gets the old answer.
+
+**Two bugs found on the way, both older than this round.**
+`tests/unit/entry-origin.test.ts` imported `lib/entries/origin` statically,
+which opened `./data/app.db` — the real one — before the test set `DATA_DIR`;
+it passed on a checkout with no `./data` and failed on the second run, once
+that file held the keeper it inserts. (On a machine with a real archive it was
+inserting three dossiers into it.) Fixed by importing after the environment is
+set, like the rest of the file. The second was in `LiveFieldsRoom`: a sheet
+that joins a fields room *without* a snapshot (`state=""` — a speld's, and now
+a gebeurtenis's) has an empty local document until the line answers, and the
+rule-25 handover took that emptiness for "nobody has typed here" and seeded
+the parent's text into it — which the server's copy then landed on top of.
+Every opening of a note speld's sheet doubled its name ("ProefspeldProefspeld"
+on the second, three copies on the third). The handover now waits for
+`synced`; `tests/unit/live-field-handover.test.ts` has the case. Existing
+spelden whose names were doubled this way need a hand: nothing rewrites them.
+
+**Not done, on purpose.** No dragging a gebeurtenis along the axis (the date
+form is the one road, so a moment cannot be nudged by a slip of the hand). No
+durations — a gebeurtenis is a moment; "from … to" would be a second column
+and a bar, and nobody has asked. No crop on a gebeurtenis's picture (it fills
+its frame). No `timeline:{id}:fields` room for the name and description — the
+settings sheet saves with a button, like a landkaart's. Field rooms and
+existing spelden with a doubled name are not repaired by the code.
+

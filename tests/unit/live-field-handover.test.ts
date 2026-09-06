@@ -27,6 +27,13 @@ function handover(options: {
   canEdit: boolean;
   /** False for a later pass: only the handover itself may seed the room. */
   first?: boolean;
+  /**
+   * Whether the room has actually loaded. A sheet that joins a room without a
+   * snapshot has an empty *local* document until the line answers, and that
+   * emptiness says nothing about the room. `BoundField` treats a pass before
+   * `synced` as not the first.
+   */
+  synced?: boolean;
   /** What the bound input is showing. Defaults to the room, as at first bind. */
   shown?: string;
 }): { text: string; toldParent: string | null } {
@@ -38,7 +45,8 @@ function handover(options: {
   const now = text.toString();
   const shown = options.shown ?? options.room;
 
-  if ((options.first ?? true) && options.canEdit && !now && options.local) {
+  const first = (options.first ?? true) && (options.synced ?? true);
+  if (first && options.canEdit && !now && options.local) {
     const delta = textDelta('', options.local);
     if (delta?.insert) doc.transact(() => text.insert(delta.at, delta.insert), 'local');
   } else if (now !== shown) {
@@ -86,6 +94,16 @@ describe('when the room arrives and the two disagree', () => {
     const result = handover({ local: 'Een voorstel', room: '', canEdit: false });
     // Their words go to the parent's road (a proposal), not into the document.
     expect(result.text).toBe('');
+  });
+
+  it('waits for the room to have loaded before deciding anything', () => {
+    // A speld's or a gebeurtenis's sheet joins its room with no snapshot: the
+    // local document is empty because nothing has *arrived*, not because
+    // nobody typed. Seeding here put the name into the room a second time on
+    // every opening — "ProefspeldProefspeld" — once the server's copy landed.
+    const result = handover({ local: 'Proefspeld', room: '', canEdit: true, synced: false });
+    expect(result.text).toBe('');
+    expect(result.toldParent).toBeNull();
   });
 
   it('does nothing at all when there was nothing to hand over', () => {

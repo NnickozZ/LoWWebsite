@@ -110,13 +110,14 @@ export function useBoardSync({
         entries: BoardRefs['entries'];
         maps: BoardRefs['maps'];
         cases: BoardRefs['cases'];
+        timelines?: BoardRefs['timelines'];
       };
       setState('saved');
       // Applying the merge mid-drag, or on top of newer local edits, would
       // fight the pointer — so it only lands when the client is quiet and the
       // response still describes what we sent.
       if (!latest.current.paused && version.current === sentVersion) {
-        onMergedRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases });
+        onMergedRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {} });
       }
     } catch {
       // Put them back so they are retried rather than lost.

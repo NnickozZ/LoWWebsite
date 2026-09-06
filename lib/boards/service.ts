@@ -7,6 +7,7 @@ import { recomputeBoardMentions } from '@/lib/entries/mentions';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
+import { listTimelines } from '@/lib/timelines/service';
 import { mergeBoardState, normaliseState, type BoardPatch, type BoardState } from './merge';
 
 export type BoardSummary = {
@@ -311,6 +312,7 @@ export type BoardRefs = {
   entries: Record<string, BoardEntryFacts>;
   maps: Record<string, BoardMapFacts>;
   cases: Record<string, BoardCaseFacts>;
+  timelines: Record<string, BoardTimelineFacts>;
 };
 
 /**
@@ -385,5 +387,30 @@ export function resolveBoardCases(caseIds: string[], viewer: Viewer): Map<string
     .all();
 
   for (const row of rows) out.set(row.id, { ...row, missing: false });
+  return out;
+}
+
+/**
+ * §32: what a tijdlijn card shows. The same rule as a dossier card, because a
+ * tijdlijn has the same two dials (and a dossier of its own to hide behind):
+ * one this viewer may not open comes back MISSING, not named.
+ */
+export type BoardTimelineFacts = {
+  id: string;
+  slug: string;
+  name: string;
+  scale: string;
+  missing: boolean;
+};
+
+export function resolveBoardTimelines(timelineIds: string[], viewer: Viewer): Map<string, BoardTimelineFacts> {
+  const out = new Map<string, BoardTimelineFacts>();
+  const ids = [...new Set(timelineIds.filter(Boolean))];
+  if (!ids.length) return out;
+  for (const timeline of listTimelines(viewer)) {
+    if (ids.includes(timeline.id)) {
+      out.set(timeline.id, { id: timeline.id, slug: timeline.slug, name: timeline.name, scale: timeline.scale, missing: false });
+    }
+  }
   return out;
 }
