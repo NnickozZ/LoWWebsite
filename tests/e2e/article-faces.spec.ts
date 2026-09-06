@@ -5,10 +5,14 @@ import { editArticle, imageMenu, inviteCode, signIn } from './helpers';
  * §22: the artikel's two faces.
  *
  * The asks, in Nick's words: a view mode that reads the way a wikipedia page
- * reads, an edit mode that is the page we had, a setting in Jouw account for
- * which one you land in — Keepers editing, everyone else reading, both free to
- * change it — the image on the right with the extra info under it, and the
- * image tools tucked into a submenu.
+ * reads, an edit mode that is the page we had, the image on the right with the
+ * extra info under it, and the image tools tucked into a submenu.
+ *
+ * Round 13 took the account setting away — "Wat bij mij hoort bij bewerken of
+ * lees modus mag weg, iedereen mag op lees only beginnen (Ook keepers)" — so
+ * there is nothing left to choose: everybody lands on Lezen and everybody has
+ * the toggle. The only page that opens in Bewerken is one made this second
+ * (`?new=1`).
  *
  * Each of those is asserted from the seat it matters in, and the reading face
  * is asserted by what is *absent* as much as by what is there: an input on the
@@ -45,7 +49,7 @@ async function newEntry(page: Page, name: string): Promise<string> {
   return new URL(page.url()).pathname;
 }
 
-test('a Keeper lands in bewerken, a player lands in lezen, and both may cross', async ({
+test('everyone lands in lezen, and everyone may cross', async ({
   page,
   browser,
 }, info) => {
@@ -59,21 +63,25 @@ test('a Keeper lands in bewerken, a player lands in lezen, and both may cross', 
   await page.getByLabel('Korte beschrijving').blur();
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
-  // -- the Keeper: editing, and the toggle offers the other face -----------
+  // -- the Keeper: reading, like everybody else, and the toggle offers the
+  // other face. The artikel was made a moment ago, so `?new=1` had it open;
+  // coming back to its plain address is arriving as a reader.
   await page.goto(path);
-  await expect(page.locator('#entry-name')).toBeVisible();
-  await expect(page.locator('.entry-mode-toggle')).toHaveText('Lezen');
-
-  // Crossing over: the inputs go, a heading and a paragraph take their place.
-  await flip(page, 'lezen');
   await expect(page.locator('#entry-name')).toHaveCount(0);
+  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
   await expect(page.getByRole('heading', { name: entryName })).toBeVisible();
   await expect(page.getByText('Een lage bakstenen toren op de dijk.')).toBeVisible();
-  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
   // Nothing on the reading face may be typed into.
   await expect(page.locator('.entry-page [contenteditable="true"]')).toHaveCount(0);
 
-  // -- a player: reading, and the toggle offers editing --------------------
+  // Crossing over: the prose goes, the inputs take its place — and back again.
+  await editArticle(page);
+  await expect(page.locator('#entry-name')).toHaveValue(entryName);
+  await expect(page.locator('.entry-mode-toggle')).toHaveText('Lezen');
+  await flip(page, 'lezen');
+  await expect(page.locator('#entry-name')).toHaveCount(0);
+
+  // -- a player: reading too, and the same toggle --------------------------
   const playerCtx = await browser.newContext();
   const player = await playerCtx.newPage();
   await signUpAs(player, `Lezer ${stamp}`);
@@ -86,68 +94,6 @@ test('a Keeper lands in bewerken, a player lands in lezen, and both may cross', 
   await editArticle(player);
   await expect(player.locator('#entry-name')).toHaveValue(entryName);
   await playerCtx.close();
-});
-
-test('the account setting decides which face an artikel opens on', async ({ page }, info) => {
-  test.setTimeout(150_000);
-  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
-
-  await signUpAs(page, `Kiezer ${stamp}`);
-  const path = await newEntry(page, `Dagboek ${stamp}`);
-
-  // A player's default is reading.
-  await page.goto(path);
-  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
-
-  // They say: always editing.
-  await page.goto('/you');
-  await page.getByRole('button', { name: 'Altijd bewerken' }).click();
-  await expect(page.getByRole('button', { name: 'Altijd bewerken' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await page.goto(path);
-  await expect(page.locator('#entry-name')).toBeVisible();
-  await expect(page.locator('.entry-mode-toggle')).toHaveText('Lezen');
-
-  // And back to what their role does, which for a player is reading again.
-  await page.goto('/you');
-  await page.getByRole('button', { name: 'Wat bij mij hoort' }).click();
-  await expect(page.getByRole('button', { name: 'Wat bij mij hoort' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await page.goto(path);
-  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
-});
-
-test('a Keeper who would rather read gets to, and the setting sticks', async ({ page }, info) => {
-  test.setTimeout(150_000);
-  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
-
-  await signIn(page, 'Keeper', 'abbeytower34');
-  const path = await newEntry(page, `Kelder ${stamp}`);
-
-  await page.goto('/you');
-  await page.getByRole('button', { name: 'Altijd lezen' }).click();
-  await expect(page.getByRole('button', { name: 'Altijd lezen' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-
-  await page.goto(path);
-  await expect(page.locator('#entry-name')).toHaveCount(0);
-  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
-
-  // Put the Keeper back, so the rest of the suite finds the archive as it was.
-  await page.goto('/you');
-  await page.getByRole('button', { name: 'Wat bij mij hoort' }).click();
-  await expect(page.getByRole('button', { name: 'Wat bij mij hoort' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await page.goto(path);
-  await expect(page.locator('#entry-name')).toBeVisible();
 });
 
 test('the picture sits above the facts in one box, and its tools are in a menu', async ({
@@ -210,8 +156,9 @@ test('the picture sits above the facts in one box, and its tools are in a menu',
   // artikel first: `newEntry` waits for an /e/ URL, and we are already on one.
   await page.goto('/');
   const bare = await newEntry(page, `Zonder beeld ${stamp}`);
+  // Its plain address, without `?new=1`, is the reading face straight away.
   await page.goto(bare);
-  await flip(page, 'lezen');
+  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
   await expect(page.locator('.entry-figure')).toHaveCount(0);
 });
 
@@ -240,8 +187,9 @@ test('the reading face shows the facts that are filled in, and leaves the rest o
   // Leaving before it lands would test the wait, not the reading face.
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
+  // Its plain address is the reading face: no flip needed any more.
   await page.goto(path);
-  await flip(page, 'lezen');
+  await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
 
   // What is filled in is printed; nothing in the box is an input.
   const infobox = page.locator('.entry-infobox');

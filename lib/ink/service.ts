@@ -43,7 +43,9 @@ export function inkTarget(kind: InkKind, id: string, viewer: Viewer): InkTarget 
   }
   if (kind === 'map') {
     if (!viewer) return undefined;
-    const map = getMapById(id);
+    // §40: the landkaart's own view rule. A tekenlaag on a map this viewer may
+    // not see must not exist for them either.
+    const map = getMapById(id, viewer);
     return map ? { kind, id: map.id, name: map.name, caseId: null } : undefined;
   }
   const timeline = getTimelineById(id, viewer);

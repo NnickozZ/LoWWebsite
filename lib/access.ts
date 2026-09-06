@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { sql, type SQL } from 'drizzle-orm';
+import { sql, type Column, type SQL } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import type { AccessMode, AccessTargetType } from '@/lib/db/schema';
 import type { Viewer } from '@/lib/entries/visibility';
@@ -7,8 +7,8 @@ import type { Viewer } from '@/lib/entries/visibility';
 /**
  * §17: who may look, and who may touch.
  *
- * Every fiche, dossier, prikbord and tijdlijn has an owner — whoever made it — and two
- * dials that owner turns: `view_mode` and `edit_mode`, each one of
+ * Every fiche, dossier, prikbord, tijdlijn and landkaart has an owner — whoever
+ * made it — and two dials that owner turns: `view_mode` and `edit_mode`, each one of
  *
  *   'all'      everyone who is signed in. The default, because the archive is
  *              built on trust and a dial nobody touches must change nothing.
@@ -58,14 +58,38 @@ const TABLES = {
   board: schema.boards,
   // §32: a tijdlijn wears the same two dials as a prikbord.
   timeline: schema.timelines,
+  /*
+   * §40: and so, since 0016, does a landkaart. It was the one thing in the
+   * archive without a dial — every signed-in person saw every map — which made
+   * a plattegrond impossible to keep back until the players find the house.
+   * Its `edit_mode` starts at 'private' rather than 'all', because only a
+   * Keeper hangs a map and only a Keeper has ever been able to rename, redraw
+   * or take one down; the dial writes that rule down instead of loosening it.
+   */
+  map: schema.maps,
 } as const;
 
 /**
- * The view rule as a WHERE fragment for one of the three tables. Keepers get
- * `1 = 1`; a signed-out viewer only ever sees 'all'.
+ * The three columns the view rule reads. A drizzle `alias()` of one of the
+ * tables above has exactly these, which is how the same rule can be asked of a
+ * second copy of a table already joined into a query — §19's speld that points
+ * at another landkaart joins `maps` twice and has to ask the *target's* dial.
  */
-export function viewableCondition(target: AccessTargetType, viewer: Viewer): SQL {
-  const t = TABLES[target];
+export type AccessColumns = { id: Column; viewMode: Column; createdBy: Column };
+
+/**
+ * The view rule as a WHERE fragment for one of the tables above. Keepers get
+ * `1 = 1`; a signed-out viewer only ever sees 'all'.
+ *
+ * `on` names the copy of the table to ask about, for a query that joins one
+ * table twice; left out, it is the table itself, which is every other caller.
+ */
+export function viewableCondition(
+  target: AccessTargetType,
+  viewer: Viewer,
+  on?: AccessColumns,
+): SQL {
+  const t: AccessColumns = on ?? TABLES[target];
   if (viewer?.isKeeper) return sql`1 = 1`;
   if (!viewer) return sql`${t.viewMode} = 'all'`;
   return sql`(

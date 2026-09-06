@@ -15,7 +15,7 @@ import { activeCharacterNames } from '@/lib/characters';
 
 export const dynamic = 'force-dynamic';
 
-const TARGETS: AccessTargetType[] = ['entry', 'case', 'board', 'timeline'];
+const TARGETS: AccessTargetType[] = ['entry', 'case', 'board', 'timeline', 'map'];
 
 function parseTarget(url: URL): { target: AccessTargetType; id: string } {
   const target = url.searchParams.get('target') ?? '';

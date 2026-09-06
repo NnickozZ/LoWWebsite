@@ -59,6 +59,14 @@ export function momentFromEntry(entryId: string): { at: number; precision: Preci
  * been typed ("12 maart 1931"). Plain drizzle on purpose — see the note above
  * — which also means the change announces itself as `entry:{id}` like any
  * other write to the row (§21).
+ *
+ * §38 gates every *patch* to `entries.fields` against the soort's own field
+ * list, and this write is deliberately outside that gate. Two reasons, both of
+ * them the note above: routing it through `updateEntry` would be the cycle, and
+ * it would turn a drag by somebody who may move a tag but not edit the artikel
+ * into a voorstel. What it writes is `formatWhen` output and nothing else —
+ * which is exactly the string `parseDutchDate` reads back a few lines up, and
+ * why §38 stores a `date` as typed and never normalises it.
  */
 export function writeEntryDate(entryId: string, at: number, precision: Precision): boolean {
   if (busy) return false;

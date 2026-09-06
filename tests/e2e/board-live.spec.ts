@@ -113,6 +113,40 @@ test('a thread made thicker on one screen thickens on the other', async ({
   await context.close();
 });
 
+/**
+ * §8, live: a card made bigger on one screen is bigger on the other.
+ *
+ * A size rides on the card like its border and its text do — the pointer
+ * channel carries positions and nothing else — so this lands on the drop, not
+ * while the hand moves. The watcher is never reloaded, which is the whole test.
+ */
+test('a card made bigger on one screen is bigger on the other', async ({ page, browser }) => {
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const boardUrl = await newBoard(page);
+  await addEntryCard(page, 'Pier Boone');
+
+  const context = await browser.newContext();
+  const watcher = await context.newPage();
+  await signIn(watcher, 'Keeper', 'abbeytower34');
+  await watcher.goto(boardUrl);
+  const theirs = watcher.locator('.board-card', { hasText: 'Pier Boone' }).first();
+  await expect(theirs).toBeVisible({ timeout: 15_000 });
+
+  const width = async () => (await theirs.boundingBox())!.width;
+  const before = await width();
+
+  await page.locator('.board-card', { hasText: 'Pier Boone' }).first().locator('.board-card-body').click();
+  await page
+    .locator('.board-inspector')
+    .getByRole('radio', { name: 'Extra groot', exact: true })
+    .click();
+
+  // 250%, on a wall nobody reloaded.
+  await expect.poll(width, { timeout: 15_000 }).toBeGreaterThan(before * 2);
+
+  await context.close();
+});
+
 test('each person is on the strip, and their hand shows on the card they hold', async ({
   page,
   browser,

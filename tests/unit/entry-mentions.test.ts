@@ -265,6 +265,7 @@ describe('a card on a wall', () => {
             x: 0,
             y: 0,
             rotation: 0,
+            scale: 1,
           },
           {
             id: 'card-2',
@@ -275,6 +276,7 @@ describe('a card on a wall', () => {
             x: 10,
             y: 10,
             rotation: 0,
+            scale: 1,
           },
         ],
       },

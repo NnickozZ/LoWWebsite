@@ -27,8 +27,156 @@ export const REFERENCE_KINDS = ['entry', 'map', 'case', 'timeline'] as const;
 export const CARD_SIZE = { width: 160, height: 250 } as const;
 export const PIN_SIZE = { width: 76, height: 40 } as const;
 
-export function cardSize(card: Pick<BoardCard, 'kind'>): { width: number; height: number } {
-  return card.kind === 'pin' ? PIN_SIZE : CARD_SIZE;
+/**
+ * §41: how big a card is drawn. 1 is the card every board has always had, and the
+ * range is what a person may ask for. Half, because a wall of forty names wants
+ * small ones; five times, because one card is sometimes the whole point of the
+ * wall and should read across a room.
+ *
+ * Stored per card, defaulted in `normaliseState`, and quantised to two decimals
+ * so a drag cannot write 1.7000000000000002 into a style attribute. It is one
+ * number, not one per axis: Nick's decision is that a card zooms like a
+ * photograph — picture, title and text together — rather than being stretched.
+ */
+export const CARD_SCALE_MIN = 0.5;
+export const CARD_SCALE_MAX = 5;
+export const DEFAULT_CARD_SCALE = 1;
+/** What the bar offers, in the order the names below have them. */
+export const CARD_SCALE_PRESETS = [0.5, 1, 1.5, 2.5] as const;
+/** What the corner grip snaps to. Holding Shift drags free of it. */
+export const CARD_SCALE_STEP = 0.05;
+
+/**
+ * A size off the wire, or out of a board saved before this existed, made safe:
+ * anything that is not a finite number becomes 1 — which is exactly what every
+ * card on every wall hung before today gets — and the rest is clamped and
+ * rounded to a hundredth.
+ */
+export function normaliseCardScale(input: unknown): number {
+  const raw = clampNumber(input, DEFAULT_CARD_SCALE);
+  const rounded = Math.round(raw * 100) / 100;
+  return Math.min(CARD_SCALE_MAX, Math.max(CARD_SCALE_MIN, rounded));
+}
+
+/**
+ * §41: how wide a punaise's paper tag may grow before it wraps.
+ *
+ * A pin's label used to be one line clipped with an ellipsis at 76 px, which
+ * meant a lead written out in full — "de man met de grijze jas" — reached the
+ * wall as "de man met…" and nothing on the card said the rest existed. So the
+ * tag wraps and the pin grows downward instead, capped in width so a long
+ * label does not lay a banner across the cork.
+ *
+ * The four numbers under it are the tag's own box measured out: everything
+ * above the first line (the head, and the gap under it), one line of type, the
+ * two rules plus the side padding, and the mean advance of one character at the
+ * tag's 0.7rem sans. The line height is deliberately generous — 18 against a
+ * painted 15.1 — because guessing *short* is the dangerous way round: the
+ * document reasons in `cardSize`, and a tag that paints taller than the model
+ * says leaves the wall with gaps nothing knows about.
+ */
+export const PIN_TAG_MAX_WIDTH = 132;
+const PIN_TAG_TOP = 22;
+const PIN_TAG_LINE_H = 18;
+const PIN_TAG_PADDING = 16;
+const PIN_TAG_CHAR_W = 5.9;
+/** How many characters fit on one line of a tag at its widest. */
+const PIN_TAG_CHARS = Math.floor((PIN_TAG_MAX_WIDTH - PIN_TAG_PADDING) / PIN_TAG_CHAR_W);
+
+/**
+ * How many lines a label takes at the tag's widest — a greedy wrap on words,
+ * chopping a word that is longer than a line, which is what `word-break:
+ * break-word` does to a pasted URL. An estimate, not a measurement: this is
+ * pure, and the wall it describes is not rendered anywhere near it.
+ */
+export function pinTagLines(name: string): number {
+  const text = (name ?? '').trim();
+  if (!text) return 1;
+  let lines = 1;
+  let used = 0;
+  for (const word of text.split(/\s+/)) {
+    if (!word) continue;
+    const need = used === 0 ? word.length : used + 1 + word.length;
+    if (need <= PIN_TAG_CHARS) {
+      used = need;
+      continue;
+    }
+    if (used > 0) lines += 1;
+    if (word.length <= PIN_TAG_CHARS) {
+      used = word.length;
+      continue;
+    }
+    const extra = Math.ceil(word.length / PIN_TAG_CHARS) - 1;
+    lines += extra;
+    used = word.length - extra * PIN_TAG_CHARS;
+  }
+  return lines;
+}
+
+/**
+ * A pin's natural size — the one thing on this wall whose box comes from what
+ * is written on it. A label that already fitted gets exactly `PIN_SIZE` back,
+ * so every pin hung before this reads the same to the pixel.
+ */
+export function pinSize(card: Pick<BoardCard, 'name'>): { width: number; height: number } {
+  const text = (card.name ?? '').trim();
+  const estimated = Math.ceil(text.length * PIN_TAG_CHAR_W + PIN_TAG_PADDING);
+  return {
+    width: Math.min(PIN_TAG_MAX_WIDTH, Math.max(PIN_SIZE.width, estimated)),
+    height: PIN_TAG_TOP + pinTagLines(text) * PIN_TAG_LINE_H,
+  };
+}
+
+/** Anything the geometry can be asked to measure — a card, or a card-shaped bit. */
+type Measurable = Pick<BoardCard, 'kind'> & Partial<Pick<BoardCard, 'name' | 'scale'>>;
+type Placed = Measurable & Pick<BoardCard, 'x' | 'y'>;
+
+/** The box the content asks for, before the scale multiplies it. */
+function intrinsicSize(card: Measurable): { width: number; height: number } {
+  return card.kind === 'pin' ? pinSize({ name: card.name ?? '' }) : CARD_SIZE;
+}
+
+/**
+ * §41: one rule holds the two halves of this together: **the intrinsic box comes
+ * from the content, the scale multiplies it.** A punaise gets its natural size
+ * from its label; every other card is a piece of paper of a fixed size; and
+ * `card.scale` is applied to whichever it is.
+ */
+export function cardSize(card: Measurable): { width: number; height: number } {
+  const base = intrinsicSize(card);
+  const scale = normaliseCardScale(card.scale);
+  if (scale === 1) return { width: base.width, height: base.height };
+  return { width: tidy(base.width * scale), height: tidy(base.height * scale) };
+}
+
+export type CardBox = { x: number; y: number; width: number; height: number };
+
+/**
+ * §41: where a card actually *is* on the cork, at the size it is actually drawn.
+ *
+ * This is the single seam every piece of geometry goes through — the hit test,
+ * the marquee, "Alles in beeld", the room a new card is given, the point string
+ * ties to. It exists because a scaled card is painted with a CSS `transform`,
+ * which grows the box about its **centre**: `card.x` is still the corner of the
+ * card at scale 1, and at 250% the paper reaches 120 px further left than that.
+ * Anything that reads `card.x` and `cardSize` separately gets the size right
+ * and the place wrong, which is a card you cannot click at the top-left and can
+ * click on bare cork below it.
+ *
+ * At scale 1 it returns `{card.x, card.y}` and the intrinsic box unchanged, to
+ * the pixel — that is the promise every board hung before today rides on.
+ */
+export function cardBox(card: Placed, base = intrinsicSize(card)): CardBox {
+  const scale = normaliseCardScale(card.scale);
+  if (scale === 1) return { x: card.x, y: card.y, width: base.width, height: base.height };
+  const width = tidy(base.width * scale);
+  const height = tidy(base.height * scale);
+  return {
+    x: tidy(card.x - (width - base.width) / 2),
+    y: tidy(card.y - (height - base.height) / 2),
+    width,
+    height,
+  };
 }
 
 /**
@@ -91,11 +239,19 @@ export function cardRef(
   return null;
 }
 
-/** Where the pin head sits — the point a string is tied to. */
-export function headOf(card: Pick<BoardCard, 'kind' | 'x' | 'y'>): { x: number; y: number } {
-  return card.kind === 'pin'
-    ? { x: card.x + PIN_SIZE.width / 2, y: card.y + 8 }
-    : { x: card.x + CARD_SIZE.width / 2, y: card.y + 10 };
+/**
+ * Where the pin head sits — the point a string is tied to.
+ *
+ * Through `cardBox`, so a card that has been made bigger keeps its string tied
+ * to the head you can see: the head is drawn at the top of the paper and grows
+ * with it, so the 8 and the 10 — how far down the head's own centre is — are
+ * multiplied too. Left unscaled, a card at 300% would tie its string a
+ * card's-width above its own head, in mid-air.
+ */
+export function headOf(card: Placed): { x: number; y: number } {
+  const box = cardBox(card);
+  const down = (card.kind === 'pin' ? 8 : 10) * normaliseCardScale(card.scale);
+  return { x: box.x + box.width / 2, y: box.y + down };
 }
 
 /**
@@ -132,6 +288,12 @@ export type BoardCard = {
   y: number;
   /** Degrees, ±2, chosen once at placement and stored so it stays put. */
   rotation: number;
+  /**
+   * How big this card is drawn, 1 being the size it has always been. Grows
+   * about the card's centre, so `x` and `y` stay where they were — see
+   * `cardBox`, which is the only place that is allowed to work that out.
+   */
+  scale: number;
 };
 
 /**
@@ -431,6 +593,11 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
           x: clampNumber(card.x, 0),
           y: clampNumber(card.y, 0),
           rotation: Math.max(-6, Math.min(6, clampNumber(card.rotation, 0))),
+          // A board saved before cards had a size of their own gets the size it
+          // has always had. No migration, for the reason a string's thickness
+          // needed none: the state is one JSON blob, and the defaults are
+          // applied every time it is read.
+          scale: normaliseCardScale(card.scale),
         }))
     : [];
 
@@ -571,11 +738,13 @@ export function boardBounds(
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const card of cards) {
-    const size = card.kind === 'pin' ? PIN_SIZE : { width: cardWidth, height: cardHeight };
-    minX = Math.min(minX, card.x);
-    minY = Math.min(minY, card.y);
-    maxX = Math.max(maxX, card.x + size.width);
-    maxY = Math.max(maxY, card.y + size.height);
+    // Through `cardBox`, so a card someone made three times as big is wholly
+    // inside "Alles in beeld" rather than sticking out of it on all four sides.
+    const box = cardBox(card, card.kind === 'pin' ? undefined : { width: cardWidth, height: cardHeight });
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+    maxX = Math.max(maxX, box.x + box.width);
+    maxY = Math.max(maxY, box.y + box.height);
   }
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }

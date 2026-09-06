@@ -822,6 +822,199 @@ items and six hours — about four hours, no migration, no new dependency (see
 - [x] No migration, no dependency, no schema change, and nothing on the wire an
       older client cannot read — a stroke without `v` is exactly what it was
 
+## Round 13 — 6 September 2026: zeven dingen tegelijk (§38, §39, §40, §41, §18c)
+
+Seven items from Nick in one batch, sized at about twenty-seven hours before it
+started and asked for anyway (CLAUDE.md §2: the size goes next to each line, and
+then the person paying chooses). Eight agents, four waves, and one docs pass at
+the end. Five new rules — 38, 39, 40, 41, 42 — see `README.md`, and
+`DECISIONS.md` Round 13 for why each is shaped the way it is.
+
+### Een nieuw {artikel} in een dossier
+
+- [x] The `Voeg iets toe aan dit dossier…` bar is half width in a `row-wrap`
+      with a `btn-primary` beside it. The bar **attaches something that
+      exists**; the button **makes something that does not**, filed here from
+      the first keystroke
+- [x] The button's words are built from `words.entry` / `words.case` (rule 8),
+      never typed; `openNewEntry` is the only door, so the rights check and the
+      §18b onderzoeker prompt come with it
+- [x] The button omits `onCreated` (the sheet lands on the new artikel); the
+      "'X' aanmaken" suggest-row keeps it (you typed into the box on this page,
+      so the answer belongs back on this page). Deliberate asymmetry
+- [x] The placeholder string is byte-identical — **five** e2e specs locate that
+      box by it
+- [x] Reading face shows neither the bar nor the button (`round-6.spec.ts`)
+
+### Een kaartje groter en kleiner, en een punaise die niet meer afkapt (§41)
+
+- [x] `scale` on a card: 0.5–5, default 1, two decimals, `CARD_SCALE_PRESETS`
+      of 0.5 · 1 · 1.5 · 2.5 named Klein · Normaal · Groot · Extra groot, and a
+      `CARD_SCALE_STEP` of 0.05 the grip snaps to (Shift drags free)
+- [x] **`cardBox(card)` is the single seam.** A CSS transform grows a card about
+      its *centre*, so `card.x` is the corner at scale 1 only. Hit test,
+      marquee, "Alles in beeld", `freeSpotNear`, the held-by overlay, `headOf`
+      and the grip all go through it; at scale 1 it returns the old numbers to
+      the pixel
+- [x] The crop divisor gained `card.scale` beside the board's zoom, or a 250%
+      card cropped two and a half times too fast
+- [x] Everything scales, border and shadow included (Nick's decision — it is
+      what the wall's own zoom has always done); a card past 150% asks for the
+      full-size picture rather than the card-sized one
+- [x] Two controls because a phone has no drag: the corner grip (in the world
+      layer, counter-scaled by the zoom, outside the card so it is not scaled by
+      the thing it sets) and the four presets in the inspector
+- [x] A punaise's tag wraps instead of clipping at 76 with no tooltip: the pin
+      grows downward, capped at `PIN_TAG_MAX_WIDTH` 132. `pinTagLines` estimates
+      the wrap in a pure module and guesses the line height *generous*, because
+      guessing short leaves gaps in the geometry nothing knows about
+- [x] No migration — board state is one JSON blob normalised on every read (§5)
+
+### Iedereen komt binnen op de leespagina
+
+- [x] The account setting is deleted whole: `ARTICLE_MODE_CHOICES`,
+      `articleModeFor`, `cleanArticleModePref`, `ArticleModePref`,
+      `ArticleModeForm`, `setArticleModeAction`. `lib/entries/mode.ts` is a
+      paragraph of prose and a two-word type
+- [x] Everybody lands on lezen, Keepers included. **No right changed**: the
+      toggle was always rendered for every signed-in viewer
+- [x] `?new=1` is the only override, and it had to be **extended to dossiers** —
+      `UiProvider` pushed a new dossier to a bare `/c/${slug}` and relied on the
+      Keeper's role, which was the thing that went
+- [x] `users.article_mode` stays on the table, unread, with a retirement
+      comment: this repo never edits an old migration, and SQLite `DROP COLUMN`
+      on an indexed table is fragile for nothing
+- [x] **Nine** e2e specs needed `editArticle()` / `editCase()` inserted; the
+      helpers already existed from Phase 8, which is the tell that this reverses
+      a Phase 8 decision. `article-mode.test.ts` deleted — its subject is gone.
+      The Phase 8 chapter in `DECISIONS.md` is **amended**, not contradicted
+
+### De infobox krijgt soorten, en een poort (§38)
+
+- [x] `lib/entries/fieldValues.ts` — pure, no database — applied at the single
+      `updateEntry` / `createEntry` seam, which covers the hand-rolled PATCH and
+      the §21 fields room whose `field.*` sweep could previously invent a key
+- [x] **A key has two sources**: `entry_types.fields[].key` *and* every
+      hand-filled `links` block's key (`listBlockKeys`). A gate knowing only the
+      first would have silently emptied every hand-filled list
+- [x] A refusal is **silent in a live room** (a CRDT told "no" resends for ever)
+      and **named back on a PATCH** as `rejectedFields`, still 200
+- [x] Nothing stored is destroyed: only the incoming patch is filtered, so a
+      removed field keeps its value and brings it back, and a retype is not a
+      coercion. `writeEntryDate` and `restoreRevision` stay ungated, both
+      commented as such
+- [x] **Getal** (a real number), **Ja/nee** (a real boolean; `true` prints "Ja",
+      `false` prints *nothing*, because an infobox lists what is so) and
+      **Meerkeuze** (drops an off-list member rather than refusing the field —
+      `entry_links`, not `select`)
+- [x] A **Datum stays free text** with a quiet hint when `parseDutchDate` cannot
+      read it. A native picker would forbid "oktober 1934", which §35 depends on
+- [x] Adding a kind is four places in order: the `FieldKind` union,
+      `FIELD_KINDS`, a `case` in `coerceFieldValue`, the control and the reading
+      shape in `FieldsEditor` — **and the shape the editor writes is the shape
+      the gate must accept**
+- [x] Beheer → Soorten → **"Oude waarden"**: what is still stored under a key
+      this soort no longer has, counted per key, with the one button that throws
+      it away — the only road in the archive that deletes a field value
+
+### Landkaarten krijgen hun knoppen (§40)
+
+- [x] Migration `0016_map_access` gives `maps` the same three columns everything
+      else has had since 0005/0012. Until it, a landkaart had **no `view_mode`
+      at all** and `resolveBoardMaps` carried a `_viewer` it never used
+- [x] `lib/maps/visibility.ts` states the rule the way `lib/cases/visibility.ts`
+      states a dossier's — one shape, on purpose
+- [x] `view_mode = 'all'` so **every map already hanging stays visible** (a dial
+      nobody has touched must change nothing); `edit_mode = 'private'` because
+      §19 has always said only a Keeper renames or takes down a landkaart — the
+      existing rule written down, not loosened
+- [x] Thirteen reads across five modules given the viewer: the shelf, the map's
+      own URL, board cards (MISSING, exactly like a hidden artikel), "Genoemd
+      in", the fields room, the tekenlaag, the two `…ForEntry` lookups
+- [x] A speld follows its map; a fiche speld's own rule still stacks on top
+- [x] **Rechten** on the map page, below the fold with the Keeper's other tools
+
+### Spelden die voor een landkaart staan (§39)
+
+- [x] `map_pins.target_map_id` (migration `0017_pin_targets`), beside
+      `entry_id`, never a second meaning for it
+- [x] The target resolves through the viewer's own `visibleMapCondition` in the
+      join's `ON` clause — which is what §40 was the prerequisite for
+- [x] The speld's name is read from the target on every read, never stored, so a
+      rename travels
+- [x] **Cycles are allowed; only the self-pin is refused.** A→B→A is the way
+      back up; nothing renders recursively
+- [x] `listMapsPinningMap` gives the derived "Op de grotere kaart: Zeeland" chip
+- [x] A tap opens the sheet, not the other map — everything a speld has lives
+      there, and the button inside it is the road
+- [x] `MapCanvas` calls `router.refresh()` after **creating** and after
+      **removing** a speld (the chip's road needed it)
+- [ ] Not done on purpose: spelden that stand for a **dossier** or a
+      **tijdlijn** — this is one column, not a polymorphic target
+- [ ] Still open: a speld that has merely been **moved** does not refresh
+      (CLAUDE.md §5, §8)
+
+### Wie een onderzoeker uitdeelt (§18c)
+
+- [x] `addCharacter` refuses a player acting for someone else, or one who
+      already holds an onderzoeker; `removeCharacter` is Keeper-only
+- [x] Round 11's exemption stays open and is **narrowed, not reversed**: a
+      speler holding **nobody** may make their first onderzoeker and tie it on,
+      and it shuts behind them
+- [x] Both halves ask the same question the same way — `listCharacters`, never a
+      count of tie rows, so a fiche in the prullenbak cannot lock somebody out —
+      and one unit test runs both gates over the same people so they cannot
+      drift
+- [x] `setActiveCharacter` and "Als jezelf" untouched: §18b's per-window
+      question is unchanged
+- [x] The Keeper's screen is the account list in Beheer (`UserRow.tsx`), which
+      is where the `userId` that `whose()` and `addCharacter` have always
+      accepted is finally sent from
+- [ ] Flagged: `removeCharacter` being Keeper-only was the building agent's
+      judgement call, not Nick's instruction. Cheap to reverse — one line
+
+### De herstelronde aan het eind (acht e2e-failures, één echte bug)
+
+- [x] **The autosave patch flattened the infobox** — the one failure of the
+      eight that was the product's. `useAutosave` merged its 800 ms window with
+      `{ ...pending, ...patch }`, so a Getal filled and a Ja/nee ticked inside
+      one window sent **one** PATCH carrying only the last box touched. The
+      editing face renders its own state, so the loss showed only on somebody
+      else's screen — which is why the new typed-fields e2e found it and no unit
+      test could have
+- [x] `mergePatch(waiting, arriving, mergeKeys)` — pure and exported — merges a
+      named key one level deeper when both sides are plain objects; every other
+      key still replaces, because a name, a body or a cover is one value.
+      `EntryView` passes `mergeKeys: ['fields']`, and that is the whole list
+- [x] The merge stops at one level on purpose: a **list inside the bag still
+      replaces**, or unticking a Meerkeuze option would never reach the server.
+      `tests/unit/autosave-merge.test.ts`, 7 cases
+- [x] The other three causes were the specs' own and are now CLAUDE.md §6
+      bullets: the "'…' aanmaken" row is on screen before the real suggestions
+      are (`.filter({ hasNotText: 'aanmaken' })`); `?new=1` lands on the editing
+      face, so the name is `#entry-name` with `toHaveValue` and not a heading;
+      and a bare `getByText` matches the side menu's hidden `.who-name` on a
+      phone exactly as a bare `data-testid` would
+- [x] The round-13 admin failure was a spec locator, **not** a missing
+      `router.refresh()`: `AssignedCharacters` in `app/(app)/admin/UserRow.tsx`
+      already refreshes after its write
+
+### Verification
+
+- [x] 44 unit files, 627 tests (round 12: 41 / 555). Four new files —
+      `field-values.test.ts`, `map-visibility.test.ts`, `map-pins.test.ts` and
+      `autosave-merge.test.ts` — and one deleted, `article-mode.test.ts`
+- [x] Two migrations (`0016_map_access`, `0017_pin_targets`), one new pure
+      module, one new visibility module, no new dependency
+- [x] Nothing on the wire an older client cannot read: a card with no `scale` is
+      a card at 1, a speld with a null `target_map_id` is the speld it always
+      was, and a landkaart at `view_mode = 'all'` is the one everybody could
+      already see
+- [x] Take the full Playwright run's own numbers as this round's baseline and
+      put them in the round note in the Claude project (CLAUDE.md §7). The
+      post-fix run: **177 passed / 27 skipped / 0 failed**, desktop and phone,
+      against a production build (round 12: 162 / 26 / 0)
+
 ## Not started (later phases)
 
 - [ ] Obsidian import, handout PDFs

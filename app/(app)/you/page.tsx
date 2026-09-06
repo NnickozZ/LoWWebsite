@@ -8,7 +8,6 @@ import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
-import { ArticleModeForm } from './ArticleModeForm';
 import { ReadingFontForm } from './ReadingFontForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { logoutAction, logoutEverywhereAction } from './actions';
@@ -113,13 +112,6 @@ export default async function YouPage() {
 
       {user && (
         <>
-          <hr className="rule" />
-          <h2 id="lezen-of-bewerken">Lezen of bewerken</h2>
-          <p className="small muted">
-            Hoe een {words.entry} of een {words.case} opengaat als je erop klikt.
-          </p>
-          <ArticleModeForm current={user.articleMode} isKeeper={user.isKeeper} />
-
           <hr className="rule" />
           <h2 id="lettertype">Lettertype</h2>
           <p className="small muted">

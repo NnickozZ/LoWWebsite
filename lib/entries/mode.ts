@@ -8,50 +8,16 @@
  *
  * A dossier wears the same pair. It is the same reading: a name, a one-liner,
  * the working theory, and the file's contents — where the editing face has a
- * search box above every shelf and a caret in the notes. One setting governs
- * both, because "I came here to read" is a thing about the person, not about
- * which kind of page they happen to have opened.
+ * search box above every shelf and a caret in the notes.
  *
- * Which one a person lands in is theirs to decide, in Jouw account. Until they
- * do, their role decides: a Keeper writes the archive, so a Keeper lands in
- * Bewerken; everyone else came to read, so they land in Lezen. Either way the
- * toggle at the top of the page switches faces, and it is not a right — a
- * player who may only propose still gets to open the editing face, their
- * changes simply travel as proposals (§10, §17).
+ * **Everybody lands on Lezen, a Keeper included** (round 13). There is no
+ * setting for this any more: the face is a thing about *this visit*, not about
+ * the person, so it is not remembered anywhere and every page opens the way a
+ * reader would want it. The toggle at the top of the page crosses over, and it
+ * is not a right — a player who may only propose still gets to open the
+ * editing face, their changes simply travel as proposals (§10, §17).
+ *
+ * The one thing that overrides it is `?new=1`: an artikel or dossier you have
+ * just made this second opens in Bewerken, because you are there to fill it in.
  */
 export type ArticleMode = 'view' | 'edit';
-
-/** What a person chose. The empty string is "whatever my role does". */
-export type ArticleModePref = '' | ArticleMode;
-
-export function cleanArticleModePref(value: unknown): ArticleModePref {
-  return value === 'view' || value === 'edit' ? value : '';
-}
-
-/** The face this person's artikel — or dossier — opens in. */
-export function articleModeFor(
-  pref: ArticleModePref | null | undefined,
-  isKeeper: boolean,
-): ArticleMode {
-  if (pref === 'view' || pref === 'edit') return pref;
-  return isKeeper ? 'edit' : 'view';
-}
-
-/** What the account page calls each choice. */
-export const ARTICLE_MODE_CHOICES: { value: ArticleModePref; label: string; hint: string }[] = [
-  {
-    value: '',
-    label: 'Wat bij mij hoort',
-    hint: 'Een Keeper begint met bewerken, iedereen anders met lezen.',
-  },
-  {
-    value: 'view',
-    label: 'Altijd lezen',
-    hint: 'Een artikel of dossier opent als leespagina. De knop bovenaan zet het alsnog open.',
-  },
-  {
-    value: 'edit',
-    label: 'Altijd bewerken',
-    hint: 'Een artikel of dossier opent meteen met alle velden open.',
-  },
-];

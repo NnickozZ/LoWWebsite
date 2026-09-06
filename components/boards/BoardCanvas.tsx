@@ -14,9 +14,14 @@ import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { capitalise } from '@/lib/words';
 import {
   boardBounds,
+  CARD_SCALE_MAX,
+  CARD_SCALE_MIN,
+  CARD_SCALE_STEP,
   CARD_SIZE,
+  cardBox,
   cardRef,
   cardSize,
+  DEFAULT_CARD_SCALE,
   defaultShowImage,
   DEFAULT_STRING_STYLE,
   DEFAULT_STRING_WIDTH,
@@ -249,6 +254,26 @@ export function BoardCanvas({
     startY: number;
     from: { x: number; y: number; zoom: number };
   } | null>(null);
+  /**
+   * The third thing a press on a card can be, beside moving it and moving the
+   * picture inside it: the corner grip, which makes the card bigger.
+   *
+   * Held as a ref like the other two, and for the same reason — a resize is a
+   * stream of pointer moves, and re-rendering the wall to remember where the
+   * hand started would cost a frame each time. `distance` is how far the grip
+   * was from the card's middle when it was taken; the card's size is that
+   * distance's ratio ever since, which is the one formula that works whatever
+   * corner is dragged and whichever way the card is tilted.
+   */
+  const resize = useRef<{
+    id: string;
+    centre: { x: number; y: number };
+    distance: number;
+    from: number;
+    /** The board before the press, pushed to undo only once something changes. */
+    before: Snapshot;
+    moved: boolean;
+  } | null>(null);
   const pan = useRef<{ startX: number; startY: number; from: Viewport } | null>(null);
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
 
@@ -277,7 +302,7 @@ export function BoardCanvas({
   if (!clientIdRef.current) clientIdRef.current = `t_${Math.random().toString(36).slice(2, 12)}`;
   const clientId = clientIdRef.current;
 
-  const busy = Boolean(drag.current || cropDrag.current || drawing || marquee);
+  const busy = Boolean(drag.current || cropDrag.current || resize.current || drawing || marquee);
 
   /**
    * Applying someone else's version of the board. Shared with the save path,
@@ -449,8 +474,10 @@ export function BoardCanvas({
   const cardAt = useCallback(
     (x: number, y: number) =>
       [...shownCards].reverse().find((card) => {
-        const size = cardSize(card);
-        return x >= card.x && x <= card.x + size.width && y >= card.y && y <= card.y + size.height;
+        // `cardBox`, not `card.x` plus a size: a card that has been made bigger
+        // grows about its middle, so its corner is no longer where it is stored.
+        const box = cardBox(card);
+        return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
       }) ?? null,
     [shownCards],
   );
@@ -475,6 +502,7 @@ export function BoardCanvas({
       x: Math.round(x - head.x),
       y: Math.round(y - head.y),
       rotation: 0,
+      scale: DEFAULT_CARD_SCALE,
     };
   }, []);
 
@@ -500,12 +528,12 @@ export function BoardCanvas({
       const stepY = size.height + 28;
       const clear = (x: number, y: number) =>
         !cards.some((card) => {
-          const other = cardSize(card);
+          const other = cardBox(card);
           return (
-            x < card.x + other.width &&
-            x + size.width > card.x &&
-            y < card.y + other.height &&
-            y + size.height > card.y
+            x < other.x + other.width &&
+            x + size.width > other.x &&
+            y < other.y + other.height &&
+            y + size.height > other.y
           );
         });
 
@@ -594,9 +622,9 @@ export function BoardCanvas({
 
             const overlap = (x: number, y: number) =>
               cards.reduce((total, card) => {
-                const other = cardSize(card);
-                const w = Math.min(x + size.width, card.x + other.width) - Math.max(x, card.x);
-                const h = Math.min(y + paper, card.y + other.height) - Math.max(y, card.y);
+                const other = cardBox(card);
+                const w = Math.min(x + size.width, other.x + other.width) - Math.max(x, other.x);
+                const h = Math.min(y + paper, other.y + other.height) - Math.max(y, other.y);
                 return total + (w > 0 && h > 0 ? w * h : 0);
               }, 0);
 
@@ -636,6 +664,9 @@ export function BoardCanvas({
         assetId: null,
         crop: null,
         border: null,
+        // Every new card is the size a card has always been; the grip and the
+        // bar are how it becomes anything else.
+        scale: DEFAULT_CARD_SCALE,
         // Only a card that has something to show opens its frame; the rule and
         // the reasoning live in `defaultShowImage`. A caller that knows better
         // — the photo card, which is made around a picture — says so below and
@@ -930,6 +961,33 @@ export function BoardCanvas({
     };
   }
 
+  /**
+   * §41: the corner grip. A drag away from the card's middle makes it bigger, one
+   * towards it smaller, and the numbers land on a twentieth — hold Shift for
+   * anything in between, the same bargain the rest of the app makes with a
+   * snap.
+   *
+   * The middle is worked out once, from the card's *intrinsic* box, because
+   * that point does not move while the card grows: `cardBox` grows about it.
+   */
+  function onGripPointerDown(event: React.PointerEvent, card: BoardCard) {
+    if (!interactive) return;
+    // A grip is only ever dragged: no click, no focus, no pan underneath it.
+    event.stopPropagation();
+    event.preventDefault();
+    const base = cardSize({ kind: card.kind, name: card.name });
+    const centre = { x: card.x + base.width / 2, y: card.y + base.height / 2 };
+    const point = toBoard(event.clientX, event.clientY);
+    resize.current = {
+      id: card.id,
+      centre,
+      distance: Math.max(8, Math.hypot(point.x - centre.x, point.y - centre.y)),
+      from: card.scale,
+      before: { cards, strings },
+      moved: false,
+    };
+  }
+
   function onPinPointerDown(event: React.PointerEvent, cardId: string) {
     if (!interactive) return;
     // A pin head is a drag and nothing else — no click, no focus, no text —
@@ -980,6 +1038,7 @@ export function BoardCanvas({
       target.closest('.board-tray') ||
       target.closest('.board-tray-spine') ||
       target.closest('.board-end-handle') ||
+      target.closest('.board-grip') ||
       // §33: a press on the tekenlaag's sheet or its toolbar is a stroke or a
       // click, never a pan.
       target.closest('.ink-capture') ||
@@ -1030,15 +1089,46 @@ export function BoardCanvas({
     // Remembered for the paste, which has no coordinates of its own.
     if (event.pointerType !== 'touch') pointerAt.current = toBoard(event.clientX, event.clientY);
 
+    if (resize.current) {
+      const state = resize.current;
+      const point = toBoard(event.clientX, event.clientY);
+      const reach = Math.hypot(point.x - state.centre.x, point.y - state.centre.y);
+      const raw = clamp((state.from * reach) / state.distance, CARD_SCALE_MIN, CARD_SCALE_MAX);
+      // A twentieth, unless Shift says otherwise; two decimals either way, so
+      // nothing like 1.7000000000000002 ever reaches a style attribute.
+      const next = event.shiftKey
+        ? Math.round(raw * 100) / 100
+        : Math.round(raw / CARD_SCALE_STEP) * CARD_SCALE_STEP;
+      const scale = Math.round(next * 100) / 100;
+      if (!state.moved) {
+        state.moved = true;
+        undoStack.current.push(state.before);
+        if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
+      }
+      sync.touch();
+      setCards((current) =>
+        current.map((card) => (card.id === state.id ? { ...card, scale } : card)),
+      );
+      return;
+    }
+
     if (cropDrag.current && croppingId) {
       const rect = viewportRef.current?.getBoundingClientRect();
       if (!rect) return;
       const state = cropDrag.current;
-      // The frame is CARD_WIDTH wide at zoom 1; dragging right moves the
-      // picture right, so the focal point moves left.
-      const dx = (event.clientX - state.startX) / viewport.zoom / CARD_WIDTH / state.from.zoom;
-      const dy =
-        (event.clientY - state.startY) / viewport.zoom / ((CARD_WIDTH * 4) / 3) / state.from.zoom;
+      /*
+       * The frame is CARD_WIDTH wide at zoom 1 *and at scale 1*; dragging right
+       * moves the picture right, so the focal point moves left.
+       *
+       * §41: the card's own size belongs in this divisor beside the board's zoom,
+       * for exactly the same reason: a card at 250% has a cover two and a half
+       * times as wide on screen, so a hand that travels 100 px has crossed less
+       * of the picture. Without it, cropping a card somebody had enlarged moved
+       * the photograph two and a half times too fast.
+       */
+      const paper = viewport.zoom * (cardById.get(croppingId)?.scale ?? DEFAULT_CARD_SCALE);
+      const dx = (event.clientX - state.startX) / paper / CARD_WIDTH / state.from.zoom;
+      const dy = (event.clientY - state.startY) / paper / ((CARD_WIDTH * 4) / 3) / state.from.zoom;
       const next = {
         x: clamp(state.from.x - dx, 0, 1),
         y: clamp(state.from.y - dy, 0, 1),
@@ -1110,6 +1200,19 @@ export function BoardCanvas({
   }
 
   function onPointerUp(event: React.PointerEvent) {
+    if (resize.current) {
+      const changed = resize.current.moved;
+      resize.current = null;
+      // The live pointer channel carries positions and nothing else, so a size
+      // reaches everybody else on the drop rather than while the hand moves —
+      // the same way a border or a colour change does.
+      if (!readOnly) {
+        if (changed) void sync.saveNow();
+        else sync.markDirty();
+      }
+      return;
+    }
+
     if (cropDrag.current) {
       cropDrag.current = null;
       if (!readOnly) sync.markDirty();
@@ -1214,12 +1317,12 @@ export function BoardCanvas({
       const maxY = Math.max(marquee.y0, marquee.y1);
       const hit = cards
         .filter((card) => {
-          const size = cardSize(card);
+          const box = cardBox(card);
           return (
-            card.x + size.width > minX &&
-            card.x < maxX &&
-            card.y + size.height > minY &&
-            card.y < maxY
+            box.x + box.width > minX &&
+            box.x < maxX &&
+            box.y + box.height > minY &&
+            box.y < maxY
           );
         })
         .map((card) => card.id);
@@ -1383,6 +1486,10 @@ export function BoardCanvas({
       }
       if (cropDrag.current) {
         cropDrag.current = null;
+        if (!readOnly) sync.markDirty();
+      }
+      if (resize.current) {
+        resize.current = null;
         if (!readOnly) sync.markDirty();
       }
       if (pan.current) {
@@ -2068,17 +2175,20 @@ export function BoardCanvas({
           {shownCards.map((card) => {
             const holder = live.heldByOthers.get(card.id);
             if (!holder) return null;
-            const size = cardSize(card);
+            // The painted box, not the stored corner: this outline is drawn
+            // beside the card rather than inside it, so it has to be told where
+            // a card that has been made bigger actually reaches to.
+            const box = cardBox(card);
             return (
               <div
                 key={`held-${card.id}`}
                 className={`board-held${live.carried.has(card.id) ? ' board-card-carried' : ''}`}
                 aria-hidden="true"
                 style={{
-                  left: card.x,
-                  top: card.y,
-                  width: size.width,
-                  height: size.height,
+                  left: box.x,
+                  top: box.y,
+                  width: box.width,
+                  height: box.height,
                   transform: `rotate(${card.rotation}deg)`,
                   ['--held-colour' as string]: holder.colour,
                 }}
@@ -2195,6 +2305,34 @@ export function BoardCanvas({
                 />
               );
             })}
+
+          {/*
+            §41: the grip that sizes a card, on the one card that is selected. In
+            the world layer beside the string grips rather than inside the card:
+            the card carries the `scale()` this sets, so a grip within it would
+            be scaled by the very thing it is for. Not offered while the picture
+            inside the card is being moved — that is the same drag, on the same
+            card, meaning something else.
+          */}
+          {interactive && singleSelected && !croppingId && !inkActive && (() => {
+            const box = cardBox(singleSelected);
+            return (
+              <button
+                type="button"
+                className="board-grip"
+                aria-label={`Maak deze ${singleSelected.kind === 'pin' ? ui.words.pin : ui.words.card} groter of kleiner`}
+                title="Sleep om de grootte te veranderen. Houd Shift ingedrukt voor tussenmaten."
+                style={{
+                  left: box.x + box.width,
+                  top: box.y + box.height,
+                  // The wall's zoom is already on `.board-world`; undoing it
+                  // here keeps the grip the same size on screen at every zoom.
+                  transform: `scale(${1 / viewport.zoom})`,
+                }}
+                onPointerDown={(event) => onGripPointerDown(event, singleSelected)}
+              />
+            );
+          })()}
 
           {marquee && (
             <div
@@ -2368,6 +2506,8 @@ export function BoardCanvas({
               showImage: !singleSelected.showImage,
             })
           }
+          scaleValue={singleSelected ? singleSelected.scale : null}
+          onScaleChange={(scale) => singleSelected && patchCard(singleSelected.id, { scale })}
           onBorderChange={(border) => singleSelected && patchCard(singleSelected.id, { border })}
           onRename={(name) => singleSelected && patchCard(singleSelected.id, { name })}
           onOpenEntry={() => selectedSubject && router.push(selectedSubject.href)}

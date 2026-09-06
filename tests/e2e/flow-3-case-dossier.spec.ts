@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+import { inviteCode, signIn, signUp } from './helpers';
 
 /**
  * Golden flow 3 (§15): create a case, add two existing entries from a tab
@@ -110,6 +110,78 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   expect(response?.status()).toBe(404);
 
   await outsiderContext.close();
+});
+
+/**
+ * The button beside the add-box: "Nieuw artikel in dit dossier".
+ *
+ * The box searches for something that already exists and ties it on; this makes
+ * one that does not exist yet, filed here from the first keystroke. That road
+ * was always there — the last suggestion, after you had typed — but nothing on
+ * screen said so, which is what Nick reported (6 Sep 2026).
+ */
+test('a new artikel can be made from the dossier overview', async ({ page, browser }, testInfo) => {
+  const stamp = `${testInfo.project.name}-${Date.now().toString(36)}`;
+  const caseName = `Nieuwe aanwas ${stamp}`;
+  const entryName = `Havenmeester ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+
+  await page.goto('/cases');
+  await page.getByRole('button', { name: 'Dossier openen' }).click();
+  const openSheet = page.getByRole('dialog', { name: 'Dossier openen' });
+  await openSheet.getByLabel('Naam').fill(caseName);
+  await openSheet.getByRole('button', { name: 'Openen', exact: true }).click();
+  await page.waitForURL('**/c/**');
+  const caseUrl = new URL(page.url()).pathname;
+
+  const makeButton = page.getByRole('button', {
+    name: 'Voeg een nieuw artikel toe aan dit dossier',
+  });
+  const addBox = page.getByLabel('Voeg iets toe aan dit dossier…');
+  await expect(makeButton).toBeVisible();
+
+  // Desktop: the halved box and the button stand on one line. On a phone the
+  // button drops below it, which is the point of `.row-wrap` and not a fault.
+  if (testInfo.project.name === 'desktop') {
+    const box = await addBox.boundingBox();
+    const button = await makeButton.boundingBox();
+    expect(box).not.toBeNull();
+    expect(button).not.toBeNull();
+    expect(Math.abs(box!.y - button!.y)).toBeLessThan(box!.height);
+  }
+
+  // It opens the same sheet the "aanmaken" suggestion opens…
+  await makeButton.click();
+  const entrySheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  await expect(entrySheet).toBeVisible();
+  await entrySheet.getByLabel('Naam').fill(entryName);
+  await entrySheet.getByRole('button', { name: 'Aanmaken' }).click();
+
+  // …and, with no `onCreated` to keep it here, it lands on the new artikel —
+  // with `?new=1`, which is the one road that still opens the editing face
+  // (rule 18). There the name is the title box, not a heading, so that is what
+  // this asserts: specific enough not to match the artikel's @-handle, which
+  // the page also prints in a hidden <code>.
+  await page.waitForURL('**/e/**');
+  await expect(page.locator('#entry-name')).toHaveValue(entryName);
+
+  // The filing happened on the server, so it is already true when you go back.
+  await page.goto(caseUrl);
+  await expect(page.getByRole('link', { name: new RegExp(entryName) }).first()).toBeVisible();
+
+  // §22/§18b: a reader — a fresh speler with no onderzoeker to sign with — has
+  // neither the box nor the button.
+  const readerContext = await browser.newContext();
+  const reader = await readerContext.newPage();
+  await signUp(reader, `Lezer ${stamp}`, 'onderzeeboot');
+  await reader.goto(caseUrl);
+  await expect(reader.getByRole('heading', { name: caseName })).toBeVisible();
+  await expect(reader.getByPlaceholder('Voeg iets toe aan dit dossier…')).toHaveCount(0);
+  await expect(
+    reader.getByRole('button', { name: 'Voeg een nieuw artikel toe aan dit dossier' }),
+  ).toHaveCount(0);
+  await readerContext.close();
 });
 
 /**

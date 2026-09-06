@@ -4,6 +4,33 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'pending' | 'error';
 
+/** A bag of values, as opposed to a document or a list, which is one value. */
+function isBag(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * What is waiting to be saved, once one more change has arrived. Pure, so the
+ * rule can be read (and tested) without a component around it.
+ *
+ * Every key replaces what was waiting under it — the second answer is the
+ * answer. The exception is a key named in `mergeKeys`, whose value is a *bag*
+ * of independent answers rather than one: see the note on the option below.
+ */
+export function mergePatch<Patch extends Record<string, unknown>>(
+  waiting: Partial<Patch>,
+  arriving: Partial<Patch>,
+  mergeKeys: readonly (keyof Patch & string)[] = [],
+): Partial<Patch> {
+  const merged = { ...waiting, ...arriving };
+  for (const key of mergeKeys) {
+    const before = waiting[key];
+    const after = arriving[key];
+    if (isBag(before) && isBag(after)) merged[key] = { ...before, ...after } as Patch[typeof key];
+  }
+  return merged;
+}
+
 /**
  * §6: no Save button. Changes are collected per field and flushed 800 ms after
  * typing stops, on blur, and before the page is closed. Only the fields that
@@ -13,8 +40,26 @@ export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'pending' | 'err
 export function useAutosave<Patch extends Record<string, unknown>>(options: {
   save: (patch: Patch) => Promise<{ ok: boolean; pending?: boolean; error?: string }>;
   delayMs?: number;
+  /**
+   * §38: the keys whose value is a *bag of independent values* rather than one
+   * value — `fields`, the infobox, and nothing else so far.
+   *
+   * Every other key is one thing: a name, a body, a cover. Two changes to it
+   * inside one 800 ms window mean the second is the answer, so the plain
+   * `{ ...pending, ...patch }` below is exactly right. A bag is not one thing.
+   * Filling in a Getal and then ticking a Ja/nee sends `{ fields: { a } }` and
+   * then `{ fields: { b } }`, and replacing the bag threw the first answer away
+   * before it was ever sent — one PATCH went out, carrying only the last box
+   * anybody touched. So a bag is merged a level deeper, per key, and the
+   * promise above still holds: what goes out is only what changed.
+   */
+  mergeKeys?: readonly (keyof Patch & string)[];
 }) {
-  const { save, delayMs = 800 } = options;
+  const { save, delayMs = 800, mergeKeys } = options;
+  // A ref, so `set` does not have to be rebuilt when a caller passes a fresh
+  // array literal on every render.
+  const mergeKeysRef = useRef(mergeKeys);
+  mergeKeysRef.current = mergeKeys;
   const [state, setState] = useState<SaveState>('idle');
   const pendingPatch = useRef<Partial<Patch>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,7 +95,7 @@ export function useAutosave<Patch extends Record<string, unknown>>(options: {
 
   const set = useCallback(
     (patch: Partial<Patch>) => {
-      pendingPatch.current = { ...pendingPatch.current, ...patch };
+      pendingPatch.current = mergePatch(pendingPatch.current, patch, mergeKeysRef.current ?? []);
       setState('dirty');
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => void flush(), delayMs);

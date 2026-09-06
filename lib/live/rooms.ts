@@ -6,7 +6,8 @@ import { db, schema } from '@/lib/db';
 import { liveFieldValues, updateEntry } from '@/lib/entries/service';
 import { updateSection } from '@/lib/entries/secrets';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
-import { getPin, updateMap, updatePin } from '@/lib/maps/service';
+import { getPin, updateMap, updatePin, viewerCanEditMap } from '@/lib/maps/service';
+import { visibleMapCondition } from '@/lib/maps/visibility';
 import { getEvent, updateEvent, viewerCanEditTimeline } from '@/lib/timelines/service';
 import type { FieldValues, RoomSpec } from './docs';
 import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, mapFieldsRoomKey, pinFieldsRoomKey } from './keys';
@@ -25,7 +26,8 @@ import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, mapFieldsRoo
  *
  *   entry:{id}:fields  name, shortDescription, field.<key> (string fields)
  *   case:{id}:fields   name, summary
- *   map:{id}:fields    name, description (Keepers write; everyone reads)
+ *   map:{id}:fields    name, description (the map's own dials, §17: everyone
+ *                      who may see it reads, its editors write)
  *   pin:{id}:fields    name, text of a note pin (its owner or a Keeper writes)
  *   event:{id}:fields  name and text of a gebeurtenis on a tijdlijn (§32; a note's
  *                      name, and the tijdlijn's own text under either kind —
@@ -112,21 +114,25 @@ function caseAdmission(caseId: string, viewer: Viewer, fields = false): Admissio
 
 function mapFieldsAdmission(mapId: string, viewer: Viewer): Admission | null {
   if (!viewer) return null;
+  // §40: the room's gate is the landkaart's own view rule — a map this viewer
+  // may not see has no room for them to stand in.
   const map = db
     .select({ id: schema.maps.id, name: schema.maps.name, description: schema.maps.description })
     .from(schema.maps)
-    .where(and(eq(schema.maps.id, mapId), isNull(schema.maps.deletedAt)))
+    .where(and(eq(schema.maps.id, mapId), visibleMapCondition(viewer)))
     .get();
   if (!map) return null;
+  const mayEdit = viewerCanEditMap(mapId, viewer);
   return {
-    // §19: only a Keeper hangs or relabels a landkaart.
-    canEdit: Boolean(viewer.isKeeper),
+    // §19 under §17: the landkaart's edit dial, which starts at 'private' —
+    // so unless a Keeper has turned it up this is still "only a Keeper".
+    canEdit: mayEdit,
     spec: {
       key: mapFieldsRoomKey(mapId),
       kind: 'fields',
       seed: () => ({ name: map.name, description: map.description }),
       persist: (value, actor) => {
-        if (!actor.isKeeper) return;
+        if (!viewerCanEditMap(mapId, actor)) return;
         const texts = asFields(value);
         updateMap(mapId, { name: texts.name, description: texts.description }, actor, { live: true });
       },
@@ -222,6 +228,17 @@ function entryAdmission(entryId: string, viewer: Viewer, fields = false): Admiss
           const patch: Parameters<typeof updateEntry>[1] = {};
           if (texts.name !== undefined && texts.name.trim()) patch.name = texts.name;
           if (texts.shortDescription !== undefined) patch.shortDescription = texts.shortDescription;
+          /*
+           * §38: this sweep takes *every* `field.<key>` name out of the Yjs
+           * document, and a client in a room it may write in can put any name
+           * it likes in there. That is fine, and stays fine, because the keys
+           * are settled where every other write to `entries.fields` is settled
+           * — in `updateEntry`, against the soort's own fields and its
+           * hand-filled list blocks. A key nobody configured never reaches the
+           * row. The room is told nothing about it: `{ live: true }` means the
+           * rejects are dropped in silence, because a CRDT handed an error
+           * would send the same keystroke again for ever.
+           */
           const infobox: Record<string, unknown> = {};
           for (const [name, text] of Object.entries(texts)) {
             if (name.startsWith('field.')) infobox[name.slice('field.'.length)] = text;

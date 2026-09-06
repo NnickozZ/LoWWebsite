@@ -18,11 +18,12 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 41 files, 555 tests as of round 12 (round 11: 40 / 539)
+npx vitest run         # 44 files, 627 tests as of round 13 (round 12: 41 / 555)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
-                       # round 12 adds three cases (one desktop-only), so take
-                       # your own first green run as the baseline, not this line
+                       # rounds 12 and 13 both add cases (round 13 touches a
+                       # dozen specs), so take your own first green run as the
+                       # baseline, not this line
 ```
 
 If any of those is red on an untouched checkout, **say so and stop**. Do not
@@ -146,11 +147,17 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0015_character_attribution`, so the next is `0016_`. Never edit an existing
-  block.
+  `0017_pin_targets`, so the next is `0018_`. Never edit an existing block, and
+  that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
-  migration. Do not write a SQL migration for board state.
+  migration. Do not write a SQL migration for board state. Round 13's `scale`
+  on a card is the worked example: no migration, and a card without one reads
+  back as 1.
+- **A new kind of thing gets its dials on the day it is built** (§40, rule 40):
+  a `visible<Thing>Condition` applied to every read, with a `viewer` argument
+  that is *required*, not optional. A landkaart went four rounds without one,
+  and the tell was a `_viewer` parameter nobody used.
 - **A CSS rule beats an SVG presentation attribute.** Per-element width, dash
   and colour on board strings travel as CSS custom properties (`--string-w`),
   never as attributes, because `.board-string { stroke-width: 2 }` would win in
@@ -173,10 +180,25 @@ freely there.
   `app/globals.css` decides where the grid *puts* them. They are 1280 px (§25)
   and disagreeing once gave the page two different wide layouts, which read as
   a regression. Both files say so in a comment; move neither alone.
+- **The autosave patch is a patch of *keys*, and one key is a bag.**
+  `useAutosave` collects changes for 800 ms and, for every key but one, the
+  second answer replaces the first — which is right for a name, a body or a
+  cover, because those are one value. `fields` is not one value: it is the
+  infobox, a bag of independent answers, and `{ ...pending, ...patch }` threw
+  the Getal away when a Ja/nee was ticked in the same window. `mergeKeys:
+  ['fields']` (passed in `components/entry/EntryView.tsx`) merges that one key a
+  level deeper, and nothing below it — a list *inside* the bag still replaces,
+  or unticking a Meerkeuze option would never reach the server. A new key whose
+  value is a bag of independent answers belongs in that list; a key holding one
+  document or one list does not. `mergePatch` is exported and pure, so the rule
+  is testable without a component around it (`tests/unit/autosave-merge.test.ts`).
 - **A canvas on a server-rendered page must `router.refresh()` after every
   write**, or the browser's Back button lands on the RSC payload from before it.
-  `components/maps/MapCanvas.tsx` still does not do this for pin moves — a known
-  gap.
+  `components/maps/MapCanvas.tsx` now does this after a pin is **created** and
+  after one is **removed** (§39 made it load-bearing: walking down a landkaart
+  speld and coming back up the chip landed on a payload without the speld in
+  it). A pin **move** still does not refresh — the known gap is that narrow one
+  now, not the whole file.
 - **`lib/assets.ts` loads sharp and the database**, so nothing client-side may
   import it. Pure, client-safe helpers belong in `lib/upload.ts`.
 
@@ -192,8 +214,25 @@ mistakes. Check yours against these before declaring a spec finished.
   minuten" is a radio whose name contains *Minuten*. Use
   `getByRole('radio', { name, exact: true })`, and give controls an explicit
   `aria-label` with `aria-describedby` for the sentence.
-- **A bare `data-testid` can match twice.** The side menu and the Jij page both
-  render some controls. Scope it: `page.getByRole('main').getByTestId(…)`.
+- **A bare `data-testid` — or a bare `getByText` — can match twice.** The side
+  menu and the Jij page both render some controls, and both print the name of
+  the karakter you are wearing (`.who-name`), which on a phone is there but
+  hidden: three `getByText` locators on `/you` were picking the invisible copy,
+  so `.first()` was never the wardrobe's. Scope it:
+  `page.getByRole('main').getByTestId(…)` / `.getByText(…)`.
+- **The "'…' aanmaken" row of a suggest list is on screen before the
+  suggestions are.** It needs only a query (`EntryPicker`, `CaseAddSearch`);
+  the real rows wait on a 160 ms debounce *and* a fetch. So a
+  `.suggest-item` filtered on the name you typed matches the **create** row
+  first — and clicking it opens the nieuw-artikel sheet instead of picking the
+  thing that already exists. Add `.filter({ hasNotText: 'aanmaken' })`, as
+  `addFromSearch` in `flow-3-case-dossier.spec.ts` and `keeperAssigns` in
+  `characters.spec.ts` do.
+- **`?new=1` lands on the editing face**, where the artikel's name is the title
+  box `#entry-name` and there is **no heading at all**. Assert
+  `toHaveValue(name)`, not `getByRole('heading', { name })` — and never a bare
+  `getByText(name)`, which matches the `<code>@handle</code>` the page also
+  prints.
 - **`waitForURL('**/e/**')` is already true if you are standing on an artikel.**
   A helper that creates several in a row must wait for the address to *change*.
 - **A page that has just navigated is not yet listening.** A click or a `fill`
@@ -206,7 +245,12 @@ mistakes. Check yours against these before declaring a spec finished.
   the undo button goes dead.
 - **A player needs an onderzoeker before they can write anything** (§18b). Use
   `becomeInvestigator` / `writeAs` from `helpers.ts`; a fresh account can create
-  artikelen and tie one on, and nothing else.
+  artikelen and tie its *first* one on, and nothing else — everything after that
+  is the Keeper's to hand out from Beheer (§18c, rule 42).
+- **Nobody lands on an editing page any more**, a Keeper included (rule 18). A
+  spec that wants to type into an artikel or a dossier calls `editArticle()` /
+  `editCase()` from `helpers.ts` first, which is what a person does. Only
+  `?new=1` — the page you reach by making the thing — opens in bewerken.
 - **Pin and stroke coordinates are fractions of `.map-world`, not `.map-stage`.**
   The stage is now much larger than the picture inside it, and a tap on bare
   cork places nothing.
@@ -243,25 +287,48 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11 and 12
+## 8. Leftovers — rounds 11, 12 and 13
 
-Genuine debt, worth picking up. Round 12 fixed none of these: it was two fixes
-Nick reported and nothing else, and it went nowhere near any of them.
+Genuine debt, worth picking up. Round 13 narrowed one of these (the
+`router.refresh()` gap) and added two of its own at the bottom; the rest it went
+nowhere near, because it was seven features and about twenty-seven hours.
 
 - The prikbord is not on the §34 canvas shell; `.board-viewport` still carries
-  the old magic heights.
-- `MapCanvas` does not `router.refresh()` after a pin move (see §5).
+  the old magic heights. Round 13 made cards resizable on that same wall without
+  touching it, so the two do not block each other — but a wall of 250% cards is
+  a better argument for the full-screen shell than it was.
+- `MapCanvas` does not `router.refresh()` after a pin **move**. Create and remove
+  do since round 13 (see §5), so this is now one gesture, not a whole file.
 - Six places open a sheet from inside a sheet (`MapCanvas`, `TimelineCanvas`,
   `EventSheets`, `BoardCanvas`). `lib/sheetStack.ts` makes them survive it; they
-  are not correct by design.
+  are not correct by design. Round 13 added a seventh road into `MapCanvas`'s
+  pin sheet (the landkaart speld and its "openen" button), which survives the
+  same way and for the same reason.
 - "gezet door {naam}" on a landkaart and a tijdlijn still derives per account
   rather than reading the row's recorded `character_id`.
 - An ink stroke names an account inside the layer JSON, not an onderzoeker.
 - `updateEvent` / `updatePin` write no activity row at all (pre-dates §18b).
+- `recomputeFieldMentions` has the **same two-source blind spot the §38 field
+  gate just fixed**: it reads `entry_types.fields` and nothing else, so an
+  artikel chosen in a *hand-filled `links` block* on a soort's page is not
+  counted under "Genoemd in" (rule 26). The keys are in `listBlockKeys` already
+  — this is a matter of building the same synthetic `entry_links` FieldDef
+  `fieldValues.ts` and `EntryView` both build, and handing it to
+  `fieldMentionsIn`. Cheap, and it is a missing row rather than a leak.
+
+Deliberately left out of round 13, and named so nobody has to rediscover that
+they were a choice:
+
+- **Spelden that stand for a dossier or a tijdlijn.** §39 is one column
+  (`target_map_id`), not a polymorphic target; a second kind means the column
+  becomes a pair, or a `target_kind` beside it.
+- **`removeCharacter` being Keeper-only** (rule 42) was the building agent's
+  judgement call on symmetry, not Nick's instruction. The argument for it is
+  written down in `DECISIONS.md`; if it costs more than it buys, it is one line.
 
 Asked for by Nick and deliberately left out of round 12, so that round stayed
-two fixes and about four hours. All three are decided, not open questions —
-build them as written:
+two fixes and about four hours — and out of round 13, which was already seven
+items. All three are decided, not open questions — build them as written:
 
 - **A pasted photo on a prikbord should be a `note`, not a `kind: 'photo'`
   card** (~2 h). A notitie can already hold a picture, so the photo kind earns

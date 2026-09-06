@@ -13,7 +13,7 @@ import {
   restoreCaseRevision,
   restoreFromTrash,
 } from '@/lib/admin/trash';
-import { createType, deleteType, updateType } from '@/lib/admin/types';
+import { createType, deleteType, purgeOrphanField, updateType } from '@/lib/admin/types';
 import { saveWords } from '@/lib/admin/words';
 import { makeInviteCode } from '@/lib/db/seed.mjs';
 
@@ -305,6 +305,29 @@ export async function createTypeAction(_prev: AdminState, formData: FormData): P
   revalidatePath('/admin');
   revalidatePath('/', 'layout');
   return { ok: 'Soort aangemaakt.' };
+}
+
+/**
+ * §38: the escape hatch beside the orphan count. A field taken away keeps its
+ * values, on purpose; this is the one button that actually throws them away,
+ * one key at a time, and only a Keeper reaches it.
+ */
+export async function purgeFieldValuesAction(
+  _prev: AdminState,
+  formData: FormData,
+): Promise<AdminState> {
+  const keeper = await requireKeeper();
+  const key = String(formData.get('fieldKey') ?? '');
+  let wiped = 0;
+  try {
+    wiped = purgeOrphanField(String(formData.get('typeId') ?? ''), key, keeper.id);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Wissen is niet gelukt.' };
+  }
+  revalidatePath('/admin');
+  return {
+    ok: `‘${key}’ gewist bij ${wiped} ${wiped === 1 ? 'artikel' : 'artikelen'}.`,
+  };
 }
 
 export async function deleteTypeAction(_prev: AdminState, formData: FormData): Promise<AdminState> {

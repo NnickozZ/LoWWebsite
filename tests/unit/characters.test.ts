@@ -9,6 +9,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * The rules under test: the first fiche tied on is worn at once; a Keeper wears
  * nobody; taking off what you wear falls back to the next one; and every name
  * the archive prints comes from who is active *now*.
+ *
+ * §18c: and who may tie one on at all. Casting is the Keeper's — a speler may
+ * do it for themselves exactly once, while they hold nobody, because an
+ * onderzoeker *is* an artikel somebody tied on and refusing that one too would
+ * leave every new arrival waiting on the Keeper for their own beginning. The
+ * door is the same one `requireAuthorOrFirstCharacter` opens, asked the same
+ * way (`listCharacters`, not a count of the knots), and it shuts behind them.
+ * Ontkoppelen is the Keeper's outright; *wearing* one of the ones you hold is
+ * untouched and still entirely the player's.
  */
 
 const dir = mkdtempSync(join(tmpdir(), 'zcf-characters-'));
@@ -20,6 +29,10 @@ let deps: Deps;
 const KEEPER = { id: 'keeper-1', isKeeper: true };
 const BRAM = { id: 'bram', isKeeper: false };
 const AAGJE = { id: 'aagje', isKeeper: false };
+/** Just arrived, holds nobody: the person §18c's one open door exists for. */
+const GRIET = { id: 'griet', isKeeper: false };
+/** Held one once; it is in the prullenbak, so the knot points at nothing. */
+const WIM = { id: 'wim', isKeeper: false };
 
 function user(sqlite: Deps['sqlite'], id: string, name: string, isKeeper = false) {
   sqlite
@@ -55,11 +68,23 @@ beforeAll(async () => {
   user(sqlite, 'keeper-1', 'Keeper', true);
   user(sqlite, 'bram', 'Bram');
   user(sqlite, 'aagje', 'Aagje');
+  user(sqlite, 'griet', 'Griet');
+  user(sqlite, 'wim', 'Wim');
 
   entry(sqlite, 'vandijk', 'Onderzoeker Van Dijk');
   entry(sqlite, 'nel', 'Nel de Visser');
   entry(sqlite, 'geheim', 'Geheime agent', { visibility: 'keeper', createdBy: 'keeper-1' });
   entry(sqlite, 'prive', 'Privé-dagboek', { createdBy: 'aagje', viewMode: 'private' });
+  entry(sqlite, 'g1', 'Griet Bakker');
+  entry(sqlite, 'g2', 'Nog een onderzoeker');
+  entry(sqlite, 'weg', 'Jan Verdronken');
+
+  // Wim's only fiche is in the bin: the knot is still there and `listCharacters`
+  // is empty, which is exactly the state §18c has to keep the door open for.
+  sqlite
+    .prepare('INSERT INTO user_characters (user_id, entry_id, sort_order) VALUES (?, ?, 0)')
+    .run('wim', 'weg');
+  sqlite.prepare("UPDATE entries SET deleted_at = 1 WHERE id = 'weg'").run();
 });
 
 afterAll(() => {
@@ -69,9 +94,12 @@ afterAll(() => {
 
 describe('tying on and wearing', () => {
   it('the first character tied is worn at once; a second is not', () => {
+    // His own first one (§18c's open door) …
     deps.addCharacter('bram', 'vandijk', BRAM);
     expect(deps.activeCharacter('bram')?.entryId).toBe('vandijk');
-    deps.addCharacter('bram', 'nel', BRAM);
+    // … and the second handed to him by the Keeper, which is the only way
+    // there is a second at all.
+    deps.addCharacter('bram', 'nel', KEEPER);
     expect(deps.activeCharacter('bram')?.entryId).toBe('vandijk');
     expect(deps.listCharacters('bram').map((c) => c.name)).toEqual([
       'Onderzoeker Van Dijk',
@@ -92,8 +120,10 @@ describe('tying on and wearing', () => {
   });
 
   it('a fiche you cannot see cannot be tied on', () => {
+    // Both of these hold nobody, so §18c lets them through to the real
+    // question: they cannot see the fiche they are asking for.
     expect(() => deps.addCharacter('aagje', 'geheim', AAGJE)).toThrow(/niet gevonden/);
-    expect(() => deps.addCharacter('bram', 'prive', BRAM)).toThrow(/niet gevonden/);
+    expect(() => deps.addCharacter('wim', 'prive', WIM)).toThrow(/niet gevonden/);
     // …but the Keeper may tie it on for them.
     deps.addCharacter('aagje', 'geheim', KEEPER);
     expect(deps.listCharacters('aagje').map((c) => c.entryId)).toEqual([]); // hidden from Aagje herself
@@ -113,12 +143,61 @@ describe('tying on and wearing', () => {
   it('taking off what you wear falls back to the next one, then to nobody', () => {
     deps.addCharacter('aagje', 'prive', AAGJE);
     expect(deps.activeCharacter('aagje')?.entryId).toBe('prive');
-    deps.addCharacter('aagje', 'nel', AAGJE);
-    deps.removeCharacter('aagje', 'prive', AAGJE);
+    // §18c: the second one, and both unties, are the Keeper's.
+    deps.addCharacter('aagje', 'nel', KEEPER);
+    deps.removeCharacter('aagje', 'prive', KEEPER);
     expect(deps.activeCharacter('aagje')?.entryId).toBe('nel');
-    deps.removeCharacter('aagje', 'nel', AAGJE);
+    deps.removeCharacter('aagje', 'nel', KEEPER);
     expect(deps.activeCharacter('aagje')).toBeNull();
     expect(deps.listCharacters('aagje')).toEqual([]);
+  });
+});
+
+/**
+ * §18c: casting is the Keeper's, with one door left open.
+ *
+ * Nick's rule, in his words: *"Spelers kunnen niet karakters assignen aan
+ * zichzelf, alleen keepers kunnen onderzoekers assignen aan accounts"* — but
+ * self-onboarding stays, so a brand-new speler still makes their own first one.
+ */
+describe('who hands out an onderzoeker', () => {
+  it('a speler ties their first one on, and never a second', () => {
+    expect(deps.listCharacters('griet')).toEqual([]);
+    deps.addCharacter('griet', 'g1', GRIET);
+    expect(deps.listCharacters('griet').map((c) => c.entryId)).toEqual(['g1']);
+    // The door has shut behind her.
+    expect(() => deps.addCharacter('griet', 'g2', GRIET)).toThrow(/Alleen de Keeper/);
+    expect(deps.listCharacters('griet').map((c) => c.entryId)).toEqual(['g1']);
+  });
+
+  it('the Keeper hands out the rest, to anyone, always', () => {
+    deps.addCharacter('griet', 'g2', KEEPER);
+    expect(deps.listCharacters('griet').map((c) => c.entryId)).toEqual(['g1', 'g2']);
+    // And what she wears is still hers to decide (§18b) — untouched by all this.
+    deps.setActiveCharacter('griet', 'g2', GRIET);
+    expect(deps.activeCharacter('griet')?.entryId).toBe('g2');
+    deps.setActiveCharacter('griet', null, GRIET);
+    expect(deps.activeCharacter('griet')).toBeNull();
+  });
+
+  it('ontkoppelen is the Keeper’s, even your own', () => {
+    expect(() => deps.removeCharacter('griet', 'g2', GRIET)).toThrow(/Alleen de Keeper/);
+    expect(() => deps.removeCharacter('griet', 'g2', AAGJE)).toThrow(/Alleen de Keeper/);
+    expect(deps.listCharacters('griet')).toHaveLength(2);
+    deps.removeCharacter('griet', 'g2', KEEPER);
+    expect(deps.listCharacters('griet').map((c) => c.entryId)).toEqual(['g1']);
+  });
+
+  it('counts the fiches a person can see, not the knots they are left with', () => {
+    // Wim's only knot points into the prullenbak. A bare count of the ties
+    // would say "one" and lock him out of the only road he has; the same
+    // reading `requireAuthorOrFirstCharacter` uses says "none", and the door
+    // is open.
+    expect(deps.listCharacters('wim')).toEqual([]);
+    deps.addCharacter('wim', 'g2', WIM);
+    expect(deps.listCharacters('wim').map((c) => c.entryId)).toEqual(['g2']);
+    expect(() => deps.addCharacter('wim', 'vandijk', WIM)).toThrow(/Alleen de Keeper/);
+    deps.removeCharacter('wim', 'g2', KEEPER);
   });
 });
 

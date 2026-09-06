@@ -3,10 +3,11 @@ import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
 import type { Author } from '@/lib/auth/author';
 import { db, schema, sqlite } from '@/lib/db';
 import type { AccessMode, CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
-import type { PageBlock, TypeText } from '@/lib/pageBlocks';
+import { resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
+import { checkFieldPatch, cleanFieldPatch, listBlockKeys } from './fieldValues';
 import { recomputeFieldMentions } from './mentions';
 import { visibleEntryCondition, type Viewer } from './visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
@@ -106,6 +107,25 @@ export function getEntryType(slug: string): EntryTypeRow | undefined {
   return db.select().from(schema.entryTypes).where(eq(schema.entryTypes.slug, slug)).get() as
     | EntryTypeRow
     | undefined;
+}
+
+/**
+ * §38: the two lists that together say which keys an artikel of this soort may
+ * have a value under — the Keeper's fields, and the hand-filled list blocks on
+ * its page. Both, always: a list block's chosen artikelen live in
+ * `entries.fields` under the block's own key, so a gate that only knew about
+ * `entry_types.fields` would quietly empty every one of them.
+ */
+export function typeFieldSpec(typeId: string): { defs: FieldDef[]; listKeys: string[] } {
+  const row = db
+    .select({ fields: schema.entryTypes.fields, blocks: schema.entryTypes.blocks })
+    .from(schema.entryTypes)
+    .where(eq(schema.entryTypes.id, typeId))
+    .get();
+  return {
+    defs: (row?.fields as FieldDef[] | null) ?? [],
+    listKeys: listBlockKeys(resolveBlocks(row?.blocks)),
+  };
 }
 
 /* --------------------------------------------------------------- indexing */
@@ -268,6 +288,15 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
   const id = newId();
   const body = input.body ?? EMPTY_DOC;
 
+  // §38: an artikel is made with the soort's own infobox, or with none. The
+  // same gate `updateEntry` puts on a save, so the first write cannot smuggle
+  // in a key the Keeper never asked for.
+  const fields = cleanFieldPatch(
+    type.fields ?? [],
+    listBlockKeys(resolveBlocks(type.blocks)),
+    input.fields ?? {},
+  );
+
   db.insert(schema.entries)
     .values({
       id,
@@ -277,7 +306,7 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
       shortDescription: (input.shortDescription ?? '').trim(),
       body,
       bodyText: docToText(body),
-      fields: input.fields ?? {},
+      fields,
       tags: normaliseTags(input.tags ?? []),
       originCaseId: input.originCaseId ?? null,
       createdBy: input.createdBy,
@@ -541,7 +570,19 @@ export type EntryPatch = Partial<{
 }>;
 
 export type SaveResult =
-  | { status: 'saved'; entry: EntrySummary; updatedBy: string | null }
+  | {
+      status: 'saved';
+      entry: EntrySummary;
+      updatedBy: string | null;
+      /**
+       * §38: the infobox keys this save refused — a key the soort does not
+       * have, or a value that is not of that field's kind. Present only on a
+       * plain save. A live room's write leaves this empty on purpose: a CRDT
+       * that were told "no" would put the same keystroke back and be told "no"
+       * again, for ever, so the room drops what it may not store in silence.
+       */
+      rejectedFields?: string[];
+    }
   | { status: 'pending' };
 
 /**
@@ -640,8 +681,44 @@ export function updateEntry(
     values.body = patch.body;
     values.bodyText = docToText(patch.body);
   }
+  /*
+   * §38: the infobox is the Keeper's list, and this is the one seam that says
+   * so. Everything that changes `entries.fields` on purpose comes through here
+   * — the artikel page's autosave (`PATCH /api/entries/[id]`), the §21 fields
+   * room (`lib/live/rooms.ts` sweeps every `field.*` name out of the Yjs doc
+   * and hands them to this function), an approved voorstel
+   * (`approvePendingEdit`) and the roads that change a soort — so one check
+   * here covers all of them.
+   *
+   * The *merge base* is deliberately not filtered. A value stored under a key
+   * the soort no longer has stays exactly where it is: `TypeEditor` promises
+   * that a field taken away and put back brings its value with it, and a
+   * retype is not a coercion either. Only what arrives is measured.
+   *
+   * Two writers to this column are deliberately *not* gated, and must stay
+   * that way:
+   *   - `writeEntryDate` (`lib/timelines/moment.ts`) writes `fields.date` with
+   *     plain drizzle. It must not come through `updateEntry` at all — that is
+   *     the cycle note in that file, and routing a drag through here would turn
+   *     it into a voorstel for someone who may drag but not edit. What it
+   *     writes is `formatWhen` output, which `parseDutchDate` reads back.
+   *   - `restoreRevision` puts an old `fields` blob back wholesale. Putting a
+   *     version back is meant to be exact, not corrected.
+   */
+  let rejectedFields: string[] = [];
   if (patch.fields !== undefined) {
-    values.fields = { ...(entry.fields ?? {}), ...patch.fields };
+    // Measured against the soort the artikel will *be*: a save that changes the
+    // soort and the infobox at once is filling in the new one's fields.
+    const targetTypeId =
+      (patch.typeSlug !== undefined ? getEntryType(patch.typeSlug)?.id : undefined) ?? entry.typeId;
+    const spec = typeFieldSpec(targetTypeId);
+    const checked = checkFieldPatch(spec.defs, spec.listKeys, patch.fields);
+    if (!options.live) rejectedFields = checked.rejected;
+    // Nothing survived the gate: no write, no revision, no feed row. A patch of
+    // pure rubbish is not an edit of this artikel.
+    if (Object.keys(checked.fields).length) {
+      values.fields = { ...(entry.fields ?? {}), ...checked.fields };
+    }
   }
   if (patch.tags !== undefined) values.tags = normaliseTags(patch.tags);
   if (patch.coverAssetId !== undefined) values.coverAssetId = patch.coverAssetId;
@@ -655,7 +732,12 @@ export function updateEntry(
   }
 
   if (!Object.keys(values).length) {
-    return { status: 'saved', entry: getEntrySummaryById(entryId)!, updatedBy: entry.updatedBy };
+    return {
+      status: 'saved',
+      entry: getEntrySummaryById(entryId)!,
+      updatedBy: entry.updatedBy,
+      ...(rejectedFields.length ? { rejectedFields } : {}),
+    };
   }
 
   values.updatedAt = Math.floor(Date.now() / 1000);
@@ -667,12 +749,12 @@ export function updateEntry(
   // §27: an infobox that points at another artikel is a mention of it. Read
   // back off the merged row rather than off the patch, because §6 patches one
   // field at a time and the table has to hold what the infobox now says.
-  if (patch.fields !== undefined) recomputeFieldMentions(entryId);
+  if (values.fields !== undefined) recomputeFieldMentions(entryId);
   // §35: the infobox's date and this artikel's gebeurtenissen are one fact.
   // Editing the date here moves every tag of it on every tijdlijn, each
   // re-snapped to its own precision and re-anchored to its own axis; the
   // other direction (a tag dragged) writes this field back the same way.
-  if (patch.fields !== undefined) syncEventsFromEntryDate(entryId);
+  if (values.fields !== undefined) syncEventsFromEntryDate(entryId);
   if (
     patch.name !== undefined ||
     patch.shortDescription !== undefined ||
@@ -693,7 +775,7 @@ export function updateEntry(
     // §21: the short texts are shared too; a plain write brings their room into line.
     const fields = liveFieldValues(
       { name: values.name as string | undefined, shortDescription: values.shortDescription as string | undefined },
-      patch.fields !== undefined ? (values.fields as Record<string, unknown>) : undefined,
+      values.fields !== undefined ? (values.fields as Record<string, unknown>) : undefined,
     );
     if (Object.keys(fields).length) resetFieldsInRoom(entryFieldsRoomKey(entryId), fields);
   }
@@ -702,6 +784,7 @@ export function updateEntry(
     status: 'saved',
     entry: getEntrySummaryById(entryId)!,
     updatedBy: entry.updatedBy,
+    ...(rejectedFields.length ? { rejectedFields } : {}),
   };
 }
 
@@ -790,6 +873,13 @@ export function restoreRevision(revisionId: string, user: Author) {
     throw new Error('Je mag dit artikel niet bewerken.');
   }
 
+  /*
+   * §38 gates a *patch* to `entries.fields`; this is not one. Putting an old
+   * version back writes the whole blob it had, exactly as it was — including a
+   * value under a key the soort has since dropped, and a value the soort has
+   * since retyped. A restore that quietly corrected the version it restored
+   * would not be a restore.
+   */
   const snapshot = revision.snapshot as Record<string, unknown>;
   writeRevision(revision.entryId, user.id, 'voor het terugzetten', user.characterId ?? null);
   db.update(schema.entries)

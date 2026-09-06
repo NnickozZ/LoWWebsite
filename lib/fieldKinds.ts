@@ -9,7 +9,10 @@ import type { FieldDef, FieldKind } from '@/lib/db/schema';
 export const FIELD_KINDS: { kind: FieldKind; label: string }[] = [
   { kind: 'text', label: 'Tekst' },
   { kind: 'longtext', label: 'Lange tekst' },
+  { kind: 'number', label: 'Getal' },
+  { kind: 'boolean', label: 'Ja/nee' },
   { kind: 'select', label: 'Keuzelijst' },
+  { kind: 'multiselect', label: 'Meerkeuze' },
   { kind: 'entry_link', label: 'Koppeling naar één artikel' },
   { kind: 'entry_links', label: 'Koppelingen naar artikelen' },
   { kind: 'user_link', label: 'Koppeling naar een speler' },
@@ -39,7 +42,11 @@ export function cleanFields(input: unknown): FieldDef[] {
     seen.add(key);
     const kind = KNOWN_KINDS.has(field.kind as FieldKind) ? (field.kind as FieldKind) : 'text';
     const def: FieldDef = { key, label, kind };
-    if (kind === 'select') {
+    // §38: a Meerkeuze is a Keuzelijst that takes more than one answer, so it
+    // is configured the same way and kept the same way — a list with no options
+    // yet stays the kind it is and takes nothing but the empty answer, exactly
+    // as an option-less Keuzelijst always has.
+    if (kind === 'select' || kind === 'multiselect') {
       def.options = Array.isArray(field.options)
         ? field.options.map((option) => String(option).trim()).filter(Boolean).slice(0, 30)
         : [];

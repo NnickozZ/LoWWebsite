@@ -3,6 +3,7 @@ import { db, schema, sqlite } from '@/lib/db';
 import { logAudit } from '@/lib/entries/service';
 import { slugify } from '@/lib/slug';
 import { cleanFields } from '@/lib/fieldKinds';
+import { allowedFieldKeys, listBlockKeys, orphanValueCounts } from '@/lib/entries/fieldValues';
 import { cleanBlocks, cleanTypeText, resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import type { FieldDef } from '@/lib/db/schema';
 
@@ -29,6 +30,13 @@ export type TypeRow = {
   caseOnly: boolean;
   /** How many entries are filed under it — a type in use should not vanish quietly. */
   entryCount: number;
+  /**
+   * §38: values still stored under a key this soort no longer has, per key.
+   * Nothing is destroyed when a field goes away — putting the field back brings
+   * its values with it — so this is the Keeper's only way to *see* what is
+   * being kept, and `purgeOrphanField` their only way to be rid of it.
+   */
+  orphans: { key: string; count: number }[];
 };
 
 export function listTypesForAdmin(): TypeRow[] {
@@ -38,23 +46,89 @@ export function listTypesForAdmin(): TypeRow[] {
     .orderBy(asc(schema.entryTypes.sortOrder))
     .all();
   const counts = new Map<string, number>();
-  for (const row of db.select({ typeId: schema.entries.typeId }).from(schema.entries).all()) {
+  // §38: the stored infobox of every artikel, grouped by soort, so the orphan
+  // count below is one pass rather than a query per soort.
+  const stored = new Map<string, Record<string, unknown>[]>();
+  for (const row of db
+    .select({ typeId: schema.entries.typeId, fields: schema.entries.fields })
+    .from(schema.entries)
+    .all()) {
     counts.set(row.typeId, (counts.get(row.typeId) ?? 0) + 1);
+    const list = stored.get(row.typeId) ?? [];
+    list.push((row.fields as Record<string, unknown> | null) ?? {});
+    stored.set(row.typeId, list);
   }
-  return types.map((type) => ({
-    id: type.id,
-    slug: type.slug,
-    label: type.label,
-    icon: type.icon,
-    colour: type.colour,
-    border: type.border,
-    fields: type.fields ?? [],
-    blocks: resolveBlocks(type.blocks),
-    pageText: cleanTypeText(type.pageText),
-    sortOrder: type.sortOrder,
-    caseOnly: Boolean(type.caseOnly),
-    entryCount: counts.get(type.id) ?? 0,
-  }));
+  return types.map((type) => {
+    const blocks = resolveBlocks(type.blocks);
+    return {
+      id: type.id,
+      slug: type.slug,
+      label: type.label,
+      icon: type.icon,
+      colour: type.colour,
+      border: type.border,
+      fields: type.fields ?? [],
+      blocks,
+      pageText: cleanTypeText(type.pageText),
+      sortOrder: type.sortOrder,
+      caseOnly: Boolean(type.caseOnly),
+      entryCount: counts.get(type.id) ?? 0,
+      // Both sources of the whitelist, or every hand-filled list on the page
+      // would be reported as an orphan of itself.
+      orphans: orphanValueCounts(
+        allowedFieldKeys(type.fields ?? [], listBlockKeys(blocks)),
+        stored.get(type.id) ?? [],
+      ),
+    };
+  });
+}
+
+/**
+ * §38: throw away every value stored under one key of one soort, for good.
+ *
+ * The escape hatch, and nothing more. A field taken away in the editor keeps
+ * its values — that is the promise `TypeEditor` makes and this module keeps —
+ * so this is the only road that actually deletes one, it is a Keeper's, it
+ * names one key at a time, and it refuses a key the soort still has, because
+ * that would be a bulk wipe of a live field rather than a tidy-up.
+ */
+export function purgeOrphanField(typeId: string, key: string, keeperId: string): number {
+  const type = db
+    .select()
+    .from(schema.entryTypes)
+    .where(eq(schema.entryTypes.id, typeId))
+    .get();
+  if (!type) throw new Error('Soort artikel niet gevonden');
+
+  const allowed = allowedFieldKeys(type.fields ?? [], listBlockKeys(resolveBlocks(type.blocks)));
+  if (allowed.has(key)) {
+    throw new Error('Dit veld bestaat nog. Haal het eerst weg bij de velden van deze soort.');
+  }
+
+  const rows = db
+    .select({ id: schema.entries.id, fields: schema.entries.fields })
+    .from(schema.entries)
+    .where(eq(schema.entries.typeId, typeId))
+    .all();
+
+  let wiped = 0;
+  for (const row of rows) {
+    const fields = (row.fields as Record<string, unknown> | null) ?? {};
+    if (!(key in fields)) continue;
+    const next = { ...fields };
+    delete next[key];
+    db.update(schema.entries).set({ fields: next }).where(eq(schema.entries.id, row.id)).run();
+    wiped += 1;
+  }
+
+  logAudit({
+    actorId: keeperId,
+    action: 'entry_type.field_values_purged',
+    targetType: 'entry_type',
+    targetId: typeId,
+    meta: { key, entries: wiped },
+  });
+  return wiped;
 }
 
 export type TypePatch = Partial<{

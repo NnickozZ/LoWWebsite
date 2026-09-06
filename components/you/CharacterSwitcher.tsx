@@ -128,9 +128,13 @@ export function CharacterSwitcher({ me }: { me: Me }) {
             {words.playsAs}
           </h2>
           {state.characters.length === 0 ? (
+            /* §18c: this is the zero-held case — the one case where the road is
+               still the player's own. So it still points at it, and names the
+               Keeper for everything after. */
             <p className="small muted" style={{ margin: 0 }}>
-              Je hebt nog geen {words.character} gekoppeld. Dat doe je op je eigen pagina, of met de
-              knop &lsquo;{words.thisIsMyCharacter}&rsquo; op een {words.entry}.
+              Je hebt nog geen {words.character} gekoppeld. Je eerste maak je zelf: met de knop
+              &lsquo;{words.thisIsMyCharacter}&rsquo; op een {words.entry}, of op je eigen pagina.
+              Daarna koppelt de {words.keeper} ze aan je account.
             </p>
           ) : (
             <ul className="who-list" role="radiogroup" aria-label={words.playsAs}>
@@ -212,11 +216,26 @@ export function CharacterWardrobe({ me }: { me: Me }) {
 
   return (
     <div className="stack" style={{ gap: '0.7rem' }}>
-      <p className="small muted" style={{ margin: 0 }}>
-        Koppel de {words.entry} van je onderzoeker aan je account. Alles wat je in het archief doet
-        draagt dan die naam — ook wat je eerder deed. Rechten horen bij je account, niet bij een{' '}
-        {words.character}: wisselen verandert niets aan wat je mag zien.
-      </p>
+      {/* §18c: what this page is for, and what it is not. Wearing one of the
+          karakters you hold is your own choice; koppelen is the Keeper's. The
+          one exception is the first one, and the paragraph says so only while
+          it is true — a speler holding nobody. */}
+      {state.characters.length === 0 ? (
+        <p className="small muted" style={{ margin: 0 }}>
+          Je hebt nog geen {words.character}. Je eerste koppel je zelf: maak de {words.entry} van je
+          onderzoeker en zoek hem hieronder op, of gebruik de knop &lsquo;
+          {words.thisIsMyCharacter}&rsquo; op die {words.entry}. Daarna geeft de {words.keeper} je
+          {' '}
+          {words.characterPlural} uit.
+        </p>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>
+          Hier kies je wie je bent. Alles wat je in het archief doet draagt die naam — ook wat je
+          eerder deed. Welke {words.characterPlural} aan je account hangen bepaalt de{' '}
+          {words.keeper}; welke daarvan je draagt, bepaal je zelf. Rechten horen bij je account,
+          niet bij een {words.character}: wisselen verandert niets aan wat je mag zien.
+        </p>
+      )}
 
       {state.characters.length > 0 && (
         <ul className="who-list" aria-label={words.yourCharacters}>
@@ -245,16 +264,11 @@ export function CharacterWardrobe({ me }: { me: Me }) {
                   {isActive && <Icon name="check" size={12} />}
                   {isActive ? 'Actief' : 'Speel als'}
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-small"
-                  disabled={busy}
-                  onClick={() => void call('DELETE', { entryId: character.entryId })}
-                  aria-label={`${character.name} ontkoppelen`}
-                  title="Ontkoppelen"
-                >
-                  <Icon name="close" size={14} />
-                </button>
+                {/* §18c: no ✕ here. Ontkoppelen is the Keeper's — a player
+                    who could untie their last one would be back at "holds
+                    nobody", which is the one state that opens the road above,
+                    so it would never close. Not being anyone for a while is
+                    "Als jezelf", which is right below and stays theirs. */}
               </li>
             );
           })}
@@ -276,21 +290,28 @@ export function CharacterWardrobe({ me }: { me: Me }) {
         </div>
       )}
 
-      <div>
-        <span className="label">
-          {words.character.charAt(0).toUpperCase() + words.character.slice(1)} koppelen
-        </span>
-        <EntryPicker
-          value={null}
-          placeholder={`Zoek de ${words.entry} van je ${words.character}…`}
-          onPick={(entry) => {
-            void call('POST', { entryId: entry.id }).then((next) => {
-              if (next) ui.toast(`${entry.name} is nu een van je ${words.characterPlural}.`);
-            });
-          }}
-          onClear={() => undefined}
-        />
-      </div>
+      {/* §18c: the box is here only while there is nobody on the peg. That
+          first one is the speler's own — an onderzoeker *is* an artikel
+          somebody tied on, so refusing it too would leave every new arrival
+          waiting on the Keeper for their own beginning. With one tied on the
+          box goes, and the Keeper hands out the rest from Beheer. */}
+      {state.characters.length === 0 && (
+        <div>
+          <span className="label">
+            Je eerste {words.character} koppelen
+          </span>
+          <EntryPicker
+            value={null}
+            placeholder={`Zoek de ${words.entry} van je ${words.character}…`}
+            onPick={(entry) => {
+              void call('POST', { entryId: entry.id }).then((next) => {
+                if (next) ui.toast(`${entry.name} is nu een van je ${words.characterPlural}.`);
+              });
+            }}
+            onClear={() => undefined}
+          />
+        </div>
+      )}
     </div>
   );
 }

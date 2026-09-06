@@ -6,7 +6,14 @@ import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
-import { CARD_SIZE, cardRef, PIN_SIZE, type BoardCard as BoardCardModel, type CardCrop } from '@/lib/boards/merge';
+import {
+  CARD_SIZE,
+  cardRef,
+  PIN_TAG_MAX_WIDTH,
+  pinSize,
+  type BoardCard as BoardCardModel,
+  type CardCrop,
+} from '@/lib/boards/merge';
 import type { BoardRefs } from '@/lib/boards/service';
 import type { CoverCrop } from '@/lib/db/schema';
 
@@ -229,7 +236,23 @@ export function BoardCardView({
         style={{
           left: card.x,
           top: card.y,
-          width: PIN_SIZE.width,
+          /*
+           * The tag's box, from the label — `pinSize` is the same function
+           * `cardSize` and `cardBox` measure this pin with, so what is painted
+           * and what the geometry believes are one answer rather than two. A
+           * label that already fitted gets exactly `PIN_SIZE.width` back.
+           */
+          width: pinSize(card).width,
+          maxWidth: PIN_TAG_MAX_WIDTH,
+          /*
+           * A pin has never carried a transform — its rotation is 0 by
+           * construction — and one on this box would put the head into a
+           * stacking context of its own, which changes what a pin paints over.
+           * So it appears only when there is a size to apply, and a pin at 100%
+           * is exactly the pin that was here before.
+           */
+          transform:
+            card.scale === 1 ? undefined : `rotate(${card.rotation}deg) scale(${card.scale})`,
           cursor: interactive ? 'grab' : 'pointer',
         }}
         onPointerDown={onPointerDown}
@@ -297,7 +320,25 @@ export function BoardCardView({
          * is where the width already comes from, and the two belong together.
          */
         minHeight: CARD_SIZE.height,
-        transform: `rotate(${card.rotation}deg)`,
+        /*
+         * §41: the size is a second factor on the transform the tilt already uses,
+         * about the default centre origin — so a card that is made bigger grows
+         * evenly out of where it stands rather than walking off to the right,
+         * and a card at 100% does not move at all. Everything on the paper — the
+         * picture, the title, the words — grows with it, which is Nick's
+         * decision: a card zooms like a photograph rather than reflowing.
+         *
+         * `.board-world` already carries `scale(viewport.zoom)`, and nested
+         * transforms multiply, so this is measured in board units and needs to
+         * know nothing about the zoom.
+         *
+         * The 1px rule and the drop shadow are multiplied by it as well, so a
+         * card at 500% wears a 5px rule. That is deliberate and left alone: it
+         * is what the wall's own zoom has always done to a card's border, so a
+         * card at 200% looks like the same card seen at 200% zoom, and a
+         * magnified photograph magnifies its frame with it.
+         */
+        transform: `rotate(${card.rotation}deg) scale(${card.scale})`,
         cursor: cropping ? 'grab' : interactive ? 'grab' : 'pointer',
       }}
       onPointerDown={onPointerDown}
@@ -331,7 +372,14 @@ export function BoardCardView({
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={assetUrl(image, zoomed ? 'full' : 'card')}
+              /*
+               * The 'card' variant is about 400 px wide, which is plenty for a
+               * 160 px frame and not nearly enough for one drawn at 300%: the
+               * picture goes visibly soft exactly when somebody has decided this
+               * card is the point of the wall. So a card made half again as big
+               * asks for the full file, the same as a cropped-in one does.
+               */
+              src={assetUrl(image, zoomed || card.scale > 1.5 ? 'full' : 'card')}
               alt={card.name || ''}
               style={coverStyle(imageCrop as CoverCrop | null)}
               draggable={false}

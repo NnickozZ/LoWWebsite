@@ -275,18 +275,22 @@ describe('dragging a gebeurtenis, and the artikel behind it', () => {
 
   it('writes the moment into the artikel\'s date, and touches nothing else in the infobox', () => {
     const line = deps.service.createTimeline({ name: 'De sleep', scale: 'day' }, BRAM);
+    // §38: the infobox is the soort's own list, so the sibling that has to
+    // survive the drag is one the soort really has — `location`, an entry_link.
+    // A key nobody configured would not be stored at all any more.
+    const plek = { id: 'plek-vlissingen', name: 'Vlissingen', slug: 'vlissingen' };
     const art = deps.createEntry({
       typeSlug: 'event',
       name: 'De sleepboot',
       createdBy: BRAM.id,
-      fields: { place: 'Vlissingen' },
+      fields: { location: plek },
     });
     const event = deps.service.addEvent(line.id, { kind: 'entry', entryId: art.id, at: MARCH_12, precision: 'day' }, BRAM);
 
     // Let go three days and twenty hours along: the nearest whole day is the 16th.
     const moved = deps.service.updateEvent(event.id, { at: MARCH_12 + 86400 * 3 + 3600 * 20 }, BRAM);
     expect(formatWhen(moved.at, moved.precision)).toBe('16 maart 1931');
-    expect(fieldsOf(art.id)).toEqual({ place: 'Vlissingen', date: '16 maart 1931' });
+    expect(fieldsOf(art.id)).toEqual({ location: plek, date: '16 maart 1931' });
 
     // A losse gebeurtenis has no artikel to write to, and writes to none.
     const note = deps.service.addEvent(line.id, { kind: 'note', name: 'Mist', at: MARCH_12 }, BRAM);

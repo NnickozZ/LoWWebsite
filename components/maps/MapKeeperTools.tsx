@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { AccessEditor, type AccessSettings } from '@/components/access/AccessEditor';
 import { EntryPicker, type EntryRef } from '@/components/entry/EntryPicker';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
@@ -23,14 +24,28 @@ import type { MapSummary } from '@/lib/maps/service';
  * spelden, and a Keeper who pastes with the panel shut has not asked to redraw
  * anything. Pasting goes down exactly the same road as the file dialog, so it
  * meets the same ceiling and reads the same refusal back (`replacePicture`).
+ *
+ * §40 adds the last line: **Rechten** — the same two dials an artikel, a
+ * dossier, a prikbord and a tijdlijn wear, drawn by the same `AccessEditor`.
+ * They live here rather than in a sheet because §34 put every one of the
+ * Keeper's map tools below the fold: a landkaart is looked at far more often
+ * than it is re-hung, and the dials are re-hanging.
  */
 export function MapKeeperTools({
   map,
   ofEntry,
+  access,
 }: {
   map: MapSummary;
   /** The artikel this map is of, already resolved. Null when it is of none. */
   ofEntry: EntryRef | null;
+  /** §17: the landkaart's own dials, and who may turn them. */
+  access: {
+    settings: AccessSettings;
+    canManage: boolean;
+    isKeeper: boolean;
+    viewerId: string;
+  };
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -227,6 +242,24 @@ export function MapKeeperTools({
             <Icon name="trash" size={14} />
             Van de muur halen
           </button>
+        </div>
+
+        <hr style={{ border: 0, borderTop: '1px solid var(--rule)', margin: '0.2rem 0' }} />
+        <div>
+          <span className="label">Rechten</span>
+          <p className="tiny muted" style={{ margin: '0 0 0.5rem' }}>
+            Een plattegrond hoeft niet meteen voor iedereen te zijn. Zet <em>Wie mag kijken</em> op
+            Privé tot de spelers het huis vinden, en zet hem daarna open.
+          </p>
+          <AccessEditor
+            target="map"
+            id={map.id}
+            initial={access.settings}
+            canManage={access.canManage}
+            isKeeper={access.isKeeper}
+            viewerId={access.viewerId}
+            nouns={{ this: `deze ${words.map}` }}
+          />
         </div>
       </div>
     </details>

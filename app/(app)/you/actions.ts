@@ -15,33 +15,12 @@ import {
   requireUser,
 } from '@/lib/auth/session';
 import { logAudit } from '@/lib/entries/service';
-import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
 import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 
 export type AccountState = { error?: string; ok?: string };
 
-/** The mode form answers with the choice that landed, so the chips can follow. */
-export type ArticleModeState = AccountState & { mode?: ArticleModePref };
-
-/** The same trick for the letter: the answer comes back, so no reload is needed. */
+/** The font form answers with the choice that landed, so no reload is needed. */
 export type ReadingFontState = AccountState & { font?: ReadingFont };
-
-/**
- * §22: "hoe een artikel opengaat" in Jouw account. Everyone has this dial —
- * a Keeper who would rather read, a player who would rather write. The empty
- * string puts it back on the role's own default.
- */
-export async function setArticleModeAction(
-  _prev: ArticleModeState,
-  formData: FormData,
-): Promise<ArticleModeState> {
-  const user = await requireUser();
-  const mode = cleanArticleModePref(formData.get('mode'));
-
-  db.update(schema.users).set({ articleMode: mode }).where(eq(schema.users.id, user.id)).run();
-
-  return { ok: 'Opgeslagen.', mode };
-}
 
 /**
  * §29: "Lettertype" in Jouw account. The choice is per account, not per

@@ -2,23 +2,36 @@ import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { MAP_EDGE, storeImage, tooLargeMessage, uploadLimitFor } from '@/lib/assets';
-import { deleteMap, getMapById, updateMap, type MapPatch } from '@/lib/maps/service';
+import {
+  deleteMap,
+  getMapById,
+  MAP_IS_NOT_YOURS,
+  updateMap,
+  viewerCanEditMap,
+  type MapPatch,
+} from '@/lib/maps/service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
  * §19: renaming, describing, reordering — and, as multipart, a redrawn
- * picture under the same pins. Keeper only, all of it.
+ * picture under the same pins.
+ *
+ * §17: the landkaart's own edit dial decides. It starts at 'private' and its
+ * owner is always a Keeper (only a Keeper hangs one), so unless a Keeper has
+ * deliberately turned it up this answers exactly what the blanket `isKeeper`
+ * check answered before. The 404 comes first and is the *view* rule: a map this
+ * person may not see must not be told apart from one that is not there.
  */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
-    if (!user.isKeeper) return json({ error: 'Alleen een Keeper verandert een landkaart.' }, { status: 403 });
     const { id } = await ctx.params;
-    if (!getMapById(id)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
+    if (!getMapById(id, user)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
+    if (!viewerCanEditMap(id, user)) return json({ error: MAP_IS_NOT_YOURS }, { status: 403 });
 
     const type = request.headers.get('content-type') ?? '';
     if (type.includes('multipart/form-data')) {
@@ -44,9 +57,11 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     const user = await requireUser();
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
-    if (!user.isKeeper) return json({ error: 'Alleen een Keeper haalt een landkaart weg.' }, { status: 403 });
     const { id } = await ctx.params;
-    if (!getMapById(id)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
+    if (!getMapById(id, user)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
+    if (!viewerCanEditMap(id, user)) {
+      return json({ error: 'Je mag deze landkaart niet weghalen.' }, { status: 403 });
+    }
     deleteMap(id, user);
     return json({ ok: true });
   } catch (err) {

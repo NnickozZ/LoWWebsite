@@ -12,9 +12,10 @@ import { setReadingFontAction, type ReadingFontState } from './actions';
 /**
  * §29: the letter this person reads the archive in.
  *
- * Built exactly like `ArticleModeForm` next to it — three submit chips, no
- * Save button, because the choice *is* the action — with one addition it
- * cannot do without: the hint under the chips is printed in the letter it
+ * Three submit chips, no Save button, because the choice *is* the action.
+ * (This shape was shared with "Lezen of bewerken", the §22 setting retired in
+ * round 13.) One addition it cannot do without: the hint under the chips is
+ * printed in the letter it
  * describes, and it follows the chip under the pointer or the keyboard focus
  * rather than only the chip that is on. Somebody deciding whether OpenDyslexic
  * helps them has to be able to read a sentence of it *first*; a font setting

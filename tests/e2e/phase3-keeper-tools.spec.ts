@@ -27,6 +27,16 @@ async function signUpWriting(page: Page, name: string) {
   await becomeInvestigator(page, `Onderzoeker ${name}`);
 }
 
+/**
+ * §22: "Meer info" is a card beside the text on a desktop and a folded block on
+ * anything narrower, so a test that fills a field has to open it first — on the
+ * one viewport where it is shut.
+ */
+async function unfoldInfobox(page: Page) {
+  const folded = page.locator('details#block-info:not([open]) > summary');
+  if (await folded.count()) await folded.click();
+}
+
 async function signUpPlayer(page: Page, name: string, password = 'duikerklok') {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
@@ -125,6 +135,8 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
   await card.getByRole('button', { name: 'Goedkeuren' }).click();
 
   await page.goto(url);
+  // §22: a Keeper lands on the reading face too, and this reads the *input*.
+  await editArticle(page);
   await expect(page.getByLabel('Korte beschrijving')).toHaveValue('Pompt zout water het land in.');
 
   // And the author reads the outcome, with the note, on their own page.
@@ -154,6 +166,9 @@ test('the trash gives an entry back', async ({ page }, testInfo) => {
   await row.getByRole('button', { name: 'Terugzetten' }).click();
 
   await page.goto(url);
+  // §22: back from the prullenbak on the reading face; the name box is on the
+  // other one.
+  await editArticle(page);
   await expect(page.getByLabel('Naam')).toHaveValue(entryName);
 });
 
@@ -190,6 +205,139 @@ test('the Keeper can add a type, give it a field, and use it', async ({ page }, 
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   await expect(page.getByLabel('Tonnage')).toBeVisible();
+});
+
+/**
+ * §38: the details panel is genuinely typed. A Getal is a number, a Ja/nee is a
+ * tick, and a Meerkeuze is the Keeper's own list of answers — so this walks the
+ * whole road once: the Keeper defines them, a player is offered exactly those
+ * controls and exactly those options, and the reading face prints a number in
+ * Dutch, a "Ja", and chips.
+ */
+test('a Getal, a Ja/nee and a Meerkeuze, from the type editor to the reading face', async ({
+  page,
+  browser,
+}, testInfo) => {
+  const stamp = `${testInfo.project.name}-${Date.now().toString(36)}`.slice(-6);
+  const typeName = `Vrachten ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  await page.goto('/admin');
+  await page.getByRole('tab', { name: 'Soorten artikelen' }).click();
+  await page.getByLabel('Naam van de nieuwe soort').fill(typeName);
+  await page.getByRole('button', { name: 'Soort aanmaken' }).click();
+
+  const editor = page
+    .locator('details.admin-type')
+    .filter({ has: page.locator('summary', { hasText: typeName }) });
+  await expect(editor).toBeVisible();
+  await editor.locator('summary').click();
+
+  for (const [index, label, kind] of [
+    [1, 'Tonnage', 'Getal'],
+    [2, 'Vermist', 'Ja/nee'],
+    [3, 'Lading', 'Meerkeuze'],
+  ] as const) {
+    await editor.getByRole('button', { name: 'Veld toevoegen' }).click();
+    await editor.getByLabel(`Naam van veld ${index}`).fill(label);
+    await editor.getByLabel(`Soort van veld ${index}`).selectOption({ label: kind });
+  }
+  // A Meerkeuze is configured with the same box a Keuzelijst has.
+  await editor.getByLabel('Keuzes van veld 3').fill('zout, graan, kolen');
+  await editor.getByRole('button', { name: 'Opslaan', exact: true }).click();
+
+  await page.goto('/wiki');
+  await page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first().click();
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  await sheet.getByRole('radio', { name: typeName }).click();
+  await sheet.getByLabel('Naam').fill(`De Vrachtboot ${stamp}`);
+  await sheet.getByRole('button', { name: 'Aanmaken' }).click();
+  await page.waitForURL('**/e/**');
+  const url = new URL(page.url()).pathname;
+  await unfoldInfobox(page);
+
+  // Three controls, and each of them the right *kind* of control.
+  await expect(page.getByLabel('Tonnage')).toHaveAttribute('type', 'number');
+  await expect(page.getByLabel('Vermist')).toHaveAttribute('type', 'checkbox');
+  const lading = page.getByRole('group', { name: 'Lading' });
+  // Exactly the Keeper's three answers, and no way to write a fourth.
+  await expect(lading.getByRole('checkbox')).toHaveCount(3);
+
+  await page.getByLabel('Tonnage').fill('1400');
+  await page.getByLabel('Tonnage').blur();
+  await page.getByLabel('Vermist').check();
+  await lading.getByRole('checkbox', { name: 'zout' }).check();
+  await lading.getByRole('checkbox', { name: 'kolen' }).check();
+  await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
+
+  /*
+   * §22 on the reading face: a number is printed the way Dutch reads one, a
+   * `true` becomes "Ja" — and a `false` becomes no row at all, which is why
+   * "Vermist" is here and nothing says "Nee" anywhere.
+   */
+  async function expectPrinted(reader: Page) {
+    const rows = reader.locator('#block-info .fields-view > div');
+    const value = (label: string) => rows.filter({ hasText: label }).locator('.field-value');
+    await expect(value('Tonnage')).toHaveText('1.400');
+    await expect(value('Vermist')).toHaveText('Ja');
+    const chips = value('Lading').locator('.entry-chip');
+    await expect(chips).toHaveCount(2);
+    await expect(chips).toHaveText(['zout', 'kolen']);
+    await expect(reader.locator('#block-info')).not.toContainText('graan');
+  }
+
+  await page.locator('.entry-mode-toggle').click();
+  await expectPrinted(page);
+
+  // And a player, who was never told any of this, reads the same page and is
+  // offered the same three controls with the same three answers.
+  const context = await browser.newContext();
+  const player = await context.newPage();
+  await signUpPlayer(player, `Vrachtlezer ${stamp}`);
+  await player.goto(url);
+  await expectPrinted(player);
+
+  await player.locator('.entry-mode-toggle').click();
+  await unfoldInfobox(player);
+  await expect(player.getByLabel('Tonnage')).toHaveValue('1400');
+  await expect(player.getByLabel('Vermist')).toBeChecked();
+  await expect(player.getByRole('group', { name: 'Lading' }).getByRole('checkbox')).toHaveCount(3);
+  await expect(
+    player.getByRole('group', { name: 'Lading' }).getByRole('checkbox', { name: 'graan' }),
+  ).not.toBeChecked();
+  await context.close();
+});
+
+/**
+ * §38 with §35: a date the archive cannot read is still a date somebody means.
+ * The box says so, quietly — and saves it anyway.
+ */
+test('an unreadable Datum is hinted at, not refused', async ({ page }) => {
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const url = await newEntry(page, 'event', `De storm ${Date.now().toString(36).slice(-4)}`);
+  await editArticle(page);
+  await unfoldInfobox(page);
+
+  // The seeded soort Gebeurtenissen calls its Datum "Datum (in de wereld)".
+  const box = page.locator('#field-date');
+  const hint = page.getByText('Dit lezen we niet als datum');
+
+  await fillWhenReady(box, 'ergens in de zomer');
+  await box.blur();
+  await expect(hint).toBeVisible();
+  await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
+
+  // The hint is a hint: the value is stored exactly as typed and comes back.
+  await page.goto(url);
+  await editArticle(page);
+  await unfoldInfobox(page);
+  await expect(box).toHaveValue('ergens in de zomer');
+  await expect(hint).toBeVisible();
+
+  // A date the archive *can* read says nothing at all.
+  await fillWhenReady(box, '14 oktober 1934');
+  await box.blur();
+  await expect(hint).toHaveCount(0);
 });
 
 test('site settings rename the archive, and the export downloads', async ({ page }, testInfo) => {

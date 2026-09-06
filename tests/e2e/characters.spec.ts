@@ -21,6 +21,13 @@ import { editArticle, inviteCode, newEntryButton, signIn, writeAs } from './help
  * before they have opened anything, still have the Keeper write them: that is
  * quicker than making three artikelen through the screen, and it is also how a
  * campaign with pre-made fiches actually starts.
+ *
+ * §18c narrows that one exception to exactly what it was always for. Handing
+ * out an onderzoeker is the Keeper's — a speler may tie one to themselves only
+ * while they hold nobody, and may untie none at all — so an account that holds
+ * two got the second from the Keeper, in Beheer (`keeperAssigns` below, and the
+ * last test, which walks the whole road). What a player *wears* is untouched:
+ * that is §18b's question, asked per window, and it is still theirs.
  */
 
 const PASSWORD = 'onderzeeboot';
@@ -68,6 +75,42 @@ async function keeperWrites(browser: Browser, names: string[]): Promise<string[]
   for (const name of names) paths.push(await newEntry(keeper, name));
   await context.close();
   return paths;
+}
+
+/**
+ * §18c: the Keeper hands an onderzoeker to an account, from Beheer.
+ *
+ * The road that did not exist until now: `whose()` and `addCharacter` have
+ * always taken a `userId` for somebody else and nothing in the archive ever
+ * sent one. With koppelen made the Keeper's, this is where it happens — the
+ * same account list they already open to reset a password.
+ */
+async function keeperAssigns(browser: Browser, account: string, character: string) {
+  const context = await browser.newContext();
+  const keeper = await context.newPage();
+  await signIn(keeper, 'Keeper', 'abbeytower34');
+  await keeper.goto('/admin?tab=users');
+  const row = keeper.locator(`li[data-username="${account}"]`).first();
+  await expect(row).toBeVisible({ timeout: 15_000 });
+
+  const box = row.locator('input.input').first();
+  await box.click();
+  await box.fill(character);
+  // The existing fiche, not the "'…' aanmaken" row: that one renders the moment
+  // there is a query, while the real suggestions are still in flight, so it is
+  // the first `.suggest-item` on screen and it *also* contains the typed name.
+  // Clicking it opens the nieuw-artikel sheet and ties nobody to anybody.
+  const suggestion = row
+    .locator('.suggest-item')
+    .filter({ hasText: character })
+    .filter({ hasNotText: 'aanmaken' })
+    .first();
+  await expect(suggestion).toBeVisible({ timeout: 15_000 });
+  await suggestion.click();
+
+  // The chip lands in that account's row: the wardrobe, from the other side.
+  await expect(row.getByText(character, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+  await context.close();
 }
 
 /** The fiche's main text: the first editor on the page. */
@@ -339,13 +382,25 @@ test('two windows of one account write as two onderzoekers, and the geschiedenis
     `Logboek ${stamp}`,
   ]);
 
-  // One account, two onderzoekers on the peg.
+  /*
+   * One account, two onderzoekers on the peg — and, since §18c, by two
+   * different roads. The first is the player's own: they hold nobody, so the
+   * button is there. The second is the Keeper's to hand out, from Beheer,
+   * which is now the only way an account comes to hold two at all.
+   */
   await signUpAs(page, account);
-  for (const path of [firstPath, secondPath]) {
-    await page.goto(path);
-    await page.getByRole('button', { name: 'Dit is mijn karakter' }).click();
-    await page.waitForTimeout(800);
-  }
+  await page.goto(firstPath);
+  await page.getByRole('button', { name: 'Dit is mijn karakter' }).click();
+  await expect(page.getByText(`Je speelt nu als ${first}.`)).toBeVisible({ timeout: 15_000 });
+  await keeperAssigns(browser, account, second);
+  // The wardrobe on the Jij-pagina has both, and no ✕ on either. Scoped to the
+  // page body: the side menu names the karakter you are wearing too, and on a
+  // phone that copy is there but hidden, so a bare `.first()` picks the one
+  // nobody can see.
+  await page.goto('/you');
+  const wardrobe = page.getByRole('main');
+  await expect(wardrobe.getByText(first, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(wardrobe.getByText(second, { exact: false }).first()).toBeVisible();
 
   /**
    * A window of that account, sitting in the shared artikel, writing as the
@@ -462,4 +517,86 @@ test('a speler with no onderzoeker may make their first artikel, and nothing els
   await page.goto('/');
   const signed = page.locator('.feed-item').filter({ hasText: `Aantekening ${stamp}` }).first();
   await expect(signed.locator('strong').first()).toHaveText(character);
+});
+
+test('a speler ties on their first onderzoeker and no more; the Keeper hands out the rest', async ({
+  page,
+  browser,
+}, info) => {
+  test.setTimeout(240_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const account = `Cast ${stamp}`;
+  const own = `Eigen ${stamp}`;
+  const extra = `Extra ${stamp}`;
+
+  const [ownPath, extraPath] = await keeperWrites(browser, [own, extra]);
+
+  await signUpAs(page, account);
+
+  // Holding nobody, the door is open: their own first one, tied on by them.
+  await page.goto(ownPath);
+  await page.getByRole('button', { name: 'Dit is mijn karakter' }).click();
+  await expect(page.getByText(`Je speelt nu als ${own}.`)).toBeVisible({ timeout: 15_000 });
+
+  /*
+   * §18c: and it shuts behind them. On the next fiche the button is not
+   * offered at all — not greyed out, not there — because a button that exists
+   * only to be refused is worse than no button.
+   */
+  await page.goto(extraPath);
+  // The page is up (the same anchor `editArticle` waits on) before anything is
+  // asserted *absent*, or an empty page would pass the next line by itself.
+  await expect(page.locator('.entry-mode-toggle')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Dit is mijn karakter' })).toHaveCount(0);
+
+  // Nor is the box on the Jij-pagina, nor a ✕ to take one off again.
+  await page.goto('/you');
+  await expect(page.getByRole('heading', { name: 'Jouw karakters' })).toBeVisible({ timeout: 15_000 });
+  // In the wardrobe, not in the side menu: both print the name of the karakter
+  // you are wearing, and the menu's copy is hidden on a phone.
+  await expect(page.getByRole('main').getByText(own, { exact: false }).first()).toBeVisible();
+  await expect(page.getByPlaceholder('Zoek de artikel van je karakter…')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `${own} ontkoppelen` })).toHaveCount(0);
+  // What they *wear* is still theirs, so that one is untouched.
+  await expect(page.getByRole('button', { name: /^Als jezelf/ })).toBeVisible();
+
+  /*
+   * And the screen is not the rule. A request that goes round it is refused by
+   * the archive itself, in words — koppelen and ontkoppelen both.
+   */
+  async function idOf(name: string): Promise<string> {
+    const found = await page.request.get(`/api/suggest?q=${encodeURIComponent(name)}&limit=1`);
+    return ((await found.json()) as { entries: { id: string }[] }).entries[0].id;
+  }
+  const extraId = await idOf(extra);
+  const ownId = await idOf(own);
+
+  const tied = await page.request.post('/api/characters', { data: { entryId: extraId } });
+  expect(tied.status()).toBe(400);
+  expect(((await tied.json()) as { error: string }).error).toContain('Alleen de Keeper');
+
+  const untied = await page.request.delete('/api/characters', { data: { entryId: ownId } });
+  expect(untied.status()).toBe(400);
+  expect(((await untied.json()) as { error: string }).error).toContain('Alleen de Keeper');
+
+  // The one they already hold is still theirs to take off and put back on:
+  // that is §18b's question, not §18c's.
+  const worn = await page.request.patch('/api/characters', { data: { active: null } });
+  expect(worn.status()).toBe(200);
+
+  /*
+   * The Keeper's road, which is now the only one: the account list in Beheer,
+   * where every account shows the onderzoekers tied to it and a box to add one.
+   */
+  await keeperAssigns(browser, account, extra);
+
+  // The player finds it in the wardrobe, and may wear it.
+  await page.goto('/you');
+  const row = page.locator('li.who-row').filter({ hasText: extra }).first();
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await row.getByRole('button', { name: 'Speel als' }).click();
+  await expect(row.getByRole('button', { name: 'Actief' })).toBeVisible({ timeout: 15_000 });
+  // Still no ✕, and still no box: two on the peg, and both the Keeper's doing.
+  await expect(page.getByPlaceholder('Zoek de artikel van je karakter…')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: `${extra} ontkoppelen` })).toHaveCount(0);
 });

@@ -554,3 +554,90 @@ info** klapt onder de kop zodra het scherm smaller is dan 1280 px (dat was
 1024 px), en **Op deze pagina** staat op een breed scherm nog steeds naast de
 tekst — nergens anders meer, want de tweede brede indeling waarin het onder de
 afbeelding terugsprong bestaat niet meer.
+
+## Ronde 13 — groter en kleiner, een knop in een dossier, getypte velden, kaarten op kaarten, en wie een onderzoeker uitdeelt
+
+Woorden tussen accolades komen uit **Beheer → Woorden** (`lib/words.ts`) en
+staan hier met hun standaardwoord: `{artikel}`, `{dossier}`, `{kaart}`,
+`{punaise}`, `{landkaart}`, `{speld}`, `{notitie}`, `{karakter}`, `{Keeper}`.
+Wat hieronder tussen sterretjes staat, staat letterlijk zo in de code.
+
+### Een kaartje groter of kleiner maken (§41)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Klein** · **Normaal** · **Groot** · **Extra groot** | de balk onderaan een prikbord, bij één gekozen kaartje | 50% · 100% · 150% · 250%. **Normaal** is wat elk kaartje altijd al had. Het percentage staat in de tooltip: *Groot (150%)*. |
+| **Grootte van de {kaart}** / **Grootte van de {punaise}** | de naam van dat groepje (voor een schermlezer) | Het woord komt uit Beheer → Woorden, want dit knopje kiest allebei. |
+| **Maak deze {kaart} groter of kleiner** | het hoekje rechtsonder aan het gekozen kaartje (voor een schermlezer) | Het greepje. Op een telefoon is het rijtje hierboven de enige weg: daar staat slepen uit. |
+| **Sleep om de grootte te veranderen. Houd Shift ingedrukt voor tussenmaten.** | de tooltip van dat hoekje | De maat springt per vijf procent; met Shift kan alles ertussen. |
+
+Een kaartje groeit vanuit zijn **midden**, dus het blijft staan waar het staat.
+Alles op het papier groeit mee — de foto, de kop, de tekst, en ook het randje en
+de schaduw. Dat is met opzet (Nicks beslissing): de zoom van het prikbord doet
+al hetzelfde met het randje, dus een kaartje op 200% ziet eruit als hetzelfde
+kaartje van dichtbij. Een label op een {punaise} wordt niet meer afgekapt: het
+loopt door op een tweede regel en de speld wordt naar beneden langer.
+
+### Een nieuw {artikel} in een {dossier}
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Voeg iets toe aan dit dossier…** | het zoekvak bovenaan een dossier, nu op halve breedte | Ongewijzigd, letter voor letter. Dit vak **hangt er iets aan wat al bestaat**. |
+| **Nieuw {artikel} in dit {dossier}** | de knop ernaast (op een smal scherm eronder) | Dit **maakt iets wat er nog niet is**, meteen in dit dossier. Je komt uit op het nieuwe artikel zelf. |
+| **Voeg een nieuw {artikel} toe aan dit {dossier}** | dezelfde knop, voor een schermlezer | |
+| **‘X’ aanmaken** | de laatste regel onder het zoekvak, zodra je typt | Ongewijzigd, en met opzet anders: je typte in het vak op *deze* pagina, dus het nieuwe ding wordt aangehaakt en je blijft hier. |
+
+### Velden met een soort (§38)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Getal** | Beheer → Soorten, het soort van een veld | Een echt getal. Wat geen getal is wordt niet opgeslagen. |
+| **Ja/nee** | idem | Een vinkje. Bij het lezen staat er **Ja** als het aan staat, en **niets** als het uit staat — een infobox noemt wat zo is. |
+| **Meerkeuze** | idem | Een keuzelijst waar meer dan één antwoord in mag. Haalt de {Keeper} later een keuze weg, dan valt alleen die keuze eruit; de rest blijft staan. |
+| **Datum** | idem | Blijft gewoon tekst: *oktober 1934* en *ergens in de zomer* mogen. |
+| **Dit lezen we niet als datum. Het blijft staan zoals je het typt, maar op een tijdlijn kunnen we het zo niet zetten.** | een stille regel onder een datumveld | Alleen als het archief er geen moment in herkent. Een hint, nooit een weigering — er gaat niets verloren. |
+| **Oude waarden** | Beheer → Soorten, onderaan een soort | Wat er nog in het archief staat onder een veld dat deze soort niet meer heeft. |
+| **Deze waarden staan nog in het archief onder een veld dat deze soort niet meer heeft. Ze worden nergens getoond, en zet je het veld terug, dan komen ze weer mee.** | daaronder | Waarom er niets kapotgaat als je een veld weghaalt. |
+| **Definitief wissen** | het knopje ernaast, en de bevestiging | De enige weg waarlangs een waarde echt weggaat. |
+| **‘X’ definitief wissen?** · **Deze waarde staat nog bij n {artikelen}. Zet je het veld terug, dan komt de waarde nu nog mee. Na dit wissen niet meer — dit kan niet ongedaan worden gemaakt.** | die bevestiging | |
+| **Wissen…** | hetzelfde knopje, terwijl het loopt | |
+
+### Landkaarten: rechten, en een {speld} naar een andere {landkaart} (§40, §39)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Rechten** | onder de landkaart, bij de gereedschappen van de {Keeper} | Dezelfde twee knoppen (*Wie mag kijken*, *Wie mag bewerken*) als bij een artikel, een dossier, een prikbord en een tijdlijn. Nieuw: een landkaart had ze nog niet. |
+| **Een plattegrond hoeft niet meteen voor iedereen te zijn. Zet *Wie mag kijken* op Privé tot de spelers het huis vinden, en zet hem daarna open.** | daaronder | Elke landkaart die er al hing blijft staan zoals hij stond: *Wie mag kijken* begint op **Iedereen**. |
+| **Op de grotere {landkaart}:** | boven de kaart | De landkaart(en) met een {speld} die hierheen wijst — de weg terug omhoog. Wordt afgeleid, dus je stelt hem nergens in. |
+| **Een bestaand {artikel} uit de lijst, een andere {landkaart}, een nieuw {artikel} met deze naam, of een losse {notitie}.** | onder *Wat komt hier?* | Vier soorten spelden nu in plaats van drie. |
+| **{Landkaart} — de {speld} opent hem** | in dat lijstje | Kies een landkaart en de speld wordt de weg erheen. |
+| **{Landkaart} openen** | het blad van zo'n speld | Tikken op de speld opent eerst het blad — *gezet door*, verzetten, weghalen staan daar — en dit knopje is de weg naar beneden. |
+| **{Landkaarten}** | de legenda | Alle spelden die naar een landkaart wijzen, in één regel, uit te zetten als elke andere. |
+| **De {landkaart} zelf blijft hangen; alleen de {speld} gaat weg.** | bij het weghalen van zo'n speld | Zoals bij een artikelspeld. |
+| **Een speld kan niet naar de landkaart wijzen waar hij op staat.** | melding | De enige geweigerde speld. Van A naar B en van B terug naar A mag juist wél: dat is de weg omhoog. |
+
+De naam van zo'n speld is de naam van de landkaart waar hij heen wijst, en wordt
+elke keer opnieuw gelezen: hernoemt de {Keeper} de landkaart, dan hernoemt de
+speld mee. Spelden naar een {dossier} of een tijdlijn bestaan niet.
+
+### {Karakters} uitdelen (§18c)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Toegewezen {karakters}** | Beheer → Accounts, onder een speler | Wie deze speler mag spelen. Alleen de {Keeper} ziet dit. |
+| **— n toegewezen** | achter dat kopje | Hoeveel het er zijn. Staat er niet als het er nog geen zijn. |
+| **Speelt hier nu als** | onder de naam in dat lijstje | Welke van hen die speler op dit moment draagt. |
+| **Ontkoppelen** | het ✕'je ernaast (*{naam} ontkoppelen van {gebruiker}*) | Alleen hier: op **Jij** staat geen ✕ meer. |
+| **Zoek de {artikel} van een {karakter}…** | het zoekvak eronder | Zo deelt de {Keeper} er een uit. |
+| **{naam} is toegewezen aan {gebruiker}.** · **{naam} is losgekoppeld van {gebruiker}.** | meldingen | |
+| **Je hebt nog geen {karakter} gekoppeld. Je eerste maak je zelf: met de knop ‘{Dit is mijn karakter}’ op een {artikel}, of op je eigen pagina. Daarna koppelt de {Keeper} ze aan je account.** | Jij → de kleerkast, en het blad *Met wie schrijf je?*, alleen zolang je er nog geen hebt | De ene deur die openblijft: je eerste onderzoeker maak je zelf, daarna deelt de {Keeper} uit. Zodra je er één hebt is deze zin weg. |
+| **Alleen de Keeper koppelt een karakter aan een account.** · **Alleen voor jezelf, of voor een Keeper.** · **Alleen de Keeper ontkoppelt een karakter van een account.** | meldingen van het archief | De drie weigeringen. |
+
+**Speel als** en **Als jezelf** zijn niet veranderd: welke van je onderzoekers je
+draagt blijft van jou, per venster (§18b).
+
+### Weg van het scherm
+
+| Wat | Waar stond het | Waarom |
+|---|---|---|
+| **Lezen of bewerken** — *Hoe een {artikel} of een {dossier} opengaat als je erop klikt*, met de drie keuzes **Wat bij mij hoort** · **Altijd lezen** · **Altijd bewerken** | Jij (Jouw account) | Iedereen komt nu op **Lezen** binnen, ook een {Keeper}. De knop **Bewerken** / **Lezen** bovenaan een {artikel} of {dossier} doet nog precies wat hij deed; alleen het onthouden is weg. Iets wat je zojuist zelf gemaakt hebt opent nog wel meteen in **Bewerken**. |

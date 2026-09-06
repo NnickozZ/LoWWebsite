@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { signIn } from './helpers';
+import { editArticle, signIn } from './helpers';
 
 /**
  * Golden flow 2 (§15): while editing an entry body, type `@Harbourm`, choose
@@ -12,6 +12,9 @@ test('link and create in one motion', async ({ page }, testInfo) => {
 
   await signIn(page, 'Keeper', 'abbeytower34');
   await page.goto('/e/middelburg');
+  // §22: everybody lands on the reading face now, a Keeper too. There is no
+  // body to type in until the toggle has been asked for the other one.
+  await editArticle(page);
 
   const body = page.locator('.ProseMirror');
   await body.click();
@@ -40,7 +43,12 @@ test('link and create in one motion', async ({ page }, testInfo) => {
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
   await chip.click();
-  await page.waitForURL('**/e/**');
+  // We are standing on an /e/ page already, so wait for the address to *change*
+  // rather than for a shape it already has.
+  await page.waitForURL((url) => !url.pathname.endsWith('/e/middelburg'));
+  // §22: a chip is a plain link, so it lands on the reading face like any other.
+  await expect(page.getByRole('heading', { name: target })).toBeVisible();
+  await editArticle(page);
   await expect(page.getByLabel('Naam')).toHaveValue(target);
 
   const mentioned = page.locator('details.section', {

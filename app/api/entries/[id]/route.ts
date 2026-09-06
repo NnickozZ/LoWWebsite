@@ -78,6 +78,15 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       entry: result.entry,
       previousEditorName,
       previousEditorIsSomeoneElse: Boolean(previousEditorName),
+      /*
+       * §38: the infobox is the Keeper's list. A key this soort does not have,
+       * or a value that is not of the field's kind, is not stored — and a plain
+       * save is told so by name rather than left to believe it saved. Still a
+       * 200: the rest of the patch did land, and the autosave that sent it must
+       * not treat a refused key as a failed save and try again for ever. The
+       * §21 live room gets no such list; it drops in silence.
+       */
+      ...(result.rejectedFields?.length ? { rejectedFields: result.rejectedFields } : {}),
     });
   } catch (err) {
     return apiError(err);

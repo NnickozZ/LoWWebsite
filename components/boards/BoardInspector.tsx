@@ -6,6 +6,8 @@ import { BORDER_OPTIONS } from '@/components/borders';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import {
+  CARD_SCALE_PRESETS,
+  DEFAULT_CARD_SCALE,
   DEFAULT_STRING_STYLE,
   DEFAULT_STRING_WIDTH,
   STRING_COLOURS,
@@ -31,6 +33,9 @@ const COLOUR_NAMES: Record<StringColour, string> = {
 
 /** The four thicknesses on the bar, in the order `STRING_WIDTH_PRESETS` has them. */
 const WIDTH_NAMES = ['Dun', 'Normaal', 'Dik', 'Extra dik'];
+
+/** The four sizes, in the order `CARD_SCALE_PRESETS` has them. */
+const SCALE_NAMES = ['Klein', 'Normaal', 'Groot', 'Extra groot'];
 
 /** What each stored style key is called on screen. */
 const STYLE_NAMES: Record<StringStyle, string> = {
@@ -70,6 +75,8 @@ export function BoardInspector({
   onRemovePhoto,
   onToggleImage,
   onBorderChange,
+  scaleValue,
+  onScaleChange,
   onRename,
   onOpenEntry,
   onRemoveCards,
@@ -108,6 +115,13 @@ export function BoardInspector({
   onRemovePhoto: () => void;
   onToggleImage: () => void;
   onBorderChange: (border: string | null) => void;
+  /**
+   * §41: how big the one selected card is drawn, or null when the selection is not
+   * a single card. The corner grip on the cork does the same job by hand; this
+   * row is the only way to reach it on a phone, where §8 turns dragging off.
+   */
+  scaleValue: number | null;
+  onScaleChange: (scale: number) => void;
   /** A pin's label — the only thing a pin has. */
   onRename: (name: string) => void;
   onOpenEntry: () => void;
@@ -140,6 +154,41 @@ export function BoardInspector({
   }, [pin?.id, pin?.name]);
 
   if (!line && !cards.length) return null;
+
+  /**
+   * The four sizes, offered exactly the way the four string thicknesses are: a
+   * radiogroup of swatches, each drawn at the size it stands for. The noun is
+   * passed in because the Keeper may have renamed both of the things this can
+   * be selecting — a kaart and a punaise are the Keeper's words, not ours.
+   */
+  function sizeRow(noun: string) {
+    if (scaleValue === null) return null;
+    return (
+      <span className="board-swatches" role="radiogroup" aria-label={`Grootte van de ${noun}`}>
+        {CARD_SCALE_PRESETS.map((preset, index) => (
+          <button
+            key={preset}
+            type="button"
+            role="radio"
+            aria-checked={(scaleValue ?? DEFAULT_CARD_SCALE) === preset}
+            aria-label={SCALE_NAMES[index]}
+            title={`${SCALE_NAMES[index]} (${Math.round(preset * 100)}%)`}
+            className={`board-swatch board-swatch-size${
+              (scaleValue ?? DEFAULT_CARD_SCALE) === preset ? ' board-swatch-on' : ''
+            }`}
+            onClick={() => onScaleChange(preset)}
+          >
+            {/* The card shows the size itself rather than describing it. */}
+            <span
+              className="board-swatch-card"
+              aria-hidden="true"
+              style={{ width: `${4 + index * 3}px`, height: `${6 + index * 4}px` }}
+            />
+          </button>
+        ))}
+      </span>
+    );
+  }
 
   /* ------------------------------------------------------------- a string */
 
@@ -276,6 +325,8 @@ export function BoardInspector({
           }}
         />
 
+        {sizeRow(words.pin)}
+
         <span className="small muted board-inspector-hint">
           Sleep hem aan het label. Span draad vanaf de kop.
         </span>
@@ -350,6 +401,8 @@ export function BoardInspector({
                   ))}
                 </select>
               </span>
+
+              {sizeRow(words.card)}
 
               {canShowImage && (
                 <button type="button" className="btn btn-small" onClick={onToggleImage}>

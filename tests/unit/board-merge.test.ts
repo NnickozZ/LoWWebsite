@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   boardBounds,
+  cardBox,
   cardSize,
   CARD_SIZE,
+  normaliseCardScale,
+  pinTagLines,
+  PIN_TAG_MAX_WIDTH,
   endpointsEqual,
   headOf,
   isCardEnd,
@@ -39,6 +43,7 @@ function card(id: string, over: Partial<BoardCard> = {}): BoardCard {
     x: 0,
     y: 0,
     rotation: 0,
+    scale: 1,
     ...over,
   };
 }
@@ -522,11 +527,36 @@ describe('bare pins', () => {
   });
 
   it('is smaller than a card, and its head is where string ties on', () => {
-    expect(cardSize({ kind: 'pin' })).toEqual(PIN_SIZE);
+    // A pin's box now comes from its label — an unlabelled one, and any label
+    // that already fitted on the tag, is exactly the pin that was always here.
+    expect(cardSize({ kind: 'pin', name: '' })).toEqual(PIN_SIZE);
+    expect(cardSize({ kind: 'pin', name: 'de haven' })).toEqual(PIN_SIZE);
     expect(cardSize({ kind: 'note' })).toEqual(CARD_SIZE);
     const head = headOf({ kind: 'pin', x: 100, y: 200 });
     expect(head.x).toBe(100 + PIN_SIZE.width / 2);
     expect(head.y).toBeLessThan(200 + PIN_SIZE.height / 2);
+  });
+
+  it('grows its tag downward rather than clipping a long label', () => {
+    const long = 'de man met de grijze jas die bij de vuurtoren stond';
+    const size = cardSize({ kind: 'pin', name: long });
+    // Capped in width, so no pin lays a banner across the cork…
+    expect(size.width).toBe(PIN_TAG_MAX_WIDTH);
+    // …and taller than one line, so every word of it is on the wall.
+    expect(pinTagLines(long)).toBeGreaterThan(1);
+    expect(size.height).toBeGreaterThan(PIN_SIZE.height);
+    expect(size.height).toBe(PIN_SIZE.height + (pinTagLines(long) - 1) * 18);
+  });
+
+  it('counts the lines a pasted word with no spaces in it takes', () => {
+    expect(pinTagLines('')).toBe(1);
+    expect(pinTagLines('   ')).toBe(1);
+    const wall = 'x'.repeat(200);
+    const lines = pinTagLines(wall);
+    expect(lines).toBeGreaterThan(8);
+    // Every character is accounted for: nothing falls off the bottom either.
+    expect(lines * 19).toBeGreaterThanOrEqual(200);
+    expect(cardSize({ kind: 'pin', name: wall }).width).toBe(PIN_TAG_MAX_WIDTH);
   });
 
   it('can have string tied to it like any card', () => {
@@ -541,10 +571,76 @@ describe('bare pins', () => {
   it('is boxed at its own size for Fit all', () => {
     const bounds = boardBounds([
       card('a', { x: 0, y: 0 }),
-      { ...card('p', { x: 500, y: 0 }), kind: 'pin' },
+      { ...card('p', { x: 500, y: 0 }), kind: 'pin', name: '' },
     ]);
     expect(bounds.width).toBe(500 + PIN_SIZE.width);
     expect(bounds.height).toBe(CARD_SIZE.height);
+  });
+});
+
+describe('how big a card is drawn', () => {
+  it('is 1 on every card that was ever saved without one', () => {
+    const state = normaliseState({
+      cards: [{ id: 'a', kind: 'note', name: 'a', text: '', x: 0, y: 0, rotation: 0 }],
+    });
+    expect(state.cards[0].scale).toBe(1);
+  });
+
+  it('clamps to half and five times, and refuses nonsense', () => {
+    const state = normaliseState({
+      cards: [
+        card('small', { scale: 0.01 }),
+        card('huge', { scale: 40 }),
+        card('nan', { scale: Number.NaN }),
+        card('text', { scale: '2' as unknown as number }),
+      ],
+    });
+    expect(state.cards[0].scale).toBe(0.5);
+    expect(state.cards[1].scale).toBe(5);
+    expect(state.cards[2].scale).toBe(1);
+    expect(state.cards[3].scale).toBe(1);
+  });
+
+  it('quantises to a hundredth, so nothing long reaches a style attribute', () => {
+    const state = normaliseState({ cards: [card('a', { scale: 1.7000000000000002 })] });
+    expect(state.cards[0].scale).toBe(1.7);
+    expect(normaliseCardScale(2.3456)).toBe(2.35);
+  });
+
+  it('leaves the box exactly where it was at 1, and grows it about the middle', () => {
+    const still = cardBox(card('a', { x: 100, y: 200 }));
+    expect(still).toEqual({ x: 100, y: 200, width: CARD_SIZE.width, height: CARD_SIZE.height });
+
+    const big = cardBox(card('b', { x: 100, y: 200, scale: 2 }));
+    expect(big.width).toBe(CARD_SIZE.width * 2);
+    expect(big.height).toBe(CARD_SIZE.height * 2);
+    // Same middle: the card grew evenly rather than walking down and right.
+    expect(big.x + big.width / 2).toBe(100 + CARD_SIZE.width / 2);
+    expect(big.y + big.height / 2).toBe(200 + CARD_SIZE.height / 2);
+  });
+
+  it('ties string to the head of the card you can see', () => {
+    const plain = headOf(card('a', { x: 0, y: 0 }));
+    expect(plain).toEqual({ x: CARD_SIZE.width / 2, y: 10 });
+
+    const big = headOf(card('b', { x: 0, y: 0, scale: 3 }));
+    // Still over the middle, and the head's own offset is multiplied too — the
+    // string ties to the pin drawn on the paper, not to a point in mid-air a
+    // card's width above it.
+    expect(big.x).toBe(CARD_SIZE.width / 2);
+    expect(big.y).toBe(cardBox(card('b', { x: 0, y: 0, scale: 3 })).y + 30);
+  });
+
+  it('boxes a card that was made bigger inside Fit all', () => {
+    const bounds = boardBounds([card('a', { x: 0, y: 0, scale: 2 })]);
+    expect(bounds.x).toBe(-CARD_SIZE.width / 2);
+    expect(bounds.width).toBe(CARD_SIZE.width * 2);
+    expect(bounds.height).toBe(CARD_SIZE.height * 2);
+  });
+
+  it('rides through a merge like every other thing on a card', () => {
+    const merged = mergeBoardState({ cards: [card('a')] }, { cards: [card('a', { scale: 2.5 })] });
+    expect(merged.cards[0].scale).toBe(2.5);
   });
 });
 

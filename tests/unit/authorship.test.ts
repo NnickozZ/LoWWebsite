@@ -197,6 +197,45 @@ describe('a player who has not chosen does not write', () => {
       expect(deps.characters.listCharacters('wim')).toHaveLength(0);
       expect(() => gate()({ id: 'wim', isKeeper: false, characterId: null })).not.toThrow();
     });
+
+    /*
+     * §18c: the two rules are one door, and they must not be able to disagree.
+     *
+     * This gate lets a speler with no onderzoeker make the artikel that becomes
+     * their first; `addCharacter` lets that same speler tie it on. If either
+     * side ever asked a different question — a count of the knots on one side
+     * and `listCharacters` on the other, say — the archive would either hand
+     * somebody an artikel they could not turn into an onderzoeker, or an
+     * onderzoeker they were not allowed to write. So they are checked together,
+     * on the same people, in the same test.
+     */
+    it('opens on exactly the same people `addCharacter` opens for', () => {
+      const { addCharacter, removeCharacter, listCharacters } = deps.characters;
+      const keeper = { id: 'keeper-1', isKeeper: true };
+      const griet = { id: 'griet', isKeeper: false };
+
+      // Holds nobody: the gate lets her write her first artikel, and koppelen
+      // lets her tie it on.
+      expect(listCharacters('griet')).toHaveLength(0);
+      expect(() => gate()({ id: 'griet', isKeeper: false, characterId: null })).not.toThrow();
+      expect(() => addCharacter('griet', 'artikel', griet)).not.toThrow();
+
+      // And both shut behind her in the same breath: with one on the peg the
+      // gate wants a name, and koppelen is the Keeper's from here on.
+      expect(() => gate()({ id: 'griet', isKeeper: false, characterId: null })).toThrow(
+        /Kies eerst met wie je schrijft/,
+      );
+      expect(() => addCharacter('griet', 'nel', griet)).toThrow(/Alleen de Keeper/);
+
+      // Wim's knot points into the prullenbak, so both read "holds nobody".
+      expect(() => gate()({ id: 'wim', isKeeper: false, characterId: null })).not.toThrow();
+      expect(() => addCharacter('wim', 'artikel', { id: 'wim', isKeeper: false })).not.toThrow();
+
+      // Put the table back the way the rest of this file expects it.
+      removeCharacter('griet', 'artikel', keeper);
+      removeCharacter('wim', 'artikel', keeper);
+      expect(listCharacters('griet')).toHaveLength(0);
+    });
   });
 
   it('`hasAuthor` is the same question, for a page that only wants to know', () => {

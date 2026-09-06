@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
-import { cleanArticleModePref, type ArticleModePref } from '@/lib/entries/mode';
 import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 import { newId, randomToken } from '@/lib/ids';
 import { readCharacterHeader, resolveCharacter } from '@/lib/auth/author';
@@ -18,8 +17,6 @@ export type SessionUser = {
   username: string;
   isKeeper: boolean;
   lastSeenAt: number | null;
-  /** §22: which face an artikel opens in for this person; '' follows their role. */
-  articleMode: ArticleModePref;
   /** §29: the face they read in; '' is the archive's own. */
   readingFont: ReadingFont;
   /**
@@ -94,7 +91,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       isKeeper: schema.users.isKeeper,
       isDisabled: schema.users.isDisabled,
       lastSeenAt: schema.users.lastSeenAt,
-      articleMode: schema.users.articleMode,
       readingFont: schema.users.readingFont,
       activeCharacterId: schema.users.activeCharacterId,
     })
@@ -146,9 +142,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     characterId,
     // The value from *before* this visit — that is what "since you were last here" means.
     lastSeenAt: previousLastSeen,
-    // A row written before migration 0008 has no value; read it defensively.
-    articleMode: cleanArticleModePref(row.articleMode),
-    // Same defensiveness: a row written before this column existed has null.
+    // A row written before this column existed has null; read it defensively.
     readingFont: cleanReadingFont(row.readingFont),
   };
 }

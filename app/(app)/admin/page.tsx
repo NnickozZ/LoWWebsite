@@ -15,7 +15,7 @@ import { destroyEffects, listArchivedThings, listBoardRevisions, listCaseRevisio
 import { listAdriftEntries, listTypesForAdmin } from '@/lib/admin/types';
 import { getWordOverrides } from '@/lib/admin/words';
 import { capitalise, resolveWords } from '@/lib/words';
-import { charactersWorn } from '@/lib/characters';
+import { charactersWorn, listCharacters } from '@/lib/characters';
 import { listPendingEdits } from '@/lib/entries/review';
 import {
   approveEditAction,
@@ -103,7 +103,14 @@ export default async function AdminPage({
   // §18: which character each account is wearing, so the Keeper can tell
   // "Bram" from "Onderzoeker Van Dijk" without asking.
   const worn = charactersWorn(accounts.map((a) => a.id));
-  const users = accounts.map((a) => ({ ...a, character: worn.get(a.id) ?? null }));
+  // §18c: and every karakter each one *holds*, because handing them out is the
+  // Keeper's now and this is the bench they do it at. A Keeper wears nobody, so
+  // there is nothing to look up for one.
+  const users = accounts.map((a) => ({
+    ...a,
+    character: worn.get(a.id) ?? null,
+    characters: a.isKeeper ? [] : listCharacters(a.id),
+  }));
 
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
   const pending = listPendingEdits();

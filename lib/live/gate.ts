@@ -57,8 +57,10 @@ export function canWatch(key: string, viewer: Viewer): boolean {
       );
     case 'board':
       return Boolean(getBoard(record.id, viewer));
+    // §17: a landkaart is gated by its own view dial, like everything else —
+    // the signal that a hidden map moved would say that it is there.
     case 'map':
-      return Boolean(getMapById(record.id));
+      return Boolean(getMapById(record.id, viewer));
     case 'pin':
       return Boolean(getPin(record.id, viewer));
     // §32: a tijdlijn is gated like a prikbord (its own dials, and its

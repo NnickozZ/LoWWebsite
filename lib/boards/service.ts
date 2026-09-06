@@ -8,6 +8,7 @@ import { recomputeBoardMentions } from '@/lib/entries/mentions';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
+import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { mergeBoardState, normaliseState, type BoardPatch, type BoardState } from './merge';
 
@@ -341,9 +342,12 @@ export type BoardRefs = {
  * What a landkaart card shows. Same shape and the same rule as an entry card:
  * only an id is on the wall, and what it stands for is looked up here.
  *
- * Every signed-in person may look at every landkaart (§19), so the only thing
- * this filters out is a map that has been taken down — which then reads as
- * MISSING, exactly like a deleted artikel.
+ * §40: a landkaart has its own view dial now, so this really does depend on the
+ * viewer — a wall that printed the name of a plattegrond the Keeper is keeping
+ * back would give the house away in one word. A map that is hidden from this
+ * viewer, or has been taken down, comes back MISSING, exactly like a deleted or
+ * Keeper-only artikel. (Before the dial existed the `viewer` here was `_viewer`
+ * and did nothing, because there was nothing for it to do.)
  */
 export type BoardMapFacts = {
   id: string;
@@ -353,7 +357,7 @@ export type BoardMapFacts = {
   missing: boolean;
 };
 
-export function resolveBoardMaps(mapIds: string[], _viewer: Viewer): Map<string, BoardMapFacts> {
+export function resolveBoardMaps(mapIds: string[], viewer: Viewer): Map<string, BoardMapFacts> {
   const out = new Map<string, BoardMapFacts>();
   const ids = [...new Set(mapIds.filter(Boolean))];
   if (!ids.length) return out;
@@ -366,7 +370,7 @@ export function resolveBoardMaps(mapIds: string[], _viewer: Viewer): Map<string,
       assetId: schema.maps.assetId,
     })
     .from(schema.maps)
-    .where(and(inArray(schema.maps.id, ids), isNull(schema.maps.deletedAt)))
+    .where(and(inArray(schema.maps.id, ids), visibleMapCondition(viewer)))
     .all();
 
   for (const row of rows) out.set(row.id, { ...row, missing: false });

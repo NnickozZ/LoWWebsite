@@ -77,8 +77,9 @@ test('a dossier can be read as well as filled in', async ({ page }, info) => {
   await signIn(page, ...KEEPER);
   const path = await openCase(page, caseName);
 
-  // A Keeper lands in editing, so the name is an input and the toggle offers
-  // the other face.
+  // A dossier made this second (`?new=1`) opens with its fields open — that is
+  // the one thing that still does — so the name is an input and the toggle
+  // offers the other face. Everywhere else, everybody lands on Lezen.
   await expect(page.getByLabel('Naam van het dossier')).toHaveValue(caseName);
   await expect(faceToggle(page)).toHaveText('Lezen');
 
@@ -88,6 +89,11 @@ test('a dossier can be read as well as filled in', async ({ page }, info) => {
   await expect(page.getByRole('heading', { name: caseName })).toBeVisible();
   await expect(page.getByLabel('Naam van het dossier')).toHaveCount(0);
   await expect(page.getByPlaceholder('Voeg iets toe aan dit dossier…')).toHaveCount(0);
+  // The button beside that box makes something new, so it is just as much a
+  // thing that asks to be filled in: reading, neither of the two is there.
+  await expect(
+    page.getByRole('button', { name: 'Voeg een nieuw artikel toe aan dit dossier' }),
+  ).toHaveCount(0);
   await expect(page.locator('#case-summary')).toHaveCount(0);
   await expect(page.locator('[contenteditable="true"]')).toHaveCount(0);
 

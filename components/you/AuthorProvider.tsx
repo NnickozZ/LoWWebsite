@@ -571,6 +571,19 @@ export function WritingAsLine() {
  * listed the refusals would leave them looking for a way in that is already in
  * front of them.
  *
+ * §18c made koppelen the Keeper's, and this notice tells the reader to do it
+ * themselves — which is still exactly right, and stays right by construction.
+ * The banner shows on one condition (`no-author`: `listCharacters` is empty)
+ * and §18c's door opens on the same one, asked the same way. So there is no
+ * state in which this sentence promises something the archive would refuse —
+ * not for a new arrival, and not for someone who *had* one and lost it either
+ * (the Keeper untied it, or the fiche went to the prullenbak): they are back at
+ * zero, so the road is open again and the words are true again. That is the
+ * whole reason both rules count the fiches a person can *see* rather than the
+ * knots. If those two conditions ever drift apart, this paragraph is the first
+ * thing that becomes a lie — and the second sentence would have to become
+ * "vraag de {words.keeper} je een onderzoeker te geven".
+ *
  * `words` is handed in rather than read from `useUi()` on purpose: this file
  * must not import `UiProvider`, which imports the two "nieuw …" sheets, which
  * ask this file whether the person may type. The shell has the words already.

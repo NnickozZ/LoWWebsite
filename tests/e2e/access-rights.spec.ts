@@ -86,6 +86,9 @@ test('a private fiche is nobody else\'s, and a Keeper sees it anyway', async ({ 
   const keeper = await keeperCtx.newPage();
   await signIn(keeper, 'Keeper', 'abbeytower34');
   await keeper.goto(path);
+  // §22: a Keeper lands on the reading face like everyone else, and this
+  // asserts the name *box*.
+  await editArticle(keeper);
   await expect(keeper.getByLabel('Naam')).toHaveValue(entryName);
   await keeperCtx.close();
 });

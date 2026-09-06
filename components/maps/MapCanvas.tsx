@@ -14,6 +14,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { useIsPhone } from '@/components/useIsPhone';
+import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
 import { InkCanvas } from '@/components/ink/InkCanvas';
 import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
@@ -42,6 +43,12 @@ const MIN_ZOOM_FACTOR = 0.4;
 const MAX_ZOOM = 8;
 const DRAG_THRESHOLD = 5;
 const NOTE_COLOUR = 'var(--stamp-red)';
+/**
+ * §39: a speld that stands for another landkaart. The ink blue the archive
+ * uses for a way through to somewhere else, so a doorway does not read as a
+ * notitie (red) or as a fiche (its type's own colour).
+ */
+const MAP_COLOUR = 'var(--link)';
 
 export type Legend = { key: string; label: string; icon: string; colour: string; count: number };
 
@@ -52,8 +59,38 @@ type Placing =
   | { mode: 'ask'; x: number; y: number }
   | { mode: 'entry'; entryId: string; entryName: string };
 
+/**
+ * Which legend row a speld belongs to. A notitie is a notitie, a landkaart
+ * speld is a landkaart — one row for all of them, so "Landkaarten" can be
+ * switched off like any other kind — and a fiche speld is its own type.
+ */
 function legendKey(pin: MapPin): string {
-  return pin.kind === 'note' ? 'note' : `type:${pin.entry?.typeSlug ?? '?'}`;
+  if (pin.kind === 'note') return 'note';
+  if (pin.kind === 'map') return 'map';
+  return `type:${pin.entry?.typeSlug ?? '?'}`;
+}
+
+/**
+ * The colour and the icon of a speld, in one place. The kind branches in three
+ * views — the legend, the head on the map, the head in the sheet — and they
+ * drifted apart once already when the notitie was added.
+ */
+function pinColour(pin: MapPin): string {
+  if (pin.kind === 'note') return NOTE_COLOUR;
+  if (pin.kind === 'map') return MAP_COLOUR;
+  return pin.entry?.typeColour ?? 'var(--ink-muted)';
+}
+
+/**
+ * §39: a landkaart speld wears the map icon, not a thumbnail of the map. The
+ * pin layer is deliberately never scaled (see the note at the top), so a
+ * picture there would be new visual weight at every zoom — and the icon is the
+ * one `subjectOf` already gives a landkaart on a prikbord.
+ */
+function pinIcon(pin: MapPin): string {
+  if (pin.kind === 'note') return 'note';
+  if (pin.kind === 'map') return 'map';
+  return pin.entry?.typeIcon ?? 'file';
 }
 
 function readHidden(mapId: string): Set<string> {
@@ -122,6 +159,7 @@ function UnderFold({ children }: { children: ReactNode }) {
 export function MapCanvas({
   map,
   initialPins,
+  pickableMaps,
   viewerId,
   isKeeper,
   peopleNames,
@@ -130,6 +168,14 @@ export function MapCanvas({
 }: {
   map: MapSummary;
   initialPins: MapPin[];
+  /**
+   * §39: the landkaarten a speld may point at — every one this viewer may see,
+   * minus this one. Handed over whole and matched in the browser, exactly as a
+   * prikbord does it (`pickableMaps` in `BoardCanvas`): the list is short, and
+   * a search road of its own would be a second set of rules about who may see
+   * which landkaart.
+   */
+  pickableMaps: { id: string; name: string }[];
   /** §33: the tekenlaag, as this viewer may see it. */
   initialInk: InkLayerView;
   viewerId: string;
@@ -277,14 +323,19 @@ export function MapCanvas({
       }
       out.set(key, {
         key,
-        label: pin.kind === 'note' ? `${words.note.charAt(0).toUpperCase()}${words.note.slice(1)}s` : (pin.entry?.typeLabel ?? '?'),
-        icon: pin.kind === 'note' ? 'note' : (pin.entry?.typeIcon ?? 'file'),
-        colour: pin.kind === 'note' ? NOTE_COLOUR : (pin.entry?.typeColour ?? 'var(--ink-muted)'),
+        label:
+          pin.kind === 'note'
+            ? `${words.note.charAt(0).toUpperCase()}${words.note.slice(1)}s`
+            : pin.kind === 'map'
+              ? `${words.mapPlural.charAt(0).toUpperCase()}${words.mapPlural.slice(1)}`
+              : (pin.entry?.typeLabel ?? '?'),
+        icon: pinIcon(pin),
+        colour: pinColour(pin),
         count: 1,
       });
     }
     return [...out.values()].sort((a, b) => (a.key === 'note' ? 1 : b.key === 'note' ? -1 : a.label.localeCompare(b.label)));
-  }, [pins, words.note]);
+  }, [pins, words.mapPlural, words.note]);
 
   const toggleKind = (key: string) => {
     setHidden((current) => {
@@ -655,6 +706,15 @@ export function MapCanvas({
           return next;
         });
         ui.toast(`${made.name} staat op ${map.name}.`);
+        /*
+         * §5: the page under this canvas is server-rendered, so the browser is
+         * holding a payload of this landkaart from before the speld existed.
+         * Without this, walking down a landkaart speld and coming back up the
+         * chip lands on that older payload and the speld is not there — which
+         * is exactly the road §39 just built. The write already happened; this
+         * only brings the page behind it into line.
+         */
+        router.refresh();
         return made;
       } catch {
         ui.toast('Geen verbinding.');
@@ -663,14 +723,19 @@ export function MapCanvas({
         setBusy(false);
       }
     },
-    [map.id, map.name, ui],
+    [map.id, map.name, router, ui],
   );
 
   const removePin = useCallback(
     async (pin: MapPin) => {
       const yes = await ui.confirm({
         title: `${pin.name} van de ${words.map} halen?`,
-        message: pin.kind === 'entry' ? `De ${words.entry} zelf blijft bestaan; alleen de ${words.mapPin} gaat weg.` : undefined,
+        message:
+          pin.kind === 'entry'
+            ? `De ${words.entry} zelf blijft bestaan; alleen de ${words.mapPin} gaat weg.`
+            : pin.kind === 'map'
+              ? `De ${words.map} zelf blijft hangen; alleen de ${words.mapPin} gaat weg.`
+              : undefined,
         confirmLabel: `${words.mapPin.charAt(0).toUpperCase()}${words.mapPin.slice(1)} weghalen`,
         danger: true,
       });
@@ -685,13 +750,15 @@ export function MapCanvas({
         }
         setPins((current) => current.filter((p) => p.id !== pin.id));
         setSelectedId(null);
+        // §5, as above: a pulled speld must not come back on the way back up.
+        router.refresh();
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
         setBusy(false);
       }
     },
-    [map.id, ui, words.entry, words.map, words.mapPin],
+    [map.id, router, ui, words.entry, words.map, words.mapPin],
   );
 
   /**
@@ -839,9 +906,9 @@ export function MapCanvas({
                   }}
                 >
                   <Icon
-                    name={pin.kind === 'note' ? 'note' : (pin.entry?.typeIcon ?? 'file')}
+                    name={pinIcon(pin)}
                     size={14}
-                    style={{ color: pin.kind === 'note' ? NOTE_COLOUR : pin.entry?.typeColour }}
+                    style={{ color: pinColour(pin) }}
                   />
                   <span>{pin.name}</span>
                 </button>
@@ -948,7 +1015,7 @@ export function MapCanvas({
         {/* The pins: stage pixels, never scaled — see the note at the top. */}
         <div className="map-pins">
           {shown.map((pin) => {
-            const colour = pin.kind === 'note' ? NOTE_COLOUR : (pin.entry?.typeColour ?? 'var(--ink-muted)');
+            const colour = pinColour(pin);
             const isSelected = pin.id === selectedId;
             // A pin in someone else's hand is drawn where their hand has it.
             const hand = dragging === pin.id ? undefined : carried.get(pin.id);
@@ -976,7 +1043,7 @@ export function MapCanvas({
                 }}
               >
                 <span className="map-pin-head">
-                  <Icon name={pin.kind === 'note' ? 'note' : (pin.entry?.typeIcon ?? 'file')} size={13} />
+                  <Icon name={pinIcon(pin)} size={13} />
                 </span>
                 <span className="map-pin-label">{pin.name}</span>
               </button>
@@ -1111,11 +1178,15 @@ export function MapCanvas({
         <Sheet onClose={() => setPlacing(null)} labelledBy="new-pin-title">
           <NewPinSheet
             busy={busy}
+            pickableMaps={pickableMaps}
             onEntry={(entryId) => {
               void createPin({ kind: 'entry', entryId, x: placing.x, y: placing.y }).then(() => setPlacing(null));
             }}
             onNote={(name, text) => {
               void createPin({ kind: 'note', name, text, x: placing.x, y: placing.y }).then(() => setPlacing(null));
+            }}
+            onMap={(targetMapId) => {
+              void createPin({ kind: 'map', targetMapId, x: placing.x, y: placing.y }).then(() => setPlacing(null));
             }}
           />
         </Sheet>
@@ -1205,16 +1276,20 @@ function PinSheetBody({
       <div className="row" style={{ alignItems: 'flex-start' }}>
         <span
           className="map-pin-head map-pin-head-static"
-          style={{ ['--pin-colour' as string]: pin.kind === 'note' ? NOTE_COLOUR : pin.entry?.typeColour }}
+          style={{ ['--pin-colour' as string]: pinColour(pin) }}
         >
-          <Icon name={pin.kind === 'note' ? 'note' : (pin.entry?.typeIcon ?? 'file')} size={14} />
+          <Icon name={pinIcon(pin)} size={14} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 id="pin-title" style={{ margin: 0 }}>
             {pin.name}
           </h2>
           <p className="tiny muted" style={{ margin: '0.2rem 0 0' }}>
-            {pin.kind === 'note' ? `${words.note.charAt(0).toUpperCase()}${words.note.slice(1)} op de ${words.map}` : pin.entry?.typeLabel}
+            {pin.kind === 'note'
+              ? `${words.note.charAt(0).toUpperCase()}${words.note.slice(1)} op de ${words.map}`
+              : pin.kind === 'map'
+                ? `${words.map.charAt(0).toUpperCase()}${words.map.slice(1)}`
+                : pin.entry?.typeLabel}
             {setBy && <> · gezet door {setBy}</>}
           </p>
         </div>
@@ -1230,6 +1305,22 @@ function PinSheetBody({
             </Link>
           </p>
         </>
+      )}
+
+      {/*
+        §39: the way down. A tap on a landkaart speld opens *this* sheet rather
+        than navigating, because everything a speld has — "gezet door", the
+        drag hint, "speld weghalen" — lives here, and a speld that jumped to
+        another page on one tap could never be moved on a telephone. The button
+        below is the road, and it is the entry speld's button word for word.
+      */}
+      {pin.kind === 'map' && pin.map && (
+        <p style={{ margin: 0 }}>
+          <Link className="btn btn-small btn-primary" href={`/maps/${pin.map.slug}`}>
+            <Icon name="map" size={14} />
+            {words.map.charAt(0).toUpperCase() + words.map.slice(1)} openen
+          </Link>
+        </p>
       )}
 
       {pin.kind === 'note' &&
@@ -1334,12 +1425,17 @@ type PinSuggestion = {
  */
 function NewPinSheet({
   busy,
+  pickableMaps,
   onEntry,
   onNote,
+  onMap,
 }: {
   busy: boolean;
+  pickableMaps: { id: string; name: string }[];
   onEntry: (entryId: string) => void;
   onNote: (name: string, text: string) => void;
+  /** §39: a speld that opens another landkaart. */
+  onMap: (targetMapId: string) => void;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -1347,6 +1443,24 @@ function NewPinSheet({
   const [items, setItems] = useState<PinSuggestion[]>([]);
   const typed = query.trim();
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  /*
+   * §39: the landkaarten matching what is typed. Not `/api/suggest`, which
+   * answers with artikelen and nothing else — the prikbord took the same road
+   * for the same reason: the list of landkaarten a person may see is short,
+   * it came down with the page behind the viewer's own dial, and a fuzzy match
+   * in the browser needs no second endpoint with a second set of rules about
+   * who may see what.
+   */
+  const mapMatches = useMemo(() => {
+    if (!typed) return [];
+    return pickableMaps
+      .map((item) => ({ item, score: fuzzyScore(item.name, typed) }))
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((row) => row.item);
+  }, [pickableMaps, typed]);
 
   useEffect(() => {
     if (!typed) {
@@ -1377,7 +1491,7 @@ function NewPinSheet({
       </h2>
       <div>
         <label className="visually-hidden" htmlFor="new-pin-query">
-          Zoek een {words.entry}, of typ een naam voor een {words.note}
+          Zoek een {words.entry} of een {words.map}, of typ een naam voor een {words.note}
         </label>
         <input
           id="new-pin-query"
@@ -1388,15 +1502,18 @@ function NewPinSheet({
           autoComplete="off"
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
-            // Enter takes the first row: the best match, else the note.
+            // Enter takes the first row: the best artikel, else the best
+            // landkaart, else the note — the order the list is drawn in.
             if (event.key !== 'Enter' || !typed || busy) return;
             event.preventDefault();
             if (items[0]) onEntry(items[0].id);
+            else if (mapMatches[0]) onMap(mapMatches[0].id);
             else onNote(typed, '');
           }}
         />
         <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
-          Een bestaand {words.entry} uit de lijst, een nieuw {words.entry} met deze naam, of een losse {words.note}.
+          Een bestaand {words.entry} uit de lijst, een andere {words.map}, een nieuw {words.entry} met deze naam, of
+          een losse {words.note}.
         </p>
       </div>
 
@@ -1410,6 +1527,25 @@ function NewPinSheet({
                   <strong>{entry.name}</strong>
                   <span className="tiny muted" style={{ display: 'block' }}>
                     {entry.typeLabel}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+          {/*
+            §39: the landkaarten, matched here rather than asked for — you have
+            a dozen of them, not a thousand, which is the same reason a prikbord
+            matches them in the browser. This is the road down: a speld on the
+            town that opens the town's own {words.map}.
+          */}
+          {mapMatches.map((item) => (
+            <li key={`map-${item.id}`}>
+              <button type="button" className="suggest-item" disabled={busy} onClick={() => onMap(item.id)}>
+                <Icon name="map" size={15} style={{ color: MAP_COLOUR }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{item.name}</strong>
+                  <span className="tiny muted" style={{ display: 'block' }}>
+                    {cap(words.map)} — de {words.mapPin} opent hem
                   </span>
                 </span>
               </button>

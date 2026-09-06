@@ -23,7 +23,6 @@ import { listEntryTypes } from '@/lib/entries/service';
 import { planCaseTabs, type CaseTabSource } from '@/lib/cases/tabs';
 import { Icon } from '@/components/Icon';
 import { deleteCaseAction } from './actions';
-import { articleModeFor } from '@/lib/entries/mode';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,9 +41,17 @@ const TAB_ORDER = (soorten: { slug: string; caseOnly: boolean }[]) => [
   'abnormality',
 ];
 
-export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CasePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  /** §22: `?new=1` — a dossier made this second opens with its fields open. */
+  searchParams: Promise<{ new?: string }>;
+}) {
   const user = await getSessionUser();
   const { slug } = await params;
+  const query = await searchParams;
 
   const record = getCaseBySlug(slug, user);
   if (!record) notFound();
@@ -200,10 +207,11 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       access={access}
       liveFields={liveFields}
       /*
-       * §22: the face this dossier opens in — the same setting an artikel
-       * obeys, already resolved against this person's role on the server.
+       * §22: everybody lands on the reading face here too, a Keeper included.
+       * The exception is the dossier you have just made — the sheet lands you
+       * on `?new=1` — which opens with everything open.
        */
-      defaultMode={articleModeFor(user?.articleMode, Boolean(user?.isKeeper))}
+      openAddMore={query.new === '1'}
       binSlot={
         mayEdit ? (
           <details className="section" style={{ marginTop: '1.5rem' }}>

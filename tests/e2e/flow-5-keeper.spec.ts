@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { inviteCode, openRights, signIn } from './helpers';
+import { editArticle, inviteCode, openRights, signIn } from './helpers';
 
 /**
  * Golden flow 5 (§15), both halves:
@@ -73,6 +73,9 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   const keeperPhone = await phone.newPage();
   await signIn(keeperPhone, 'Keeper', 'abbeytower34');
   await keeperPhone.goto(entryUrl);
+  // §22: a Keeper lands on the reading face too, where a section is printed
+  // rather than editable. The reveal switches are on the other face.
+  await editArticle(keeperPhone);
   await keeperPhone
     .locator('.entry-section-editing')
     .getByRole('button', { name: 'Gekozen spelers' })

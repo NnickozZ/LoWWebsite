@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { signIn } from './helpers';
+import { editArticle, signIn } from './helpers';
 
 /**
  * Golden flow 4 (§15): open a board, add three entry cards via search, add a
@@ -165,5 +165,46 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
     await cover.dblclick();
   }
   await page.waitForURL('**/e/**');
+  // §22: opening a card lands on the artikel's reading face, where the name is
+  // a heading. The name *box* is on the other one.
+  await editArticle(page);
   await expect(page.getByLabel('Naam')).toHaveValue(/Sister Clasina/);
+});
+
+/**
+ * A punaise shows all of its label.
+ *
+ * It used to be one line clipped with an ellipsis at 76 px, so a lead written
+ * out in full reached the wall as "de man met…" and nothing said the rest was
+ * there. Asserted on the paint rather than on the model: the text must be in
+ * the tag *and* the tag must not be scrolling any of it out of sight.
+ *
+ * Both projects — this is the one board gesture that needs no pointer, so the
+ * phone is exactly where a clipped label was worst.
+ */
+test('board: a long punaise label is shown in full', async ({ page }) => {
+  const label = 'de man met de grijze jas die bij de vuurtoren stond';
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  await page.goto('/boards');
+  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await page.waitForURL('**/b/**');
+
+  // A bare punaise comes up selected, so its label field is already in the bar.
+  await page.getByRole('button', { name: 'Punaise', exact: true }).click();
+  const field = page.getByLabel('Label van de punaise');
+  await expect(field).toBeVisible();
+  await field.fill(label);
+  await field.press('Enter');
+
+  const tag = page.locator('.board-pintag').first();
+  await expect(tag).toHaveText(label);
+  // Nothing clipped: the tag wraps and the pin grows downward instead.
+  const clipped = await tag.evaluate(
+    (node) => (node as HTMLElement).scrollWidth > (node as HTMLElement).clientWidth,
+  );
+  expect(clipped, 'the tag shows the whole label rather than scrolling it').toBe(false);
+  // And it really did grow: more than one line of type is standing there.
+  const height = await tag.evaluate((node) => (node as HTMLElement).getBoundingClientRect().height);
+  expect(height).toBeGreaterThan(24);
 });

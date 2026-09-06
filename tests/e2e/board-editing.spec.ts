@@ -142,4 +142,49 @@ test.describe('board editing', () => {
     await inspector.getByRole('button', { name: 'Foto verwijderen' }).click();
     await expect(note.locator('img')).toHaveCount(0);
   });
+
+  /**
+   * A card can be made bigger, and stays bigger.
+   *
+   * Through the preset row rather than the corner grip: the row is the control
+   * that needs no pointer, and it is the only one a phone has at all. A size
+   * that is only true until the page is reloaded is not a size — the point of
+   * the whole feature is that the wall remembers how big somebody wanted this
+   * card.
+   */
+  test('a card can be made bigger, and is still bigger after a reload', async ({ page }) => {
+    await signIn(page, 'Keeper', 'abbeytower34');
+    await page.goto('/boards');
+    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+    await page.waitForURL('**/b/**');
+
+    const noteName = `Groot geschreven ${Date.now().toString(36)}`;
+    await page.getByLabel('Kaart toevoegen').fill(noteName);
+    await page.locator('.suggest-item').filter({ hasText: 'als notitie' }).click();
+    const note = page.locator('.board-card', { hasText: noteName });
+    await expect(note).toBeVisible();
+
+    const width = async () => (await note.boundingBox())!.width;
+    const before = await width();
+
+    await note.locator('.board-card-body').click();
+    const inspector = page.locator('.board-inspector');
+    await expect(inspector).toBeVisible();
+    await inspector.getByRole('radio', { name: 'Groot', exact: true }).click();
+
+    // 150%: measured, because the whole card is scaled rather than restyled.
+    await expect.poll(width).toBeGreaterThan(before * 1.4);
+    await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
+
+    const big = await width();
+    await page.reload();
+    await expect(note).toBeVisible();
+    await expect.poll(width).toBeGreaterThan(big - 2);
+
+    // And the row says so: the size is a stored fact, not a passing state.
+    await note.locator('.board-card-body').click();
+    await expect(
+      page.locator('.board-inspector').getByRole('radio', { name: 'Groot', exact: true }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
 });

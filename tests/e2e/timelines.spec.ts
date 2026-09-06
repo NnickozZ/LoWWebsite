@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, signIn, signUp } from './helpers';
+import { editArticle, editCase, signIn, signUp } from './helpers';
 
 /**
  * §32: tijdlijnen.
@@ -130,6 +130,9 @@ test('a dossier has a Tijdlijn tab of its own', async ({ page }, info) => {
   await page.locator('a[href^="/c/"]').first().click();
   await page.waitForURL('**/c/**');
   const caseUrl = page.url();
+  // §22: a dossier reached by a link opens on the reading face, where the
+  // button that makes a tijdlijn is not — making one is editing.
+  await editCase(page);
 
   await openCaseSection(page, 'Tijdlijn', isPhone);
   await expect(page.getByRole('button', { name: 'Maak nieuwe tijdlijn voor dit dossier' })).toBeVisible();

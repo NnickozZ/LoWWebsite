@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm';
-import type { ArticleModePref } from '@/lib/entries/mode';
 import type { ReadingFont } from '@/lib/readingFont';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import {
@@ -31,10 +30,16 @@ export const users = sqliteTable(
     /** §18: the character this person is currently wearing; null means "just me". */
     activeCharacterId: text('active_character_id'),
     /**
-     * §22: which face an artikel opens in for this person — 'view' to read,
-     * 'edit' to edit, '' to follow their role. See `lib/entries/mode.ts`.
+     * §22, retired in round 13 — kept because this repo never edits an old
+     * migration and a live database still has the column.
+     *
+     * It used to hold which face an artikel opened in for this person. Nobody
+     * lands anywhere but Lezen now, so nothing reads or writes it: it is here
+     * only so the table drizzle describes matches the table on disk. Do not
+     * write a migration to drop it — SQLite's `DROP COLUMN` on a table with an
+     * index is fragile and there is nothing to gain.
      */
-    articleMode: text('article_mode').$type<ArticleModePref>().notNull().default(''),
+    articleMode: text('article_mode').notNull().default(''),
     /**
      * §29: which face this person reads in. '' is the archive's own; the two
      * alternatives are bundled locally, so nothing is fetched at runtime.
@@ -111,7 +116,14 @@ export const entryTypes = sqliteTable(
 export type FieldKind =
   | 'text'
   | 'longtext'
+  // §38: three kinds that are not a string. A `number` is stored as a JS
+  // number, a `boolean` as a real true/false, a `multiselect` as an array of
+  // the Keeper's own options — `lib/entries/fieldValues.ts` is what keeps them
+  // to those shapes, on the server as well as on the page.
+  | 'number'
+  | 'boolean'
   | 'select'
+  | 'multiselect'
   | 'entry_link'
   | 'entry_links'
   | 'user_link'
@@ -124,7 +136,7 @@ export type FieldDef = {
   key: string;
   label: string;
   kind: FieldKind;
-  /** for select */
+  /** for select and multiselect */
   options?: string[];
   /** for entry_link / entry_links: restrict the picker to these type slugs */
   ofType?: string[];
@@ -141,7 +153,7 @@ export type Visibility = 'all' | 'keeper' | 'players';
  * when the Keeper allows it AND the owner allows it.
  */
 export type AccessMode = 'all' | 'some' | 'private';
-export type AccessTargetType = 'entry' | 'case' | 'board' | 'timeline';
+export type AccessTargetType = 'entry' | 'case' | 'board' | 'timeline' | 'map';
 
 export const entries = sqliteTable(
   'entries',
@@ -506,6 +518,17 @@ export const maps = sqliteTable(
      * place". Null for a map of the world rather than of one page.
      */
     entryId: text('entry_id'),
+    /**
+     * §17: the same two dials every other thing wears. `view_mode` defaults to
+     * 'all' — a landkaart hung before there was a dial was visible to everyone
+     * signed in, and stays so. `edit_mode` defaults to 'private', because §19
+     * has always said only a Keeper renames, redraws or takes down a landkaart:
+     * the owner is a Keeper, so 'private' is exactly today's rule written down,
+     * and a Keeper who wants help can now turn it up.
+     */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('private'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
@@ -516,15 +539,25 @@ export const maps = sqliteTable(
 
 /**
  * §19: a pin on a map, in picture coordinates 0..1 so a redrawn map keeps
- * them. Either a fiche (`entry_id`) or a loose note (`name` + `text`).
+ * them. A fiche (`entry_id`), a loose note (`name` + `text`), or — since 0017
+ * — another landkaart (`target_map_id`): the speld on the town that opens the
+ * town's own map.
  */
 export const mapPins = sqliteTable(
   'map_pins',
   {
     id: text('id').primaryKey(),
     mapId: text('map_id').notNull(),
-    kind: text('kind').$type<'entry' | 'note'>().notNull().default('entry'),
+    kind: text('kind').$type<'entry' | 'note' | 'map'>().notNull().default('entry'),
     entryId: text('entry_id'),
+    /**
+     * §39: the landkaart this speld stands for — the town on the map of the
+     * province, the house on the map of the town. A landkaart is its own table
+     * rather than an artikel, so this is a column beside `entry_id` and not a
+     * second meaning for it, exactly as a kaart on a prikbord keeps `mapId`
+     * apart from `entryId`. NULL: this speld is not a landkaart speld.
+     */
+    targetMapId: text('target_map_id'),
     name: text('name').notNull().default(''),
     text: text('text').notNull().default(''),
     x: real('x').notNull().default(0.5),
@@ -535,7 +568,11 @@ export const mapPins = sqliteTable(
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
   },
-  (t) => [index('map_pins_map_idx').on(t.mapId), index('map_pins_entry_idx').on(t.entryId)],
+  (t) => [
+    index('map_pins_map_idx').on(t.mapId),
+    index('map_pins_entry_idx').on(t.entryId),
+    index('map_pins_target_idx').on(t.targetMapId),
+  ],
 );
 
 /**

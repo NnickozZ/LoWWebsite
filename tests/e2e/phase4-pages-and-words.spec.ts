@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { signIn } from './helpers';
+import { editArticle, signIn } from './helpers';
 
 /**
  * §11's two new powers, end to end.
@@ -26,6 +26,9 @@ test('a self-filling list fills itself from a field on another fiche', async ({ 
   await page.goto('/wiki/character');
   await page.getByRole('link', { name: /Doktor Gerhard Lang/ }).first().click();
   await page.waitForURL('**/e/**');
+  // §22: a link out of the wiki lands on the reading face, where "Meer info"
+  // is printed rather than filled in. The picker is on the editing face.
+  await editArticle(page);
 
   // "Meer info" is folded on a phone and a card beside the text on a desktop.
   const folded = page.locator('details#block-info:not([open]) > summary');
@@ -75,6 +78,9 @@ test('the Keeper adds a list of their own to every page of a soort', async ({ pa
   await page.goto('/wiki/faction');
   await page.getByRole('link', { name: /De Schorre/ }).first().click();
   await page.waitForURL('**/e/**');
+  // §22: reading, an empty hand-filled list is not shown at all — filling one
+  // in is what the editing face is for.
+  await editArticle(page);
 
   const key = `lijst_rivalen_${testInfo.project.name}`;
   const rivals = page.locator('details.section', { hasText: title }).first();
@@ -89,6 +95,58 @@ test('the Keeper adds a list of their own to every page of a soort', async ({ pa
   await expect(page.locator('details.section', { hasText: title }).first()).toContainText(
     'The Ahnenerbe Party',
   );
+});
+
+/**
+ * §38: the infobox is the Keeper's list on the server too.
+ *
+ * The page has always drawn only the fields the soort has, so nothing typed in
+ * a browser could reach a key nobody configured. A hand-rolled request could,
+ * and that is the door this closes — so this test does not go near the screen:
+ * it is the raw `PATCH` the artikel page's autosave sends, with rubbish in it.
+ */
+test('a raw PATCH cannot store a key the soort does not have, or a keuze off its list', async ({
+  page,
+}) => {
+  await signIn(page, 'Keeper', 'abbeytower34');
+
+  // A Personage: `status` is its keuzelijst (levend / dood / vermist /
+  // onbekend) and `occupation` one of its texts. Looked up by name rather than
+  // read off a page, because nothing here needs a screen.
+  const found = (await (
+    await page.request.get('/api/suggest?q=Gerhard%20Lang&types=character&limit=5')
+  ).json()) as { entries: { id: string; name: string }[] };
+  const id = found.entries.find((entry) => /Gerhard Lang/.test(entry.name))?.id;
+  expect(id).toBeTruthy();
+
+  const patch = async (fields: Record<string, unknown>) => {
+    const response = await page.request.patch(`/api/entries/${id}`, { data: { fields } });
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()) as { rejectedFields?: string[] };
+  };
+  const stored = async () =>
+    ((await (await page.request.get(`/api/entries/${id}`)).json()) as {
+      fields: Record<string, unknown>;
+    }).fields;
+
+  // A key nobody configured is not stored, and the save says so by name.
+  const junk = await patch({ occupation: 'kunsthistoricus', verzonnen_veld: 'ik sta hier niet' });
+  expect(junk.rejectedFields).toEqual(['verzonnen_veld']);
+  const afterJunk = await stored();
+  expect(afterJunk.occupation).toBe('kunsthistoricus');
+  expect('verzonnen_veld' in afterJunk).toBe(false);
+
+  // A keuzelijst takes its own options and nothing else — and refusing one does
+  // not throw away the rest of the same save.
+  const off = await patch({ status: 'ondood', occupation: 'archivaris' });
+  expect(off.rejectedFields).toEqual(['status']);
+  const afterOff = await stored();
+  expect(afterOff.status).not.toBe('ondood');
+  expect(afterOff.occupation).toBe('archivaris');
+
+  const on = await patch({ status: 'vermist' });
+  expect(on.rejectedFields).toBeUndefined();
+  expect((await stored()).status).toBe('vermist');
 });
 
 test('renaming a word renames it everywhere, and clearing the box puts it back', async ({

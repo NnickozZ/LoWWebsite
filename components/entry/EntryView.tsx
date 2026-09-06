@@ -153,7 +153,6 @@ export function EntryView({
   origin,
   live,
   liveFields,
-  defaultMode,
 }: {
   entry: EntryViewData;
   knownTags: string[];
@@ -188,8 +187,15 @@ export function EntryView({
   };
   /** §17: proposals waiting on this artikel — only the owner or a Keeper gets any. */
   proposals: PendingEdit[];
-  /** §18: is this artikel one of the viewer's characters? `null` for a Keeper. */
-  character: { linked: boolean; active: boolean } | null;
+  /**
+   * §18: is this artikel one of the viewer's characters? `null` for a Keeper.
+   *
+   * §18c: `mayTie` is whether the button that ties it on may be offered at all
+   * — true only for a speler who holds nobody, because their first onderzoeker
+   * is the one thing they still hand themselves. Everything after that the
+   * Keeper gives out from Beheer, so there is no button here to press.
+   */
+  character: { linked: boolean; active: boolean; mayTie: boolean } | null;
   /** §18: the other accounts that play this artikel. */
   playedBy: string[];
   /** §19: the maps this artikel is pinned on… */
@@ -226,12 +232,6 @@ export function EntryView({
   live: { room: string; state: string; sv: string; canEdit: boolean; user: LiveUser } | null;
   /** §21: the name, the one-liner and the infobox texts as shared fields. */
   liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
-  /**
-   * §22: the face this artikel opens in — this person's own setting, already
-   * resolved against their role on the server. The toggle overrides it for
-   * this artikel; the setting itself only changes in Jouw account.
-   */
-  defaultMode: ArticleMode;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -249,17 +249,15 @@ export function EntryView({
 
   /**
    * §22: which face this artikel is wearing. Per artikel and per visit, like
-   * Wikipedia's own Lezen/Bewerken — the setting decides where you land, not
-   * where you are stuck. Somebody who is not signed in has nothing to edit
-   * with, so for them there is one face and no toggle.
+   * Wikipedia's own Lezen/Bewerken — everybody lands on Lezen, a Keeper as
+   * much as a reader, and one click crosses over. Somebody who is not signed
+   * in has nothing to edit with, so for them there is one face and no toggle.
    *
-   * A brand-new artikel (`?new=1`) opens in editing whatever the setting says:
+   * A brand-new artikel (`?new=1`) is the one exception and opens in editing:
    * you have just made it, so you are here to fill it in.
    */
   const canToggle = Boolean(access.viewerId);
-  const [mode, setMode] = useState<ArticleMode>(
-    !canToggle ? 'view' : openAddMore ? 'edit' : defaultMode,
-  );
+  const [mode, setMode] = useState<ArticleMode>(canToggle && openAddMore ? 'edit' : 'view');
   const reading = mode === 'view';
 
   const [name, setName] = useState(entry.name);
@@ -272,7 +270,7 @@ export function EntryView({
   const [revealedTo, setRevealedTo] = useState(entry.revealedTo);
   const [isLocked, setIsLocked] = useState(entry.isLocked);
   // §18: tying this artikel on as a character, from the artikel itself.
-  const [wardrobe, setWardrobe] = useState(character ?? { linked: false, active: false });
+  const [wardrobe, setWardrobe] = useState(character ?? { linked: false, active: false, mayTie: false });
   const [wardrobeBusy, setWardrobeBusy] = useState(false);
   const wear = useCallback(
     async (method: 'POST' | 'PATCH', body: Record<string, unknown>) => {
@@ -289,7 +287,9 @@ export function EntryView({
           return;
         }
         const active = data.activeId === entry.id;
-        setWardrobe({ linked: true, active });
+        // §18c: with one on the peg the door has shut behind them — this was
+        // their first and only self-koppeling.
+        setWardrobe({ linked: true, active, mayTie: false });
         ui.toast(active ? `Je speelt nu als ${entry.name}.` : `${entry.name} is nu een van je karakters.`);
         router.refresh();
       } catch {
@@ -333,7 +333,10 @@ export function EntryView({
     [entry.id, router, ui, access.canEdit],
   );
 
-  const { state, set, flush } = useAutosave<Patch>({ save });
+  // §38: `fields` is a bag of independent answers, so two boxes filled inside
+  // one autosave window are two answers and not two versions of one — see the
+  // note on `mergeKeys`.
+  const { state, set, flush } = useAutosave<Patch>({ save, mergeKeys: ['fields'] });
   const [accessNow, setAccessNow] = useState(access.settings);
 
   // §20: who else is in the text, and whether the line is up — reported by
@@ -879,7 +882,11 @@ export function EntryView({
             inCaseIds={cases.map((item) => item.id)}
           />
           <PinToBoardButton entryId={entry.id} entryName={entry.name} />
-          {character && !wardrobe.linked && (
+          {/* §18c: offered only while there is nobody on the peg. A speler's
+              first onderzoeker is theirs to tie on; the next one is handed to
+              them from Beheer, so no button stands here that would only be
+              refused. */}
+          {character && !wardrobe.linked && wardrobe.mayTie && (
             <button
               type="button"
               className="btn btn-small"

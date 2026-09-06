@@ -252,7 +252,10 @@ export function UiProvider({
         onCreated(created);
         return;
       }
-      router.push(`/c/${created.slug}`);
+      // §22: as with an artikel above — land on the new dossier with its
+      // fields open. Everybody opens a dossier reading now, so without this a
+      // Keeper would land on the reading face of a file they made a second ago.
+      router.push(`/c/${created.slug}?new=1`);
       router.refresh();
     },
     [casePrefill, router],

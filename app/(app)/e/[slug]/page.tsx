@@ -23,7 +23,6 @@ import {
 } from '@/lib/entries/secrets';
 import { listDerivedEntries } from '@/lib/entries/derived';
 import { groupMentions, listMentions } from '@/lib/entries/mentions';
-import { articleModeFor } from '@/lib/entries/mode';
 import {
   getBacklinks,
   getEntryBySlug,
@@ -135,22 +134,32 @@ export default async function EntryPage({
   // §18: is this fiche one of the viewer's characters, and who else plays it?
   const mine = user && !user.isKeeper ? listCharacters(user.id) : [];
   const wornId = user && !user.isKeeper ? (activeCharacter(user.id)?.entryId ?? null) : null;
+  // §18c: koppelen is the Keeper's, and Beheer is where they do it — except
+  // for the first onderzoeker of a speler who holds nobody, which is the door
+  // §18b leaves open. `mine` is `listCharacters`, so a fiche in the prullenbak
+  // does not go on counting as one held.
   const character = user && !user.isKeeper
-    ? { linked: mine.some((c) => c.entryId === entry.id), active: wornId === entry.id }
+    ? {
+        linked: mine.some((c) => c.entryId === entry.id),
+        active: wornId === entry.id,
+        mayTie: mine.length === 0,
+      }
     : null;
   const playedBy = playersOf(entry.id)
     .filter((p) => p.id !== user?.id)
     .map((p) => p.username);
 
   // §19: where this fiche is on the maps, and which maps it could still go on.
-  const entryPins = listPinsForEntry(entry.id);
+  // §17: all three reads are per viewer now — a landkaart whose dial shuts this
+  // reader out must not be named here, on the page of an artikel pinned to it.
+  const entryPins = listPinsForEntry(entry.id, user);
   const onMaps = entryPins.map((pin) => ({ pinId: pin.pinId, mapSlug: pin.mapSlug, mapName: pin.mapName }));
   const pinnedMapIds = new Set(entryPins.map((pin) => pin.mapId));
   const mapsToPlace = listMaps(user)
     .filter((map) => !pinnedMapIds.has(map.id))
     .map((map) => ({ slug: map.slug, name: map.name }));
   // §23: and the landkaarten that are a drawing *of* this artikel.
-  const mapsOfThis = listMapsOfEntry(entry.id).map((map) => ({ slug: map.slug, name: map.name }));
+  const mapsOfThis = listMapsOfEntry(entry.id, user).map((map) => ({ slug: map.slug, name: map.name }));
   // §32: where this artikel is on the tijdlijnen, and which it could still go on.
   const entryEvents = listEventsForEntry(entry.id, user);
   const onTimelines = entryEvents.map((row) => ({
@@ -509,11 +518,10 @@ export default async function EntryPage({
         origin={origin}
         caseLinks={caseLinks}
         /*
-         * §22: the face this artikel opens in. The person's own setting from
-         * Jouw account, or — until they set one — what their role does: a
-         * Keeper writes the archive, everyone else came to read it.
+         * §22: everybody lands on the reading face, a Keeper included, and the
+         * toggle crosses over. The only artikel that opens in Bewerken is one
+         * made this second — `?new=1`, which is how the sheet lands you here.
          */
-        defaultMode={articleModeFor(user?.articleMode, isKeeper)}
         openAddMore={query.new === '1'}
         cases={cases.map((item) => ({
           id: item.id,

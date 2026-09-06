@@ -367,9 +367,11 @@ app/
     search/          instant search, one soort at a time
     admin/           users, review queue, types and pages, words, trash,
                      history, site, export, log
-    you/             account, the wardrobe of characters, and the choice of
-                     which face an artikel or dossier opens on
-                     (ArticleModeForm)
+    you/             account, and the wardrobe of characters — which of the
+                     ones you hold you are wearing. Handing one out is the
+                     Keeper's (§18c, rule 42), so the wardrobe has no ✕ on it;
+                     the choice of which face a page opens on is gone
+                     altogether (rule 18: everybody lands on lezen)
   api/               entries, cases, boards, maps, timelines, characters,
                      access, assets, search, suggest, admin, ink (§33: the
                      tekenlaag of a prikbord, landkaart or tijdlijn)
@@ -428,8 +430,10 @@ lib/
                      id and printed in front of its name — origin.ts, which
                      keeps that id in step with the dossiers it is filed in,
                      mentions.ts (§27: everything that is not an artikel and
-                     names one) and mode.ts, reading or editing and whose
-                     default is which
+                     names one), mode.ts — reading or editing, and since
+                     round 13 the one sentence that everybody lands on
+                     reading — and fieldValues.ts (§38: the one gate that says
+                     an infobox holds the Keeper's keys in the Keeper's shapes)
   admin/             trash — artikelen, dossiers, prikborden and landkaarten:
                      restoring, and the one way out of the archive
                      (destroyFromTrash) — history, the entry-type editor, the
@@ -441,7 +445,9 @@ lib/
   boards/            the board service, the pure merge rule, the resolvers for
                      what a card stands for, and the live hub (presence,
                      change signals, pointer frames)
-  maps/              maps, pins, and the artikel a map is a map *of*
+  maps/              maps, pins, the artikel a map is a map *of*, and
+                     visibility.ts (§40: a landkaart's own view rule, written
+                     the way `lib/cases/visibility.ts` writes a dossier's)
   timelines/         §32: time.ts (pure: a moment as one integer, precision,
                      the ruling of the axis, where the tags go, and §35's
                      snapping and anchor), the service (tijdlijnen behind the
@@ -487,7 +493,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Thirty-seven rules worth knowing before changing anything:
+Forty-two rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -496,7 +502,11 @@ Thirty-seven rules worth knowing before changing anything:
    leaks. A board card whose entry the viewer may not see comes back stamped
    MISSING, exactly like a deleted one. Since §17 both conditions also carry the
    owner's *kijken* dial (`viewableCondition()` from `lib/access.ts`), so a
-   private fiche is hidden by the same clause that hides a secret one.
+   private fiche is hidden by the same clause that hides a secret one. Since
+   §40 a **landkaart** has the third condition of the same family,
+   `visibleMapCondition()` — it was the one thing in the archive with no dial
+   at all — and rule 40 is the general form of this rule: a new kind of thing
+   gets its own `visible<Thing>Condition` when it is built, not a round later.
 2. **The board's merge rule lives in `lib/boards/merge.ts` and is pure.** The
    server is the only thing that merges; the client sends what it knows plus the
    ids it deleted, and applies whatever comes back. `tests/unit/board-merge.test.ts`
@@ -666,11 +676,22 @@ Thirty-seven rules worth knowing before changing anything:
     §22. `EntryView` renders either the editing page this archive always had
     or a reading page shaped like any wiki article — a heading, a lead, the
     picture and the facts in one box on the right, prose underneath.
-    `lib/entries/mode.ts` decides which a person lands on: their own setting
-    from Jouw account, or, until they set one, their role — a Keeper writes so
-    a Keeper edits, everyone else came to read. The toggle in the header
-    crosses over, and it is not a right: a player who may only propose gets
-    the editing face too, their changes simply travel as proposals (§10, §17).
+    **Everybody lands on the reading face, a Keeper included** (round 13).
+    That is the whole of `lib/entries/mode.ts` now: the face is a thing about
+    *this visit*, not about the person, so it is not remembered anywhere and
+    there is no setting for it. It used to be a preference in Jouw account
+    falling back to the viewer's role — "a Keeper writes the archive, so a
+    Keeper lands in bewerken" — and that fallback was the thing that made a
+    Keeper's first sight of every page a form. The one override is `?new=1`,
+    which is how the "nieuw …" sheets land you on the thing you just made, and
+    which had to reach a **dossier** as well the moment the role fallback went.
+    The toggle in the header crosses over, and it is not a right: it is
+    rendered for every signed-in viewer and always was, so nothing about who
+    may type changed with the setting's removal — a player who may only propose
+    gets the editing face too, their changes simply travel as proposals
+    (§10, §17). The column `users.article_mode` stays on the table, unread and
+    commented as retired: this repo never edits an old migration, and SQLite's
+    `DROP COLUMN` on an indexed table is fragile for nothing.
     Two things follow for anything new on that page. Reading must be a *hard*
     no — `LiveBody` and `SectionsEditor` take a `readOnly` that no room may
     overrule, because the room's answer is about rights and this is about
@@ -1083,8 +1104,12 @@ Thirty-seven rules worth knowing before changing anything:
     payload from *before* the write and the tijdlijn came back as empty as it
     was first found. `addEvent`, `patchEvent` and `removeEvent` therefore end
     with `router.refresh()`, exactly as the settings sheet already did. Known
-    gap: `components/maps/MapCanvas.tsx` does not yet do this for a pin that has
-    been moved.
+    gap, narrowed in round 13: `components/maps/MapCanvas.tsx` now refreshes
+    after a speld is **created** and after one is **removed** — §39 made that
+    load-bearing, because walking down a landkaart speld and coming back up the
+    chip is a navigation, and the payload it came back to did not have the
+    speld in it — but a speld that has merely been **moved** still does not
+    refresh.
 
     Placing is one click. A double-click on the axis hands the sheet a finished
     moment, printed as a line with a "Wijzig" behind it rather than an open
@@ -1206,6 +1231,9 @@ Thirty-seven rules worth knowing before changing anything:
     Keeper's keyboard. The exception is keyed on holding none, so it closes
     behind them; and it counts *visible* fiches (`listCharacters`) rather than
     tie rows, so a fiche in the prullenbak cannot go on locking somebody out.
+    Rule 42 (§18c) **narrows this rather than reversing it**: everything after
+    that first one is the Keeper's to hand out, and this one door is the door
+    that stays open — asked the same way, by the same `listCharacters`.
 
     Three gaps are known and deliberate for now. The "gezet door {naam}" labels
     on a landkaart and a tijdlijn still re-derive per account, because the prop
@@ -1237,3 +1265,196 @@ Thirty-seven rules worth knowing before changing anything:
     already been answered — and on a field where every change is a write it is
     the only thing that is right, because a second fill would be a second
     voorstel in the queue.
+
+38. **An infobox holds the Keeper's keys, in the Keeper's shapes — and the
+    server is what says so.** §38. The *keys* were always the Keeper's on the
+    screen: `FieldsEditor` walks the soort's `FieldDef[]` and nothing else, so
+    a key nobody configured renders nowhere. The server disagreed. `updateEntry`
+    merged whatever arrived (`{ ...entry.fields, ...patch.fields }`), so a
+    hand-rolled `PATCH` — or a client that dropped a `field.whatever` into a
+    live room it may write in — could store a key and a shape the archive has
+    no word for. `lib/entries/fieldValues.ts` is the gate, it is **pure**, and
+    it is applied at the single `updateEntry` / `createEntry` seam, which is
+    what makes one check cover both doors: the artikel page's autosave, the §21
+    fields room (whose `field.*` sweep out of the Yjs doc is the road that could
+    invent a key), an approved voorstel, and the roads that change a soort. The
+    gate says *what* may be stored, and the autosave's `mergeKeys: ['fields']`
+    (`components/entry/useAutosave.ts`) says *that all of it arrives* — a bag of
+    independent answers must not be flattened to the last box anybody touched on
+    the way to the door.
+
+    **A key has two sources, and a gate that knows only one is worse than no
+    gate.** `entry_types.fields[].key` is the obvious one; the other is every
+    hand-filled `links` block on the soort's page, which `cleanBlocks` gives its
+    own key and `EntryView` renders through a synthetic `entry_links` FieldDef.
+    Validating against `typeFields` alone would have silently emptied every
+    hand-filled list on every artikel on its next save. `allowedFieldKeys` takes
+    both, `listBlockKeys` is not optional, and the resolved blocks are what to
+    hand it.
+
+    A refusal is **silent in a live room and named on a PATCH**, and both are
+    deliberate: a CRDT told "no" with a 400 resends for ever, while a person
+    saving a form deserves to be told which key went nowhere — so the PATCH
+    still answers 200 and carries `rejectedFields`. **Nothing stored is ever
+    destroyed by it.** Only the incoming patch is filtered; the merge base is
+    not, so a field taken away in Beheer → Soorten keeps its value and brings it
+    back when the field returns, and a *retype* is not a coercion — a `text`
+    that becomes a `number` leaves the old `"veertien"` exactly where it lay.
+    Two writers are outside the gate on purpose and must stay outside:
+    `writeEntryDate` (§35 — it writes `formatWhen` output that `parseDutchDate`
+    reads back, and routing it through `updateEntry` would be the cycle *and*
+    would turn a drag into a voorstel) and `restoreRevision` (putting a version
+    back is meant to be exact, not corrected). Both say so in a comment. The one
+    road that deletes is **Beheer → Soorten → "Oude waarden"**, which counts what
+    is still stored under a key the soort no longer has and asks before it wipes.
+
+    Three kinds joined the list. **Getal** stores a real number, so a page can
+    print it in Dutch and a sort could one day compare it. **Ja/nee** stores a
+    real boolean and nothing that resembles one — not `1`, not `"ja"` — and on
+    the reading face a `true` prints "Ja" while a `false` **prints nothing at
+    all**, because rule 18's infobox lists what is so, and "nee" is the empty
+    answer. **Meerkeuze** drops a member that is not on the Keeper's option list
+    and keeps the rest, following `entry_links` rather than `select`: a list has
+    to behave like one, and taking an option away must not start refusing every
+    save of every artikel that still names it. A **Datum stays free text** with a
+    quiet hint under it when `parseDutchDate` cannot read what is typed — a
+    native picker would forbid "oktober 1934" and "ergens in de zomer", and §35
+    is built on the archive keeping those. Adding a kind is four places, in this
+    order: the `FieldKind` union, `FIELD_KINDS`, a `case` in `coerceFieldValue`,
+    and the control plus the reading shape in `FieldsEditor` — and **the shape
+    the editor writes is the shape the gate must accept**, or the editor is
+    quietly writing values the server throws away.
+
+39. **A speld may stand for another landkaart, and that is the way down.** §39.
+    `map_pins.target_map_id` (migration `0017_pin_targets`), beside `entry_id`
+    and never a second meaning for it — the same separation a card on a prikbord
+    keeps between `map_id` and `entry_id` (rule 19). The map of Zeeland gets a
+    speld on a town that opens the town's landkaart; the town's gets one on a
+    house that opens the plattegrond. The target is resolved through the
+    viewer's **own** `visibleMapCondition` in the join's `ON` clause, so a speld
+    to a landkaart this reader may not open is simply not there — which is why
+    rule 40 had to exist first, and is the whole of what it was a prerequisite
+    for. The speld's **name is read from the target on every read and never
+    stored**, so renaming the landkaart renames every speld that points at it.
+
+    **Cycles are allowed; only the self-pin is refused.** A→B→A is not a
+    mistake, it is the way back up: the speld on the harbour map that returns to
+    the island is how a reader climbs out of a plattegrond. Nothing renders
+    recursively — navigation is a click and `listPins` is one level deep — so
+    the only thing worth refusing is a speld on the map it stands on, which
+    opens the page you are already reading. `listMapsPinningMap` supplies the
+    derived chip in the other direction ("Op de grotere landkaart: Zeeland"),
+    behind the same condition, because a plattegrond with no way out is a dead
+    end and a phone does not always have a Back button. A tap on such a speld
+    opens the **sheet**, not the other map: everything a speld has — "gezet
+    door", the drag hint, "speld weghalen" — lives in the sheet, and the button
+    inside it is the road. A speld on a **dossier** or a **tijdlijn** is
+    deliberately out of scope; this is one column, not a polymorphic target.
+
+40. **A new kind of thing gets its dials when it is built.** §40. A landkaart
+    was the one thing in the archive with **no `view_mode` at all**: every
+    signed-in person saw every one, a plattegrond could not be kept back until
+    the players found the house, and `resolveBoardMaps` had been carrying a
+    `_viewer` it never used. Migration `0016_map_access` gives `maps` the same
+    three columns everything else has had since 0005 and 0012, and
+    `lib/maps/visibility.ts` states the rule the way `lib/cases/visibility.ts`
+    states a dossier's, on purpose — one shape, so the next reader recognises it.
+    `access_grants` needed no new table: it has been one table for every kind
+    since 0005 and simply gains rows with `target_type = 'map'`.
+
+    Two defaults were chosen rather than inherited. `view_mode = 'all'`, so
+    **every landkaart already hanging stays visible to everyone signed in** — a
+    dial nobody has touched must change nothing, and a migration that hides work
+    people are using is not a migration, it is an outage. `edit_mode = 'private'`,
+    because §19 has always said only a Keeper renames, redraws or takes down a
+    landkaart and every map's owner is a Keeper: the dial writes an existing rule
+    down instead of loosening it, where `'all'` would have handed every player
+    the rename and the delete.
+
+    A speld follows its landkaart, and its own per-artikel rule still stacks on
+    top (rule 1). A board card for a hidden map stamps MISSING exactly as one for
+    a hidden artikel does (rule 19). And the general lesson, which is why this is
+    a rule and not a changelog entry: **thirteen reads in five modules had to be
+    found and fixed afterwards** — the shelf, the map's own URL, board cards,
+    "Genoemd in", the fields room, the tekenlaag, the two `…ForEntry` lookups.
+    A `visible<Thing>Condition` applied to every read, with a `viewer` argument
+    that is **required rather than optional**, is what a new kind of thing gets
+    on the day it is built. An optional viewer is how a dial ends up missing for
+    four rounds, and a `_viewer` nobody uses is the tell.
+
+41. **A card on a wall can be made bigger, and it grows about its centre.** §41.
+    A card carries `scale` (0.5–5, default 1, two decimals), and it is one number
+    rather than one per axis: Nick's decision is that a card zooms like a
+    photograph — picture, title and words together — rather than being stretched.
+    It is painted with a CSS `transform`, which grows the box about its **centre**,
+    so `card.x` is the corner of the card *at scale 1 only*. `cardBox(card)` in
+    `lib/boards/merge.ts` is therefore the single seam every piece of geometry
+    goes through — the hit test, the marquee, "Alles in beeld", `freeSpotNear`,
+    the held-by overlay, `headOf` where a string ties, and the grip itself.
+    Anything that reads `card.x` and `cardSize` separately gets the size right
+    and the place wrong, which is a card you cannot click at its top-left and can
+    click on bare cork below it. At scale 1 `cardBox` returns the old numbers to
+    the pixel, which is the promise every board hung before this round rides on.
+
+    The crop divisor had to gain `card.scale` beside the board's zoom for exactly
+    the same reason: a card at 250% has a cover two and a half times as wide on
+    the glass, so a hand travelling 100 px has crossed less of the picture, and
+    without it cropping an enlarged card moved the photograph two and a half
+    times too fast. Everything on the paper scales, **including the 1px border
+    and the shadow** — Nick's decision, and it is what the wall's own zoom has
+    always done to a card's border, so a card at 200% looks like the same card
+    seen at 200% zoom. A card past 150% asks for the full-size picture rather
+    than the card-sized one. Two controls, because a phone has no drag: a corner
+    **grip** in the world layer (counter-scaled by the zoom, and outside the card
+    so it is not scaled by the very thing it sets) and four presets in the
+    inspector — Klein · Normaal · Groot · Extra groot — which on a phone are the
+    only road. There is **no migration**: board state is one JSON blob normalised
+    on every read (§5), so a card with no `scale` reads back as 1.
+
+    The other half of the same rule is that **a punaise's box comes from what is
+    written on it**. Its label used to be one clipped line at 76 units with no
+    tooltip, so "de man met de grijze jas" reached the wall as "de man met…" and
+    nothing said the rest existed. The tag wraps now and the pin grows downward,
+    capped at `PIN_TAG_MAX_WIDTH` (132) so a long label does not lay a banner
+    across the cork. `pinTagLines` estimates the wrap rather than measuring it —
+    this module is pure and the wall it describes is not rendered anywhere near
+    it — and it deliberately guesses the line height *generous*, because guessing
+    short is the dangerous way round: the document reasons in `cardSize`, and a
+    tag that paints taller than the model says leaves gaps nothing knows about.
+    One rule holds the two halves together: **the intrinsic box comes from the
+    content, and the scale multiplies it.**
+
+42. **Casting is the Keeper's; wearing is the player's.** §18c. Tying a fiche to
+    an account and untying it again are Keeper acts. A speler who could tie any
+    fiche they can see to their own account could hand themselves a second, a
+    third, the NPC in the next dossier — and the archive would go on printing
+    each of those names as if the Keeper had meant it. Casting is a decision
+    about the table, so the Keeper makes it. Which of the ones they hold a person
+    *wears* stays entirely theirs, per window: `setActiveCharacter` and "Als
+    jezelf" are untouched, and §18b's question is unchanged.
+
+    **One door stays open, and it is round 11's own exemption**: a speler holding
+    **nobody** may make their first onderzoeker and tie it on, so they can begin
+    without waiting on the Keeper's keyboard — and it shuts behind them. This
+    narrows rule 36's exemption; it does not reverse it. Both halves ask the same
+    question the same way, through `listCharacters` — the fiches this person can
+    actually *see* — and never a count of tie rows, because a fiche in the
+    prullenbak leaves its knot behind and a knot to a fiche nobody can see must
+    not be the thing that locks somebody out of the only road they have. One unit
+    test runs both gates over the same people so the two cannot drift.
+
+    The Keeper's screen for it is the account list in **Beheer**
+    (`app/(app)/admin/UserRow.tsx`): "Toegewezen karakters", the fiches this
+    account holds with a ✕ beside each, and an `EntryPicker` to hand out another.
+    That is where the `userId` which `whose()` and `addCharacter` have always
+    accepted is finally sent from — the argument existed for rounds before there
+    was a screen that used it. The wardrobe on Jij loses its ✕ and keeps its
+    "Speel als".
+
+    One thing here is a judgement call rather than an instruction, and is cheap
+    to reverse: **`removeCharacter` being Keeper-only** was the building agent's
+    reading of the symmetry, not something Nick asked for. The argument for it is
+    that a player who could untie their last onderzoeker would be back at "holds
+    nobody", which is the one state the door above opens for, so the
+    self-assignment road would never actually close. If that turns out to cost
+    more than it buys, it is one line.

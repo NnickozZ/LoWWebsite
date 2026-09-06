@@ -14,6 +14,12 @@ import { logActivity } from '@/lib/entries/service';
  * Nothing about rights lives here. §17 is per account; a character is a name
  * a person wears, and taking it off changes nothing about what they may open.
  *
+ * **Casting is the Keeper's; wearing is the player's** (§18c). Tying a fiche to
+ * an account and untying it again are Keeper acts — with one door left open, so
+ * a brand-new speler can still make their own first onderzoeker and tie it on.
+ * Which of the ones they hold they *wear* stays entirely theirs, per window.
+ * See `refuseUnlessKeeperOrFirst` below for the whole of it.
+ *
  * **Attribution is recorded, not re-derived** (§18b). It used to be the other
  * way: every label was looked up from whoever was active *now*, so switching
  * character re-labelled a person's past as well. That was defensible while one
@@ -108,13 +114,47 @@ export function activeCharacter(userId: string): CharacterLite | null {
 }
 
 /**
+ * §18c: **who hands out an onderzoeker.**
+ *
+ * Handing one out is the Keeper's, not a player's. A speler who could tie any
+ * fiche they can see to their own account could give themselves a second, a
+ * third, the NPC in the next dossier — and the archive would go on printing
+ * each of those names as if the Keeper had meant it. Casting is a Keeper's
+ * decision about the table, so the Keeper makes it.
+ *
+ * One door stays open, and it is the same door §18b already had to leave open:
+ * **a speler who holds nobody at all may make their first one and tie it on.**
+ * An onderzoeker *is* an artikel somebody tied on, so closing this one too
+ * would leave every new arrival waiting on the Keeper's keyboard for their own
+ * beginning — the very thing `requireAuthorOrFirstCharacter` exists to
+ * prevent. The door shuts behind them: with one on the peg, the next is the
+ * Keeper's to give.
+ *
+ * The two must agree, so they ask the same question the same way:
+ * `listCharacters` — the fiches this person can actually *see* — and never a
+ * bare count of the tie rows. A fiche in the prullenbak leaves its knot behind,
+ * and a knot to a fiche nobody can see must not be the thing that locks
+ * somebody out of the only road they have.
+ */
+function refuseUnlessKeeperOrFirst(userId: string, actor: { id: string; isKeeper: boolean }) {
+  if (actor.isKeeper) return;
+  if (actor.id !== userId) throw new Error('Alleen voor jezelf, of voor een Keeper.');
+  if (listCharacters(userId).length > 0) {
+    throw new Error('Alleen de Keeper koppelt een karakter aan een account.');
+  }
+}
+
+/**
  * Ties a fiche to an account. The viewer must be able to see the fiche; a
  * Keeper may tie any fiche to any account (the player who forgot, the new
  * arrival). The first character tied becomes active, so nobody has to find a
  * second button to start being someone.
+ *
+ * §18c: a player may only ever do this for themselves, and only while they hold
+ * nobody. Everything after that first one is the Keeper's to hand out.
  */
 export function addCharacter(userId: string, entryId: string, actor: { id: string; isKeeper: boolean }) {
-  if (actor.id !== userId && !actor.isKeeper) throw new Error('Alleen voor jezelf, of voor een Keeper.');
+  refuseUnlessKeeperOrFirst(userId, actor);
   refuseKeeper(userId);
   const entry = db
     .select({ id: schema.entries.id, name: schema.entries.name })
@@ -138,8 +178,19 @@ export function addCharacter(userId: string, entryId: string, actor: { id: strin
   logActivity({ actorId: actor.id, verb: 'character.added', entryId, meta: { forUser: userId } });
 }
 
+/**
+ * Unties a fiche. The fiche itself is untouched; only the knot goes.
+ *
+ * §18c: Keeper-only, symmetric with koppelen — and for a plainer reason than
+ * symmetry. A player who could untie their last onderzoeker would be back at
+ * "holds nobody", which is the one state the door above opens for, so the
+ * self-assign road would never actually close: take one off, put a different
+ * one on, as often as you like. Taking a karakter *off* in the sense a player
+ * means it — not being anyone for a while — is `setActiveCharacter(null)`,
+ * which is still entirely theirs (§18b asks it per window).
+ */
 export function removeCharacter(userId: string, entryId: string, actor: { id: string; isKeeper: boolean }) {
-  if (actor.id !== userId && !actor.isKeeper) throw new Error('Alleen voor jezelf, of voor een Keeper.');
+  if (!actor.isKeeper) throw new Error('Alleen de Keeper ontkoppelt een karakter van een account.');
   db.delete(schema.userCharacters)
     .where(and(eq(schema.userCharacters.userId, userId), eq(schema.userCharacters.entryId, entryId)))
     .run();

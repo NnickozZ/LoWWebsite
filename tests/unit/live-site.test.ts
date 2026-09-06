@@ -98,7 +98,13 @@ beforeAll(async () => {
         (over.editMode as string) ?? 'all',
         (over.isLocked as number) ?? 0,
       );
-  entry('open', 'Open fiche', 'bram', { fields: { beroep: 'visser', leeftijd: 40 } });
+  // §38: the infobox is the soort's own list, and this row is a `character`.
+  // `occupation` is one of its text fields, so it is a text in the room and a
+  // value the server will take back; `faction` is one of its links, so it is
+  // stored but is not a text and never reaches the room at all.
+  entry('open', 'Open fiche', 'bram', {
+    fields: { occupation: 'visser', faction: { id: 'f1', name: 'De Schorre', slug: 'de-schorre' } },
+  });
   entry('geheim', 'Geheime fiche', 'keeper-1', { visibility: 'keeper' });
   entry('vanbram', 'Van Bram', 'bram', { editMode: 'private' });
   sqlite
@@ -281,8 +287,8 @@ describe('a fields room', () => {
     const t = fieldsTab('entry:open:fields', 'f1', BRAM);
     expect(t.text('name')).toBe('Open fiche, hernoemd');
     expect(t.text('shortDescription')).toBe('');
-    expect(t.text('field.beroep')).toBe('visser');
-    expect(t.doc.share.has('field.leeftijd')).toBe(false);
+    expect(t.text('field.occupation')).toBe('visser');
+    expect(t.doc.share.has('field.faction')).toBe(false);
     t.leave();
   });
 
@@ -294,7 +300,7 @@ describe('a fields room', () => {
     b.doc.getText('name').insert(b.doc.getText('name').length, ' Ⓑ');
     expect(a.text('name')).toBe(`Ⓐ ${base} Ⓑ`);
     expect(b.text('name')).toBe(a.text('name'));
-    a.doc.getText('field.beroep').insert(0, 'oud-');
+    a.doc.getText('field.occupation').insert(0, 'oud-');
 
     docs.persistAll();
     const row = sqlite.prepare('SELECT name, fields, updated_by FROM entries WHERE id = ?').get('open') as {
@@ -303,7 +309,10 @@ describe('a fields room', () => {
       updated_by: string;
     };
     expect(row.name).toBe(`Ⓐ ${base} Ⓑ`);
-    expect(JSON.parse(row.fields)).toMatchObject({ beroep: 'oud-visser', leeftijd: 40 });
+    expect(JSON.parse(row.fields)).toMatchObject({
+      occupation: 'oud-visser',
+      faction: { id: 'f1', name: 'De Schorre', slug: 'de-schorre' },
+    });
     // The last typist is who the save is by.
     expect(row.updated_by).toBe('bram');
     a.leave();

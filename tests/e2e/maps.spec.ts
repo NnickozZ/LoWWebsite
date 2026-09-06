@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, fillWhenReady, inviteCode, signIn } from './helpers';
 
 /**
  * §19: maps.
@@ -169,6 +169,199 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await other.getByRole('dialog', { name: /van de landkaart halen/ }).getByRole('button', { name: 'Speld weghalen' }).click();
   await expect(other.locator('.map-pin')).toHaveCount(2);
   await otherCtx.close();
+});
+
+/**
+ * Hang a landkaart and stand on it. The same five steps three tests in this
+ * file take; this one is factored out because the rights test needs a map and
+ * not another assertion about the sheet that makes one.
+ */
+async function hangMap(page: Page, name: string): Promise<string> {
+  await page.goto('/maps');
+  await page.getByRole('button', { name: 'Landkaart ophangen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Landkaart ophangen' });
+  await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer: await picture() });
+  await sheet.getByLabel('Naam').click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type(name);
+  await expect(sheet.getByLabel('Naam')).toHaveValue(name);
+  await sheet.getByRole('button', { name: 'Ophangen' }).click();
+  await page.waitForURL('**/maps/**');
+  await expect(page.getByRole('heading', { name })).toBeVisible();
+  await expect(page.getByRole('application')).toBeVisible();
+  return new URL(page.url()).pathname;
+}
+
+/**
+ * §34 put every one of the Keeper's map tools below the fold, and §17's dials
+ * went in with them: **Rechten** is the last block of "Deze landkaart".
+ */
+async function openMapRights(page: Page) {
+  const panel = page.locator('summary').filter({ hasText: /Deze landkaart/ }).first();
+  await panel.waitFor({ state: 'visible', timeout: 15_000 });
+  if ((await panel.getAttribute('aria-expanded')) !== 'true') await panel.click();
+  await page.getByRole('radiogroup', { name: 'Wie mag kijken' }).waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+/**
+ * §17 on a landkaart, asserted from the other side.
+ *
+ * A landkaart used to have no dial at all: every signed-in person saw every
+ * one of them, so a plattegrond could not be kept back until the players found
+ * the house. It has the same two dials as an artikel, a dossier, a prikbord and
+ * a tijdlijn now, drawn by the same panel — and, exactly as in
+ * `access-rights.spec.ts`, every assertion here is made by the person who was
+ * *not* chosen, because a right enforced on the owner's screen is decoration.
+ */
+test('a landkaart the Keeper keeps back is nowhere, until the player is chosen', async ({
+  page,
+  browser,
+}, info) => {
+  test.setTimeout(180_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const mapName = `Plattegrond ${stamp}`;
+  const playerName = `Kaartkijker ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const mapUrl = await hangMap(page, mapName);
+  const mapSlug = mapUrl.split('/maps/')[1];
+
+  /*
+   * §18b: the player makes their onderzoeker first. They write nothing in this
+   * test, but a speler with nobody is read-only everywhere, and a refusal that
+   * turns out to be about the pen rather than about the dial proves nothing.
+   */
+  const otherCtx = await browser.newContext();
+  const other = await otherCtx.newPage();
+  await signUpWriting(other, playerName);
+
+  // A new map is hung for everyone — the dial nobody has touched changes nothing.
+  await other.goto('/maps');
+  await expect(other.getByRole('link', { name: new RegExp(mapName) })).toBeVisible();
+  expect((await other.goto(mapUrl))?.status()).toBe(200);
+
+  // The Keeper turns it down: Rechten → Wie mag kijken → Privé.
+  await openMapRights(page);
+  await page.getByRole('radiogroup', { name: 'Wie mag kijken' }).getByRole('radio', { name: 'Privé' }).click();
+  await page.waitForTimeout(800);
+
+  // And now it is nowhere: not on the shelf, not at its URL, not in the API.
+  await other.goto('/maps');
+  await expect(other.getByRole('link', { name: new RegExp(mapName) })).toHaveCount(0);
+  expect((await other.goto(mapUrl))?.status()).toBe(404);
+  const hidden = await other.request.get('/api/maps');
+  const hiddenList = (await hidden.json()) as { maps: { slug: string }[] };
+  expect(hiddenList.maps.some((m) => m.slug === mapSlug)).toBe(false);
+
+  // The Keeper still has it, always.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: mapName })).toBeVisible();
+
+  // Gekozen personen, and this player ticked.
+  await openMapRights(page);
+  await page
+    .getByRole('radiogroup', { name: 'Wie mag kijken' })
+    .getByRole('radio', { name: 'Gekozen personen' })
+    .click();
+  const chip = page.getByRole('checkbox', { name: new RegExp(playerName) });
+  await chip.waitFor({ state: 'visible', timeout: 15_000 });
+  await chip.click();
+  await page.waitForTimeout(800);
+
+  // It is back, for them and for nobody who was not named.
+  await other.goto('/maps');
+  await expect(other.getByRole('link', { name: new RegExp(mapName) })).toBeVisible();
+  expect((await other.goto(mapUrl))?.status()).toBe(200);
+
+  const thirdCtx = await browser.newContext();
+  const third = await thirdCtx.newPage();
+  await signUpWriting(third, `Buitenstaander ${stamp}`);
+  await third.goto('/maps');
+  await expect(third.getByRole('link', { name: new RegExp(mapName) })).toHaveCount(0);
+  expect((await third.goto(mapUrl))?.status()).toBe(404);
+  await thirdCtx.close();
+
+  await otherCtx.close();
+});
+
+/**
+ * §39: a speld on a landkaart that stands for another landkaart.
+ *
+ * The way down and the way back up, walked in one go: the Keeper hangs two
+ * maps, pins the small one on the big one, taps the speld — which opens the
+ * *sheet*, not the other map, because that is where "gezet door", the drag
+ * hint and "speld weghalen" live and a speld that navigated on one tap could
+ * never be moved on a telephone — and takes the button from there. The chip in
+ * the heading is the road back: without it a plattegrond three levels down is
+ * a dead end.
+ */
+test('a landkaart hangs on a landkaart, and there is a way back up', async ({ page }, info) => {
+  test.setTimeout(180_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const big = `Zeeland ${stamp}`;
+  const small = `De stad ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const smallUrl = await hangMap(page, small);
+  const bigUrl = await hangMap(page, big);
+  await page.waitForTimeout(500);
+
+  // The small map goes on the big one. The same sheet an artikel speld uses:
+  // one box, and a "Landkaarten" row under it.
+  await page.getByRole('button', { name: 'Speld zetten' }).click();
+  await placeAt(page, 0.4, 0.6);
+  const ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
+  await expect(ask).toBeVisible();
+  await fillWhenReady(ask.getByPlaceholder('Zoek een artikel…'), small);
+  await ask
+    .locator('.suggest-item')
+    .filter({ hasText: small })
+    .filter({ hasText: /Landkaart/ })
+    .first()
+    .click();
+  await expect(page.locator('.map-pin', { hasText: small })).toBeVisible();
+
+  // Setting it opens its sheet, as every speld does.
+  const pinSheet = page.getByRole('dialog', { name: small });
+  await expect(pinSheet).toBeVisible();
+  await expect(pinSheet.getByRole('button', { name: 'Speld weghalen' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // The legend gets a row of its own for nothing, and it switches off like
+  // any other kind.
+  const legend = await openLegend(page);
+  await expect(legend.getByText('Landkaarten', { exact: true })).toBeVisible();
+  await legend.getByRole('checkbox', { name: /Landkaarten/ }).uncheck();
+  await expect(page.locator('.map-pin')).toHaveCount(0);
+  await legend.getByRole('checkbox', { name: /Landkaarten/ }).check();
+  await expect(page.locator('.map-pin')).toHaveCount(1);
+
+  // The way down: the sheet, not the tap. A speld that navigated on one tap
+  // could never be dragged to another spot on a telephone.
+  await page.locator('.map-pin', { hasText: small }).click();
+  await expect(pinSheet).toBeVisible();
+  await pinSheet.getByRole('link', { name: 'Landkaart openen' }).click();
+  await page.waitForURL((url) => new URL(url).pathname === smallUrl);
+  await expect(page.getByRole('heading', { name: small })).toBeVisible();
+
+  // …and the heading of the small map carries the way back up.
+  await expect(page.getByText('Op de grotere landkaart:')).toBeVisible();
+  await page.getByRole('link', { name: big }).click();
+  await page.waitForURL((url) => new URL(url).pathname === bigUrl);
+  await expect(page.getByRole('heading', { name: big })).toBeVisible();
+  // §5: and the speld is still there. Without a `router.refresh()` after
+  // setting one, this lands on the payload of the big map from before it.
+  await expect(page.locator('.map-pin', { hasText: small })).toBeVisible();
+
+  // A speld may not point at the landkaart it stands on: it would open the
+  // page it is already on, which is not a way anywhere.
+  const list = await page.request.get('/api/maps');
+  const maps = (await list.json()) as { maps: { id: string; slug: string }[] };
+  const bigId = maps.maps.find((m) => m.slug === bigUrl.split('/maps/')[1])!.id;
+  const refused = await page.request.post(`/api/maps/${bigId}/pins`, {
+    data: { kind: 'map', targetMapId: bigId, x: 0.5, y: 0.5 },
+  });
+  expect(refused.ok()).toBe(false);
 });
 
 test('a player cannot hang a map', async ({ page }, info) => {

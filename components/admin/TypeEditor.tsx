@@ -15,7 +15,12 @@ import {
 } from '@/lib/pageBlocks';
 import { capitalise, type Words } from '@/lib/words';
 import type { FieldDef, FieldKind } from '@/lib/db/schema';
-import { saveTypeAction, deleteTypeAction, type AdminState } from '@/app/(app)/admin/actions';
+import {
+  saveTypeAction,
+  deleteTypeAction,
+  purgeFieldValuesAction,
+  type AdminState,
+} from '@/app/(app)/admin/actions';
 
 const ICONS = [
   'person',
@@ -64,6 +69,8 @@ export function TypeEditor({
     pageText: TypeText;
     caseOnly: boolean;
     entryCount: number;
+    /** §38: values still stored under a key this soort no longer has. */
+    orphans: { key: string; count: number }[];
   };
   /** Every soort, so a self-filling list can offer their fields by name. */
   types: TypeLite[];
@@ -332,7 +339,9 @@ export function TypeEditor({
                     </option>
                   ))}
                 </select>
-                {field.kind === 'select' && (
+                {/* §38: a Meerkeuze is a Keuzelijst that takes more than one
+                    answer, so it is configured with the same box. */}
+                {(field.kind === 'select' || field.kind === 'multiselect') && (
                   <input
                     className="input"
                     aria-label={`Keuzes van veld ${index + 1}`}
@@ -499,6 +508,103 @@ export function TypeEditor({
         </div>
         {remove.error && <p className="error-note">{remove.error}</p>}
       </form>
+
+      {/*
+        §38: outside the form above, because it is a form of its own and one
+        form may not sit inside another. It is also the only place in the whole
+        archive that deletes an infobox value.
+      */}
+      <OldValues typeId={type.id} orphans={type.orphans} words={words} />
     </details>
+  );
+}
+
+/**
+ * §38: "Oude waarden" — what is still stored under a key this soort no longer
+ * has, and the one button that throws it away.
+ *
+ * Taking a field away has never destroyed anything: the value stays in the
+ * JSON, and putting the field back brings it with it. That is the right
+ * default, and it is also invisible, so a Keeper who renamed a field twice has
+ * no idea the archive is still carrying the first two. This counts it, per key,
+ * read-only — and offers the escape hatch, which asks first, because unlike
+ * everything else on this page it cannot be undone.
+ */
+function OldValues({
+  typeId,
+  orphans,
+  words,
+}: {
+  typeId: string;
+  orphans: { key: string; count: number }[];
+  words: Words;
+}) {
+  const ui = useUi();
+  const [state, action, busy] = useActionState<AdminState, FormData>(purgeFieldValuesAction, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmed = useRef(false);
+  const [wiping, setWiping] = useState('');
+
+  if (!orphans.length) return state.ok ? <p className="small muted">{state.ok}</p> : null;
+
+  async function guard(event: FormEvent<HTMLFormElement>) {
+    if (confirmed.current) {
+      confirmed.current = false;
+      return;
+    }
+    event.preventDefault();
+    const key = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value ?? '';
+    const found = orphans.find((orphan) => orphan.key === key);
+    const yes = await ui.confirm({
+      title: `‘${key}’ definitief wissen?`,
+      message: (
+        <p style={{ margin: 0 }}>
+          Deze waarde staat nog bij {found?.count ?? 0}{' '}
+          {found?.count === 1 ? words.entry : words.entryPlural}. Zet je het veld terug, dan komt de
+          waarde nu nog mee. Na dit wissen niet meer — dit kan niet ongedaan worden gemaakt.
+        </p>
+      ),
+      confirmLabel: 'Definitief wissen',
+      danger: true,
+    });
+    if (!yes) return;
+    confirmed.current = true;
+    setWiping(key);
+    formRef.current?.requestSubmit(
+      (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement,
+    );
+  }
+
+  return (
+    <form ref={formRef} action={action} onSubmit={guard} style={{ padding: '0 0 1rem' }}>
+      <input type="hidden" name="typeId" value={typeId} />
+      <span className="label">Oude waarden</span>
+      <p className="tiny muted" style={{ margin: '0 0 0.45rem', maxWidth: '46rem' }}>
+        Deze waarden staan nog in het archief onder een veld dat deze soort niet meer heeft. Ze
+        worden nergens getoond, en zet je het veld terug, dan komen ze weer mee.
+      </p>
+      <ul className="stack" style={{ gap: '0.3rem', listStyle: 'none', margin: 0, padding: 0 }}>
+        {orphans.map((orphan) => (
+          <li key={orphan.key} className="row-wrap" style={{ gap: '0.4rem', alignItems: 'center' }}>
+            <code style={{ flex: '0 1 auto' }}>{orphan.key}</code>
+            <span className="tiny muted" style={{ flex: '1 1 6rem' }}>
+              {orphan.count} {orphan.count === 1 ? words.entry : words.entryPlural}
+            </span>
+            <button
+              className="btn btn-small btn-danger"
+              type="submit"
+              name="fieldKey"
+              value={orphan.key}
+              disabled={busy}
+            >
+              <Icon name="trash" size={13} />
+              {busy && wiping === orphan.key ? 'Wissen…' : 'Definitief wissen'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {state.error && <p className="error-note">{state.error}</p>}
+      {state.ok && <p className="small muted">{state.ok}</p>}
+    </form>
   );
 }

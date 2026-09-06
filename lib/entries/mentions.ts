@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db';
 import type { FieldDef } from '@/lib/db/schema';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { cardRef, normaliseState, type BoardCard } from '@/lib/boards/merge';
+import { visibleMapCondition } from '@/lib/maps/visibility';
 import { extractEntryLinks } from './doc';
 import { listTimelines } from '@/lib/timelines/service';
 import { canSeeSection, visibleEntryCondition, type Viewer } from './visibility';
@@ -482,14 +483,19 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
     }
   }
 
-  /* Landkaarten — everyone signed in may open one; a map taken down is gone. */
+  /*
+   * Landkaarten — §40: a landkaart has its own view dial, so this is the map's
+   * own rule and nothing else. One this reader may not open, or one taken down,
+   * is simply not in the list: naming it under "Genoemd in" would tell them a
+   * hidden map mentions this artikel, which is the leak the dial exists to stop.
+   */
   const mapIds = idsOf('map');
   if (mapIds.length && viewer) {
     const found = new Map(
       db
         .select({ id: schema.maps.id, name: schema.maps.name, slug: schema.maps.slug })
         .from(schema.maps)
-        .where(and(inArray(schema.maps.id, mapIds), isNull(schema.maps.deletedAt)))
+        .where(and(inArray(schema.maps.id, mapIds), visibleMapCondition(viewer)))
         .all()
         .map((row) => [row.id, row] as const),
     );

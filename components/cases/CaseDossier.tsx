@@ -110,7 +110,7 @@ export function CaseDossier({
   access,
   liveNotes,
   liveFields,
-  defaultMode,
+  openAddMore,
   binSlot,
 }: {
   data: CaseDossierData;
@@ -134,11 +134,11 @@ export function CaseDossier({
   /** §21: the name and the one-liner as shared fields. */
   liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
   /**
-   * §22: the face this dossier opens in — this person's own setting from Jouw
-   * account, already resolved against their role on the server. The toggle at
-   * the top overrides it for this visit; the setting itself only changes there.
+   * §22: a dossier made this second (`?new=1`). Everybody lands on the reading
+   * face, a Keeper included — except on the dossier they have just made, which
+   * opens with everything open because that is what they came to do.
    */
-  defaultMode: ArticleMode;
+  openAddMore: boolean;
   /**
    * §11: the bin, built on the server because it is a server action, and handed
    * over the same way the artikel's is. Null when this viewer may not throw the
@@ -161,8 +161,9 @@ export function CaseDossier({
    * kinds of "no".
    *
    * `readOnly` is about *rights* — this person may look at the file and not
-   * change it. `reading` is about the *face they asked for* — a Keeper who
-   * came to read the theory rather than rewrite it. `locked` is the two of them
+   * change it. `reading` is about the *face they are on* — everybody arrives
+   * reading the theory rather than rewriting it, a Keeper as much as anyone
+   * else, and one click on the toggle crosses over. `locked` is the two of them
    * together, and it is what every input on this page is switched off by. The
    * split matters because the shared-text room quite correctly says a Keeper
    * may type: without it, choosing to read would still leave a caret blinking
@@ -177,7 +178,7 @@ export function CaseDossier({
   const hasAuthor = useMayType();
   const mayEdit = access.canEdit && hasAuthor;
   const canToggle = Boolean(access.viewerId);
-  const [mode, setMode] = useState<ArticleMode>(canToggle ? defaultMode : 'view');
+  const [mode, setMode] = useState<ArticleMode>(canToggle && openAddMore ? 'edit' : 'view');
   const reading = mode === 'view';
   const readOnly = !mayEdit;
   const locked = readOnly || reading;
@@ -271,6 +272,28 @@ export function CaseDossier({
           typeSlugs={allTypeSlugs.length ? undefined : undefined}
           placeholder="Voeg iets toe aan dit dossier…"
           onAdded={refresh}
+          action={
+            /*
+             * The box beside this one attaches something that already exists;
+             * this makes a new one, filed here from the first keystroke. That
+             * road existed before, but only as the last suggestion after you
+             * had typed — invisible until then. §18b: `openNewEntry` is the
+             * only door, so the rights check and the onderzoeker prompt come
+             * with it; the sheet is never opened directly. No `onCreated`, so
+             * the sheet lands on the new artikel — a button that says "maak"
+             * should end where the thing is.
+             */
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ whiteSpace: 'nowrap' }}
+              onClick={() => ui.openNewEntry({ caseId: data.id })}
+              aria-label={`Voeg een nieuw ${ui.words.entry} toe aan dit ${ui.words.case}`}
+            >
+              <Icon name="plus" size={15} />
+              {`Nieuw ${ui.words.entry} in dit ${ui.words.case}`}
+            </button>
+          }
         />
       )}
 

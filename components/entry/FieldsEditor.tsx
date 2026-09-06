@@ -7,6 +7,7 @@ import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import type { FieldDef } from '@/lib/db/schema';
 import type { CaseRef } from '@/lib/cases/service';
 import { caseIdsIn } from '@/lib/entries/caseFields';
+import { parseDutchDate } from '@/lib/timelines/time';
 import { EntryPicker, type EntryRef } from './EntryPicker';
 import { CasePicker } from './CasePicker';
 
@@ -37,6 +38,23 @@ function asEntryRef(value: unknown): EntryRef | null {
 
 function asEntryRefs(value: unknown): EntryRef[] {
   return Array.isArray(value) ? (value.filter(Boolean) as EntryRef[]) : [];
+}
+
+/**
+ * §38: a Meerkeuze's value as this editor holds it — the members that are on
+ * the Keeper's list, deduped, in the order they were chosen. Deliberately the
+ * same rule `coerceFieldValue` applies on the way in: what this writes is
+ * exactly what the gate accepts, so a field cannot quietly stop saving.
+ */
+function asChoices(value: unknown, options: string[] | undefined): string[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = options ?? [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || !allowed.includes(item) || out.includes(item)) continue;
+    out.push(item);
+  }
+  return out;
 }
 
 function UserPicker({
@@ -93,6 +111,7 @@ function StringField({
   value,
   readOnly,
   placeholder,
+  describedBy,
   multiline = false,
   onChange,
 }: {
@@ -102,6 +121,8 @@ function StringField({
   value: string;
   readOnly: boolean;
   placeholder?: string;
+  /** §38: the id of a quiet line under the box, for the date hint. */
+  describedBy?: string;
   multiline?: boolean;
   onChange: (patch: Values, meta?: { live: boolean }) => void;
 }) {
@@ -117,6 +138,7 @@ function StringField({
     field: `field.${fieldKey}`,
     disabled: readOnly,
     placeholder,
+    'aria-describedby': describedBy,
     value: draft,
     onValue: (next: string, meta: { live: boolean }) => {
       setDraft(next);
@@ -129,6 +151,85 @@ function StringField({
   return multiline ? <LiveField as="textarea" {...common} /> : <LiveField {...common} />;
 }
 
+/**
+ * §38: a Getal.
+ *
+ * The box holds what is being typed — "-", "1." and "1e" are none of them a
+ * number yet — and hands over one value when it is left. An empty box clears
+ * the field; a half-typed one puts back what was stored rather than saving
+ * rubbish, because the gate would refuse it anyway and the player would be
+ * told off for a keystroke.
+ *
+ * Not shared live, on purpose: the §21 room sweeps `field.*` *strings* out of a
+ * Yjs document, and a number is not one. Two people editing the same Getal at
+ * once is last-blur-wins, like the keuzelijst beside it.
+ */
+function NumberField({
+  id,
+  value,
+  readOnly,
+  onCommit,
+}: {
+  id: string;
+  value: unknown;
+  readOnly: boolean;
+  onCommit: (next: number | null) => void;
+}) {
+  const stored = typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+  const [draft, setDraft] = useState(stored);
+  useEffect(() => setDraft(stored), [stored]);
+
+  return (
+    <input
+      id={id}
+      className="input"
+      type="number"
+      disabled={readOnly}
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => {
+        // A number box reports "1e" and "1." as an empty value with `badInput`
+        // set. Clearing the field on that would throw a value away because
+        // somebody stopped typing halfway.
+        if (event.target.validity?.badInput) {
+          setDraft(stored);
+          return;
+        }
+        const typed = draft.trim();
+        const next = typed ? Number(typed) : null;
+        if (next !== null && !Number.isFinite(next)) {
+          setDraft(stored);
+          return;
+        }
+        // `stored` is '' both for an empty field and for a field that was a
+        // Tekst until yesterday and still holds a word. Nothing is written in
+        // either case unless the number actually changed — which is what keeps
+        // a retyped field's old value where it is (§38).
+        if (next !== (typeof value === 'number' ? value : null)) onCommit(next);
+      }}
+    />
+  );
+}
+
+/**
+ * §35 with §38: a hint under a Datum, never a refusal.
+ *
+ * The archive is set in the 1930s and "ergens in de zomer" is a date somebody
+ * means — so the box stays a free text and saves exactly what was typed, which
+ * is also what `writeEntryDate` needs it to do. A native date picker would
+ * forbid all of that. This only says, quietly and after the box is left, that
+ * a tijdlijn will not be able to place what is in it.
+ */
+function DateHint({ id, value }: { id: string; value: unknown }) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || parseDutchDate(text)) return null;
+  return (
+    <p id={id} className="tiny muted" style={{ margin: '0.25rem 0 0' }}>
+      Dit lezen we niet als datum. Het blijft staan zoals je het typt, maar op een tijdlijn kunnen we
+      het zo niet zetten.
+    </p>
+  );
+}
 
 /* -------------------------------------------------------------- reading */
 
@@ -150,6 +251,45 @@ export function fieldValue(field: FieldDef, value: unknown, cases: CaseRefs = {}
         <span style={{ whiteSpace: 'pre-wrap' }}>{text}</span>
       ) : (
         text
+      );
+    }
+
+    /*
+     * §38: a Getal is stored as a number, so it is printed as Dutch reads one —
+     * "1.400", not "1400". A field that used to be a Tekst still holds the word
+     * somebody typed into it; that is not a number, so the row is simply left
+     * out rather than the old value being rewritten.
+     */
+    case 'number': {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      return value.toLocaleString('nl-NL');
+    }
+
+    /*
+     * §38 with §22: an empty field prints nothing, and "nee" is the empty
+     * answer to a Ja/nee. So a `true` makes a row saying "Ja" and a `false`
+     * makes no row at all — a fact that is not so is not a fact the infobox
+     * lists, the same way an empty Beroep is not listed as "geen beroep". The
+     * `false` is still stored, and the checkbox on the writing face still shows
+     * it unticked.
+     */
+    case 'boolean':
+      return value === true ? 'Ja' : null;
+
+    /** §38: the same chips a hand-filled list prints, minus the links. */
+    case 'multiselect': {
+      const chosen = Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string' && Boolean(item))
+        : [];
+      if (!chosen.length) return null;
+      return (
+        <span className="row-wrap" style={{ gap: '0.25rem' }}>
+          {chosen.map((option) => (
+            <span key={option} className="entry-chip" style={{ cursor: 'default' }}>
+              {option}
+            </span>
+          ))}
+        </span>
       );
     }
 
@@ -292,15 +432,29 @@ export function FieldsEditor({
       {fields.map((field) => {
         const value = values[field.key];
         const set = (next: unknown) => onChange({ [field.key]: next });
+        /*
+         * §38: a Meerkeuze is not one control but a row of them, and `htmlFor`
+         * may only name something labelable — so it gets a heading and a
+         * `role="group"` that points back at it, rather than a `<label>` for a
+         * control that does not exist.
+         */
+        const grouped = field.kind === 'multiselect';
+        const labelId = `field-${field.key}-label`;
 
         return (
           <div key={field.key}>
-            <label
-              className={hideLabels ? 'visually-hidden' : 'label'}
-              htmlFor={`field-${field.key}`}
-            >
-              {field.label}
-            </label>
+            {grouped ? (
+              <span className={hideLabels ? 'visually-hidden' : 'label'} id={labelId}>
+                {field.label}
+              </span>
+            ) : (
+              <label
+                className={hideLabels ? 'visually-hidden' : 'label'}
+                htmlFor={`field-${field.key}`}
+              >
+                {field.label}
+              </label>
+            )}
 
             {field.kind === 'text' && (
               <StringField
@@ -326,15 +480,41 @@ export function FieldsEditor({
             )}
 
             {field.kind === 'date' && (
-              <StringField
+              <>
+                <StringField
+                  id={`field-${field.key}`}
+                  fieldKey={field.key}
+                  className="input"
+                  placeholder="bijv. 14 oktober 1934"
+                  readOnly={readOnly}
+                  describedBy={`field-${field.key}-hint`}
+                  value={typeof value === 'string' ? value : ''}
+                  onChange={onChange}
+                />
+                <DateHint id={`field-${field.key}-hint`} value={value} />
+              </>
+            )}
+
+            {field.kind === 'number' && (
+              <NumberField
                 id={`field-${field.key}`}
-                fieldKey={field.key}
-                className="input"
-                placeholder="bijv. 14 oktober 1934"
+                value={value}
                 readOnly={readOnly}
-                value={typeof value === 'string' ? value : ''}
-                onChange={onChange}
+                onCommit={(next) => set(next)}
               />
+            )}
+
+            {/* §38: the box is the control, so the tick is the whole answer. */}
+            {field.kind === 'boolean' && (
+              <div>
+                <input
+                  id={`field-${field.key}`}
+                  type="checkbox"
+                  disabled={readOnly}
+                  checked={value === true}
+                  onChange={(event) => set(event.target.checked)}
+                />
+              </div>
             )}
 
             {field.kind === 'select' && (
@@ -352,6 +532,37 @@ export function FieldsEditor({
                   </option>
                 ))}
               </select>
+            )}
+
+            {/*
+              §38: one checkbox per option the Keeper wrote, and nothing else —
+              the list is the Keeper's, exactly as a Keuzelijst's is. The order
+              stored is the order they are ticked in.
+            */}
+            {field.kind === 'multiselect' && (
+              <div className="row-wrap" role="group" aria-labelledby={labelId}>
+                {(field.options ?? []).map((option) => (
+                  <label key={option} className="row small" style={{ gap: '0.35rem' }}>
+                    <input
+                      type="checkbox"
+                      disabled={readOnly}
+                      checked={asChoices(value, field.options).includes(option)}
+                      onChange={(event) => {
+                        const chosen = asChoices(value, field.options);
+                        set(
+                          event.target.checked
+                            ? [...chosen, option]
+                            : chosen.filter((item) => item !== option),
+                        );
+                      }}
+                    />
+                    {option}
+                  </label>
+                ))}
+                {!(field.options ?? []).length && (
+                  <span className="tiny muted">Deze soort heeft hier nog geen keuzes voor.</span>
+                )}
+              </div>
             )}
 
             {field.kind === 'entry_link' && (
