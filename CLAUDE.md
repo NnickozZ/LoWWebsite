@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 52 files, 772 tests as of round 22 (round 21: 49 / 713)
+npx vitest run         # 53 files, 782 tests as of round 23 (round 22: 52 / 772)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -145,8 +145,8 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§4[0-9]" app components lib` before
-  choosing a number — the latest is §45 / rule 45 (de vier kleurschema's,
-  round 22; §44 is de Keeperkant, same round).
+  choosing a number — the latest is §46 / rule 46 (de spiegel, round 23; §44
+  de Keeperkant and §45 de vier kleurschema's are round 22).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
@@ -335,10 +335,14 @@ freely there.
   must agree. Adding a kind that should also yield means adding it to
   `TEXT_KINDS` in `slice.ts` and nothing else.
 - **The Keeper's web reads containers as a player** (`containerViewer` in
-  `lib/web/service.ts`) unless `othersPrivate` is set. Keep artikelen and
-  sections on the real viewer. `boards.in_web` is checked in exactly two
-  places — `buildWebGraph` and `listMentions` — and must stay checked in
-  both.
+  `lib/web/service.ts`) unless `othersPrivate` is set — **or the Keeper is on
+  their own side** (§46, round 23). That exception exists because `keeper_only`
+  lives *inside* those dials since §44, so a player's eyes would leave the
+  Keeper's web without a single dossier, prikbord, landkaart or tijdlijn; the
+  side filter then narrows it to keeper-only records, which are the Keeper's by
+  definition. Keep artikelen and sections on the real viewer. `boards.in_web`
+  is checked in exactly two places — `buildWebGraph` and `listMentions` — and
+  must stay checked in both.
 - **`MentionPopover` never owns the textarea.** It attaches through a ref or
   an element-as-state (`LiveField mentions` uses state, because the room swaps
   the element under a `next/dynamic` boundary) and writes with the native
@@ -362,6 +366,30 @@ freely there.
   `notesTarget()` before asking for the `keeper:{kind}:{id}:notes` room —
   asking with its own id when the notes live next door gets null admission, on
   purpose.
+- **A list filters by side; a lookup never does** (§46, round 23). The archive
+  is read from one side at a time: `sideCondition(kind, viewer)` in
+  `lib/keeper/side.ts` is AND-ed **after** the visibility rule — never instead
+  of it — in the eleven list functions (`browseEntries`, `listTagsWithCounts`,
+  `countEntriesPerType`, `recentActivity`, `listCases`, `countEntriesPerCase`,
+  `listBoards`, `listMaps`, `listTimelines`, `searchEntries`, and
+  `buildWebGraph` for the whole web). Nothing that finds **one** record asks it
+  — `getEntryBySlug`, `getCaseBySlug`, `getBoard`, `getMapBySlug`,
+  `getTimelineBySlug`, `keeperRef`, `tiesFor`, the live rooms' gates, every API
+  that patches one thing — because a Keeper walks across a touwtje from either
+  side and the page has to be there. `{ bothSides: true }` is the opt-out, for
+  pickers, autocomplete (`suggestEntries`; Zoeken passes `sided` and the
+  suggestions do not), a record page's own sub-lists, and a **focus** web
+  (`bothSides: Boolean(focus)`); every call site carries a `§46` comment saying
+  which it is. Two traps: `listX(viewer, { where: id })` is a lookup in a
+  list's clothes (`listTimelinesForCase` is the worked example, opted out), and
+  `containerViewer` in the web strips `isKeeper`, which makes `sideCondition`
+  answer `1 = 1` — read the side off the *real* viewer. The palette follows the
+  **page**, not the browser: `lib/theme/schemes.ts` emits
+  `:has([data-side='keeper']):not(:has([data-side='player']))`, the layout
+  writes the browser's side and a record page writes its own, and the page
+  wins. That one selector is the whole of "the site turns over with you"; do
+  not add a redirect to make a page match the cookie — `SideSync` in
+  `KeeperStamp` moves the cookie to the page instead.
 - **The four palettes in `app/globals.css` are generated — never hand-edit
   them** (§45, round 22). Everything between `/* §45 SCHEMES START */` and
   `/* §45 SCHEMES END */` is character for character what
@@ -473,7 +501,7 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19 and 22
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22 and 23
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
@@ -485,12 +513,30 @@ anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
 
-Round 22 (§44, §45) leaves three, all named on purpose:
+Round 23 (§46, de spiegel) leaves three, all named on purpose:
 
-- `page:/keeper` is not in `PAGE_PLACES` (`lib/live/keys.ts`), so the
-  Keeperkant list re-reads like every other collection but hands out no
-  presence — no dot, no "wie kijkt er mee". One line, on the day somebody
-  wants it.
+- The wiki's **"Geheimhouding"** filter (Voor iedereen · Onthuld aan gekozen ·
+  Alleen de Keeper, `lib/entries/browseFilters.ts`, Keeper-only) now overlaps
+  the side: on the players' side `visibility=keeper` returns nothing, and on
+  the Keeper's side everything is already keeper. Left as it is — it does
+  nothing wrong, it is just a control that has lost half its job. Fold it into
+  the side, or drop the third option, the next time somebody is in that file.
+- A phone gets **no masthead stamp**. `.masthead-side` lives in `.masthead`,
+  inside `.sidenav`, which is `display: none` below 768 px — so on a phone the
+  toggle in the corner and the palette are the only sign of which side you are
+  on. The e2e spec asserts presence rather than visibility there for this
+  reason.
+- Firefox has no `startViewTransition`, so the flip is a plain navigation
+  there; `prefers-reduced-motion: reduce` gets the same. Deliberate: the
+  animation is an ornament on something that works without it, and the
+  alternative was carrying a library for one browser.
+
+Round 23 also **retired** round 22's `page:/keeper` leftover: `/keeper` is a
+redirect into `/api/keeper/flip` now, so there is no page left to give presence
+to.
+
+Round 22 (§44, §45) leaves two, both named on purpose:
+
 - "Kijk als speler" has a control only in the **desktop side menu**
   (`AsPlayerLink` inside `.sidenav`). A phone can be *in* the preview — the
   banner that turns it off is in the shell everywhere — but cannot start one.

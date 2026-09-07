@@ -40,10 +40,17 @@ export async function GET(request: Request) {
     }
     const named = <T extends { id: string; name: string }>(rows: T[]) =>
       rows.filter((row) => row.name.toLowerCase().includes(needle)).slice(0, PER_KIND);
-    for (const row of named(listCases(keeper, { sort: 'name' }))) candidates.push({ kind: 'case', id: row.id });
-    for (const row of named(listBoards(keeper, { sort: 'name' }))) candidates.push({ kind: 'board', id: row.id });
-    for (const row of named(listMaps(keeper, { sort: 'name' }))) candidates.push({ kind: 'map', id: row.id });
-    for (const row of named(listTimelines(keeper, { sort: 'name' }))) candidates.push({ kind: 'timeline', id: row.id });
+    /*
+     * §46: `bothSides` on every one of them. A touwtje is tied *across* the
+     * two sides by definition — its Keeper end is keeper-only and its other
+     * end is player-facing — so the rope picker must go on offering everything
+     * this Keeper may see, whichever side they happen to be standing on.
+     */
+    const both = { sort: 'name', bothSides: true } as const;
+    for (const row of named(listCases(keeper, both))) candidates.push({ kind: 'case', id: row.id });
+    for (const row of named(listBoards(keeper, both))) candidates.push({ kind: 'board', id: row.id });
+    for (const row of named(listMaps(keeper, both))) candidates.push({ kind: 'map', id: row.id });
+    for (const row of named(listTimelines(keeper, both))) candidates.push({ kind: 'timeline', id: row.id });
 
     const results: KeeperRef[] = [];
     for (const candidate of candidates) {

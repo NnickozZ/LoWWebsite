@@ -3,6 +3,7 @@ import { db, schema, sqlite } from '@/lib/db';
 import { nameTheirCases, type EntrySummary } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
+import { sideCondition } from '@/lib/keeper/side';
 import { rankBy } from './fuzzy';
 
 const SUMMARY_COLUMNS = {
@@ -26,14 +27,26 @@ const SUMMARY_COLUMNS = {
   updatedAt: schema.entries.updatedAt,
 } as const;
 
-/** Every entry the viewer may see. Capped, but far above a campaign's size. */
-function visibleEntries(viewer: Viewer, typeSlug?: string): EntrySummary[] {
+/**
+ * Every entry the viewer may see. Capped, but far above a campaign's size.
+ *
+ * §46: `sided` says whether this read is a *list* — Zoeken, which shows the
+ * side the reader is standing on — or a picker. `suggestEntries` feeds the @ /
+ * [[ autocomplete and the "did you mean" row, and those keep offering
+ * everything the Keeper may see: a rope, a mention or a speld is made across
+ * the two sides on purpose.
+ */
+function visibleEntries(viewer: Viewer, typeSlug?: string, sided = false): EntrySummary[] {
   return db
     .select(SUMMARY_COLUMNS)
     .from(schema.entries)
     .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
     .where(
-      and(visibleEntryCondition(viewer), ...(typeSlug ? [eq(schema.entryTypes.slug, typeSlug)] : [])),
+      and(
+        visibleEntryCondition(viewer),
+        ...(sided ? [sideCondition('entry', viewer)] : []),
+        ...(typeSlug ? [eq(schema.entryTypes.slug, typeSlug)] : []),
+      ),
     )
     .orderBy(desc(schema.entries.updatedAt))
     .limit(5000)
@@ -71,7 +84,7 @@ export function searchEntries(
   if (!q) return { names: [], bodies: [] };
   const limit = options.limit ?? 20;
 
-  const candidates = visibleEntries(viewer, options.typeSlug);
+  const candidates = visibleEntries(viewer, options.typeSlug, true);
   const names = rankBy(
     candidates,
     q,
@@ -102,6 +115,8 @@ export function searchEntries(
           and(
             inArray(schema.entries.id, fresh),
             visibleEntryCondition(viewer),
+            // §46: the text matches are the same list, read from the same side.
+            sideCondition('entry', viewer),
             ...(options.typeSlug ? [eq(schema.entryTypes.slug, options.typeSlug)] : []),
           ),
         )

@@ -79,8 +79,10 @@ test('a Keeper-only entry leaks nowhere', async ({ page, browser }, testInfo) =>
   await player.goto('/');
   expect(await player.content()).not.toContain(secret);
 
-  // The Keeper still sees it, stamped.
-  await page.goto('/wiki/location');
+  // The Keeper still sees it, stamped — on the Keeper's side of the archive
+  // (§46): the players' side of the wiki is exactly what the players see, so
+  // the Keeper turns the archive over first.
+  await page.goto('/api/keeper/flip?side=keeper&to=/wiki/location');
   await expect(page.getByText(secret).first()).toBeVisible();
 
   await context.close();

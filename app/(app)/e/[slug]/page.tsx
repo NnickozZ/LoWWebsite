@@ -6,6 +6,8 @@ import { notFound } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { sideOf } from '@/lib/keeper/kinds';
+import { twinOf } from '@/lib/keeper/ties';
 import { PreferredCases } from '@/components/entry/PreferredCases';
 import { caseIdsInFields } from '@/lib/entries/caseFields';
 import { EntryCard } from '@/components/EntryCard';
@@ -157,7 +159,8 @@ export default async function EntryPage({
   const entryPins = listPinsForEntry(entry.id, user);
   const onMaps = entryPins.map((pin) => ({ pinId: pin.pinId, mapSlug: pin.mapSlug, mapName: pin.mapName }));
   const pinnedMapIds = new Set(entryPins.map((pin) => pin.mapId));
-  const mapsToPlace = listMaps(user)
+  // §46: `bothSides` — a picker on a record's own page, not a list.
+  const mapsToPlace = listMaps(user, { bothSides: true })
     .filter((map) => !pinnedMapIds.has(map.id))
     .map((map) => ({ slug: map.slug, name: map.name }));
   // §23: and the landkaarten that are a drawing *of* this artikel.
@@ -171,7 +174,8 @@ export default async function EntryPage({
     when: formatWhen(row.at, row.precision),
   }));
   const onTimelineIds = new Set(entryEvents.map((row) => row.timelineId));
-  const timelinesToPlace = listTimelines(user)
+  // §46: `bothSides` — a picker on a record's own page, not a list.
+  const timelinesToPlace = listTimelines(user, { bothSides: true })
     .filter((timeline) => !onTimelineIds.has(timeline.id) && viewerCanEdit('timeline', timeline.id, user))
     .map((timeline) => ({ slug: timeline.slug, name: timeline.name }));
   // §21: the dossiers this artikel's own fields point at. Only ids are stored;
@@ -475,11 +479,16 @@ export default async function EntryPage({
   return (
     <>
       <LivePage place={entryKey(entry.id)} watch={['cases', 'maps', 'types']} />
-      {/* §44/§45: this artikel is the Keeper's own side — the stamp says so in
-          a word, and the marker beside it paints the page in the Keeper's
-          colours. Rendered only for a Keeper looking at a keeper-only artikel;
-          nobody else could be standing here at all. */}
-      <KeeperStamp on={isKeeper && entry.visibility === 'keeper'} />
+      {/* §44/§45/§46: which side this artikel is on — for every reader, not
+          only a Keeper. The stamp says it in a word, the marker paints the
+          page in that side's colours, and `browserSide` lets a Keeper who
+          walked across a touwtje take the whole site with them. A player's
+          browser never moves, so it is not given one. */}
+      <KeeperStamp
+        side={sideOf(entry.visibility === 'keeper')}
+        browserSide={user?.isKeeper ? user.side : undefined}
+        flipTo={twinOf('entry', entry.id, user)?.href ?? '/wiki'}
+      />
       {/*
         §31: the dossiers this artikel is filed in — already behind
         `visibleCaseCondition`, because `listCasesForEntry` took this viewer.

@@ -8,7 +8,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const user = await requireUser();
-    return json({ cases: listCases(user) });
+    // §46: `bothSides`, because this list is a picker — "In het dossier"
+    // offers every dossier the reader may open, on either side of the archive.
+    return json({ cases: listCases(user, { bothSides: true }) });
   } catch (err) {
     return apiError(err);
   }

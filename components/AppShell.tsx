@@ -12,6 +12,7 @@ import { UiProvider, useUi, type EntryTypeLite } from '@/components/ui/UiProvide
 import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
 import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
 import { AsPlayerBanner, AsPlayerLink } from '@/components/keeper/AsPlayer';
+import { SideToggle } from '@/components/keeper/SideToggle';
 import type { Words } from '@/lib/words';
 
 /**
@@ -39,10 +40,12 @@ const NAV: {
   // on a phone the whole web is a search box anyway — the way in there is the
   // Verbindingen button on the thing you are looking at.
   { href: '/web', word: 'navWeb', icon: 'web', desktopOnly: true },
-  // §44: de Keeperkant. Desktop sidebar only, for the same arithmetic as the
-  // web above — the phone's tab row fits eight and is already full — and
-  // `keeperOnly`, so a player's HTML never carries the link at all.
-  { href: '/keeper', word: 'navKeeper', icon: 'shield', desktopOnly: true, keeperOnly: true },
+  // §46: de Keeperkant is *niet* meer een plek in de zijbalk. Round 22 put it
+  // here as a ninth menu item; the mirror replaced it with a toggle in the
+  // corner of the screen (`SideToggle`), because the Keeper's side is not a
+  // place you visit — it is the face the whole archive wears. `keeperOnly`
+  // stays on the type above: the next Keeper-only place should still be able
+  // to say so, and be absent rather than hidden.
   // Eight tabs do not fit a phone with a word under each. The two whose icon
   // everybody knows — a magnifier, a person — go without one there.
   { href: '/search', word: 'navSearch', icon: 'search', compact: true },
@@ -79,6 +82,19 @@ function Nav({
           )}
           <span className="masthead-name">{siteName}</span>
           {tagline && <span className="masthead-tagline">{tagline}</span>}
+          {/*
+           * §46: the archive's own name block says which side it is being read
+           * from, before any record's stamp does and before the colours have
+           * been learnt. Only when the browser stands on the Keeper's side —
+           * the players' side is the archive as everybody knows it and needs no
+           * word for itself.
+           */}
+          {me.side === 'keeper' && (
+            <span className="masthead-side" data-testid="masthead-side">
+              <Icon name="shield" size={12} />
+              {words.keeperSide}
+            </span>
+          )}
         </div>
         {/*
          * §18: who you are being — under the masthead, above the places.
@@ -167,6 +183,15 @@ export function AppShell({
       <LiveProvider>
         <div className="shell">
           <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} />
+          {/*
+           * §46: de spiegel. Outside the menu, in the corner of the viewport,
+           * the same spot on a desk and on a phone — and rendered only for a
+           * Keeper who is not looking as a player, so nobody else's HTML
+           * carries the button or the address behind it.
+           */}
+          {me.isRealKeeper && !me.asPlayer && (
+            <SideToggle side={me.side === 'keeper' ? 'keeper' : 'player'} words={words} />
+          )}
           <main className="main">
             <LiveStrip />
             {/*

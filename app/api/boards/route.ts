@@ -18,7 +18,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const boards = listBoards(user);
+    // §46: `bothSides`, because this list is a picker — "Op het prikbord"
+    // offers every wall the reader may open, on either side of the archive.
+    const boards = listBoards(user, { bothSides: true });
 
     const forEntry = new URL(request.url).searchParams.get('forEntry');
     if (!forEntry) return json({ boards });

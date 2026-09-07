@@ -45,6 +45,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // in the one banner that offers to give them their own eyes back.
     isRealKeeper: user.isRealKeeper,
     asPlayer: user.asPlayer,
+    // §46: which side this browser is standing on, for the toggle.
+    side: user.side,
     characters: user.isKeeper ? [] : listCharacters(user.id),
     activeId: user.isKeeper ? null : (activeCharacter(user.id)?.entryId ?? null),
   };
@@ -80,7 +82,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      * own `data-side` marker (`components/keeper/KeeperSideMark.tsx`), and the
      * selectors in `lib/theme/schemes.ts` do the rest.
      */
-    <div data-font={fontAttr} data-theme={themeAttr(user.colourScheme)}>
+    <div
+      data-font={fontAttr}
+      data-theme={themeAttr(user.colourScheme)}
+      /*
+       * §46: the side this browser stands on. A record's page may say
+       * otherwise for the record it shows — its own mark wins (see
+       * `KeeperSideMark`) — but every list, and the shell itself, is this.
+       */
+      data-side={user.side === 'keeper' ? 'keeper' : undefined}
+    >
       <style>{schemeCss}</style>
       {/*
        * §18b: who this *window* is writing as. Above the shell on purpose —

@@ -4,7 +4,9 @@ import { LivePage } from '@/components/live/LivePage';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { sideOf } from '@/lib/keeper/kinds';
 import { keeperRef } from '@/lib/keeper/side';
+import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
 import {
@@ -47,9 +49,11 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   // Both lists are already filtered for this viewer, and both are small enough
   // to hand over whole — a landkaart or a dossier is a thing you have a dozen
   // of, not a thousand.
-  const pickableMaps = listMaps(user).map((map) => ({ id: map.id, name: map.name }));
-  const pickableCases = listCases(user).map((item) => ({ id: item.id, name: item.name }));
-  const pickableTimelines = listTimelines(user).map((item) => ({ id: item.id, name: item.name }));
+  // §46: `bothSides` on all three — these are pickers, and a card is pinned on
+  // a wall from either side of the archive.
+  const pickableMaps = listMaps(user, { bothSides: true }).map((map) => ({ id: map.id, name: map.name }));
+  const pickableCases = listCases(user, { bothSides: true }).map((item) => ({ id: item.id, name: item.name }));
+  const pickableTimelines = listTimelines(user, { bothSides: true }).map((item) => ({ id: item.id, name: item.name }));
 
   // What this case already holds. Two things need it: the prompt that offers
   // to file a pinned entry, and the tray of everything in the case that is not
@@ -59,9 +63,14 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
-      {/* §44/§45: the Keeper's own prikbord says so, in a word and in the
-          colours of the whole page. */}
-      <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('board', board.id, user)?.keeperOnly)} />
+      {/* §44/§45/§46: which side this prikbord is on — the word, the colours,
+          and the browser's side, so a link followed across turns the site
+          over with you. */}
+      <KeeperStamp
+        side={sideOf(Boolean(user?.isKeeper && keeperRef('board', board.id, user)?.keeperOnly))}
+        browserSide={user?.isKeeper ? user.side : undefined}
+        flipTo={twinOf('board', board.id, user)?.href ?? '/boards'}
+      />
       <BoardCanvas
       boardId={board.id}
       boardName={board.name}

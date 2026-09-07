@@ -24,9 +24,14 @@ export async function GET(request: Request) {
     const showNotes = params.get('notes') === '1';
     // Round 18: `?others=1` lets a Keeper spin in other people's private things.
     const othersPrivate = params.get('others') === '1';
-    const graph = buildWebGraph(user, { notes: showNotes, othersPrivate });
-
     const focus = params.get('focus');
+    /*
+     * §46: the whole web is a list and is read from the side the Keeper is
+     * standing on; a *focus* web is about one record, and its ties cross the
+     * two sides on purpose — so that one is built out of both.
+     */
+    const graph = buildWebGraph(user, { notes: showNotes, othersPrivate, bothSides: Boolean(focus) });
+
     if (!focus) return json(graph);
 
     if (!graph.nodes.some((node) => node.id === focus)) {

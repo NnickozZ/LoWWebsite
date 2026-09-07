@@ -11,9 +11,10 @@ import { fillWhenReady, newEntryButton, signIn, signUp } from './helpers';
  *     straight to the other.
  *  2. The notes are **one text**: typed on the Keeper's face, read on the
  *     player-facing one, because both pages address the pair's Keeper side.
- *  3. A player is told nothing. The twin is a 404 at its own address, de
- *     Keeperkant is a 404, and neither the switch nor the panel is anywhere in
- *     their page — not hidden, absent.
+ *  3. A player is told nothing. The twin is a 404 at its own address, `/keeper`
+ *     sets them nothing and drops them on the ordinary Start page (§46), and
+ *     neither the switch nor the panel is anywhere in their page — not hidden,
+ *     absent.
  *  4. "Kijk als speler" makes a Keeper a player everywhere, and the banner in
  *     the shell is the way back — which is why it is not on the page that
  *     refuses to render.
@@ -118,10 +119,20 @@ test.describe('§44 de Keeperkant', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu', { name: 'Touwtjes' })).toHaveCount(0);
 
-    // The Keeperkant page lists it under the artikelen.
-    await page.goto('/keeper');
-    await expect(page.getByTestId('keeper-side-entry')).toContainText('Het complot');
-    expect(await page.getByTestId('keeper-side-entry').innerText()).not.toContain('De veerman');
+    /*
+     * §46: there is no Keeperkant *list* any more — the whole archive is the
+     * list, read from one side at a time. So the same two artikelen are the
+     * proof, on the ordinary wiki: on the Keeper's side only "Het complot" is
+     * there, on the players' side only "De veerman".
+     */
+    await page.goto('/api/keeper/flip?side=keeper&to=/wiki');
+    const grid = page.locator('.card-grid');
+    await expect(grid).toContainText('Het complot', { timeout: 20_000 });
+    expect(await grid.innerText()).not.toContain('De veerman');
+
+    await page.goto('/api/keeper/flip?side=player&to=/wiki');
+    await expect(grid).toContainText('De veerman', { timeout: 20_000 });
+    expect(await grid.innerText()).not.toContain('Het complot');
   });
 
   test('een speler wordt niets verteld', async ({ page, browser }, testInfo) => {
@@ -144,9 +155,13 @@ test.describe('§44 de Keeperkant', () => {
     await player.goto(keeperUrl);
     await expect(player.getByRole('heading', { name: 'Deze pagina is er niet.' })).toBeVisible();
 
-    // Nor is de Keeperkant.
+    // §46: de Keeperkant is a door now, not a page. For a player it sets
+    // nothing at all and simply puts them down on the Start of the archive —
+    // no stamp, no toggle, no word about a second side existing.
     await player.goto('/keeper');
-    await expect(player.getByRole('heading', { name: 'Deze pagina is er niet.' })).toBeVisible();
+    await expect(player).toHaveURL(/\/$/);
+    await expect(player.getByTestId('keeper-stamp')).toHaveCount(0);
+    await expect(player.getByTestId('side-toggle')).toHaveCount(0);
 
     // And on the page they *may* read, nothing keeper-only is in the HTML —
     // not hidden, absent.
@@ -168,17 +183,63 @@ test.describe('§44 de Keeperkant', () => {
     await page.goto('/api/keeper/as-player?on=1&to=/');
     await expect(page.getByTestId('as-player-banner')).toBeVisible();
 
-    // A player everywhere, including on the two pages that are the Keeper's.
+    // A player everywhere, including on the door to the Keeper's side, which
+    // sets nothing for them and lands on the ordinary Start page (§46).
     await page.goto('/keeper');
+    await expect(page).toHaveURL(/\/$/);
     await expect(page.getByTestId('as-player-banner')).toBeVisible();
-    await expect(page.getByTestId('keeper-side-entry')).toHaveCount(0);
+    await expect(page.getByTestId('side-toggle')).toHaveCount(0);
     await page.goto('/admin');
     await expect(page.getByTestId('as-player-banner')).toBeVisible();
 
     // The banner is the way back, from the page that refused to render.
     await page.getByTestId('as-player-stop').click();
     await expect(page.getByTestId('as-player-banner')).toHaveCount(0);
-    await page.goto('/keeper');
-    await expect(page.getByRole('heading', { name: 'Keeperkant', level: 1 })).toBeVisible();
+    // §46: and the Keeper's own pages are theirs again. Beheer is the one that
+    // refused to render a moment ago.
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', { name: 'Beheer', level: 1 })).toBeVisible();
+  });
+
+  /**
+   * §46: de spiegel. One button in the corner of the screen turns the whole
+   * archive over — the cookie, the colours, and the word under the masthead.
+   *
+   * Reduced motion is emulated on purpose: with it on, `SideToggle` starts no
+   * view transition at all, so the assertions below race nothing. The flip
+   * itself is asserted three ways, because any one of them alone could pass
+   * for the wrong reason: the button's own `data-side-now`, the stamp in the
+   * masthead, and the colour the body is actually painted.
+   */
+  test('de spiegel klapt om', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await signIn(page, ...KEEPER);
+
+    // A list: no twin, no `data-flip-to`, so the flip stays on this address
+    // and only changes the side it is read from.
+    await page.goto('/wiki');
+    const toggle = page.getByTestId('side-toggle');
+    await expect(toggle).toHaveAttribute('data-side-now', 'player');
+    const paper = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const playerPaper = await paper();
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('data-side-now', 'keeper', { timeout: 20_000 });
+
+    // The masthead says so — on a desk. The name block lives in the side menu,
+    // which a phone does not have at all, so there it is asserted as present
+    // in the page rather than as visible on it.
+    const stamp = page.getByTestId('masthead-side');
+    if (await page.locator('.sidenav').isVisible()) await expect(stamp).toBeVisible();
+    else await expect(stamp).toHaveCount(1);
+
+    // And the paint followed the cookie.
+    await expect.poll(paper, { timeout: 20_000 }).not.toBe(playerPaper);
+
+    // §46: `k` is the same button. The focus after the click above is the
+    // button itself, which is not a field, so `UiProvider`'s guard lets it by.
+    await page.keyboard.press('k');
+    await expect(toggle).toHaveAttribute('data-side-now', 'player', { timeout: 20_000 });
+    await expect(page.getByTestId('masthead-side')).toHaveCount(0);
   });
 });

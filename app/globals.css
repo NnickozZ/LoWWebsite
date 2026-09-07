@@ -79,7 +79,7 @@
   color-scheme: light;
 }
 
-:root:has([data-side='keeper']) {
+:root:has([data-side='keeper']):not(:has([data-side='player'])) {
   --paper: #e7e4dd;
   --paper-dark: #d6d2c8;
   --paper-raised: #f0eee9;
@@ -127,7 +127,7 @@
   color-scheme: dark;
 }
 
-:root:has([data-theme='dark']):has([data-side='keeper']) {
+:root:has([data-theme='dark']):has([data-side='keeper']):not(:has([data-side='player'])) {
   --paper: #14171a;
   --paper-dark: #0e1114;
   --paper-raised: #1d2126;
@@ -175,7 +175,7 @@
   --accent: var(--stamp-red);
   color-scheme: dark;
 }
-:root:not(:has([data-theme='light'])):has([data-side='keeper']) {
+:root:not(:has([data-theme='light'])):has([data-side='keeper']):not(:has([data-side='player'])) {
   --paper: #14171a;
   --paper-dark: #0e1114;
   --paper-raised: #1d2126;
@@ -5664,4 +5664,136 @@ details.section[open] > summary::before {
 }
 .keeper-as-player svg {
   color: var(--stamp-red);
+}
+
+/* ------------------------------------------------------------ §46: de spiegel */
+/*
+ * The archive has two sides, and this is the seam between them: one round
+ * button in the corner of the screen, the wipe it draws when it is pressed,
+ * and the line under the masthead that says which side you came out on.
+ *
+ * Everything here is paint. Which side a browser stands on is a cookie the
+ * server reads (`getSessionUser`); which side a *record* is on is the hidden
+ * mark its page renders. Nothing below decides either — and the button itself
+ * is not rendered at all for anybody but a real Keeper, so there is no rule
+ * here that hides it.
+ */
+
+/* The button. Fixed to the viewport rather than to the page, so it is in the
+   same corner on a desk, on a phone, and on a page that is nothing but a
+   canvas (`.page-canvas`, which stops short of the viewport's edge and would
+   otherwise scroll it away). Above the tab bar (40) and the `+` (45), below a
+   sheet (60): a question on the screen still owns the screen. */
+.side-toggle {
+  position: fixed;
+  top: calc(0.4rem + env(safe-area-inset-top));
+  right: 0.5rem;
+  z-index: 46;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper-raised) 92%, transparent);
+  color: var(--stamp-red);
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+  box-shadow: 1px 2px 0 rgba(31, 27, 22, 0.16);
+}
+.side-toggle:hover {
+  border-color: var(--stamp-red);
+}
+.side-toggle:active {
+  box-shadow: none;
+  transform: translateY(1px);
+}
+.side-toggle-turn {
+  display: inline-flex;
+}
+/* The half-turn, with a little overshoot at the end of it. It is keyed on the
+   press in `SideToggle`, so the element is new each time and the animation
+   replays; it starts turned and lands upright, because an upside-down shield
+   is not a resting state. */
+.side-toggle[data-turned='1'] .side-toggle-turn {
+  animation: side-toggle-turn 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes side-toggle-turn {
+  from {
+    transform: rotate(-180deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+/* Who else is on this page has the same corner. The strip is a float in the
+   main column (and, on a canvas page, absolutely placed in it), so it is moved
+   over by exactly the button's width and gutter rather than the button being
+   moved somewhere a hand has to look for it. Only when the button is there:
+   for a player nothing moves. */
+.shell:has(> .side-toggle) .live-strip {
+  margin-right: 2.4rem;
+}
+.shell:has(> .side-toggle) .main:has(.page-canvas) .live-strip {
+  margin-right: 0;
+  right: calc(var(--page-pad) + 2.4rem);
+}
+/* And the one line of heading on such a page keeps room for both. */
+.shell:has(> .side-toggle) .canvas-head {
+  padding-right: 5rem;
+}
+
+/* The wipe. The new side is uncovered by a circle growing out of the button
+   itself — `--flip-x` / `--flip-y` are written onto <html> from the button's
+   centre a frame before the transition starts — while the old side lies still
+   underneath it. Deliberately not a cross-fade: the point is that one archive
+   is *over* the other, not that one dissolves into it. */
+::view-transition-old(root) {
+  animation: none;
+}
+::view-transition-new(root) {
+  animation: side-flip-wipe 550ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes side-flip-wipe {
+  from {
+    clip-path: circle(0 at var(--flip-x, 100%) var(--flip-y, 0));
+  }
+  to {
+    clip-path: circle(150% at var(--flip-x, 100%) var(--flip-y, 0));
+  }
+}
+
+/* Somebody who has asked for no movement gets none: the page is simply the
+   other page. `SideToggle` does not start a view transition at all under this
+   media query, and these two rules are the belt to that braces — a transition
+   already in flight when the setting changes stops dead. */
+@media (prefers-reduced-motion: reduce) {
+  .side-toggle[data-turned='1'] .side-toggle-turn,
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* The stamp under the archive's name: this whole page is being read from the
+   Keeper's side. The archive's own stamp idiom (`.stamp`, `.keeper-stamp`) at
+   the smallest size it still reads at, and squared off rather than tilted —
+   the masthead is a nameplate, and a tilted word in it reads as a mistake. */
+.masthead-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--stamp-red);
+  color: var(--stamp-red);
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.6;
 }

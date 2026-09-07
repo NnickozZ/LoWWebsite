@@ -5,7 +5,9 @@ import { asc } from 'drizzle-orm';
 import { CaseDossier, type CaseGroup } from '@/components/cases/CaseDossier';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { sideOf } from '@/lib/keeper/kinds';
 import { keeperRef } from '@/lib/keeper/side';
+import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -184,9 +186,14 @@ export default async function CasePage({
   return (
     <>
       <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'timelines', 'users']} />
-      {/* §44/§45: a dossier on the Keeper's own side says so in a word, and
-          paints the page in the Keeper's colours. */}
-      <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('case', record.id, user)?.keeperOnly)} />
+      {/* §44/§45/§46: which side this dossier is on — the word, the colours,
+          and the browser's side, so following a link across turns the site
+          over with you. */}
+      <KeeperStamp
+        side={sideOf(Boolean(user?.isKeeper && keeperRef('case', record.id, user)?.keeperOnly))}
+        browserSide={user?.isKeeper ? user.side : undefined}
+        flipTo={twinOf('case', record.id, user)?.href ?? '/cases'}
+      />
       <CaseDossier
       data={{
         id: record.id,

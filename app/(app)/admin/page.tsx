@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { LivePage } from '@/components/live/LivePage';
 import { notFound } from 'next/navigation';
 import { asc, desc, eq } from 'drizzle-orm';
-import { KeeperSideMark } from '@/components/keeper/KeeperSideMark';
+import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { AdminTabs, type AdminPane } from '@/components/admin/AdminTabs';
 import { NewTypeForm } from '@/components/admin/NewTypeForm';
 import { SchemesForm } from '@/components/admin/SchemesForm';
@@ -541,8 +541,20 @@ export default async function AdminPage({
 
   return (
     <div className="page">
-      {/* §45: Beheer is only ever the Keeper's, so it is painted as such. */}
-      <KeeperSideMark />
+      {/*
+       * §45/§46: Beheer is only ever the Keeper's, so it is painted as such —
+       * and it moves the browser to the Keeper's side like any other page on
+       * it. No visible stamp: the heading already says Beheer, and the toggle
+       * from here goes to the Start of the archive.
+       */}
+      {/*
+       * §46: Beheer is painted as the Keeper's, but it is not a *side* — it is
+       * the desk between the two. So the mark, and deliberately no
+       * `browserSide`: a Keeper who steps into Beheer from the players' side
+       * to put a prikbord back must step out onto the players' side again and
+       * find it there. (The bin's e2e specs are exactly that walk.)
+       */}
+      <KeeperStamp side="keeper" flipTo="/" stamp={false} />
       <LivePage place="page:/admin" watch={['admin', 'types', 'words', 'site', 'users', 'entries', 'cases', 'boards', 'maps']} />
       <p className="eyebrow">{words.keeper}</p>
       <h1 style={{ marginBottom: 0 }}>{words.adminTitle}</h1>

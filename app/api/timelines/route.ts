@@ -11,7 +11,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const user = await requireUser();
-    return json({ timelines: listTimelines(user) });
+    // §46: `bothSides`, because this list feeds pickers — a tijdlijn is
+    // chosen from either side of the archive.
+    return json({ timelines: listTimelines(user, { bothSides: true }) });
   } catch (err) {
     return apiError(err);
   }

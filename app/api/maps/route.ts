@@ -10,7 +10,9 @@ export const maxDuration = 60;
 export async function GET() {
   try {
     const user = await requireUser();
-    return json({ maps: listMaps(user) });
+    // §46: `bothSides`, because this list is a picker (`ConnectMapButton`) —
+    // it offers every landkaart the reader may open, on either side.
+    return json({ maps: listMaps(user, { bothSides: true }) });
   } catch (err) {
     return apiError(err);
   }

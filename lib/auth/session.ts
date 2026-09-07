@@ -4,6 +4,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 import { cleanColourScheme, type ColourScheme } from '@/lib/theme/schemes';
+import type { Side } from '@/lib/keeper/kinds';
 import { newId, randomToken } from '@/lib/ids';
 import { readCharacterHeader, resolveCharacter } from '@/lib/auth/author';
 
@@ -16,6 +17,13 @@ export const COOKIE_NAME = 'zcf_session';
  * pretending on one page, there is no surface it can be forgotten on.
  */
 export const AS_PLAYER_COOKIE = 'zcf_as_player';
+/**
+ * §46: which side of the archive this *browser* is standing on. A cookie and
+ * not a column, so the laptop at the desk can be on the Keeper's side while the
+ * phone at the table shows the players'. Honoured only for a Keeper who is not
+ * looking as a player; for everyone else the side is the players', always.
+ */
+export const SIDE_COOKIE = 'zcf_side';
 /** §4: 90-day rolling expiry. */
 const MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 /** Refresh the row and cookie at most once a day, not on every request. */
@@ -39,6 +47,8 @@ export type SessionUser = {
   isRealKeeper: boolean;
   /** §44: is the preview on right now. */
   asPlayer: boolean;
+  /** §46: the side this browser reads its lists from. 'player' for anyone who is not a Keeper. */
+  side: Side;
   /**
    * §18b: the onderzoeker this *window* is writing as — the validated
    * `X-Character` header, or the account's own `active_character_id` when the
@@ -153,6 +163,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
    */
   const asPlayer = row.isKeeper && Boolean(jar.get(AS_PLAYER_COOKIE)?.value);
   const isKeeper = row.isKeeper && !asPlayer;
+  // §46: the side is a fact about the browser, gated on the role — a player's
+  // cookie saying 'keeper' is a cookie saying nothing.
+  const side: Side = isKeeper && jar.get(SIDE_COOKIE)?.value === 'keeper' ? 'keeper' : 'player';
 
   /*
    * §18b: who this *window* is writing as. The header is the window's answer to
@@ -173,6 +186,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     isKeeper,
     isRealKeeper: row.isKeeper,
     asPlayer,
+    side,
     characterId,
     // The value from *before* this visit — that is what "since you were last here" means.
     lastSeenAt: previousLastSeen,

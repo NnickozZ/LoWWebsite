@@ -38,6 +38,16 @@ describe('every page inside the shell is live', () => {
   for (const page of pages) {
     it(`${relative(ROOT, page)} renders <LivePage>`, () => {
       const source = readFileSync(page, 'utf8');
+      /*
+       * §46: a page that only redirects has nothing to keep live. `/keeper` is
+       * the one — since round 23 it is not a screen but a door: it sets the
+       * Keeper's side and puts the reader down on the Start of it. The rule
+       * still holds for everything that renders anything.
+       */
+      if (/^\s*redirect\(/m.test(source)) {
+        expect(source).not.toMatch(/<LivePage\b/);
+        return;
+      }
       expect(source).toMatch(/<LivePage\b/);
       expect(source).toMatch(/from '@\/components\/live\/LivePage'/);
     });

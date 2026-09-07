@@ -9,6 +9,7 @@ import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { newId } from '@/lib/ids';
+import { sideCondition } from '@/lib/keeper/side';
 import { resetFieldsInRoom } from '@/lib/live/docs';
 import { eventFieldsRoomKey } from '@/lib/live/keys';
 import { uniqueSlug } from '@/lib/slug';
@@ -144,6 +145,11 @@ export type TimelineListOptions = {
   where?: 'loose' | 'case' | string;
   mine?: string;
   privateOnly?: boolean;
+  /**
+   * §46: read both sides of the archive, not the one the viewer stands on.
+   * For pickers and record pages only — see `sideCondition`.
+   */
+  bothSides?: boolean;
 };
 
 /**
@@ -153,6 +159,8 @@ export type TimelineListOptions = {
  */
 export function listTimelines(viewer: Viewer, options: TimelineListOptions = {}): TimelineSummary[] {
   const conditions = [isNull(schema.timelines.deletedAt), viewableCondition('timeline', viewer)];
+  // §46: one side at a time, AND-ed after the visibility rule.
+  if (!options.bothSides) conditions.push(sideCondition('timeline', viewer));
   if (options.where === 'loose') conditions.push(isNull(schema.timelines.caseId));
   else if (options.where === 'case') conditions.push(sql`${schema.timelines.caseId} IS NOT NULL`);
   else if (options.where) conditions.push(eq(schema.timelines.caseId, options.where));
@@ -222,7 +230,14 @@ export function listTimelines(viewer: Viewer, options: TimelineListOptions = {})
 
 /** The tijdlijnen inside a dossier that this viewer may open. */
 export function listTimelinesForCase(caseId: string, viewer: Viewer): TimelineSummary[] {
-  return listTimelines(viewer, { where: caseId });
+  /*
+   * §46: `bothSides` on purpose. This is not a browsable list but one dossier's
+   * own contents, read from that dossier's page — and a page is reached from
+   * either side. A player-facing tijdlijn inside a dossier the Keeper has taken
+   * to their own side must still be on it, exactly as `listBoardsForCase` (which
+   * never went through `listBoards`) has always shown its prikborden.
+   */
+  return listTimelines(viewer, { where: caseId, bothSides: true });
 }
 
 function asScale(value: unknown): Scale {

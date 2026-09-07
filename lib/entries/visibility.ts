@@ -2,8 +2,15 @@ import { sql, type SQL } from 'drizzle-orm';
 import { viewableCondition } from '@/lib/access';
 import { schema } from '@/lib/db';
 import type { Visibility } from '@/lib/db/schema';
+import type { Side } from '@/lib/keeper/kinds';
 
-export type Viewer = { id: string; isKeeper: boolean } | null;
+/**
+ * Who is looking. `side` (§46) is which side of the archive they are standing
+ * on; it is read by the *list* functions only — a record's own page, a room's
+ * gate and the API that patches one never ask it, because a Keeper may walk
+ * across from either side and the page they land on decides where they are.
+ */
+export type Viewer = { id: string; isKeeper: boolean; side?: Side } | null;
 
 /**
  * §9. A viewer may see an entry when it is not deleted AND

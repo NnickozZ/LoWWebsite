@@ -95,9 +95,9 @@ describe('schemeCss', () => {
   it('writes the four schemes under the selectors the layout relies on', () => {
     const css = schemeCss(DEFAULT_SCHEMES);
     expect(css).toContain(':root {');
-    expect(css).toContain(":root:has([data-side='keeper']) {");
+    expect(css).toContain(":root:has([data-side='keeper']):not(:has([data-side='player'])) {");
     expect(css).toContain(":root:has([data-theme='dark']) {");
-    expect(css).toContain(":root:has([data-theme='dark']):has([data-side='keeper']) {");
+    expect(css).toContain(":root:has([data-theme='dark']):has([data-side='keeper']):not(:has([data-side='player'])) {");
     expect(css).toContain('@media (prefers-color-scheme: dark)');
     // A person who chose Licht means it, even at midnight.
     expect(css).toContain(":root:not(:has([data-theme='light']))");

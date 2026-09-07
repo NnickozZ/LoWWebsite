@@ -121,6 +121,19 @@ export const WORD_GROUPS: WordGroup[] = [
         what: 'De knop terug naar de spelersversie',
         fallback: 'Spelersversie',
       },
+      // §46: de spiegel — de knop rechtsboven, die het hele archief omklapt.
+      // Wat er staat is waar hij héén gaat, niet waar je nu bent.
+      {
+        key: 'toKeeperSide',
+        what: 'De knop rechtsboven, op weg naar de Keeperkant',
+        fallback: 'Naar de Keeperkant',
+        hint: 'Ook de sneltoets k. Alleen de Keeper ziet deze knop.',
+      },
+      {
+        key: 'toPlayerSide',
+        what: 'Dezelfde knop, op weg terug naar de spelerskant',
+        fallback: 'Naar de spelerskant',
+      },
       {
         key: 'asPlayer',
         what: 'Kijken door de ogen van een speler',

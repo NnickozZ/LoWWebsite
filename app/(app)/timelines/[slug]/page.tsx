@@ -7,7 +7,9 @@ import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { TimelineCanvas } from '@/components/timelines/TimelineCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { sideOf } from '@/lib/keeper/kinds';
 import { keeperRef } from '@/lib/keeper/side';
+import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -83,9 +85,14 @@ export default async function TimelinePage({
       <div className="page-canvas">
         <LivePage place={timelineKey(timeline.id)} watch={['entries']} />
         <header className="canvas-head">
-          {/* §44/§45: the Keeper's own tijdlijn says so, in a word and in the
-              colours of the whole page. */}
-          <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('timeline', timeline.id, user)?.keeperOnly)} />
+          {/* §44/§45/§46: which side this tijdlijn is on — the word, the
+              colours, and the browser's side, so a link followed across turns
+              the site over with you. */}
+          <KeeperStamp
+            side={sideOf(Boolean(user?.isKeeper && keeperRef('timeline', timeline.id, user)?.keeperOnly))}
+            browserSide={user?.isKeeper ? user.side : undefined}
+            flipTo={twinOf('timeline', timeline.id, user)?.href ?? '/timelines'}
+          />
           <p className="eyebrow">
             <Link href="/timelines" style={{ color: 'inherit' }}>
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {words.navTimelines}

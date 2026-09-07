@@ -8,7 +8,9 @@ import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { sideOf } from '@/lib/keeper/kinds';
 import { keeperRef } from '@/lib/keeper/side';
+import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canManageAccess } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -45,7 +47,8 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
    * the list is short, the filtering is a fuzzy match in the sheet, and a
    * second search road would be a second set of rules about who may see what.
    */
-  const pickableMaps = listMaps(user)
+  // §46: `bothSides` — a picker on a record's own page, not a list.
+  const pickableMaps = listMaps(user, { bothSides: true })
     .filter((other) => other.id !== map.id)
     .map((other) => ({ id: other.id, name: other.name }));
 
@@ -103,9 +106,14 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
       <div className="page-canvas">
         <LivePage place={mapKey(map.id)} watch={['entries']} pointers={false} />
         <header className="canvas-head">
-          {/* §44/§45: the Keeper's own landkaart says so, in a word and in
-              the colours of the whole page. */}
-          <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('map', map.id, user)?.keeperOnly)} />
+          {/* §44/§45/§46: which side this landkaart is on — the word, the
+              colours, and the browser's side, so a link followed across turns
+              the site over with you. */}
+          <KeeperStamp
+            side={sideOf(Boolean(user?.isKeeper && keeperRef('map', map.id, user)?.keeperOnly))}
+            browserSide={user?.isKeeper ? user.side : undefined}
+            flipTo={twinOf('map', map.id, user)?.href ?? '/maps'}
+          />
           <p className="eyebrow">
             <Link href="/maps" style={{ color: 'inherit' }}>
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {words.navMaps}

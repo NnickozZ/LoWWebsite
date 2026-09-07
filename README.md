@@ -499,11 +499,13 @@ lib/
                      axis and how wide it is, in both stroke formats)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
-  keeper/            §44: de Keeperkant — kinds.ts (pure: the five kinds and
-                     where each lives), side.ts (the one read, `keeperRef`,
-                     and the only place the two spellings of keeper-only are
-                     written), ties.ts (a twin and a touwtje), notes.ts (one
-                     text per pair, `notesTarget`)
+  keeper/            §44/§46: de Keeperkant — kinds.ts (pure: the five kinds,
+                     where each lives, and the two `Side`s), side.ts (the one
+                     read, `keeperRef`; the only place the two spellings of
+                     keeper-only are written; and `sideCondition`, the §46
+                     "only this side" fragment every *list* is AND-ed with),
+                     ties.ts (a twin and a touwtje), notes.ts (one text per
+                     pair, `notesTarget`)
   theme/             §45: schemes.ts — the four palettes, their nineteen
                      tokens, and the emitter both `globals.css` and the
                      signed-in layout are written from. Pure; the half that
@@ -552,7 +554,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Forty-five rules worth knowing before changing anything:
+Forty-six rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -1680,8 +1682,10 @@ Forty-five rules worth knowing before changing anything:
     `keeperRef()`, which asks that kind's own visibility rule and returns null
     for "gone, or not for you" — the caller may not tell those apart. A rope to
     something you may not open is simply not in the list you are given, so no
-    switch, no menu and no Keeperkant listing can be the thing that reveals a
-    page.
+    switch and no menu can be the thing that reveals a page. (Round 22 also
+    shipped a `/keeper` list page and a ninth item in the side menu for it.
+    §46 replaced both: the address is a redirect that sets the side, and the
+    menu item is gone in favour of one toggle in the corner of the screen.)
 
     **A twin's two faces share one set of notes.** Keeper notes left `entries`
     and `cases` for `keeper_notes`, keyed by `(kind, id)`, so all five kinds
@@ -1703,7 +1707,10 @@ Forty-five rules worth knowing before changing anything:
     they are absent, not hidden. A keeper-only page wears `KeeperStamp`, which
     renders `KeeperSideMark` — the marker §45's palette selectors look for, and
     a paint instruction only: nothing anywhere reads `data-side` to decide what
-    to show. A page you may not open answers **404**, never "u mag dit niet
+    to show. Since §46 the five record pages render `KeeperStamp` for *every*
+    viewer, because the mark now says `player` as well as `keeper`; the visible
+    stamp is still only the Keeper's word, and a player's copy is handed no
+    `browserSide`, so nothing about their browser moves. A page you may not open answers **404**, never "u mag dit niet
     zien", because the refusal itself would confirm the thing exists (§40); that
     now includes `/api/access`, which used to say 403. `app/(app)/not-found.tsx`
     exists so that 404 keeps the shell: `notFound()` fell through to Next's own
@@ -1716,9 +1723,12 @@ Forty-five rules worth knowing before changing anything:
     `isKeeper` off for the whole request when the cookie is set, so every read,
     room and API answers the way it would for the table and no surface can be
     forgotten the way a per-page flag would forget one. It also means they write
-    as nobody, which is right. `isRealKeeper` exists for exactly one thing: the
-    banner in the shell that offers the eyes back — Beheer and de Keeperkant
-    refuse to render while the preview is on, so the way out cannot live on
+    as nobody, which is right. `isRealKeeper` exists for the handful of things
+    that must survive the preview: the banner in the shell that offers the eyes
+    back, and since §46 the toggle in the corner and the cookie behind it
+    (`app/api/keeper/flip/route.ts` writes nothing while `asPlayer` is on).
+    Beheer refuses to render during the preview, and `/keeper` sets nothing and
+    drops the reader on the ordinary Start page, so the way out cannot live on
     either.
 
     And the rule the leak audit that came with this round wrote down, which is
@@ -1786,3 +1796,90 @@ Forty-five rules worth knowing before changing anything:
     `WebCanvas` reads the custom properties (`readPalette`) rather than keeping
     its own copies, so the dark face, the Keeper's side and the Keeper's own
     palette all reach the drawing.
+
+46. **De spiegel: a list filters by side; a lookup never does.** §46. The
+    Keeperkant is not a page in the archive — it is the archive, read from the
+    other side. On the Keeper's side every list (Start, Wiki, Dossiers,
+    Prikborden, Landkaarten, Tijdlijnen, het Web, Zoeken) shows **only** the
+    Keeper's own things; on the players' side only what the table may see. Two
+    clean worlds, not one world with the Keeper's things added on top.
+
+    That is one WHERE fragment, `sideCondition(kind, viewer)` in
+    `lib/keeper/side.ts`, in the same two spellings §44 knows (`visibility` for
+    an artikel, `keeper_only` for the other four). It is AND-ed **after** the
+    visibility rule, never instead of it: rule 1 still decides what may be seen,
+    and this only decides which half of that is on the screen. A viewer with no
+    side — a test, an API that patches one record, a room's gate — gets `1 = 1`,
+    and so does a player, whose visibility rule has already removed the Keeper's
+    half. `onSide()` is the same rule for rows already in memory.
+
+    It is applied in the list functions and nowhere else: `browseEntries`,
+    `listTagsWithCounts`, `countEntriesPerType`, `recentActivity`, `listCases`,
+    `countEntriesPerCase`, `listBoards`, `listMaps`, `listTimelines`,
+    `searchEntries`, and `buildWebGraph` for the whole web. Nothing that finds
+    **one** record asks — `getEntryBySlug`, `getCaseBySlug`, `getBoard`,
+    `getMapBySlug`, `getTimelineBySlug`, `keeperRef`, `tiesFor`, the live rooms'
+    gates, every API that patches one thing — because a Keeper walks across a
+    touwtje from either side and the page has to be there when they arrive.
+    `bothSides: true` is the opt-out for the reads that are lists in shape only:
+    a picker (`/api/boards`, `/api/cases`, `/api/maps`, `/api/timelines`,
+    `/api/keeper/search`, the pickers on `/b/[id]`, `/e/[slug]`, `/maps/[slug]`),
+    autocomplete (`suggestEntries` — Zoeken passes `sided`, the suggestions do
+    not), a record page's own sub-list (`listTimelinesForCase`, which is
+    `listTimelines(viewer, { where: caseId })` — a lookup in a list's clothes),
+    and a **focus** web, whose ties cross the two sides on purpose
+    (`bothSides: Boolean(focus)` in `app/api/web/route.ts`). Every call site
+    says so in a `§46` comment; a new one without a reason is a bug.
+
+    Two traps. `containerViewer` in `lib/web/service.ts` strips `isKeeper`, so
+    `sideCondition` answers `1 = 1` for it — read the side off the *real*
+    viewer. And that reading-as-a-player rule now has an exception: on the
+    Keeper's own side the real viewer is used, because since §44 `keeper_only`
+    lives inside those dials and a player's eyes would leave the Keeper's web
+    without a single dossier, prikbord, landkaart or tijdlijn. It is safe
+    because the side filter then narrows it to keeper-only records, which are
+    the Keeper's by definition — nobody else's private thinking arrives that
+    way.
+
+    **The page you are standing on decides the side.** The browser's side is a
+    cookie (`SIDE_COOKIE = 'zcf_side'`, read by `getSessionUser` into
+    `SessionUser.side`, honoured only for a real Keeper who is not looking as a
+    player); a record's page renders its own `data-side` — 'keeper' *or*
+    'player' — through `KeeperSideMark`. The page wins, in CSS and nowhere else:
+    `lib/theme/schemes.ts` emits
+    `:has([data-side='keeper']):not(:has([data-side='player']))`, so §45's
+    Keeper palette is used when something says keeper and **nothing** says
+    player. Following a link across therefore turns the whole site over with
+    you, and `SideSync` in `KeeperStamp` tells the cookie so afterwards — one
+    `POST /api/keeper/flip`, one `router.refresh()`, only when the page and the
+    browser actually disagree. No redirect, no flash, and no permission: the
+    attribute is paint, and the cookie grants nothing the toggle does not.
+
+    **One toggle, outside the menu, and the key `k`.** `SideToggle` is a small
+    round button fixed to the top-right of the viewport on a desk and on a
+    phone, rendered only for a real Keeper who is not previewing as a player —
+    absent from anyone else's HTML, not hidden by CSS. Its icon and its
+    `aria-label` say where it *goes* (shield → Naar de Keeperkant, person →
+    Naar de spelerskant). Pressing it reads the page's `data-flip-to` (the
+    twin, or the list of that kind on the other side) and goes there; a page
+    with no mark — a list, Start, Zoeken, het web — stays at its address and is
+    re-rendered from the other side. The cookie is written *before* the
+    navigation. The flip itself is the View Transitions API: a circle grows out
+    of the button's centre (`--flip-x` / `--flip-y` on `<html>`) over 550 ms
+    with the old side lying still underneath — a wipe, because one archive is
+    *over* the other, not dissolving into it — held open until the new page has
+    rendered, with a 1500 ms safety timeout. `prefers-reduced-motion: reduce`
+    gets none of it, and a browser without `startViewTransition` (Firefox) gets
+    a plain navigation. The shortcut `k` lives in `UiProvider` behind the same
+    guard as `n` and `/` and reaches the button as a window event, so a browser
+    with no button has nobody listening. On the Keeper's side the masthead wears
+    a `.masthead-side` stamp; that block lives in the desktop side menu, so on a
+    phone the button is the only sign.
+
+    **`/keeper` is an address, not a screen.** Round 22's list page is a
+    `redirect('/api/keeper/flip?side=keeper&to=/')`: it keeps its meaning — take
+    me to the Keeper's side — and stops being a place. For anybody who is not a
+    real Keeper the route sets nothing and they land on the ordinary Start page.
+    `tests/unit/keeper-mirror.test.ts` pins the one rule against a real SQLite
+    file, and `tests/e2e/keeper-side.spec.ts` ("de spiegel klapt om") presses
+    the button and the key.

@@ -6,6 +6,7 @@ import { viewerCanEdit } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
+import { sideCondition } from '@/lib/keeper/side';
 import { recomputeMapMentions } from '@/lib/entries/mentions';
 import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
@@ -152,11 +153,18 @@ export type MapListOptions = {
   sort?: 'order' | 'name' | 'recent' | 'created';
   /** Only maps with at least one pin set by this account. */
   mine?: string;
+  /**
+   * §46: read both sides of the archive, not the one the viewer stands on.
+   * For pickers and record pages only — see `sideCondition`.
+   */
+  bothSides?: boolean;
 };
 
 export function listMaps(viewer: Viewer, options: MapListOptions = {}): MapSummary[] {
   // §17: not deleted, and the owner's view dial allows this viewer.
   const conditions = [visibleMapCondition(viewer)];
+  // §46: one side at a time, AND-ed after the visibility rule.
+  if (!options.bothSides) conditions.push(sideCondition('map', viewer));
   if (options.mine) {
     conditions.push(
       sql`EXISTS (SELECT 1 FROM map_pins mp WHERE mp.map_id = ${schema.maps.id} AND mp.created_by = ${options.mine})`,

@@ -4,6 +4,7 @@ import type { Author } from '@/lib/auth/author';
 import { db, schema } from '@/lib/db';
 import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
+import { sideCondition } from '@/lib/keeper/side';
 import { recomputeBoardMentions } from '@/lib/entries/mentions';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -53,6 +54,11 @@ export type BoardListOptions = {
   where?: 'loose' | 'case' | string;
   mine?: string;
   privateOnly?: boolean;
+  /**
+   * §46: read both sides of the archive, not the one the viewer stands on.
+   * For pickers and record pages only — see `sideCondition`.
+   */
+  bothSides?: boolean;
 };
 
 /**
@@ -62,6 +68,8 @@ export type BoardListOptions = {
  */
 export function listBoards(viewer: Viewer, options: BoardListOptions = {}): BoardSummary[] {
   const conditions = [isNull(schema.boards.deletedAt), viewableCondition('board', viewer)];
+  // §46: one side at a time, AND-ed after the visibility rule.
+  if (!options.bothSides) conditions.push(sideCondition('board', viewer));
   if (options.where === 'loose') conditions.push(isNull(schema.boards.caseId));
   else if (options.where === 'case') conditions.push(sql`${schema.boards.caseId} IS NOT NULL`);
   else if (options.where) conditions.push(eq(schema.boards.caseId, options.where));

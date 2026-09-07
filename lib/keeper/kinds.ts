@@ -11,6 +11,21 @@ import type { Words } from '@/lib/words';
 
 export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline';
 
+/**
+ * §46: the two sides of the archive. Every list is read from one of them, and
+ * every record *is* on one of them — the Keeper's, or the table's.
+ */
+export type Side = 'keeper' | 'player';
+
+export function isSide(value: unknown): value is Side {
+  return value === 'keeper' || value === 'player';
+}
+
+/** Which side a record is on, from the one fact that decides it. */
+export function sideOf(keeperOnly: boolean): Side {
+  return keeperOnly ? 'keeper' : 'player';
+}
+
 export const KEEPER_KINDS: KeeperKind[] = ['entry', 'case', 'board', 'map', 'timeline'];
 
 export function isKeeperKind(value: unknown): value is KeeperKind {

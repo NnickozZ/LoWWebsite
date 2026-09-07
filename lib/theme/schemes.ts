@@ -316,17 +316,28 @@ function paletteVars(key: SchemeKey, palette: Palette): string {
 /**
  * The selectors each scheme is written under, in cascade order.
  *
- * `data-side="keeper"` is rendered by a keeper-only page (§44) and
- * `data-theme` by the signed-in layout, so both live *inside* <body> and both
- * are found from the root with `:has()`. Specificity does the choosing:
- * `:root:has(A):has(B)` beats `:root:has(A)` beats `:root`, so the four blocks
- * can be written in one order and read in another.
+ * Two attributes say which side a screen is on, and they are read together
+ * (§46). The signed-in layout writes `data-side="keeper"` on its wrapper when
+ * the *browser* stands on the Keeper's side; a record's page writes its own
+ * `data-side` — 'keeper' or 'player' — for the record it shows. The page wins:
+ * the Keeper's colours are used when something says keeper *and nothing says
+ * player*, so a player-facing artikel reached from the Keeper's side is painted
+ * as what it is, and a keeper-only one reached from the players' side likewise.
+ * That is what "the site turns over with you" means in CSS.
+ *
+ * Both live *inside* <body> and both are found from the root with `:has()`,
+ * because a Sheet is portalled onto <body> and only a variable named on the
+ * root reaches it. Specificity does the choosing — `:root:has(A):not(:has(B))`
+ * (0,3,0) beats `:root:has(A)` (0,2,0) beats `:root` (0,1,0) — so the four
+ * blocks can be written in one order and read in another.
  *
  * The media block is the "system says dark" half, and every rule in it is
  * fenced with `:not(:has([data-theme='light']))` — a person who chose Licht
  * means it, even at midnight.
  */
 const NOT_LIGHT = `:root:not(:has([data-theme='light']))`;
+/** Keeper-coloured: something says keeper, and nothing on the page says player. */
+const KEEPER = `:has([data-side='keeper']):not(:has([data-side='player']))`;
 
 export function schemeCss(schemes: Schemes): string {
   const light = paletteVars('playerLight', schemes.playerLight);
@@ -335,10 +346,10 @@ export function schemeCss(schemes: Schemes): string {
   const keeperDark = paletteVars('keeperDark', schemes.keeperDark);
   return [
     `:root {\n${light}\n}`,
-    `:root:has([data-side='keeper']) {\n${keeperLight}\n}`,
+    `:root${KEEPER} {\n${keeperLight}\n}`,
     `:root:has([data-theme='dark']) {\n${dark}\n}`,
-    `:root:has([data-theme='dark']):has([data-side='keeper']) {\n${keeperDark}\n}`,
-    `@media (prefers-color-scheme: dark) {\n${NOT_LIGHT} {\n${dark}\n}\n${NOT_LIGHT}:has([data-side='keeper']) {\n${keeperDark}\n}\n}`,
+    `:root:has([data-theme='dark'])${KEEPER} {\n${keeperDark}\n}`,
+    `@media (prefers-color-scheme: dark) {\n${NOT_LIGHT} {\n${dark}\n}\n${NOT_LIGHT}${KEEPER} {\n${keeperDark}\n}\n}`,
   ].join('\n\n');
 }
 

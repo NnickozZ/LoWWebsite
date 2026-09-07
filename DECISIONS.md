@@ -2981,3 +2981,169 @@ fails the same way on untouched `main` (verified in a worktree at `1d67f5c`).
 It tests the per-placement crop round 19 removed and nobody retired the spec
 with the feature; it is named in CLAUDE.md §8 so the next round does not
 diagnose it again.
+
+---
+
+## Round 23 — 7 September 2026: de spiegel (§46)
+
+Nick, after a day with round 22's Keeperkant: *"De Keeperkant moet een hele
+site zijn, niet alleen een wiki. Een echte mirror van de website. En de knop
+mag niet in de sidebar zitten maar ergens een toggle."* Four decisions came
+with it, and they are the whole round: (1) on the Keeper's side every list
+shows only the Keeper's own things, on the players' side only what the table
+sees — two clean worlds; (2) the page you stand on decides the side, so
+following a link across turns the site over with you; (3) one fixed toggle
+top-right, outside the menu; (4) the side is remembered per browser, in a
+cookie, the way "kijk als speler" is. The flip should be "satisfying en cool,
+don't overdo".
+
+**Two clean worlds, not "everything plus".** The obvious reading of "a mirror"
+is that the Keeper's side is the players' side with the Keeper's things added
+on top — everything, plus the secrets. That was rejected. A Keeper preparing a
+session is not looking for one extra artikel among forty-nine; they are looking
+at *their* wiki, and forty-nine player-facing pages in the way is the same
+problem round 22's list page had, only bigger. So the Keeper's side is
+keeper-only and nothing else, and the players' side is what a player would see
+— which also makes the players' side testable as itself: what is on it is
+exactly what the table gets.
+
+**The one rule: a list filters by side; a lookup never does.**
+`sideCondition(kind, viewer)` in `lib/keeper/side.ts` is one WHERE fragment in
+§44's two spellings, AND-ed **after** the visibility rule and never instead of
+it — a player's side is still gated by §9 and §17, and a viewer with no side at
+all (a test, an API patching one record, a room's gate) gets `1 = 1`. It is
+applied in eleven list functions (`browseEntries`, `listTagsWithCounts`,
+`countEntriesPerType`, `recentActivity`, `listCases`, `countEntriesPerCase`,
+`listBoards`, `listMaps`, `listTimelines`, `searchEntries`, and `buildWebGraph`
+for the whole web) and in nothing that finds a single record. That asymmetry is
+deliberate and it is the reason the round is safe: a Keeper walks across a
+touwtje from either side, and the page has to be there when they arrive.
+`getEntryBySlug`, `getCaseBySlug`, `getBoard`, `getMapBySlug`,
+`getTimelineBySlug`, `keeperRef`, `tiesFor`, the live rooms' gates and every
+API that patches one thing are all side-blind — including the Keeper notes
+room, which is a role gate on a pair and has nothing to do with which side the
+reader is standing on.
+
+**`bothSides` is the named exception, and every use of it says why.** Pickers
+("In het dossier", "Op het prikbord", the tie picker, `/api/keeper/search`),
+autocomplete, and a record page's own sub-lists are lists in shape only: they
+are reached from a record, and a Keeper filling in a landkaart on their own
+side must still be able to point at a player-facing artikel. `suggestEntries`
+and `searchEntries` share `visibleEntries`, and a single `sided` flag is all
+that separates Zoeken (a list, filtered) from the suggestions (a picker, not).
+`listTimelinesForCase` is `listTimelines(viewer, { where: caseId })` — a lookup
+in a list's clothes — and is opted out for that reason. A **focus** web is
+unfiltered too (`bothSides: Boolean(focus)`), because a focus web is about one
+record and its ties cross the two sides on purpose; the whole web is a list and
+is not.
+
+**The page wins over the cookie.** The browser's side is a cookie
+(`zcf_side`), honoured only for a real Keeper who is not previewing as a
+player. A record's page renders its own side through `KeeperSideMark` — and
+since this round it says `player` as well as `keeper`. `lib/theme/schemes.ts`
+reads the two together:
+`:has([data-side='keeper']):not(:has([data-side='player']))`, Keeper-coloured
+when something says keeper and nothing says player. That single selector change
+is the whole of "the site turns over with you" — a player-facing artikel opened
+from the Keeper's side is painted as what it is, without a redirect and without
+the server having to know where the reader came from. The cookie catches up
+afterwards: `SideSync` in `KeeperStamp` posts the page's side and calls
+`router.refresh()`, only when the two actually differ, so the *next* list is
+the side the reader ended up on. The alternative — bouncing the reader to the
+twin, or refusing the page — would have made a touwtje across the two sides
+useless, which is exactly what §44 built it for.
+
+**The `containerViewer` exception, and why it is safe.** CLAUDE.md §5 says the
+Keeper's web reads containers *as a player*: dossiers, prikborden, landkaarten
+and tijdlijnen come back through the owner's dials without the Keeper's
+skeleton key, so the web is about the archive and not about who is thinking
+what. That rule now has one exception. Since §44 the `keeper_only` flag lives
+*inside* those dials, so reading as a player on the Keeper's own side would
+leave the Keeper's web without a single container. On that side the real viewer
+is used, and the side filter then narrows the result to keeper-only records —
+which are the Keeper's by definition, so nobody else's private thinking can
+arrive by this road. The trap for the next round is in the same lines:
+`containerViewer` strips `isKeeper`, which makes `sideCondition` answer `1 = 1`
+for it, so the side has to be read off the *real* viewer.
+
+**A wipe, not a cross-fade.** The flip is the View Transitions API: a circle
+grows out of the button's own centre over 550 ms while the old side lies still
+underneath it, and the button turns half a circle with a small overshoot.
+Cross-fading was tried in the head and rejected on the same grounds the whole
+round rests on: the two sides are two archives, and one is *over* the other —
+dissolving says they are the same thing at different opacities. Nothing else
+moves, there is no sound and nothing page-wide, which is the "don't overdo".
+The transition is held open until the new page has actually rendered (Next's
+`useTransition` is the only honest signal) with a 1500 ms safety timeout, so a
+slow list does not flash the old side back before the new one arrives.
+`prefers-reduced-motion: reduce` gets no animation at all, in the component and
+again in the stylesheet.
+
+**Round 22's list page became an address.** `/keeper` is now
+`redirect('/api/keeper/flip?side=keeper&to=/')`. It keeps its meaning — take me
+to the Keeper's side — and stops being a screen, and it grants nothing the
+toggle does not, because the flip route is the only place the cookie is
+written. For a player, or a Keeper looking as a player, it sets nothing and
+drops them on the ordinary Start page, which is what they would have seen
+anyway. The ninth item round 22 put in the side menu is gone with it: the two
+sides are not a place you visit but the face the whole archive wears, so the
+control is one small round button fixed to the corner of the viewport, present
+on a desk and on a phone, rendered only for a real Keeper — absent from anyone
+else's HTML, not hidden by CSS. The keyboard shortcut is `k`, guarded in
+`UiProvider` beside `n` and `/`.
+
+That also retires round 22's leftover about `page:/keeper` not being in
+`PAGE_PLACES`: there is no page to give presence to any more.
+
+**One existing spec changed, and it is the rule working.**
+`tests/e2e/phase3-keeper-tools.spec.ts` — "a Keeper-only entry leaks nowhere" —
+ended by asserting that the Keeper still sees the hidden artikel in
+`/wiki/location`. It now flips to the Keeper's side before looking, because the
+players' side of the wiki is now exactly what the players see. That is not a
+regression; it is the thing the round was asked for, and the assertion is
+stronger than it was.
+
+**Deliberately left.** The wiki's "Geheimhouding" filter (Voor iedereen ·
+Onthuld aan gekozen · Alleen de Keeper) still exists and now overlaps the side:
+on the players' side "Alleen de Keeper" returns nothing, and on the Keeper's
+side everything is already keeper. It was left alone rather than removed —
+`browseFilters.ts` is a Keeper-only group and doing nothing is not the same as
+being wrong, but it is a wrinkle a Keeper may notice, and it is named in
+CLAUDE.md §8. A phone gets no masthead stamp: the name block lives in the
+desktop side menu, so there the button (and the colours) is the only sign of
+which side you are on. Firefox has no `startViewTransition`, so it gets a plain
+navigation — the flip is an ornament on a thing that works without it, and the
+alternative was carrying an animation library for one browser.
+
+**Chosen against.** "Everything plus the Keeper's things" as the Keeper's side.
+A second set of `/keeper/...` routes mirroring every list (two of every page to
+keep in step, for a difference that is one WHERE clause). Putting the side on
+the account instead of the browser, which would have made the laptop at the
+desk and the phone in the tent disagree with each other for ever. Filtering
+lookups by side and redirecting a Keeper to the twin, which breaks a touwtje
+across the sides. And a cross-fade.
+
+**Where round 23 finishes.** 782 unit tests in 53 files (round 22: 772 in 52) —
+the new file is `tests/unit/keeper-mirror.test.ts` with 10 cases, pinned
+against a real SQLite file because all of it is SQL, and
+`tests/unit/schemes.test.ts` updated for the new selector. One new browser
+spec case, "de spiegel klapt om" in `tests/e2e/keeper-side.spec.ts`.
+`tsc --noEmit` silent, `npm run build` clean. Verified by hand against a
+production build: `/wiki` on the players' side listed 49 artikelen in the
+players' palette; one press of the toggle gave 6 keeper-only artikelen, the
+Keeper's palette and the masthead stamp; opening a player-facing artikel from
+the Keeper's side painted it in the players' colours and the toggle read
+`player`, and `/wiki` afterwards was the players' 49 again.
+
+The full browser suite, desktop and phone: the first run came back **190
+passed, 10 failed**, and nine of the ten were one bug — Beheer carried a
+`browserSide` and so moved the browser to the Keeper's side on every visit,
+which is exactly the walk the bin's specs make (into Beheer from the players'
+side, put the prikbord back, out again to `/boards`, where it was now on the
+other side). Beheer is painted as the Keeper's but is not a *side*; it no longer
+touches the cookie, and the nine specs (`round-7`, `timelines`,
+`phase4-pages-and-words`, on both projects) pass again on a targeted re-run of
+54 cases. The tenth is `per-place-crops.spec.ts:13`, red on untouched `main`
+since round 19. One more, `characters.spec.ts:298`, timed out in both full runs
+and passes alone and in file order — the same "not yet listening" race that
+took `:244` in round 22, not this round's.

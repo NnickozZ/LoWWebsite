@@ -15,6 +15,7 @@ import { useAuthorOptional } from '@/components/you/AuthorProvider';
 import { openSheetCount } from '@/lib/sheetStack';
 import { PLAYER_UPLOAD_BYTES } from '@/lib/upload';
 import { DEFAULT_WORDS, type Words } from '@/lib/words';
+import { FLIP_EVENT } from '@/components/keeper/SideToggle';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
 import { NewCaseSheet, type NewCasePrefill, type CreatedCase } from './NewCaseSheet';
 import { Sheet } from './Sheet';
@@ -201,7 +202,8 @@ export function UiProvider({
   const openNewEntryRef = useRef(openNewEntry);
   openNewEntryRef.current = openNewEntry;
 
-  // §6: `n` opens a new entry, `/` goes to search.
+  // §6: `n` opens a new entry, `/` goes to search, and §46's `k` turns the
+  // archive over — one guard for all three.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -220,6 +222,17 @@ export function UiProvider({
         event.preventDefault();
         // §18b: the shortcut goes the same way the button does.
         openNewEntryRef.current();
+      } else if (event.key === 'k') {
+        /*
+         * §46: `k` turns the archive over. The work is the toggle's — it is
+         * the thing that knows where this page's other side is — but the guard
+         * above (a field, a sheet, a modifier held down) is written once and
+         * this is where it lives, so the shortcut is a plain event and the
+         * button listens for it. A browser with no toggle on screen (anybody
+         * but a real Keeper) has nobody listening, and the key does nothing.
+         */
+        event.preventDefault();
+        window.dispatchEvent(new Event(FLIP_EVENT));
       } else if (event.key === '/') {
         event.preventDefault();
         router.push('/search');

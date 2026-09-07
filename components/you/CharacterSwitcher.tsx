@@ -36,6 +36,12 @@ export type Me = {
    */
   isRealKeeper?: boolean;
   asPlayer?: boolean;
+  /**
+   * §46: which side of the archive this browser is standing on. Read by the
+   * shell — the toggle in the corner and the stamp under the masthead — and by
+   * nothing else: it is a face, never a right.
+   */
+  side?: 'keeper' | 'player';
 };
 
 type State = { characters: CharacterLite[]; activeId: string | null };

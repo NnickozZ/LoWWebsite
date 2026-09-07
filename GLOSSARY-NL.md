@@ -53,7 +53,8 @@ change.
 | overview | overzicht | |
 | border (card border) | rand | |
 | section (on an entry) | sectie | §9's revealable blocks |
-| the Keeper's side of the archive | Keeperkant | *de* Keeperkant (§44); `keeperSide` in `lib/words.ts` |
+| the Keeper's side of the archive | Keeperkant | *de* Keeperkant (§44); `keeperSide` in `lib/words.ts`. Sinds §46 geen lijstpagina meer maar een **kant** van het hele archief: elke lijst laat één kant zien |
+| turning the archive over | omklappen (de spiegel) | de knop rechtsboven en de sneltoets `k` (§46); `toKeeperSide` / `toPlayerSide` in `lib/words.ts` |
 | twin (a page's Keeper face) | Keeperversie / Spelersversie | the two faces of one thing, one button apart (§44); `keeperVersion` / `playerVersion` |
 | tie (between a Keeper page and a player-facing one) | touwtje | *het* touwtje; any number, both directions. Not renameable |
 | view as a player | kijk als speler | the Keeper's preview through a player's eyes (§44); `asPlayer` |
@@ -704,9 +705,8 @@ component te staan. *Touwtje* is geen woord van de Keeper: dat staat vast.
 
 | Op het scherm | Waar | Betekenis |
 |---|---|---|
-| **{Keeperkant}** | het hoofdmenu (alleen voor een {Keeper}), de titel van die pagina, én de kop van het blok onderaan elk {artikel}, {dossier}, {prikbord}, {landkaart} en {tijdlijn} | De kant van het archief die alleen de Keeper ziet. Eén woord voor alle drie, want het is één ding. |
-| **Alles wat alleen jij ziet.** | onder de titel van de Keeperkant | |
-| **Nog niets aan deze kant. Open een {artikel}, {dossier}, {prikbord}, {landkaart} of {tijdlijn} en druk op ‘{Keeperversie} maken’.** | de lege Keeperkant | |
+| **{Keeperkant}** | de kop van het blok onderaan elk {artikel}, {dossier}, {prikbord}, {landkaart} en {tijdlijn}, en het stempeltje onder de naam van het archief | De kant van het archief die alleen de Keeper ziet. Eén woord voor alle plekken, want het is één ding. *Ronde 23 (§46) haalde de lijstpagina en het menu-item weg: de Keeperkant is nu het hele archief, van de andere kant gelezen.* |
+| ~~**Alles wat alleen jij ziet.**~~ · ~~**Nog niets aan deze kant. Open een {artikel}, {dossier}, {prikbord}, {landkaart} of {tijdlijn} en druk op ‘{Keeperversie} maken’.**~~ | stonden op de lijstpagina `/keeper` | Weg sinds §46: dat adres zet nu alleen de kant en zet je op Start neer. |
 | **Deze pagina is van de {Keeper}** | het vinkje in het Keeperkant-blok | Zet dit aan en de pagina bestaat niet meer voor de rest van het archief. |
 | **Alleen de {Keeper} ziet deze pagina — in lijsten, in het web, en op het adres zelf.** · **Zet dit aan en de pagina verdwijnt voor iedereen behalve de {Keeper}.** | eronder, aan en uit | *En op het adres zelf* is letterlijk: wie het adres intikt krijgt een 404. |
 | **De andere kant blijft staan waar hij stond.** | achter die regel, als deze pagina een {Keeperversie} heeft | |
@@ -727,7 +727,7 @@ component te staan. *Touwtje* is geen woord van de Keeper: dat staat vast.
 | Op het scherm | Waar | Betekenis |
 |---|---|---|
 | **{Kijk als speler}** | in de zijbalk, onder wie je bent en waarmee je schrijft (alleen op een groot scherm, en alleen voor een echte {Keeper}) | Zolang dit aanstaat is de Keeper voor het hele archief een speler: geen Keeperkant, geen Beheer, en schrijven gaat niet. |
-| **Je kijkt als {speler}.** *Je ziet nu precies wat de {spelers} zien — niets van de {Keeperkant}, en schrijven gaat niet.* **Stop met kijken als {speler}.** | de balk bovenaan élke pagina zolang het aanstaat | De balk staat in de schil en niet op een pagina, want Beheer en de Keeperkant gaan zelf niet open zolang je kijkt. Dit is dus de enige weg terug. |
+| **Je kijkt als {speler}.** *Je ziet nu precies wat de {spelers} zien — niets van de {Keeperkant}, en schrijven gaat niet.* **Stop met kijken als {speler}.** | de balk bovenaan élke pagina zolang het aanstaat | De balk staat in de schil en niet op een pagina, want Beheer gaat zelf niet open zolang je kijkt, en de knop naar de Keeperkant is er dan niet (§46: `/keeper` zet niets en zet je op Start neer). Dit is dus de enige weg terug. |
 
 ### Een pagina die er niet is (§44, §40)
 
@@ -759,3 +759,28 @@ component te staan. *Touwtje* is geen woord van de Keeper: dat staat vast.
 | **Donker** — *Altijd donker papier — prettig aan tafel bij weinig licht.* | het derde | |
 | **De kleuren van de {Keeper} verschijnen vanzelf op de pagina’s die alleen van de {Keeper} zijn — daar hoef je niets voor te kiezen, licht of donker blijft jouw keuze.** | onder de chipjes, voor een {Keeper} | Er is met opzet geen vierde chipje: niemand *kiest* de Keeperkleuren, de pagina brengt ze mee. |
 | **De {Keeper} kiest de kleuren van het archief zelf; jij kiest alleen of je ze licht of donker leest.** | dezelfde plek, voor een {speler} | |
+
+## Ronde 23 — de spiegel (§46)
+
+Twee woorden erbij, allebei van de Keeper hernoembaar (`toKeeperSide` en
+`toPlayerSide` in `lib/words.ts`). Ze staan op **één** knop, en wat erop staat
+is waar hij *heen* gaat — niet waar je nu bent.
+
+### Omklappen: de knop en de sneltoets (§46)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **{Naar de Keeperkant}** | de ronde knop rechtsboven in beeld, met een schildje — op elk scherm dezelfde hoek, buiten het menu om. Alleen een echte {Keeper} ziet hem | Klapt het hele archief om: elke lijst — Start, Wiki, {Dossiers}, {Prikborden}, {Landkaarten}, {Tijdlijnen}, het web, Zoeken — laat daarna alleen nog de dingen van de {Keeper} zien. |
+| **{Naar de spelerskant}** | dezelfde knop, nu met een poppetje | De weg terug: elke lijst laat weer precies zien wat de {spelers} zien. |
+| **{Keeperkant}** | het stempeltje onder de naam van het archief, zolang je aan die kant staat | Alleen op een groot scherm: het naambordje staat in de zijbalk, en die heeft een telefoon niet. Op een telefoon zijn de knop en de kleuren het teken. |
+| *(geen tekst)* | de toets **k** | Dezelfde knop, vanaf het toetsenbord — naast `n` (nieuw {artikel}) en `/` (zoeken). Doet niets terwijl je in een veld typt of er een blad openstaat. |
+
+Twee dingen die geen woord op het scherm hebben en toch afgesproken zijn:
+
+- **De pagina waar je op staat bepaalt de kant.** Open je vanaf de Keeperkant
+  een pagina die de {spelers} ook zien, dan staat die pagina er in de
+  spelerskleuren en klapt de rest van het archief mee terug. Andersom net zo.
+  Een touwtje mag dus dwars door de spiegel heen.
+- **De kant wordt per browser onthouden**, net als *{Kijk als speler}* — de
+  laptop op de tafel kan aan de Keeperkant staan terwijl de telefoon in de tent
+  aan de spelerskant staat.

@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { viewableCondition } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
+import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
 import type { AccessMode } from '@/lib/db/schema';
 import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
@@ -163,12 +164,19 @@ export type CaseListOptions = {
   memberOf?: string;
   /** §14: only cases whose §17 view dial is not "everyone". */
   restricted?: boolean;
+  /**
+   * §46: read both sides of the archive, not the one the viewer stands on.
+   * For pickers and record pages only — see `sideCondition`.
+   */
+  bothSides?: boolean;
 };
 
 const STATUS_RANK = sql`CASE ${schema.cases.status} WHEN 'open' THEN 0 WHEN 'cold' THEN 1 ELSE 2 END`;
 
 export function listCases(viewer: Viewer, options: CaseListOptions = {}): CaseSummary[] {
   const conditions = [visibleCaseCondition(viewer)];
+  // §46: one side at a time, AND-ed after the visibility rule.
+  if (!options.bothSides) conditions.push(sideCondition('case', viewer));
   const statuses = Array.isArray(options.status) ? options.status : options.status ? [options.status] : [];
   if (statuses.length === 1) conditions.push(eq(schema.cases.status, statuses[0]));
   else if (statuses.length > 1) conditions.push(inArray(schema.cases.status, statuses));
@@ -673,7 +681,14 @@ export function countEntriesPerCase(caseIds: string[], viewer: Viewer): Map<stri
     .select({ caseId: schema.caseEntries.caseId, n: sql<number>`count(*)` })
     .from(schema.caseEntries)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.caseEntries.entryId))
-    .where(and(inArray(schema.caseEntries.caseId, caseIds), visibleEntryCondition(viewer)))
+    // §46: the number on a dossier card counts the side the reader stands on.
+    .where(
+      and(
+        inArray(schema.caseEntries.caseId, caseIds),
+        visibleEntryCondition(viewer),
+        sideCondition('entry', viewer),
+      ),
+    )
     .groupBy(schema.caseEntries.caseId)
     .all();
 

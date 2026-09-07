@@ -1,11 +1,11 @@
-import { and, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { viewableCondition } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { logAudit } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
-import { kindHref, type KeeperKind, type KeeperRef } from './kinds';
+import { kindHref, type KeeperKind, type KeeperRef, type Side } from './kinds';
 
 /**
  * §44: which things are the Keeper's own, and how anything is read at all.
@@ -35,6 +35,50 @@ const KIND_CONDITION: Record<KeeperKind, (viewer: Viewer) => SQL> = {
   timeline: (viewer) =>
     and(isNull(schema.timelines.deletedAt), viewableCondition('timeline', viewer)) as SQL,
 };
+
+/**
+ * §46: "only this side", as a WHERE fragment, for a *list*.
+ *
+ * The archive is read from one side at a time: on the Keeper's side every
+ * list shows only the Keeper's own things, on the players' side only what the
+ * table can see. This is that filter, in the same two spellings `isKeeperSide`
+ * knows — `visibility` for an artikel, `keeper_only` for the rest. It is
+ * AND-ed *after* the visibility rule, never instead of it: a player's side is
+ * still gated by §9 and §17, this only keeps the Keeper's side out of the
+ * Keeper's own player-side lists.
+ *
+ * A viewer with no side (a test, an API that patches a record, a room's gate)
+ * gets `1 = 1`: both sides. So does a player, whatever their cookie says —
+ * `getSessionUser` has already made their side 'player', and a player-side
+ * filter on a player changes nothing, because the visibility rule already
+ * removed the Keeper's side for them.
+ *
+ * Lists only. A record's own page never applies this: a Keeper walks across
+ * from either side and the page decides where they are (`KeeperSideMark`).
+ */
+export function sideCondition(kind: KeeperKind, viewer: Viewer): SQL {
+  const side: Side | undefined = viewer?.side;
+  if (!side || !viewer?.isKeeper) return sql`1 = 1`;
+  const keeper = side === 'keeper';
+  switch (kind) {
+    case 'entry':
+      return keeper ? sql`${schema.entries.visibility} = 'keeper'` : sql`${schema.entries.visibility} <> 'keeper'`;
+    case 'case':
+      return sql`${schema.cases.keeperOnly} = ${keeper ? 1 : 0}`;
+    case 'board':
+      return sql`${schema.boards.keeperOnly} = ${keeper ? 1 : 0}`;
+    case 'map':
+      return sql`${schema.maps.keeperOnly} = ${keeper ? 1 : 0}`;
+    case 'timeline':
+      return sql`${schema.timelines.keeperOnly} = ${keeper ? 1 : 0}`;
+  }
+}
+
+/** The same rule as a plain predicate, for rows already in memory. */
+export function onSide(keeperOnly: boolean, viewer: Viewer): boolean {
+  if (!viewer?.side || !viewer.isKeeper) return true;
+  return keeperOnly === (viewer.side === 'keeper');
+}
 
 /** The one read. Null means "not there, or not for you" — the caller may not tell them apart. */
 export function keeperRef(kind: KeeperKind, id: string, viewer: Viewer): KeeperRef | null {

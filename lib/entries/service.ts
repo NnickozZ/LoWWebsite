@@ -6,6 +6,7 @@ import type { AccessMode, FieldDef, Visibility } from '@/lib/db/schema';
 import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 import { resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
+import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
 import { checkFieldPatch, cleanFieldPatch, listBlockKeys } from './fieldValues';
@@ -424,12 +425,21 @@ export type BrowseOptions = {
   restricted?: boolean;
   /** §14: only fiches that are pinned on a map. */
   onMap?: boolean;
+  /**
+   * §46: read this list from *both* sides of the archive instead of the one
+   * the viewer is standing on. For a picker, an autocomplete or a record
+   * page's own sub-list — never for a browsable list. See `sideCondition`.
+   */
+  bothSides?: boolean;
   limit?: number;
   offset?: number;
 };
 
 export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): EntrySummary[] {
   const conditions = [visibleEntryCondition(viewer)];
+  // §46: a list is read from one side of the archive. AND-ed *after* the
+  // visibility rule, never instead of it.
+  if (!options.bothSides) conditions.push(sideCondition('entry', viewer));
   if (options.typeSlug) conditions.push(eq(schema.entryTypes.slug, options.typeSlug));
   if (options.tag) {
     conditions.push(sql`EXISTS (SELECT 1 FROM json_each(${schema.entries.tags}) WHERE value = ${options.tag})`);
@@ -522,6 +532,8 @@ export function listTagsWithCounts(
     .where(
       and(
         visibleEntryCondition(viewer),
+        // §46: the wiki's tag chips count the side you are standing on.
+        sideCondition('entry', viewer),
         ...(typeSlug ? [eq(schema.entryTypes.slug, typeSlug)] : []),
       ),
     )
@@ -546,7 +558,8 @@ export function countEntriesPerType(viewer: Viewer): Map<string, number> {
   const rows = db
     .select({ typeId: schema.entries.typeId, n: sql<number>`count(*)` })
     .from(schema.entries)
-    .where(visibleEntryCondition(viewer))
+    // §46: and by the side, so the badge agrees with the list under it.
+    .where(and(visibleEntryCondition(viewer), sideCondition('entry', viewer)))
     .groupBy(schema.entries.typeId)
     .all();
   return new Map(rows.map((row) => [row.typeId, Number(row.n)]));
@@ -1026,7 +1039,9 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
     .innerJoin(schema.entries, eq(schema.entries.id, schema.activity.entryId))
     .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
     .leftJoin(schema.users, eq(schema.users.id, schema.activity.actorId))
-    .where(visibleEntryCondition(viewer))
+    // §46: the feed is a list too — a row about an artikel on the other side
+    // of the archive is not shown, because the artikel itself is not.
+    .where(and(visibleEntryCondition(viewer), sideCondition('entry', viewer)))
     .orderBy(desc(schema.activity.createdAt))
     .limit(limit * 3)
     .all();

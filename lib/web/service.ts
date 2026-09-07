@@ -8,6 +8,7 @@ import { caseIdsIn } from '@/lib/entries/caseFields';
 import { extractEntryLinks } from '@/lib/entries/doc';
 import { entryIdsIn, plainMentions, revealedSectionIds } from '@/lib/entries/mentions';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
+import { sideCondition } from '@/lib/keeper/side';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
@@ -61,6 +62,15 @@ export type BuildWebOptions = {
    * are always in. Ignored for a player, whose web never had them.
    */
   othersPrivate?: boolean;
+  /**
+   * §46: build the graph out of *both* sides of the archive.
+   *
+   * The whole web is a list like any other and is read from the side the
+   * viewer is standing on. A **focus** web is not: it is about one record and
+   * its ties deliberately cross the two sides, so `app/api/web/route.ts` sets
+   * this whenever `?focus=` is given.
+   */
+  bothSides?: boolean;
 };
 
 type NodeMap = Map<WebNodeId, WebNode>;
@@ -76,11 +86,28 @@ function summaryOf(text: string | null | undefined): string | undefined {
 
 export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): WebGraph {
   const showNotes = Boolean(options.notes);
-  // The containers — dossiers, prikborden, landkaarten, tijdlijnen — are read
-  // *as a player* for a Keeper who has not asked for other people's private
-  // things: the same dials, minus the Keeper's skeleton key. Artikelen and
-  // sections keep the real viewer, so the Keeper's own hidden pages stay.
-  const containerViewer: Viewer = viewer?.isKeeper && !options.othersPrivate ? { ...viewer, isKeeper: false } : viewer;
+  /*
+   * §46: which side this web is read from. A focus web crosses the two on
+   * purpose, so it is built from a viewer with no side at all — `sideCondition`
+   * then answers `1 = 1` for every kind and nothing below has to know.
+   */
+  const sided: Viewer = options.bothSides && viewer ? { ...viewer, side: undefined } : viewer;
+  const keeperSide = Boolean(sided?.isKeeper && sided.side === 'keeper');
+  /*
+   * The containers — dossiers, prikborden, landkaarten, tijdlijnen — are read
+   * *as a player* for a Keeper who has not asked for other people's private
+   * things: the same dials, minus the Keeper's skeleton key. Artikelen and
+   * sections keep the real viewer, so the Keeper's own hidden pages stay.
+   *
+   * §46: except on the Keeper's own side, where the skeleton key is the whole
+   * point. Since §44 the `keeper_only` flag lives *inside* those dials, so
+   * reading as a player would leave the Keeper's side of the web without a
+   * single dossier, prikbord, landkaart or tijdlijn. The side filter below
+   * narrows it back to keeper-only records, which are the Keeper's by
+   * definition — nobody else's private thinking can arrive this way.
+   */
+  const containerViewer: Viewer =
+    sided?.isKeeper && !options.othersPrivate && !keeperSide ? { ...sided, isKeeper: false } : sided;
   const nodes: NodeMap = new Map();
   const edges = new Map<string, WebEdge>();
 
@@ -130,7 +157,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     })
     .from(schema.entries)
     .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
-    .where(visibleEntryCondition(viewer))
+    .where(and(visibleEntryCondition(viewer), sideCondition('entry', sided)))
     .all();
   for (const row of entryRows) {
     put({
@@ -160,7 +187,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       summary: schema.cases.summary,
     })
     .from(schema.cases)
-    .where(visibleCaseCondition(containerViewer))
+    .where(and(visibleCaseCondition(containerViewer), sideCondition('case', sided)))
     .all();
   const caseNames = new Map<string, string>();
   for (const row of caseRows) {
@@ -178,6 +205,8 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
 
   // Round 18: a wall its manager keeps out of the web is not in it — not as
   // a knot, not as a line, not as the prikbord a draad hangs on.
+  // §46: `containerViewer` already carries the side, so `listBoards` and
+  // `listTimelines` below apply it themselves — nothing extra to AND in here.
   const boardSummaries = listBoards(containerViewer).filter((board) => board.inWeb);
   const boardStates = new Map<string, BoardState>();
   if (boardSummaries.length) {
@@ -207,7 +236,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       description: schema.maps.description,
     })
     .from(schema.maps)
-    .where(visibleMapCondition(containerViewer))
+    .where(and(visibleMapCondition(containerViewer), sideCondition('map', sided)))
     .all();
   const entryNames = new Map(entryRows.map((row) => [row.id, row.name] as const));
   for (const row of mapRows) {
