@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 44 files, 627 tests as of round 13 (round 12: 41 / 555)
+npx vitest run         # 48 files, 681 tests as of round 15 (round 13: 44 / 627)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -139,8 +139,8 @@ freely there.
 
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
-  markers to match. Check `grep -rn "§3[0-9]" app components lib` before
-  choosing a number.
+  markers to match. Check `grep -rn "§4[0-9]" app components lib` before
+  choosing a number — the latest is §43 / rule 43 (het web, round 15).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
@@ -201,6 +201,17 @@ freely there.
   now, not the whole file.
 - **`lib/assets.ts` loads sharp and the database**, so nothing client-side may
   import it. Pure, client-safe helpers belong in `lib/upload.ts`.
+- **The web (§43) is one `<canvas>` and a bag of mutable state**
+  (`components/web/WebCanvas.tsx`): a React re-render never restarts its frame
+  loop, and every prop is read through `propsRef` on the next frame. The
+  drawing exposes that bag as `window.__web` for the e2e specs (which run
+  against a production build) — `nodePoint()` in `tests/e2e/web.spec.ts` is
+  how a spec finds a knot on the screen; do not read pixel positions any
+  other way. `lib/web/slice.ts`, `layout.ts` and `force.ts` are pure and unit
+  tested; put geometry there, not in the component. A new kind of tie is a
+  `WebEdgeKind` in `types.ts`, a row in `kinds.ts`, a `--web-<kind>` in
+  `globals.css`, and an edge in `service.ts` — all four, or the legend and the
+  canvas disagree about its colour.
 
 ---
 

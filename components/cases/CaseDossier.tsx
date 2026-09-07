@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
 import { capitalise } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
@@ -661,6 +662,9 @@ export function CaseDossier({
             ))}
 
           <span style={{ width: 8 }} />
+
+          {/* §43: the web, with this dossier in the middle. */}
+          <ConnectionsLink kind="case" id={data.id} as="chip" />
 
           {/*
             §30: which soorten this dossier has shelves for. Behind `locked`

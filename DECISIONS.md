@@ -2299,3 +2299,146 @@ visibility module (`lib/maps/visibility.ts`), four new unit files
 Nothing on the wire an older client cannot read: a card with no `scale` is a
 card at 1, a speld with a null `target_map_id` is the speld it always was, and a
 landkaart with `view_mode = 'all'` is the landkaart everybody could already see.
+
+## Round 15 — 6 September 2026: het web (§43)
+
+One item from Nick, and a big one: *"een reference viewer, zoals Obsidian of
+Unreal — in één oogopslag zien wat allemaal verbonden is aan het ding waarnaar
+je kijkt, met een diepte, en lijntjes die zeggen hóe."* He asked for the
+questions first, and answered twelve of them before a line was written; the
+answers are the shape of what was built, so they are the shape of this chapter.
+
+**Where it lives: on every page, and on one page of its own.** An artikel, a
+dossier, een landkaart, een prikbord and een tijdlijn each carry a
+*Verbindingen* button (`ConnectionsLink`) that opens `/web?focus=<kind>:<id>`
+with that thing in the middle; the hoofdmenu has *Het web*, the whole archive.
+Nick chose both over either — a local graph you reach from what you are reading
+is the everyday tool, and the whole web is the thing you show a new player. The
+menu entry is desktop-only: nine tabs do not fit a phone (§32's arithmetic
+leaves LANDKAARTEN exactly enough at eight), and on a phone the whole web is a
+search box anyway — five hundred knots on six inches is never legible — while a
+focus is drawn, with the panel as a sheet.
+
+**Two shapes, one renderer.** With a focus the web is drawn in **columns**
+(Unreal's shape): the focus in the middle, what points at it to the left, what
+it points at to the right, one column per step, ordered by barycentre so the
+lines cross less, and a column past forty rows folded into "… nog n" that a
+double-click unfolds. Without a focus — or on request, the *Web* button — it is
+**organic**, a force-directed web (Obsidian's shape), which is the only shape
+that makes sense for the whole archive because it has no middle. Both are
+painted on one `<canvas>`; the DOM would have been five hundred elements and
+two thousand lines stuttering on every hover.
+
+**No dependency.** Nick was offered d3-force and a WebGL graph library and chose
+neither, in keeping with a repository that self-hosts its fonts and hand-rolls
+its icons. The simulation in `lib/web/force.ts` is ~300 lines and does three
+things differently from the textbook, all on purpose: repulsion runs over a
+uniform grid rather than a quadtree (simpler, and sufficient at this size),
+**it stops at 300 px** (repulsion is what keeps neighbours apart, not what
+spreads the web thin — with 1/d² to infinity a 560-knot web became a uniform
+disc where no cluster could show), and a knot starts on a spiral seeded by a
+hash of its id, so the same archive lays out the same way twice. Knots that
+survive a change of graph keep their place, which is what makes a legend tick
+or a depth step feel like the web *rearranging* rather than being redrawn.
+
+**The depth is one stepper, 1 to 4, default 1.** Unreal has two (referencers and
+dependencies apart); Nick chose one. At 500+ artikelen depth 3 is often the
+whole archive, and above 4 nothing arrives that was not there at 4. A hard
+ceiling of 600 knots (`WEB_FOCUS_NODE_LIMIT`) stops a hub at depth 4 from
+shipping the archive twice; the page says so when it bites.
+
+**Click chooses, double-click centres, a button opens.** A click shows the
+panel — what it is, its picture, and every line into and out of it with the
+*how* in the line's own colour; double-click makes it the middle; *Openen* is a
+link. Hover lights a knot's neighbourhood and dims the rest, and puts the
+phrase on each of its lines. Shift-click and a shift-drag box select several.
+Nick's reason for choosing this over Obsidian's click-to-open: you leave the
+web on every click, and the web is a place to *stay* for a while.
+
+**After seeing it: the organic shape first, smaller labels, pictures on
+request.** Nick's first look at a focus web was a ball of overlapping names —
+labels drawn at 12–14 px *world* size grew with the zoom, cut long names to
+"The missing body of…" three times over, and a five-knot web was packed as
+tightly as a five-hundred-knot one. Three changes: a label is now a caption at
+a constant 10 px on the screen whatever the zoom, on at most two lines, on a
+slip of paper no wider than the words; the simulation spaces a small web out
+(`ForceSim.optionsFor`: link distance 95 under forty knots, 60 under a hundred
+and twenty, the tight constants above that); and the focus web opens
+**organic** rather than in columns, with *Kolommen* one click away. Omslagen
+inside the knots (and beside the name in a column) are a checkbox in the
+legend, **off by default** — his own worry, that pictures make it busier, is
+right for the whole web and wrong for a focus of ten, so it is a choice.
+
+**Sixteen kinds of line, one colour each, and words on hover.** Every way the
+archive already ties things together is a `WebEdgeKind`: the four from an
+artikel's own words (genoemd in de tekst, a labelled relation, the infobox, a
+sectie), four with dossiers, three on prikborden (a card, a notitie that
+names, a draad), two on landkaarten, one on tijdlijnen, and two with karakters.
+Ink for the written ones, the draad's red for prikborden, the speld's blue for
+landkaarten, the folder's gold for dossiers, the axis's green for tijdlijnen,
+violet for people; a dash says "a fact about it" rather than "in its text". The
+legend ticks each on and off (remembered per browser), grouped, with a count,
+and the word for a kind comes from `Words` so a renamed "artikel" renames the
+legend. Labels on every line all the time was offered and refused — at depth
+2 it is a cloud of text — and is a checkbox instead.
+
+**Which things are knots.** Artikelen, dossiers, landkaarten, prikborden,
+tijdlijnen; **karakters** as well, which are artikelen already, tied to a
+dossier by the grant that puts their player on it (`investigator`) and to an
+artikel by a *speler* infobox field (`player`) — Nick's addition, "karakters
+kunnen ook verbonden zijn in de details panel". Loose notities on prikborden
+are knots too, off by default: they are many and mostly say little. Two
+deliberate limits, written down so they are not rediscovered as bugs: an
+`investigator` line is drawn for *every* karakter a member holds, not only the
+one they are wearing (the grant is per account, §17), and a draad with a loose
+end or tied to a punaise is not a line.
+
+**What the web may do: put a selection on a prikbord.** Nick's framing was
+*"inspiratie voor de prikborden van de spelers"*, and of the three offered —
+look only; a selection becomes cards; a selection becomes cards *and* draden —
+he chose the middle. The lines do not come along because a draad is a claim the
+investigator makes and the web's lines are the archive's; a wall that arrives
+with eighty red threads already on it has been investigated by nobody. It is
+the same road as *Op prikbord prikken*, and the wall's own question — *…en in
+het dossier?* — is asked once for the batch, about the artikelen the web
+already knows are not in that dossier (`filed` edges), and posts only those.
+
+**Rule 1, by construction.** The graph is built per viewer: knots first, each
+kind through the condition it already has, and a line only when both ends are
+knots. Nothing this viewer may not open is in the answer — not as a MISSING
+knot, not dimmed, not as a name — because "there is a dossier you cannot see
+and it is about you" is the leak §24 and §27 already worried about, and a
+web would print it in colour. The unit test asserts the hidden thing's *name*
+is absent from the serialised JSON; the e2e test does the same as a player.
+
+**Live, the cheap way.** The page fetches the whole visible graph once and
+slices it in the browser (`focusSlice` is the same function the API runs), so
+depth, legend and a new middle are instant. It watches the five list keys and
+refetches, coalesced to once per 1.2 s, so a card pinned in another window is a
+line here a moment later — without `router.refresh()`, which would re-render a
+page that holds nothing.
+
+**A second look, with a UX eye.** Four questions, four answers, all yes: a
+knot has the **shape of its kind** (round artikel, folder with a tab, square of
+cork, diamond for a landkaart, pill for a tijdlijn; a karakter a dashed second
+ring) so what a thing is reads without colour and without zooming, and the
+column view carries the same silhouette where its stripe was; the panel groups
+a knot's lines **by kind of tie** — the legend's own groups, in the line's
+colour — with a ← → ↔ per row for the direction, because "in which dossier"
+is the question and the direction a detail; a **trail** of the last five
+middelpunten (Terug, and a row of chips) lives in the tab and nowhere else; and
+the legend **folds away the kinds that are not in this web** under one line,
+so a small web has a five-row key rather than a sixteen-row form. Three
+smaller things came with it: a phrase sits sixty percent of the way from the
+lit knot to its neighbour, off the knot's own name; a depth step re-fits the
+drawing; a first visit gets one card on how to read it, gone after a click and
+remembered. On a phone the zoom buttons are gone (pinching is the zoom) and
+the panel above twelve rows gets a filter box.
+
+**Not done, and named.** Labels at depth 2 in columns are readable only after
+zooming in; that is inherent, and the fold at forty rows is the mitigation.
+The organic web on a random archive is a hairball — a real archive has hubs and
+clusters and looks like one; the seeded demo does not. A karakter's *activity*
+(every revision, card and speld with its `character_id`) as a line was offered
+and not chosen; it is a fifth violet kind waiting on a decision. Keeper-only
+ghosts for the Keeper (see what a player would *not* see) were not asked for.

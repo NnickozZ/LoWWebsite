@@ -18,13 +18,18 @@ import type { Words } from '@/lib/words';
  * Woorden, so the labels are word keys rather than words; the hrefs and the
  * icons are the app's own and stay put.
  */
-const NAV = [
+const NAV: { href: string; word: string; icon: string; compact?: boolean; desktopOnly?: boolean }[] = [
   { href: '/', word: 'navHome', icon: 'home' },
   { href: '/cases', word: 'navCases', icon: 'folder' },
   { href: '/wiki', word: 'navWiki', icon: 'book' },
   { href: '/boards', word: 'navBoards', icon: 'board' },
   { href: '/maps', word: 'navMaps', icon: 'map' },
   { href: '/timelines', word: 'navTimelines', icon: 'timeline' },
+  // §43: the web. Not in the phone's tab bar at all: nine tabs do not fit
+  // (§32's arithmetic below leaves LANDKAARTEN exactly enough at eight), and
+  // on a phone the whole web is a search box anyway — the way in there is the
+  // Verbindingen button on the thing you are looking at.
+  { href: '/web', word: 'navWeb', icon: 'web', desktopOnly: true },
   // Eight tabs do not fit a phone with a word under each. The two whose icon
   // everybody knows — a magnifier, a person — go without one there.
   { href: '/search', word: 'navSearch', icon: 'search', compact: true },
@@ -94,7 +99,7 @@ function Nav({
       </nav>
 
       <nav className="tabs" aria-label="Hoofdmenu">
-        {NAV.map((item) => (
+        {NAV.filter((item) => !item.desktopOnly).map((item) => (
           <Link
             key={item.href}
             href={item.href}

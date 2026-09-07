@@ -363,6 +363,8 @@ app/
     maps/            the shelf of maps, and one map with its pins
     timelines/       the shelf of tijdlijnen, and one tijdlijn with its
                      gebeurtenissen (§32)
+    web/             §43: het web — the archive drawn as what points at what,
+                     with one thing in the middle (`?focus=`) or all of it
     wiki/            browse, and browse-by-type (one row of soorten as tabs)
     search/          instant search, one soort at a time
     admin/           users, review queue, types and pages, words, trash,
@@ -374,7 +376,8 @@ app/
                      altogether (rule 18: everybody lands on lezen)
   api/               entries, cases, boards, maps, timelines, characters,
                      access, assets, search, suggest, admin, ink (§33: the
-                     tekenlaag of a prikbord, landkaart or tijdlijn)
+                     tekenlaag of a prikbord, landkaart or tijdlijn), web
+                     (§43: this viewer's graph, whole or around a focus)
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
@@ -396,6 +399,11 @@ components/
                      folded-out windows), the sheets around it (the date form,
                      a new gebeurtenis, an existing one, the settings) and
                      the "Nieuwe tijdlijn" button
+  web/               §43: the web — WebCanvas (one <canvas>, both layouts,
+                     every gesture), WebView (the page around it: search,
+                     depth, legend, panel, the phone's sheets),
+                     PinSelectionButton (a selection onto a prikbord) and
+                     ConnectionsLink (the button every page carries)
   ink/               §33: the tekenlaag — the canvas (InkCanvas), the
                      toolbar, the sheet that takes the hand and the Keeper's
                      switch (InkTools: one strip of three dots that is the
@@ -458,6 +466,12 @@ lib/
                      axis and how wide it is, in both stroke formats)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
+  web/               §43: het web — types.ts (node, edge, the sixteen kinds
+                     of tie), kinds.ts (pure: colour, dash and word per kind),
+                     service.ts (the graph for one viewer, rule 1 by
+                     construction), slice.ts (pure: the focus walk, the
+                     legend), layout.ts (pure: the columns and the fold),
+                     force.ts (pure: the organic web, no d3)
   ink/               §33: the tekenlaag — types.ts (the stroke, the eight
                      colours, the limits), merge.ts (pure: append, sort,
                      tombstones, the view for one person), service.ts (the
@@ -1458,3 +1472,47 @@ Forty-two rules worth knowing before changing anything:
     nobody", which is the one state the door above opens for, so the
     self-assignment road would never actually close. If that turns out to cost
     more than it buys, it is one line.
+
+43. **The web is a drawing of the archive, never a second copy of it.** §43.
+    `lib/web/service.ts` builds a graph *for one viewer* on every request, out
+    of the tables that already say what points at what — `entry_links`,
+    `entry_mentions` (§27), `case_entries`, a prikbord's cards and draden, a
+    landkaart's spelden, a tijdlijn's gebeurtenissen, `access_grants` with
+    `user_characters`, and the infobox's `case_link` / `user_link` fields. It
+    stores nothing and is never written to: a line in the web is true because
+    the text, the wall or the map says so, and stops being true the moment
+    they stop saying it. Nodes are collected first, each kind through the
+    condition it already has (`visibleEntryCondition`, `visibleCaseCondition`,
+    `visibleMapCondition`, `listBoards`, `listTimelines`), and an edge is kept
+    only when both its ends are in that set — so **a thing this viewer may not
+    open is not in the web at all**: no MISSING knot, no dimmed ghost, no name
+    in the JSON. Rule 1, enforced by construction and pinned by
+    `tests/unit/web-graph.test.ts` (which asserts the hidden thing's *name* is
+    absent from the serialised answer) and `tests/e2e/web.spec.ts`.
+
+    The browser fetches the whole visible graph once (`GET /api/web`) and
+    slices it itself: `focusSlice` and `filterGraph` in `lib/web/slice.ts` are
+    pure and shared with the API, so the depth stepper, the legend and a new
+    middle are instant and `?focus=…&depth=2` on the server says exactly what
+    the page shows. Every edge is directed *from → to*, read as "from refers
+    to to"; the column layout (`lib/web/layout.ts`) draws what points at the
+    focus on the left and what it points at on the right, a node reachable
+    both ways sits once on the side that found it first (`out` wins a tie),
+    and a column past forty rows folds into "… nog n". The organic layout
+    (`lib/web/force.ts`) is hand-written, deterministic (a node starts on a
+    spiral seeded by its id) and local — repulsion stops at 300 px and a weak
+    gravity holds the pieces — so five hundred knots settle in under a second
+    and a reload does not shuffle the wall. Both are drawn by one `<canvas>`
+    (`components/web/WebCanvas.tsx`); nothing in the web is a DOM element, and
+    the frame loop stops when nothing moves.
+
+    How a line is tied is a *kind* (`WebEdgeKind`, sixteen of them) with one
+    colour and dash in `lib/web/kinds.ts` and one CSS custom property
+    (`--web-<kind>`) in `globals.css` that must stay the same colour, because
+    the legend and the panel print a line in the colour the canvas draws it.
+    The words on a line come from `Words` (rule 8). The one thing the web may
+    *do* is put a selection on a prikbord (`PinSelectionButton`), through the
+    same `POST /api/boards/{id}` road as "Op prikbord prikken" and asking the
+    wall's own question — "…en in het dossier?" — once for the batch; the
+    lines never become draden, because a draad is the investigator's claim and
+    the web's lines are the archive's.

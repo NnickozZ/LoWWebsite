@@ -3,6 +3,7 @@ import { mapKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import { notFound } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
 import { accessSettings, canManageAccess } from '@/lib/access';
@@ -125,6 +126,8 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
             </p>
           )}
           {map.description && <p className="small muted canvas-head-desc">{map.description}</p>}
+          {/* §43: the web, with this landkaart in the middle. */}
+          <ConnectionsLink kind="map" id={map.id} />
         </header>
 
         <MapCanvas

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { inArray } from 'drizzle-orm';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
+import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { TimelineCanvas } from '@/components/timelines/TimelineCanvas';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
@@ -94,6 +95,8 @@ export default async function TimelinePage({
           </p>
           <h1 data-testid="timeline-title">{timeline.name}</h1>
           {timeline.description && <p className="small muted canvas-head-desc">{timeline.description}</p>}
+          {/* §43: the web, with this tijdlijn in the middle. */}
+          <ConnectionsLink kind="timeline" id={timeline.id} />
         </header>
 
         <TimelineCanvas

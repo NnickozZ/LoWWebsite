@@ -4897,3 +4897,430 @@ details.section[open] > summary::before {
     bottom: auto;
   }
 }
+
+/* ------------------------------------------------------------ §43: het web
+   The archive drawn as what points at what. The drawing itself is a canvas
+   (`components/web/WebCanvas.tsx`) that reads --paper, --ink and --rule off
+   this element, so the dark face reaches it without a second palette; the
+   line colours per kind live in `lib/web/kinds.ts` and are repeated here as
+   custom properties only so the legend and the panel can print a line in the
+   same colour the canvas draws it. Change one and change the other. */
+:root {
+  --web-mention: #2a2118;
+  --web-relation: #2a2118;
+  --web-field: #2a2118;
+  --web-section: #2a2118;
+  --web-filed: #8a6a24;
+  --web-caseNotes: #8a6a24;
+  --web-caseLink: #8a6a24;
+  --web-inCase: #8a6a24;
+  --web-board: #c0392b;
+  --web-boardNote: #c0392b;
+  --web-thread: #c0392b;
+  --web-pin: #1f4e79;
+  --web-mapOf: #1f4e79;
+  --web-event: #2f6b4f;
+  --web-investigator: #5b3a78;
+  --web-player: #5b3a78;
+}
+:root[data-theme='dark'] {
+  --web-mention: #e8e1d2;
+  --web-relation: #e8e1d2;
+  --web-field: #e8e1d2;
+  --web-section: #e8e1d2;
+  --web-filed: #d4b45f;
+  --web-caseNotes: #d4b45f;
+  --web-caseLink: #d4b45f;
+  --web-inCase: #d4b45f;
+  --web-board: #e2705f;
+  --web-boardNote: #e2705f;
+  --web-thread: #e2705f;
+  --web-pin: #8fb8dd;
+  --web-mapOf: #8fb8dd;
+  --web-event: #7fc79c;
+  --web-investigator: #b78fd8;
+  --web-player: #b78fd8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --web-mention: #e8e1d2;
+    --web-relation: #e8e1d2;
+    --web-field: #e8e1d2;
+    --web-section: #e8e1d2;
+    --web-filed: #d4b45f;
+    --web-caseNotes: #d4b45f;
+    --web-caseLink: #d4b45f;
+    --web-inCase: #d4b45f;
+    --web-board: #e2705f;
+    --web-boardNote: #e2705f;
+    --web-thread: #e2705f;
+    --web-pin: #8fb8dd;
+    --web-mapOf: #8fb8dd;
+    --web-event: #7fc79c;
+    --web-investigator: #b78fd8;
+    --web-player: #b78fd8;
+  }
+}
+
+.web-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.web-toolbar {
+  flex: 0 0 auto;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+.web-search {
+  position: relative;
+  flex: 1 1 14rem;
+  max-width: 26rem;
+  min-width: 10rem;
+}
+.web-suggest {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  box-shadow: var(--shadow);
+  max-height: 60vh;
+  overflow: auto;
+}
+.web-stepper,
+.web-modes,
+.web-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  padding: 0.1rem;
+}
+.web-stepper-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 2.6rem;
+  justify-content: center;
+  font-family: var(--stamp-face);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+.web-modes .btn[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.web-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0.6rem;
+}
+.web-stage-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 220px;
+  display: flex;
+}
+.web-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  /* The same ruled paper a landkaart lies on: this is a thing you look at. */
+  background:
+    radial-gradient(circle at 1px 1px, rgba(31, 27, 22, 0.12) 1px, transparent 0) 0 0 / 14px 14px,
+    var(--paper-dark);
+}
+[data-theme='dark'] .web-stage {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(232, 225, 210, 0.1) 1px, transparent 0) 0 0 / 14px 14px,
+    var(--paper-dark);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .web-stage {
+    background:
+      radial-gradient(circle at 1px 1px, rgba(232, 225, 210, 0.1) 1px, transparent 0) 0 0 / 14px 14px,
+      var(--paper-dark);
+  }
+}
+.web-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  outline: none;
+}
+.web-canvas:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+.web-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  margin: 0;
+  pointer-events: none;
+}
+.web-truncated {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.5rem;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.web-side {
+  flex: 0 0 300px;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  padding: 0.8rem 0.9rem;
+}
+.web-side-legend {
+  flex-basis: 260px;
+}
+@media (max-width: 1100px) {
+  .web-side-legend {
+    flex-basis: 220px;
+  }
+  .web-side-panel {
+    flex-basis: 260px;
+  }
+}
+
+/* The legend: one row per kind of line, drawn in its own colour and dash. */
+.web-legend-group {
+  margin-bottom: 0.6rem;
+}
+.web-legend-head {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0.15rem 0;
+  margin: 0 0 0.15rem;
+  font: inherit;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.web-legend-head[aria-pressed='false'] {
+  text-decoration: line-through;
+}
+.web-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.12rem 0;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.web-legend-row input {
+  margin: 0;
+}
+.web-legend-line {
+  stroke-linecap: round;
+}
+.web-legend-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.web-legend-off .web-legend-label {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+
+/* The panel: what is chosen, and how it is tied on. */
+.web-panel-body {
+  min-width: 0;
+}
+.web-panel-cover {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border: 1px solid var(--rule);
+  margin-bottom: 0.6rem;
+}
+.web-panel-name {
+  margin: 0.1rem 0 0;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.web-panel-h {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 0.72rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.web-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.web-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  padding: 0.35rem 0.1rem;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.web-list-row:hover {
+  background: var(--paper);
+}
+.web-list-name {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.web-list-how {
+  display: block;
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.web-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-muted);
+}
+.web-glyph-case {
+  color: var(--web-filed);
+}
+.web-glyph-board {
+  color: var(--web-board);
+}
+.web-glyph-map {
+  color: var(--web-pin);
+}
+.web-glyph-timeline {
+  color: var(--web-event);
+}
+
+.web-stepper-word {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+.web-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: -0.2rem 0 0.4rem;
+}
+.web-trail .chip {
+  gap: 0.3rem;
+}
+.web-trail .web-glyph {
+  width: 18px;
+  height: 18px;
+}
+.web-trail .web-glyph svg {
+  width: 11px;
+  height: 11px;
+}
+.web-list-arrow {
+  flex: 0 0 1rem;
+  text-align: center;
+  font-weight: 600;
+}
+.web-panel-filter {
+  margin: 0 0 0.4rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+}
+.web-legend-absent {
+  margin-top: 0.4rem;
+}
+.web-legend-absent summary {
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.web-legend-absent .web-legend-row {
+  opacity: 0.7;
+}
+.web-hint {
+  position: absolute;
+  left: 50%;
+  top: 0.8rem;
+  transform: translateX(-50%);
+  z-index: 3;
+  max-width: 34rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.web-phone-search {
+  padding: 0.2rem 0 1rem;
+}
+
+@media (max-width: 767px) {
+  .web-toolbar {
+    gap: 0.35rem;
+  }
+  .web-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .web-side {
+    display: none;
+  }
+  /* Pinching is the zoom on a phone; three buttons for it are a row lost. */
+  .web-zoom {
+    display: none;
+  }
+  .web-stepper-word {
+    display: none;
+  }
+}

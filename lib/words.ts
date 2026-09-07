@@ -92,6 +92,8 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'navTimelines', what: 'Tijdlijnen', fallback: 'Tijdlijnen' },
       { key: 'navSearch', what: 'Zoeken', fallback: 'Zoeken' },
       { key: 'navYou', what: 'Jij', fallback: 'Jij' },
+      // §43: the web — the archive drawn as what points at what.
+      { key: 'navWeb', what: 'Het web', fallback: 'Het web' },
       { key: 'navAdmin', what: 'Beheer', fallback: 'Beheer' },
     ],
   },
@@ -134,6 +136,8 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'newOfType', what: 'Nieuw, per soort', fallback: 'Nieuw' },
       { key: 'addToCase', what: 'Toevoegen aan een dossier', fallback: 'Aan dossier toevoegen' },
       { key: 'pinToBoard', what: 'Prikken op een prikbord', fallback: 'Op prikbord prikken' },
+      // §43: the button on every page that opens the web with that thing in the middle.
+      { key: 'connections', what: 'Naar het web, vanaf een pagina', fallback: 'Verbindingen' },
       { key: 'addMore', what: 'De kop boven de velden en tags', fallback: 'Meer info' },
       { key: 'onThisPage', what: 'De kop boven de inhoudsopgave', fallback: 'Op deze pagina' },
       { key: 'manage', what: 'De kop boven rechten en Keeper-instellingen', fallback: 'Beheer van dit artikel' },

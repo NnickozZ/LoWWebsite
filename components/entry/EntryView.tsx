@@ -10,6 +10,7 @@ import type { PendingEdit } from '@/lib/entries/review';
 import { ConnectMapButton } from './ConnectMapButton';
 import { ProposalsPanel } from './ProposalsPanel';
 import { PinToBoardButton } from '@/components/boards/PinToBoardButton';
+import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import dynamic from 'next/dynamic';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
@@ -882,6 +883,8 @@ export function EntryView({
             inCaseIds={cases.map((item) => item.id)}
           />
           <PinToBoardButton entryId={entry.id} entryName={entry.name} />
+          {/* §43: the web, with this artikel in the middle. */}
+          <ConnectionsLink kind="entry" id={entry.id} />
           {/* §18c: offered only while there is nobody on the peg. A speler's
               first onderzoeker is theirs to tie on; the next one is handed to
               them from Beheer, so no button stands here that would only be

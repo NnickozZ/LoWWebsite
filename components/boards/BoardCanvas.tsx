@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { assetUrl } from '@/components/Cover';
 import { borderLabel } from '@/components/borders';
 import { Icon } from '@/components/Icon';
+import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { AccessEditor, type AccessSettings } from '@/components/access/AccessEditor';
 import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
@@ -1808,6 +1809,8 @@ export function BoardCanvas({
             })
           }
         />
+        {/* §43: the web, with this prikbord in the middle. */}
+        <ConnectionsLink kind="board" id={boardId} as="chip" />
         {readOnly && (
           <span className="chip" title="Je kunt dit prikbord bekijken, niet bewerken.">
             <Icon name="lock" size={12} />

@@ -641,3 +641,41 @@ draagt blijft van jou, per venster (§18b).
 | Wat | Waar stond het | Waarom |
 |---|---|---|
 | **Lezen of bewerken** — *Hoe een {artikel} of een {dossier} opengaat als je erop klikt*, met de drie keuzes **Wat bij mij hoort** · **Altijd lezen** · **Altijd bewerken** | Jij (Jouw account) | Iedereen komt nu op **Lezen** binnen, ook een {Keeper}. De knop **Bewerken** / **Lezen** bovenaan een {artikel} of {dossier} doet nog precies wat hij deed; alleen het onthouden is weg. Iets wat je zojuist zelf gemaakt hebt opent nog wel meteen in **Bewerken**. |
+
+### Het web (§43)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Het web** | hoofdmenu (alleen op een groot scherm), en de titel van de pagina | Het archief getekend als wat naar wat verwijst. Zonder middelpunt: alles wat je mag zien. Woord van de {Keeper} (`navWeb`). |
+| **Alles wat aan elkaar hangt** | het kopje boven de titel | |
+| **Verbindingen** | de knop op een {artikel}, een {dossier}, een {landkaart}, een {prikbord} en een tijdlijn | Opent het web met dát ding in het midden. Woord van de {Keeper} (`connections`). |
+| **Zoek een {artikel}, {dossier}, {landkaart}…** · **Ander middelpunt…** | het zoekvak, zonder en met middelpunt | Kies iets en het wordt het middelpunt. |
+| **Hele web** | de knop naast het zoekvak | Terug naar alles. |
+| **− n +** (*Minder diep* · *Dieper*) | de dieptestapper, alleen met een middelpunt | Hoeveel stappen vanaf het midden, 1 tot 4. |
+| **Kolommen** · **Web** | de vorm, alleen met een middelpunt | Links wat hierheen wijst, rechts waar dit heen wijst; of als een los web. Het web is de standaard. |
+| **Legenda** | de knop rechts | Elke soort lijn in zijn kleur en streep, met een vinkje en een telling. |
+| **Tussen {artikelen}** · **Met {dossiers}** · **Op {prikborden}** · **Op {landkaarten}** · **Op tijdlijnen** · **Met {karakters}** | de groepen in de legenda | Klik op de kop en de hele groep gaat aan of uit. |
+| **genoemd in de tekst** · **relatie met een naam** · **in de infobox** · **in een {sectie}** | de vier lijnen tussen artikelen | Doorgetrokken inkt is de lopende tekst; een streepje is een feit óver het artikel. |
+| **in het {dossier}** · **in de aantekeningen** · **{dossier} in de infobox** · **hangt in het {dossier}** | de vier met dossiers (goud) | De laatste is een {prikbord} of tijdlijn dat in een dossier hangt. |
+| **{kaart} op het {prikbord}** · **in een {notitie} op het {prikbord}** · **{draad} op het {prikbord}** | de drie op prikborden (rood) | Een draad tussen twee kaarten is een lijn tussen de twee dingen die ze voorstellen, met het prikbord erbij genoemd. |
+| **{speld} op de {landkaart}** · **{landkaart} van deze plek** | de twee op landkaarten (blauw) | |
+| **{gebeurtenis} op de tijdlijn** | de ene op tijdlijnen (groen), met het moment als detail | |
+| **{karakter} op het {dossier}** · **{speler} in de infobox** | de twee met karakters (paars) | De eerste is de toewijzing (§17); de tweede een infoboxveld *Koppeling naar een speler*, getekend als diens karakter. |
+| **Losse {notitie}s op {prikborden}** | vinkje onderaan de legenda | Standaard uit: het zijn er veel en ze zeggen weinig. |
+| **Altijd zeggen hoe** | vinkje onderaan de legenda | Het woord op élke lijn, in plaats van alleen bij de knoop waar je op staat. |
+| **Afbeeldingen tonen** | vinkje onderaan de legenda | De omslag in de knoop (web) of naast de naam (kolommen). Standaard uit. |
+| **Tussen {artikelen} (n)** · **Met {dossiers} (n)** · **Op {prikborden} (n)** · … | het paneel rechts, bij één gekozen knoop | Elke lijn, gegroepeerd op soort verband (dezelfde groepen als de legenda), met hoe, in de kleur van de lijn. Klik: kiezen; dubbelklik: middelpunt. |
+| **→ verwijst naar · ← wijst hierheen · ↔ {draad}** | het pijltje voor elke rij, en de uitleg onderaan het paneel | De richting, gelezen vanaf de gekozen knoop. |
+| **Zoek in n verbindingen…** | het paneel, boven de 12 rijen | Filtert op naam en op hoe. |
+| **Terug** · **Eerder:** | naast *Hele web*, en de rij chips eronder | Het spoor van middelpunten in dit tabblad, de laatste vijf. Niets wordt bewaard. |
+| **Niet in dit web (n)** | onderaan de legenda | De soorten lijnen die hier niet voorkomen, ingeklapt; open het om er toch een uit te zetten. |
+| **Zo lees je het web.** | één keer, over de tekening | Klik = kiezen · dubbelklik = middelpunt · scrollen = zoomen · slepen = schuiven · shift-slepen = meer kiezen. Weg na een klik, en onthouden. |
+| **n stap** · **n stappen** | de dieptestapper | |
+| **Openen** · **Middelpunt** · *In beeld brengen* | de knoppen in het paneel | |
+| **n gekozen** · **Op prikbord prikken (n)** · **Leegmaken** | het paneel bij meer dan één | Shift-klik of shift-slepen kiest er meer. |
+| **n {kaart}en geprikt op {prikbord}.** · **n {artikelen} zitten nog niet in {dossier}** | melding en vraag na het prikken | Dezelfde vraag als op de muur, één keer voor de hele selectie. |
+| **… nog n — dubbelklik** | een gestippelde rij onderaan een kolom | Een kolom houdt op bij veertig; dit is de rest. |
+| **Niet alles past op n diep — de rest is weggelaten.** | linksonder in de tekening | Het plafond van 600 knopen. |
+| **Dit middelpunt is er niet, of je mag het niet zien.** | boven de tekening | Een adres naar iets dat weg is of verborgen: geen lek, geen lege pagina. |
+| **Het hele web is iets voor een groot scherm. Zoek hier iets en je krijgt zijn verbindingen.** | op een telefoon, zonder middelpunt | |
+| **Het web wordt gesponnen…** | terwijl het laadt | |

@@ -5,6 +5,10 @@ import type { SVGProps } from 'react';
  * no font, nothing loaded at runtime (§2.3).
  */
 const PATHS: Record<string, string> = {
+  // §43: a web — three knots and the lines between them.
+  web: 'M12 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM19 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM12 5l-7 11M12 5l7 11M7 18h10',
+  minus: 'M5 12h14',
+  layers: 'M3 8l9 4 9-4-9-4zM3 12l9 4 9-4M3 16l9 4 9-4',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21c0-3.9 3.6-6 8-6s8 2.1 8 6',
   badge:
     'M6 3h12v18l-6-3-6 3V3ZM12 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM8.5 16c.6-1.4 2-2 3.5-2s2.9.6 3.5 2',
@@ -57,6 +61,9 @@ const PATHS: Record<string, string> = {
   eraser: 'M14 4l6 6-8.5 8.5a2 2 0 0 1-2.8 0L4.5 14.3a2 2 0 0 1 0-2.8zM9 19.5 5 15.5M20 20h-9',
   undo: 'M9 14 4 9l5-5M4 9h10a5.5 5.5 0 0 1 0 11h-3',
 };
+
+/** §43: the same strokes, for drawing on a canvas with `Path2D`. */
+export const ICON_PATHS: Readonly<Record<string, string>> = PATHS;
 
 export type IconName = keyof typeof PATHS | string;
 

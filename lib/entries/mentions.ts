@@ -596,8 +596,11 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
   );
 }
 
-/** Section ids this viewer has been shown. Empty for a Keeper, who sees all. */
-function revealedSectionIds(viewer: Viewer): Set<string> {
+/**
+ * Section ids this viewer has been shown. Empty for a Keeper, who sees all.
+ * Exported for §43's web, which resolves section mentions by the same rule.
+ */
+export function revealedSectionIds(viewer: Viewer): Set<string> {
   if (!viewer || viewer.isKeeper) return new Set();
   return new Set(
     db
