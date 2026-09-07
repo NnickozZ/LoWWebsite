@@ -22,7 +22,9 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const params = new URL(request.url).searchParams;
     const showNotes = params.get('notes') === '1';
-    const graph = buildWebGraph(user, { notes: showNotes });
+    // Round 18: `?others=1` lets a Keeper spin in other people's private things.
+    const othersPrivate = params.get('others') === '1';
+    const graph = buildWebGraph(user, { notes: showNotes, othersPrivate });
 
     const focus = params.get('focus');
     if (!focus) return json(graph);

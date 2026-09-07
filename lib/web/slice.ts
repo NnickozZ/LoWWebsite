@@ -104,7 +104,7 @@ export function focusSlice(
         const other = edge.from === id ? edge.to : edge.from;
         if (other === id) continue;
         const side: 'in' | 'out' =
-          parent.side ?? (edge.kind === 'thread' ? 'out' : edge.from === id ? 'out' : 'in');
+          parent.side ?? (edge.kind === 'thread' && !edge.detail ? 'out' : edge.from === id ? 'out' : 'in');
         found.push({ id: other, side });
       }
     }
@@ -140,3 +140,26 @@ export function degrees(graph: WebGraph): Map<WebNodeId, number> {
   }
   return out;
 }
+
+/** The kinds that say "the running text names it": a mention, a section. */
+export const TEXT_KINDS: ReadonlySet<WebEdgeKind> = new Set<WebEdgeKind>(['mention', 'section']);
+
+/**
+ * Round 18: a text line yields to any other tie. "Jan is named in Piet's
+ * text" is the weakest thing the archive can say about two things; if they
+ * are also on the same prikbord, in the same dossier, on the same landkaart,
+ * or one is in the other's infobox, the text line adds nothing but a stroke.
+ * So a mention or section edge between two knots is dropped when any edge of
+ * another kind ties the same two knots, either way round. Two text edges
+ * between the same pair (a mention each way, a mention and a section) both
+ * stay: there is nothing stronger to yield to. Pure, and applied once, when
+ * the graph is built, so the count, the panel and the drawing agree.
+ */
+export function collapseMentions(edges: WebEdge[]): WebEdge[] {
+  const strong = new Set<string>();
+  const pair = (a: WebNodeId, b: WebNodeId) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  for (const edge of edges) if (!TEXT_KINDS.has(edge.kind)) strong.add(pair(edge.from, edge.to));
+  if (!strong.size) return edges;
+  return edges.filter((edge) => !TEXT_KINDS.has(edge.kind) || !strong.has(pair(edge.from, edge.to)));
+}
+

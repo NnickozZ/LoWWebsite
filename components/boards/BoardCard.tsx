@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { assetUrl, coverStyle } from '@/components/Cover';
 import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
+import { MentionPopover, MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import {
@@ -423,6 +424,7 @@ export function BoardCardView({
         </p>
 
         {editing ? (
+          <>
           <textarea
             ref={textRef}
             className="board-card-text-input"
@@ -430,7 +432,10 @@ export function BoardCardView({
             rows={3}
             onPointerDown={(event) => event.stopPropagation()}
             onChange={(event) => setDraft(event.target.value)}
-            onBlur={() => {
+            onBlur={(event) => {
+              // A tap on a name in the @-list takes focus for a moment; the
+              // popover hands it straight back, and the writing goes on.
+              if ((event.relatedTarget as HTMLElement | null)?.closest?.('.mention-pop')) return;
               setEditing(false);
               if (draft !== card.text) onTextChange(draft);
             }}
@@ -442,6 +447,9 @@ export function BoardCardView({
               }
             }}
           />
+          {/* Round 18: `@` offers a name; `[[Naam]]` is what lands in the text. */}
+          <MentionPopover forRef={textRef} />
+          </>
         ) : (
           <p
             className={`board-card-text${card.text ? '' : ' board-card-text-empty'}`}
@@ -450,7 +458,7 @@ export function BoardCardView({
               setEditing(true);
             }}
           >
-            {card.text || (interactive ? 'Dubbelklik om te schrijven' : 'Dubbeltik om te schrijven')}
+            {card.text ? <MentionText text={card.text} /> : interactive ? 'Dubbelklik om te schrijven' : 'Dubbeltik om te schrijven'}
           </p>
         )}
 

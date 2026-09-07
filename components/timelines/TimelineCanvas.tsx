@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
@@ -1387,7 +1388,7 @@ function Popout({
         </p>
       )}
       {event.text ? (
-        <p className="small timeline-popout-text">{event.text}</p>
+        <p className="small timeline-popout-text"><MentionText text={event.text} /></p>
       ) : event.kind === 'entry' && event.entry?.shortDescription ? (
         <p className="small muted timeline-popout-text">{event.entry.shortDescription}</p>
       ) : null}

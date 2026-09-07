@@ -9,7 +9,7 @@ import { useLiveChanges } from '@/components/live/LiveProvider';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fuzzyScore } from '@/lib/search/fuzzy';
-import { EDGE_GROUPS, EDGE_KIND_ORDER, EDGE_KINDS, NODE_KINDS } from '@/lib/web/kinds';
+import { EDGE_GROUPS, EDGE_KIND_ORDER, EDGE_KINDS, NODE_KINDS, edgeColourVar } from '@/lib/web/kinds';
 import { clampDepth, filterGraph, focusSlice } from '@/lib/web/slice';
 import { WEB_DEPTH_MAX, WEB_DEPTH_MIN, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode, type WebNodeId } from '@/lib/web/types';
 import { WebCanvas, type WebCanvasHandle, type WebMode } from './WebCanvas';
@@ -39,6 +39,7 @@ const NOTES_KEY = 'web:notes';
 const LABELS_KEY = 'web:labels';
 const IMAGES_KEY = 'web:images';
 const HINT_KEY = 'web:hint-seen';
+const OTHERS_KEY = 'web:others-private';
 
 function readStored<T>(key: string, fallback: T): T {
   try {
@@ -59,9 +60,12 @@ function store(key: string, value: unknown) {
 export function WebView({
   initialFocus,
   initialDepth,
+  isKeeper = false,
 }: {
   initialFocus: string | null;
   initialDepth: number;
+  /** Round 18: a Keeper gets the legend row that spins in other people's private things. */
+  isKeeper?: boolean;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -80,6 +84,12 @@ export function WebView({
   const [showNotes, setShowNotes] = useState(false);
   const [labelsAlways, setLabelsAlways] = useState(false);
   const [showImages, setShowImages] = useState(false);
+  // Knots a hand has dragged and left where they are (§43, round 17).
+  const [pins, setPins] = useState(0);
+  // Round 18, Keepers: other people's private walls, dossiers, landkaarten and
+  // tijdlijnen — off unless asked; `null` until the stored choice is read, so
+  // the first fetch is not followed by a second one.
+  const [othersPrivate, setOthersPrivate] = useState<boolean | null>(null);
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<Set<WebNodeId>>(() => new Set(initialFocus ? [initialFocus] : []));
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -95,12 +105,14 @@ export function WebView({
     setLabelsAlways(readStored<boolean>(LABELS_KEY, false));
     setShowImages(readStored<boolean>(IMAGES_KEY, false));
     setHint(!readStored<boolean>(HINT_KEY, false));
+    setOthersPrivate(readStored<boolean>(OTHERS_KEY, false));
   }, []);
 
   const [generation, setGeneration] = useState(0);
   useEffect(() => {
+    if (othersPrivate === null) return;
     let alive = true;
-    fetch('/api/web?notes=1')
+    fetch(`/api/web?notes=1${isKeeper && othersPrivate ? '&others=1' : ''}`)
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'Het web laden is niet gelukt.');
         return r.json() as Promise<WebGraph>;
@@ -116,7 +128,7 @@ export function WebView({
     return () => {
       alive = false;
     };
-  }, [generation]);
+  }, [generation, othersPrivate, isKeeper]);
 
   // §21: the archive moved — a card pinned, a dossier filled, a speld set — so
   // the web is spun again. Coalesced, because one save can move several keys.
@@ -379,6 +391,23 @@ export function WebView({
         <Icon name="link" size={14} style={{ color: 'var(--ink-muted)' }} />
         <span className="web-legend-label">Altijd zeggen hoe</span>
       </label>
+      {isKeeper && (
+        <label className="web-legend-row" title="Een speler ziet alleen zijn eigen privé-dingen; jij kunt ook die van anderen in het web trekken.">
+          <input
+            type="checkbox"
+            checked={Boolean(othersPrivate)}
+            onChange={() => {
+              setOthersPrivate((v) => {
+                store(OTHERS_KEY, !v);
+                return !v;
+              });
+            }}
+            data-testid="web-others-private"
+          />
+          <Icon name="lock" size={14} style={{ color: 'var(--ink-muted)' }} />
+          <span className="web-legend-label">Ook privé van anderen</span>
+        </label>
+      )}
       <label className="web-legend-row">
         <input
           type="checkbox"
@@ -516,6 +545,12 @@ export function WebView({
             </button>
           </div>
         )}
+        {effectiveMode === 'organic' && pins > 0 && (
+          <button type="button" className="btn btn-small btn-ghost" onClick={() => canvasRef.current?.unpinAll()} title="Elke vastgezette knoop weer vrij laten bewegen" data-testid="web-unpin">
+            <Icon name="pin" size={14} />
+            {pins === 1 ? '1 losmaken' : `${pins} losmaken`}
+          </button>
+        )}
         <div className="spacer" />
         <button type="button" className="btn btn-small btn-ghost" aria-pressed={legendOpen} onClick={() => setLegendOpen((v) => !v)} data-testid="web-legend-toggle">
           <Icon name="filter" size={15} />
@@ -576,6 +611,7 @@ export function WebView({
             showImages={showImages}
             fitKey={fitKey}
             phone={phone}
+            onPinsChange={setPins}
           />
           {hint && full && !phone && (
             <div
@@ -586,7 +622,7 @@ export function WebView({
                 store(HINT_KEY, true);
               }}
             >
-              <strong>Zo lees je het web.</strong> Klik = kiezen · dubbelklik = middelpunt · scrollen = zoomen · slepen = schuiven · shift-slepen = meer kiezen. De kleur zegt wat voor lijn het is; beweeg erover en hij zegt hoe.
+              <strong>Zo lees je het web.</strong> Klik = kiezen · dubbelklik = middelpunt · scrollen = zoomen · slepen = schuiven · een knoop slepen = neerzetten waar je wilt (tik op het speldje om hem los te laten) · shift-slepen = meer kiezen. De kleur zegt wat voor lijn het is; beweeg erover en hij zegt hoe.
               <span className="tiny muted" style={{ display: 'block', marginTop: '0.3rem' }}>Klik om dit weg te doen.</span>
             </div>
           )}
@@ -653,8 +689,9 @@ function NodePanel({
     const other = nodeById.get(otherId);
     if (!other) continue;
     // The arrow reads from this knot: → "this points at that", ← "that points
-    // at this", ↔ a draad, which has no direction.
-    rows.push({ edge, other, arrow: edge.kind === 'thread' ? '↔' : edge.to === node.id ? '←' : '→' });
+    // at this", ↔ a draad without a label, which has no direction (a labelled
+    // draad reads from its from-card to its to-card — round 18).
+    rows.push({ edge, other, arrow: edge.kind === 'thread' && !edge.detail ? '↔' : edge.to === node.id ? '←' : '→' });
   }
   rows.sort((a, b) => a.other.name.localeCompare(b.other.name, 'nl') || a.edge.kind.localeCompare(b.edge.kind));
 
@@ -679,11 +716,11 @@ function NodePanel({
         return (
           <li key={`${edge.id}|${other.id}`}>
             <button type="button" className="web-list-row" onClick={() => onPick(other.id)} onDoubleClick={() => onFocus(other.id)} title={`${arrow === '←' ? `${other.name} wijst hierheen` : arrow === '→' ? `${node.name} verwijst naar ${other.name}` : `${words.string} tussen beide`} · klik: kiezen · dubbelklik: middelpunt`}>
-              <span className="web-list-arrow" aria-hidden="true" style={{ color: `var(--web-${edge.kind})` }}>{arrow}</span>
+              <span className="web-list-arrow" aria-hidden="true" style={{ color: edgeColourVar(edge) }}>{arrow}</span>
               <NodeGlyph node={other} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span className="web-list-name">{other.name}</span>
-                <span className="web-list-how" style={{ color: `var(--web-${edge.kind})` }}>
+                <span className="web-list-how" style={{ color: edgeColourVar(edge) }}>
                   {info.phrase(words, edge.detail)}
                   {via ? ` · ${via.name}` : ''}
                 </span>

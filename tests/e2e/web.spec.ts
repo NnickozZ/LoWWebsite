@@ -247,3 +247,42 @@ test('a selection in the web goes onto a prikbord as cards', async ({ page }, te
   const cards = (board.state?.cards ?? []) as { entryId?: string }[];
   expect(cards.map((card) => card.entryId).sort()).toEqual([a.id, b.id, c.id].sort());
 });
+
+test('a knot dragged in the organic web stays where it was put, until it is let go', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'phone', 'dragging a knot is a desk gesture');
+  await signIn(page, ...KEEPER);
+  const stamp = Date.now().toString(36);
+  const a = await makeEntry(page, `Speld A ${stamp}`);
+  const b = await makeEntry(page, `Speld B ${stamp}`);
+  const c = await makeEntry(page, `Speld C ${stamp}`);
+  await link(page, a, b, c);
+
+  await page.goto(`/web?focus=entry:${a.id}`);
+  await expect(page.getByTestId('web-panel')).toContainText(a.name);
+  await page.getByRole('button', { name: 'Web', exact: true }).click();
+  // Let the simulation cool so the knot is not moving under the hand.
+  await page.waitForFunction(() => (window as unknown as { __web: { sim: { settled: boolean } } }).__web.sim.settled);
+
+  const pinnedCount = () => page.evaluate(() => (window as unknown as { __web: { sim: { pinnedCount: number } } }).__web.sim.pinnedCount);
+  const id = `entry:${b.id}`;
+  const before = await nodePoint(page, id);
+  await page.mouse.move(before.x, before.y);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 60, before.y + 40, { steps: 6 });
+  await page.mouse.move(before.x + 140, before.y + 90, { steps: 6 });
+  await page.mouse.up();
+
+  // Round 17: it is pinned where it was dropped — and stays there once the
+  // web has cooled again, rather than springing back.
+  expect(await pinnedCount()).toBe(1);
+  await expect(page.getByTestId('web-unpin')).toContainText('1 losmaken');
+  await page.waitForFunction(() => (window as unknown as { __web: { sim: { settled: boolean } } }).__web.sim.settled);
+  const after = await nodePoint(page, id);
+  expect(Math.abs(after.x - (before.x + 140))).toBeLessThan(2);
+  expect(Math.abs(after.y - (before.y + 90))).toBeLessThan(2);
+
+  // The button lets everything go; the knot is free again and the button is gone.
+  await page.getByTestId('web-unpin').click();
+  expect(await pinnedCount()).toBe(0);
+  await expect(page.getByTestId('web-unpin')).toHaveCount(0);
+});

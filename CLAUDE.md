@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 48 files, 681 tests as of round 15 (round 13: 44 / 627)
+npx vitest run         # 48 files, 691 tests as of round 18 (round 17: 48 / 684)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -247,6 +247,44 @@ freely there.
   `WebEdgeKind` in `types.ts`, a row in `kinds.ts`, a `--web-<kind>` in
   `globals.css`, and an edge in `service.ts` — all four, or the legend and the
   canvas disagree about its colour.
+- **The web's simulation has three floors that are not forces** (round 17,
+  `lib/web/force.ts`): a spring is divided by the smaller degree of its ends
+  (`ForceLink.strength`), two knots may not come closer than `r + pad` each
+  (a positional move after integration), and in a focus web a knot outside its
+  depth's **band** (`sim.rings[depth]`, an annulus with area for its knots)
+  is moved back in by `ringGravity` of the way. All three were forces first
+  and lost to the springs of a hub — measured, not guessed. Do not turn them
+  back into forces, do not put a band on the whole web (it has no middle),
+  and keep `pinned` separate from `fixed`: `fixed` is a hand on the knot,
+  `pinned` is a hand that let go. In `WebCanvas.tsx`, never assign
+  `ctx.font` in a loop — go through `Type.font()`, which skips a string that
+  is already set, and measure with `Type.width()`, which measures once at
+  20 px and scales; and never `clip()` a cover per frame — `coverSprite()`.
+- **The web is two canvases** (round 18): `.web-canvas-layer` under
+  `.web-canvas`. The lower one holds the resting lines and the step rings
+  and is rebuilt only when its key changes (`baseKey` in `frame()`: mode,
+  layout, palette, size, `s.motion`, edge count); everything that depends on
+  the hover or the selection is drawn on the upper one every frame. Do not
+  draw anything hover-dependent into the layer, do not blit the layer with
+  `drawImage` (that was 30 ms of a 49 ms frame — the compositor stacks the
+  two for free), and bump `s.motion` whenever you move a knot outside the
+  simulation and the tweens. Measure with `window.__web.stats` before and
+  after any change to `frame()`; `scratch-perf*.mjs`-style scripts against a
+  2560×1350 viewport at dpr 2 are the benchmark this round used.
+- **A text line yields, at build time.** `collapseMentions` runs in
+  `buildWebGraph`, not in the browser: the count, the panel and the drawing
+  must agree. Adding a kind that should also yield means adding it to
+  `TEXT_KINDS` in `slice.ts` and nothing else.
+- **The Keeper's web reads containers as a player** (`containerViewer` in
+  `lib/web/service.ts`) unless `othersPrivate` is set. Keep artikelen and
+  sections on the real viewer. `boards.in_web` is checked in exactly two
+  places — `buildWebGraph` and `listMentions` — and must stay checked in
+  both.
+- **`MentionPopover` never owns the textarea.** It attaches through a ref or
+  an element-as-state (`LiveField mentions` uses state, because the room swaps
+  the element under a `next/dynamic` boundary) and writes with the native
+  value setter + an `input` event. If you find yourself calling a component's
+  `onChange` from it, stop: that breaks the Yjs-bound path.
 
 ---
 
@@ -342,7 +380,30 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12 and 13
+## 8. Leftovers — rounds 11, 12, 13, 17 and 18
+
+Round 18 leaves three, none of them the web's:
+
+- A keystroke in the first ~100 ms after a `LiveField`'s room arrives can be
+  lost while the seeded text is still landing (`BoundField`, `ready` vs the
+  first observer update). The timelines spec waits half a second; a fix is a
+  `shown`-is-seeded flag before `readOnly` lifts.
+- An edit inside the last 80 ms before a sheet closes leaves with the sheet
+  (`UPDATE_BATCH_MS` in `useLiveDoc`). A flush on unmount would close it.
+- `@Naam` typed by hand (without picking) is read by the index but printed as
+  plain text; only `[[Naam]]` gets the chip. Deliberate — the client has no
+  index — but a Keeper may ask.
+
+Round 17 (the web breathing) leaves two small ones of its own:
+
+- The whole web of a filled archive is a hairball with hubs, on purpose; if it
+  ever needs structure, the cheap road is a band per *soort* or per dossier —
+  the band machinery in `force.ts` takes any integer `ring`, it only ever gets
+  the BFS depth today.
+- Pins live in the sim and die with the page. If a Keeper wants a hand-laid web
+  to survive a reload, that is a `web_layout` row per viewer — a round, not a
+  fix.
+
 
 Genuine debt, worth picking up. Round 13 narrowed one of these (the
 `router.refresh()` gap) and added two of its own at the bottom; the rest it went

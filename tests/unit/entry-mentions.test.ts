@@ -260,7 +260,9 @@ describe('a card on a wall', () => {
             kind: 'entry',
             entryId: vuurtoren,
             name: 'De Vuurtoren',
-            text: '',
+            // Round 18: the scribble under an artikel card names another
+            // artikel — and its own, which says nothing new.
+            text: 'Hier stond @Jan Vermeer op de avond zelf, bij [[De Vuurtoren]].',
             showImage: true,
             x: 0,
             y: 0,
@@ -292,8 +294,17 @@ describe('a card on a wall', () => {
   });
 
   it('and a notitie that writes a name down counts, under the card', () => {
-    const mention = deps.listMentions(jan, BRAM).find((m) => m.kind === 'board');
-    expect(mention?.detail).toBe('Wie had de sleutel?');
+    const mentions = deps.listMentions(jan, BRAM).filter((m) => m.kind === 'board');
+    expect(mentions.map((m) => m.detail).sort()).toEqual(['De Vuurtoren', 'Wie had de sleutel?']);
+  });
+
+  it('a scribble under an artikel card counts too, but never for its own artikel (round 18)', () => {
+    // The Vuurtoren card names the Vuurtoren in its scribble: still one
+    // mention for the Vuurtoren from this wall — the card itself — with
+    // nothing printed after it.
+    const mine = deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board');
+    expect(mine).toHaveLength(1);
+    expect(mine[0].detail).toBe('');
   });
 
   it('but not a private wall somebody else hung', () => {
@@ -302,6 +313,14 @@ describe('a card on a wall', () => {
     // Its owner still has it.
     expect(deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board')).toHaveLength(1);
     deps.sqlite.prepare(`UPDATE boards SET view_mode = 'all' WHERE id = ?`).run(boardId);
+  });
+
+  it('nor a wall its manager keeps out of the web — not even for its owner (round 18)', () => {
+    deps.sqlite.prepare(`UPDATE boards SET in_web = 0 WHERE id = ?`).run(boardId);
+    expect(deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board')).toEqual([]);
+    expect(deps.listMentions(vuurtoren, KEEPER).filter((m) => m.kind === 'board')).toEqual([]);
+    deps.sqlite.prepare(`UPDATE boards SET in_web = 1 WHERE id = ?`).run(boardId);
+    expect(deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board')).toHaveLength(1);
   });
 });
 

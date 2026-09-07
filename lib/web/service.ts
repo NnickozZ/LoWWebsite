@@ -11,8 +11,8 @@ import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
-import { degrees } from './slice';
-import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode, type WebNodeId } from './types';
+import { collapseMentions, degrees } from './slice';
+import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebLineColour, type WebNode, type WebNodeId } from './types';
 
 /**
  * §43: building the whole web for one viewer.
@@ -52,6 +52,15 @@ import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode,
 export type BuildWebOptions = {
   /** Loose notities on prikborden become nodes of their own. */
   notes?: boolean;
+  /**
+   * Round 18, Keepers only: also spin in the private walls, dossiers,
+   * landkaarten and tijdlijnen of *other* people. Off by default: a Keeper
+   * may open anything, but a speler's private wall is the speler's thinking,
+   * and the Keeper's web is about the archive, not about who is thinking
+   * what. The Keeper's own private things, and what is shared with them,
+   * are always in. Ignored for a player, whose web never had them.
+   */
+  othersPrivate?: boolean;
 };
 
 type NodeMap = Map<WebNodeId, WebNode>;
@@ -61,6 +70,11 @@ const NOTE_NAME_LENGTH = 40;
 
 export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): WebGraph {
   const showNotes = Boolean(options.notes);
+  // The containers — dossiers, prikborden, landkaarten, tijdlijnen — are read
+  // *as a player* for a Keeper who has not asked for other people's private
+  // things: the same dials, minus the Keeper's skeleton key. Artikelen and
+  // sections keep the real viewer, so the Keeper's own hidden pages stay.
+  const containerViewer: Viewer = viewer?.isKeeper && !options.othersPrivate ? { ...viewer, isKeeper: false } : viewer;
   const nodes: NodeMap = new Map();
   const edges = new Map<string, WebEdge>();
 
@@ -71,12 +85,12 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   };
   const has = (kind: WebNode['kind'], refId: string | null | undefined): refId is string =>
     Boolean(refId) && nodes.has(webNodeId(kind, refId as string));
-  const add = (kind: WebEdgeKind, from: WebNodeId, to: WebNodeId, detail = '', via?: WebNodeId) => {
+  const add = (kind: WebEdgeKind, from: WebNodeId, to: WebNodeId, detail = '', via?: WebNodeId, colour?: WebLineColour) => {
     if (from === to) return;
     if (!nodes.has(from) || !nodes.has(to)) return;
     const id = `${kind}:${from}>${to}:${detail}${via ? `@${via}` : ''}`;
     if (edges.has(id)) return;
-    edges.set(id, { id, from, to, kind, detail, ...(via ? { via } : {}) });
+    edges.set(id, { id, from, to, kind, detail, ...(via ? { via } : {}), ...(colour ? { colour } : {}) });
   };
 
   /* ----------------------------------------------------------- the nodes */
@@ -129,7 +143,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   const caseRows = db
     .select({ id: schema.cases.id, name: schema.cases.name, slug: schema.cases.slug, coverAssetId: schema.cases.coverAssetId })
     .from(schema.cases)
-    .where(visibleCaseCondition(viewer))
+    .where(visibleCaseCondition(containerViewer))
     .all();
   const caseNames = new Map<string, string>();
   for (const row of caseRows) {
@@ -137,7 +151,9 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     put({ kind: 'case', refId: row.id, name: row.name, href: `/c/${row.slug}`, coverAssetId: row.coverAssetId ?? null });
   }
 
-  const boardSummaries = listBoards(viewer);
+  // Round 18: a wall its manager keeps out of the web is not in it — not as
+  // a knot, not as a line, not as the prikbord a draad hangs on.
+  const boardSummaries = listBoards(containerViewer).filter((board) => board.inWeb);
   const boardStates = new Map<string, BoardState>();
   if (boardSummaries.length) {
     const states = db
@@ -160,7 +176,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   const mapRows = db
     .select({ id: schema.maps.id, name: schema.maps.name, slug: schema.maps.slug, entryId: schema.maps.entryId })
     .from(schema.maps)
-    .where(visibleMapCondition(viewer))
+    .where(visibleMapCondition(containerViewer))
     .all();
   const entryNames = new Map(entryRows.map((row) => [row.id, row.name] as const));
   for (const row of mapRows) {
@@ -173,7 +189,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     });
   }
 
-  const timelineRows = listTimelines(viewer);
+  const timelineRows = listTimelines(containerViewer);
   for (const row of timelineRows) {
     put({
       kind: 'timeline',
@@ -339,7 +355,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       const from = cardNode.get(string.from.card);
       const to = cardNode.get(string.to.card);
       if (!from || !to) continue;
-      add('thread', from, to, string.label, boardNode);
+      add('thread', from, to, string.label, boardNode, string.colour);
     }
   }
 
@@ -411,7 +427,8 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   /* ----------------------------------------------------------- the closing */
 
   // Rule 1, once more and for everything above: no edge leaves the node map.
-  const edgeList = [...edges.values()].filter((edge) => nodes.has(edge.from) && nodes.has(edge.to));
+  // Round 18: a text line yields to any other tie between the same two knots.
+  const edgeList = collapseMentions([...edges.values()].filter((edge) => nodes.has(edge.from) && nodes.has(edge.to)));
   const nodeList = [...nodes.values()];
   const graph: WebGraph = { nodes: nodeList, edges: edgeList };
   const degree = degrees(graph);

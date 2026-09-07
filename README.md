@@ -844,6 +844,21 @@ Forty-two rules worth knowing before changing anything:
     a `fromKind`, a recompute on its save path and a branch in `listMentions`
     carrying its own condition — never a name written into the row.
 
+    Round 18 added two things at the edges. A prikbord has a switch, **"Telt
+    mee in het web"** (`boards.in_web`, in the wall's Rechten sheet, for
+    whoever manages its rights): off, and the wall is out of the web *and* out
+    of "Genoemd in", both readers checking the same column — a hunch pinned up
+    on a private wall should not surface as a fact on an artikel's page. And
+    the plain boxes — a card's writing, a notitie-speld, the text under a
+    gebeurtenis — offer artikel names on `@` and `[[` (`MentionPopover`,
+    `components/ui/`), inserting `[[Naam]]`, the exact form `entryIdsInText`
+    reads; the popover attaches to a textarea it does not own and writes into
+    it through the native value setter plus an `input` event, so a plain box
+    and a Yjs-bound `LiveField` hear it the same way. The scribble under an
+    *artikel* card counts as a mention now too, never for its own artikel;
+    migration 0019 empties the walls' rows so `ensureMentionsBackfilled()`
+    rewrites them at the next start-up.
+
 27. **A dossier's tabs are a decision, not a report.** §28. `cases.tab_types` is
     null for every dossier that has never been told otherwise, and null means
     what the archive always did: one tab per soort with something filed in it. A
@@ -1531,13 +1546,55 @@ Forty-two rules worth knowing before changing anything:
     to to"; the column layout (`lib/web/layout.ts`) draws what points at the
     focus on the left and what it points at on the right, a node reachable
     both ways sits once on the side that found it first (`out` wins a tie),
-    and a column past forty rows folds into "… nog n". The organic layout
-    (`lib/web/force.ts`) is hand-written, deterministic (a node starts on a
-    spiral seeded by its id) and local — repulsion stops at 300 px and a weak
-    gravity holds the pieces — so five hundred knots settle in under a second
-    and a reload does not shuffle the wall. Both are drawn by one `<canvas>`
-    (`components/web/WebCanvas.tsx`); nothing in the web is a DOM element, and
-    the frame loop stops when nothing moves.
+    and a column past twenty-eight rows folds into "… nog n". The organic
+    layout (`lib/web/force.ts`) is hand-written, deterministic (a node starts
+    on a spiral seeded by its id) and local — repulsion stops at 300 px and a
+    weak gravity holds the pieces — so five hundred knots settle in under a
+    second and a reload does not shuffle the wall. Three things keep a filled
+    archive from clotting (round 17): a spring is divided by the smaller
+    degree of its two ends, so a hub with thirty lines is pulled on about as
+    hard as a knot with one; two knots may never come closer than `r + pad`
+    each, `pad` being room for a label, and that floor is a *move*, not a
+    force a cooling alpha can starve; and in a focus web every depth has a
+    **band** — an annulus with enough area for its knots, a gutter between
+    bands — that a strayed knot is moved back into, so the organic web reads
+    "one step, two steps" like the columns do. A knot a hand drags is
+    **pinned** where it is dropped (`ForceNode.pinned`); it wears a speld, a
+    tap on the speld or the toolbar's "losmaken" lets it go. Both layouts are
+    drawn by one `<canvas>` (`components/web/WebCanvas.tsx`); nothing in the
+    web is a DOM element, the frame loop stops when nothing moves, text is
+    measured once at one size and scaled (a font string per zoom step is a
+    font parse per knot), and a cover is stamped from a sprite cut once to its
+    knot's shape rather than clipped every frame. Names are a pass of their
+    own: by rank (the middle, the chosen, the lit, the hubs, the rest) and only
+    where the name would not sit on another name or knot; the rest fade in as
+    you come closer. A line between two knots that are both two or more steps
+    out is drawn faint at rest, in its own colour, and lit on hover.
+
+    Round 18 made the drawing two canvases and four rules. The **resting lines
+    and the step rings live on a canvas of their own under the drawing**
+    (`.web-canvas-layer`), redrawn only when a knot, the camera, the size, the
+    palette or the graph changed; a hover frame strokes the handful of lit
+    lines on top and the compositor stacks the two — measured on a 4K canvas,
+    a hover frame went from 133 ms to the compositor's own floor. While knots
+    move the layer is drawn at half a pixel per CSS pixel without dashes or
+    the faint lines; while only the camera moves it is shifted by a CSS
+    transform and redrawn sharp once the hand is still (160 ms); the
+    simulation takes several ticks per frame while hot and a warm graph
+    change settles thirty ticks off-screen first. The four rules: **a text
+    line yields** — a `mention` or `section` edge between two knots is dropped
+    at build time (`collapseMentions` in `slice.ts`) when any edge of another
+    kind ties the same pair, and what remains is 0.8 px at a third of the
+    resting alpha; **a draad brings its own words, direction and colour** —
+    the line reads the string's label verbatim, a labelled draad points from
+    its from-card to its to-card (an unlabelled one still has no direction),
+    and `WebEdge.colour` carries the string's colour on the wall
+    (`LINE_COLOURS`, `--web-line-<colour>`); **a wall can opt out**
+    (`boards.in_web`, see rule 26); and **a Keeper's web reads the containers
+    as a player** — dossiers, prikborden, landkaarten and tijdlijnen go through
+    the ordinary dials without the Keeper's skeleton key unless the legend's
+    "Ook privé van anderen" (`?others=1`) is on, while artikelen and sections
+    keep the real viewer, so the Keeper's own hidden pages stay.
 
     How a line is tied is a *kind* (`WebEdgeKind`, sixteen of them) with one
     colour and dash in `lib/web/kinds.ts` and one CSS custom property

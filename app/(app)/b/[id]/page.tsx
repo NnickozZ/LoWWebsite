@@ -100,6 +100,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         canManage: mayManage,
         isKeeper: Boolean(user?.isKeeper),
         viewerId: user?.id ?? '',
+        inWeb: board.inWeb,
       }}
     />
     </>

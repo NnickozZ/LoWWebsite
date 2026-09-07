@@ -20,7 +20,7 @@ export default async function WebPage({
 }: {
   searchParams: Promise<{ focus?: string | string[]; d?: string | string[] }>;
 }) {
-  await getSessionUser();
+  const user = await getSessionUser();
   const query = await searchParams;
   const words = getWords();
   const focusRaw = Array.isArray(query.focus) ? query.focus[0] : query.focus;
@@ -38,7 +38,7 @@ export default async function WebPage({
           <p className="eyebrow">Alles wat aan elkaar hangt</p>
           <h1>{words.navWeb}</h1>
         </header>
-        <WebView initialFocus={focus} initialDepth={clampDepth(depthRaw ?? 1)} />
+        <WebView initialFocus={focus} initialDepth={clampDepth(depthRaw ?? 1)} isKeeper={Boolean(user?.isKeeper)} />
       </div>
     </div>
   );

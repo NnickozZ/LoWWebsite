@@ -15,8 +15,9 @@
  * *holds* an artikel, a prikbord *shows* a landkaart, an artikel's text *names*
  * another artikel. The focus view draws what points at the focus on the left
  * and what the focus points at on the right, so the direction matters. A draad
- * (`thread`) is the one kind with no natural direction; it is drawn on the
- * right and its `via` names the prikbord it hangs on.
+ * (`thread`) without a label is the one kind with no natural direction; it is
+ * drawn on the right and its `via` names the prikbord it hangs on. A draad
+ * *with* a label reads from its from-card to its to-card (round 18).
  *
  * Rule 1 holds here exactly as it does under "Genoemd in": a node this viewer
  * may not open is **not in the graph**, and neither is any edge touching it.
@@ -92,6 +93,9 @@ export type WebEdgeKind =
   /** A "speler" infobox field names a player, drawn as their karakter; `detail` is the label. */
   | 'player';
 
+/** The six colours a draad can have on a prikbord (`STRING_COLOURS` in `lib/boards/merge.ts`). */
+export type WebLineColour = 'red' | 'ink' | 'blue' | 'green' | 'gold' | 'violet';
+
 export type WebEdge = {
   id: string;
   from: WebNodeId;
@@ -101,6 +105,13 @@ export type WebEdge = {
   detail: string;
   /** `thread` only: the prikbord the draad hangs on. */
   via?: WebNodeId;
+  /**
+   * `thread` only (round 18): the colour the draad has on the wall, so the
+   * web draws it in that colour rather than the prikbord's red. A labelled
+   * draad is read from → to ("A — heeft vermoord → B"); an unlabelled one
+   * still has no direction.
+   */
+  colour?: WebLineColour;
 };
 
 export type WebGraph = {

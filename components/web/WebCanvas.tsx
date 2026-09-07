@@ -3,7 +3,7 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, forwardRef } from 'react';
 import { ICON_PATHS } from '@/components/Icon';
 import { ForceSim, radiusFor } from '@/lib/web/force';
-import { EDGE_KINDS, NODE_KINDS } from '@/lib/web/kinds';
+import { EDGE_KINDS, LINE_COLOURS, NODE_KINDS } from '@/lib/web/kinds';
 import { COLUMN_GAP_X, COLUMN_NODE_W, columnLayout, type ColumnLayout } from '@/lib/web/layout';
 import type { WebEdge, WebGraph, WebNode, WebNodeId } from '@/lib/web/types';
 import type { Words } from '@/lib/words';
@@ -43,6 +43,8 @@ export type WebCanvasHandle = {
   /** Bring one node to the centre, animated, without changing the zoom. */
   centreOn: (id: WebNodeId) => void;
   zoomBy: (factor: number) => void;
+  /** Lets go of every knot a hand has pinned (organic). */
+  unpinAll: () => void;
 };
 
 export type WebCanvasProps = {
@@ -62,6 +64,8 @@ export type WebCanvasProps = {
   /** Changing this re-fits the view (a new focus, a new mode). */
   fitKey: string;
   phone?: boolean;
+  /** How many knots are pinned right now (organic) — for a "losmaken" button. */
+  onPinsChange?: (count: number) => void;
 };
 
 type Palette = {
@@ -86,6 +90,13 @@ const CAMERA_MS = 380;
 const ZOOM_MIN = 0.12;
 const ZOOM_MAX = 4;
 const DIM = 0.28;
+/** Below this zoom only the landmarks carry a name; between the two, names fade in. */
+const LABEL_ZOOM_LOW = 0.7;
+const LABEL_ZOOM_HIGH = 1.05;
+/** A line between two knots that are both two or more steps out, at rest. */
+const PERIPHERAL_ALPHA = 0.12;
+/** A line at rest in the organic web. */
+const REST_ALPHA = 0.4;
 
 function readPalette(el: HTMLElement): Palette {
   const css = getComputedStyle(el);
@@ -127,6 +138,11 @@ function nodeColour(node: WebNode, palette: Palette): string {
   return palette.dark ? info.colourDark : info.colour;
 }
 
+function edgeColour(edge: WebEdge, palette: Palette): string {
+  const info = edge.colour ? LINE_COLOURS[edge.colour] : EDGE_KINDS[edge.kind];
+  return palette.dark ? info.colourDark : info.colour;
+}
+
 function nodeIcon(node: WebNode): string {
   if (node.kind === 'entry') return node.isCharacter ? 'mask' : node.typeIcon || 'file';
   return NODE_KINDS[node.kind].icon;
@@ -154,60 +170,106 @@ function drawIcon(ctx: CanvasRenderingContext2D, name: string, x: number, y: num
   ctx.restore();
 }
 
-const widthCache = new Map<string, number>();
-function textWidth(ctx: CanvasRenderingContext2D, text: string): number {
-  const key = `${ctx.font}|${text}`;
-  let w = widthCache.get(key);
-  if (w === undefined) {
-    w = ctx.measureText(text).width;
-    if (widthCache.size > 4000) widthCache.clear();
-    widthCache.set(key, w);
-  }
-  return w;
-}
-
-function ellipsis(ctx: CanvasRenderingContext2D, text: string, max: number): string {
-  if (textWidth(ctx, text) <= max) return text;
-  let lo = 0;
-  let hi = text.length;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (textWidth(ctx, `${text.slice(0, mid)}…`) <= max) lo = mid;
-    else hi = mid - 1;
-  }
-  return `${text.slice(0, Math.max(0, lo)).trimEnd()}…`;
-}
-
 /**
- * A name on at most two lines, each no wider than `max`; the second line gets
- * the ellipsis. A long name wrapped is a label you can read; a long name cut
- * to one line is "The missing body of…" three times in one web.
+ * Text is measured once, at one size, on a context of its own. A label is
+ * drawn at `10 / zoom` px so it stays the same size on the screen, which
+ * means its font string changes on every wheel tick — and `ctx.font = …` is a
+ * font *parse*, the most expensive single thing a canvas does per call. So
+ * nothing here measures at the drawing size: a width is measured at
+ * `MEASURE_PX` per (weight, text) and scaled linearly, which is exact for the
+ * same face, and the drawing context has its font set only when the string
+ * actually differs (`Type.font`). Round 17: this alone took a hover frame on
+ * 600 knots from tens of milliseconds to a few.
  */
-function wrapName(ctx: CanvasRenderingContext2D, text: string, max: number, lines = 2): string[] {
-  if (textWidth(ctx, text) <= max) return [text];
-  const words = text.split(/\s+/).filter(Boolean);
-  const out: string[] = [];
-  let line = '';
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    const next = line ? `${line} ${word}` : word;
-    if (textWidth(ctx, next) <= max) {
-      line = next;
-      continue;
+const MEASURE_PX = 20;
+let measureCtx: CanvasRenderingContext2D | null = null;
+let measureFace = '';
+const widthCache = new Map<string, number>();
+
+class Type {
+  private current = '';
+  constructor(
+    private ctx: CanvasRenderingContext2D,
+    private sans: string,
+  ) {
+    if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+    if (measureFace !== sans) {
+      measureFace = sans;
+      widthCache.clear();
     }
-    if (out.length === lines - 1) {
-      out.push(ellipsis(ctx, `${next}`, max));
-      return out;
+  }
+
+  /** Sets the drawing font, if it is not already that. */
+  font(weight: number, size: number): void {
+    const f = `${weight} ${size}px ${this.sans}`;
+    if (f !== this.current) {
+      this.current = f;
+      this.ctx.font = f;
     }
-    if (line) out.push(line);
-    else out.push(ellipsis(ctx, word, max));
-    line = line ? word : '';
   }
-  if (line) {
-    if (out.length === lines) out[lines - 1] = ellipsis(ctx, `${out[lines - 1]} ${line}`, max);
-    else out.push(line);
+
+  /** After a `ctx.restore()` the font may be anything again. */
+  forget(): void {
+    this.current = '';
   }
-  return out.slice(0, lines);
+
+  width(weight: number, size: number, text: string): number {
+    const key = `${weight}|${text}`;
+    let w = widthCache.get(key);
+    if (w === undefined) {
+      const m = measureCtx;
+      if (!m) return text.length * size * 0.55;
+      m.font = `${weight} ${MEASURE_PX}px ${this.sans}`;
+      w = m.measureText(text).width;
+      if (widthCache.size > 6000) widthCache.clear();
+      widthCache.set(key, w);
+    }
+    return (w * size) / MEASURE_PX;
+  }
+
+  ellipsis(weight: number, size: number, text: string, max: number): string {
+    if (this.width(weight, size, text) <= max) return text;
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (this.width(weight, size, `${text.slice(0, mid)}…`) <= max) lo = mid;
+      else hi = mid - 1;
+    }
+    return `${text.slice(0, Math.max(0, lo)).trimEnd()}…`;
+  }
+
+  /**
+   * A name on at most two lines, each no wider than `max`; the second line
+   * gets the ellipsis. A long name wrapped is a label you can read; a long
+   * name cut to one line is "The missing body of…" three times in one web.
+   */
+  wrap(weight: number, size: number, text: string, max: number, lines = 2): string[] {
+    if (this.width(weight, size, text) <= max) return [text];
+    const words = text.split(/\s+/).filter(Boolean);
+    const out: string[] = [];
+    let line = '';
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const next = line ? `${line} ${word}` : word;
+      if (this.width(weight, size, next) <= max) {
+        line = next;
+        continue;
+      }
+      if (out.length === lines - 1) {
+        out.push(this.ellipsis(weight, size, `${next}`, max));
+        return out;
+      }
+      if (line) out.push(line);
+      else out.push(this.ellipsis(weight, size, word, max));
+      line = line ? word : '';
+    }
+    if (line) {
+      if (out.length === lines) out[lines - 1] = this.ellipsis(weight, size, `${out[lines - 1]} ${line}`, max);
+      else out.push(line);
+    }
+    return out.slice(0, lines);
+  }
 }
 
 /** Omslagen, loaded once each; a frame is asked for when one arrives. */
@@ -224,6 +286,35 @@ function coverImage(assetId: string, onLoad: () => void): HTMLImageElement | nul
   img.onerror = () => imageCache.set(assetId, null);
   img.src = `/api/assets/${assetId}?s=thumb`;
   return null;
+}
+
+/**
+ * A cover already cut to the shape of its knot, drawn once into a small
+ * canvas and stamped from then on. `ctx.clip()` per knot per frame was the
+ * other half of the slow hover frame: a clip is a mask allocation, and with
+ * "Afbeeldingen tonen" on, every visible knot did one. A stamp is a blit.
+ */
+const spriteCache = new Map<string, HTMLCanvasElement>();
+const SPRITE_SCALE = 2;
+function coverSprite(img: HTMLImageElement, assetId: string, kind: WebNode['kind'], r: number): HTMLCanvasElement | null {
+  const rr = Math.max(4, Math.round(r));
+  const key = `${assetId}|${kind}|${rr}`;
+  let sprite = spriteCache.get(key);
+  if (sprite) return sprite;
+  const px = Math.ceil(rr * 2 * SPRITE_SCALE) + 2;
+  sprite = document.createElement('canvas');
+  sprite.width = px;
+  sprite.height = px;
+  const c = sprite.getContext('2d');
+  if (!c) return null;
+  c.scale(SPRITE_SCALE, SPRITE_SCALE);
+  const mid = px / (2 * SPRITE_SCALE);
+  knotPath(c, kind, mid, mid, rr);
+  c.clip();
+  drawCover(c, img, mid, mid, rr * 2, rr * 2);
+  if (spriteCache.size > 900) spriteCache.clear();
+  spriteCache.set(key, sprite);
+  return sprite;
 }
 
 /** Draws a picture cover-fitted into the current clip, centred on (x, y). */
@@ -331,6 +422,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function WebCanvas(props, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
+  const layerRef = useRef<HTMLCanvasElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
 
@@ -376,6 +468,18 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     adjacency: new Map<WebNodeId, Set<WebNodeId>>(),
     nodeById: new Map<WebNodeId, WebNode>(),
     edgesByNode: new Map<WebNodeId, WebEdge[]>(),
+    /** Where the last frame spent its time, in ms per section — for `window.__web` and nothing else. */
+    stats: null as null | Record<string, number>,
+    /** The resting lines and the step rings live on `layerRef`, drawn once and composited (round 18). */
+    layerKey: null as string | null,
+    layerBase: null as string | null,
+    layerCam: null as Camera | null,
+    prevCam: null as Camera | null,
+    layerDpr: 1,
+    /** Bumps whenever a knot moved: a tick, a tween, a drag. The layer keys on it. */
+    motion: 0,
+    lastCameraMove: 0,
+    idleTimer: 0 as ReturnType<typeof setTimeout> | 0,
   });
 
   const graphIndex = useMemo(() => {
@@ -489,12 +593,24 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     const pad = 48;
     const bw = Math.max(1, b.maxX - b.minX);
     const bh = Math.max(1, b.maxY - b.minY);
-    const zoom = Math.max(ZOOM_MIN, Math.min(propsRef.current.mode === 'columns' ? 1.15 : 1.6, (w - pad * 2) / bw, (h - pad * 2) / bh));
+    // Columns never fit below 0.45: a column of eighty rows shrunk to fit the
+    // window is a column of needles, and a reader would rather scroll.
+    const floor = propsRef.current.mode === 'columns' ? 0.45 : ZOOM_MIN;
+    const zoom = Math.max(floor, Math.min(propsRef.current.mode === 'columns' ? 1.15 : 1.6, (w - pad * 2) / bw, (h - pad * 2) / bh));
     animateCamera({ x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2, zoom });
   };
 
+  const reportPins = () => propsRef.current.onPinsChange?.(state.current.sim.pinnedCount);
+
   useImperativeHandle(ref, () => ({
     fit,
+    unpinAll: () => {
+      const s = state.current;
+      if (s.sim.unpinAll()) {
+        reportPins();
+        invalidate();
+      }
+    },
     centreOn: (id) => {
       const p = state.current.placed.get(id);
       if (p) animateCamera({ x: p.x, y: p.y, zoom: Math.max(state.current.camera.zoom, 0.8) });
@@ -563,6 +679,10 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       // A cold start is settled off-screen so the first frame is a web, not a
       // burst; a warm graph keeps moving on screen, which is the pleasant part.
       if (coldStart && graph.nodes.length > 0) s.sim.settle(320);
+      // A warm graph (a depth step, a legend tick) takes its first, wildest
+      // ticks off-screen too — a few milliseconds — and animates the rest.
+      else if (graph.nodes.length > 0) s.sim.settle(30);
+      reportPins();
     }
     s.pendingFit = true;
     invalidate();
@@ -591,7 +711,9 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     if (!host || !canvas) return;
     const observer = new ResizeObserver(() => {
       const rect = host.getBoundingClientRect();
-      const dpr = Math.min(3, window.devicePixelRatio || 1);
+      // Capped at 2: a third pixel per pixel is invisible on a web and costs
+      // more than twice the fill of every frame.
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
       const s = state.current;
       s.size = { w: Math.max(1, Math.round(rect.width)), h: Math.max(1, Math.round(rect.height)), dpr };
       canvas.width = Math.round(s.size.w * dpr);
@@ -616,6 +738,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       mutation.disconnect();
       if (state.current.raf) cancelAnimationFrame(state.current.raf);
       state.current.raf = 0;
+      if (state.current.idleTimer) clearTimeout(state.current.idleTimer);
+      state.current.idleTimer = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -631,7 +755,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     for (const [id, p] of s.placed) {
       if (organic) {
         const d = Math.hypot(w.x - p.x, w.y - p.y);
-        const reach = p.r + 4 / s.camera.zoom;
+        // A small knot is still a finger-sized target on the screen.
+        const reach = Math.max(p.r + 4 / s.camera.zoom, 10 / s.camera.zoom);
         if (d <= reach && d < bestD) {
           best = id;
           bestD = d;
@@ -641,6 +766,24 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       }
     }
     return best;
+  };
+
+  /** Where a pinned knot wears its speld: up and to the right of the knot, a fixed size on the screen. */
+  const pinBadge = (p: Placed, zoom: number) => ({ x: p.x + p.r * 0.7 + 3 / zoom, y: p.y - p.r * 0.7 - 3 / zoom, r: 6 / zoom });
+
+  /** The pinned knot whose speld is under the pointer, if any. */
+  const hitPin = (sx: number, sy: number): WebNodeId | null => {
+    const s = state.current;
+    if (propsRef.current.mode !== 'organic') return null;
+    const w = toWorld(sx, sy);
+    for (const f of s.sim.nodes) {
+      if (!f.pinned) continue;
+      const p = s.placed.get(f.id);
+      if (!p) continue;
+      const b = pinBadge(p, s.camera.zoom);
+      if (Math.hypot(w.x - b.x, w.y - b.y) <= b.r + 2 / s.camera.zoom) return f.id;
+    }
+    return null;
   };
 
   const hitFold = (sx: number, sy: number): string | null => {
@@ -678,15 +821,31 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       else busy = true;
     }
 
-    // Simulation.
-    if (mode === 'organic' && s.sim.tick()) busy = true;
+    const t0 = performance.now();
+    let tPrev = t0;
+    const t: Record<string, number> = {};
+    const mark = (name: string) => {
+      const n = performance.now();
+      t[name] = (t[name] ?? 0) + (n - tPrev);
+      tPrev = n;
+    };
+    // Simulation. Several ticks a frame while it is hot: alpha cools per
+    // tick, not per millisecond, so a slow frame used to stretch the settling
+    // into tens of seconds of a web that would not sit still.
+    if (mode === 'organic' && !s.sim.settled) {
+      const ticks = s.gesture?.kind === 'node' ? 1 : s.sim.alpha > 0.3 ? 4 : s.sim.alpha > 0.05 ? 3 : 2;
+      for (let i = 0; i < ticks && s.sim.tick(); i++) busy = true;
+      s.motion += 1;
+    }
 
     // Positions, tweens, births.
+    let tweening = false;
     for (const [id, p] of s.placed) {
       currentPos(id, now);
       const t = s.tweens.get(id);
       if (t) {
         busy = true;
+        tweening = true;
         if (t.born) {
           const k = Math.min(1, (now - t.born) / BORN_MS);
           p.scale = EASE(k);
@@ -696,6 +855,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         p.scale = 1;
       }
     }
+    if (tweening) s.motion += 1;
 
     // A fit that waited for the drawing to know its own size: at once for
     // columns, and for the organic web once the simulation has cooled a little.
@@ -708,13 +868,12 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
 
     const pal = s.palette;
     const { w, h, dpr } = s.size;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    ctx.save();
-    ctx.translate(w / 2, h / 2);
-    ctx.scale(s.camera.zoom, s.camera.zoom);
-    ctx.translate(-s.camera.x, -s.camera.y);
     const zoom = s.camera.zoom;
+    const focusGraph = Boolean(graph.focus);
+    // Steps from the middle, for the resting alpha of a line: one between
+    // two knots that are both two or more steps out says nothing about the
+    // middle, and there are hundreds of them in a filled archive at depth 2.
+    const depthOf = (id: WebNodeId) => s.nodeById.get(id)?.depth ?? 0;
 
     // What is lit. One node "active" lights its neighbourhood and dims the rest.
     const active: WebNodeId | null = s.hover ?? (selected.size === 1 ? [...selected][0] : null);
@@ -730,7 +889,58 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     };
     const inView = (x: number, y: number) => x >= view.minX && x <= view.maxX && y >= view.minY && y <= view.maxY;
 
-    /* --- edges --- */
+    /*
+     * Round 18 — the two speeds of a frame. Measured on a 4K canvas: a frame
+     * cost 133 ms, of which the stroking of ~900 resting lines was 114 —
+     * rasterising thin anti-aliased lines over eight million pixels, on every
+     * hover, every pan and every tick of the simulation. So the resting lines
+     * (and the step rings) live on a **layer** of their own, an offscreen
+     * canvas rebuilt only when something under them moved — a tick, a tween,
+     * the camera, the size, the palette, the graph — and a hover frame just
+     * blits it and strokes the handful of lit lines on top. While the hand or
+     * the simulation is moving, the layer is drawn at one pixel per CSS pixel
+     * without dashes, and pan/zoom re-uses the last layer with a transform
+     * until the hand has been still for a beat.
+     */
+    // Did the camera move since the last frame (for "is the hand moving"),
+    // and is it away from where the layer was drawn (for "is the layer stale")?
+    const cameraMoved = s.prevCam === null || s.prevCam.x !== s.camera.x || s.prevCam.y !== s.camera.y || s.prevCam.zoom !== s.camera.zoom;
+    s.prevCam = { ...s.camera };
+    if (cameraMoved) s.lastCameraMove = now;
+    const layerOff = s.layerCam === null || s.layerCam.x !== s.camera.x || s.layerCam.y !== s.camera.y || s.layerCam.zoom !== s.camera.zoom;
+    const inMotion =
+      busy ||
+      s.gesture?.kind === 'pan' ||
+      s.gesture?.kind === 'pinch' ||
+      s.gesture?.kind === 'node' ||
+      now - s.lastCameraMove < 140;
+    // While knots are actually moving the layer is drawn at half a pixel per
+    // CSS pixel — soft lines under sharp knots, for a fifth of the pixels;
+    // while only the camera moves, one pixel per pixel (and mostly reused).
+    const layerDpr = busy ? 0.5 : inMotion ? 1 : dpr;
+    const baseKey = `${mode}|${s.layoutKey}|${pal.paper}|${w}x${h}|${s.motion}|${graph.edges.length}|${labelsAlways ? 1 : 0}`;
+    const layerKey = `${baseKey}|${layerDpr}`;
+    const layerStale = layerOff || s.layerKey !== layerKey;
+    // A moving camera over an unchanged web: blit the old layer transformed
+    // rather than restroking everything, and come back for a proper one once
+    // the hand is still. Not when the zoom has run away from the layer's —
+    // a layer blown up threefold is mush.
+    const zoomRatio = s.layerCam ? zoom / s.layerCam.zoom : 1;
+    const reuseLayer = layerStale && inMotion && s.layerKey !== null && s.layerBase === baseKey && zoomRatio > 0.6 && zoomRatio < 1.7;
+    if (inMotion && !busy) {
+      // Nothing is animating, but the hand only just stopped: come back once
+      // more in a moment to draw the sharp layer.
+      if (s.idleTimer) clearTimeout(s.idleTimer);
+      s.idleTimer = setTimeout(() => {
+        s.idleTimer = 0;
+        invalidate();
+      }, 160);
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    /* --- geometry of every line in view, whatever is stroked --- */
     const endpoint = (id: WebNodeId, foldId?: string) => {
       if (foldId) {
         const f = s.folds.find((fold) => fold.id === foldId);
@@ -738,16 +948,30 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       }
       return s.placed.get(id) ?? null;
     };
-
     const stride = COLUMN_NODE_W + COLUMN_GAP_X;
     const columnOf = (x: number) => Math.round(x / stride);
-    type Drawn = { edge: WebEdge; ax: number; ay: number; bx: number; by: number; mx: number; my: number; alpha: number; colour: string };
+    type Drawn = {
+      edge: WebEdge;
+      ax: number;
+      ay: number;
+      bx: number;
+      by: number;
+      mx: number;
+      my: number;
+      /** Control points for a column curve; absent for a straight line. */
+      c?: [number, number, number, number];
+      rest: number;
+      lit: boolean;
+      chosen: boolean;
+      colour: string;
+      width: number;
+      dash: number[];
+      born: number;
+    };
     // A phrase sits 60% of the way from the lit knot towards its neighbour —
     // off the lit knot's own name, and on the side of the thing it explains.
     const chipT = (edge: WebEdge) => (active === edge.from ? 0.6 : active === edge.to ? 0.4 : 0.5);
     const drawn: Drawn[] = [];
-    const byStyle = new Map<string, { colour: string; dash: number[]; width: number; alpha: number; path: Path2D }>();
-
     for (const edge of graph.edges) {
       const fold = s.edgeToFold.get(edge.id);
       const a = endpoint(edge.from, fold?.from);
@@ -756,9 +980,9 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       if (fold?.from && fold?.to) continue;
       if (!inView(a.x, a.y) && !inView(b.x, b.y) && !inView((a.x + b.x) / 2, (a.y + b.y) / 2)) continue;
       const info = EDGE_KINDS[edge.kind];
-      const colour = pal.dark ? info.colourDark : info.colour;
-      const isLit = litEdges ? litEdges.has(edge.id) : true;
-      const selectedEdge = selected.size > 1 && selected.has(edge.from) && selected.has(edge.to);
+      const colour = edgeColour(edge, pal);
+      const isLit = litEdges ? litEdges.has(edge.id) : false;
+      const chosen = selected.size > 1 && selected.has(edge.from) && selected.has(edge.to);
       // In the organic web an unlit line is faint: the knots are the picture
       // and the lines are the texture, until a hand rests on one of them. In
       // columns, a line between neighbouring columns is the spine of the
@@ -766,16 +990,23 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       // middle or stays in its own column is true but secondary, and is
       // drawn faint until a hand asks for it.
       let rest = 1;
-      if (mode === 'organic') rest = 0.42;
-      else if (Math.abs(columnOf(a.x) - columnOf(b.x)) !== 1) rest = 0.3;
-      const alpha = (litEdges ? (isLit || selectedEdge ? 1 : DIM * 0.5) : rest) * Math.min(a.scale, b.scale);
-      const width = (mode === 'organic' && !(litEdges && isLit) ? Math.min(info.width, 1.2) : info.width) * (isLit && litEdges ? 1.35 : 1) + (selectedEdge ? 0.8 : 0);
-      const key = `${colour}|${info.dash.join(',')}|${width}|${alpha.toFixed(2)}`;
-      let bucket = byStyle.get(key);
-      if (!bucket) {
-        bucket = { colour, dash: info.dash, width, alpha, path: new Path2D() };
-        byStyle.set(key, bucket);
-      }
+      if (mode === 'organic') {
+        const peripheral = focusGraph && depthOf(edge.from) >= 2 && depthOf(edge.to) >= 2;
+        rest = peripheral ? PERIPHERAL_ALPHA : REST_ALPHA;
+      } else if (fold?.from || fold?.to) {
+        // Into a fold: a hundred lines landing on one row say "many", and
+        // one faint fan says it as well as a black one.
+        rest = 0.1;
+      } else if (columnOf(a.x) === columnOf(b.x)) {
+        // A tie inside one column is the columns' version of the periphery:
+        // true, but not about the middle, and at depth 2 there are dozens
+        // looping out past the same edge.
+        rest = PERIPHERAL_ALPHA;
+      } else if (Math.abs(columnOf(a.x) - columnOf(b.x)) !== 1) rest = 0.3;
+      rest *= info.restAlpha ?? 1;
+      const born = Math.round(Math.min(a.scale, b.scale) * 4) / 4;
+      if (born <= 0) continue;
+      const width = mode === 'organic' ? Math.min(info.width, 1.2) : info.width;
 
       let ax = a.x;
       let ay = a.y;
@@ -783,6 +1014,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       let by = b.y;
       let mx: number;
       let my: number;
+      let c: Drawn['c'];
       if (mode === 'columns') {
         // Leave from the side that faces the other column; a same-column tie
         // loops out to the right.
@@ -791,17 +1023,14 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
           ax = a.x + a.w / 2;
           bx = b.x + b.w / 2;
           const bulge = 40 + Math.abs(by - ay) * 0.15;
-          bucket.path.moveTo(ax, ay);
-          bucket.path.bezierCurveTo(ax + bulge, ay, bx + bulge, by, bx, by);
-          ({ x: mx, y: my } = cubicAt(chipT(edge), ax, ay, ax + bulge, ay, bx + bulge, by, bx, by));
+          c = [ax + bulge, ay, bx + bulge, by];
         } else {
           ax = a.x + (dir * a.w) / 2;
           bx = b.x - (dir * b.w) / 2;
           const pull = Math.max(30, Math.abs(bx - ax) * 0.45);
-          bucket.path.moveTo(ax, ay);
-          bucket.path.bezierCurveTo(ax + dir * pull, ay, bx - dir * pull, by, bx, by);
-          ({ x: mx, y: my } = cubicAt(chipT(edge), ax, ay, ax + dir * pull, ay, bx - dir * pull, by, bx, by));
+          c = [ax + dir * pull, ay, bx - dir * pull, by];
         }
+        ({ x: mx, y: my } = cubicAt(chipT(edge), ax, ay, c[0], c[1], c[2], c[3], bx, by));
       } else {
         // Straight, from rim to rim.
         const dx = b.x - a.x;
@@ -811,66 +1040,200 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         ay = a.y + (dy / d) * a.r;
         bx = b.x - (dx / d) * b.r;
         by = b.y - (dy / d) * b.r;
-        bucket.path.moveTo(ax, ay);
-        bucket.path.lineTo(bx, by);
         const t = chipT(edge);
         mx = ax + (bx - ax) * t;
         my = ay + (by - ay) * t;
       }
-      drawn.push({ edge, ax, ay, bx, by, mx, my, alpha, colour });
+      drawn.push({ edge, ax, ay, bx, by, mx, my, c, rest, lit: isLit, chosen, colour, width, dash: info.dash, born });
     }
 
-    for (const bucket of byStyle.values()) {
-      ctx.save();
-      ctx.globalAlpha = bucket.alpha;
-      ctx.strokeStyle = bucket.colour;
-      ctx.lineWidth = bucket.width / Math.sqrt(zoom);
-      ctx.setLineDash(bucket.dash.map((d) => d / Math.sqrt(zoom)));
-      ctx.lineCap = 'round';
-      ctx.stroke(bucket.path);
-      ctx.restore();
+    /** Strokes a set of lines, bucketed by style, on any context already in world space. */
+    const strokeLines = (
+      target: CanvasRenderingContext2D,
+      lines: Drawn[],
+      alphaOf: (d: Drawn) => number,
+      widthOf: (d: Drawn) => number,
+      quality: 'sharp' | 'quick',
+      caps: CanvasLineCap,
+    ) => {
+      const byStyle = new Map<string, { colour: string; dash: number[]; width: number; alpha: number; path: Path2D }>();
+      for (const d of lines) {
+        const alpha = Math.round(alphaOf(d) * 20) / 20;
+        if (alpha <= 0) continue;
+        if (quality === 'quick' && alpha < 0.15) continue;
+        const width = widthOf(d);
+        // Dashes are a fact about a line you can only read up close; far out
+        // they cost a fifth of the frame and say nothing.
+        const dash = quality === 'quick' || (zoom < 0.9 && !d.lit && !d.chosen) ? [] : d.dash;
+        const key = `${d.colour}|${dash.join(',')}|${width}|${alpha}`;
+        let bucket = byStyle.get(key);
+        if (!bucket) {
+          bucket = { colour: d.colour, dash, width, alpha, path: new Path2D() };
+          byStyle.set(key, bucket);
+        }
+        bucket.path.moveTo(d.ax, d.ay);
+        if (d.c) bucket.path.bezierCurveTo(d.c[0], d.c[1], d.c[2], d.c[3], d.bx, d.by);
+        else bucket.path.lineTo(d.bx, d.by);
+      }
+      target.lineCap = caps;
+      for (const bucket of byStyle.values()) {
+        target.globalAlpha = bucket.alpha;
+        target.strokeStyle = bucket.colour;
+        target.lineWidth = bucket.width / Math.sqrt(zoom);
+        target.setLineDash(bucket.dash.map((v) => v / Math.sqrt(zoom)));
+        target.stroke(bucket.path);
+      }
+      target.setLineDash([]);
+      target.globalAlpha = 1;
+    };
+
+    /** The step rings of an organic focus web, on any context already in world space. */
+    const drawSteps = (target: CanvasRenderingContext2D, kind: Type) => {
+      if (!(mode === 'organic' && focusGraph && s.sim.rings.length > 1)) return;
+      const gap = s.sim.options.ringGap;
+      // The bands are round the sim's origin, where the middle is drawn to.
+      const centre = { x: 0, y: 0 };
+      target.save();
+      target.strokeStyle = pal.inkMuted;
+      target.lineWidth = 1.2 / zoom;
+      target.setLineDash([4 / zoom, 5 / zoom]);
+      kind.font(600, 11 / zoom);
+      target.textAlign = 'center';
+      target.textBaseline = 'bottom';
+      for (let d = 1; d < s.sim.rings.length; d++) {
+        const band = s.sim.rings[d];
+        if (!band || band.outer === 0) continue;
+        // The gutter before this band, shaded a shade darker, with a dotted
+        // line down its middle and the step count beside it.
+        const r = band.inner - gap / 2;
+        if (r <= 0) continue;
+        target.globalAlpha = 0.045;
+        target.fillStyle = pal.ink;
+        target.beginPath();
+        target.arc(centre.x, centre.y, band.inner, 0, Math.PI * 2);
+        target.arc(centre.x, centre.y, Math.max(0, band.inner - gap), 0, Math.PI * 2, true);
+        target.fill();
+        target.globalAlpha = 0.5;
+        target.beginPath();
+        target.arc(centre.x, centre.y, r, 0, Math.PI * 2);
+        target.stroke();
+        if (r >= 50) {
+          target.fillStyle = pal.inkMuted;
+          const a = (-3 * Math.PI) / 4;
+          target.fillText(d === 1 ? '1 stap' : `${d} stappen`, centre.x + Math.cos(a) * r, centre.y + Math.sin(a) * r - 3 / zoom);
+        }
+      }
+      target.restore();
+      kind.forget();
+    };
+
+    mark('setup');
+
+    /* --- the resting layer: rings and every line at rest --- */
+    const layer = layerRef.current;
+    if (layer && layerStale && !reuseLayer) {
+      const lw = Math.max(1, Math.round(w * layerDpr));
+      const lh = Math.max(1, Math.round(h * layerDpr));
+      if (layer.width !== lw || layer.height !== lh) {
+        layer.width = lw;
+        layer.height = lh;
+      }
+      const lctx = layer.getContext('2d');
+      if (lctx) {
+        lctx.setTransform(layerDpr, 0, 0, layerDpr, 0, 0);
+        lctx.clearRect(0, 0, w, h);
+        lctx.save();
+        lctx.translate(w / 2, h / 2);
+        lctx.scale(zoom, zoom);
+        lctx.translate(-s.camera.x, -s.camera.y);
+        drawSteps(lctx, new Type(lctx, pal.sans));
+        strokeLines(lctx, drawn, (d) => d.rest * d.born, (d) => d.width, inMotion ? 'quick' : 'sharp', 'butt');
+        lctx.restore();
+      }
+      s.layerKey = layerKey;
+      s.layerBase = baseKey;
+      s.layerCam = { ...s.camera };
+      s.layerDpr = layerDpr;
+    }
+    mark('layer');
+
+    // Place the layer: where it is when the camera is where the layer was
+    // drawn, shifted and scaled by CSS when the camera has moved since (the
+    // compositor does that, not the raster). Lit: the rest fades under it.
+    if (layer && s.layerCam) {
+      const c0 = s.layerCam;
+      const k = zoom / c0.zoom;
+      const tx = (w / 2) * (1 - k) + (c0.x - s.camera.x) * zoom;
+      const ty = (h / 2) * (1 - k) + (c0.y - s.camera.y) * zoom;
+      const transform = Math.abs(k - 1) < 1e-6 && Math.abs(tx) < 0.01 && Math.abs(ty) < 0.01 ? '' : `translate(${tx}px, ${ty}px) scale(${k})`;
+      if (layer.style.transform !== transform) layer.style.transform = transform;
+      const opacity = litEdges ? String((DIM * 0.5) / REST_ALPHA) : '';
+      if (layer.style.opacity !== opacity) layer.style.opacity = opacity;
+    }
+
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-s.camera.x, -s.camera.y);
+    const type = new Type(ctx, pal.sans);
+
+    // The lines that are not at rest: lit or chosen, on top, in full.
+    const alive = litEdges || selected.size > 1 ? drawn.filter((d) => d.lit || d.chosen) : [];
+    if (alive.length) {
+      strokeLines(
+        ctx,
+        alive,
+        (d) => d.born,
+        (d) => (mode === 'organic' ? EDGE_KINDS[d.edge.kind].width : d.width) * (d.lit ? 1.35 : 1) + (d.chosen ? 0.8 : 0),
+        'sharp',
+        'round',
+      );
     }
 
     // Arrowheads on lit lines (and on every line in columns, where direction
     // is the point): a small ink triangle at the receiving end.
-    const showArrows = mode === 'columns' || Boolean(litEdges);
-    if (showArrows) {
-      for (const d of drawn) {
-        if (d.edge.kind === 'thread') continue;
-        if (litEdges && !litEdges.has(d.edge.id) && mode !== 'columns') continue;
-        if (d.alpha < 0.3) continue;
-        const size = 7 / Math.sqrt(zoom);
-        // Direction at the end of the curve: for columns the tangent is horizontal.
-        let ux: number;
-        let uy: number;
-        if (mode === 'columns') {
-          const dir = Math.sign(d.bx - d.ax) || 1;
-          ux = dir;
-          uy = 0;
-        } else {
-          const dx = d.bx - d.ax;
-          const dy = d.by - d.ay;
-          const len = Math.hypot(dx, dy) || 1;
-          ux = dx / len;
-          uy = dy / len;
-        }
-        ctx.save();
-        ctx.globalAlpha = d.alpha;
-        ctx.fillStyle = d.colour;
-        ctx.beginPath();
-        ctx.moveTo(d.bx, d.by);
-        ctx.lineTo(d.bx - ux * size - uy * size * 0.55, d.by - uy * size + ux * size * 0.55);
-        ctx.lineTo(d.bx - ux * size + uy * size * 0.55, d.by - uy * size - ux * size * 0.55);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+    const arrowed = mode === 'columns' ? drawn : alive;
+    for (const d of arrowed) {
+      if (d.edge.kind === 'thread' && !d.edge.detail) continue;
+      const alpha = d.lit || d.chosen ? d.born : d.rest * d.born;
+      if (alpha < 0.3) continue;
+      const size = 7 / Math.sqrt(zoom);
+      // Direction at the end of the curve: for columns the tangent is horizontal.
+      let ux: number;
+      let uy: number;
+      if (mode === 'columns') {
+        const dir = Math.sign(d.bx - d.ax) || 1;
+        ux = dir;
+        uy = 0;
+      } else {
+        const dx = d.bx - d.ax;
+        const dy = d.by - d.ay;
+        const len = Math.hypot(dx, dy) || 1;
+        ux = dx / len;
+        uy = dy / len;
       }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = d.colour;
+      ctx.beginPath();
+      ctx.moveTo(d.bx, d.by);
+      ctx.lineTo(d.bx - ux * size - uy * size * 0.55, d.by - uy * size + ux * size * 0.55);
+      ctx.lineTo(d.bx - ux * size + uy * size * 0.55, d.by - uy * size - ux * size * 0.55);
+      ctx.closePath();
+      ctx.fill();
     }
+    ctx.globalAlpha = 1;
 
+    mark('edges');
     /* --- nodes --- */
-    ctx.font = `500 13px ${pal.sans}`;
+    type.font(500, 13);
     ctx.textBaseline = 'middle';
     const focusId = graph.focus;
+    // Names are drawn in a pass of their own after every knot, so a name never
+    // sits under a neighbour's knot and the pass can decide which names fit.
+    type LabelWish = { id: WebNodeId; p: Placed; node: WebNode; rank: number; strong: boolean; dimmed: boolean };
+    const wishes: LabelWish[] = [];
+    const pinsToDraw: { p: Placed; colour: string }[] = [];
+    let spritesMade = 0;
 
     for (const [id, p] of s.placed) {
       const node = s.nodeById.get(id);
@@ -878,7 +1241,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       const isFocus = id === focusId;
       const isSelected = selected.has(id);
       const isHover = s.hover === id;
-      const dimmed = lit ? !lit.has(id) && !isSelected : false;
+      const isLit = lit ? lit.has(id) : false;
+      const dimmed = lit ? !isLit && !isSelected : false;
       const colour = nodeColour(node, pal);
       const alpha = (dimmed ? DIM : 1) * Math.max(0.001, p.scale);
 
@@ -893,15 +1257,15 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       if (mode === 'columns') {
         const x = p.x - p.w / 2;
         const y = p.y - p.h / 2;
-        // Paper with a shadow, a coloured tab down the left, the icon, the name.
-        ctx.shadowColor = 'rgba(31, 27, 22, 0.18)';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
+        // Paper on a hard shadow (a second rect, offset: a canvas shadow is a
+        // blur pass per card, even at blur 0), a coloured tab down the left,
+        // the icon, the name.
+        ctx.fillStyle = 'rgba(31, 27, 22, 0.18)';
+        roundRect(ctx, x + 2, y + 2, p.w, p.h, 3);
+        ctx.fill();
         ctx.fillStyle = isFocus ? pal.paperRaised : pal.paper;
         roundRect(ctx, x, y, p.w, p.h, 3);
         ctx.fill();
-        ctx.shadowColor = 'transparent';
         ctx.strokeStyle = isSelected || isHover ? colour : pal.rule;
         ctx.lineWidth = isSelected ? 2.2 : isHover ? 1.6 : 1;
         ctx.stroke();
@@ -933,16 +1297,16 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         ctx.fillStyle = pal.ink;
         const maxW = p.w - (textX - x) - 10;
         if (isFocus) {
-          ctx.font = `600 15px ${pal.sans}`;
-          ctx.fillText(ellipsis(ctx, node.name, maxW), textX, p.y - (node.subtitle ? 8 : 0));
+          type.font(600, 15);
+          ctx.fillText(type.ellipsis(600, 15, node.name, maxW), textX, p.y - (node.subtitle ? 8 : 0));
           if (node.subtitle) {
-            ctx.font = `400 11.5px ${pal.sans}`;
+            type.font(400, 11.5);
             ctx.fillStyle = pal.inkMuted;
-            ctx.fillText(ellipsis(ctx, node.subtitle, maxW), textX, p.y + 10);
+            ctx.fillText(type.ellipsis(400, 11.5, node.subtitle, maxW), textX, p.y + 10);
           }
-          ctx.font = `500 13px ${pal.sans}`;
         } else {
-          ctx.fillText(ellipsis(ctx, node.name, maxW), textX, p.y);
+          type.font(500, 13);
+          ctx.fillText(type.ellipsis(500, 13, node.name, maxW), textX, p.y);
         }
       } else {
         // A knot in the shape of its kind, in the soort's colour, on a ring of paper.
@@ -967,46 +1331,124 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
           ctx.setLineDash([]);
         }
         const picture = showImages && node.coverAssetId && r * zoom >= 7 ? coverImage(node.coverAssetId, invalidate) : null;
+        let stamped = false;
         if (picture) {
-          // The omslag inside the knot, with the soort's colour left as a rim.
-          ctx.save();
-          knotPath(ctx, node.kind, p.x, p.y, r - 1.5);
-          ctx.clip();
-          drawCover(ctx, picture, p.x, p.y, (r - 1.5) * 2, (r - 1.5) * 2);
-          ctx.restore();
-        } else if (r * zoom >= 10) {
+          // The omslag inside the knot, with the soort's colour left as a rim
+          // — stamped from a sprite; at most a couple of dozen new sprites a
+          // frame, the rest next frame, so a new graph does not hitch.
+          const rr = r - 1.5;
+          const key = `${node.coverAssetId}|${node.kind}|${Math.max(4, Math.round(rr))}`;
+          let sprite = spriteCache.get(key) ?? null;
+          if (!sprite && spritesMade < 24) {
+            sprite = coverSprite(picture, node.coverAssetId!, node.kind, rr);
+            spritesMade += 1;
+          } else if (!sprite) busy = true;
+          if (sprite) {
+            const half = sprite.width / (2 * SPRITE_SCALE);
+            ctx.drawImage(sprite, p.x - half, p.y - half, half * 2, half * 2);
+            stamped = true;
+          }
+        }
+        if (!stamped && r * zoom >= 10) {
           drawIcon(ctx, nodeIcon(node), p.x, p.y, Math.min(r * 1.1, 18), pal.paper, 1.9);
         }
+        const held = s.sim.get(id);
+        if (held?.pinned) pinsToDraw.push({ p, colour });
 
-        // Labels: every lit node, the hubs, and everything once zoomed in.
-        // Zoomed out, a name on every knot is a fog; the hubs are the
-        // landmarks and the rest arrive as you come closer. A label is the
-        // same size on the screen whatever the zoom — it is a caption, not a
-        // thing in the world — small, on at most two lines, on a faint slip
-        // of paper only wide enough for the words.
-        const showLabel = isHover || isSelected || isFocus || (lit ? lit.has(id) : false) || zoom >= 1.25 || r * zoom >= 15;
-        if (showLabel) {
-          const size = (isFocus || isSelected || isHover ? 11.5 : 10) / zoom;
-          ctx.font = `${isFocus || isSelected ? 600 : 500} ${size}px ${pal.sans}`;
-          ctx.textAlign = 'center';
-          const lines = wrapName(ctx, node.name, 96 / zoom);
-          const tw = Math.max(...lines.map((line) => textWidth(ctx, line)));
-          const lh = size * 1.15;
-          const top = p.y + r + 3 / zoom;
-          ctx.fillStyle = withAlpha(pal.paper, dimmed ? 0.45 : 0.72);
-          roundRect(ctx, p.x - tw / 2 - 3 / zoom, top, tw + 6 / zoom, lh * lines.length + 2 / zoom, 2 / zoom);
-          ctx.fill();
-          ctx.fillStyle = dimmed ? pal.inkMuted : pal.ink;
-          ctx.textBaseline = 'top';
-          lines.forEach((line, i) => ctx.fillText(line, p.x, top + 1 / zoom + i * lh));
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = 'left';
-          ctx.font = `500 13px ${pal.sans}`;
-        }
+        // Which names to draw is decided below; here the knot only says how
+        // much it wants one. Lower rank goes first.
+        const strong = isFocus || isSelected || isHover;
+        const landmark = r >= 10.5;
+        const rank = isFocus ? 0 : isSelected || isHover ? 1 : isLit ? 2 : landmark ? 3 : 4;
+        if (rank <= 3 || zoom >= LABEL_ZOOM_LOW) wishes.push({ id, p, node, rank, strong, dimmed });
       }
       ctx.restore();
+      type.forget();
     }
 
+    mark('nodes');
+    /* --- pins: a speld on every knot a hand has put down --- */
+    for (const { p, colour } of pinsToDraw) {
+      const b = pinBadge(p, zoom);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fillStyle = pal.paperRaised;
+      ctx.fill();
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = 1.2 / zoom;
+      ctx.stroke();
+      // The pin itself: a head and a point.
+      ctx.beginPath();
+      ctx.arc(b.x, b.y - b.r * 0.2, b.r * 0.34, 0, Math.PI * 2);
+      ctx.fillStyle = pal.ink;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y + b.r * 0.05);
+      ctx.lineTo(b.x, b.y + b.r * 0.6);
+      ctx.strokeStyle = pal.ink;
+      ctx.lineWidth = 1.1 / zoom;
+      ctx.stroke();
+    }
+
+    mark('pins');
+    /* --- names (organic): by rank, and only where there is room --- */
+    if (mode === 'organic' && wishes.length) {
+      // Zoomed out, a name on every knot is a fog; the hubs are the landmarks
+      // and the rest arrive as you come closer. A name is the same size on the
+      // screen whatever the zoom — it is a caption, not a thing in the world —
+      // small, on at most two lines, with a halo of paper instead of a slip of
+      // it, and never on top of another name: the ranks decide who yields.
+      wishes.sort((a, b) => a.rank - b.rank || b.p.r - a.p.r);
+      const fade = Math.max(0, Math.min(1, (zoom - LABEL_ZOOM_LOW) / (LABEL_ZOOM_HIGH - LABEL_ZOOM_LOW)));
+      const taken: { x: number; y: number; w: number; h: number }[] = [];
+      // Knots themselves are in the way too: a name may not land on a knot.
+      for (const [, p] of s.placed) if (inView(p.x, p.y)) taken.push({ x: p.x, y: p.y, w: p.r * 2, h: p.r * 2 });
+      const knotCount = taken.length;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.lineJoin = 'round';
+      for (const wish of wishes) {
+        const { p, node, rank, strong, dimmed } = wish;
+        const wishAlpha = rank <= 3 ? 1 : fade;
+        if (wishAlpha <= 0.02) continue;
+        const size = (strong ? 11.5 : 10) / zoom;
+        const weight = strong ? 600 : 500;
+        const lines = type.wrap(weight, size, node.name, 104 / zoom);
+        let tw = 0;
+        for (const line of lines) tw = Math.max(tw, type.width(weight, size, line));
+        const lh = size * 1.15;
+        const bh = lh * lines.length;
+        const top = p.y + p.r + 3 / zoom;
+        const box = { x: p.x, y: top + bh / 2, w: tw + 6 / zoom, h: bh + 2 / zoom };
+        let clash = false;
+        for (let i = 0; i < taken.length; i++) {
+          const t = taken[i];
+          // Its own knot is directly above it and is not in the way.
+          if (i < knotCount && t.x === p.x && t.y === p.y) continue;
+          if (Math.abs(t.x - box.x) < (t.w + box.w) / 2 && Math.abs(t.y - box.y) < (t.h + box.h) / 2) {
+            clash = true;
+            break;
+          }
+        }
+        // The middle, the chosen and the one under the hand always speak.
+        if (clash && rank > 1) continue;
+        taken.push(box);
+        type.font(weight, size);
+        ctx.globalAlpha = wishAlpha * (dimmed ? 0.6 : 1) * Math.max(0.001, p.scale);
+        ctx.lineWidth = 3 / zoom;
+        ctx.strokeStyle = pal.paper;
+        ctx.fillStyle = dimmed ? pal.inkMuted : pal.ink;
+        for (let i = 0; i < lines.length; i++) {
+          ctx.strokeText(lines[i], p.x, top + 1 / zoom + i * lh);
+          ctx.fillText(lines[i], p.x, top + 1 / zoom + i * lh);
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+    }
+
+    mark('names');
     /* --- folds --- */
     for (const f of s.folds) {
       if (!inView(f.x, f.y)) continue;
@@ -1022,23 +1464,25 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = pal.inkMuted;
-      ctx.font = `500 12.5px ${pal.sans}`;
-      ctx.fillText(ellipsis(ctx, `… nog ${f.count} — dubbelklik`, f.width - 16), x + 8, f.y);
+      type.font(500, 12.5);
+      ctx.fillText(type.ellipsis(500, 12.5, `… nog ${f.count} — dubbelklik`, f.width - 16), x + 8, f.y);
       ctx.restore();
+      type.forget();
     }
 
+    mark('folds');
     /* --- edge phrases: for the lit node, or for every line when asked --- */
     const wantLabels = labelsAlways ? drawn : litEdges ? drawn.filter((d) => litEdges.has(d.edge.id)) : [];
     if (wantLabels.length && zoom >= 0.35) {
       const size = 10 / zoom;
-      ctx.font = `500 ${size}px ${pal.sans}`;
+      type.font(500, size);
       ctx.textAlign = 'center';
       const seen: { x: number; y: number; w: number; h: number }[] = [];
       for (const d of wantLabels) {
         if (!inView(d.mx, d.my)) continue;
         const phrase = EDGE_KINDS[d.edge.kind].phrase(words, d.edge.detail);
-        const text = ellipsis(ctx, phrase, 160 / zoom);
-        const tw = textWidth(ctx, text);
+        const text = type.ellipsis(500, size, phrase, 160 / zoom);
+        const tw = type.width(500, size, text);
         const bw = tw + 8 / zoom;
         const bh = size * 1.45;
         // Nudge a chip that would sit on another one, and leave it out when
@@ -1055,8 +1499,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         }
         if (!placed) continue;
         seen.push({ x: d.mx, y, w: bw, h: bh });
-        ctx.save();
-        ctx.globalAlpha = Math.min(1, d.alpha + 0.2);
+        ctx.globalAlpha = Math.min(1, (d.lit || d.chosen ? 1 : d.rest) + 0.2);
         ctx.fillStyle = pal.paperRaised;
         ctx.strokeStyle = withAlpha(d.colour, 0.7);
         ctx.lineWidth = 1 / zoom;
@@ -1065,11 +1508,10 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         ctx.stroke();
         ctx.fillStyle = d.colour;
         ctx.fillText(text, d.mx, y + size * 0.05);
-        ctx.restore();
       }
+      ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
     }
-
     ctx.restore();
 
     /* --- marquee, in screen space --- */
@@ -1087,6 +1529,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       ctx.restore();
     }
 
+    mark('phrases');
+    s.stats = { ...t, total: performance.now() - t0, nEdges: graph.edges.length, nNodes: s.placed.size, dpr, w, h, zoom };
     s.dirty = false;
     if (busy) s.raf = requestAnimationFrame(frame);
   };
@@ -1136,6 +1580,19 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         return;
       }
       if (e.button !== 0) return;
+      // A tap on a speld lets that knot go; nothing else happens.
+      const pinned = hitPin(p.x, p.y);
+      if (pinned) {
+        const f = s.sim.get(pinned);
+        if (f) {
+          f.pinned = false;
+          s.sim.reheat(0.2);
+          reportPins();
+          invalidate();
+        }
+        s.gesture = null;
+        return;
+      }
       const node = hitNode(p.x, p.y);
       s.cameraFrom = null;
       s.pendingFit = false;
@@ -1158,7 +1615,10 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       if (s.pointers.has(e.pointerId)) s.pointers.set(e.pointerId, p);
       const g = s.gesture;
       if (!g) {
-        if (e.pointerType === 'mouse') setHover(hitNode(p.x, p.y), hitFold(p.x, p.y));
+        if (e.pointerType === 'mouse') {
+          const pin = hitPin(p.x, p.y);
+          setHover(pin ?? hitNode(p.x, p.y), hitFold(p.x, p.y));
+        }
         return;
       }
       if (g.kind === 'pinch' && s.pointers.size >= 2) {
@@ -1207,7 +1667,9 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
           f.y = w.y;
           f.vx = 0;
           f.vy = 0;
-          s.sim.reheat(0.25);
+          // Warm, not hot: the neighbours follow, the far side of the web
+          // barely stirs. 0.25 made the whole wall bob on every drag.
+          s.sim.reheat(0.12);
         }
         invalidate();
       } else if (g.kind === 'marquee') {
@@ -1230,9 +1692,17 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       const { onSelect, onFocus, onUnfold, selected } = propsRef.current;
 
       if (g.kind === 'node' && g.node) {
+        // A knot a hand has put down stays put: it is pinned, and wears a
+        // speld a tap on which lets it go again. Before round 17 it was let
+        // go at once and sprang straight back into the clot, so "moving" a
+        // knot did nothing.
         const f = s.sim.get(g.node);
-        if (f) f.fixed = false;
-        s.sim.reheat(0.2);
+        if (f) {
+          f.fixed = false;
+          f.pinned = true;
+        }
+        s.sim.reheat(0.12);
+        reportPins();
         invalidate();
         return;
       }
@@ -1355,6 +1825,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
 
   return (
     <div ref={hostRef} className="web-stage" data-testid="web-stage" data-mode={props.mode}>
+      {/* The resting lines, on a canvas of their own under the drawing (round 18): the compositor stacks the two. */}
+      <canvas ref={layerRef} className="web-canvas-layer" aria-hidden="true" />
       <canvas ref={canvasRef} className="web-canvas" aria-label="Het web" role="img" tabIndex={0} />
     </div>
   );

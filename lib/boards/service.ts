@@ -22,6 +22,8 @@ export type BoardSummary = {
   viewMode: AccessMode;
   editMode: AccessMode;
   accessLocked: boolean;
+  /** §43, round 18: false keeps the wall out of the web and out of "Genoemd in". */
+  inWeb: boolean;
   createdBy: string | null;
   updatedAt: number;
   createdAt: number;
@@ -39,6 +41,7 @@ const BOARD_COLUMNS = {
   viewMode: schema.boards.viewMode,
   editMode: schema.boards.editMode,
   accessLocked: schema.boards.accessLocked,
+  inWeb: schema.boards.inWeb,
   createdBy: schema.boards.createdBy,
   updatedAt: schema.boards.updatedAt,
   createdAt: schema.boards.createdAt,
@@ -132,6 +135,7 @@ export function getBoard(boardId: string, viewer: Viewer) {
       viewMode: schema.boards.viewMode,
       editMode: schema.boards.editMode,
       accessLocked: schema.boards.accessLocked,
+      inWeb: schema.boards.inWeb,
       createdBy: schema.boards.createdBy,
       updatedAt: schema.boards.updatedAt,
       deletedAt: schema.boards.deletedAt,
@@ -262,6 +266,14 @@ export function saveBoard(
 export function renameBoard(boardId: string, name: string) {
   db.update(schema.boards)
     .set({ name: name.trim() || 'Naamloos prikbord', updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(schema.boards.id, boardId))
+    .run();
+}
+
+/** §43, round 18: whether this wall counts in the web and under "Genoemd in". */
+export function setBoardInWeb(boardId: string, inWeb: boolean) {
+  db.update(schema.boards)
+    .set({ inWeb, updatedAt: Math.floor(Date.now() / 1000) })
     .where(eq(schema.boards.id, boardId))
     .run();
 }

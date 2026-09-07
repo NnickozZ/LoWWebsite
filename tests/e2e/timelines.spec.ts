@@ -63,15 +63,44 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await expect(add.getByTestId('new-event-chosen')).toHaveText(`Storm boven Zeeland ${stamp}`);
   await fillDate(page, 'new-event', { year: '1931', month: '3', day: '12' });
   await expect(add.getByText('Dit wordt: 12 maart 1931')).toBeVisible();
-  await add.locator('#new-event-text').fill('Het waaide de hele nacht.');
+  // Round 18: `@` in the text box offers a name; `[[Naam]]` is what lands.
+  await add.locator('#new-event-text').fill('Het waaide de hele nacht, zei @Jacob');
+  await page.getByTestId('mention-pop').getByRole('option', { name: /Jacob den Hollander/ }).click();
+  await expect(add.locator('#new-event-text')).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]] ');
   await add.getByTestId('new-event-submit').click();
 
-  // It folds out at once, with the moment and the tijdlijn's own words.
+  // It folds out at once, with the moment and the tijdlijn's own words —
+  // the name as a chip.
   const popout = page.getByTestId('timeline-popout');
   await expect(popout).toHaveCount(1);
   await expect(popout).toContainText(`Storm boven Zeeland ${stamp}`);
   await expect(popout).toContainText('12 maart 1931');
-  await expect(popout).toContainText('Het waaide de hele nacht.');
+  await expect(popout).toContainText('Het waaide de hele nacht, zei');
+  await expect(popout.locator('.mention-chip')).toHaveText('Jacob den Hollander');
+
+  // And in the edit sheet, where the box is bound to the live room (§21): a
+  // pick writes into the shared text like a keystroke and is saved at once.
+  await popout.getByTestId('timeline-edit-event').click();
+  const bound = page.locator('#event-text');
+  const edit = page.getByRole('dialog').filter({ has: bound });
+  // (the server trims the trailing space)
+  await expect(bound).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]]');
+  // The box is read-only until the room has answered (§21) — and for a beat
+  // after that the seeded text is still landing, so a keystroke in that beat
+  // is lost (older than this round; the live spec waits the same way).
+  await expect(bound).toBeEditable();
+  await page.waitForTimeout(500);
+  await bound.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' en @Sister');
+  await page.getByTestId('mention-pop').getByRole('option', { name: /Sister Clasina/ }).click();
+  await expect(bound).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]] en [[Sister Clasina]] ');
+  await expect(edit.getByText('wordt meteen bewaard')).toBeVisible();
+  // The last edit leaves in the next batch (`UPDATE_BATCH_MS`, 80 ms); a
+  // sheet closed inside that window takes it with it. Older than this round.
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await expect(edit).toHaveCount(0);
   // A note has no picture, so no frame — and no "Lees verder".
   await expect(popout.locator('.timeline-popout-picture')).toHaveCount(0);
   await expect(popout.getByTestId('timeline-read-more')).toHaveCount(0);
@@ -120,6 +149,13 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await chip.click();
   await page.waitForURL('**/timelines/**event=**');
   await expect(page.getByTestId('timeline-popout')).toContainText('Westkapelle Lighthouse');
+  // Saved by the room, not by a button (the server writes it down a second
+  // and a half after the last keystroke, `PERSIST_DEBOUNCE_MS`): a reload
+  // after that shows both chips.
+  await page.waitForTimeout(2500);
+  await page.reload();
+  await page.getByTestId('timeline-toggle-all').click();
+  await expect(page.getByTestId('timeline-popout').filter({ hasText: `Storm boven Zeeland ${stamp}` }).locator('.mention-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
 });
 
 test('a dossier has a Tijdlijn tab of its own', async ({ page }, info) => {

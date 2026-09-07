@@ -403,6 +403,8 @@ export const boards = sqliteTable('boards', {
   viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
   editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
   accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+  /** §43, round 18: false keeps this wall out of the web and out of "Genoemd in". */
+  inWeb: integer('in_web', { mode: 'boolean' }).notNull().default(true),
   createdBy: text('created_by'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),

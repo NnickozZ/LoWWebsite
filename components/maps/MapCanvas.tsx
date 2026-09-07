@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
@@ -1341,6 +1342,7 @@ function PinSheetBody({
               rows={4}
               value={text}
               onValue={(next) => setText(next)}
+              mentions
             />
             {shared && (
               <p className="tiny muted" style={{ margin: 0 }}>
@@ -1356,7 +1358,7 @@ function PinSheetBody({
             )}
           </>
         ) : (
-          pin.text && <p className="small" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{pin.text}</p>
+          pin.text && <p className="small" style={{ margin: 0, whiteSpace: 'pre-wrap' }}><MentionText text={pin.text} /></p>
         ))}
 
       {mayEdit ? (

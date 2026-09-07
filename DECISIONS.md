@@ -2442,3 +2442,183 @@ clusters and looks like one; the seeded demo does not. A karakter's *activity*
 (every revision, card and speld with its `character_id`) as a line was offered
 and not chosen; it is a fifth violet kind waiting on a decision. Keeper-only
 ghosts for the Keeper (see what a player would *not* see) were not asked for.
+
+## Round 17 — 7 September 2026: het web ademt (§43)
+
+One complaint from Nick, with a screenshot of a filled archive (round 16's
+`seed-wereld`, fifteen artikelen per soort): the web and anything more than one
+step deep were "kleurenkots", low framerate, unreadable, and the knots sat in a
+clot he could not move — a dragged knot sprang straight back. He likes the colour
+code and said so; nothing about which colour means what changed.
+
+**Why it clotted, and the three knobs that fix it.** Every spring pulled with the
+same strength (0.4), so a hub with thirty lines pulled thirty times as hard as
+anything pushed back, and repulsion (`90/(d²+60)`) was a fraction of one spring.
+Round 17 divides a spring by the smaller degree of its two ends — d3's
+`1 / min(count)` — so thirty lines on a hub add up to about one; puts a hard
+collision floor of `r + pad` round every knot (`pad` is room for a label) that is
+resolved as a *move*, because a force is scaled by alpha and a cooling web let
+knots drift back together; and raises repulsion and link distance for the large
+web. Radius was `4.5 + 2.4√degree`, cap 22; in a filled archive nearly everything
+is a hub, so nearly everything was forty pixels wide. Now `3.5 + 1.6√degree`,
+cap 14, and the middle alone may reach 20.
+
+**Rings, then bands.** Nick chose "ringen + rustige rand" for depth ≥ 2. The first
+cut pulled each depth to a circle wide enough for its knots at 64 px of arc each;
+measured on the seeded archive, depth 2 wanted a radius of 1436 and sat at 420,
+because 141 knots on one circumference is a radius every spring fights. The
+second cut is what shipped: each depth gets an **annulus** with enough *area* for
+its knots, a 70 px gutter between annuli, and the pull acts only on a knot that
+has left its band — inside it the springs and collisions arrange things as they
+always did. The gutters are shaded a shade darker on the paper and carry
+"1 stap" / "2 stappen", so the steps read without a legend. In the whole web,
+which has no middle, there are no bands.
+
+**A dragged knot stays.** Options offered: pinned where dropped, or Obsidian's
+gentle spring-back. Nick chose pinned. `ForceNode` gained `pinned` beside `fixed`
+(a hand on it); the sim moves neither. A pinned knot wears a speld; a tap on it
+lets that one go, the toolbar's "n losmaken" lets all go. Drag reheats to 0.12
+instead of 0.25, so the far side of the web no longer bobs on every drag.
+
+**The rustige rand.** A line between two knots that are both two or more steps out
+says nothing about the middle, and there are hundreds of them at depth 2. At rest
+they are drawn at 0.12 alpha, in their own colour; on hover full. In the columns
+the same rule applies to a tie inside one column, and to lines into a fold row —
+a hundred lines landing on "… nog 100" made a black fan. The column limit went
+from 40 to 28, and a column fit never goes below zoom 0.45: a column of needles
+is worse than a column you scroll.
+
+**Names.** `showLabel` used to fire at `zoom ≥ 1.25 || r·zoom ≥ 15`, and `fit()`
+zooms an organic focus web to 1.6, so a focus web that fit the window labelled
+every knot, on a paper slip, with no collision test. Names are now a pass after
+the knots: sorted by rank (middle, chosen and hovered, lit, hubs, the rest), a
+name is skipped if its box would sit on another name or on a knot (the middle,
+the chosen and the hovered always speak); the rest fade in between zoom 0.7 and
+1.05; the slip became a stroke of paper behind the letters.
+
+**The frame.** Three things made a hover frame on 600 knots cost tens of
+milliseconds, none of them the simulation. `ctx.font` was assigned per labelled
+knot with `10/zoom` in the string — a font parse per knot, and a `measureText`
+cache keyed on that string that missed on every zoom step; text is now measured
+once at 20 px per (weight, text) on a context of its own and scaled linearly, and
+the drawing font is set only when the string differs (`Type`). Covers were
+`clip()`-ed per knot per frame; a cover is now cut once to its knot's shape into a
+sprite and stamped, at most twenty-four new sprites a frame. Line buckets were
+keyed on `alpha.toFixed(2)` times each knot's birth scale, so during a depth step
+almost every line was its own `Path2D`; alpha is quantised to 0.05 and the birth
+scale to quarters. `devicePixelRatio` is capped at 2, not 3; the column card's
+canvas shadow became a second offset rectangle.
+
+**Not done, on purpose.** The whole web of a filled archive is still a hairball
+with hubs; that is what it is, and round 15 said so. No dependency was added.
+Ring/band gravity does not touch the whole web. The e2e suite gained one spec
+(drag → pinned → losmaken) and the unit suite three (pins, a hub that cannot
+swallow its neighbours, bands).
+
+## Round 18 — 7 September 2026: het web op 4K, en zes dingen eromheen (§43, §27)
+
+Nick, after round 17: better, but on his 4K screen a focus web at two steps ran
+at three frames a second. Plus six things, all of them "cruciaal": the text line
+thin and yielding, private walls private, draadjes with their own words, a wall
+that can opt out of the web, and `@` in the plain boxes. A plan first, four
+questions, then the build. Four answers, all the recommended way.
+
+**The three frames a second were measured, not guessed.** On a 4K-class canvas
+(2560×1350 CSS px at dpr 2) a hover frame cost **133 ms**. JS-side it cost four:
+the time was in the raster. Switching things off one at a time: no dashes, 111;
+no text halos, 133; **no line strokes, 19**; half the pixels, 77. Nine hundred
+anti-aliased lines over eight million pixels, redrawn on every hover, every pan,
+and every one of the simulation's three hundred ticks — and because the
+simulation cools per tick, a slow frame stretched the settling into a minute of
+"3 fps". `window.__web.stats` now carries the per-section timing so the next
+person measures too.
+
+**Two canvases.** The resting lines and the step rings moved to a canvas of their
+own under the drawing. First cut: an offscreen canvas blitted into the main one
+each frame — 133 → 49 ms, and 30 of the 49 were the blit itself (a full-canvas
+`drawImage` in software raster). Second cut, what shipped: the layer is a
+`<canvas>` element in the DOM, and the compositor stacks the two — dimming under
+a lit knot is CSS opacity, a moving camera is a CSS transform, and a hover frame
+costs the compositor's floor (16 ms measured, which is what an *empty* frame
+costs in headless). The layer is rebuilt on a key of everything under it: mode,
+layout, palette, size, a motion counter the simulation and the tweens bump, the
+edge count, and the layer's own resolution. While knots move it is drawn at half
+a pixel per CSS pixel without dashes or the faint lines; while only the camera
+moves the last layer is reused under a transform and redrawn sharp 160 ms after
+the hand stops. One bug on the way, worth writing down: "did the camera move"
+was first measured against the *layer's* camera, so a reused layer looked like a
+moving camera forever and the sharp redraw never came. It is measured against
+the previous frame's camera now.
+
+**The simulation ticks several times a frame** while hot (four above alpha 0.3,
+three above 0.05, two below), and a warm graph change — a depth step, a legend
+tick — takes thirty ticks off-screen before the first frame. Full reheat to rest:
+10.1 s → 2.9 s in software raster; on a GPU far less.
+
+**A text line yields.** Nick's words: "meteen weggaan als er ook maar ergens
+anders een andere lijn is die de twee verbindt". `collapseMentions` in
+`slice.ts` drops a `mention` or `section` edge between two knots when any edge
+of another kind ties the same pair either way round; two text edges between the
+same pair both stay, having nothing stronger to yield to. Applied once, when the
+graph is built, so the count, the panel and the drawing agree — and the legend
+cannot bring a collapsed line back by hiding the kind that collapsed it, which
+is accepted. What remains is 0.8 px at a third of the resting alpha. Nick chose
+mention + section; an infobox field stays a full line because it is a fact, not
+a mention.
+
+**Private walls were already private.** A wall on *privé* is its maker's, on
+*sommigen* the granted people's; the web is built per viewer through the same
+`viewableCondition` every reader uses. What was not private was the Keeper's
+web, which held every player's private wall because a Keeper may open anything.
+Nick chose "off, with a switch": the Keeper's web now reads the containers —
+dossiers, prikborden, landkaarten, tijdlijnen — *as a player* (`containerViewer`
+in `service.ts`: the same dials minus the skeleton key), unless the legend's
+"Ook privé van anderen" is on (`?others=1`). Artikelen and sections keep the
+real viewer, so the Keeper's own hidden pages stay in. A player's web ignores
+the flag.
+
+**A draad brings its own words.** "Not 'draadje op prikbord' but 'heeft gelogen
+over'." The line's phrase is the string's label verbatim, "draad" when empty. And
+two things Nick chose on top: a labelled draad points from its from-card to its
+to-card (`focusSlice` places it accordingly, the panel shows → or ←; an
+unlabelled draad keeps its ↔ and its place on the out side), and the line is
+drawn in the colour the draad has on the wall — `WebEdge.colour`, one of the six
+`STRING_COLOURS`, mapped through `LINE_COLOURS` to the same inks the kinds use,
+with `--web-line-<colour>` for the panel. A wall's red draad is still red; a
+blue one is blue in the web too.
+
+**A wall can opt out.** `boards.in_web`, default 1, migration 0018, a checkbox
+"Telt mee in het web" in the wall's Rechten sheet for whoever manages its rights
+(`PATCH /api/boards/{id}` with `inWeb`, refused for a mere editor). Nick chose
+"web én Genoemd in": `buildWebGraph` filters the walls on it and `listMentions`
+adds `eq(in_web, true)` to the wall query — a schizo wall leaks nowhere. The
+wall itself is untouched and as visible as its rights say.
+
+**`@` in the plain boxes.** Nick's question was whether notities, empty
+tijdlijn-gebeurtenissen and the scribbles under cards *should* be able to
+reference with `@`. They could, half-way, since round 6: `entryIdsInText` reads
+`@Naam` and `[[Naam]]` out of a notitie's text, a notitie-speld and an event's
+text — but nothing ever offered a name, so nobody knew, and a name one letter off
+matched nothing; and the scribble under an *artikel* card was not read at all.
+So: `MentionPopover` (`components/ui/`), which attaches to a textarea it does
+not own, offers names from `/api/suggest` on `@` or `[[`, and inserts `[[Naam]]`
+— the exact form, so a two-word name or a name inside a name is read back
+whole. It writes through the native value setter plus an `input` event, which
+is what a keystroke is, so the plain box (React's onChange) and the Yjs-bound
+`LiveField` (its diffing onChange) hear it the same way; a `LiveField` gets it
+with `mentions`. The popover is portalled to `body`: a `position: fixed` box
+inside a transformed prikbord canvas is fixed to the canvas. `MentionText`
+prints `[[Naam]]` as a chip where the text is shown; `@Naam` stays as typed,
+because where that name ends is only known to the reader with the index. The
+scribble under an artikel card now counts (never for its own artikel), and
+migration 0019 empties the walls' mention rows so `ensureMentionsBackfilled()`
+rewrites them at start-up. Two things the popover's spec found that are older
+than this round and left as they are: a keystroke in the first ~100 ms after a
+bound field's room arrives can be lost while the seeded text is still landing,
+and an edit made inside the last 80 ms before a sheet closes leaves with the
+sheet (`UPDATE_BATCH_MS`). Both are noted in the spec's comments.
+
+**Chosen against.** Storing an id in the plain text (`[[id|Naam]]`) would survive
+a rename but makes the raw box unreadable; the name-based match and its rename
+weakness stay, as they were. A monochrome web at rest was proposed in round 17
+and declined — the colour code is Nick's and stays.

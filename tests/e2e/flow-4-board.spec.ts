@@ -51,6 +51,17 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   await page.locator('.board-card-text-input').blur();
   await expect(note.locator('.board-card-text')).toHaveText('Kept in his coat.');
 
+  // -- round 18: `@` offers a name, and what lands is `[[Naam]]`, shown as a chip
+  await note.locator('.board-card-text').dblclick();
+  const box = page.locator('.board-card-text-input');
+  await box.fill('Kept in his coat. Seen by @Jacob');
+  const pop = page.getByTestId('mention-pop');
+  await expect(pop).toBeVisible();
+  await pop.getByRole('option', { name: /Jacob den Hollander/ }).click();
+  await expect(box).toHaveValue('Kept in his coat. Seen by [[Jacob den Hollander]] ');
+  await box.blur();
+  await expect(note.locator('.board-card-text .mention-chip')).toHaveText('Jacob den Hollander');
+
   if (isPhone) {
     // §8: the hint replaces dragging and string-drawing on a small screen.
     await expect(page.getByText('Verschuiven werkt het best op een tablet of computer.')).toBeVisible();

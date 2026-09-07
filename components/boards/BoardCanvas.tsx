@@ -158,6 +158,8 @@ export function BoardCanvas({
     canManage: boolean;
     isKeeper: boolean;
     viewerId: string;
+    /** §43, round 18: whether this wall counts in the web and under "Genoemd in". */
+    inWeb: boolean;
   };
   /** The case this board belongs to, if any — the filing prompt needs it. */
   caseId: string | null;
@@ -292,6 +294,8 @@ export function BoardCanvas({
   // editing still work, or the inspector would be unreachable on a phone.
   const interactive = !isPhone && !readOnly;
   const [accessOpen, setAccessOpen] = useState(false);
+  // §43, round 18: the wall's own say in whether it is a line in the web.
+  const [inWeb, setInWeb] = useState(access.inWeb);
 
   /**
    * §8, live: this tab. One person with the board open twice is two hands on
@@ -2587,6 +2591,31 @@ export function BoardCanvas({
             viewerId={access.viewerId}
             nouns={{ this: `dit ${ui.words.board}` }}
           />
+          {access.canManage && (
+            <label className="row" style={{ gap: '0.6rem', marginTop: '1rem', alignItems: 'flex-start' }} data-testid="board-in-web">
+              <input
+                type="checkbox"
+                checked={inWeb}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setInWeb(next);
+                  void fetch(`/api/boards/${boardId}`, {
+                    method: 'PATCH',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ inWeb: next }),
+                  }).then((response) => {
+                    if (!response.ok) setInWeb(!next);
+                  });
+                }}
+              />
+              <span>
+                <strong style={{ display: 'block' }}>Telt mee in het web</strong>
+                <span className="small muted">
+                  Uit: wat hier hangt wordt geen lijn in het web en staat niet onder &ldquo;Genoemd in&rdquo; op een {ui.words.entry}. Het {ui.words.board} zelf blijft zo zichtbaar als de rechten zeggen.
+                </span>
+              </span>
+            </label>
+          )}
           {access.isKeeper && (
             <InkKeeperControls
               enabled={ink.enabled}

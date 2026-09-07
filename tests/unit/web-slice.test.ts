@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampDepth, degrees, filterGraph, focusSlice } from '@/lib/web/slice';
+import { clampDepth, collapseMentions, degrees, filterGraph, focusSlice } from '@/lib/web/slice';
 import type { WebEdge, WebGraph, WebNode } from '@/lib/web/types';
 
 /**
@@ -91,11 +91,18 @@ describe('focusSlice', () => {
   });
 
   it('a tie between in and out at the same depth lands on out', () => {
-    // b is reached from a by a mention a→b (out) and by a thread; from b's
-    // point of view a is both what it points at (thread, always out) and
-    // what points at it (mention a→b: in). Out wins.
+    // b is reached from a by a mention a→b and by a labelled draad a→b.
+    // Round 18: a labelled draad reads from its from-card to its to-card, so
+    // from b's point of view a points at it both ways — in.
     const fromB = focusSlice(graph, 'entry:b', 1);
-    expect(sideOf(fromB, 'entry:a')).toBe('out');
+    expect(sideOf(fromB, 'entry:a')).toBe('in');
+    // An unlabelled draad still has no direction and lands on out, even
+    // against a mention that points in.
+    const loose: WebGraph = {
+      nodes: [node('entry:p'), node('entry:q')],
+      edges: [edge('mention', 'entry:p', 'entry:q'), edge('thread', 'entry:p', 'entry:q', { via: 'board:w' })],
+    };
+    expect(sideOf(focusSlice(loose, 'entry:q', 1), 'entry:p')).toBe('out');
 
     // A plain tie: y is pointed at by the focus and points at it too.
     const tie: WebGraph = {
@@ -179,5 +186,36 @@ describe('degrees', () => {
     expect(d.get('case:c')).toBe(1);
     expect(d.get('entry:e')).toBe(1);
     expect(d.get('entry:nooit')).toBeUndefined();
+  });
+});
+
+describe('collapseMentions (round 18)', () => {
+  const e = (id: string, kind: WebEdge['kind'], from: string, to: string): WebEdge => ({ id, kind, from, to, detail: '' });
+
+  it('drops a mention or section between two knots that another kind already ties', () => {
+    const edges = [
+      e('m1', 'mention', 'entry:a', 'entry:b'),
+      e('s1', 'section', 'entry:b', 'entry:a'),
+      e('f1', 'filed', 'case:c', 'entry:a'),
+      e('b1', 'board', 'board:x', 'entry:a'),
+      e('b2', 'board', 'board:x', 'entry:b'),
+      e('p1', 'pin', 'map:m', 'entry:b'),
+      // a and b share a prikbord, but no edge ties a to b directly except the text ones…
+    ];
+    // …so nothing collapses yet.
+    expect(collapseMentions(edges).map((x) => x.id)).toEqual(edges.map((x) => x.id));
+    // A thread between a and b (either way round) makes both text lines yield.
+    const withThread = [...edges, e('t1', 'thread', 'entry:b', 'entry:a')];
+    expect(collapseMentions(withThread).map((x) => x.id)).toEqual(['f1', 'b1', 'b2', 'p1', 't1']);
+  });
+
+  it('keeps text lines that have nothing stronger to yield to, both ways round', () => {
+    const edges = [e('m1', 'mention', 'entry:a', 'entry:b'), e('m2', 'mention', 'entry:b', 'entry:a'), e('s1', 'section', 'entry:a', 'entry:c')];
+    expect(collapseMentions(edges)).toEqual(edges);
+  });
+
+  it('never touches a non-text edge', () => {
+    const edges = [e('f1', 'filed', 'case:c', 'entry:a'), e('l1', 'caseLink', 'entry:a', 'case:c'), e('m1', 'mention', 'entry:a', 'entry:d')];
+    expect(collapseMentions(edges)).toEqual(edges);
   });
 });

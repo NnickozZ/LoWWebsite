@@ -143,6 +143,8 @@ beforeAll(async () => {
 
   // What the bodies say.
   run(`INSERT INTO entry_links (from_entry_id, to_entry_id, kind, label) VALUES ('e-toren', 'e-jan', 'mention', '')`);
+  // Round 18: a text line yields to any other tie; this one has none to yield to.
+  run(`INSERT INTO entry_links (from_entry_id, to_entry_id, kind, label) VALUES ('e-plek', 'e-journaal', 'mention', '')`);
   run(`INSERT INTO entry_links (from_entry_id, to_entry_id, kind, label) VALUES ('e-jan', 'e-journaal', 'relation', 'bezit')`);
   run(`INSERT INTO entry_links (from_entry_id, to_entry_id, kind, label) VALUES ('e-geheim', 'e-jan', 'mention', '')`);
   run(`INSERT INTO entry_links (from_entry_id, to_entry_id, kind, label) VALUES ('e-jan', 'e-geheim', 'mention', '')`);
@@ -150,11 +152,11 @@ beforeAll(async () => {
   // Two sections on the journaal: one still prep, one everyone has.
   run(
     `INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order) VALUES ('s-prep', 'e-journaal', 'Wat de dokter wist', ?, '', 'keeper', 0)`,
-    linking('e-toren', 'De Vuurtoren'),
+    linking('e-plek', 'Walcheren'),
   );
   run(
     `INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order) VALUES ('s-open', 'e-journaal', 'Openbaar', ?, '', 'all', 1)`,
-    linking('e-jan', 'Jan Vermeer'),
+    linking('e-plek', 'Walcheren'),
   );
 
   // Dossiers: one open, one Aagje's alone.
@@ -217,7 +219,7 @@ beforeAll(async () => {
         card('card-pin', { kind: 'pin', name: 'Lead' }),
       ],
       strings: [
-        { id: 'st-1', from: { card: 'card-jan' }, to: { card: 'card-toren' }, label: 'zag' },
+        { id: 'st-1', from: { card: 'card-jan' }, to: { card: 'card-toren' }, label: 'zag', colour: 'blue' },
         { id: 'st-2', from: { card: 'card-note' }, to: { card: 'card-jan' }, label: '' },
         { id: 'st-3', from: { card: 'card-jan' }, to: { card: 'card-geheim' }, label: 'kende' },
         { id: 'st-4', from: { card: 'card-jan' }, to: { x: 10, y: 10 }, label: 'los' },
@@ -231,6 +233,20 @@ beforeAll(async () => {
     JSON.stringify({
       cards: [card('card-jan-2', { kind: 'entry', entryId: 'e-jan', name: 'Jan Vermeer' })],
       strings: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }),
+  );
+
+  // Round 18: a wall its manager keeps out of the web — open to all, and
+  // still it is not a knot, a line or a "Genoemd in".
+  run(
+    `INSERT INTO boards (id, name, state, created_by, view_mode, in_web) VALUES ('b-uit', 'Een hunch', ?, 'bram', 'all', 0)`,
+    JSON.stringify({
+      cards: [
+        card('card-plek-uit', { kind: 'entry', entryId: 'e-plek', name: 'Walcheren' }),
+        card('card-toren-uit', { kind: 'entry', entryId: 'e-toren', name: 'De Vuurtoren' }),
+      ],
+      strings: [{ id: 'st-uit', from: { card: 'card-plek-uit' }, to: { card: 'card-toren-uit' }, label: 'heeft gezien' }],
       viewport: { x: 0, y: 0, zoom: 1 },
     }),
   );
@@ -249,11 +265,32 @@ afterAll(() => {
 describe('the Keeper sees every kind of tie', () => {
   let graph: WebGraph;
   beforeAll(() => {
-    graph = deps.buildWebGraph(KEEPER);
+    // Round 18: the Keeper's web leaves other people's private things out
+    // unless asked; this suite asks, so every kind of tie is here to check.
+    graph = deps.buildWebGraph(KEEPER, { othersPrivate: true });
   });
 
   it('is closed: no edge leaves the graph', () => {
     assertClosed(graph);
+  });
+
+  it("without asking, the Keeper's web leaves other people's private things out — and keeps the Keeper's own hidden pages (round 18)", () => {
+    const plain = deps.buildWebGraph(KEEPER);
+    assertClosed(plain);
+    // Aagje's private dossier and wall: not a knot, not a line, not a name.
+    expect(plain.nodes.some((node) => node.id === 'case:c-prive' || node.id === 'board:b-prive')).toBe(false);
+    expect(JSON.stringify(plain)).not.toContain('Aagjes muur');
+    expect(JSON.stringify(plain)).not.toContain('De brand van 1934');
+    // Landkaart m-geheim is private to its maker (a Keeper is not its maker here): out too.
+    expect(plain.nodes.some((node) => node.id === 'map:m-geheim')).toBe(false);
+    // The Keeper-only artikel is the Keeper's own secret and stays.
+    expect(plain.nodes.some((node) => node.id === 'entry:e-geheim')).toBe(true);
+    // Everything open is exactly as before.
+    expect(hasEdge(plain, 'filed', 'case:c-open', 'entry:e-toren')).toBe(true);
+    expect(hasEdge(plain, 'thread', 'entry:e-jan', 'entry:e-toren', 'zag')).toBe(true);
+    // A player's web never had them, asked or not.
+    const bram = deps.buildWebGraph(BRAM, { othersPrivate: true });
+    expect(bram.nodes.some((node) => node.id === 'case:c-prive' || node.id === 'board:b-prive')).toBe(false);
   });
 
   it('every edge kind appears at least once', () => {
@@ -262,8 +299,12 @@ describe('the Keeper sees every kind of tie', () => {
   });
 
   it('what a body says: mention and relation, with the label', () => {
-    expect(hasEdge(graph, 'mention', 'entry:e-toren', 'entry:e-jan', '')).toBe(true);
+    expect(hasEdge(graph, 'mention', 'entry:e-plek', 'entry:e-journaal', '')).toBe(true);
     expect(hasEdge(graph, 'relation', 'entry:e-jan', 'entry:e-journaal', 'bezit')).toBe(true);
+    // Round 18: the toren's text names Jan, but a draad already ties the two
+    // — the text line yields (slice.ts, collapseMentions).
+    expect(hasEdge(graph, 'thread', 'entry:e-jan', 'entry:e-toren', 'zag')).toBe(true);
+    expect(hasEdge(graph, 'mention', 'entry:e-toren', 'entry:e-jan', '')).toBe(false);
   });
 
   it('what the infobox says: a field, a dossier, a player', () => {
@@ -277,8 +318,8 @@ describe('the Keeper sees every kind of tie', () => {
   });
 
   it('what a section says, with its title', () => {
-    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-toren', 'Wat de dokter wist')).toBe(true);
-    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-jan', 'Openbaar')).toBe(true);
+    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-plek', 'Wat de dokter wist')).toBe(true);
+    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-plek', 'Openbaar')).toBe(true);
   });
 
   it('what a dossier holds, says, and hangs', () => {
@@ -301,9 +342,19 @@ describe('the Keeper sees every kind of tie', () => {
     expect(edgesOf(graph, 'boardNote').every((edge) => edge.detail)).toBe(true);
   });
 
+  it('a prikbord kept out of the web is not in it at all (round 18)', () => {
+    expect(graph.nodes.some((node) => node.id === 'board:b-uit')).toBe(false);
+    expect(graph.edges.some((edge) => edge.from === 'board:b-uit' || edge.to === 'board:b-uit' || edge.via === 'board:b-uit')).toBe(false);
+    expect(hasEdge(graph, 'thread', 'entry:e-plek', 'entry:e-toren', 'heeft gezien')).toBe(false);
+    expect(JSON.stringify(graph)).not.toContain('Een hunch');
+  });
+
   it('a draad between two cards becomes a thread, hung on its prikbord', () => {
     const thread = edgesOf(graph, 'thread').find((edge) => edge.detail === 'zag');
     expect(thread).toMatchObject({ from: 'entry:e-jan', to: 'entry:e-toren', via: 'board:b-open' });
+    // Round 18: the draad brings its own colour along; one without a set
+    // colour is the wall's default, red.
+    expect(thread?.colour).toBe('blue');
     // A draad to a loose end or to a punaise resolves to nothing, and without
     // notes on, a draad to a notitie neither.
     expect(edgesOf(graph, 'thread').map((edge) => edge.detail).sort()).toEqual(['kende', 'zag']);
@@ -388,8 +439,8 @@ describe('rule 1: what a player may not open is absent', () => {
   });
 
   it('a section still in prep does not speak, a public one does', () => {
-    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-toren')).toBe(false);
-    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-jan', 'Openbaar')).toBe(true);
+    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-plek', 'Wat de dokter wist')).toBe(false);
+    expect(hasEdge(graph, 'section', 'entry:e-journaal', 'entry:e-plek', 'Openbaar')).toBe(true);
   });
 
   it('but everything he may open is still there, with the same ties', () => {

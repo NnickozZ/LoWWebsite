@@ -258,7 +258,8 @@ export function recomputeSectionMentions(entryId: string): void {
  * A prikbord. An `entry` card stands for its artikel outright, so it prints
  * nothing after the board's name — the card's own name is a copy of the
  * artikel's, and repeating the page you are already on says nothing. A
- * `note` card is the card's own writing, so it prints the card's name.
+ * `note` card is the card's own writing, so it prints the card's name; so
+ * does the scribble under an artikel card when it names *another* artikel.
  */
 export function recomputeBoardMentions(boardId: string, state?: unknown): void {
   const raw =
@@ -276,11 +277,17 @@ export function recomputeBoardMentions(boardId: string, state?: unknown): void {
     const ref = cardRef(card);
     if (ref?.kind === 'entry') targets.push({ toEntryId: ref.id });
   }
-  const notes = cards.filter((card) => card.kind === 'note' && card.text);
-  if (notes.length) {
+  // What is written on the wall: a notitie's text, and — round 18 — the
+  // scribble under an artikel's own card, which names other artikelen just
+  // as readily ("zag @Jan Vermeer bij de sluis"). A card naming its own
+  // artikel says nothing new and is skipped.
+  const written = cards.filter((card) => card.text && (card.kind === 'note' || cardRef(card)?.kind === 'entry'));
+  if (written.length) {
     const byName = entryNameIndex();
-    for (const card of notes) {
+    for (const card of written) {
+      const own = cardRef(card)?.kind === 'entry' ? cardRef(card)?.id : undefined;
       for (const toEntryId of entryIdsInText(card.text, byName)) {
+        if (toEntryId === own) continue;
         targets.push({ toEntryId, detail: card.name });
       }
     }
@@ -389,8 +396,23 @@ export function rebuildAllMentions(): { cases: number; entries: number; boards: 
  */
 export function ensureMentionsBackfilled(): boolean {
   const any = db.select({ toEntryId: schema.entryMentions.toEntryId }).from(schema.entryMentions).limit(1).get();
-  if (any) return false;
-  rebuildAllMentions();
+  if (!any) {
+    rebuildAllMentions();
+    return true;
+  }
+  // Round 18: migration 0019 emptied the walls' rows so the scribbles under
+  // artikel cards get read; no board row at all while there are walls means
+  // they have not been written back yet. A wall is cheap to read again.
+  const anyBoard = db
+    .select({ toEntryId: schema.entryMentions.toEntryId })
+    .from(schema.entryMentions)
+    .where(eq(schema.entryMentions.fromKind, 'board'))
+    .limit(1)
+    .get();
+  if (anyBoard) return false;
+  const boards = db.select({ id: schema.boards.id }).from(schema.boards).where(isNull(schema.boards.deletedAt)).all();
+  if (!boards.length) return false;
+  for (const board of boards) recomputeBoardMentions(board.id);
   return true;
 }
 
@@ -452,6 +474,8 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
         and(
           inArray(schema.boards.id, boardIds),
           isNull(schema.boards.deletedAt),
+          // Round 18: a wall kept out of the web is kept out of here too.
+          eq(schema.boards.inWeb, true),
           viewableCondition('board', viewer),
         ),
       )
