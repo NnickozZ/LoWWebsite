@@ -156,6 +156,42 @@ describe('focusSlice', () => {
     expect(none.edges).toEqual([]);
     expect(none.focus).toBe('entry:nooit');
   });
+
+  it('a hidden node kind removes the knot and every edge touching it', () => {
+    const noBoards = focusSlice(graph, 'entry:a', 2, { hiddenNodeKinds: new Set(['board']) });
+    expect(ids(noBoards)).not.toContain('board:w');
+    expect(noBoards.edges.some((e) => e.from === 'board:w' || e.to === 'board:w')).toBe(false);
+    // The draad hangs *on* the prikbord but ties a to b; it stays.
+    expect(noBoards.edges.some((e) => e.kind === 'thread' && e.via === 'board:w')).toBe(true);
+    const noCases = focusSlice(graph, 'entry:a', 2, { hiddenNodeKinds: new Set(['case']) });
+    expect(ids(noCases)).toEqual(['board:w', 'entry:a', 'entry:b', 'entry:d', 'entry:e', 'entry:x']);
+  });
+
+  it('a hidden soort drops its knots and what is reachable only through them; the focus is exempt', () => {
+    // a (persoon) ──▶ b (plek) ──▶ d (persoon); a ──▶ e (voorwerp)
+    const typed: WebGraph = {
+      nodes: [
+        node('entry:a', { typeSlug: 'persoon' }),
+        node('entry:b', { typeSlug: 'plek' }),
+        node('entry:d', { typeSlug: 'persoon' }),
+        node('entry:e', { typeSlug: 'voorwerp' }),
+      ],
+      edges: [edge('mention', 'entry:a', 'entry:b'), edge('mention', 'entry:b', 'entry:d'), edge('field', 'entry:a', 'entry:e')],
+    };
+    const noPlek = focusSlice(typed, 'entry:a', 3, { hiddenTypes: new Set(['plek']) });
+    expect(ids(noPlek)).toEqual(['entry:a', 'entry:e']);
+    expect(noPlek.edges.map((e) => e.id)).toEqual(['field:entry:a>entry:e']);
+
+    // The focus's own soort unticked: the focus stays, its edges to visible
+    // knots stay, and only the other persoon goes.
+    const noPersoon = focusSlice(typed, 'entry:a', 3, { hiddenTypes: new Set(['persoon']) });
+    expect(ids(noPersoon)).toEqual(['entry:a', 'entry:b', 'entry:e']);
+    expect(noPersoon.edges.map((e) => e.id).sort()).toEqual(['field:entry:a>entry:e', 'mention:entry:a>entry:b']);
+
+    // Same for a hidden kind: the focus is exempt from that too.
+    const focusOnCase = focusSlice(graph, 'case:c', 1, { hiddenNodeKinds: new Set(['case']) });
+    expect(ids(focusOnCase)).toEqual(['case:c', 'entry:a']);
+  });
 });
 
 describe('filterGraph', () => {
@@ -175,6 +211,18 @@ describe('filterGraph', () => {
     expect(filtered.edges.map((e) => e.kind).sort()).toEqual(['board', 'field', 'filed']);
     // The global view keeps every node; only the lines go.
     expect(filtered.nodes).toHaveLength(7);
+  });
+
+  it('hides kinds of knots and soorten, edges and all — and keeps the isolated ones', () => {
+    const typed: WebGraph = {
+      nodes: [...graph.nodes.map((n) => (n.id === 'entry:x' ? { ...n, typeSlug: 'plek' } : n)), node('entry:los', { typeSlug: 'plek' })],
+      edges: graph.edges,
+    };
+    const filtered = filterGraph(typed, { hiddenNodeKinds: new Set(['case', 'board']), hiddenTypes: new Set(['plek']) });
+    expect(ids(filtered)).toEqual(['entry:a', 'entry:b', 'entry:d', 'entry:e']);
+    expect(filtered.edges.map((e) => e.kind).sort()).toEqual(['field', 'mention', 'mention', 'thread']);
+    // With nothing hidden, an isolated knot is still there: the global view never drops it.
+    expect(ids(filterGraph(typed))).toContain('entry:los');
   });
 });
 

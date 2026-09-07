@@ -2622,3 +2622,88 @@ sheet (`UPDATE_BATCH_MS`). Both are noted in the spec's comments.
 a rename but makes the raw box unreadable; the name-based match and its rename
 weakness stay, as they were. A monochrome web at rest was proposed in round 17
 and declined — the colour code is Nick's and stays.
+
+## Round 19 — 7 September 2026: zoom tot 12, kolommen op hun plek, wat en hoe, drie uitsneden (§43, rule 5)
+
+Nick, after round 18: the web could not be zoomed in far enough to see a face;
+columns "sometimes" came out as a web with S-curves for lines; the legend could
+switch a kind of *line* off but not a kind of *thing*; the panel said what a
+knot was called and nothing about it; and cropping a picture meant cropping it
+three times in three places. Five things, all refinements of §43 and rule 5;
+no new rule.
+
+**Kolommen staan waar de layout ze zet.** The columns bug was real and could not
+be reproduced with animations on. The layout effect used to leave a node at
+its *prior* position and trust the tween to carry it to the column; under
+`prefers-reduced-motion` no tween is made, so every card stayed at its organic
+coordinates for ever — columns that looked like a web, with the S-curved lines
+the fold draws between two points that are not in a column. Now
+`columnLayout`'s x/y go straight into `placed`; a tween, made only when motion
+is allowed and the node actually moved, is a way of *showing* the move and
+nothing more (`currentPos` walks it and lands on the layout). Alongside, the
+layout key gained a fingerprint of the graph — every node's step and side and
+a hash of the edges — because a legend tick or a live respin can change what
+the columns depend on without changing a single id, and before this the layout
+never re-ran for it. The second field of the key stays the focus, because
+`nodePoint()` in the e2e specs reads it; `tests/e2e/web.spec.ts` now runs the
+refocus-then-columns road with reduced motion on and off.
+
+**Zoom tot 12 in plaats van 4.** Three things had to give for that not to be
+mush. A cover sprite is rasterised at 2 texels per world pixel, which is sharp
+at zoom 1 on a retina screen and a blur at 12; so the sprite is also keyed on a
+bucket (1, 2, 4, 8 — `zoomBucket(zoom, dpr)`), chosen so the sprite has at
+least the screen's texels per world pixel, capped at 8 and at 1024 px so a hub
+at zoom 12 is a 1.5× upsample rather than a canvas the size of the screen.
+Four buckets and not a continuous scale, because every bucket is another
+sprite per cover in the cache. From bucket 4 up the 900 px `?s=card` is
+fetched instead of the 400 px thumb, the thumb drawing meanwhile so a knot
+never blanks; never for a whole web at zoom 1, so nothing gets slower for a
+reader who never zooms in. A line used to grow with the zoom like everything
+else, and at 12 a line was a rope; now its on-screen width grows as √zoom up
+to 4 — the old maximum, so nothing below it changed — and then stops
+(`lineZoom`, dashes and arrowheads too). And the cull margin is 200 *screen*
+pixels rather than world pixels, so a zoomed-in knot whose centre is just off
+the glass still draws its body. A fourth showed up in the sandbox: a name under a knot at zoom 12 was a row of scattered letters, because a canvas places glyphs at the *nominal* font size and `10 / 12 px` is below a pixel — so past zoom 2 a caption is drawn at 10 px on a context scaled back down (`crispText`).
+
+**Het web: een verborgen soort knoop is afwezig, niet gedimd; het middelpunt is
+uitgezonderd.** The legend's new "Wat" block — dossiers, prikborden,
+landkaarten, tijdlijnen under *Verzamelingen*, and every soort in the web
+under the artikelen word, each with its count — could have dimmed the knots it
+switches off. Dimming keeps the lines and the layout, and a web of a hundred
+personen with the personen dimmed is still a web of a hundred personen. So
+the filter runs in the slice (`hiddenNodeKinds` / `hiddenTypes` in
+`SliceOptions`, `hiddenNode()`), *before* the focus walk: a hidden knot is
+absent, its edges go with it, and a knot reachable only through it is not in
+the web either — which is what "without the dossiers" means. The focus is
+exempt, because the page *is* that thing (`?focus=` would otherwise draw
+nothing) and "hide personen while looking at one persoon" means the other
+personen. Two more `localStorage` keys beside the lines' one; the "Hoe" block
+is the old legend, renamed by a heading and nothing else. The panel shows the
+knot's short description under its name (`summary` on the node: an artikel's
+`short_description`, a dossier's `summary`, a landkaart's or tijdlijn's
+`description`; a prikbord has none).
+
+**Drie uitsneden per afbeelding.** This reverses "Every placement keeps its own
+crop" (under "Borders, per-place crops and string anchors", above). An artikel's crop was set for the 3:4 card and
+borrowed by every other shape, and a dossier's filing and a prikbord card could
+each keep their own — three UIs for one decision, and a face still did not
+look the same on every list, because the tijdlijn's window is wide and a knot
+is round. Now a picture carries one set of three — liggend 3:2, staand 3:4,
+vierkant 1:1 (`lib/images/shapes.ts`, the only place a ratio lives) — set once
+under "Afbeelding › Bijsnijden" on the artikel (and on a dossier's own
+picture) and drawn by every list, card, thumb and knot in the shape it uses.
+Still no server-side derivatives: each crop is a focal point and a zoom,
+applied by CSS at render or, on the web canvas, as a source rect
+(`drawCover`); the artikel page still shows the whole picture; nothing on
+disk changed shape. A bare `{ x, y, zoom }` from before is read as the staand
+crop, in the drizzle column type, so nothing that showed yesterday shows
+differently today. `case_entries.crop` is nulled by `0020_one_crop_per_picture`
+and the column stays so an old backup restores; a card's `crop` is dropped
+on read, board state being one JSON blob. A shape not among the three is a
+fourth key in the bag, not a fourth column.
+
+**Chosen against.** A continuous sprite scale (a sprite per zoom step is a
+sprite per cover per step). Lines that keep growing past zoom 4 (a rope). A
+dimmed knot for the "Wat" filter (see above). Cropping the file on disk, or a
+crop per placement kept "just as an override" — one set, or the three UIs
+come back.

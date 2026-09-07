@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessEditor } from '@/components/access/AccessEditor';
-import { assetUrl } from '@/components/Cover';
+import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
 import { MentionPopover } from '@/components/ui/MentionPopover';
@@ -673,12 +673,18 @@ function EditEventBody({
         </p>
         <div className="row-wrap" style={{ gap: '0.4rem', alignItems: 'center' }}>
           {image ? (
-            /* A 56 px square told you an afbeelding existed and nothing about
-               which one — and it was square, so a screenshot arrived cropped
-               to its middle. This keeps the picture's own shape inside a
-               postcard-sized box, which is enough to recognise it by. */
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="event-picture-preview" src={assetUrl(image, 'card')} alt="" />
+            /* Round 19: a liggend 3:2 postcard drawn with the artikel's own
+               liggend crop — exactly what the folded-out window on the axis
+               shows, so the blad and the axis agree. A gebeurtenis's own
+               picture has no crops and sits centred. */
+            <span className={`event-picture-preview ${coverClass('landscape')}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={assetUrl(image, 'card')}
+                alt=""
+                style={coverStyle(event.kind === 'entry' ? (event.entry?.coverCrop ?? null) : null, 'landscape')}
+              />
+            </span>
           ) : (
             <span className="tiny muted">
               {event.kind === 'entry' ? `Het ${words.entry} heeft nog geen afbeelding.` : 'Nog geen afbeelding.'}

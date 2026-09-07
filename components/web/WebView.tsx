@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { coverClass, coverStyle } from '@/components/Cover';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
@@ -11,7 +12,7 @@ import { useIsPhone } from '@/components/useIsPhone';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import { EDGE_GROUPS, EDGE_KIND_ORDER, EDGE_KINDS, NODE_KINDS, edgeColourVar } from '@/lib/web/kinds';
 import { clampDepth, filterGraph, focusSlice } from '@/lib/web/slice';
-import { WEB_DEPTH_MAX, WEB_DEPTH_MIN, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode, type WebNodeId } from '@/lib/web/types';
+import { WEB_DEPTH_MAX, WEB_DEPTH_MIN, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode, type WebNodeId, type WebNodeKind } from '@/lib/web/types';
 import { WebCanvas, type WebCanvasHandle, type WebMode } from './WebCanvas';
 import { PinSelectionButton } from './PinSelectionButton';
 
@@ -35,6 +36,9 @@ import { PinSelectionButton } from './PinSelectionButton';
  */
 
 const HIDDEN_KEY = 'web:hidden-kinds';
+/** The legend's "Wat" block: kinds of knots and soorten ticked off (§43). */
+const THINGS_KEY = 'web:hidden-things';
+const SOORTEN_KEY = 'web:hidden-soorten';
 const NOTES_KEY = 'web:notes';
 const LABELS_KEY = 'web:labels';
 const IMAGES_KEY = 'web:images';
@@ -81,6 +85,10 @@ export function WebView({
   // The organic web first (Nick's choice after seeing both); Kolommen is one click away.
   const [mode, setMode] = useState<WebMode>('organic');
   const [hidden, setHidden] = useState<Set<WebEdgeKind>>(new Set());
+  // "Wat": kinds of knots and soorten the legend has ticked off. A hidden knot
+  // is absent, lines and all; the focus itself is exempt (`hiddenNode`).
+  const [hiddenThings, setHiddenThings] = useState<Set<WebNodeKind>>(new Set());
+  const [hiddenSoorten, setHiddenSoorten] = useState<Set<string>>(new Set());
   const [showNotes, setShowNotes] = useState(false);
   const [labelsAlways, setLabelsAlways] = useState(false);
   const [showImages, setShowImages] = useState(false);
@@ -101,6 +109,10 @@ export function WebView({
   useEffect(() => {
     const kinds = readStored<string[]>(HIDDEN_KEY, []).filter((k): k is WebEdgeKind => k in EDGE_KINDS);
     if (kinds.length) setHidden(new Set(kinds));
+    const things = readStored<string[]>(THINGS_KEY, []).filter((k): k is WebNodeKind => k in NODE_KINDS && k !== 'entry' && k !== 'note');
+    if (things.length) setHiddenThings(new Set(things));
+    const soorten = readStored<string[]>(SOORTEN_KEY, []).filter((k): k is string => typeof k === 'string' && k.length > 0);
+    if (soorten.length) setHiddenSoorten(new Set(soorten));
     setShowNotes(readStored<boolean>(NOTES_KEY, false));
     setLabelsAlways(readStored<boolean>(LABELS_KEY, false));
     setShowImages(readStored<boolean>(IMAGES_KEY, false));
@@ -166,10 +178,10 @@ export function WebView({
 
   const graph = useMemo<WebGraph>(() => {
     if (!full) return { nodes: [], edges: [] };
-    const options = { hiddenKinds: hidden, showNotes };
+    const options = { hiddenKinds: hidden, hiddenNodeKinds: hiddenThings, hiddenTypes: hiddenSoorten, showNotes };
     if (focus && nodeById.has(focus)) return focusSlice(full, focus, depth, options);
     return filterGraph(full, options);
-  }, [full, focus, depth, hidden, showNotes, nodeById]);
+  }, [full, focus, depth, hidden, hiddenThings, hiddenSoorten, showNotes, nodeById]);
 
   const shownIds = useMemo(() => new Set(graph.nodes.map((n) => n.id)), [graph]);
   const effectiveMode: WebMode = focus ? mode : 'organic';
@@ -218,6 +230,20 @@ export function WebView({
       return next;
     });
   };
+  /** Tick `keys` on or off in a stored set — the "Wat" rows and their alles/niets. */
+  const toggleIn = <T,>(setter: Dispatch<SetStateAction<Set<T>>>, key: string, keys: T[], on: boolean) => {
+    setter((current) => {
+      const next = new Set(current);
+      for (const k of keys) {
+        if (on) next.delete(k);
+        else next.add(k);
+      }
+      store(key, [...next]);
+      return next;
+    });
+  };
+  const toggleThing = (kind: WebNodeKind) => toggleIn(setHiddenThings, THINGS_KEY, [kind], hiddenThings.has(kind));
+  const toggleSoort = (slug: string) => toggleIn(setHiddenSoorten, SOORTEN_KEY, [slug], hiddenSoorten.has(slug));
 
   // Keep the selection to what is on screen — once there is a screen.
   useEffect(() => {
@@ -234,15 +260,35 @@ export function WebView({
   }, []);
 
   // Counts per kind, for the legend, over the *filtered-by-scope* graph
-  // before the legend is applied — so a ticked-off kind still shows how many
-  // lines it would bring back.
+  // before the line legend is applied — so a ticked-off kind still shows how
+  // many lines it would bring back. The "Wat" block *is* applied: a line to a
+  // hidden knot is not there to bring back.
   const kindCounts = useMemo(() => {
     const counts = new Map<WebEdgeKind, number>();
     if (!full) return counts;
-    const base = focus && nodeById.has(focus) ? focusSlice(full, focus, depth, { showNotes }) : filterGraph(full, { showNotes });
+    const options = { hiddenNodeKinds: hiddenThings, hiddenTypes: hiddenSoorten, showNotes };
+    const base = focus && nodeById.has(focus) ? focusSlice(full, focus, depth, options) : filterGraph(full, options);
     for (const edge of base.edges) counts.set(edge.kind, (counts.get(edge.kind) ?? 0) + 1);
     return counts;
-  }, [full, focus, depth, showNotes, nodeById]);
+  }, [full, focus, depth, hiddenThings, hiddenSoorten, showNotes, nodeById]);
+
+  // The "Wat" rows: how many knots of each kind the whole web holds, and the
+  // soorten in it with their look. A karakter counts under its soort.
+  const thingCounts = useMemo(() => {
+    const counts = new Map<WebNodeKind, number>();
+    for (const node of full?.nodes ?? []) counts.set(node.kind, (counts.get(node.kind) ?? 0) + 1);
+    return counts;
+  }, [full]);
+  const soorten = useMemo(() => {
+    const out = new Map<string, { slug: string; label: string; icon: string; colour?: string; count: number }>();
+    for (const node of full?.nodes ?? []) {
+      if (node.kind !== 'entry' || !node.typeSlug) continue;
+      const row = out.get(node.typeSlug);
+      if (row) row.count += 1;
+      else out.set(node.typeSlug, { slug: node.typeSlug, label: node.typeLabel ?? node.typeSlug, icon: node.typeIcon || 'file', colour: node.typeColour, count: 1 });
+    }
+    return [...out.values()].sort((a, b) => a.label.localeCompare(b.label, 'nl'));
+  }, [full]);
 
   const matches = useMemo(() => {
     const typed = query.trim();
@@ -342,8 +388,66 @@ export function WebView({
   // Kinds with nothing in this web are folded away under one line: a legend
   // of sixteen rows, eleven of them zero, is a form, not a key.
   const absentKinds = EDGE_KIND_ORDER.filter((k) => !(kindCounts.get(k) ?? 0));
+  const THING_KINDS: WebNodeKind[] = ['case', 'board', 'map', 'timeline'];
+  const thingRows = THING_KINDS.filter((kind) => (thingCounts.get(kind) ?? 0) > 0);
+  const thingsAllOn = thingRows.every((kind) => !hiddenThings.has(kind));
+  const soortenAllOn = soorten.every((soort) => !hiddenSoorten.has(soort.slug));
   const legend = (
     <div className="web-legend" data-testid="web-legend">
+      {(thingRows.length > 0 || soorten.length > 0) && (
+        <>
+          <p className="web-legend-heading">Wat</p>
+          {thingRows.length > 0 && (
+            <div className="web-legend-group">
+              <button type="button" className="web-legend-head" onClick={() => toggleIn(setHiddenThings, THINGS_KEY, thingRows, !thingsAllOn)} aria-pressed={thingsAllOn}>
+                Verzamelingen
+              </button>
+              {thingRows.map((kind) => {
+                const on = !hiddenThings.has(kind);
+                return (
+                  <label key={kind} className={`web-legend-row${on ? '' : ' web-legend-off'}`}>
+                    <input type="checkbox" checked={on} onChange={() => toggleThing(kind)} data-testid={`web-thing-${kind}`} />
+                    <NodeGlyph node={{ id: `${kind}:`, kind, refId: '', name: '', href: '', degree: 0 }} />
+                    <span className="web-legend-label">{NODE_KINDS[kind].plural(words)}</span>
+                    <span className="tiny muted">{thingCounts.get(kind) ?? 0}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          {soorten.length > 0 && (
+            <div className="web-legend-group">
+              <button
+                type="button"
+                className="web-legend-head"
+                onClick={() =>
+                  toggleIn(
+                    setHiddenSoorten,
+                    SOORTEN_KEY,
+                    soorten.map((soort) => soort.slug),
+                    !soortenAllOn,
+                  )
+                }
+                aria-pressed={soortenAllOn}
+              >
+                {words.entryPlural}
+              </button>
+              {soorten.map((soort) => {
+                const on = !hiddenSoorten.has(soort.slug);
+                return (
+                  <label key={soort.slug} className={`web-legend-row${on ? '' : ' web-legend-off'}`}>
+                    <input type="checkbox" checked={on} onChange={() => toggleSoort(soort.slug)} data-testid={`web-soort-${soort.slug}`} />
+                    <NodeGlyph node={{ id: `entry:${soort.slug}`, kind: 'entry', refId: '', name: '', href: '', degree: 0, typeSlug: soort.slug, typeIcon: soort.icon, typeColour: soort.colour }} />
+                    <span className="web-legend-label">{soort.label}</span>
+                    <span className="tiny muted">{soort.count}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <p className="web-legend-heading">Hoe</p>
+        </>
+      )}
       {EDGE_GROUPS.map((group) => {
         const kinds = EDGE_KIND_ORDER.filter((k) => EDGE_KINDS[k].group === group.key && (kindCounts.get(k) ?? 0) > 0);
         if (!kinds.length) return null;
@@ -736,7 +840,9 @@ function NodePanel({
     <div className="web-panel-body" data-testid="web-panel">
       {node.coverAssetId && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="web-panel-cover" src={assetUrl(node.coverAssetId, 'card')} alt="" />
+        <span className={`web-panel-cover ${coverClass('landscape')}`}>
+          <img src={assetUrl(node.coverAssetId, 'card')} alt="" style={coverStyle(node.coverCrop, 'landscape')} />
+        </span>
       )}
       <p className="eyebrow row" style={{ gap: '0.35rem' }}>
         <NodeGlyph node={node} />
@@ -747,6 +853,11 @@ function NodePanel({
       {node.subtitle && node.subtitle !== kindLabel && (
         <p className="small muted" style={{ margin: '0.1rem 0 0' }}>
           {node.subtitle}
+        </p>
+      )}
+      {node.summary && (
+        <p className="web-panel-summary" data-testid="web-panel-summary">
+          {node.summary}
         </p>
       )}
       <div className="row-wrap" style={{ margin: '0.6rem 0 0.9rem' }}>

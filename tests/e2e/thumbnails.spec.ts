@@ -31,9 +31,10 @@ test('a zoomed cover stays inside its thumbnail in the feed', async ({ page }, t
   // The entry itself shows the whole picture, uncropped, whatever shape it is.
   await expect(page.locator('.entry-cover-whole img')).toHaveCSS('object-fit', 'contain');
 
-  // The list crop is a separate, smaller frame. Open it and zoom in.
-  await imageMenu(page, /Bijsnijden voor lijsten/);
-  const frame = page.locator('.entry-crop-frame');
+  // The list crops are three separate, smaller frames (round 19). The feed
+  // thumb is staand, so zoom in on that one.
+  await imageMenu(page, /^Bijsnijden/);
+  const frame = page.locator('.crop-frame[data-shape="portrait"]');
   await expect(frame).toBeVisible();
   const cover = (await frame.boundingBox())!;
   for (let i = 0; i < 6; i++) {

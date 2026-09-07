@@ -251,6 +251,13 @@ beforeAll(async () => {
     }),
   );
 
+  // The panel's short description: one of each kind that has one, padded to
+  // show it is trimmed; the rest stay empty and must come through as absent.
+  run(`UPDATE entries SET short_description = '  Een oude toren aan zee.  ' WHERE id = 'e-toren'`);
+  run(`UPDATE cases SET summary = 'Wat er in Vlissingen gebeurde.' WHERE id = 'c-open'`);
+  run(`UPDATE maps SET description = 'Het eiland, getekend.' WHERE id = 'm-eiland'`);
+  run(`UPDATE timelines SET description = 'Zeven dagen.' WHERE id = 't-week'`);
+
   // §27: the derived table, from every source at once; the dossier's notes by hand.
   deps.rebuildAllMentions();
   deps.recomputeMentions('case', 'c-open', [{ toEntryId: 'e-jan' }]);
@@ -383,6 +390,16 @@ describe('the Keeper sees every kind of tie', () => {
     expect(graph.nodes.find((node) => node.id === 'board:b-open')).toMatchObject({ href: '/b/b-open', subtitle: 'Zaak Vlissingen' });
     expect(graph.nodes.find((node) => node.id === 'map:m-eiland')).toMatchObject({ href: '/maps/eiland', subtitle: 'Walcheren' });
     expect(graph.nodes.find((node) => node.id === 'timeline:t-week')?.href).toBe('/timelines/de-week');
+  });
+
+  it('nodes carry the short description, trimmed, and none when there is none', () => {
+    const by = (id: string) => graph.nodes.find((node) => node.id === id);
+    expect(by('entry:e-toren')?.summary).toBe('Een oude toren aan zee.');
+    expect(by('case:c-open')?.summary).toBe('Wat er in Vlissingen gebeurde.');
+    expect(by('map:m-eiland')?.summary).toBe('Het eiland, getekend.');
+    expect(by('timeline:t-week')?.summary).toBe('Zeven dagen.');
+    expect(by('entry:e-jan')?.summary).toBeUndefined();
+    expect(by('board:b-open')?.summary).toBeUndefined();
   });
 
   it('degree counts every edge touching the node, and ids are unique', () => {

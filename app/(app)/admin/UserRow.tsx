@@ -107,6 +107,8 @@ function AssignedCharacters({ user }: { user: UserLite }) {
               <span className="row" style={{ flex: 1, minWidth: 0 }}>
                 <Thumb
                   assetId={character.coverAssetId}
+                  crop={character.coverCrop}
+                  shape="portrait"
                   icon={character.typeIcon}
                   colour={character.typeColour}
                 />

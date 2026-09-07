@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { assetUrl } from './Cover';
+import { assetUrl, coverClass, coverStyle } from './Cover';
 import { Icon } from './Icon';
+import type { CoverCrops } from '@/lib/images/shapes';
 
 type Preview = {
   id: string;
@@ -11,6 +12,8 @@ type Preview = {
   name: string;
   shortDescription: string;
   coverAssetId: string | null;
+  /** Round 19: drawn with the staand crop, like the feed thumb it is the size of. */
+  coverCrop?: CoverCrops | null;
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
@@ -119,8 +122,14 @@ export function EntryPreview() {
   return (
     <div className="preview-card" style={{ left: x, top: y }} role="tooltip">
       {data.coverAssetId ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={assetUrl(data.coverAssetId, 'thumb')} alt="" />
+        <span className={`preview-thumb ${coverClass('portrait')}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={assetUrl(data.coverAssetId, 'thumb')}
+            alt=""
+            style={coverStyle(data.coverCrop, 'portrait')}
+          />
+        </span>
       ) : (
         <div
           style={{

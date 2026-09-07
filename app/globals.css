@@ -474,8 +474,24 @@ a.card:hover {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 0.85rem;
 }
-.card-cover {
+/*
+ * Round 19: the three shapes a picture can be drawn in, from the one table in
+ * `lib/images/shapes.ts` (`coverClass`). Every clipping frame that draws a
+ * crop wears one of these beside its own class — `.card-cover`, `.feed-thumb`,
+ * `.board-card-cover`, `.crop-frame`, the tijdlijn's popout — so the ratio is
+ * never written into a frame's own rule. A frame has to clip (`overflow:
+ * hidden`): a zoomed crop is a `transform: scale()` and paints outside its box.
+ */
+.cover-landscape {
+  aspect-ratio: 3 / 2;
+}
+.cover-portrait {
   aspect-ratio: 3 / 4;
+}
+.cover-square {
+  aspect-ratio: 1 / 1;
+}
+.card-cover {
   background: var(--paper-dark);
   display: flex;
   align-items: center;
@@ -1254,12 +1270,19 @@ details.section[open] > summary::before {
   gap: 0.6rem;
   pointer-events: none;
 }
-.preview-card img {
+/* Round 19: a clipping wrapper, like `.feed-thumb`, so a zoomed crop stays in its box. */
+.preview-thumb {
+  display: block;
   width: 54px;
-  height: 72px;
-  object-fit: cover;
   border: 1px solid var(--rule);
   flex: 0 0 auto;
+  overflow: hidden;
+}
+.preview-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ------------------------------------------------------------- case tabs */
@@ -1566,7 +1589,6 @@ details.section[open] > summary::before {
 }
 .board-card-cover {
   position: relative;
-  aspect-ratio: 3 / 4;
   margin: 18px 8px 6px;
   border: 1px solid var(--card-rule);
   background: #ece4d3;
@@ -1857,23 +1879,6 @@ details.section[open] > summary::before {
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
-.board-card-cropping {
-  outline: 2px dashed var(--link);
-  outline-offset: 1px;
-  z-index: 5;
-}
-.board-crop-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(20, 18, 15, 0.72);
-  color: #f3eee2;
-  font-size: 0.62rem;
-  text-align: center;
-  padding: 2px 3px;
-}
-
 .board-marquee {
   position: absolute;
   border: 1px dashed var(--link);
@@ -1928,7 +1933,7 @@ details.section[open] > summary::before {
  */
 .feed-thumb {
   width: 42px;
-  height: 56px;
+  /* The height comes from the shape class (`.cover-portrait` → 42×56). */
   flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid var(--rule);
@@ -2439,7 +2444,7 @@ details.section[open] > summary::before {
 /* ------------------------------------------------------------ entry cover */
 /*
  * The entry shows the whole picture, whatever shape it is, and never crops it.
- * Lists get the squared-off version instead (see .entry-crop-frame).
+ * Lists get one of the three crops instead (see .crop-frame).
  */
 .entry-cover-whole {
   border: 1px solid var(--rule);
@@ -2519,18 +2524,40 @@ details.section[open] > summary::before {
   color: var(--stamp-red);
 }
 
+/*
+ * Round 19: the crop section — three frames, liggend 3:2 · staand 3:4 ·
+ * vierkant 1:1, each editing its own crop. Wrapping, because this lives in the
+ * 320 px cover column: liggend (144 px) and staand (108 px) share the first
+ * row and vierkant (108 px) drops under them. Each frame's aspect is its
+ * `.cover-*` class; the widths are the only numbers here.
+ */
 .entry-crop-row {
-  /* Stacked, because this lives in the narrow cover column. */
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   align-items: flex-start;
   margin-top: 0.6rem;
 }
-.entry-crop-frame {
-  flex: 0 0 auto;
+.entry-crop-frames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.6rem;
+  align-items: flex-start;
+}
+.entry-crop-shape {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+}
+.entry-crop-shape .crop-frame {
   width: 108px;
-  aspect-ratio: 3 / 4;
+}
+.entry-crop-shape .crop-frame.cover-landscape {
+  width: 144px;
+}
+.crop-frame {
+  flex: 0 0 auto;
   border: 1px solid var(--rule);
   background: var(--paper-dark);
   overflow: hidden;
@@ -2538,33 +2565,13 @@ details.section[open] > summary::before {
   cursor: grab;
   touch-action: none;
 }
-.entry-crop-frame img {
+.crop-frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.entry-crop-frame:active {
+.crop-frame:active {
   cursor: grabbing;
-}
-
-/* A case card while its own crop of the cover is being set. */
-.card-cover-cropping {
-  cursor: grab;
-  touch-action: none;
-  outline: 2px solid var(--link);
-  outline-offset: -2px;
-}
-.card-cover-cropping:active {
-  cursor: grabbing;
-}
-.card-crop-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--rule);
-  background: var(--paper-dark);
 }
 
 /* ------------------------------------------------------------ bare pins */
@@ -4556,11 +4563,11 @@ details.section[open] > summary::before {
  * bottom cut off.
  *
  * So: full-bleed out of the padding (negative margins the width of it), one
- * hairline underneath to part it from the words, and the picture keeps its own
- * shape up to a ceiling. Only a picture taller than the ceiling is trimmed, and
- * from the top down (`object-position: 50% 0`), because the top of a document
- * is where the writing starts. The window is 250 px wide, so the ceiling is
- * about a 4:3 landscape — anything wider is shown whole.
+ * hairline underneath to part it from the words. Round 19: the frame is a
+ * liggend 3:2 box (`.cover-landscape`, from `lib/images/shapes.ts`) and the
+ * picture sits in it by the artikel's own liggend crop — set once, on the
+ * artikel, and the same in every wide frame. A screenshot with writing on it
+ * is read whole by the click, which opens the file over the whole screen.
  */
 .timeline-popout-picture {
   display: block;
@@ -4580,10 +4587,8 @@ details.section[open] > summary::before {
 .timeline-popout-picture > img {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: 190px;
+  height: 100%;
   object-fit: cover;
-  object-position: 50% 0;
 }
 /* No picture, but a frame that was asked for: the soort's icon on a short
    band rather than a tall empty rectangle pretending to be a photograph. */
@@ -4642,17 +4647,21 @@ details.section[open] > summary::before {
   white-space: pre-wrap;
 }
 
-/* The picture on a gebeurtenis's blad: a postcard, not a stamp. `contain` on a
-   dark ground, so a tall screenshot and a wide photograph are both recognisable
-   without either being cropped — this is a preview, and the crop that matters
-   is the one the folded-out window makes. */
+/* The picture on a gebeurtenis's blad: a postcard, not a stamp. Round 19: a
+   liggend 3:2 frame (`.cover-landscape`) drawn with the artikel's liggend
+   crop — the same frame the folded-out window on the axis uses. */
 .event-picture-preview {
   display: block;
   width: 150px;
-  height: 100px;
-  object-fit: contain;
+  overflow: hidden;
   border: 1px solid var(--rule);
   background: var(--paper-dark);
+}
+.event-picture-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* The date form: the year, then down to whatever the tijdlijn measures in. */
@@ -5198,6 +5207,30 @@ details.section[open] > summary::before {
   color: var(--ink-muted);
   text-decoration: line-through;
 }
+/* "Wat" over the knots, "Hoe" over the lines: a rule with a word on it. */
+.web-legend-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.2rem 0 0.35rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+}
+.web-legend-heading::after {
+  content: '';
+  flex: 1 1 auto;
+  border-top: 1px solid var(--rule);
+}
+.web-legend-group + .web-legend-heading {
+  margin-top: 0.6rem;
+}
+.web-legend-row .web-glyph {
+  width: 20px;
+  height: 20px;
+}
 
 /* The panel: what is chosen, and how it is tied on. */
 .web-panel-body {
@@ -5206,16 +5239,32 @@ details.section[open] > summary::before {
 .web-panel-cover {
   display: block;
   width: 100%;
-  max-height: 160px;
-  object-fit: cover;
+  overflow: hidden;
   border: 1px solid var(--rule);
   margin-bottom: 0.6rem;
+}
+.web-panel-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .web-panel-name {
   margin: 0.1rem 0 0;
   font-size: 1.25rem;
   line-height: 1.2;
   overflow-wrap: anywhere;
+}
+/* The short description, as `.entry-lead` but muted and cut at four lines — "Openen" has the rest. */
+.web-panel-summary {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 .web-panel-h {
   margin: 0.9rem 0 0.3rem;

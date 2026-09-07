@@ -7,6 +7,7 @@ import {
   type WebGraph,
   type WebNode,
   type WebNodeId,
+  type WebNodeKind,
 } from './types';
 
 /**
@@ -36,6 +37,15 @@ import {
 export type SliceOptions = {
   /** Edge kinds the legend has ticked off. */
   hiddenKinds?: ReadonlySet<WebEdgeKind>;
+  /**
+   * Node kinds the legend's "Wat" block has ticked off (dossiers, prikborden,
+   * …). A hidden knot is absent — not dimmed — and so is every edge touching
+   * it, so a knot reachable only through it drops out of a focus walk. The
+   * focus knot itself is exempt: it is what the page is about.
+   */
+  hiddenNodeKinds?: ReadonlySet<WebNodeKind>;
+  /** Soorten (an artikel's `typeSlug`) ticked off the same way. */
+  hiddenTypes?: ReadonlySet<string>;
   /** Loose notities on prikborden — off unless asked for. */
   showNotes?: boolean;
   /** A ceiling on nodes; the walk stops and `truncated` is set. */
@@ -48,14 +58,30 @@ export function clampDepth(input: unknown): number {
   return Math.min(WEB_DEPTH_MAX, Math.max(WEB_DEPTH_MIN, Math.round(n)));
 }
 
+/**
+ * Whether the legend's "Wat" block hides this knot. The focus (`graph.focus`)
+ * never is: unticking its own soort leaves the middle of the page standing.
+ */
+export function hiddenNode(node: WebNode, options: SliceOptions = {}, focus?: WebNodeId): boolean {
+  if (focus !== undefined && node.id === focus) return false;
+  if (options.hiddenNodeKinds?.has(node.kind)) return true;
+  if (node.kind === 'entry' && node.typeSlug && options.hiddenTypes?.has(node.typeSlug)) return true;
+  return false;
+}
+
 /** The edges that survive the legend and the notes switch. */
-export function visibleEdges(graph: WebGraph, options: SliceOptions = {}): WebEdge[] {
+export function visibleEdges(graph: WebGraph, options: SliceOptions = {}, focus: WebNodeId | undefined = graph.focus): WebEdge[] {
   const hidden = options.hiddenKinds;
   const showNotes = Boolean(options.showNotes);
   const noteIds = showNotes ? null : new Set(graph.nodes.filter((n) => n.kind === 'note').map((n) => n.id));
+  const hiddenIds =
+    options.hiddenNodeKinds?.size || options.hiddenTypes?.size
+      ? new Set(graph.nodes.filter((n) => hiddenNode(n, options, focus)).map((n) => n.id))
+      : null;
   return graph.edges.filter((edge) => {
     if (hidden?.has(edge.kind)) return false;
     if (noteIds && (noteIds.has(edge.from) || noteIds.has(edge.to))) return false;
+    if (hiddenIds && (hiddenIds.has(edge.from) || hiddenIds.has(edge.to))) return false;
     return true;
   });
 }
@@ -64,7 +90,7 @@ export function visibleEdges(graph: WebGraph, options: SliceOptions = {}): WebEd
 export function filterGraph(graph: WebGraph, options: SliceOptions = {}): WebGraph {
   const edges = visibleEdges(graph, options);
   const showNotes = Boolean(options.showNotes);
-  const nodes = graph.nodes.filter((node) => showNotes || node.kind !== 'note');
+  const nodes = graph.nodes.filter((node) => (showNotes || node.kind !== 'note') && !hiddenNode(node, options, graph.focus));
   return { nodes, edges };
 }
 
@@ -80,7 +106,7 @@ export function focusSlice(
   const start = byId.get(focus);
   if (!start) return { nodes: [], edges: [], focus, depth };
 
-  const edges = visibleEdges(graph, options);
+  const edges = visibleEdges(graph, options, focus);
   const adjacency = new Map<WebNodeId, WebEdge[]>();
   for (const edge of edges) {
     if (!byId.has(edge.from) || !byId.has(edge.to)) continue;

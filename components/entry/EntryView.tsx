@@ -32,7 +32,8 @@ import {
   type PageBlock,
   type TypeText,
 } from '@/lib/pageBlocks';
-import type { CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
+import type { FieldDef, Visibility } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 import { capitalise } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
@@ -53,7 +54,7 @@ export type EntryViewData = {
   fields: Record<string, unknown>;
   tags: string[];
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
@@ -383,7 +384,7 @@ export function EntryView({
           tags: string[];
           fields: Record<string, unknown>;
           coverAssetId: string | null;
-          coverCrop: CoverCrop | null;
+          coverCrop: CoverCrops | null;
         };
         if (cancelled) return;
         const active = document.activeElement as HTMLElement | null;

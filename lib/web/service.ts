@@ -68,6 +68,12 @@ type NodeMap = Map<WebNodeId, WebNode>;
 /** How long a nameless notitie's first line may be, as its name on the web. */
 const NOTE_NAME_LENGTH = 40;
 
+/** The panel's short description: trimmed, and absent rather than empty. */
+function summaryOf(text: string | null | undefined): string | undefined {
+  const trimmed = (text ?? '').trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): WebGraph {
   const showNotes = Boolean(options.notes);
   // The containers — dossiers, prikborden, landkaarten, tijdlijnen — are read
@@ -113,6 +119,8 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: schema.entries.name,
       slug: schema.entries.slug,
       coverAssetId: schema.entries.coverAssetId,
+      coverCrop: schema.entries.coverCrop,
+      shortDescription: schema.entries.shortDescription,
       fields: schema.entries.fields,
       typeSlug: schema.entryTypes.slug,
       typeLabel: schema.entryTypes.label,
@@ -136,19 +144,36 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       typeColour: row.typeColour,
       isCharacter: characterIds.has(row.id),
       coverAssetId: row.coverAssetId ?? null,
+      coverCrop: row.coverCrop ?? null,
       subtitle: row.typeLabel,
+      summary: summaryOf(row.shortDescription),
     });
   }
 
   const caseRows = db
-    .select({ id: schema.cases.id, name: schema.cases.name, slug: schema.cases.slug, coverAssetId: schema.cases.coverAssetId })
+    .select({
+      id: schema.cases.id,
+      name: schema.cases.name,
+      slug: schema.cases.slug,
+      coverAssetId: schema.cases.coverAssetId,
+      coverCrop: schema.cases.coverCrop,
+      summary: schema.cases.summary,
+    })
     .from(schema.cases)
     .where(visibleCaseCondition(containerViewer))
     .all();
   const caseNames = new Map<string, string>();
   for (const row of caseRows) {
     caseNames.set(row.id, row.name);
-    put({ kind: 'case', refId: row.id, name: row.name, href: `/c/${row.slug}`, coverAssetId: row.coverAssetId ?? null });
+    put({
+      kind: 'case',
+      refId: row.id,
+      name: row.name,
+      href: `/c/${row.slug}`,
+      coverAssetId: row.coverAssetId ?? null,
+      coverCrop: row.coverCrop ?? null,
+      summary: summaryOf(row.summary),
+    });
   }
 
   // Round 18: a wall its manager keeps out of the web is not in it — not as
@@ -174,7 +199,13 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   }
 
   const mapRows = db
-    .select({ id: schema.maps.id, name: schema.maps.name, slug: schema.maps.slug, entryId: schema.maps.entryId })
+    .select({
+      id: schema.maps.id,
+      name: schema.maps.name,
+      slug: schema.maps.slug,
+      entryId: schema.maps.entryId,
+      description: schema.maps.description,
+    })
     .from(schema.maps)
     .where(visibleMapCondition(containerViewer))
     .all();
@@ -186,6 +217,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: row.name,
       href: `/maps/${row.slug}`,
       subtitle: row.entryId ? entryNames.get(row.entryId) : undefined,
+      summary: summaryOf(row.description),
     });
   }
 
@@ -197,6 +229,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: row.name,
       href: `/timelines/${row.slug}`,
       subtitle: row.caseId ? caseNames.get(row.caseId) : undefined,
+      summary: summaryOf(row.description),
     });
   }
 

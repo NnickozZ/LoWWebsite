@@ -35,7 +35,6 @@ function card(id: string, over: Partial<BoardCard> = {}): BoardCard {
     kind: 'entry',
     entryId: `e_${id}`,
     assetId: null,
-    crop: null,
     showImage: true,
     border: null,
     name: id,
@@ -381,34 +380,19 @@ describe('string colour, thickness and kind', () => {
 });
 
 describe('card pictures', () => {
-  it('keeps a crop for a card that has an image', () => {
+  it('drops a crop saved on a card before round 19', () => {
+    // A card no longer carries a crop of its own: an entry card draws the
+    // artikel's own staand crop, a photo card its picture centred. Old state
+    // with a `crop` on a card is read like any other — and the crop is not.
     const state = normaliseState({
-      cards: [card('a', { assetId: 'img1', crop: { x: 0.2, y: 0.8, zoom: 2 } })],
+      cards: [
+        { ...card('a', { assetId: 'img1' }), crop: { x: 0.2, y: 0.8, zoom: 2 } },
+        { ...card('b'), crop: { x: -3, y: 9, zoom: 99 } },
+      ],
     });
-    expect(state.cards[0].crop).toEqual({ x: 0.2, y: 0.8, zoom: 2 });
-  });
-
-  it('keeps a crop on a card with no picture of its own', () => {
-    // An entry card crops the *entry's* cover for this board alone, so a crop
-    // without an assetId is meaningful. Removing a photo clears both.
-    const state = normaliseState({
-      cards: [card('a', { assetId: null, crop: { x: 0.2, y: 0.8, zoom: 2 } })],
-    });
-    expect(state.cards[0].crop).toEqual({ x: 0.2, y: 0.8, zoom: 2 });
-  });
-
-  it('clamps a crop to the frame', () => {
-    const state = normaliseState({
-      cards: [card('a', { assetId: 'img1', crop: { x: -3, y: 9, zoom: 99 } })],
-    });
-    expect(state.cards[0].crop).toEqual({ x: 0, y: 1, zoom: 4 });
-  });
-
-  it('leaves a card with no crop of its own alone', () => {
-    // Null is not "centred": it means "use whatever the entry's cover says",
-    // which is decided at render time, not here.
-    const state = normaliseState({ cards: [card('a', { assetId: 'img1' })] });
-    expect(state.cards[0].crop).toBeNull();
+    expect(state.cards[0].assetId).toBe('img1');
+    expect('crop' in state.cards[0]).toBe(false);
+    expect('crop' in state.cards[1]).toBe(false);
   });
 
   it('keeps the picture frame on unless it was explicitly switched off', () => {
@@ -425,10 +409,9 @@ describe('card pictures', () => {
   it('lets a note gain a picture through a merge', () => {
     const merged = mergeBoardState(
       { cards: [card('a', { kind: 'note' })], strings: [], viewport: { x: 0, y: 0, zoom: 1 } },
-      { cards: [card('a', { kind: 'note', assetId: 'img9', crop: { x: 0.5, y: 0.3, zoom: 1.4 } })] },
+      { cards: [card('a', { kind: 'note', assetId: 'img9' })] },
     );
     expect(merged.cards[0].assetId).toBe('img9');
-    expect(merged.cards[0].crop).toEqual({ x: 0.5, y: 0.3, zoom: 1.4 });
   });
 });
 

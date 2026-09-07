@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { assetUrl, coverStyle } from '@/components/Cover';
+import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
 import { MentionPopover, MentionText } from '@/components/ui/MentionPopover';
@@ -13,10 +13,9 @@ import {
   PIN_TAG_MAX_WIDTH,
   pinSize,
   type BoardCard as BoardCardModel,
-  type CardCrop,
 } from '@/lib/boards/merge';
 import type { BoardRefs } from '@/lib/boards/service';
-import type { CoverCrop } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 
 export const CARD_WIDTH = 160;
 
@@ -39,7 +38,8 @@ export type CardSubject = {
   /** Where a double-click goes. */
   href: string;
   assetId: string | null;
-  crop: CoverCrop | null;
+  /** The thing's own three crops (round 19); the card draws the staand one. */
+  crop: CoverCrops | null;
   icon: string;
   colour: string;
   /** The border this kind of thing wears, when it has one of its own. */
@@ -61,7 +61,7 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
       name: entry.name,
       href: `/e/${entry.slug}`,
       assetId: entry.coverAssetId,
-      crop: (entry.coverCrop as CoverCrop | null) ?? null,
+      crop: (entry.coverCrop as CoverCrops | null) ?? null,
       icon: entry.typeIcon,
       colour: entry.typeColour,
       border: entry.typeBorder,
@@ -77,7 +77,7 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
       name: map.name,
       href: `/maps/${map.slug}`,
       assetId: map.assetId,
-      // A landkaart has no crop of its own; a card that wants one sets its own.
+      // A landkaart has no crops; the card draws it centred.
       crop: null,
       icon: 'map',
       colour: 'var(--ink-muted)',
@@ -111,7 +111,7 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
     name: item.name,
     href: `/c/${item.slug}`,
     assetId: item.assetId,
-    crop: (item.crop as CoverCrop | null) ?? null,
+    crop: (item.crop as CoverCrops | null) ?? null,
     icon: 'folder',
     colour: 'var(--ink-muted)',
     // "Vergeeld" — the yellowed paper of a file that has been in a drawer.
@@ -121,16 +121,16 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
 }
 
 /**
- * What picture a card shows and how it is framed. A card's own photo wins; a
- * card that stands for something otherwise borrows that thing's picture — an
- * artikel's cover, a dossier's cover, the landkaart itself. Either way the crop
- * is the *card's* when it has one, so tightening a face on this board leaves
- * every other list alone.
+ * What picture a card shows and how it is framed. A card's own photo wins,
+ * drawn centred; a card that stands for something otherwise borrows that
+ * thing's picture — an artikel's cover, a dossier's cover, the landkaart
+ * itself — with that thing's own crops (round 19), so the face on this wall is
+ * the face on every other list.
  */
 export function cardImage(card: BoardCardModel, subject?: CardSubject) {
   const own = card.assetId ?? null;
   const assetId = own ?? subject?.assetId ?? null;
-  const crop: CardCrop | CoverCrop | null = card.crop ?? (own ? null : (subject?.crop ?? null));
+  const crop: CoverCrops | null = own ? null : (subject?.crop ?? null);
   return { assetId, crop, isOwn: Boolean(own) };
 }
 
@@ -150,17 +150,16 @@ export function cardBorder(card: BoardCardModel, subject?: CardSubject): string 
 }
 
 /**
- * One index card. The picture frame is a uniform 3:4 whatever is in it — the
- * entry's cover, a picture pinned to this card, or a placeholder — so a board
- * reads as one wall of cards rather than a collage. The frame can be switched
- * off entirely, leaving a plain slip of paper.
+ * One index card. The picture frame is a uniform staand 3:4 whatever is in it
+ * — the entry's cover, a picture pinned to this card, or a placeholder — so a
+ * board reads as one wall of cards rather than a collage. The frame can be
+ * switched off entirely, leaving a plain slip of paper.
  */
 export function BoardCardView({
   card,
   subject,
   selected,
   interactive,
-  cropping,
   canOpenOnTap,
   onPointerDown,
   onPinPointerDown,
@@ -178,8 +177,6 @@ export function BoardCardView({
   carried?: boolean;
   /** False under 768 px: the card can be selected and edited, but not dragged. */
   interactive: boolean;
-  /** True while this card's picture is being repositioned. */
-  cropping: boolean;
   /**
    * Whether a *single* tap should open the entry. On a desktop the answer is
    * always no — one click selects, a double-click opens — so a stray click on
@@ -214,7 +211,7 @@ export function BoardCardView({
   const refers = card.kind === 'entry' || card.kind === 'map' || card.kind === 'case' || card.kind === 'timeline';
   const missing = refers && !subject;
   const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, subject);
-  const zoomed = (imageCrop?.zoom ?? 1) > 1.05;
+  const zoomed = (imageCrop?.portrait?.zoom ?? 1) > 1.05;
   /**
    * Belt and braces on the rule `defaultShowImage` sets: a frame with nothing
    * in it is never drawn, whatever the flag says. `showImage` is what the card
@@ -284,7 +281,6 @@ export function BoardCardView({
 
   /** A card that stands for something opens it; a picture opens full size. */
   function open(event: React.MouseEvent) {
-    if (cropping) return;
     event.stopPropagation();
     if (refers && subject) onOpen();
     else if (isOwn) onViewFull();
@@ -305,7 +301,6 @@ export function BoardCardView({
         'board-card',
         borderClass(cardBorder(card, subject)),
         selected ? 'board-card-selected' : '',
-        cropping ? 'board-card-cropping' : '',
         carried ? 'board-card-carried' : '',
       ]
         .filter(Boolean)
@@ -346,7 +341,7 @@ export function BoardCardView({
          * magnified photograph magnifies its frame with it.
          */
         transform: `rotate(${card.rotation}deg) scale(${card.scale})`,
-        cursor: cropping ? 'grab' : interactive ? 'grab' : 'pointer',
+        cursor: interactive ? 'grab' : 'pointer',
       }}
       onPointerDown={onPointerDown}
       data-card-id={card.id}
@@ -363,7 +358,7 @@ export function BoardCardView({
 
       {framed ? (
         <div
-          className="board-card-cover"
+          className={`board-card-cover ${coverClass('portrait')}`}
           onClick={onCoverClick}
           onDoubleClick={onCoverDoubleClick}
           title={
@@ -388,7 +383,7 @@ export function BoardCardView({
                */
               src={assetUrl(image, zoomed || card.scale > 1.5 ? 'full' : 'card')}
               alt={card.name || ''}
-              style={coverStyle(imageCrop as CoverCrop | null)}
+              style={coverStyle(imageCrop, 'portrait')}
               draggable={false}
             />
           ) : (
@@ -401,7 +396,6 @@ export function BoardCardView({
             />
           )}
           {missing && <span className="stamp board-missing">Ontbreekt</span>}
-          {cropping && <span className="board-crop-hint">Slepen &middot; scrollen om te zoomen</span>}
         </div>
       ) : (
         // With the frame off the pin still needs somewhere to sit.

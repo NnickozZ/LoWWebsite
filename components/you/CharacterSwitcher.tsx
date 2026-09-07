@@ -81,6 +81,8 @@ function TypeMark({ character }: { character: CharacterLite }) {
   return (
     <Thumb
       assetId={character.coverAssetId}
+      crop={character.coverCrop}
+      shape="portrait"
       icon={character.typeIcon}
       colour={character.typeColour}
     />

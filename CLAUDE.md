@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 48 files, 691 tests as of round 18 (round 17: 48 / 684)
+npx vitest run         # 49 files, 707 tests as of round 19 (round 18: 48 / 691)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -147,8 +147,8 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0017_pin_targets`, so the next is `0018_`. Never edit an existing block, and
-  that includes the `--` comments inside its SQL string.
+  `0020_one_crop_per_picture`, so the next is `0021_`. Never edit an existing
+  block, and that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
   migration. Do not write a SQL migration for board state. Round 13's `scale`
@@ -271,6 +271,59 @@ freely there.
   simulation and the tweens. Measure with `window.__web.stats` before and
   after any change to `frame()`; `scratch-perf*.mjs`-style scripts against a
   2560×1350 viewport at dpr 2 are the benchmark this round used.
+- **In Kolommen the layout's coordinates are the truth; a tween is only the
+  way there** (round 19). The layout effect in `WebCanvas.tsx` writes
+  `columnLayout`'s x/y straight into `placed`, and a tween — made only when
+  `prefers-reduced-motion` is off and the node actually moved — is walked by
+  `currentPos` and lands exactly on it. Storing the prior position and
+  trusting the tween to carry the card over meant that under reduced motion,
+  where no tween is made, every card stayed at its organic coordinates for
+  ever: the "columns like a web, with S-curves" report nobody could reproduce
+  with animations on. The layout key is
+  `mode|focus|depth|graphFingerprint|expanded`; the second field stays the
+  focus because `nodePoint()` in the e2e specs reads it, and the fingerprint
+  carries every node's depth and side and a hash of the edges, so a legend
+  tick with the same ids still re-runs the layout. Also round 19: `ZOOM_MAX`
+  is 12. A cover sprite is keyed on `zoomBucket(zoom, dpr)` ∈ {1, 2, 4, 8}
+  and rasterised at `SPRITE_SCALE × bucket` (≤ `SPRITE_MAX_PX` = 1024),
+  loading `?s=card` instead of `?s=thumb` from bucket 4 up — never for a
+  whole web at zoom 1; a line's on-screen width grows as √zoom up to
+  `LINE_ZOOM_CAP` = 4 and then stops (`lineZoom`, also for dashes and
+  arrowheads); the cull margin is 200 *screen* px; and past `TEXT_CRISP_ZOOM`
+  = 2 every caption (names, chips, "n stappen") goes through `crispText`,
+  which draws at `10 px` on a context scaled back by `1/zoom` instead of at
+  `10 / zoom px` — glyph placement happens at the nominal size, and at 0.8 px
+  a name came out as a row of scattered letters. `lineZoom`, `zoomBucket`
+  and `graphFingerprint` are exported from `WebCanvas.tsx` and unit tested in
+  `tests/unit/web-layout.test.ts`.
+- **Hiding a kind of knot is a slice option, not a drawing trick** (round 19).
+  The legend's "Wat" block (dossiers, prikborden, landkaarten, tijdlijnen, and
+  every soort in the web) feeds `hiddenNodeKinds` / `hiddenTypes` in
+  `SliceOptions` (`lib/web/slice.ts`, `hiddenNode()`), next to `hiddenKinds`
+  for the lines. A hidden knot is *absent* — its edges go with it, and a knot
+  reachable only through it drops out of the focus walk — and the focus
+  itself is always exempt. Two `localStorage` keys, `web:hidden-things` and
+  `web:hidden-soorten`, beside `web:hidden-kinds`; `kindCounts` in
+  `WebView.tsx` gets the same two sets, so a line to a hidden knot is not
+  counted as one the legend could bring back.
+- **A picture has three crops, one per shape** (round 19). `entries.cover_crop`
+  and `cases.cover_crop` hold `{ landscape?, portrait?, square? }`, each a
+  focal point + zoom, set once in the artikel's crop section
+  (`components/entry/CoverEditor.tsx`) and used by every list, card and knot.
+  A row written before round 19 holds a bare `{ x, y, zoom }` and reads as
+  `{ portrait }`. Normalising happens on read, in the drizzle column type in
+  `lib/db/schema.ts` (`coverCrops` → `normaliseCrops`), and again, cheaply, in
+  `coverStyle`; do not add a second road. `lib/images/shapes.ts` is the only
+  place a ratio lives — a frame gets its aspect from `coverClass(shape)`
+  (`.cover-landscape` / `.cover-portrait` / `.cover-square` in `globals.css`),
+  never from its own CSS rule. A dossier's filing and a prikbord card have no
+  crop of their own any more: `case_entries.crop` is nulled and unread, and
+  `normaliseState` drops `crop` off a card.
+- **The web node carries `coverCrop`** already normalised — it comes through
+  the drizzle column type, so `service.ts` passes it on as is. On the canvas
+  `drawCover` takes a `Crop` and turns it into a source rect (a knot wears
+  the vierkant crop, the columns thumb the staand one); the crop is part of
+  the sprite key (`spriteKey`), or a changed crop would stamp the old sprite.
 - **A text line yields, at build time.** `collapseMentions` runs in
   `buildWebGraph`, not in the browser: the count, the panel and the drawing
   must agree. Adding a kind that should also yield means adding it to
@@ -380,7 +433,24 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17 and 18
+## 8. Leftovers — rounds 11, 12, 13, 17, 18 and 19
+
+Round 19 leaves four, all small and all named on purpose:
+
+- The masthead logo (`.masthead-logo`, `object-fit: contain`) and the
+  landkaart card (`app/(app)/maps/page.tsx`, a bare `<img>` of `maps.asset_id`)
+  have no crop: `maps` has no `cover_crop` column and neither picture goes
+  through `coverClass`. Deliberate — a logo is shown whole, a map is the one
+  picture people zoom into.
+- `?s=card` at high zoom is a second image fetch per knot from bucket 4 up
+  (`coverFor` in `WebCanvas.tsx`). Never for a whole web at zoom 1, and the
+  thumb keeps drawing until the card arrives, but a reader who zooms into a
+  hundred knots loads a hundred 900 px pictures.
+- Captions past zoom 2 pay a `save`/`restore` each (`crispText`); fine where
+  few are in view, but do not route the columns' card text through it.
+- The hidden-soort filter cannot hide the focus (`hiddenNode()` exempts
+  `graph.focus`). By design — the page *is* that thing — but a Keeper who
+  unticks the focus's own soort sees one knot of it stay and may ask.
 
 Round 18 leaves three, none of them the web's:
 

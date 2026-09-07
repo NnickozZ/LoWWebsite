@@ -6,7 +6,7 @@ const fixturePhoto = join(resolve(__dirname, '../..'), 'data-e2e', 'fixture-phot
 
 /**
  * The board's editing suite: strings are selectable and can be relabelled,
- * recoloured and removed; notes can gain, re-crop and lose a picture; undo
+ * recoloured and removed; notes can gain and lose a picture; undo
  * survives the round trip to the server.
  *
  * Desktop only — string-drawing needs a pointer, and §8 turns it off under
@@ -112,9 +112,11 @@ test.describe('board editing', () => {
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(card.locator('img')).toHaveCount(1);
 
-    // A fresh picture drops into crop mode; leave it.
+    // Round 19: a card has no crop of its own, so there is no crop mode to
+    // leave and no "Bijsnijden" on the bar — the picture is simply there.
     const inspector = page.locator('.board-inspector');
-    await inspector.getByRole('button', { name: 'Klaar' }).click();
+    await expect(inspector).toBeVisible();
+    await expect(inspector.getByRole('button', { name: 'Bijsnijden' })).toHaveCount(0);
 
     // The point of the whole change: this card has a way off the wall.
     const make = card.getByRole('button', { name: /aanmaken/ });
@@ -138,7 +140,7 @@ test.describe('board editing', () => {
     await expect(page.locator('.entry-figure .entry-cover-whole img').first()).toBeVisible({ timeout: 20_000 });
   });
 
-  test('a note gains a photo, is re-cropped, and opens full size', async ({ page }) => {
+  test('a note gains a photo, keeps it over a reload, and opens full size', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
     await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
@@ -160,28 +162,25 @@ test.describe('board editing', () => {
     await (await chooser).setFiles(fixturePhoto);
 
     await expect(note.locator('img')).toHaveCount(1);
-    // A fresh picture drops straight into crop mode.
-    await expect(page.locator('.board-card-cropping')).toHaveCount(1);
-
-    const before = await note.locator('img').getAttribute('style');
+    // Round 19: no crop mode and no "Bijsnijden" — a card's own photo sits
+    // centred in its staand frame, and dragging the card still moves the card.
+    await expect(inspector.getByRole('button', { name: 'Bijsnijden' })).toHaveCount(0);
+    const focus = () => note.locator('img').evaluate((n) => getComputedStyle(n).objectPosition);
+    expect(await focus()).toBe('50% 50%');
     const frame = (await note.boundingBox())!;
     await page.mouse.move(frame.x + 80, frame.y + 100);
     await page.mouse.down();
     await page.mouse.move(frame.x + 115, frame.y + 135, { steps: 8 });
     await page.mouse.up();
-    await expect(note.locator('img')).not.toHaveAttribute('style', before ?? '');
-
-    await inspector.getByRole('button', { name: 'Klaar' }).click();
-    await expect(page.locator('.board-card-cropping')).toHaveCount(0);
+    const moved = (await note.boundingBox())!;
+    expect(moved.x - frame.x).toBeGreaterThan(20);
+    expect(await focus()).toBe('50% 50%');
     await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
-    // The crop survives a reload.
-    // Compare the computed focal point, not the raw style string: React's
-    // server markup and the client's DOM serialise the same values differently.
-    const focus = () => note.locator('img').evaluate((n) => getComputedStyle(n).objectPosition);
-    const cropped = await focus();
+    // The picture survives a reload.
     await page.reload();
-    await expect.poll(focus).toBe(cropped);
+    await expect(note.locator('img')).toHaveCount(1);
+    await expect.poll(focus).toBe('50% 50%');
 
     // "View full" is a double-click; a single click only selects.
     await note.locator('.board-card-cover').click();

@@ -75,6 +75,7 @@ export default async function HomePage() {
         <Thumb
           assetId={item.entry!.coverAssetId}
           crop={item.entry!.coverCrop}
+          shape="portrait"
           icon={item.entry!.typeIcon}
           colour={item.entry!.typeColour}
         />
@@ -171,7 +172,7 @@ export default async function HomePage() {
                   className="feed-item"
                   style={{ color: 'inherit', textDecoration: 'none', alignItems: 'center' }}
                 >
-                  <Thumb assetId={item.coverAssetId} crop={item.coverCrop} icon="folder" />
+                  <Thumb assetId={item.coverAssetId} crop={item.coverCrop} shape="portrait" icon="folder" />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span className="small" style={{ display: 'block', fontWeight: 600 }}>
                       {item.name}

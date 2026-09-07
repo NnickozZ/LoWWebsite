@@ -2,7 +2,8 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
 import type { Author } from '@/lib/auth/author';
 import { db, schema, sqlite } from '@/lib/db';
-import type { AccessMode, CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
+import type { AccessMode, FieldDef, Visibility } from '@/lib/db/schema';
+import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 import { resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
@@ -42,7 +43,7 @@ export type EntrySummary = {
   typeColour: string;
   typeBorder: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   tags: string[];
   visibility: Visibility;
   isLocked: boolean;
@@ -563,7 +564,7 @@ export type EntryPatch = Partial<{
   tags: string[];
   typeSlug: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   visibility: Visibility;
   keeperNotes: string;
   isLocked: boolean;
@@ -722,7 +723,8 @@ export function updateEntry(
   }
   if (patch.tags !== undefined) values.tags = normaliseTags(patch.tags);
   if (patch.coverAssetId !== undefined) values.coverAssetId = patch.coverAssetId;
-  if (patch.coverCrop !== undefined) values.coverCrop = patch.coverCrop;
+  // Round 19: the bag of three, clamped; a legacy {x,y,zoom} off the wire reads as portrait.
+  if (patch.coverCrop !== undefined) values.coverCrop = normaliseCrops(patch.coverCrop);
   if (patch.typeSlug !== undefined) {
     const type = getEntryType(patch.typeSlug);
     if (type) values.typeId = type.id;
@@ -891,7 +893,7 @@ export function restoreRevision(revisionId: string, user: Author) {
       fields: (snapshot.fields as Record<string, unknown>) ?? {},
       tags: (snapshot.tags as string[]) ?? [],
       coverAssetId: (snapshot.coverAssetId as string | null) ?? null,
-      coverCrop: (snapshot.coverCrop as CoverCrop | null) ?? null,
+      coverCrop: normaliseCrops(snapshot.coverCrop),
       updatedAt: Math.floor(Date.now() / 1000),
       updatedBy: user.id,
     })
@@ -918,7 +920,7 @@ export function restoreRevision(revisionId: string, user: Author) {
       (snapshot.fields as Record<string, unknown>) ?? {},
     ),
   );
-  publishSaved(`entry:${revision.entryId}:body`, user.id, ['name', 'shortDescription', 'body', 'fields', 'tags', 'coverAssetId']);
+  publishSaved(`entry:${revision.entryId}:body`, user.id, ['name', 'shortDescription', 'body', 'fields', 'tags', 'coverAssetId', 'coverCrop']);
   return revision.entryId;
 }
 

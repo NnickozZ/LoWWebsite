@@ -24,6 +24,8 @@
  * Not stamped MISSING, not dimmed — absent. The server builds the graph per
  * viewer and the browser never sees what was left out.
  */
+import type { CoverCrops } from '@/lib/images/shapes';
+
 
 export type WebNodeKind = 'entry' | 'case' | 'map' | 'board' | 'timeline' | 'note';
 
@@ -45,10 +47,14 @@ export type WebNode = {
   typeColour?: string;
   /** Artikel only: somebody wears this fiche as a karakter (§18). */
   isCharacter?: boolean;
-  /** A picture to show in the panel; never drawn on the canvas. */
+  /** A picture: the panel shows it liggend, a knot wears it vierkant (round 19). */
   coverAssetId?: string | null;
+  /** Its three crops (`lib/images/shapes.ts`), already normalised by the column type. */
+  coverCrop?: CoverCrops | null;
   /** One line under the name in the panel: a soort, a dossier, a moment. */
   subtitle?: string;
+  /** A few lines under that: the thing's short description, trimmed; absent when it has none. */
+  summary?: string;
   /** How many edges touch this node in the whole visible graph. */
   degree: number;
   /**

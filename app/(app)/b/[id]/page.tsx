@@ -17,7 +17,6 @@ import { listMaps } from '@/lib/maps/service';
 import { listTimelines } from '@/lib/timelines/service';
 import { inkForViewer } from '@/lib/ink/merge';
 import { getInk } from '@/lib/ink/service';
-import type { CoverCrop } from '@/lib/db/schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,7 +68,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         name: entry.name,
         shortDescription: entry.shortDescription,
         coverAssetId: entry.coverAssetId,
-        coverCrop: (entry.caseCrop ?? entry.coverCrop) as CoverCrop | null,
+        coverCrop: entry.coverCrop,
         typeIcon: entry.typeIcon,
         typeColour: entry.typeColour,
         typeLabel: entry.typeLabel,

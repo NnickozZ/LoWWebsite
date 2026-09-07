@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useImperativeHandle, useMemo, useRef, forwardRef } from 'react';
+import { CENTRED, cropFor, type Crop } from '@/lib/images/shapes';
 import { ICON_PATHS } from '@/components/Icon';
 import { ForceSim, radiusFor } from '@/lib/web/force';
 import { EDGE_KINDS, LINE_COLOURS, NODE_KINDS } from '@/lib/web/kinds';
-import { COLUMN_GAP_X, COLUMN_NODE_W, columnLayout, type ColumnLayout } from '@/lib/web/layout';
+import { COLUMN_GAP_X, COLUMN_NODE_W, FOCUS_NODE_W, columnLayout, type ColumnLayout } from '@/lib/web/layout';
 import type { WebEdge, WebGraph, WebNode, WebNodeId } from '@/lib/web/types';
 import type { Words } from '@/lib/words';
 
@@ -88,7 +89,21 @@ const TWEEN_MS = 320;
 const BORN_MS = 260;
 const CAMERA_MS = 380;
 const ZOOM_MIN = 0.12;
-const ZOOM_MAX = 4;
+/**
+ * Round 19: 4 → 12. A reader who wants one corner of a big web at reading
+ * size ran out of zoom at 4. Everything that scaled with the zoom had to be
+ * looked at again for the extra 3×: the cover sprites (`zoomBucket`), the
+ * width of a line on the screen (`lineZoom`) and the culling margin.
+ */
+const ZOOM_MAX = 12;
+/**
+ * Up to this zoom a line grows on the screen as √zoom — thicker as you come
+ * closer, but slower than the knots. Past it the line stops growing on the
+ * screen altogether: at zoom 12 a √-law line would be 3.5× its nominal width,
+ * a rope between two knots. This was the old ZOOM_MAX, so nothing below it
+ * changed.
+ */
+const LINE_ZOOM_CAP = 4;
 const DIM = 0.28;
 /** Below this zoom only the landmarks carry a name; between the two, names fade in. */
 const LABEL_ZOOM_LOW = 0.7;
@@ -130,6 +145,51 @@ function withAlpha(colour: string, alpha: number): string {
   if (!m) return colour;
   const n = parseInt(m[1], 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/**
+ * What a line's nominal width is divided by to get its width in world units,
+ * so that on the screen it grows as √zoom up to `LINE_ZOOM_CAP` and not at
+ * all beyond it. Continuous at the cap: √4 = 4/√4 = 2. Arrowheads and dashes
+ * follow the same law, so a dashed line keeps its rhythm against its width.
+ */
+export function lineZoom(zoom: number): number {
+  return zoom <= LINE_ZOOM_CAP ? Math.sqrt(zoom) : zoom / Math.sqrt(LINE_ZOOM_CAP);
+}
+
+/**
+ * A cover sprite is rasterised at `SPRITE_SCALE` texels per world pixel,
+ * which is sharp at zoom 1 on a retina screen and mush at zoom 12. So the
+ * sprite is also keyed on a bucket — 1, 2, 4 or 8 — chosen so that
+ * `SPRITE_SCALE × bucket` is at least the screen's texels per world pixel,
+ * and capped at 8 so a hub at zoom 12 is a 1.5× upsample rather than a
+ * canvas the size of the screen. Four buckets, not a continuous scale,
+ * because every distinct bucket is another sprite per cover in the cache.
+ */
+export function zoomBucket(zoom: number, dpr: number): 1 | 2 | 4 | 8 {
+  const need = (zoom * dpr) / SPRITE_SCALE;
+  return need <= 1 ? 1 : need <= 2 ? 2 : need <= 4 ? 4 : 8;
+}
+
+/**
+ * The part of a graph the column layout depends on, folded into a short
+ * string: which nodes are in it and where each stands (its step and side),
+ * and which edges tie them — the edges decide the order within a column.
+ * Node ids are kept in the clear so `nodePoint()` in the e2e specs can read
+ * the key; the edges are hashed, because two thousand `from>to` pairs is a
+ * hundred kilobytes of key to compare on every frame.
+ */
+export function graphFingerprint(graph: WebGraph): string {
+  let h = 2166136261;
+  const mix = (text: string) => {
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+  };
+  for (const edge of graph.edges) mix(`${edge.from}>${edge.to}:${edge.kind};`);
+  const nodes = graph.nodes.map((n) => `${n.id}@${n.depth ?? ''}${n.side === 'in' ? '<' : n.side === 'out' ? '>' : ''}`).join(',');
+  return `${nodes}|e${graph.edges.length}:${(h >>> 0).toString(36)}`;
 }
 
 function nodeColour(node: WebNode, palette: Palette): string {
@@ -181,6 +241,51 @@ function drawIcon(ctx: CanvasRenderingContext2D, name: string, x: number, y: num
  * actually differs (`Type.font`). Round 17: this alone took a hover frame on
  * 600 knots from tens of milliseconds to a few.
  */
+
+/**
+ * Round 19: past `TEXT_CRISP_ZOOM` a caption is drawn through a context
+ * scaled back to the screen, so its font is `10 px`, never `10 / 12 px`.
+ * The engines rasterise canvas text through the transform, but hinting and
+ * glyph placement happen at the *nominal* size, and below a pixel they come
+ * apart — at zoom 12 a name was a row of scattered letters. A save/restore
+ * per caption is only paid when zoomed that far in, where few are in view.
+ */
+const TEXT_CRISP_ZOOM = 2;
+function textScale(zoom: number): number {
+  return zoom > TEXT_CRISP_ZOOM ? zoom : 1;
+}
+function crispText(
+  ctx: CanvasRenderingContext2D,
+  type: Type,
+  k: number,
+  weight: number,
+  size: number,
+  text: string,
+  x: number,
+  y: number,
+  halo: number,
+) {
+  if (k === 1) {
+    type.font(weight, size);
+    if (halo > 0) {
+      ctx.lineWidth = halo;
+      ctx.strokeText(text, x, y);
+    }
+    ctx.fillText(text, x, y);
+    return;
+  }
+  ctx.save();
+  ctx.scale(1 / k, 1 / k);
+  ctx.font = `${weight} ${size * k}px ${type.face}`;
+  if (halo > 0) {
+    ctx.lineWidth = halo * k;
+    ctx.strokeText(text, x * k, y * k);
+  }
+  ctx.fillText(text, x * k, y * k);
+  ctx.restore();
+  type.forget();
+}
+
 const MEASURE_PX = 20;
 let measureCtx: CanvasRenderingContext2D | null = null;
 let measureFace = '';
@@ -188,10 +293,13 @@ const widthCache = new Map<string, number>();
 
 class Type {
   private current = '';
+  /** The sans face, for a caller that must set a font on another transform. */
+  readonly face: string;
   constructor(
     private ctx: CanvasRenderingContext2D,
     private sans: string,
   ) {
+    this.face = sans;
     if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
     if (measureFace !== sans) {
       measureFace = sans;
@@ -272,20 +380,44 @@ class Type {
   }
 }
 
-/** Omslagen, loaded once each; a frame is asked for when one arrives. */
+/**
+ * Omslagen, loaded once each per variant; a frame is asked for when one
+ * arrives. The 400 px `thumb` is what a whole web loads — a hundred covers
+ * at once must stay cheap — and the 900 px `card` is fetched only once a
+ * knot is looked at closely (`zoomBucket` ≥ 4), so nothing gets slower for
+ * a reader who never zooms in.
+ */
+type CoverVariant = 'thumb' | 'card';
 const imageCache = new Map<string, HTMLImageElement | null>();
-function coverImage(assetId: string, onLoad: () => void): HTMLImageElement | null {
-  if (imageCache.has(assetId)) return imageCache.get(assetId) ?? null;
-  imageCache.set(assetId, null);
+function coverImage(assetId: string, variant: CoverVariant, onLoad: () => void): HTMLImageElement | null {
+  const key = `${variant}|${assetId}`;
+  if (imageCache.has(key)) return imageCache.get(key) ?? null;
+  imageCache.set(key, null);
   const img = new Image();
   img.decoding = 'async';
   img.onload = () => {
-    imageCache.set(assetId, img);
+    imageCache.set(key, img);
     onLoad();
   };
-  img.onerror = () => imageCache.set(assetId, null);
-  img.src = `/api/assets/${assetId}?s=thumb`;
+  img.onerror = () => imageCache.set(key, null);
+  img.src = `/api/assets/${assetId}?s=${variant}`;
   return null;
+}
+
+/**
+ * The cover to draw for a knot at this bucket: the card once the bucket asks
+ * for it and it has arrived, the thumb meanwhile — so zooming in never blanks
+ * a knot that already had a picture. Returns the variant with the image, so
+ * the sprite is keyed on what it was actually cut from and is cut again from
+ * the card when that arrives.
+ */
+function coverFor(assetId: string, bucket: number, onLoad: () => void): { img: HTMLImageElement; variant: CoverVariant } | null {
+  if (bucket >= 4) {
+    const card = coverImage(assetId, 'card', onLoad);
+    if (card) return { img: card, variant: 'card' };
+  }
+  const thumb = coverImage(assetId, 'thumb', onLoad);
+  return thumb ? { img: thumb, variant: 'thumb' } : null;
 }
 
 /**
@@ -293,36 +425,59 @@ function coverImage(assetId: string, onLoad: () => void): HTMLImageElement | nul
  * canvas and stamped from then on. `ctx.clip()` per knot per frame was the
  * other half of the slow hover frame: a clip is a mask allocation, and with
  * "Afbeeldingen tonen" on, every visible knot did one. A stamp is a blit.
+ *
+ * `half` is the sprite's half-width in world units, so the stamp does not
+ * have to know the scale it was drawn at — which varies per bucket, and is
+ * lowered again when the sprite would run past `SPRITE_MAX_PX`.
  */
-const spriteCache = new Map<string, HTMLCanvasElement>();
+type Sprite = { canvas: HTMLCanvasElement; half: number };
+const spriteCache = new Map<string, Sprite>();
 const SPRITE_SCALE = 2;
-function coverSprite(img: HTMLImageElement, assetId: string, kind: WebNode['kind'], r: number): HTMLCanvasElement | null {
+const SPRITE_MAX_PX = 1024;
+function spriteKey(assetId: string, variant: CoverVariant, kind: WebNode['kind'], r: number, bucket: number, crop: Crop): string {
+  return `${assetId}|${variant}|${kind}|${Math.max(4, Math.round(r))}|${bucket}|${crop.x.toFixed(3)},${crop.y.toFixed(3)},${crop.zoom.toFixed(2)}`;
+}
+function coverSprite(img: HTMLImageElement, key: string, kind: WebNode['kind'], r: number, bucket: number, crop: Crop): Sprite | null {
   const rr = Math.max(4, Math.round(r));
-  const key = `${assetId}|${kind}|${rr}`;
   let sprite = spriteCache.get(key);
   if (sprite) return sprite;
-  const px = Math.ceil(rr * 2 * SPRITE_SCALE) + 2;
-  sprite = document.createElement('canvas');
-  sprite.width = px;
-  sprite.height = px;
-  const c = sprite.getContext('2d');
+  let scale = SPRITE_SCALE * bucket;
+  let px = Math.ceil(rr * 2 * scale) + 2;
+  if (px > SPRITE_MAX_PX) {
+    px = SPRITE_MAX_PX;
+    scale = (px - 2) / (rr * 2);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = px;
+  canvas.height = px;
+  const c = canvas.getContext('2d');
   if (!c) return null;
-  c.scale(SPRITE_SCALE, SPRITE_SCALE);
-  const mid = px / (2 * SPRITE_SCALE);
+  c.scale(scale, scale);
+  const mid = px / (2 * scale);
   knotPath(c, kind, mid, mid, rr);
   c.clip();
-  drawCover(c, img, mid, mid, rr * 2, rr * 2);
+  drawCover(c, img, mid, mid, rr * 2, rr * 2, crop);
+  sprite = { canvas, half: mid };
   if (spriteCache.size > 900) spriteCache.clear();
   spriteCache.set(key, sprite);
   return sprite;
 }
 
-/** Draws a picture cover-fitted into the current clip, centred on (x, y). */
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
-  const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-  const dw = img.naturalWidth * scale;
-  const dh = img.naturalHeight * scale;
-  ctx.drawImage(img, x - dw / 2, y - dh / 2, dw, dh);
+/**
+ * Draws a picture cover-fitted into the current clip, centred on (x, y), by a
+ * crop (round 19): the same focal point + zoom that `coverStyle` turns into
+ * CSS, here turned into a source rectangle — a round knot wears the vierkant
+ * crop, so a face sits in the knot where it sits on every square frame.
+ */
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, crop: Crop = CENTRED) {
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+  const scale = Math.max(w / iw, h / ih) * crop.zoom;
+  const sw = w / scale;
+  const sh = h / scale;
+  const sx = Math.min(Math.max(crop.x * iw - sw / 2, 0), iw - sw);
+  const sy = Math.min(Math.max(crop.y * ih - sh / 2, 0), ih - sh);
+  ctx.drawImage(img, sx, sy, sw, sh, x - w / 2, y - h / 2, w, h);
 }
 
 /**
@@ -537,13 +692,21 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         p.r = f.r;
       }
     } else {
+      // Columns: `placed` already holds the layout's position, which is the
+      // truth; a tween only moves the drawing along the way there and lands
+      // exactly on it. Without a tween (reduced motion, or a fresh node) the
+      // node is simply where the layout put it.
       const t = s.tweens.get(id);
       if (t) {
         const k = Math.min(1, (now - t.t0) / TWEEN_MS);
         const e = EASE(k);
         p.x = t.fromX + (t.toX - t.fromX) * e;
         p.y = t.fromY + (t.toY - t.fromY) * e;
-        if (k >= 1) s.tweens.delete(id);
+        if (k >= 1) {
+          p.x = t.toX;
+          p.y = t.toY;
+          s.tweens.delete(id);
+        }
       }
     }
     return p;
@@ -628,7 +791,12 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     const s = state.current;
     const { graph, mode, expandedColumns } = props;
     const now = performance.now();
-    const key = `${mode}|${graph.focus ?? ''}|${graph.depth ?? ''}|${graph.nodes.map((n) => n.id).join(',')}|${[...expandedColumns].join(',')}`;
+    // The second field is the focus: `nodePoint()` in the e2e specs reads it
+    // off `window.__web.layoutKey`. The fingerprint carries every node's step
+    // and side and the edge set, because the columns depend on all of that
+    // and a legend tick or a live respin can change it without changing a
+    // single id (round 19 — before, such a change never re-ran the layout).
+    const key = `${mode}|${graph.focus ?? ''}|${graph.depth ?? ''}|${graphFingerprint(graph)}|${[...expandedColumns].join(',')}`;
     if (key === s.layoutKey) return;
     s.layoutKey = key;
     // A tween in flight is folded into the new one below (it starts from
@@ -637,6 +805,16 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     s.tweens.clear();
 
     if (mode === 'columns' && graph.focus) {
+      // Round 19: the layout's coordinates go into `placed` as they are. A
+      // tween, when motion is allowed, is a way of *showing* the move from
+      // where the node was — the organic spot it came from, or its old row —
+      // and nothing more: `currentPos` walks it and lands on the layout.
+      // Storing the prior position and trusting the tween to carry the node
+      // over meant that under "reduced motion", where no tween is made, every
+      // card stayed at its organic coordinates for ever: columns that looked
+      // like a web, with S-curves for lines. Nobody could reproduce it on a
+      // machine with animations on, because there the same picture lasted
+      // 320 ms.
       const layout = columnLayout(graph, { expanded: expandedColumns });
       const next = new Map<WebNodeId, Placed>();
       const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -645,12 +823,10 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         const fresh = !prior;
         if (prior && !prefersReduced && (prior.x !== laid.x || prior.y !== laid.y)) {
           s.tweens.set(laid.id, { fromX: prior.x, fromY: prior.y, toX: laid.x, toY: laid.y, t0: now, born: 0 });
-        } else {
-          s.tweens.delete(laid.id);
         }
         next.set(laid.id, {
-          x: prior ? prior.x : laid.x,
-          y: prior ? prior.y : laid.y,
+          x: laid.x,
+          y: laid.y,
           w: laid.width,
           h: laid.height,
           r: 0,
@@ -869,6 +1045,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     const pal = s.palette;
     const { w, h, dpr } = s.size;
     const zoom = s.camera.zoom;
+    const bucket = zoomBucket(zoom, dpr);
     const focusGraph = Boolean(graph.focus);
     // Steps from the middle, for the resting alpha of a line: one between
     // two knots that are both two or more steps out says nothing about the
@@ -880,12 +1057,17 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     const lit = active ? new Set([active, ...(s.adjacency.get(active) ?? [])]) : null;
     const litEdges = active ? new Set((s.edgesByNode.get(active) ?? []).map((e) => e.id)) : null;
 
-    // Viewport culling.
+    // Viewport culling. The margin is 200 *screen* pixels, so that zoomed
+    // far in the drawing does not paint a whole web that is off the screen —
+    // but never less than the widest thing a knot's centre can be off-screen
+    // by while its body is still on it: half a focus card in columns, a hub
+    // and its ring in the organic web.
+    const margin = Math.max(200 / zoom, mode === 'columns' ? FOCUS_NODE_W / 2 + 20 : 40);
     const view = {
-      minX: s.camera.x - w / 2 / zoom - 200,
-      maxX: s.camera.x + w / 2 / zoom + 200,
-      minY: s.camera.y - h / 2 / zoom - 200,
-      maxY: s.camera.y + h / 2 / zoom + 200,
+      minX: s.camera.x - w / 2 / zoom - margin,
+      maxX: s.camera.x + w / 2 / zoom + margin,
+      minY: s.camera.y - h / 2 / zoom - margin,
+      maxY: s.camera.y + h / 2 / zoom + margin,
     };
     const inView = (x: number, y: number) => x >= view.minX && x <= view.maxX && y >= view.minY && y <= view.maxY;
 
@@ -1066,22 +1248,25 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         // they cost a fifth of the frame and say nothing.
         const dash = quality === 'quick' || (zoom < 0.9 && !d.lit && !d.chosen) ? [] : d.dash;
         const key = `${d.colour}|${dash.join(',')}|${width}|${alpha}`;
-        let bucket = byStyle.get(key);
-        if (!bucket) {
-          bucket = { colour: d.colour, dash, width, alpha, path: new Path2D() };
-          byStyle.set(key, bucket);
+        let style = byStyle.get(key);
+        if (!style) {
+          style = { colour: d.colour, dash, width, alpha, path: new Path2D() };
+          byStyle.set(key, style);
         }
-        bucket.path.moveTo(d.ax, d.ay);
-        if (d.c) bucket.path.bezierCurveTo(d.c[0], d.c[1], d.c[2], d.c[3], d.bx, d.by);
-        else bucket.path.lineTo(d.bx, d.by);
+        style.path.moveTo(d.ax, d.ay);
+        if (d.c) style.path.bezierCurveTo(d.c[0], d.c[1], d.c[2], d.c[3], d.bx, d.by);
+        else style.path.lineTo(d.bx, d.by);
       }
       target.lineCap = caps;
-      for (const bucket of byStyle.values()) {
-        target.globalAlpha = bucket.alpha;
-        target.strokeStyle = bucket.colour;
-        target.lineWidth = bucket.width / Math.sqrt(zoom);
-        target.setLineDash(bucket.dash.map((v) => v / Math.sqrt(zoom)));
-        target.stroke(bucket.path);
+      // A line grows on the screen as √zoom up to LINE_ZOOM_CAP and then no
+      // further (`lineZoom`); its dashes keep step with its width.
+      const lz = lineZoom(zoom);
+      for (const style of byStyle.values()) {
+        target.globalAlpha = style.alpha;
+        target.strokeStyle = style.colour;
+        target.lineWidth = style.width / lz;
+        target.setLineDash(style.dash.map((v) => v / lz));
+        target.stroke(style.path);
       }
       target.setLineDash([]);
       target.globalAlpha = 1;
@@ -1120,7 +1305,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         if (r >= 50) {
           target.fillStyle = pal.inkMuted;
           const a = (-3 * Math.PI) / 4;
-          target.fillText(d === 1 ? '1 stap' : `${d} stappen`, centre.x + Math.cos(a) * r, centre.y + Math.sin(a) * r - 3 / zoom);
+          crispText(target, kind, textScale(zoom), 600, 11 / zoom, d === 1 ? '1 stap' : `${d} stappen`, centre.x + Math.cos(a) * r, centre.y + Math.sin(a) * r - 3 / zoom, 0);
         }
       }
       target.restore();
@@ -1197,7 +1382,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       if (d.edge.kind === 'thread' && !d.edge.detail) continue;
       const alpha = d.lit || d.chosen ? d.born : d.rest * d.born;
       if (alpha < 0.3) continue;
-      const size = 7 / Math.sqrt(zoom);
+      const size = 7 / lineZoom(zoom);
       // Direction at the end of the curve: for columns the tangent is horizontal.
       let ux: number;
       let uy: number;
@@ -1279,7 +1464,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
           ctx.fill();
         }
         const iconSize = isFocus ? 22 : 16;
-        const thumb = showImages && node.coverAssetId ? coverImage(node.coverAssetId, invalidate) : null;
+        const thumb = showImages && node.coverAssetId ? coverFor(node.coverAssetId, bucket, invalidate) : null;
         const inset = node.kind === 'entry' ? 0 : isFocus ? 16 : 13;
         let textX = x + inset + (isFocus ? 42 : 31);
         if (thumb) {
@@ -1288,7 +1473,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
           ctx.save();
           roundRect(ctx, x + inset + 9, p.y - th / 2, tw, th, 2);
           ctx.clip();
-          drawCover(ctx, thumb, x + inset + 9 + tw / 2, p.y, tw, th);
+          drawCover(ctx, thumb.img, x + inset + 9 + tw / 2, p.y, tw, th, cropFor(node.coverCrop, 'portrait'));
           ctx.restore();
           textX = x + inset + 9 + tw + 8;
         } else {
@@ -1330,22 +1515,23 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
           ctx.stroke();
           ctx.setLineDash([]);
         }
-        const picture = showImages && node.coverAssetId && r * zoom >= 7 ? coverImage(node.coverAssetId, invalidate) : null;
+        const picture = showImages && node.coverAssetId && r * zoom >= 7 ? coverFor(node.coverAssetId, bucket, invalidate) : null;
         let stamped = false;
         if (picture) {
           // The omslag inside the knot, with the soort's colour left as a rim
           // — stamped from a sprite; at most a couple of dozen new sprites a
           // frame, the rest next frame, so a new graph does not hitch.
           const rr = r - 1.5;
-          const key = `${node.coverAssetId}|${node.kind}|${Math.max(4, Math.round(rr))}`;
+          const crop = cropFor(node.coverCrop, 'square');
+          const key = spriteKey(node.coverAssetId!, picture.variant, node.kind, rr, bucket, crop);
           let sprite = spriteCache.get(key) ?? null;
           if (!sprite && spritesMade < 24) {
-            sprite = coverSprite(picture, node.coverAssetId!, node.kind, rr);
+            sprite = coverSprite(picture.img, key, node.kind, rr, bucket, crop);
             spritesMade += 1;
           } else if (!sprite) busy = true;
           if (sprite) {
-            const half = sprite.width / (2 * SPRITE_SCALE);
-            ctx.drawImage(sprite, p.x - half, p.y - half, half * 2, half * 2);
+            const half = sprite.half;
+            ctx.drawImage(sprite.canvas, p.x - half, p.y - half, half * 2, half * 2);
             stamped = true;
           }
         }
@@ -1404,6 +1590,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       // Knots themselves are in the way too: a name may not land on a knot.
       for (const [, p] of s.placed) if (inView(p.x, p.y)) taken.push({ x: p.x, y: p.y, w: p.r * 2, h: p.r * 2 });
       const knotCount = taken.length;
+      const textK = textScale(zoom);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.lineJoin = 'round';
@@ -1433,14 +1620,11 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         // The middle, the chosen and the one under the hand always speak.
         if (clash && rank > 1) continue;
         taken.push(box);
-        type.font(weight, size);
         ctx.globalAlpha = wishAlpha * (dimmed ? 0.6 : 1) * Math.max(0.001, p.scale);
-        ctx.lineWidth = 3 / zoom;
         ctx.strokeStyle = pal.paper;
         ctx.fillStyle = dimmed ? pal.inkMuted : pal.ink;
         for (let i = 0; i < lines.length; i++) {
-          ctx.strokeText(lines[i], p.x, top + 1 / zoom + i * lh);
-          ctx.fillText(lines[i], p.x, top + 1 / zoom + i * lh);
+          crispText(ctx, type, textK, weight, size, lines[i], p.x, top + 1 / zoom + i * lh, 3 / zoom);
         }
       }
       ctx.globalAlpha = 1;
@@ -1475,6 +1659,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     const wantLabels = labelsAlways ? drawn : litEdges ? drawn.filter((d) => litEdges.has(d.edge.id)) : [];
     if (wantLabels.length && zoom >= 0.35) {
       const size = 10 / zoom;
+      const textK = textScale(zoom);
       type.font(500, size);
       ctx.textAlign = 'center';
       const seen: { x: number; y: number; w: number; h: number }[] = [];
@@ -1507,7 +1692,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = d.colour;
-        ctx.fillText(text, d.mx, y + size * 0.05);
+        crispText(ctx, type, textK, 500, size, text, d.mx, y + size * 0.05, 0);
       }
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';

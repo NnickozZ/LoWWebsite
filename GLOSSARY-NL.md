@@ -106,12 +106,13 @@ Geschiedenis · Site · Export · Logboek
 | Remove from case | Uit dossier halen |
 | Add case note / Edit case note | Dossiernotitie toevoegen / bewerken |
 | Why this matters here | Waarom dit hier van belang is |
-| Crop for this case | Bijsnijden voor dit dossier |
-| Use the entry’s crop | Uitsnede van het artikel gebruiken |
 | Options for X | Opties voor X |
 | Add cover | Afbeelding toevoegen |
 | Replace | Vervangen |
-| Crop for lists | Bijsnijden voor lijsten |
+| Crop / Close crop (menu item on the artikel; round 19 — one set of crops per picture, no crop on a dossier's filing or a board card any more) | Bijsnijden / Bijsnijden sluiten |
+| Landscape 3:2 / Portrait 3:4 / Square 1:1 (the three crop frames) | Liggend 3:2 / Staand 3:4 / Vierkant 1:1 |
+| Crop (noun, the frame's label) | Uitsnede liggend / staand / vierkant |
+| Three crops — landscape, portrait and square. Every list, card and knot picks one. Drag to move; scroll to zoom. | Drie uitsneden — liggend, staand en vierkant. Elke lijst, kaart en knoop kiest er een. Sleep om te verschuiven; scrol om te zoomen. |
 | Remove | Verwijderen |
 | Done | Klaar |
 | Cancel | Annuleren |
@@ -126,7 +127,6 @@ Geschiedenis · Site · Export · Logboek
 | Pin | Punaise |
 | Add photo / Replace photo / Remove photo | Foto toevoegen / Foto vervangen / Foto verwijderen |
 | Hide picture / Show picture | Foto verbergen / Foto tonen |
-| Crop | Bijsnijden |
 | Remove card / Remove N | Kaart verwijderen / N verwijderen |
 | Card border | Rand van de kaart |
 | Border: from type (X) | Rand: van soort (X) |
@@ -653,8 +653,12 @@ draagt blijft van jou, per venster (§18b).
 | **Hele web** | de knop naast het zoekvak | Terug naar alles. |
 | **− n +** (*Minder diep* · *Dieper*) | de dieptestapper, alleen met een middelpunt | Hoeveel stappen vanaf het midden, 1 tot 4. |
 | **Kolommen** · **Web** | de vorm, alleen met een middelpunt | Links wat hierheen wijst, rechts waar dit heen wijst; of als een los web. Het web is de standaard. |
-| **Legenda** | de knop rechts | Elke soort lijn in zijn kleur en streep, met een vinkje en een telling. |
-| **Tussen {artikelen}** · **Met {dossiers}** · **Op {prikborden}** · **Op {landkaarten}** · **Op tijdlijnen** · **Met {karakters}** | de groepen in de legenda | Klik op de kop en de hele groep gaat aan of uit. |
+| **Legenda** | de knop rechts | Twee delen sinds ronde 19: *Wat* (de knopen) en *Hoe* (de lijnen), elk met een vinkje en een telling. |
+| **Wat** | het kopje boven het eerste deel van de legenda | Welke soorten knopen meedoen. Een uitgezette knoop is weg, met alles wat er alleen via hem aan hing; het middelpunt zelf blijft altijd staan. |
+| **Verzamelingen** | de eerste groep onder *Wat* | {Dossiers}, {prikborden}, {landkaarten} en tijdlijnen, elk met hoeveel er in het web zitten. Klik op de kop en de hele groep gaat aan of uit. |
+| **{Artikelen}** | de tweede groep onder *Wat* | Elke soort artikel in het web, met icoon, kleur en telling; een {karakter} telt onder zijn soort. |
+| **Hoe** | het kopje boven het tweede deel van de legenda | Elke soort lijn in zijn kleur en streep. |
+| **Tussen {artikelen}** · **Met {dossiers}** · **Op {prikborden}** · **Op {landkaarten}** · **Op tijdlijnen** · **Met {karakters}** | de groepen onder *Hoe* | Klik op de kop en de hele groep gaat aan of uit. |
 | **genoemd in de tekst** · **relatie met een naam** · **in de infobox** · **in een {sectie}** | de vier lijnen tussen artikelen | Doorgetrokken inkt is de lopende tekst; een streepje is een feit óver het artikel. |
 | **in het {dossier}** · **in de aantekeningen** · **{dossier} in de infobox** · **hangt in het {dossier}** | de vier met dossiers (goud) | De laatste is een {prikbord} of tijdlijn dat in een dossier hangt. |
 | **{kaart} op het {prikbord}** · **in een {notitie} op het {prikbord}** · **{draad} op het {prikbord}** | de drie op prikborden (rood) | Een draad tussen twee kaarten is een lijn tussen de twee dingen die ze voorstellen, met het prikbord erbij genoemd. |
@@ -663,7 +667,8 @@ draagt blijft van jou, per venster (§18b).
 | **{karakter} op het {dossier}** · **{speler} in de infobox** | de twee met karakters (paars) | De eerste is de toewijzing (§17); de tweede een infoboxveld *Koppeling naar een speler*, getekend als diens karakter. |
 | **Losse {notitie}s op {prikborden}** | vinkje onderaan de legenda | Standaard uit: het zijn er veel en ze zeggen weinig. |
 | **Altijd zeggen hoe** | vinkje onderaan de legenda | Het woord op élke lijn, in plaats van alleen bij de knoop waar je op staat. |
-| **Afbeeldingen tonen** | vinkje onderaan de legenda | De omslag in de knoop (web) of naast de naam (kolommen). Standaard uit. |
+| **Afbeeldingen tonen** | vinkje onderaan de legenda | De omslag in de knoop (web, de vierkante uitsnede) of naast de naam (kolommen, de staande). Standaard uit. Zoomen kan tot 12× sinds ronde 19; van dichtbij wordt de grotere afbeelding geladen. |
+| *(de korte beschrijving)* | het paneel rechts, onder de naam | Wat het ding in één regel is: de korte beschrijving van een {artikel}, de samenvatting van een {dossier}, de omschrijving van een {landkaart} of tijdlijn. Een {prikbord} heeft er geen. Alleen als die er is. |
 | **Tussen {artikelen} (n)** · **Met {dossiers} (n)** · **Op {prikborden} (n)** · … | het paneel rechts, bij één gekozen knoop | Elke lijn, gegroepeerd op soort verband (dezelfde groepen als de legenda), met hoe, in de kleur van de lijn. Klik: kiezen; dubbelklik: middelpunt. |
 | **→ verwijst naar · ← wijst hierheen · ↔ {draad}** | het pijltje voor elke rij, en de uitleg onderaan het paneel | De richting, gelezen vanaf de gekozen knoop. |
 | **Zoek in n verbindingen…** | het paneel, boven de 12 rijen | Filtert op naam en op hoe. |

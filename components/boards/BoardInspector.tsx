@@ -57,9 +57,7 @@ const STYLE_NAMES: Record<StringStyle, string> = {
 export function BoardInspector({
   cards,
   string: line,
-  cropping,
   busy,
-  canCrop,
   canShowImage,
   hasOwnPhoto,
   inheritedBorderLabel,
@@ -69,8 +67,6 @@ export function BoardInspector({
   onWidthChange,
   onStyleChange,
   onRemoveString,
-  onCrop,
-  onDoneCropping,
   onAddPhoto,
   onRemovePhoto,
   onToggleImage,
@@ -87,10 +83,7 @@ export function BoardInspector({
   cards: BoardCard[];
   /** The selected string, if any. Never both. */
   string: BoardString | null;
-  cropping: boolean;
   busy: boolean;
-  /** True when the card shows a picture that can be repositioned. */
-  canCrop: boolean;
   /**
    * True when this card has a picture at all — its own, or the one it borrows
    * from what it stands for. A card without one draws no frame however
@@ -109,8 +102,6 @@ export function BoardInspector({
   onWidthChange: (width: number) => void;
   onStyleChange: (style: StringStyle) => void;
   onRemoveString: () => void;
-  onCrop: () => void;
-  onDoneCropping: () => void;
   onAddPhoto: () => void;
   onRemovePhoto: () => void;
   onToggleImage: () => void;
@@ -359,85 +350,65 @@ export function BoardInspector({
         {single ? single.name || 'Kaart' : `${cards.length} kaarten`}
       </span>
 
-      {cropping ? (
+      {/* Round 19: no "Bijsnijden" here — a card draws the artikel's own crops. */}
+      {openLabel && (
+        <button type="button" className="btn btn-small" onClick={onOpenEntry}>
+          <Icon name="chevron" size={15} />
+          {openLabel}
+        </button>
+      )}
+
+      {single && (
         <>
-          <span className="small muted board-inspector-hint">
-            Sleep de foto om hem te verschuiven, scroll of knijp om te zoomen. Deze uitsnede geldt
-            alleen voor deze kaart.
-          </span>
-          <button type="button" className="btn btn-small btn-primary" onClick={onDoneCropping}>
-            <Icon name="check" size={15} />
-            Klaar
-          </button>
-        </>
-      ) : (
-        <>
-          {openLabel && (
-            <button type="button" className="btn btn-small" onClick={onOpenEntry}>
-              <Icon name="chevron" size={15} />
-              {openLabel}
-            </button>
-          )}
-
-          {single && (
-            <>
-              <span className="board-border-field">
-                <label className="eyebrow" htmlFor="card-border">
-                  Rand
-                </label>
-                <select
-                  id="card-border"
-                  className="board-border-select"
-                  value={borderValue}
-                  onChange={(event) => onBorderChange(event.target.value || null)}
-                >
-                  {inheritedBorderLabel && (
-                    <option value="">Van soort ({inheritedBorderLabel})</option>
-                  )}
-                  {BORDER_OPTIONS.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </span>
-
-              {sizeRow(words.card)}
-
-              {canShowImage && (
-                <button type="button" className="btn btn-small" onClick={onToggleImage}>
-                  <Icon name="camera" size={15} />
-                  {single.showImage ? 'Foto verbergen' : 'Foto tonen'}
-                </button>
+          <span className="board-border-field">
+            <label className="eyebrow" htmlFor="card-border">
+              Rand
+            </label>
+            <select
+              id="card-border"
+              className="board-border-select"
+              value={borderValue}
+              onChange={(event) => onBorderChange(event.target.value || null)}
+            >
+              {inheritedBorderLabel && (
+                <option value="">Van soort ({inheritedBorderLabel})</option>
               )}
-            </>
-          )}
+              {BORDER_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </span>
 
-          {single && single.kind !== 'entry' && (
-            <button type="button" className="btn btn-small" onClick={onAddPhoto} disabled={busy}>
-              <Icon name="plus" size={15} />
-              {busy ? 'Uploaden…' : hasOwnPhoto ? 'Foto vervangen' : 'Foto toevoegen'}
+          {sizeRow(words.card)}
+
+          {canShowImage && (
+            <button type="button" className="btn btn-small" onClick={onToggleImage}>
+              <Icon name="camera" size={15} />
+              {single.showImage ? 'Foto verbergen' : 'Foto tonen'}
             </button>
           )}
-
-          {canCrop && (
-            <button type="button" className="btn btn-small" onClick={onCrop}>
-              Bijsnijden
-            </button>
-          )}
-
-          {hasOwnPhoto && (
-            <button type="button" className="btn btn-small btn-ghost" onClick={onRemovePhoto}>
-              Foto verwijderen
-            </button>
-          )}
-
-          <button type="button" className="btn btn-small btn-danger" onClick={onRemoveCards}>
-            <Icon name="trash" size={14} />
-            {cards.length > 1 ? `${cards.length} verwijderen` : 'Kaart verwijderen'}
-          </button>
         </>
       )}
+
+      {single && single.kind !== 'entry' && (
+        <button type="button" className="btn btn-small" onClick={onAddPhoto} disabled={busy}>
+          <Icon name="plus" size={15} />
+          {busy ? 'Uploaden…' : hasOwnPhoto ? 'Foto vervangen' : 'Foto toevoegen'}
+        </button>
+      )}
+
+      {hasOwnPhoto && (
+        <button type="button" className="btn btn-small btn-ghost" onClick={onRemovePhoto}>
+          Foto verwijderen
+        </button>
+      )}
+
+      <button type="button" className="btn btn-small btn-danger" onClick={onRemoveCards}>
+        <Icon name="trash" size={14} />
+        {cards.length > 1 ? `${cards.length} verwijderen` : 'Kaart verwijderen'}
+      </button>
 
       <button
         type="button"

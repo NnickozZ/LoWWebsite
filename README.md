@@ -414,8 +414,8 @@ app/
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
-  entry/             cover (its tools behind one "Afbeelding" menu), the list
-                     crop, type fields — as a form on the editing face and as
+  entry/             cover (its tools behind one "Afbeelding" menu), the three
+                     crops (round 19), type fields — as a form on the editing face and as
                      printed facts on the reading one (`FieldsView`) — tags,
                      the pickers for a linked artikel (EntryPicker), a linked
                      dossier (CasePicker) and the landkaart that draws this
@@ -505,6 +505,9 @@ lib/
                      construction), slice.ts (pure: the focus walk, the
                      legend), layout.ts (pure: the columns and the fold),
                      force.ts (pure: the organic web, no d3)
+  images/            shapes.ts (round 19, pure and client-safe): the three
+                     crop shapes — liggend, staand, vierkant — their ratios,
+                     and the one reader of a `cover_crop` bag
   ink/               §33: the tekenlaag — types.ts (the stroke, the eight
                      colours, the limits), merge.ts (pure: append, sort,
                      tombstones, the view for one person), service.ts (the
@@ -577,12 +580,22 @@ Forty-two rules worth knowing before changing anything:
    plain JavaScript so that `npm run bootstrap` and the app cannot drift into two
    ways of storing a password, two versions of the schema, or two lists of border
    treatments.
-5. **A picture is cropped per *placement*, never on disk.** The entry page shows
-   the whole image at whatever shape it is. `entries.cover_crop` is only the
-   default for lists; `case_entries.crop` and a board card's own `crop` override
-   it where they are set. All three are `{ x, y, zoom }` and all three fall back
-   to the one above when null. A case's own picture works the same way
-   (`cases.cover_asset_id` + `cases.cover_crop`).
+5. **A picture is cropped per *shape*, never on disk.** An artikel's page shows
+   the whole picture at whatever shape it is. Lists need a shape, so the
+   picture carries three crops (`entries.cover_crop`: liggend 3:2, staand 3:4,
+   vierkant 1:1 — `lib/images/shapes.ts`, the only place a ratio lives), set
+   once under "Afbeelding › Bijsnijden" and drawn by every list, card, thumb
+   and knot in the shape it uses: cards and thumbs staand, the tijdlijn's
+   window and the web's panel liggend, a web knot vierkant. The file on disk
+   is never cropped; each crop is a focal point and a zoom, applied by CSS
+   (`coverStyle`, with the frame's aspect from `coverClass(shape)`) or as a
+   source rect on the web canvas at render. A row written before round 19
+   holds a bare `{ x, y, zoom }` and is read as the staand crop. A dossier's
+   own picture (`cases.cover_asset_id` + `cases.cover_crop`) has the same
+   three. A dossier's filing of an artikel and a prikbord card no longer keep
+   a crop of their own (round 19; `case_entries.crop` is nulled by migration
+   `0020` and read by nothing, a card's `crop` is dropped on read) — one set
+   per picture, used everywhere, so a face looks the same on every list.
 6. **Anything a player may not see is dropped on the server.** A Keeper-only
    entry never reaches a query (`visibleEntryCondition`); a hidden section never
    reaches the props (`listSections`); Keeper notes are blanked in
@@ -1462,7 +1475,8 @@ Forty-two rules worth knowing before changing anything:
     the same reason: a card at 250% has a cover two and a half times as wide on
     the glass, so a hand travelling 100 px has crossed less of the picture, and
     without it cropping an enlarged card moved the photograph two and a half
-    times too fast. Everything on the paper scales, **including the 1px border
+    times too fast. (Round 19 retired that crop mode: a card draws the
+    artikel's own staand crop, rule 5.) Everything on the paper scales, **including the 1px border
     and the shadow** — Nick's decision, and it is what the wall's own zoom has
     always done to a card's border, so a card at 200% looks like the same card
     seen at 200% zoom. A card past 150% asks for the full-size picture rather
@@ -1595,6 +1609,26 @@ Forty-two rules worth knowing before changing anything:
     the ordinary dials without the Keeper's skeleton key unless the legend's
     "Ook privé van anderen" (`?others=1`) is on, while artikelen and sections
     keep the real viewer, so the Keeper's own hidden pages stay.
+
+    Round 19 refined four things. The web **zooms to 12** instead of 4: a
+    cover sprite is keyed on a zoom bucket (1, 2, 4 or 8, `zoomBucket`) and
+    cut again at that resolution, fetching the 900 px `?s=card` from bucket 4
+    up — never for a whole web at zoom 1 — while a line's on-screen width
+    grows as √zoom up to zoom 4 and then stops (`lineZoom`), so a close look
+    at a knot is a picture and not a rope. The legend now has **two parts**:
+    under *Wat* you switch kinds of knot on and off — dossiers, prikborden,
+    landkaarten, tijdlijnen and every soort of artikel in the web, each with
+    a count — and under *Hoe* the kinds of line; a knot switched off is
+    *absent* (`hiddenNodeKinds` / `hiddenTypes` in `slice.ts`), it goes with
+    everything that hung only from it, and the middle itself is never hidden.
+    In the panel the **short description** of what you clicked stands under
+    its name. In **Kolommen** the layout's coordinates are the truth and a
+    tween is only the way there — under `prefers-reduced-motion`, where no
+    tween is made, cards used to stay at their organic spots for ever — and
+    the layout key carries a fingerprint of the graph (every knot's step and
+    side, a hash of the edges), so a legend tick re-runs the columns even when
+    no id changed. A knot wears the picture's **vierkant** crop, the columns'
+    thumb its staand one and the panel its liggend one (rule 5).
 
     How a line is tied is a *kind* (`WebEdgeKind`, sixteen of them) with one
     colour and dash in `lib/web/kinds.ts` and one CSS custom property

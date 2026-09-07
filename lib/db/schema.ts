@@ -3,6 +3,7 @@ import type { ReadingFont } from '@/lib/readingFont';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import {
   blob,
+  customType,
   index,
   integer,
   primaryKey,
@@ -11,8 +12,47 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 
 const now = sql`(unixepoch())`;
+
+/**
+ * How a picture sits inside a frame — three crops, one per shape (round 19).
+ *
+ * See `lib/images/shapes.ts`: `{ landscape?, portrait?, square? }`, each a
+ * focal point in 0..1 of the source and a zoom that is 1 for "fit the frame".
+ * That carries the same information as a rectangle and maps straight onto CSS
+ * (object-position + transform-origin + scale), so the uploaded file is never
+ * cropped on disk and a crop can be redone for ever.
+ *
+ * The per-placement rule is *reversed* this round: an artikel's three crops
+ * are the only crops there are, used by every list, card and knot that shows
+ * it. `case_entries.crop` is unread and a board card no longer carries one, so
+ * a face looks the same everywhere it appears.
+ *
+ * A JSON text column, as it always was, so the column itself needs no SQL
+ * migration. The rows written before this round hold a bare `{ x, y, zoom }`;
+ * this column type puts every read — every `select` on either table — through
+ * `normaliseCrops`, which reads that as `{ portrait }` (the 3:4 card was the
+ * only frame it was drawn for) and clamps whatever else it finds. Nothing
+ * reads `cover_crop` around drizzle, so there is no second road to keep in
+ * step. The artikel page itself still shows the whole picture, uncropped.
+ */
+const coverCrops = customType<{ data: CoverCrops | null; driverData: string }>({
+  dataType() {
+    return 'text';
+  },
+  toDriver(value) {
+    return JSON.stringify(value);
+  },
+  fromDriver(value) {
+    try {
+      return normaliseCrops(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  },
+});
 
 export const users = sqliteTable(
   'users',
@@ -169,7 +209,8 @@ export const entries = sqliteTable(
     bodyText: text('body_text').notNull().default(''),
     fields: text('fields', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
     coverAssetId: text('cover_asset_id'),
-    coverCrop: text('cover_crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /** Three crops by shape; see `coverCrops` above. Null = centred, unzoomed, in every shape. */
+    coverCrop: coverCrops('cover_crop'),
     tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
     status: text('status').$type<'draft' | 'published'>().notNull().default('published'),
     isLocked: integer('is_locked', { mode: 'boolean' }).notNull().default(false),
@@ -208,19 +249,8 @@ export const entries = sqliteTable(
   ],
 );
 
-/**
- * How a picture sits inside a frame, stored as focal point + zoom rather than
- * four edges.
- * `x`/`y` are the centre of the crop in 0..1 of the source image; `zoom` is 1
- * for "fit the frame" and higher as the user pinches in. This carries the same
- * information as an explicit rectangle and maps straight onto CSS
- * (object-position + transform-origin + scale). The uploaded image is never
- * cropped on disk, so a crop can be redone forever — and every *placement*
- * keeps its own: this one is the entry's default for lists, while a case card
- * and a board card each hold theirs. The entry page itself shows the whole
- * picture, uncropped, whatever shape it is.
- */
-export type CoverCrop = { x: number; y: number; zoom: number };
+/** The bag on `entries.cover_crop` and `cases.cover_crop`; see `coverCrops` at the top of this file. */
+export type { CoverCrops } from '@/lib/images/shapes';
 
 export const entryReveals = sqliteTable(
   'entry_reveals',
@@ -344,8 +374,8 @@ export const cases = sqliteTable(
     editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
     accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
     coverAssetId: text('cover_asset_id'),
-    /** How the Case Files grid squares off the cover; the dossier shows it whole. */
-    coverCrop: text('cover_crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /** Three crops by shape, like an artikel's; the Case Files grid and the cards use them. */
+    coverCrop: coverCrops('cover_crop'),
     /**
      * §28: which soorten belong in this dossier, as type slugs. Null is "let the
      * tabs follow whatever is filed here", which is what every dossier did
@@ -378,8 +408,12 @@ export const caseEntries = sqliteTable(
     addedBy: text('added_by'),
     addedAt: integer('added_at').notNull().default(now),
     note: text('note').notNull().default(''),
-    /** This case's own crop of the entry's cover; null falls back to the entry's. */
-    crop: text('crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /**
+     * Pre-round 19: this case's own crop of the entry's cover. Nulled by
+     * `0020_one_crop_per_picture` and read by nothing — the artikel's own three
+     * crops are used everywhere. The column stays so an old backup restores.
+     */
+    crop: text('crop', { mode: 'json' }).$type<unknown>(),
   },
   (t) => [primaryKey({ columns: [t.caseId, t.entryId] })],
 );

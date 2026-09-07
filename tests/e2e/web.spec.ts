@@ -51,6 +51,8 @@ type WebState = {
   pendingFit: boolean;
   size: { w: number; h: number };
   layoutKey: string;
+  tweens: Map<string, unknown>;
+  nodeById: Map<string, { depth?: number; side?: 'in' | 'out' }>;
 };
 
 /**
@@ -285,4 +287,135 @@ test('a knot dragged in the organic web stays where it was put, until it is let 
   await page.getByTestId('web-unpin').click();
   expect(await pinnedCount()).toBe(0);
   await expect(page.getByTestId('web-unpin')).toHaveCount(0);
+});
+
+test('the legend hides a soort of knot; the choice survives a reload; the panel prints the short description', async ({ page }, testInfo) => {
+  const isPhone = testInfo.project.name === 'phone';
+  await signIn(page, ...KEEPER);
+  const stamp = Date.now().toString(36);
+  const summary = `Een korte beschrijving ${stamp}.`;
+  const made = await page.request.post('/api/entries', { data: { typeSlug: 'character', name: `Wat A ${stamp}`, shortDescription: summary } });
+  expect(made.ok()).toBe(true);
+  const a: Made = { ...(await made.json()).entry, name: `Wat A ${stamp}` };
+  const b = await makeEntry(page, `Wat B ${stamp}`, 'location');
+  await link(page, a, b);
+
+  await page.goto(`/web?focus=entry:${a.id}`);
+  await expect(page.getByTestId('web-stage')).toBeVisible();
+  await expect.poll(() => placedCount(page)).toBe(2);
+
+  // Job 1: the panel prints A's short description under its name.
+  if (isPhone) {
+    const pt = await nodePoint(page, 'focus');
+    await page.mouse.click(pt.x, pt.y);
+  }
+  await expect(page.getByTestId('web-panel-summary')).toContainText(summary);
+  if (isPhone) await page.keyboard.press('Escape');
+
+  // The neighbour's soort comes from the graph the page fetched, not a guess.
+  const graph = await (await page.request.get(`/api/web?focus=entry:${a.id}&depth=1`)).json();
+  const soort = graph.nodes.find((n: { id: string }) => n.id === `entry:${b.id}`).typeSlug as string;
+  expect(soort).toBe('location');
+
+  // Untick the soort under "Wat": B is gone, and the line with it.
+  await page.getByTestId('web-legend-toggle').click();
+  const legend = page.getByTestId('web-legend').first();
+  await expect(legend).toContainText('Wat');
+  await legend.getByTestId(`web-soort-${soort}`).uncheck();
+  await expect.poll(() => placedCount(page)).toBe(1);
+  // A's own soort unticked: the focus is exempt and stays in the middle.
+  await legend.getByTestId('web-soort-character').uncheck();
+  await expect(legend.getByTestId('web-soort-character')).not.toBeChecked();
+  await nodePoint(page, 'focus');
+  expect(await placedCount(page)).toBe(1);
+  await legend.getByTestId('web-soort-character').check();
+
+  // The choice is this browser's memory: after a reload the row is still off and B still gone.
+  await page.reload();
+  await expect(page.getByTestId('web-stage')).toBeVisible();
+  await expect.poll(() => placedCount(page)).toBe(1);
+  await page.getByTestId('web-legend-toggle').click();
+  const again = page.getByTestId('web-legend').first();
+  await expect(again.getByTestId(`web-soort-${soort}`)).not.toBeChecked();
+  await again.getByTestId(`web-soort-${soort}`).check();
+  await expect.poll(() => placedCount(page)).toBe(2);
+});
+
+/**
+ * Round 19: in a focus web, double-click another knot to make it the middle,
+ * then switch to Kolommen. Every card must sit on a column — the layout's
+ * coordinates are the truth, and a tween only shows the way there. Under
+ * reduced motion there is no tween at all, which is where the cards used to
+ * stay at their organic spots for ever: columns scattered like a web, with
+ * S-curves for lines.
+ */
+async function refocusThenColumns(page: Page, reduced: boolean) {
+  if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, ...KEEPER);
+  const stamp = Date.now().toString(36);
+  const a = await makeEntry(page, `Kolom A ${stamp}`);
+  const b = await makeEntry(page, `Kolom B ${stamp}`);
+  const c = await makeEntry(page, `Kolom C ${stamp}`);
+  const d = await makeEntry(page, `Kolom D ${stamp}`, 'location');
+  await link(page, a, b, d);
+  await link(page, b, c);
+  await link(page, c, b);
+
+  // The organic web first, on A; let it cool so the knot is not moving under the hand.
+  await page.goto(`/web?focus=entry:${a.id}`);
+  await expect(page.getByTestId('web-panel')).toContainText(a.name);
+  await expect(page.getByRole('button', { name: 'Web', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.waitForFunction(() => (window as unknown as { __web: { sim: { settled: boolean } } }).__web.sim.settled);
+
+  // A double-click on B makes it the middle.
+  const pt = await nodePoint(page, `entry:${b.id}`);
+  await page.mouse.dblclick(pt.x, pt.y);
+  await page.waitForURL(`**/web?focus=entry%3A${b.id}`);
+  await expect(page.getByTestId('web-panel')).toContainText(b.name);
+  await expect.poll(() => placedCount(page)).toBe(3);
+
+  // Then Kolommen, and wait until the layout is B's and nothing is still moving.
+  await page.getByRole('button', { name: 'Kolommen', exact: true }).click();
+  await expect(page.getByTestId('web-stage')).toHaveAttribute('data-mode', 'columns');
+  await page.waitForFunction(
+    (focus) => {
+      const s = (window as unknown as { __web?: WebState }).__web;
+      return Boolean(s && s.layoutKey.startsWith(`columns|${focus}|`) && !s.cameraFrom && !s.pendingFit && s.tweens.size === 0);
+    },
+    `entry:${b.id}`,
+  );
+  if (!reduced) await page.waitForTimeout(450);
+
+  // Every card is on its column: the focus at 0, one step out at ± one
+  // stride. The numbers are `columnLayout`'s: stride 188 + 130, and a
+  // column beside the focus shifted by half the difference in card width.
+  const rows = await page.evaluate((focus) => {
+    const s = (window as unknown as { __web: WebState }).__web;
+    return [...s.placed].map(([id, p]) => {
+      const n = s.nodeById.get(id) ?? {};
+      const column = id === focus ? 0 : n.side === 'in' ? -(n.depth ?? 0) : n.depth ?? 0;
+      return { id, x: p.x, column };
+    });
+  }, `entry:${b.id}`);
+  expect(rows.length).toBe(3);
+  const stride = 188 + 130;
+  const shift = (240 - 188) / 2;
+  for (const row of rows) {
+    const expected = row.column === 0 ? 0 : row.column * stride + Math.sign(row.column) * shift;
+    expect(Math.abs(row.x - expected), `${row.id} in column ${row.column} at x=${row.x}`).toBeLessThan(0.5);
+  }
+  expect(new Set(rows.map((r) => Math.round(r.x))).size).toBeLessThanOrEqual(3);
+  // A is on the left (it names B), C on the right (B names it).
+  expect(rows.find((r) => r.id === `entry:${a.id}`)!.column).toBe(-1);
+  expect(rows.find((r) => r.id === `entry:${c.id}`)!.column).toBe(1);
+}
+
+test('refocused, then Kolommen: every card on its column, with reduced motion', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'phone', 'double-click and Kolommen are desk gestures');
+  await refocusThenColumns(page, true);
+});
+
+test('refocused, then Kolommen: every card on its column, once the tween has landed', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'phone', 'double-click and Kolommen are desk gestures');
+  await refocusThenColumns(page, false);
 });

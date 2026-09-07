@@ -30,7 +30,7 @@ import { useMayType } from '@/components/you/AuthorProvider';
 import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
 import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/service';
-import type { CoverCrop } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 import { PreferredCases } from '@/components/entry/PreferredCases';
 import { CaseAddSearch } from './CaseAddSearch';
 import { CaseTabsButton, type CaseTabSoort } from './CaseTabsButton';
@@ -62,7 +62,7 @@ export type CaseDossierData = {
   notes: unknown;
   keeperNotes: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
 };
 
 /** §17: the owner's dials and what this viewer may do with them. */
@@ -523,14 +523,15 @@ export function CaseDossier({
   const header = (
     <header className={`case-head${showsCover ? '' : ' case-head-solo'}`}>
       {/* The file's own picture: a location, a photograph of the principal, a
-          scan of the thing that started it. Shown whole here; the Case Files
-          grid squares it off with its own crop, exactly like an entry.
+          scan of the thing that started it. Shown whole while editing; the
+          Case Files grid and the reading face draw its staand crop, and it
+          has the same three crops an artikel has (round 19).
           §22: reading, a dossier with no picture has no frame at all — the
           same rule the artikel's reading face follows. */}
       {locked ? (
         cover.assetId && (
           <figure className="entry-figure" style={{ margin: 0 }}>
-            <Cover assetId={cover.assetId} crop={cover.crop} alt={name} icon="folder" colour="var(--ink-muted)" />
+            <Cover assetId={cover.assetId} crop={cover.crop} shape="portrait" alt={name} icon="folder" colour="var(--ink-muted)" />
           </figure>
         )
       ) : (

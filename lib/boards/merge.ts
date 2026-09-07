@@ -13,7 +13,7 @@ import { normaliseBorder } from '@/lib/borders.mjs';
  * `map`, `case` and `timeline` are the other things this archive holds that a
  * wall might want to point at: the landkaart the harbour is drawn on, the
  * dossier this all belongs to, the tijdlijn of the night it happened (§32).
- * They are cards like any other — draggable, croppable, string can be run to
+ * They are cards like any other — draggable, resizable, string can be run to
  * them — and, like an entry card, they carry only an id. What is behind that
  * id is resolved per viewer, so a dossier somebody may not open comes back as
  * MISSING rather than as a name.
@@ -254,13 +254,6 @@ export function headOf(card: Placed): { x: number; y: number } {
   return { x: box.x + box.width / 2, y: box.y + down };
 }
 
-/**
- * Focal point and zoom for a picture, same shape and meaning wherever it is
- * used: the file on disk is never altered, and each *placement* keeps its own,
- * so a face cropped tight on a board card can still sit differently in a list.
- */
-export type CardCrop = { x: number; y: number; zoom: number };
-
 export type BoardCard = {
   id: string;
   kind: CardKind;
@@ -272,10 +265,15 @@ export type BoardCard = {
   caseId?: string | null;
   /** Set for kind 'timeline' — the tijdlijn this card stands for (§32). */
   timelineId?: string | null;
-  /** A picture belonging to this card. Notes may gain one after the fact. */
+  /**
+   * A picture belonging to this card. Notes may gain one after the fact.
+   *
+   * Round 19: a card no longer carries a crop of its own. An entry card draws
+   * the artikel's own portrait crop (`lib/images/shapes.ts`), the same one
+   * every other list uses; a card's own photo is drawn centred. A `crop` in
+   * old state is simply not read (`normaliseState` drops it).
+   */
   assetId?: string | null;
-  /** How that picture — or the entry's — sits in this card's frame. */
-  crop?: CardCrop | null;
   /** False hides the picture frame entirely, leaving a plain index card. */
   showImage: boolean;
   /** Overrides the border this card would inherit from its entry's type. */
@@ -424,18 +422,6 @@ function clampNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-export function normaliseCrop(input: unknown): CardCrop | null {
-  if (!input || typeof input !== 'object') return null;
-  const crop = input as Partial<CardCrop>;
-  return {
-    x: Math.min(1, Math.max(0, clampNumber(crop.x, 0.5))),
-    y: Math.min(1, Math.max(0, clampNumber(crop.y, 0.5))),
-    zoom: Math.min(4, Math.max(1, clampNumber(crop.zoom, 1))),
-  };
-}
-
-export const CENTRED_CROP: CardCrop = { x: 0.5, y: 0.5, zoom: 1 };
-
 function normaliseColour(input: unknown): StringColour {
   return typeof input === 'string' && input in STRING_COLOURS
     ? (input as StringColour)
@@ -583,9 +569,8 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
           caseId: card.caseId ?? null,
           timelineId: card.timelineId ?? null,
           assetId: card.assetId ?? null,
-          // Every card keeps its own crop: an entry card crops the entry's
-          // cover for this board alone, and leaves every other list untouched.
-          crop: normaliseCrop(card.crop),
+          // Round 19: a `crop` saved on a card before this round is dropped
+          // here, on read — the artikel's own crops are used everywhere.
           showImage: card.showImage !== false,
           border: typeof card.border === 'string' ? normaliseBorder(card.border) : null,
           name: typeof card.name === 'string' ? card.name.slice(0, 200) : '',
