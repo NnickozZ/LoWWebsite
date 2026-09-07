@@ -42,6 +42,7 @@ Then, in a second terminal:
 ```bash
 npm run bootstrap    # creates the first Keeper and prints the invite code
 npm run seed-demo    # optional: 21 Zeeland entries, one open case, one board
+npm run seed-wereld  # optional: a full Dutch test world, ~15 per soort
 ```
 
 Sign in as the Keeper. Everyone else signs up at `/signup` with the invite code,
@@ -49,6 +50,37 @@ which you can see and regenerate under **You → Admin**.
 
 `npm run seed-demo` refuses to run once the archive has entries in it, so it can
 never trample real notes. `make reset` deletes `./data` after a confirmation.
+
+### The two seeds, and why there are two
+
+`seed-demo` is the **fixture**: 21 entries in English, one dossier, one
+prikbord. `tests/e2e/prepare.mjs` runs it before every Playwright run and
+several specs click the names in it, so its contents are load-bearing — change
+them and the suite goes red twenty minutes later, somewhere that looks
+unrelated.
+
+`seed-wereld` is the **test world**: about fifteen artikelen of every soort, in
+Dutch, tied to each other through their infobox fields and their running text,
+plus dossiers with tabbladen and werknotities, prikborden with kaarten and
+touwtjes, tijdlijnen, landkaarten with spelden, omslagen, six player accounts
+wearing karakters, voorstellen, activity and revisions. It is for looking at a
+*full* archive — the web (§43), "Genoemd in" (§27), the afgeleide blokken
+(§11), the rechten (§17) — before there is a real one. It leaves the fixture
+alone.
+
+```bash
+npm run seed-wereld -- --per 25    # more per soort (the pools are the ceiling)
+npm run seed-wereld -- --seed 7    # a different, equally repeatable world
+npm run seed-wereld -- --no-images # skip the drawn covers and map plates
+npm run seed-wereld -- --clean     # remove exactly what it put there
+```
+
+It writes what it made to `data/seed-wereld.json`; `--clean` reads that file,
+and while it exists a second run refuses to lay another world on top of the
+first. The six accounts are Kees, Elsje, Bram, Nel, Truus and Machteld, all
+with the password `wereld1934` — which is why this belongs nowhere near a
+server anybody else can reach. The words are in `scripts/seed-wereld.data.mjs`,
+the wiring in `scripts/seed-wereld.mjs`.
 
 ### Testing on a phone
 
@@ -65,7 +97,8 @@ LAN address works.
 | `make dev` | The app at `localhost:3000`, also on the LAN — **development only, never on a server** |
 | `npm ci && npm run build && npm start` | The production server, which is what a VPS runs |
 | `make bootstrap` | Create a Keeper (`--username X --password Y` for scripts) |
-| `make seed-demo` | Load the Zeeland demo dataset |
+| `make seed-demo` | Load the small Zeeland demo dataset (also the e2e fixture) |
+| `make seed-wereld` | Fill the archive with a full Dutch test world (`-- --clean` removes it) |
 | `make reset` | Delete `./data` after confirming |
 | `make backup` | Write a zip of every table plus all assets to `./data/backups` |
 | `make restore FILE=…` | Restore from one of those zips |
@@ -499,7 +532,7 @@ assets.ts            pictures in three sizes; re-exports the two ceilings and
                      is where they are enforced
 pageBlocks.ts        what a soort artikel's page is made of (pure; the queries
                      behind it live in lib/entries/derived.ts)
-scripts/             dev, bootstrap, seed-demo, backup, restore
+scripts/             dev, bootstrap, seed-demo, seed-wereld, backup, restore
 tests/unit/          vitest
 tests/e2e/           playwright, the golden flows
 ```

@@ -201,6 +201,41 @@ freely there.
   now, not the whole file.
 - **`lib/assets.ts` loads sharp and the database**, so nothing client-side may
   import it. Pure, client-safe helpers belong in `lib/upload.ts`.
+- **Never bulk-upgrade the dependencies.** `npm update --save`, `npx npm-check-updates -u`
+  or `npm install <pkg>@latest` across the board will take Next from 15.5.25 to
+  16, Tiptap from 2 to 3, drizzle from 0.39 to 0.45 and sharp from 0.33 to 0.35
+  in one go — and the app is written for the left-hand side of every one of
+  those. Done on 7 Sep 2026, it produced this, on every artikel page:
+
+  ```
+  TypeError: Cannot read properties of undefined (reading 'doc')
+      at createDecorations (y-prosemirror/…/cursor-plugin.js)
+  ```
+
+  Tiptap 3 wants `@tiptap/pm@3`, but that range alone was left at `^2.11.5`, so
+  the browser loaded **two copies of `prosemirror-state`**. A `PluginKey` is
+  per-copy, so `ySyncPluginKey.getState(state)` in y-prosemirror's cursor plugin
+  returned `undefined` and `.doc` threw. The cheaper tell, in the dev log:
+  `[tiptap warn]: Duplicate extension names found: ['link']` — StarterKit 3
+  bundles Link, StarterKit 2 does not, so that warning alone names the major.
+  Cure: `git checkout -- package.json package-lock.json`, delete `node_modules`,
+  `npm ci`. Reproduced and cured both ways in the sandbox; the *data* in the
+  archive has nothing to do with it, and neither does anything under `app/`.
+  A real upgrade of any of those four is a round of its own, not an install.
+- **`scripts/seed-demo.mjs` is a fixture, not a demo.** `tests/e2e/prepare.mjs`
+  runs it before every Playwright run, and `timelines`, `flow-2-link-and-create`
+  and `flow-3-case-dossier` click the names inside it ("Westkapelle Lighthouse",
+  "The Unwound Light", "Jacob den Hollander"). Rewriting its content turns the
+  suite red twenty minutes later, in specs that look unrelated. Want a full
+  archive to look at instead? That is `npm run seed-wereld` (round 16) — ~15
+  artikelen per soort in Dutch, wired through fields and text, with dossiers,
+  prikborden, tijdlijnen, landkaarten, karakters and voorstellen. It records
+  every id in `data/seed-wereld.json` and `--clean` puts it all back.
+  Two things it must keep doing, if it is ever extended: write `entry_mentions`
+  itself (the opening backfill runs once per archive, so anything seeded after
+  that would never show under "Genoemd in"), and give every `%A` in
+  `seed-wereld.data.mjs` an `a:` saying which soort it may draw from — without
+  it you get "wie iets wil regelen bij Een koperen uniformknoop".
 - **The web (§43) is one `<canvas>` and a bag of mutable state**
   (`components/web/WebCanvas.tsx`): a React re-render never restarts its frame
   loop, and every prop is read through `propsRef` on the next frame. The
