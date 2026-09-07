@@ -784,3 +784,34 @@ Twee dingen die geen woord op het scherm hebben en toch afgesproken zijn:
 - **De kant wordt per browser onthouden**, net als *{Kijk als speler}* — de
   laptop op de tafel kan aan de Keeperkant staan terwijl de telefoon in de tent
   aan de spelerskant staat.
+
+## Ronde 24 — vier kleine reparaties (§47)
+
+Geen nieuwe woorden voor de {Keeper} om te hernoemen; wel drie nieuwe zinnetjes
+op het scherm, en één ding dat er eindelijk *wel* staat.
+
+### Een kaartje dat zijn {artikel} kwijt is (§47)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Ontbreekt** | het stempeltje op een kaartje op een {prikbord} | Het ding waar dit kaartje voor staat is er niet (meer) — weggegooid, of niet voor jouw ogen. Wat van de twee, zegt het met opzet niet. |
+| **{Artikel} opnieuw aanmaken** | onderaan zo'n kaartje, alleen op een muur die je mag bewerken | Schrijft het {artikel} opnieuw, met de naam die het kaartje al onthouden had, en hangt het kaartje meteen aan het nieuwe. Dezelfde weg die een {notitie} altijd al had. |
+
+### Een {prikbord} in een {dossier} hangen, of eruit halen (§47)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Geen {dossier}** | het keuzelijstje in de balk van het {prikbord} | Deze muur hangt los, in geen enkel {dossier}. |
+| *(naam van een {dossier})* | hetzelfde lijstje | Hang deze muur in dat {dossier}. Let op: hij staat daarna ook achter de rechten van dat {dossier} — wie het {dossier} niet mag openen, ziet de muur ook niet meer. |
+| **Bestaand {prikbord} hierheen halen…** | op het tabblad {Prikbord} van een {dossier}, in de bewerkstand | Hetzelfde, maar vanaf de andere kant: kies een muur die nog nergens in hangt. |
+| **Losmaken** | naast elk {prikbord} in dat lijstje | Haalt die muur uit dit {dossier}. De muur zelf blijft staan, met alles erop. |
+
+### En twee dingen zonder tekst
+
+- **De draadjes en de ringen in het web blijven nu onder je hand staan.** Sleep
+  je het web opzij, dan schuift de tekening mee in plaats van af te breken bij
+  de rand waar je begon.
+- **Een {punaise} telt mee in het web.** Een draadje dat via een losse
+  {punaise} loopt, was daar eerder helemaal niet te zien; nu is de {punaise}
+  een knoop zoals een {notitie} dat is — onder hetzelfde knopje *Notities* in
+  de legenda. Zonder label heet hij gewoon *Punaise*.

@@ -3147,3 +3147,78 @@ touches the cookie, and the nine specs (`round-7`, `timelines`,
 since round 19. One more, `characters.spec.ts:298`, timed out in both full runs
 and passes alone and in file order — the same "not yet listening" race that
 took `:244` in round 22, not this round's.
+
+---
+
+## Round 24 — 7 September 2026: vier dingen die niet klopten (§47)
+
+Nick's four, in his words: the web's lines and background do not follow a
+left-button pan until the mouse is let go; a card whose artikel is missing
+should be able to write it again, wherever the card is; a connection made
+through a loose punaise does not show up at all; and it must be possible to
+tie prikborden to dossiers and untie them.
+
+**The pan was not slow, it was short.** The first read of "the lines only
+update when I let go" was a frame-rate problem, and it was not: a headless
+Chromium follows the hand exactly, and Nick's own answer named the real thing —
+"the strings and the background just don't render, so they are cut off at the
+previous border from where I started dragging". Round 18's resting layer is a
+canvas the size of the glass, moved with a CSS transform while the camera
+moves; there is nothing outside the glass to move *in*, so a drag uncovers bare
+paper. The fix is a bleed of lines around the layer while the camera is the
+thing moving (0.35 of the longer side, capped at 420 px), and a reuse that is
+refused the moment the layer stops covering the glass — one function,
+`placeLayer()`, returns both the transform and that answer so they cannot
+disagree. Not a bleed at rest: that layer is the expensive one, and round 18
+exists because of its cost. Not a bleed while the simulation stirs either: that
+layer is restroked every frame regardless.
+
+Rejected: making the idle timer shorter. It would have shortened the wrong
+thing — the paper is uncovered the instant the hand moves, not 160 ms later.
+
+**A punaise is a notitie with its writing on the tag.** So on the web it is
+drawn as one, under the same "Notities" switch, rather than getting a node kind
+(and a colour, and a legend row, and a hidden-things key) of its own. A punaise
+with a bare tag still becomes a knot, named after what it is — the draad
+through it is the whole reason it is there, and dropping it was the bug.
+
+**"Opnieuw aanmaken" can write a second artikel, and that is the price of rule
+1.** A card is stamped "Ontbreekt" both when its artikel was thrown away and
+when this viewer may not see it, and those two must stay indistinguishable. So
+the offer cannot know which it is, and a viewer without the rights to see the
+original will write a duplicate. The alternative — offering it only to a
+Keeper, or telling the viewer which case they are in — either loses the feature
+or leaks. It is offered on any wall the viewer may edit.
+
+**A prikbord moves with two rights, not one.** Whoever may edit the wall may
+move it; but filing it in a dossier also puts it behind that dossier's view
+dial (§17), so the dossier must be one this viewer may open. Asking the dossier
+by id is a *lookup*, so it goes through `loadAccessRow` + `canSeeCase` with no
+side condition (§46). Controls at both ends, because both are places a person
+thinks of it: a picker in the prikbord's bar, and on the dossier's Prikbord tab
+a list of the loose walls plus "Losmaken" beside each one it holds.
+
+Deliberately not done: the same for landkaarten and tijdlijnen. `timelines`
+carries the identical `case_id` and the identical gap, and one line of
+`setBoardCase` would become three, but Nick asked for prikborden and this round
+is four small things.
+
+**Where round 24 finishes.** 784 unit tests in 53 files (round 23: 782) — two
+new cases in `tests/unit/web-graph.test.ts` for the punaise, plus a fixture
+punaise with no label and a thread count that went from three to five. One new
+browser spec, `tests/e2e/round-24.spec.ts`, with three cases: the layer
+covering the glass at every step of a pan (geometry, not pixels — the reported
+failure stated as an invariant, and it fails on untouched `main`), a card whose
+artikel is gone writing it again, and a prikbord hung in a dossier and taken
+out of it. `tsc --noEmit` silent, `npm run build` clean. The full browser suite,
+desktop and phone: **207 passed, 36 skipped, 1 failed** — the failure is
+`per-place-crops.spec.ts:13`, red on untouched `main` since round 19.
+
+One thing the suite caught, and it is the reason the bar's picker is
+desktop-only: on a phone the extra control wrapped the board's bar to a second
+line, `.board-viewport` is `calc(100dvh - 205px)` there, and the cork went off
+the bottom of the screen — two existing board specs (`flow-4-board` and
+`round-6`) failed on a double-tap that no longer landed. The magic height is
+the known debt in CLAUDE.md §8; this round routed around it rather than
+rewriting the board's shell, because the dossier's Prikbord tab carries both
+halves of the control anyway.

@@ -16,7 +16,7 @@ import { attributed, charactersWorn, displayNames, windowPresenceName } from '@/
 import { db, schema } from '@/lib/db';
 import { snapshot } from '@/lib/live/docs';
 import { admit, caseRoomKey } from '@/lib/live/rooms';
-import { listBoardsForCase } from '@/lib/boards/service';
+import { listBoards, listBoardsForCase } from '@/lib/boards/service';
 import { listTimelinesForCase } from '@/lib/timelines/service';
 import {
   getCaseBySlug,
@@ -85,6 +85,12 @@ export default async function CasePage({
   const entries = listCaseEntries(record.id, user);
   const types = listEntryTypes();
   const boards = listBoardsForCase(record.id, user);
+  /*
+   * §47: the walls that hang in no dossier at all, for the picker that brings
+   * one in here. A picker, so `bothSides` (§46) — a Keeper files a wall from
+   * either side of the archive — and only for a hand that may write here.
+   */
+  const looseBoards = mayEdit ? listBoards(user, { where: 'loose', sort: 'recent', bothSides: true }) : [];
   // §32: the dossier's tijdlijnen, behind the same two rules as its prikborden.
   const timelines = listTimelinesForCase(record.id, user);
   const words = getWords();
@@ -211,6 +217,7 @@ export default async function CasePage({
       members={members}
       allUsers={allUsers}
       boards={boards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}
+      looseBoards={looseBoards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}
       timelines={timelines.map((t) => ({ id: t.id, slug: t.slug, name: t.name, updatedAt: t.updatedAt, scale: t.scale }))}
       activity={activity}
       liveNotes={liveNotes}

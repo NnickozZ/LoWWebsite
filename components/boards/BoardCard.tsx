@@ -167,6 +167,7 @@ export function BoardCardView({
   onOpen,
   onViewFull,
   onConvertToEntry,
+  canMakeEntry,
   carried = false,
 }: {
   card: BoardCardModel;
@@ -192,6 +193,8 @@ export function BoardCardView({
   onOpen: () => void;
   onViewFull: () => void;
   onConvertToEntry: () => void;
+  /** §47: false on a wall this viewer may only look at — the card offers no road. */
+  canMakeEntry: boolean;
 }) {
   const words = useUi().words;
   const [editing, setEditing] = useState(false);
@@ -470,7 +473,11 @@ export function BoardCardView({
             become something. `photo` is here for the walls hung before a
             pasted picture became a notitie: those cards were the only ones
             with no way off the wall, and this is the way. */}
-        {(card.kind === 'note' || card.kind === 'photo') && (
+        {/* §47: and a card whose artikel is not there — deleted, or out of
+            reach — is the other one. It keeps the name it was pinned under, so
+            the road back is the same road: write the artikel from the card and
+            let the card point at it. */}
+        {canMakeEntry && (card.kind === 'note' || card.kind === 'photo' || (missing && card.kind === 'entry')) && (
           <button
             type="button"
             className="board-make-entry"
@@ -478,7 +485,7 @@ export function BoardCardView({
             onClick={onConvertToEntry}
           >
             <Icon name="plus" size={12} />
-            {capitalise(words.entry)} aanmaken
+            {capitalise(words.entry)} {missing ? 'opnieuw aanmaken' : 'aanmaken'}
           </button>
         )}
       </div>

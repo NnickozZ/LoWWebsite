@@ -1552,6 +1552,24 @@ details.section[open] > summary::before {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+/* §47: the dossier this wall hangs in. Kept short — the bar is a row of chips
+   and a long dossier name would push the zoom and the bin off a phone.
+   Below 768 px it is not there at all: the bar wraps to another line, and
+   `.board-viewport`'s height is a magic `100dvh − 205px` that a second line
+   pushes off the bottom of the screen (the known debt in CLAUDE.md §8). The
+   dossier's own Prikbord tab has both halves of this control, so a phone
+   loses nothing but the shortcut. */
+.board-case-select {
+  display: none;
+  max-width: 11rem;
+  font-size: 0.8rem;
+  padding-block: 0.2rem;
+}
+@media (min-width: 768px) {
+  .board-case-select {
+    display: inline-block;
+  }
+}
 /* The bar is crowded on a phone; the bin keeps its icon and drops its word. */
 .board-bar-wide-only {
   display: none;

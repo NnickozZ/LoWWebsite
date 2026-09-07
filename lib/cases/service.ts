@@ -695,3 +695,14 @@ export function countEntriesPerCase(caseIds: string[], viewer: Viewer): Map<stri
   for (const row of rows) counts.set(row.caseId, row.n);
   return counts;
 }
+
+/**
+ * §47: when a dossier was thrown away, or `undefined` when there is no such
+ * dossier at all. The one thing `loadAccessRow` does not carry and
+ * `canSeeCase` needs — used where a dossier is named by id rather than found
+ * in a list (hanging a prikbord in one).
+ */
+export function deletedAtOfCase(id: string): number | null | undefined {
+  const row = db.select({ deletedAt: schema.cases.deletedAt }).from(schema.cases).where(eq(schema.cases.id, id)).get();
+  return row ? (row.deletedAt ?? null) : undefined;
+}

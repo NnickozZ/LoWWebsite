@@ -1665,6 +1665,43 @@ export function BoardCanvas({
     router.refresh();
   }, [boardId, caseSlug, name, router, ui]);
 
+  /*
+   * §47: hang this wall in a dossier, or take it out of one.
+   *
+   * The choice is held here as well as on the server so the box does not snap
+   * back to the old dossier for the length of a `router.refresh()`, and it is
+   * put back if the write is refused — the wall's own rights are checked
+   * there, and so is the dossier's.
+   */
+  const [filedIn, setFiledIn] = useState<string | null>(caseId);
+  const [filing, setFiling] = useState(false);
+  useEffect(() => setFiledIn(caseId), [caseId]);
+  const fileInCase = useCallback(
+    async (next: string | null) => {
+      const was = filedIn;
+      setFiledIn(next);
+      setFiling(true);
+      const response = await fetch(`/api/boards/${boardId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ caseId: next, clientId }),
+      }).catch(() => null);
+      setFiling(false);
+      if (!response?.ok) {
+        setFiledIn(was);
+        ui.toast(`Dit ${ui.words.board} verplaatsen is niet gelukt.`);
+        return;
+      }
+      ui.toast(
+        next
+          ? `Dit ${ui.words.board} hangt nu in ${pickableCases.find((item) => item.id === next)?.name ?? `het ${ui.words.case}`}.`
+          : `Dit ${ui.words.board} hangt nergens meer in.`,
+      );
+      router.refresh();
+    },
+    [boardId, clientId, filedIn, pickableCases, router, ui],
+  );
+
   /* ------------------------------------------------------------- render */
 
   const world = {
@@ -1734,6 +1771,26 @@ export function BoardCanvas({
             <Icon name="folder" size={12} />
             {caseName}
           </Link>
+        )}
+        {/* §47: which dossier this wall hangs in — and the way out of one.
+            Only a hand that may hang cards on it may move it, and the list is
+            already this viewer's own (the page filters it). */}
+        {!readOnly && (
+          <select
+            className="select board-case-select"
+            aria-label={`In welk ${ui.words.case} hangt dit ${ui.words.board}?`}
+            data-testid="board-case-select"
+            value={filedIn ?? ''}
+            disabled={filing}
+            onChange={(event) => void fileInCase(event.target.value || null)}
+          >
+            <option value="">Geen {ui.words.case}</option>
+            {pickableCases.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
         )}
         <div className="spacer" />
 
@@ -2140,6 +2197,7 @@ export function BoardCanvas({
                 if (dragMoved.current) return;
                 if (card.assetId) setLightbox({ assetId: card.assetId, name: card.name });
               }}
+              canMakeEntry={!readOnly}
               onConvertToEntry={() =>
                 ui.openNewEntry({
                   name: card.name,

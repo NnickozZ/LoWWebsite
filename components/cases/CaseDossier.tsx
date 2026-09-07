@@ -103,6 +103,7 @@ export function CaseDossier({
   members,
   allUsers,
   boards,
+  looseBoards,
   timelines,
   activity,
   lastSeenAt,
@@ -124,6 +125,8 @@ export function CaseDossier({
   members: UserLite[];
   allUsers: UserLite[];
   boards: BoardLite[];
+  /** §47: the walls that hang in no dossier, for the picker that brings one in. */
+  looseBoards: BoardLite[];
   /** §32: the dossier's tijdlijnen, already filtered for this viewer. */
   timelines: TimelineLite[];
   activity: CaseActivityItem[];
@@ -382,27 +385,81 @@ export function CaseDossier({
     </div>
   );
 
+  /*
+   * §47: move a wall into this dossier, or out of it. The same write the
+   * prikbord's own bar makes — the rights are checked there: this hand must
+   * be allowed to edit the wall as well as this dossier.
+   */
+  const [movingBoard, setMovingBoard] = useState<string | null>(null);
+  const moveBoard = useCallback(
+    async (boardId: string, into: string | null) => {
+      setMovingBoard(boardId);
+      const response = await fetch(`/api/boards/${boardId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ caseId: into }),
+      }).catch(() => null);
+      setMovingBoard(null);
+      if (!response?.ok) {
+        ui.toast(`Dat ${ui.words.board} verplaatsen is niet gelukt.`);
+        return;
+      }
+      router.refresh();
+    },
+    [router, ui],
+  );
+
   const boardSection = (
     <div>
       {!locked && (
         <div className="row-wrap" style={{ marginBottom: '0.9rem' }}>
           <NewBoardButton caseId={data.id} />
+          {/* §47: or bring a wall that is already hanging somewhere loose. */}
+          {looseBoards.length > 0 && (
+            <select
+              className="select"
+              aria-label={`Bestaand ${ui.words.board} in dit ${ui.words.case} hangen`}
+              data-testid="case-board-attach"
+              value=""
+              disabled={movingBoard !== null}
+              onChange={(event) => event.target.value && void moveBoard(event.target.value, data.id)}
+            >
+              <option value="">Bestaand {ui.words.board} hierheen halen…</option>
+              {looseBoards.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
       {boards.length ? (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {boards.map((board) => (
-            <li key={board.id} style={{ borderBottom: '1px solid var(--rule)' }}>
+            <li key={board.id} style={{ borderBottom: '1px solid var(--rule)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Link
                 href={`/b/${board.id}`}
                 className="row"
-                style={{ color: 'inherit', textDecoration: 'none', padding: '0.7rem 0' }}
+                style={{ color: 'inherit', textDecoration: 'none', padding: '0.7rem 0', flex: 1 }}
               >
                 <Icon name="board" size={18} style={{ color: 'var(--ink-muted)' }} />
                 <span style={{ flex: 1 }}>{board.name}</span>
                 <span className="tiny muted">{relativeTime(board.updatedAt)}</span>
                 <Icon name="chevron" size={16} />
               </Link>
+              {/* §47: and the way back out. The wall itself is left alone —
+                  only the drawer it is filed in changes. */}
+              {!locked && (
+                <button
+                  type="button"
+                  className="btn btn-small btn-ghost"
+                  disabled={movingBoard === board.id}
+                  onClick={() => void moveBoard(board.id, null)}
+                >
+                  Losmaken
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -851,6 +908,11 @@ function verbText(verb: string): string {
       return 'werkte aan prikbord';
     case 'board.deleted':
       return 'verwijderde prikbord';
+    /* §47: a wall moved into this dossier, or out of it. */
+    case 'board.filed':
+      return 'hing prikbord';
+    case 'board.unfiled':
+      return 'haalde prikbord';
     case 'timeline.created':
       return 'maakte tijdlijn';
     case 'timeline.event_added':
@@ -872,6 +934,10 @@ function verbTail(verb: string): string {
     case 'board.created':
     case 'timeline.created':
       return ' aan';
+    case 'board.filed':
+      return ' in dit dossier';
+    case 'board.unfiled':
+      return ' uit dit dossier';
     default:
       return '';
   }

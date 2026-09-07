@@ -278,6 +278,42 @@ export function renameBoard(boardId: string, name: string) {
     .run();
 }
 
+/**
+ * §47: hang this wall in a dossier, or take it out of one.
+ *
+ * A prikbord has carried a `case_id` since §24, but only ever from the moment
+ * it was made: a wall hung loose stayed loose for ever, and a wall filed in the
+ * wrong dossier had to be rebuilt. This is the one write that moves it.
+ *
+ * Two things ride along, and both are why this is a function and not an
+ * `UPDATE`. §17: a wall inside a dossier is *also* behind that dossier's view
+ * dial, so moving it changes who may open it — the caller checks that the
+ * viewer may see the dossier they are filing it in. And §43: the web draws an
+ * `inCase` line from the dossier to the wall, so both dossiers are touched so
+ * their "laatst gewijzigd" is honest.
+ */
+export function setBoardCase(boardId: string, caseId: string | null, by: Author) {
+  const row = db
+    .select({ caseId: schema.boards.caseId })
+    .from(schema.boards)
+    .where(eq(schema.boards.id, boardId))
+    .get();
+  const was = row?.caseId ?? null;
+  if (was === caseId) return;
+  const now = Math.floor(Date.now() / 1000);
+  db.update(schema.boards).set({ caseId, updatedAt: now }).where(eq(schema.boards.id, boardId)).run();
+  for (const id of [was, caseId]) {
+    if (id) db.update(schema.cases).set({ updatedAt: now }).where(eq(schema.cases.id, id)).run();
+  }
+  logActivity({
+    actorId: by.id,
+    characterId: by.characterId ?? null,
+    verb: caseId ? 'board.filed' : 'board.unfiled',
+    boardId,
+    caseId: caseId ?? was,
+  });
+}
+
 /** §43, round 18: whether this wall counts in the web and under "Genoemd in". */
 export function setBoardInWeb(boardId: string, inWeb: boolean) {
   db.update(schema.boards)

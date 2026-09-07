@@ -1,10 +1,12 @@
-import { canManageAccess, loadAccessRow, viewerCanEdit } from '@/lib/access';
+import { canManageAccess, grantFor, loadAccessRow, viewerCanEdit } from '@/lib/access';
+import { canSeeCase } from '@/lib/cases/visibility';
 import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { getBoard, renameBoard, saveBoard, setBoardInWeb, softDeleteBoard } from '@/lib/boards/service';
+import { getBoard, renameBoard, saveBoard, setBoardCase, setBoardInWeb, softDeleteBoard } from '@/lib/boards/service';
 import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps, resolveBoardTimelines } from '@/lib/boards/service';
 import { publishChange } from '@/lib/boards/live';
+import { deletedAtOfCase } from '@/lib/cases/service';
 import { cardRef, type BoardPatch, type BoardState } from '@/lib/boards/merge';
 import type { Viewer } from '@/lib/entries/visibility';
 
@@ -98,7 +100,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (!viewerCanEdit('board', id, user)) {
       return json({ error: 'Je mag dit prikbord niet bewerken.' }, { status: 403 });
     }
-    const body = (await request.json()) as { name?: string; clientId?: string; inWeb?: boolean };
+    const body = (await request.json()) as { name?: string; clientId?: string; inWeb?: boolean; caseId?: string | null };
     if (body.name !== undefined) {
       renameBoard(id, body.name);
       // A rename is a change like any other: everyone else's title bar follows.
@@ -110,6 +112,28 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       const row = loadAccessRow('board', id);
       if (!row || !canManageAccess(row, user)) return json({ error: 'Alleen wie de rechten van dit prikbord beheert kan dit veranderen.' }, { status: 403 });
       setBoardInWeb(id, body.inWeb);
+      publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
+    }
+    if (body.caseId !== undefined) {
+      /*
+       * §47: hang the wall in a dossier, or take it out of one.
+       *
+       * Two rights, not one. Whoever may *edit* the wall may move it — that is
+       * the same hand that hangs cards on it. But filing it in a dossier puts
+       * it behind that dossier's view dial as well (§17), so the dossier has to
+       * be one this viewer may open. §46: this is a *lookup*, not a list — the
+       * dossier is named by id and a Keeper files from either side — so it asks
+       * `loadAccessRow`/`canView` and no side condition.
+       */
+      const wanted = typeof body.caseId === 'string' && body.caseId ? body.caseId : null;
+      if (wanted) {
+        const target = loadAccessRow('case', wanted);
+        const deletedAt = deletedAtOfCase(wanted);
+        if (!target || deletedAt === undefined || !canSeeCase({ ...target, deletedAt }, user, grantFor('case', wanted, user.id))) {
+          return json({ error: 'Dat dossier bestaat niet, of je mag het niet openen.' }, { status: 403 });
+        }
+      }
+      setBoardCase(id, wanted, user);
       publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
     }
     return json({ ok: true });

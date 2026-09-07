@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 53 files, 782 tests as of round 23 (round 22: 52 / 772)
+npx vitest run         # 53 files, 784 tests as of round 24 (round 23: 53 / 782)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -145,8 +145,9 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§4[0-9]" app components lib` before
-  choosing a number — the latest is §46 / rule 46 (de spiegel, round 23; §44
-  de Keeperkant and §45 de vier kleurschema's are round 22).
+  choosing a number — the latest is §47 / rule 47 (round 24's four small
+  repairs; §46 de spiegel is round 23, §44 de Keeperkant and §45 de vier
+  kleurschema's round 22).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
@@ -266,6 +267,18 @@ freely there.
   `ctx.font` in a loop — go through `Type.font()`, which skips a string that
   is already set, and measure with `Type.width()`, which measures once at
   20 px and scales; and never `clip()` a cover per frame — `coverSprite()`.
+- **The web's layer has a bleed while the camera moves** (§47, round 24).
+  The lower canvas is drawn with a margin of lines round the glass whenever
+  the *camera* is the thing moving (`LAYER_BLEED` 0.35 of the longer side,
+  capped 420 px) and the element is hung that far outside it — without it a
+  pan uncovered bare paper on the trailing side, because a canvas the size of
+  the glass has nothing outside the glass to slide in. `placeLayer()` returns
+  the transform **and** whether the layer still covers the glass, and a reuse
+  is refused the moment it does not: never compute that transform anywhere
+  else, or the test and the placing will drift apart. No bleed at rest (that
+  layer is the expensive one) and none while the simulation stirs (it is
+  restroked every frame anyway), and the cull margin carries `+ bleed` or the
+  lines the bleed reaches for are culled before they are drawn.
 - **The web is two canvases** (round 18): `.web-canvas-layer` under
   `.web-canvas`. The lower one holds the resting lines and the step rings
   and is rebuilt only when its key changes (`baseKey` in `frame()`: mode,
@@ -330,6 +343,18 @@ freely there.
   `drawCover` takes a `Crop` and turns it into a source rect (a knot wears
   the vierkant crop, the columns thumb the staand one); the crop is part of
   the sprite key (`spriteKey`), or a changed crop would stamp the old sprite.
+- **A punaise is a knot on the web, like a notitie** (§47, round 24).
+  `isLooseCard()` in `lib/web/service.ts` is what `cardNode` asks, and it
+  covers `note`, `photo` and `pin`; `looseName()` names a bare punaise after
+  the archive's word for one. Before this a draad with a punaise on either end
+  was dropped entirely — not drawn faint, *absent*. A punaise rides the same
+  `notes` switch as a notitie; it is not a node kind of its own.
+- **A prikbord's dossier is `setBoardCase()` and nothing else** (§47, round
+  24). Two rights: the hand may edit the wall, **and** may see the dossier
+  (§17 puts a filed wall behind the dossier's view dial too). That second one
+  is a lookup by id — `loadAccessRow` + `canSeeCase`, no side condition (§46).
+  `PATCH /api/boards/[id]` with `caseId: null` takes it out again. The same
+  gap is still open for landkaarten and tijdlijnen; see DECISIONS round 24.
 - **A text line yields, at build time.** `collapseMentions` runs in
   `buildWebGraph`, not in the browser: the count, the panel and the drawing
   must agree. Adding a kind that should also yield means adding it to
@@ -501,7 +526,7 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22 and 23
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23 and 24
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
@@ -512,6 +537,15 @@ in a worktree at `1d67f5c`, round 22's base. It is pre-existing red, not
 anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
+
+Round 24 (§47) leaves two, both named on purpose:
+
+- **"Opnieuw aanmaken" on a card whose artikel this viewer merely may not see
+  writes a second artikel.** A MISSING stamp cannot say which of the two it is
+  (rule 1), so the offer cannot either. Deliberate; see DECISIONS round 24.
+- **Only prikborden can change dossier.** `timelines` (and `maps`, which has
+  no case at all) carry the same gap. One `setBoardCase`-shaped function each
+  would close it.
 
 Round 23 (§46, de spiegel) leaves three, all named on purpose:
 

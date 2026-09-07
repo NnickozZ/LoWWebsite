@@ -217,6 +217,7 @@ beforeAll(async () => {
         card('card-naamloos', { kind: 'note', name: '', text: 'Een notitie zonder naam maar met een heel lange tekst erin.' }),
         card('card-leeg', { kind: 'note', name: '', text: '' }),
         card('card-pin', { kind: 'pin', name: 'Lead' }),
+        card('card-pin-kaal', { kind: 'pin', name: '' }),
       ],
       strings: [
         { id: 'st-1', from: { card: 'card-jan' }, to: { card: 'card-toren' }, label: 'zag', colour: 'blue' },
@@ -224,6 +225,7 @@ beforeAll(async () => {
         { id: 'st-3', from: { card: 'card-jan' }, to: { card: 'card-geheim' }, label: 'kende' },
         { id: 'st-4', from: { card: 'card-jan' }, to: { x: 10, y: 10 }, label: 'los' },
         { id: 'st-5', from: { card: 'card-jan' }, to: { card: 'card-pin' }, label: 'punaise' },
+        { id: 'st-6', from: { card: 'card-pin-kaal' }, to: { card: 'card-toren' }, label: 'kaal' },
       ],
       viewport: { x: 0, y: 0, zoom: 1 },
     }),
@@ -362,8 +364,8 @@ describe('the Keeper sees every kind of tie', () => {
     // Round 18: the draad brings its own colour along; one without a set
     // colour is the wall's default, red.
     expect(thread?.colour).toBe('blue');
-    // A draad to a loose end or to a punaise resolves to nothing, and without
-    // notes on, a draad to a notitie neither.
+    // A draad to a loose end resolves to nothing, and without notes on,
+    // neither a draad to a notitie nor one to a punaise (§47).
     expect(edgesOf(graph, 'thread').map((edge) => edge.detail).sort()).toEqual(['kende', 'zag']);
   });
 
@@ -499,7 +501,29 @@ describe('notities, when asked for', () => {
 
   it('a draad to a notitie is a thread once the notitie is a node', () => {
     expect(hasEdge(graph, 'thread', 'note:card-note', 'entry:e-jan', '')).toBe(true);
-    expect(edgesOf(graph, 'thread')).toHaveLength(3);
+    expect(edgesOf(graph, 'thread')).toHaveLength(5);
+  });
+
+  /*
+   * §47: a punaise is a knot like a notitie, so the draad through it — the
+   * ordinary way a lead with no artikel yet is tied to two things — is on the
+   * web instead of being dropped on the floor.
+   */
+  it('a punaise is a knot, and the draad through it a thread', () => {
+    expect(graph.nodes.find((node) => node.id === 'note:card-pin')).toMatchObject({
+      kind: 'note',
+      refId: 'card-pin',
+      name: 'Lead',
+      href: '/b/b-open',
+    });
+    expect(hasEdge(graph, 'thread', 'entry:e-jan', 'note:card-pin', 'punaise')).toBe(true);
+  });
+
+  /* A punaise with a bare tag is still an end of a draad: it takes the
+     archive's own word for a punaise as its name rather than dropping out. */
+  it('a punaise with no label is named after what it is', () => {
+    expect(graph.nodes.find((node) => node.id === 'note:card-pin-kaal')?.name).toBe('Punaise');
+    expect(hasEdge(graph, 'thread', 'note:card-pin-kaal', 'entry:e-toren', 'kaal')).toBe(true);
   });
 
   it('a notitie on a private wall stays with the wall', () => {

@@ -9,6 +9,7 @@ import { extractEntryLinks } from '@/lib/entries/doc';
 import { entryIdsIn, plainMentions, revealedSectionIds } from '@/lib/entries/mentions';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { sideCondition } from '@/lib/keeper/side';
+import { getWords } from '@/lib/admin/words';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
@@ -263,14 +264,15 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   }
 
   // Notities: a card that is somebody's own writing, on a wall this viewer may
-  // open. Only when asked for — the global web is about the records.
+  // open — and, since §47, a punaise, which is the same thing with the writing
+  // on its tag. Only when asked for — the global web is about the records.
   if (showNotes) {
     for (const board of boardSummaries) {
       const state = boardStates.get(board.id);
       if (!state) continue;
       for (const card of state.cards) {
-        if (!isNoteCard(card)) continue;
-        const name = noteName(card);
+        if (!isLooseCard(card)) continue;
+        const name = looseName(card);
         if (!name) continue;
         put({ kind: 'note', refId: card.id, name, href: `/b/${board.id}`, subtitle: board.name });
       }
@@ -408,7 +410,10 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
         const target = webNodeId(ref.kind, ref.id);
         cardNode.set(card.id, target);
         add('board', boardNode, target);
-      } else if (showNotes && isNoteCard(card) && has('note', card.id)) {
+      } else if (showNotes && isLooseCard(card) && has('note', card.id)) {
+        // §47: a punaise is a knot here exactly as a notitie is, or a draad
+        // run through one — the ordinary way a lead with no artikel yet gets
+        // tied to two things — would leave the web with nothing at all.
         cardNode.set(card.id, webNodeId('note', card.id));
       }
     }
@@ -503,6 +508,31 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
 /** A notitie: the card's own writing. `photo` is the name it had before §8's rename. */
 function isNoteCard(card: Pick<BoardCard, 'kind'>): boolean {
   return card.kind === 'note' || card.kind === 'photo';
+}
+
+/**
+ * §47: a card that stands for nothing in the archive but is still an end a
+ * draad can be tied to — a notitie, and a punaise. Before this round a string
+ * with a punaise on either end was dropped on the floor: `cardNode` knew only
+ * notities and reference cards, so the *whole tie* went missing from the web,
+ * which is the one place it was supposed to show up. A punaise is a notitie
+ * with its writing on the tag, so it is drawn as one.
+ */
+export function isLooseCard(card: Pick<BoardCard, 'kind'>): boolean {
+  return isNoteCard(card) || card.kind === 'pin';
+}
+
+/**
+ * What a loose card is called on the web. A punaise with a label wears it; one
+ * with a bare tag is still a knot — the draad through it is the whole reason
+ * it is here — and takes the archive's word for a punaise as its name.
+ */
+export function looseName(card: Pick<BoardCard, 'kind' | 'name' | 'text'>): string {
+  const written = noteName(card);
+  if (written) return written;
+  if (card.kind !== 'pin') return '';
+  const word = getWords().pin || 'punaise';
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /**

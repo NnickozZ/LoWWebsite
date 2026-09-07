@@ -1883,3 +1883,66 @@ Forty-six rules worth knowing before changing anything:
     `tests/unit/keeper-mirror.test.ts` pins the one rule against a real SQLite
     file, and `tests/e2e/keeper-side.spec.ts` ("de spiegel klapt om") presses
     the button and the key.
+
+47. **Drie kleine reparaties: het web onder de hand, een kaartje dat zijn
+    artikel kwijt is, en een prikbord dat van dossier kan wisselen.** §47.
+    Three separate repairs, kept in one rule because each is one paragraph.
+
+    **The web's resting layer has a bleed.** §43's drawing is two canvases
+    (round 18): the resting lines and the step rings live on a lower one that
+    is drawn once and moved with a CSS transform while the hand pans, instead
+    of being restroked a thousand lines a frame. That layer was exactly the
+    size of the glass, and a canvas the size of the glass has nothing outside
+    it — so a hand dragging the drawing to the right uncovered **bare paper**
+    on the left: the lines and the rings stopped dead at the border the drag
+    had started from and only filled in when the hand let go. (The knots never
+    showed it; they are drawn on the upper canvas every frame.) While the
+    *camera* is what is moving, the layer is now drawn with a margin of lines
+    all round the glass — `LAYER_BLEED` = 0.35 of the longer side, capped at
+    `LAYER_BLEED_MAX` = 420 px — and the element is hung that far outside it.
+    The hand may pan a whole bleed before the layer has to be restroked, and
+    what it uncovers is drawing. `placeLayer()` is the one piece of geometry:
+    it returns the transform *and* whether the layer still covers the glass,
+    and a reuse is refused the moment it does not, so the test and the placing
+    can never disagree. The bleed is 0 while the simulation is stirring (that
+    layer is restroked every frame anyway) and 0 at rest, where the layer is
+    sharp and dear. The cull margin grows with it, or the lines the bleed
+    reaches for would be culled before they were drawn.
+
+    **A punaise is a knot on the web, exactly as a notitie is.** A draad run
+    through a bare punaise — the ordinary way a lead with no artikel yet is
+    tied to two things — used to vanish from the web entirely: `cardNode` in
+    `buildWebGraph` knew reference cards and notities, so a string with a
+    punaise on either end was dropped on the floor, and the one place the
+    connection was supposed to show had nothing. A punaise is a notitie with
+    its writing on the tag, so it is drawn as one: `isLooseCard()` covers both,
+    `looseName()` gives a labelled punaise its label and a bare one the
+    archive's own word for a punaise. It rides the same "Notities" switch — the
+    global web is about the records — and it opens the prikbord it is pinned
+    to, as a notitie does.
+
+    **A card whose artikel is gone can write it again.** A card that stands for
+    an artikel that has been thrown away (or that this viewer may not see — the
+    two must stay indistinguishable, rule 1) is stamped "Ontbreekt", and until
+    now that was a dead end: the wall remembered the name and there was no way
+    back. It now offers "{Artikel} opnieuw aanmaken", which is the same road
+    §8's notitie has always had — the new-artikel sheet with the card's name in
+    it, and the card repointed at what comes out. Only on a wall this viewer
+    may edit (`canMakeEntry`). Note what this cannot know: for a viewer who is
+    merely not allowed to see the artikel, "opnieuw" writes a second one. That
+    is the price of rule 1 and it is deliberate.
+
+    **A prikbord can be hung in a dossier and taken out of one.** `boards.case_id`
+    has existed since §24 but was written only when the wall was made: a wall
+    hung loose stayed loose for ever. `setBoardCase()` is the one write that
+    moves it, and `PATCH /api/boards/[id]` takes a `caseId` (null = loose).
+    Two rights, not one: the hand must be allowed to **edit the wall** — the
+    same hand that hangs cards on it — and must be allowed to **see the
+    dossier**, because §17 puts a filed wall behind that dossier's view dial as
+    well. That second check is a lookup by id, so it asks `loadAccessRow` +
+    `canSeeCase` and no side condition (§46). Both ends have a control: a
+    picker in the prikbord's own bar, and on the dossier's Prikbord tab a
+    "Bestaand prikbord hierheen halen…" list of the loose walls plus a
+    "Losmaken" beside each one it holds. Both dossiers are touched so their
+    "laatst gewijzigd" is honest, and the move is written to the log as
+    `board.filed` / `board.unfiled`.

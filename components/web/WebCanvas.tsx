@@ -121,6 +121,30 @@ const ZOOM_MAX = 12;
  */
 const LINE_ZOOM_CAP = 4;
 const DIM = 0.28;
+/**
+ * §47 (round 24) — the bleed on the resting layer.
+ *
+ * Round 18 gave the resting lines and the step rings a canvas of their own,
+ * exactly the size of the glass, and moves it with a CSS transform while the
+ * hand pans rather than restroking a thousand lines a frame. A canvas the size
+ * of the glass has nothing outside the glass, so a hand that drags the drawing
+ * to the right uncovered **bare paper** on the left: the lines and the rings
+ * stopped dead at the edge the layer had been drawn at, and only filled in
+ * when the hand let go and the sharp layer arrived. The knots never showed it,
+ * because they are drawn on the upper canvas every frame — which is exactly
+ * what the report said: everything moves, the strings and the background are
+ * cut off at the border you started from.
+ *
+ * So while the *camera* is what is moving, the layer is drawn with a margin of
+ * lines all round the glass and the element is hung that far outside it. The
+ * hand may then pan a whole bleed's worth before the layer has to be restroked,
+ * and what it uncovers is drawing rather than paper. The bleed is a fraction of
+ * the longer side, capped: a layer's pixels go up as (1 + 2f)², so 0.35 is
+ * about twice the area — paid at the one pixel per CSS pixel that motion
+ * already draws at, and never at rest, where the layer is sharp and dear.
+ */
+const LAYER_BLEED = 0.35;
+const LAYER_BLEED_MAX = 420;
 /** Below this zoom only the landmarks carry a name; between the two, names fade in. */
 const LABEL_ZOOM_LOW = 0.7;
 const LABEL_ZOOM_HIGH = 1.05;
@@ -721,6 +745,10 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     layerCam: null as Camera | null,
     prevCam: null as Camera | null,
     layerDpr: 1,
+    /** §47: how far outside the glass the layer was last drawn, in CSS pixels. */
+    layerBleed: 0,
+    /** §47: the box the layer element was last given — `bleed|w|h`. */
+    layerBox: null as string | null,
     /** Bumps whenever a knot moved: a tick, a tween, a drag. The layer keys on it. */
     motion: 0,
     lastCameraMove: 0,
@@ -1147,12 +1175,31 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     const lit = active ? new Set([active, ...(s.adjacency.get(active) ?? [])]) : null;
     const litEdges = active ? new Set((s.edgesByNode.get(active) ?? []).map((e) => e.id)) : null;
 
+    // Did the camera move since the last frame (for "is the hand moving")?
+    const cameraMoved = s.prevCam === null || s.prevCam.x !== s.camera.x || s.prevCam.y !== s.camera.y || s.prevCam.zoom !== s.camera.zoom;
+    s.prevCam = { ...s.camera };
+    if (cameraMoved) s.lastCameraMove = now;
+    /*
+     * §47: is it the *camera* that is moving? Kept apart from `inMotion`
+     * below, which is also true while the simulation stirs or a knot is under
+     * a hand — neither of those uncovers paper at the edge of the glass, and
+     * both restroke the layer every frame anyway.
+     */
+    const cameraMotion =
+      Boolean(s.cameraFrom) ||
+      s.gesture?.kind === 'pan' ||
+      s.gesture?.kind === 'pinch' ||
+      now - s.lastCameraMove < 140;
+    /** §47: how far outside the glass the resting layer reaches, in CSS pixels. */
+    const bleed = cameraMotion && !busy ? Math.round(Math.min(LAYER_BLEED_MAX, Math.max(w, h) * LAYER_BLEED)) : 0;
+
     // Viewport culling. The margin is 200 *screen* pixels, so that zoomed
     // far in the drawing does not paint a whole web that is off the screen —
     // but never less than the widest thing a knot's centre can be off-screen
     // by while its body is still on it: half a focus card in columns, a hub
-    // and its ring in the organic web.
-    const margin = Math.max(200 / zoom, mode === 'columns' ? FOCUS_NODE_W / 2 + 20 : 40);
+    // and its ring in the organic web. §47: and never less than the layer's
+    // bleed, or the lines it reaches out for would be culled before it drew.
+    const margin = Math.max((200 + bleed) / zoom, mode === 'columns' ? FOCUS_NODE_W / 2 + 20 : 40);
     const view = {
       minX: s.camera.x - w / 2 / zoom - margin,
       maxX: s.camera.x + w / 2 / zoom + margin,
@@ -1187,11 +1234,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
      * without dashes, and pan/zoom re-uses the last layer with a transform
      * until the hand has been still for a beat.
      */
-    // Did the camera move since the last frame (for "is the hand moving"),
-    // and is it away from where the layer was drawn (for "is the layer stale")?
-    const cameraMoved = s.prevCam === null || s.prevCam.x !== s.camera.x || s.prevCam.y !== s.camera.y || s.prevCam.zoom !== s.camera.zoom;
-    s.prevCam = { ...s.camera };
-    if (cameraMoved) s.lastCameraMove = now;
+    // Is the layer away from where the camera is now (for "is it stale")?
     const layerOff = s.layerCam === null || s.layerCam.x !== s.camera.x || s.layerCam.y !== s.camera.y || s.layerCam.zoom !== s.camera.zoom;
     const inMotion =
       busy ||
@@ -1206,14 +1249,43 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     // §45: `pal.key` and not `pal.paper` — a Keeper who turns only a line
     // colour leaves the paper alone, and the resting lines live in the layer.
     const baseKey = `${mode}|${s.layoutKey}|${pal.key}|${w}x${h}|${s.motion}|${graph.edges.length}|${labelsAlways ? 1 : 0}`;
-    const layerKey = `${baseKey}|${layerDpr}`;
+    const layerKey = `${baseKey}|${layerDpr}|${bleed}`;
     const layerStale = layerOff || s.layerKey !== layerKey;
+    /*
+     * §47: where the layer's own box lands on the glass, given the camera it
+     * was drawn at and the bleed it was drawn with. `transform-origin` is the
+     * element's top-left corner, which the bleed has moved to (−b, −b), so the
+     * shift carries a b(1 − k) of its own.
+     *
+     * `covers` is the whole question this round asks — does the layer still
+     * reach past all four edges of the glass? — and it is what decides a
+     * reuse, so the test and the placing can never disagree about it.
+     */
+    const placeLayer = (c0: Camera, b0: number) => {
+      const k = zoom / c0.zoom;
+      const tx = (w / 2) * (1 - k) + (c0.x - s.camera.x) * zoom + b0 * (1 - k);
+      const ty = (h / 2) * (1 - k) + (c0.y - s.camera.y) * zoom + b0 * (1 - k);
+      const left = tx - b0;
+      const top = ty - b0;
+      const covers = left <= 0 && top <= 0 && left + k * (w + 2 * b0) >= w && top + k * (h + 2 * b0) >= h;
+      return { k, tx, ty, covers };
+    };
     // A moving camera over an unchanged web: blit the old layer transformed
     // rather than restroking everything, and come back for a proper one once
     // the hand is still. Not when the zoom has run away from the layer's —
-    // a layer blown up threefold is mush.
+    // a layer blown up threefold is mush — and (§47) not once the hand has
+    // dragged past the bleed, where the old layer would leave bare paper
+    // behind it: then it is restroked at the camera it is now.
     const zoomRatio = s.layerCam ? zoom / s.layerCam.zoom : 1;
-    const reuseLayer = layerStale && inMotion && s.layerKey !== null && s.layerBase === baseKey && zoomRatio > 0.6 && zoomRatio < 1.7;
+    const reuseLayer =
+      layerStale &&
+      inMotion &&
+      s.layerKey !== null &&
+      s.layerCam !== null &&
+      s.layerBase === baseKey &&
+      zoomRatio > 0.6 &&
+      zoomRatio < 1.7 &&
+      placeLayer(s.layerCam, s.layerBleed).covers;
     if (inMotion && !busy) {
       // Nothing is animating, but the hand only just stopped: come back once
       // more in a moment to draw the sharp layer.
@@ -1427,17 +1499,31 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     /* --- the resting layer: rings and every line at rest --- */
     const layer = layerRef.current;
     if (layer && layerStale && !reuseLayer) {
-      const lw = Math.max(1, Math.round(w * layerDpr));
-      const lh = Math.max(1, Math.round(h * layerDpr));
+      // §47: the layer is the glass plus a bleed on every side, and the element
+      // is hung that far outside it — so world coordinates land in the same
+      // place on both canvases once the offset is taken off.
+      const lw = Math.max(1, Math.round((w + 2 * bleed) * layerDpr));
+      const lh = Math.max(1, Math.round((h + 2 * bleed) * layerDpr));
       if (layer.width !== lw || layer.height !== lh) {
         layer.width = lw;
         layer.height = lh;
       }
+      const box = `${bleed}|${w}|${h}`;
+      if (s.layerBox !== box) {
+        s.layerBox = box;
+        layer.style.left = `${-bleed}px`;
+        layer.style.top = `${-bleed}px`;
+        layer.style.right = 'auto';
+        layer.style.bottom = 'auto';
+        layer.style.width = `${w + 2 * bleed}px`;
+        layer.style.height = `${h + 2 * bleed}px`;
+      }
       const lctx = layer.getContext('2d');
       if (lctx) {
         lctx.setTransform(layerDpr, 0, 0, layerDpr, 0, 0);
-        lctx.clearRect(0, 0, w, h);
+        lctx.clearRect(0, 0, w + 2 * bleed, h + 2 * bleed);
         lctx.save();
+        lctx.translate(bleed, bleed);
         lctx.translate(w / 2, h / 2);
         lctx.scale(zoom, zoom);
         lctx.translate(-s.camera.x, -s.camera.y);
@@ -1449,6 +1535,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       s.layerBase = baseKey;
       s.layerCam = { ...s.camera };
       s.layerDpr = layerDpr;
+      s.layerBleed = bleed;
     }
     mark('layer');
 
@@ -1456,10 +1543,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     // drawn, shifted and scaled by CSS when the camera has moved since (the
     // compositor does that, not the raster). Lit: the rest fades under it.
     if (layer && s.layerCam) {
-      const c0 = s.layerCam;
-      const k = zoom / c0.zoom;
-      const tx = (w / 2) * (1 - k) + (c0.x - s.camera.x) * zoom;
-      const ty = (h / 2) * (1 - k) + (c0.y - s.camera.y) * zoom;
+      const { k, tx, ty } = placeLayer(s.layerCam, s.layerBleed);
       const transform = Math.abs(k - 1) < 1e-6 && Math.abs(tx) < 0.01 && Math.abs(ty) < 0.01 ? '' : `translate(${tx}px, ${ty}px) scale(${k})`;
       if (layer.style.transform !== transform) layer.style.transform = transform;
       const opacity = litEdges ? String((DIM * 0.5) / REST_ALPHA) : '';
