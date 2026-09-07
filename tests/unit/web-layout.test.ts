@@ -147,14 +147,26 @@ describe('zooming past 4 (round 19)', () => {
     expect(lineZoom(4 - 1e-9)).toBeCloseTo(lineZoom(4 + 1e-9), 6);
   });
 
-  it('picks a sprite bucket that is at least the screen\'s texels per world pixel, capped at 8', () => {
+  it('picks a sprite bucket that is at least the screen\'s texels per world pixel', () => {
     // SPRITE_SCALE is 2: zoom 1 on a retina screen is bucket 1, as before.
     expect(zoomBucket(1, 2)).toBe(1);
     expect(zoomBucket(0.4, 2)).toBe(1);
     expect(zoomBucket(1.5, 2)).toBe(2);
     expect(zoomBucket(4, 2)).toBe(4);
     expect(zoomBucket(4, 1)).toBe(2);
-    expect(zoomBucket(12, 2)).toBe(8);
-    expect(zoomBucket(100, 2)).toBe(8);
+    expect(zoomBucket(8, 2)).toBe(8);
+    // Round 20: the ladder no longer stops at 8. It stopped there in round 19
+    // and a knot at zoom 12 was blown up half again over its own texels —
+    // the blur. Now the sixteenth rung carries the top of the zoom range.
+    expect(zoomBucket(12, 2)).toBe(16);
+    expect(zoomBucket(100, 2)).toBe(16);
+  });
+
+  it('never gives a knot fewer texels than the screen has pixels for it', () => {
+    for (const dpr of [1, 1.5, 2]) {
+      for (const zoom of [0.3, 1, 2, 3.9, 4, 7, 8.1, 12]) {
+        expect(zoomBucket(zoom, dpr) * 2).toBeGreaterThanOrEqual(zoom * dpr);
+      }
+    }
   });
 });

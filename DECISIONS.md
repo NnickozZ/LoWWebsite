@@ -2707,3 +2707,45 @@ sprite per cover per step). Lines that keep growing past zoom 4 (a rope). A
 dimmed knot for the "Wat" filter (see above). Cropping the file on disk, or a
 crop per placement kept "just as an override" — one set, or the three UIs
 come back.
+
+## Round 20 — 7 September 2026: de foto's in het web mogen scherp zijn (§43, rule 5)
+
+Nick, the same day: *"Image qualiteit in het connecties web mag echt wel
+normaal zijn, dat was iets teveel voor performance. Nu issie lelijk."* The
+covers in the knots were blurred and speckled. Both halves were round 19's
+sprite ladder, and both are undone here without touching what round 18 bought.
+
+**The ladder runs to 16.** `zoomBucket` stopped at 8, "so a hub at zoom 12 is a
+1.5× upsample rather than a canvas the size of the screen" — which is exactly
+what a reader sees when they zoom in on a face: half again more screen pixels
+than the sprite has texels. The sixteenth rung is one more sprite per cover,
+and only for the handful of knots that are on the glass past zoom 8; below
+that nothing changes, so a whole web at zoom 1 costs what it cost. Two things
+had to move with it: `SPRITE_MAX_PX` from 1024 to 1280, because the middle
+knot (radius 20) at bucket 16 asks for 1280 and a cap under that silently
+gives the top rung back for the one knot the eye is on; and from bucket 16 the
+1600 px `?s=full` is fetched, because a card's 900 px is 600 across a square
+crop — enough for zoom 12 on a flat crop, nothing left for a crop that zoomed
+in. The unit test no longer pins the cap; it pins the property, that a bucket
+never has fewer texels per world pixel than the screen, across the zoom range.
+
+**And the filter.** `imageSmoothingQuality` was never set, so every reduction
+in the web ran on the default `'low'`: four texels deciding a pixel while a
+900 px card is cut down to a 200 px sprite, or a 400 px thumb squeezed into a
+column card's 26 px. That is the speckle — not blur, aliasing. It is now
+`'high'` on the sprite context, where the picture's own pixels are chosen, and
+on the canvas, where sprites are stamped and column thumbs are drawn.
+
+**A line is on the glass when its box is.** Nick, in the same breath: lines
+sometimes appear and disappear, no reproduction. An edge was culled unless one
+of its two ends or its midpoint was in view — three points on a line that can
+be a screen long at zoom 12. Zoomed in on the belly of one, all three are off
+the glass and the line vanished. `spansView` overlaps the edge's box with the
+view instead: it can draw a line too many, never one too few.
+
+**Chosen against.** Raising the `devicePixelRatio` cap of 2 (round 17), which
+would sharpen everything for a 3× screen and cost 2.25× the fill on every
+phone — the sprites now carry their own sharpness and the cap can stay.
+Fetching the card earlier than bucket 4: at bucket 2 a sprite is 100 px and
+the thumb has 267 to give, so the thumb is not what is missing there. A
+continuous sprite scale, still (round 19's reason holds).

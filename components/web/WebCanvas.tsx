@@ -160,15 +160,17 @@ export function lineZoom(zoom: number): number {
 /**
  * A cover sprite is rasterised at `SPRITE_SCALE` texels per world pixel,
  * which is sharp at zoom 1 on a retina screen and mush at zoom 12. So the
- * sprite is also keyed on a bucket — 1, 2, 4 or 8 — chosen so that
- * `SPRITE_SCALE × bucket` is at least the screen's texels per world pixel,
- * and capped at 8 so a hub at zoom 12 is a 1.5× upsample rather than a
- * canvas the size of the screen. Four buckets, not a continuous scale,
- * because every distinct bucket is another sprite per cover in the cache.
+ * sprite is also keyed on a bucket — 1, 2, 4, 8 or 16 — chosen so that
+ * `SPRITE_SCALE × bucket` is at least the screen's texels per world pixel.
+ * Round 19 stopped the ladder at 8, so a knot at zoom 12 was blown up half
+ * again over its own texels: that is the blur. The sixteenth rung costs one
+ * more sprite for the handful of knots on the glass past zoom 8 and nothing
+ * at all below it. Buckets and not a continuous scale, because every
+ * distinct bucket is another sprite per cover in the cache.
  */
-export function zoomBucket(zoom: number, dpr: number): 1 | 2 | 4 | 8 {
+export function zoomBucket(zoom: number, dpr: number): 1 | 2 | 4 | 8 | 16 {
   const need = (zoom * dpr) / SPRITE_SCALE;
-  return need <= 1 ? 1 : need <= 2 ? 2 : need <= 4 ? 4 : 8;
+  return need <= 1 ? 1 : need <= 2 ? 2 : need <= 4 ? 4 : need <= 8 ? 8 : 16;
 }
 
 /**
@@ -383,11 +385,13 @@ class Type {
 /**
  * Omslagen, loaded once each per variant; a frame is asked for when one
  * arrives. The 400 px `thumb` is what a whole web loads — a hundred covers
- * at once must stay cheap — and the 900 px `card` is fetched only once a
- * knot is looked at closely (`zoomBucket` ≥ 4), so nothing gets slower for
- * a reader who never zooms in.
+ * at once must stay cheap — the 900 px `card` is fetched only once a knot is
+ * looked at closely (`zoomBucket` ≥ 4), and the 1600 px `full` only past
+ * zoom 8 (bucket 16), where a knot fills a hand's breadth of screen and a
+ * tight crop has nothing left to show from a card. So nothing gets slower
+ * for a reader who never zooms in, and nothing is soft for one who does.
  */
-type CoverVariant = 'thumb' | 'card';
+type CoverVariant = 'thumb' | 'card' | 'full';
 const imageCache = new Map<string, HTMLImageElement | null>();
 function coverImage(assetId: string, variant: CoverVariant, onLoad: () => void): HTMLImageElement | null {
   const key = `${variant}|${assetId}`;
@@ -412,6 +416,10 @@ function coverImage(assetId: string, variant: CoverVariant, onLoad: () => void):
  * the card when that arrives.
  */
 function coverFor(assetId: string, bucket: number, onLoad: () => void): { img: HTMLImageElement; variant: CoverVariant } | null {
+  if (bucket >= 16) {
+    const full = coverImage(assetId, 'full', onLoad);
+    if (full) return { img: full, variant: 'full' };
+  }
   if (bucket >= 4) {
     const card = coverImage(assetId, 'card', onLoad);
     if (card) return { img: card, variant: 'card' };
@@ -432,8 +440,16 @@ function coverFor(assetId: string, bucket: number, onLoad: () => void): { img: H
  */
 type Sprite = { canvas: HTMLCanvasElement; half: number };
 const spriteCache = new Map<string, Sprite>();
+/** Texels in the cache, so a handful of big sprites empties it as surely as many small ones. */
+let spriteTexels = 0;
 const SPRITE_SCALE = 2;
-const SPRITE_MAX_PX = 1024;
+/**
+ * The ceiling on a sprite's edge. It has to clear the largest thing the
+ * ladder can ask for — the middle knot (radius 20) at bucket 16 wants
+ * 20 × 2 × 32 = 1280 — or the cap silently undoes the top rung for exactly
+ * the knot the eye is on.
+ */
+const SPRITE_MAX_PX = 1280;
 function spriteKey(assetId: string, variant: CoverVariant, kind: WebNode['kind'], r: number, bucket: number, crop: Crop): string {
   return `${assetId}|${variant}|${kind}|${Math.max(4, Math.round(r))}|${bucket}|${crop.x.toFixed(3)},${crop.y.toFixed(3)},${crop.zoom.toFixed(2)}`;
 }
@@ -452,14 +468,24 @@ function coverSprite(img: HTMLImageElement, key: string, kind: WebNode['kind'], 
   canvas.height = px;
   const c = canvas.getContext('2d');
   if (!c) return null;
+  // A 900 px card cut down to a 200 px sprite is a seven-fold reduction, and
+  // the default filter takes four texels to decide a pixel: a photograph
+  // comes out speckled. This is the one draw where the picture's own pixels
+  // are chosen, so it is the one that must ask for the good filter.
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
   c.scale(scale, scale);
   const mid = px / (2 * scale);
   knotPath(c, kind, mid, mid, rr);
   c.clip();
   drawCover(c, img, mid, mid, rr * 2, rr * 2, crop);
   sprite = { canvas, half: mid };
-  if (spriteCache.size > 900) spriteCache.clear();
+  if (spriteCache.size > 900 || spriteTexels > 32_000_000) {
+    spriteCache.clear();
+    spriteTexels = 0;
+  }
   spriteCache.set(key, sprite);
+  spriteTexels += px * px;
   return sprite;
 }
 
@@ -1070,6 +1096,19 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       maxY: s.camera.y + h / 2 / zoom + margin,
     };
     const inView = (x: number, y: number) => x >= view.minX && x <= view.maxX && y >= view.minY && y <= view.maxY;
+    /**
+     * A *line* is on the glass when its box overlaps the view, which is not
+     * the same question as whether either end is. Zoomed in on the belly of a
+     * long line both ends and the middle are off-screen, and the line used to
+     * vanish and come back as the camera crept — lines appearing and
+     * disappearing with no reproduction. A box overlap can only ever draw a
+     * line too many, never one too few.
+     */
+    const spansView = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.min(a.x, b.x) <= view.maxX &&
+      Math.max(a.x, b.x) >= view.minX &&
+      Math.min(a.y, b.y) <= view.maxY &&
+      Math.max(a.y, b.y) >= view.minY;
 
     /*
      * Round 18 — the two speeds of a frame. Measured on a 4K canvas: a frame
@@ -1121,6 +1160,11 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    // Every picture on this context is a reduction — a sprite stamped a little
+    // smaller than it was cut, a column card's thumb squeezed into 26 px — so
+    // the good filter is worth its cost here as well as in the sprite.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     /* --- geometry of every line in view, whatever is stroked --- */
     const endpoint = (id: WebNodeId, foldId?: string) => {
@@ -1160,7 +1204,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       const b = endpoint(edge.to, fold?.to);
       if (!a || !b) continue;
       if (fold?.from && fold?.to) continue;
-      if (!inView(a.x, a.y) && !inView(b.x, b.y) && !inView((a.x + b.x) / 2, (a.y + b.y) / 2)) continue;
+      if (!spansView(a, b)) continue;
       const info = EDGE_KINDS[edge.kind];
       const colour = edgeColour(edge, pal);
       const isLit = litEdges ? litEdges.has(edge.id) : false;
