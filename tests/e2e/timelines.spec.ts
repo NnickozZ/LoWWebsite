@@ -76,7 +76,7 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await expect(popout).toContainText(`Storm boven Zeeland ${stamp}`);
   await expect(popout).toContainText('12 maart 1931');
   await expect(popout).toContainText('Het waaide de hele nacht, zei');
-  await expect(popout.locator('.mention-chip')).toHaveText('Jacob den Hollander');
+  await expect(popout.locator('.entry-chip')).toHaveText('Jacob den Hollander');
 
   // And in the edit sheet, where the box is bound to the live room (§21): a
   // pick writes into the shared text like a keystroke and is saved at once.
@@ -96,6 +96,10 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await page.getByTestId('mention-pop').getByRole('option', { name: /Sister Clasina/ }).click();
   await expect(bound).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]] en [[Sister Clasina]] ');
   await expect(edit.getByText('wordt meteen bewaard')).toBeVisible();
+  // Round 21: a textarea cannot hold a chip, so the sheet prints what the
+  // writing refers to underneath it — clickable while you type.
+  await expect(edit.getByText('Verwijst naar')).toBeVisible();
+  await expect(edit.locator('.entry-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
   // The last edit leaves in the next batch (`UPDATE_BATCH_MS`, 80 ms); a
   // sheet closed inside that window takes it with it. Older than this round.
   await page.waitForTimeout(300);
@@ -155,7 +159,14 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await page.waitForTimeout(2500);
   await page.reload();
   await page.getByTestId('timeline-toggle-all').click();
-  await expect(page.getByTestId('timeline-popout').filter({ hasText: `Storm boven Zeeland ${stamp}` }).locator('.mention-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
+  const named = page.getByTestId('timeline-popout').filter({ hasText: `Storm boven Zeeland ${stamp}` }).locator('.entry-chip');
+  await expect(named).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
+  // Round 21: it is the artikel, not a highlight — the same chip the rich
+  // editor writes, with the same road out of it.
+  await expect(named.first()).toHaveAttribute('href', /\/e\//);
+  await named.first().click();
+  await page.waitForURL('**/e/**');
+  await expect(page.getByRole('heading', { name: 'Jacob den Hollander' })).toBeVisible();
 });
 
 test('a dossier has a Tijdlijn tab of its own', async ({ page }, info) => {

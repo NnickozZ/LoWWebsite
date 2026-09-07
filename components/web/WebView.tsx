@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
@@ -857,7 +858,7 @@ function NodePanel({
       )}
       {node.summary && (
         <p className="web-panel-summary" data-testid="web-panel-summary">
-          {node.summary}
+          <MentionText text={node.summary} />
         </p>
       )}
       <div className="row-wrap" style={{ margin: '0.6rem 0 0.9rem' }}>

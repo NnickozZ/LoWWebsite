@@ -2749,3 +2749,56 @@ phone — the sprites now carry their own sharpness and the cap can stay.
 Fetching the card earlier than bucket 4: at bucket 2 a sprite is 100 px and
 the thumb has 267 to give, so the thumb is not what is missing there. A
 continuous sprite scale, still (round 19's reason holds).
+
+## Round 21 — 7 September 2026: een naam in een plat vak is een artikel (§27, §6)
+
+Nick: *"Wanneer ik een referentie artikel plaats in een description van een
+notitie of event dan kan ik er niet op klikken. Ook in het editing menu zou ik
+erop moeten klikken net zoals overal dat kan. Momenteel ziet het er gewoon uit
+als [[Ding wat het refereert]]."*
+
+**One chip everywhere.** Round 18 printed `[[Naam]]` in a plain box as a flat
+highlight (`.mention-chip`) that was not a link, and left `@Naam` as prose. Both
+followed from one fact: the browser has no name index and must not be given
+one. So the browser stopped asking. It now asks about the text it is already
+showing — `POST /api/mentions` takes the texts on the screen and answers with
+*spans*: where each piece of shorthand stands, and what it means. The reading
+that answers is the same one a save uses; `mentionSpans` is now the truth and
+`entryIdsInText` a view of it, so what a chip claims and what `entry_mentions`
+recorded can never drift apart. What comes back is drawn as `.entry-chip` with
+`data-entry-id` — the exact markup the rich editor writes — so the hover
+preview, the long-press on a phone and the click all arrive for free, and
+`@Jan Vermeer` can be a chip too: where a name ends is the index's business,
+and the index is the one answering.
+
+**Resolve archive-wide, then hold it against the reader.** A name means one
+artikel — the oldest that carries it, the same one the mentions table recorded
+— and only then is that artikel put through `visibleEntryCondition`. Never the
+other way around: resolving on "the artikelen you may see" would quietly hand a
+player a *different* "De brief" than the writer meant, and the chip would lie
+about what the sentence says. A name that lands on nothing the reader may open
+is a dead chip, `.entry-chip-missing` — which is exactly what a typo gets, so
+the two cannot be told apart and rule 1 of `mentions.ts` still holds: no id, no
+slug, no name of an artikel the reader may not see leaves the server. The name
+in the sentence was the writer's to show either way.
+
+**A textarea cannot hold a chip.** So the two sheets whose only face is a box
+being typed in — the gebeurtenis sheet, the notitie-speld sheet — print the
+chips underneath it ("Verwijst naar …", `MentionRow`), clickable while you
+write, settled 400 ms after the last keystroke. A prikbord kaart needs none:
+it is a box only while you are in it, and shows its chips the moment you leave.
+A canvas cannot hold one either, so a knot's name in the web has its brackets
+taken off server-side (`plainMentions`); the panel's short description keeps
+them, because there `MentionText` can do its work.
+
+**Found on the way.** The `@` scan matched a hundred and twenty characters from
+the first `@` and read only the longest name at its head, so the second name in
+a sentence — "@Jan en @Piet" — was never looked for at all. Every `@` now gets
+its own look. Silent since round 6; the new spans are what made it visible.
+
+**Chosen against.** Giving the browser a name index (it would be the whole
+archive's names, to every reader). Rendering chips inside the textarea with an
+overlay — a `LiveField` is bound to a Yjs room and owns its own value; a second
+thing drawing on top of it is the bug factory rule 4 was written about. A
+"maak dit artikel" button on a dead chip: a dead chip is also what a hidden
+artikel gets, and offering to create one there would say so out loud.

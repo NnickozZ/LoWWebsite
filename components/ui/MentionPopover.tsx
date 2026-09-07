@@ -198,26 +198,176 @@ export function MentionPopover({
   );
 }
 
+/* ------------------------------------------------------------- reading */
+
 /**
- * Plain text with its `[[Naam]]`s shown as chips — how a kaart, a speld or a
- * gebeurtenis prints what was typed into it. `@Naam` stays as typed: where
- * the name ends is only known to the reader with the index, and a chip that
- * is one word too long is worse than none.
+ * Round 21: what a plain box's shorthand *is* — the same `.entry-chip` the
+ * rich editor writes, with the same `data-entry-id`, so the hover preview and
+ * the click both come for free from `EntryPreview` and an `<a href>`. Round 18
+ * printed a flat highlight that was not a link and left `@Naam` alone, because
+ * the browser had no name index. It still has none: the server reads the text
+ * and answers with the spans (`POST /api/mentions`), which is also why `@Naam`
+ * can be a chip now — where a name ends is the index's business, and the index
+ * is the one answering.
+ *
+ * A name that matches nothing the reader may open is a dead chip
+ * (`.entry-chip-missing`), which is what a typo gets as well: the two look the
+ * same on purpose, so a dead chip never says "there is an artikel here you are
+ * not allowed to see".
+ */
+type Span = { start: number; end: number; name: string; entryId: string | null; slug: string | null; icon: string | null; colour: string | null };
+
+const spanCache = new Map<string, Span[]>();
+const waiting = new Map<string, Set<(spans: Span[]) => void>>();
+let flushQueued = false;
+
+/**
+ * One request for every text that asked in the same tick. A wall of forty
+ * kaarten mounts forty of these at once and must not be forty requests.
+ */
+function flush() {
+  flushQueued = false;
+  const texts = [...waiting.keys()].slice(0, 60);
+  if (!texts.length) return;
+  const takers = texts.map((text) => waiting.get(text)!);
+  for (const text of texts) waiting.delete(text);
+  void fetch('/api/mentions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ texts }),
+  })
+    .then((r) => (r.ok ? (r.json() as Promise<{ texts: { spans: Span[] }[] }>) : null))
+    .then((data) => {
+      // A live room can retype a card a hundred times; the cache is a help,
+      // not a ledger.
+      if (spanCache.size > 500) spanCache.clear();
+      texts.forEach((text, i) => {
+        const spans = data?.texts?.[i]?.spans ?? [];
+        spanCache.set(text, spans);
+        for (const taker of takers[i]) taker(spans);
+      });
+    })
+    .catch(() => {
+      // Offline or logged out: the text stays readable, only unchipped.
+      texts.forEach((text, i) => {
+        spanCache.set(text, []);
+        for (const taker of takers[i]) taker([]);
+      });
+    });
+  if (waiting.size && !flushQueued) {
+    flushQueued = true;
+    queueMicrotask(flush);
+  }
+}
+
+/**
+ * The spans of one text: from the cache at once, or from one batched request.
+ * `settle` is for a box being typed in — the row under a sheet's textarea asks
+ * again on every keystroke otherwise, and the answer to a half-typed name is
+ * worth nothing.
+ */
+export function useMentionSpans(text: string, settle = 0): Span[] | null {
+  const [spans, setSpans] = useState<Span[] | null>(() => spanCache.get(text) ?? null);
+  useEffect(() => {
+    const cached = spanCache.get(text);
+    if (cached) {
+      setSpans(cached);
+      return;
+    }
+    if (!text || !/\[\[|@/.test(text)) {
+      setSpans([]);
+      return;
+    }
+    setSpans(null);
+    let alive = true;
+    const taker = (next: Span[]) => {
+      if (alive) setSpans(next);
+    };
+    const ask = () => {
+      const set = waiting.get(text) ?? new Set<(spans: Span[]) => void>();
+      set.add(taker);
+      waiting.set(text, set);
+      if (!flushQueued) {
+        flushQueued = true;
+        queueMicrotask(flush);
+      }
+    };
+    const timer = settle ? setTimeout(ask, settle) : (ask(), 0);
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+      waiting.get(text)?.delete(taker);
+    };
+  }, [text, settle]);
+  return spans;
+}
+
+/** The chip itself, in both its states. */
+export function MentionChip({ span }: { span: Span }) {
+  const style = span.colour ? ({ ['--chip-colour' as string]: span.colour } as React.CSSProperties) : undefined;
+  if (!span.slug || !span.entryId) {
+    return (
+      <span className="entry-chip entry-chip-missing" title="Geen artikel met deze naam">
+        {span.name}
+      </span>
+    );
+  }
+  return (
+    <a
+      className="entry-chip"
+      href={`/e/${span.slug}`}
+      data-entry-id={span.entryId}
+      data-entry-slug={span.slug}
+      data-entry-icon={span.icon ?? ''}
+      style={style}
+    >
+      {span.name}
+    </a>
+  );
+}
+
+/**
+ * Plain text with its shorthand shown as chips — how a kaart, a speld or a
+ * gebeurtenis prints what was typed into it. Until the answer arrives the
+ * brackets are already off, so the text never flashes its punctuation.
  */
 export function MentionText({ text }: { text: string }) {
-  const parts = text.split(/(\[\[[^\]\n]{1,120}\]\])/g);
-  if (parts.length === 1) return <>{text}</>;
+  const spans = useMentionSpans(text);
+  if (!spans) return <>{text.replace(/\[\[([^\]\n]{1,120})\]\]/g, (_, name: string) => name.trim())}</>;
+  if (!spans.length) return <>{text}</>;
+  const out: React.ReactNode[] = [];
+  let at = 0;
+  spans.forEach((span, i) => {
+    if (span.start > at) out.push(<span key={`t${i}`}>{text.slice(at, span.start)}</span>);
+    out.push(<MentionChip key={`c${i}`} span={span} />);
+    at = span.end;
+  });
+  if (at < text.length) out.push(<span key="tail">{text.slice(at)}</span>);
+  return <>{out}</>;
+}
+
+/**
+ * The chips of a text on their own line, for the one place a chip cannot live
+ * in the text itself: a box you are typing in. A textarea holds characters and
+ * nothing else, so the gebeurtenis sheet and the speld sheet print what the
+ * writing refers to underneath it, clickable while you write.
+ */
+export function MentionRow({ text }: { text: string }) {
+  const spans = useMentionSpans(text, 400);
+  // While the next answer is on its way the row keeps the last one, so a chip
+  // does not blink out from under the hand between two keystrokes.
+  const last = useRef<Span[]>([]);
+  if (spans) last.current = spans;
+  // One chip per artikel, however often the writing names it.
+  const seen = new Set<string>();
+  const named = (spans ?? last.current).filter((s) => s.entryId && !seen.has(s.entryId) && seen.add(s.entryId));
+  if (!named.length) return null;
   return (
-    <>
-      {parts.map((part, i) => {
-        const m = /^\[\[([^\]\n]{1,120})\]\]$/.exec(part);
-        if (!m) return <span key={i}>{part}</span>;
-        return (
-          <span key={i} className="mention-chip">
-            {m[1]}
-          </span>
-        );
-      })}
-    </>
+    <p className="tiny row-wrap" style={{ gap: '0.3rem', margin: '0.35rem 0 0', alignItems: 'baseline' }}>
+      <span className="muted">Verwijst naar</span>
+      {named.map((span, i) => (
+        <MentionChip key={i} span={span} />
+      ))}
+    </p>
   );
 }

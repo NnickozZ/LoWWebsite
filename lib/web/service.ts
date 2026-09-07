@@ -6,7 +6,7 @@ import { listBoards } from '@/lib/boards/service';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { caseIdsIn } from '@/lib/entries/caseFields';
 import { extractEntryLinks } from '@/lib/entries/doc';
-import { entryIdsIn, revealedSectionIds } from '@/lib/entries/mentions';
+import { entryIdsIn, plainMentions, revealedSectionIds } from '@/lib/entries/mentions';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
@@ -476,11 +476,17 @@ function isNoteCard(card: Pick<BoardCard, 'kind'>): boolean {
   return card.kind === 'note' || card.kind === 'photo';
 }
 
-/** What a notitie is called on the web: its name, or the start of its text. */
+/**
+ * What a notitie is called on the web: its name, or the start of its text.
+ * Round 21: without its brackets. A knot's name is drawn on a canvas, which
+ * has no room for a chip, so `[[Jan Vermeer]]` would be printed as its own
+ * punctuation; the panel's short description keeps the shorthand, because
+ * there `MentionText` turns it into a chip.
+ */
 export function noteName(card: Pick<BoardCard, 'name' | 'text'>): string {
-  const name = (card.name ?? '').trim();
+  const name = plainMentions((card.name ?? '').trim());
   if (name) return name;
-  const text = (card.text ?? '').trim().replace(/\s+/g, ' ');
+  const text = plainMentions((card.text ?? '').trim()).replace(/\s+/g, ' ');
   if (!text) return '';
   return text.length > NOTE_NAME_LENGTH ? `${text.slice(0, NOTE_NAME_LENGTH).trimEnd()}…` : text;
 }

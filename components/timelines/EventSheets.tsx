@@ -6,7 +6,7 @@ import { AccessEditor } from '@/components/access/AccessEditor';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
-import { MentionPopover } from '@/components/ui/MentionPopover';
+import { MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
@@ -437,6 +437,7 @@ export function NewEventSheet({
               onChange={(event) => setText(event.target.value)}
             />
             <MentionPopover forRef={newTextRef} />
+            <MentionRow text={text} />
           </div>
           <p style={{ margin: 0 }}>
             <button type="button" className="btn btn-primary" disabled={!ready || !mayType} onClick={() => void submit()} data-testid="new-event-submit">
@@ -621,6 +622,7 @@ function EditEventBody({
           Wat de {words.timeline} erover zegt
         </label>
         <LiveField as="textarea" field="text" id="event-text" className="input" rows={4} value={text} onValue={(next) => setText(next)} mentions />
+        <MentionRow text={text} />
         {shared ? (
           <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
             Wat je hier typt wordt meteen bewaard en ziet iedereen op deze {words.timeline}.

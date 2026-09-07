@@ -60,7 +60,7 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   await pop.getByRole('option', { name: /Jacob den Hollander/ }).click();
   await expect(box).toHaveValue('Kept in his coat. Seen by [[Jacob den Hollander]] ');
   await box.blur();
-  await expect(note.locator('.board-card-text .mention-chip')).toHaveText('Jacob den Hollander');
+  await expect(note.locator('.board-card-text .entry-chip')).toHaveText('Jacob den Hollander');
 
   if (isPhone) {
     // §8: the hint replaces dragging and string-drawing on a small screen.
