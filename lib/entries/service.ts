@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
 import type { Author } from '@/lib/auth/author';
 import { db, schema, sqlite } from '@/lib/db';
-import type { AccessMode, CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
+import type { AccessMode, FieldDef, Visibility } from '@/lib/db/schema';
+import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 import { resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
@@ -11,6 +12,7 @@ import { checkFieldPatch, cleanFieldPatch, listBlockKeys } from './fieldValues';
 import { recomputeFieldMentions } from './mentions';
 import { visibleEntryCondition, type Viewer } from './visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
+import { visibleMapCondition } from '@/lib/maps/visibility';
 import { publishSaved, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
 import { entryFieldsRoomKey } from '@/lib/live/keys';
 import { syncEventsFromEntryDate } from '@/lib/timelines/moment';
@@ -42,7 +44,7 @@ export type EntrySummary = {
   typeColour: string;
   typeBorder: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   tags: string[];
   visibility: Visibility;
   isLocked: boolean;
@@ -436,8 +438,22 @@ export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): Entr
   if (options.visibility && viewer?.isKeeper) conditions.push(eq(schema.entries.visibility, options.visibility));
   if (options.restricted) conditions.push(sql`${schema.entries.viewMode} <> 'all'`);
   if (options.onMap) {
+    /*
+     * §40, §44: only landkaarten this viewer may open. The subquery used to ask
+     * nothing but `deleted_at IS NULL`, so "op de kaart" listed an artikel
+     * because it is pinned on a map whose dial shuts this reader out — or, since
+     * §44, on one the Keeper has taken to their own side. The artikel is theirs
+     * to see either way; that it is pinned somewhere they cannot go is not, and
+     * the filter was the one road that said so.
+     */
     conditions.push(
-      sql`EXISTS (SELECT 1 FROM map_pins mp INNER JOIN maps m ON m.id = mp.map_id WHERE mp.entry_id = ${schema.entries.id} AND m.deleted_at IS NULL)`,
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(schema.mapPins)
+          .innerJoin(schema.maps, eq(schema.maps.id, schema.mapPins.mapId))
+          .where(and(eq(schema.mapPins.entryId, schema.entries.id), visibleMapCondition(viewer))),
+      ),
     );
   }
 
@@ -563,7 +579,7 @@ export type EntryPatch = Partial<{
   tags: string[];
   typeSlug: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   visibility: Visibility;
   keeperNotes: string;
   isLocked: boolean;
@@ -722,7 +738,8 @@ export function updateEntry(
   }
   if (patch.tags !== undefined) values.tags = normaliseTags(patch.tags);
   if (patch.coverAssetId !== undefined) values.coverAssetId = patch.coverAssetId;
-  if (patch.coverCrop !== undefined) values.coverCrop = patch.coverCrop;
+  // Round 19: the bag of three, clamped; a legacy {x,y,zoom} off the wire reads as portrait.
+  if (patch.coverCrop !== undefined) values.coverCrop = normaliseCrops(patch.coverCrop);
   if (patch.typeSlug !== undefined) {
     const type = getEntryType(patch.typeSlug);
     if (type) values.typeId = type.id;
@@ -891,7 +908,7 @@ export function restoreRevision(revisionId: string, user: Author) {
       fields: (snapshot.fields as Record<string, unknown>) ?? {},
       tags: (snapshot.tags as string[]) ?? [],
       coverAssetId: (snapshot.coverAssetId as string | null) ?? null,
-      coverCrop: (snapshot.coverCrop as CoverCrop | null) ?? null,
+      coverCrop: normaliseCrops(snapshot.coverCrop),
       updatedAt: Math.floor(Date.now() / 1000),
       updatedBy: user.id,
     })
@@ -918,7 +935,7 @@ export function restoreRevision(revisionId: string, user: Author) {
       (snapshot.fields as Record<string, unknown>) ?? {},
     ),
   );
-  publishSaved(`entry:${revision.entryId}:body`, user.id, ['name', 'shortDescription', 'body', 'fields', 'tags', 'coverAssetId']);
+  publishSaved(`entry:${revision.entryId}:body`, user.id, ['name', 'shortDescription', 'body', 'fields', 'tags', 'coverAssetId', 'coverCrop']);
   return revision.entryId;
 }
 

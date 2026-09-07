@@ -2,6 +2,9 @@ import { notFound } from 'next/navigation';
 import { boardKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
+import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
+import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { keeperRef } from '@/lib/keeper/side';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
 import {
@@ -17,7 +20,6 @@ import { listMaps } from '@/lib/maps/service';
 import { listTimelines } from '@/lib/timelines/service';
 import { inkForViewer } from '@/lib/ink/merge';
 import { getInk } from '@/lib/ink/service';
-import type { CoverCrop } from '@/lib/db/schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +59,9 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
+      {/* §44/§45: the Keeper's own prikbord says so, in a word and in the
+          colours of the whole page. */}
+      <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('board', board.id, user)?.keeperOnly)} />
       <BoardCanvas
       boardId={board.id}
       boardName={board.name}
@@ -69,7 +74,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         name: entry.name,
         shortDescription: entry.shortDescription,
         coverAssetId: entry.coverAssetId,
-        coverCrop: (entry.caseCrop ?? entry.coverCrop) as CoverCrop | null,
+        coverCrop: entry.coverCrop,
         typeIcon: entry.typeIcon,
         typeColour: entry.typeColour,
         typeLabel: entry.typeLabel,
@@ -100,8 +105,20 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         canManage: mayManage,
         isKeeper: Boolean(user?.isKeeper),
         viewerId: user?.id ?? '',
+        inWeb: board.inWeb,
       }}
     />
+    {/*
+     * §44: the Keeper's corner, under the wall — the switch to its other face,
+     * the "this prikbord is mine" toggle, its touwtjes and the shared notes.
+     * Below the canvas, which is what the whole page is: a wall is looked at
+     * far more often than it is re-hung, exactly as a landkaart is.
+     */}
+    {user?.isKeeper && (
+      <div className="keeper-underfold">
+        <KeeperPanelServer kind="board" id={board.id} user={user} />
+      </div>
+    )}
     </>
   );
 }

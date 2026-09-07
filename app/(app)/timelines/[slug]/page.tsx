@@ -5,6 +5,9 @@ import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { TimelineCanvas } from '@/components/timelines/TimelineCanvas';
+import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
+import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { keeperRef } from '@/lib/keeper/side';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -80,6 +83,9 @@ export default async function TimelinePage({
       <div className="page-canvas">
         <LivePage place={timelineKey(timeline.id)} watch={['entries']} />
         <header className="canvas-head">
+          {/* §44/§45: the Keeper's own tijdlijn says so, in a word and in the
+              colours of the whole page. */}
+          <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('timeline', timeline.id, user)?.keeperOnly)} />
           <p className="eyebrow">
             <Link href="/timelines" style={{ color: 'inherit' }}>
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {words.navTimelines}
@@ -126,6 +132,18 @@ export default async function TimelinePage({
           initialInk={inkForViewer(getInk(timeline.id), user?.id ?? null)}
         />
       </div>
+      {/*
+       * §44: the Keeper's corner. The tijdlijn keeps its own settings in the
+       * Instellingen sheet, but this is not a setting of the axis — it is the
+       * second face of it, what it is roped to, and the notes the pair share —
+       * so it stands below the fold where a landkaart's does, and a player's
+       * page is still nothing but the canvas.
+       */}
+      {user?.isKeeper && (
+        <div className="keeper-underfold">
+          <KeeperPanelServer kind="timeline" id={timeline.id} user={user} />
+        </div>
+      )}
     </div>
   );
 }

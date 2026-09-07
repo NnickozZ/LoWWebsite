@@ -27,6 +27,15 @@ export type Me = {
   isKeeper: boolean;
   characters: CharacterLite[];
   activeId: string | null;
+  /**
+   * §44: is this account a Keeper *really* — before "kijk als speler" was taken
+   * into account — and is the preview on right now. The only things that may
+   * read either are the banner that offers to take the preview off again and
+   * the control in the menu that puts it on; everything else in the archive
+   * reads `isKeeper`, which is false while the preview is on.
+   */
+  isRealKeeper?: boolean;
+  asPlayer?: boolean;
 };
 
 type State = { characters: CharacterLite[]; activeId: string | null };
@@ -81,6 +90,8 @@ function TypeMark({ character }: { character: CharacterLite }) {
   return (
     <Thumb
       assetId={character.coverAssetId}
+      crop={character.coverCrop}
+      shape="portrait"
       icon={character.typeIcon}
       colour={character.typeColour}
     />

@@ -25,6 +25,18 @@ function parseTarget(url: URL): { target: AccessTargetType; id: string } {
 }
 
 /**
+ * §44: a thing on the Keeper's side is not here at all, and the answer is the
+ * 404 a made-up id gets — never the 403 "alleen voor de eigenaar", which would
+ * be this route saying the record exists. It has to be said here rather than
+ * left to `canManageAccess`: the owner of a prikbord the Keeper has since taken
+ * to their own side is still its owner, so the dials panel would open for them
+ * and name everybody who may see a wall they may not.
+ */
+function hidden(row: { keeperOnly?: boolean }, user: { isKeeper: boolean }): boolean {
+  return Boolean(row.keeperOnly) && !user.isKeeper;
+}
+
+/**
  * §17: the settings panel's read. Only whoever may turn the dials gets the
  * lists — the names of who may see a private thing are themselves a fact
  * about it that a stranger has no business reading.
@@ -34,7 +46,7 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const { target, id } = parseTarget(new URL(request.url));
     const row = loadAccessRow(target, id);
-    if (!row) return json({ error: 'Niet gevonden.' }, { status: 404 });
+    if (!row || hidden(row, user)) return json({ error: 'Niet gevonden.' }, { status: 404 });
     if (!canManageAccess(row, user) && !(row.accessLocked && row.createdBy === user.id)) {
       return json({ error: 'Alleen voor de eigenaar of een Keeper.' }, { status: 403 });
     }
@@ -55,6 +67,8 @@ export async function PATCH(request: Request) {
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
     const { target, id } = parseTarget(new URL(request.url));
+    const current = loadAccessRow(target, id);
+    if (!current || hidden(current, user)) return json({ error: 'Niet gevonden.' }, { status: 404 });
     const body = (await request.json()) as AccessPatch;
     const patch: AccessPatch = {};
     if (isAccessMode(body.viewMode)) patch.viewMode = body.viewMode;

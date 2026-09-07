@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { LivePage } from '@/components/live/LivePage';
 import { notFound } from 'next/navigation';
 import { asc, desc, eq } from 'drizzle-orm';
+import { KeeperSideMark } from '@/components/keeper/KeeperSideMark';
 import { AdminTabs, type AdminPane } from '@/components/admin/AdminTabs';
 import { NewTypeForm } from '@/components/admin/NewTypeForm';
+import { SchemesForm } from '@/components/admin/SchemesForm';
 import { SiteForm } from '@/components/admin/SiteForm';
 import { TypeEditor } from '@/components/admin/TypeEditor';
 import { WordsForm } from '@/components/admin/WordsForm';
@@ -13,6 +15,7 @@ import { db, schema } from '@/lib/db';
 import { relativeTime } from '@/lib/diff';
 import { destroyEffects, listArchivedThings, listBoardRevisions, listCaseRevisions, listTrash } from '@/lib/admin/trash';
 import { listAdriftEntries, listTypesForAdmin } from '@/lib/admin/types';
+import { getSchemes } from '@/lib/admin/schemes';
 import { getWordOverrides } from '@/lib/admin/words';
 import { capitalise, resolveWords } from '@/lib/words';
 import { charactersWorn, listCharacters } from '@/lib/characters';
@@ -69,6 +72,7 @@ const AUDIT_LABELS: Record<string, string> = {
   'site.settings_changed': 'site-instellingen gewijzigd',
   'site.logo_changed': 'logo gewijzigd',
   'site.words_changed': 'woorden van het archief gewijzigd',
+  'site.schemes_changed': 'kleuren van het archief gewijzigd',
   'archive.exported': 'archief gedownload',
 };
 
@@ -119,6 +123,9 @@ export default async function AdminPage({
   const adrift = listAdriftEntries();
   const wordOverrides = getWordOverrides();
   const words = resolveWords(wordOverrides);
+  // §45: the four palettes as they stand — the Keeper's where they set one,
+  // the archive's own everywhere else.
+  const schemes = getSchemes();
   // What a self-filling list may look through, and which of their fields point
   // at another fiche — passed once rather than fetched per type editor.
   const typeChoices = types.map((type) => ({
@@ -316,6 +323,22 @@ export default async function AdminPage({
         <>
           <h2 style={{ marginTop: 0 }}>{words.adminWords}</h2>
           <WordsForm overrides={wordOverrides} />
+        </>
+      ),
+    },
+    {
+      /*
+       * §45: Kleuren. Not a renameable noun — a colour is a colour — so this
+       * label is the one thing on this screen that does not come from
+       * `lib/words.ts`.
+       */
+      key: 'colours',
+      label: 'Kleuren',
+      icon: 'layers',
+      content: (
+        <>
+          <h2 style={{ marginTop: 0 }}>Kleuren</h2>
+          <SchemesForm schemes={schemes} />
         </>
       ),
     },
@@ -518,6 +541,8 @@ export default async function AdminPage({
 
   return (
     <div className="page">
+      {/* §45: Beheer is only ever the Keeper's, so it is painted as such. */}
+      <KeeperSideMark />
       <LivePage place="page:/admin" watch={['admin', 'types', 'words', 'site', 'users', 'entries', 'cases', 'boards', 'maps']} />
       <p className="eyebrow">{words.keeper}</p>
       <h1 style={{ marginBottom: 0 }}>{words.adminTitle}</h1>

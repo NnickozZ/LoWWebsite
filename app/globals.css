@@ -14,18 +14,13 @@
 @import '@fontsource/opendyslexic/700.css';
 
 /* ----------------------------------------------------------------- tokens */
+/*
+ * What is *not* a colour. Everything that is one lives in the §45 block below,
+ * written out of `lib/theme/schemes.ts` — the type stack, the radius, the
+ * shadow and the two measurements are the same in all four palettes, so they
+ * stay here rather than being repeated four times over.
+ */
 :root {
-  --paper: #f3eee2;
-  --paper-dark: #e6dfcf;
-  --paper-raised: #f8f4ea;
-  --ink: #1f1b16;
-  --ink-muted: #5c544a;
-  --rule: #c9c0ad;
-  --stamp-red: #a8321e;
-  --string-red: #c0392b;
-  --link: #1f4e79;
-  --accent: var(--stamp-red);
-
   --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
   --sans: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --stamp-face: 'Archivo Narrow', 'Arial Narrow', system-ui, sans-serif;
@@ -36,11 +31,79 @@
 
   --nav-w: 220px;
   --tabs-h: 60px;
+}
 
+/*
+ * §45: the four palettes — Spelers licht en donker, Keeper licht en donker.
+ *
+ * Everything between the two markers is generated: it is character for
+ * character what `schemeCss(DEFAULT_SCHEMES)` returns, and
+ * `tests/unit/schemes.test.ts` fails the moment the two drift apart. Do not
+ * hand-edit a colour in here — change `lib/theme/schemes.ts` and paste its
+ * output back, or the archive's defaults and the Keeper's saved palettes stop
+ * being the same nineteen tokens.
+ *
+ * The Keeper's own palettes, when they have edited any, come from the same
+ * emitter as a `<style>` in `app/(app)/layout.tsx`, later in the document and
+ * therefore on top of this. So this block is the archive's own colours *and*
+ * the floor under a half-filled setting: a token the Keeper never touched is
+ * still named here.
+ *
+ * Every selector is `:root:has(…)`, never a class on a wrapper, because a
+ * Sheet portals onto <body> and only a variable named on the root reaches it.
+ * `data-side="keeper"` is written by a keeper-only page (§44),
+ * `data-theme` by the signed-in layout; specificity does the choosing.
+ */
+/* §45 SCHEMES START — generated from lib/theme/schemes.ts; see tests/unit/schemes.test.ts */
+:root {
+  --paper: #f3eee2;
+  --paper-dark: #e6dfcf;
+  --paper-raised: #f8f4ea;
+  --ink: #1f1b16;
+  --ink-muted: #5c544a;
+  --rule: #c9c0ad;
+  --stamp-red: #a8321e;
+  --string-red: #c0392b;
+  --link: #1f4e79;
+  --cork: #c2a276;
+  --cork-speck: #5a3e2029;
+  --card-face: #fbf7ec;
+  --card-rule: #cdbfa4;
+  --web-line-ink: #2a2118;
+  --web-line-red: #c0392b;
+  --web-line-blue: #1f4e79;
+  --web-line-gold: #8a6a24;
+  --web-line-green: #2f6b4f;
+  --web-line-violet: #5b3a78;
+  --accent: var(--stamp-red);
   color-scheme: light;
 }
 
-[data-theme='dark'] {
+:root:has([data-side='keeper']) {
+  --paper: #e7e4dd;
+  --paper-dark: #d6d2c8;
+  --paper-raised: #f0eee9;
+  --ink: #191d1b;
+  --ink-muted: #55605b;
+  --rule: #b5b3a7;
+  --stamp-red: #8c2417;
+  --string-red: #b03a2a;
+  --link: #1c4f5c;
+  --cork: #ab9a80;
+  --cork-speck: #4a3a2429;
+  --card-face: #f4f1e8;
+  --card-rule: #c3bda9;
+  --web-line-ink: #22231f;
+  --web-line-red: #b03a2a;
+  --web-line-blue: #1c4f5c;
+  --web-line-gold: #7d6320;
+  --web-line-green: #2c5f4a;
+  --web-line-violet: #543670;
+  --accent: var(--stamp-red);
+  color-scheme: light;
+}
+
+:root:has([data-theme='dark']) {
   --paper: #1b1915;
   --paper-dark: #14120f;
   --paper-raised: #23201b;
@@ -50,20 +113,126 @@
   --stamp-red: #a8321e;
   --string-red: #c0392b;
   --link: #8fb8dd;
+  --cork: #4a3a26;
+  --cork-speck: #0000004d;
+  --card-face: #e9e2d2;
+  --card-rule: #8b7f68;
+  --web-line-ink: #e8e1d2;
+  --web-line-red: #e2705f;
+  --web-line-blue: #8fb8dd;
+  --web-line-gold: #d4b45f;
+  --web-line-green: #7fc79c;
+  --web-line-violet: #b78fd8;
+  --accent: var(--stamp-red);
+  color-scheme: dark;
+}
+
+:root:has([data-theme='dark']):has([data-side='keeper']) {
+  --paper: #14171a;
+  --paper-dark: #0e1114;
+  --paper-raised: #1d2126;
+  --ink: #dfe5e6;
+  --ink-muted: #97a2a4;
+  --rule: #333c41;
+  --stamp-red: #c04a34;
+  --string-red: #d2624c;
+  --link: #7fc3d4;
+  --cork: #3b3a30;
+  --cork-speck: #0000004d;
+  --card-face: #e6e6dc;
+  --card-rule: #85857a;
+  --web-line-ink: #dfe5e6;
+  --web-line-red: #e2705f;
+  --web-line-blue: #7fc3d4;
+  --web-line-gold: #d4b45f;
+  --web-line-green: #7fc79c;
+  --web-line-violet: #b78fd8;
+  --accent: var(--stamp-red);
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --paper: #1b1915;
-    --paper-dark: #14120f;
-    --paper-raised: #23201b;
-    --ink: #e8e1d2;
-    --ink-muted: #a49b8a;
-    --rule: #3d382f;
-    --link: #8fb8dd;
-    color-scheme: dark;
-  }
+:root:not(:has([data-theme='light'])) {
+  --paper: #1b1915;
+  --paper-dark: #14120f;
+  --paper-raised: #23201b;
+  --ink: #e8e1d2;
+  --ink-muted: #a49b8a;
+  --rule: #3d382f;
+  --stamp-red: #a8321e;
+  --string-red: #c0392b;
+  --link: #8fb8dd;
+  --cork: #4a3a26;
+  --cork-speck: #0000004d;
+  --card-face: #e9e2d2;
+  --card-rule: #8b7f68;
+  --web-line-ink: #e8e1d2;
+  --web-line-red: #e2705f;
+  --web-line-blue: #8fb8dd;
+  --web-line-gold: #d4b45f;
+  --web-line-green: #7fc79c;
+  --web-line-violet: #b78fd8;
+  --accent: var(--stamp-red);
+  color-scheme: dark;
+}
+:root:not(:has([data-theme='light'])):has([data-side='keeper']) {
+  --paper: #14171a;
+  --paper-dark: #0e1114;
+  --paper-raised: #1d2126;
+  --ink: #dfe5e6;
+  --ink-muted: #97a2a4;
+  --rule: #333c41;
+  --stamp-red: #c04a34;
+  --string-red: #d2624c;
+  --link: #7fc3d4;
+  --cork: #3b3a30;
+  --cork-speck: #0000004d;
+  --card-face: #e6e6dc;
+  --card-rule: #85857a;
+  --web-line-ink: #dfe5e6;
+  --web-line-red: #e2705f;
+  --web-line-blue: #7fc3d4;
+  --web-line-gold: #d4b45f;
+  --web-line-green: #7fc79c;
+  --web-line-violet: #b78fd8;
+  --accent: var(--stamp-red);
+  color-scheme: dark;
+}
+}
+/* §45 SCHEMES END */
+
+/*
+ * §45: the web's sixteen kinds of tie, as aliases onto the six line colours
+ * above rather than sixteen colours of their own.
+ *
+ * These are what the legend and the panel print a line in
+ * (`edgeColourVar()` in `lib/web/kinds.ts`); the canvas draws the same six
+ * (`readPalette()` in `components/web/WebCanvas.tsx`). Grouped exactly as
+ * `EDGE_KINDS` groups them — ink for what the text says, gold for a dossier,
+ * red for a prikbord, blue for a landkaart, green for a tijdlijn, violet for
+ * the people — so a Keeper who turns "wat op een prikbord hangt" turns all
+ * three red ties at once and the legend cannot disagree with the drawing.
+ *
+ * They do not vary per scheme, which is the whole point: the variation is in
+ * the six they point at.
+ */
+:root {
+  --web-mention: var(--web-line-ink);
+  --web-relation: var(--web-line-ink);
+  --web-field: var(--web-line-ink);
+  --web-section: var(--web-line-ink);
+  --web-filed: var(--web-line-gold);
+  --web-caseNotes: var(--web-line-gold);
+  --web-caseLink: var(--web-line-gold);
+  --web-inCase: var(--web-line-gold);
+  --web-board: var(--web-line-red);
+  --web-boardNote: var(--web-line-red);
+  --web-thread: var(--web-line-red);
+  --web-pin: var(--web-line-blue);
+  --web-mapOf: var(--web-line-blue);
+  --web-event: var(--web-line-green);
+  --web-investigator: var(--web-line-violet);
+  --web-player: var(--web-line-violet);
 }
 
 /* ----------------------------------------------------- §29: reading faces */
@@ -474,8 +643,24 @@ a.card:hover {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 0.85rem;
 }
-.card-cover {
+/*
+ * Round 19: the three shapes a picture can be drawn in, from the one table in
+ * `lib/images/shapes.ts` (`coverClass`). Every clipping frame that draws a
+ * crop wears one of these beside its own class — `.card-cover`, `.feed-thumb`,
+ * `.board-card-cover`, `.crop-frame`, the tijdlijn's popout — so the ratio is
+ * never written into a frame's own rule. A frame has to clip (`overflow:
+ * hidden`): a zoomed crop is a `transform: scale()` and paints outside its box.
+ */
+.cover-landscape {
+  aspect-ratio: 3 / 2;
+}
+.cover-portrait {
   aspect-ratio: 3 / 4;
+}
+.cover-square {
+  aspect-ratio: 1 / 1;
+}
+.card-cover {
   background: var(--paper-dark);
   display: flex;
   align-items: center;
@@ -880,6 +1065,14 @@ a.card:hover {
 .suggest-item:hover {
   background: var(--paper-dark);
 }
+/* Round 21: a name typed into a plain box wears `.entry-chip`, the same chip
+   the rich editor writes — so it links, previews on hover and reads the same
+   everywhere. The flat round-18 highlight is gone. */
+.mention-pop {
+  box-shadow: 0 6px 18px rgba(31, 27, 22, 0.16);
+  max-height: 16rem;
+  overflow: auto;
+}
 
 /* ------------------------------------------------------------------ prose */
 .prose {
@@ -1239,12 +1432,19 @@ details.section[open] > summary::before {
   gap: 0.6rem;
   pointer-events: none;
 }
-.preview-card img {
+/* Round 19: a clipping wrapper, like `.feed-thumb`, so a zoomed crop stays in its box. */
+.preview-thumb {
+  display: block;
   width: 54px;
-  height: 72px;
-  object-fit: cover;
   border: 1px solid var(--rule);
   flex: 0 0 auto;
+  overflow: hidden;
+}
+.preview-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ------------------------------------------------------------- case tabs */
@@ -1333,27 +1533,12 @@ details.section[open] > summary::before {
   color: var(--ink-muted);
 }
 
-/* ---------------------------------------------------------------- boards */
-:root {
-  --cork: #c2a276;
-  --cork-speck: rgba(90, 62, 32, 0.16);
-  --card-face: #fbf7ec;
-  --card-rule: #cdbfa4;
-}
-[data-theme='dark'] {
-  --cork: #4a3a26;
-  --cork-speck: rgba(0, 0, 0, 0.3);
-  --card-face: #e9e2d2;
-  --card-rule: #8b7f68;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --cork: #4a3a26;
-    --cork-speck: rgba(0, 0, 0, 0.3);
-    --card-face: #e9e2d2;
-    --card-rule: #8b7f68;
-  }
-}
+/* ---------------------------------------------------------------- boards
+   §45: the kurk, its spikkels and the two card colours used to be written out
+   three times over right here. They are four of the nineteen tokens now, so
+   they come out of the generated block at the top of this file and out of the
+   Keeper's Kleuren pane — `--cork-speck` with its alpha baked into the eighth
+   hex digit, so the picker beside it stays a plain colour. */
 
 .board-page {
   display: flex;
@@ -1551,7 +1736,6 @@ details.section[open] > summary::before {
 }
 .board-card-cover {
   position: relative;
-  aspect-ratio: 3 / 4;
   margin: 18px 8px 6px;
   border: 1px solid var(--card-rule);
   background: #ece4d3;
@@ -1842,23 +2026,6 @@ details.section[open] > summary::before {
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
-.board-card-cropping {
-  outline: 2px dashed var(--link);
-  outline-offset: 1px;
-  z-index: 5;
-}
-.board-crop-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(20, 18, 15, 0.72);
-  color: #f3eee2;
-  font-size: 0.62rem;
-  text-align: center;
-  padding: 2px 3px;
-}
-
 .board-marquee {
   position: absolute;
   border: 1px dashed var(--link);
@@ -1913,7 +2080,7 @@ details.section[open] > summary::before {
  */
 .feed-thumb {
   width: 42px;
-  height: 56px;
+  /* The height comes from the shape class (`.cover-portrait` → 42×56). */
   flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid var(--rule);
@@ -2424,7 +2591,7 @@ details.section[open] > summary::before {
 /* ------------------------------------------------------------ entry cover */
 /*
  * The entry shows the whole picture, whatever shape it is, and never crops it.
- * Lists get the squared-off version instead (see .entry-crop-frame).
+ * Lists get one of the three crops instead (see .crop-frame).
  */
 .entry-cover-whole {
   border: 1px solid var(--rule);
@@ -2504,18 +2671,40 @@ details.section[open] > summary::before {
   color: var(--stamp-red);
 }
 
+/*
+ * Round 19: the crop section — three frames, liggend 3:2 · staand 3:4 ·
+ * vierkant 1:1, each editing its own crop. Wrapping, because this lives in the
+ * 320 px cover column: liggend (144 px) and staand (108 px) share the first
+ * row and vierkant (108 px) drops under them. Each frame's aspect is its
+ * `.cover-*` class; the widths are the only numbers here.
+ */
 .entry-crop-row {
-  /* Stacked, because this lives in the narrow cover column. */
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   align-items: flex-start;
   margin-top: 0.6rem;
 }
-.entry-crop-frame {
-  flex: 0 0 auto;
+.entry-crop-frames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.6rem;
+  align-items: flex-start;
+}
+.entry-crop-shape {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+}
+.entry-crop-shape .crop-frame {
   width: 108px;
-  aspect-ratio: 3 / 4;
+}
+.entry-crop-shape .crop-frame.cover-landscape {
+  width: 144px;
+}
+.crop-frame {
+  flex: 0 0 auto;
   border: 1px solid var(--rule);
   background: var(--paper-dark);
   overflow: hidden;
@@ -2523,33 +2712,13 @@ details.section[open] > summary::before {
   cursor: grab;
   touch-action: none;
 }
-.entry-crop-frame img {
+.crop-frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.entry-crop-frame:active {
+.crop-frame:active {
   cursor: grabbing;
-}
-
-/* A case card while its own crop of the cover is being set. */
-.card-cover-cropping {
-  cursor: grab;
-  touch-action: none;
-  outline: 2px solid var(--link);
-  outline-offset: -2px;
-}
-.card-cover-cropping:active {
-  cursor: grabbing;
-}
-.card-crop-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--rule);
-  background: var(--paper-dark);
 }
 
 /* ------------------------------------------------------------ bare pins */
@@ -4541,11 +4710,11 @@ details.section[open] > summary::before {
  * bottom cut off.
  *
  * So: full-bleed out of the padding (negative margins the width of it), one
- * hairline underneath to part it from the words, and the picture keeps its own
- * shape up to a ceiling. Only a picture taller than the ceiling is trimmed, and
- * from the top down (`object-position: 50% 0`), because the top of a document
- * is where the writing starts. The window is 250 px wide, so the ceiling is
- * about a 4:3 landscape — anything wider is shown whole.
+ * hairline underneath to part it from the words. Round 19: the frame is a
+ * liggend 3:2 box (`.cover-landscape`, from `lib/images/shapes.ts`) and the
+ * picture sits in it by the artikel's own liggend crop — set once, on the
+ * artikel, and the same in every wide frame. A screenshot with writing on it
+ * is read whole by the click, which opens the file over the whole screen.
  */
 .timeline-popout-picture {
   display: block;
@@ -4565,10 +4734,8 @@ details.section[open] > summary::before {
 .timeline-popout-picture > img {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: 190px;
+  height: 100%;
   object-fit: cover;
-  object-position: 50% 0;
 }
 /* No picture, but a frame that was asked for: the soort's icon on a short
    band rather than a tall empty rectangle pretending to be a photograph. */
@@ -4627,17 +4794,21 @@ details.section[open] > summary::before {
   white-space: pre-wrap;
 }
 
-/* The picture on a gebeurtenis's blad: a postcard, not a stamp. `contain` on a
-   dark ground, so a tall screenshot and a wide photograph are both recognisable
-   without either being cropped — this is a preview, and the crop that matters
-   is the one the folded-out window makes. */
+/* The picture on a gebeurtenis's blad: a postcard, not a stamp. Round 19: a
+   liggend 3:2 frame (`.cover-landscape`) drawn with the artikel's liggend
+   crop — the same frame the folded-out window on the axis uses. */
 .event-picture-preview {
   display: block;
   width: 150px;
-  height: 100px;
-  object-fit: contain;
+  overflow: hidden;
   border: 1px solid var(--rule);
   background: var(--paper-dark);
+}
+.event-picture-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* The date form: the year, then down to whatever the tijdlijn measures in. */
@@ -4900,67 +5071,14 @@ details.section[open] > summary::before {
 
 /* ------------------------------------------------------------ §43: het web
    The archive drawn as what points at what. The drawing itself is a canvas
-   (`components/web/WebCanvas.tsx`) that reads --paper, --ink and --rule off
-   this element, so the dark face reaches it without a second palette; the
-   line colours per kind live in `lib/web/kinds.ts` and are repeated here as
-   custom properties only so the legend and the panel can print a line in the
-   same colour the canvas draws it. Change one and change the other. */
-:root {
-  --web-mention: #2a2118;
-  --web-relation: #2a2118;
-  --web-field: #2a2118;
-  --web-section: #2a2118;
-  --web-filed: #8a6a24;
-  --web-caseNotes: #8a6a24;
-  --web-caseLink: #8a6a24;
-  --web-inCase: #8a6a24;
-  --web-board: #c0392b;
-  --web-boardNote: #c0392b;
-  --web-thread: #c0392b;
-  --web-pin: #1f4e79;
-  --web-mapOf: #1f4e79;
-  --web-event: #2f6b4f;
-  --web-investigator: #5b3a78;
-  --web-player: #5b3a78;
-}
-:root[data-theme='dark'] {
-  --web-mention: #e8e1d2;
-  --web-relation: #e8e1d2;
-  --web-field: #e8e1d2;
-  --web-section: #e8e1d2;
-  --web-filed: #d4b45f;
-  --web-caseNotes: #d4b45f;
-  --web-caseLink: #d4b45f;
-  --web-inCase: #d4b45f;
-  --web-board: #e2705f;
-  --web-boardNote: #e2705f;
-  --web-thread: #e2705f;
-  --web-pin: #8fb8dd;
-  --web-mapOf: #8fb8dd;
-  --web-event: #7fc79c;
-  --web-investigator: #b78fd8;
-  --web-player: #b78fd8;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --web-mention: #e8e1d2;
-    --web-relation: #e8e1d2;
-    --web-field: #e8e1d2;
-    --web-section: #e8e1d2;
-    --web-filed: #d4b45f;
-    --web-caseNotes: #d4b45f;
-    --web-caseLink: #d4b45f;
-    --web-inCase: #d4b45f;
-    --web-board: #e2705f;
-    --web-boardNote: #e2705f;
-    --web-thread: #e2705f;
-    --web-pin: #8fb8dd;
-    --web-mapOf: #8fb8dd;
-    --web-event: #7fc79c;
-    --web-investigator: #b78fd8;
-    --web-player: #b78fd8;
-  }
-}
+   (`components/web/WebCanvas.tsx`) that reads --paper, --ink, --rule and, as
+   of §45, every --web-line-* and --web-<kind> off this element, so a Keeper
+   who turns one of the six line colours turns the legend and the drawing at
+   once. The six live in the generated block at the top of this file (and in
+   the Keeper's own `<style>`, when they have edited any); the sixteen kinds
+   are aliases onto them, written once beside it. `lib/web/kinds.ts` keeps its
+   constants as the fallback for a property that is missing — nothing here is
+   the second copy it used to be. */
 
 .web-view {
   display: flex;
@@ -5063,6 +5181,18 @@ details.section[open] > summary::before {
   cursor: grab;
   outline: none;
 }
+.web-canvas-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+.web-canvas {
+  position: relative;
+}
 .web-canvas:focus-visible {
   outline: 2px solid var(--link);
   outline-offset: -2px;
@@ -5153,6 +5283,30 @@ details.section[open] > summary::before {
   color: var(--ink-muted);
   text-decoration: line-through;
 }
+/* "Wat" over the knots, "Hoe" over the lines: a rule with a word on it. */
+.web-legend-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.2rem 0 0.35rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+}
+.web-legend-heading::after {
+  content: '';
+  flex: 1 1 auto;
+  border-top: 1px solid var(--rule);
+}
+.web-legend-group + .web-legend-heading {
+  margin-top: 0.6rem;
+}
+.web-legend-row .web-glyph {
+  width: 20px;
+  height: 20px;
+}
 
 /* The panel: what is chosen, and how it is tied on. */
 .web-panel-body {
@@ -5161,16 +5315,32 @@ details.section[open] > summary::before {
 .web-panel-cover {
   display: block;
   width: 100%;
-  max-height: 160px;
-  object-fit: cover;
+  overflow: hidden;
   border: 1px solid var(--rule);
   margin-bottom: 0.6rem;
+}
+.web-panel-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .web-panel-name {
   margin: 0.1rem 0 0;
   font-size: 1.25rem;
   line-height: 1.2;
   overflow-wrap: anywhere;
+}
+/* The short description, as `.entry-lead` but muted and cut at four lines — "Openen" has the rest. */
+.web-panel-summary {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 .web-panel-h {
   margin: 0.9rem 0 0.3rem;
@@ -5323,4 +5493,175 @@ details.section[open] > summary::before {
   .web-stepper-word {
     display: none;
   }
+}
+
+/* ---------------------------------------------------- §44: de Keeperkant */
+/*
+ * The Keeper's second side of the archive: the stamp on a page that is theirs,
+ * the corner on every page where they work, and the banner that says they are
+ * looking through a player's eyes.
+ *
+ * Nothing here hides anything. A page a player may not see is not rendered for
+ * them at all (`keeperRef` returns null and the server never asks for it), so
+ * every rule below is paint — and none of it may be load-bearing for who sees
+ * what. The palette itself is §45's; this block only borrows the variables.
+ */
+
+/* The stamp. A word, so a Keeper knows which face they are reading before the
+   colours have loaded or been learnt. `KeeperSideMark` beside it is what §45's
+   selectors look for; that one is `hidden` and paints nothing. */
+.keeper-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--stamp-red);
+  color: var(--stamp-red);
+  background: var(--paper-raised);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* The corner itself. On an artikel and a dossier it stands inside a section
+   that already has its own manners, so only the inside is styled. */
+.keeper-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.6rem 0 1.2rem;
+}
+.keeper-panel-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.keeper-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.keeper-panel-hint {
+  margin: 0;
+}
+.keeper-side-toggle {
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+/* Below the fold on a prikbord, een landkaart and een tijdlijn, where the
+   page is otherwise nothing but the canvas. */
+.keeper-underfold {
+  max-width: 44rem;
+  margin: 1.2rem auto 0;
+  padding: 0 0.2rem;
+}
+
+/* The switch, and the ropes hanging beside it. The popover is `.cover-menu`'s
+   shape — same size, same shadow, same two ways of closing — but its rows are
+   links rather than buttons, so they need their own layout. */
+.keeper-switch {
+  gap: 0.4rem;
+}
+.keeper-rope-anchor {
+  position: relative;
+}
+.keeper-rope-menu a {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: var(--tap);
+  padding: 0 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.keeper-rope-menu a:hover,
+.keeper-rope-menu a:focus-visible {
+  background: var(--paper-dark);
+}
+.keeper-rope-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.keeper-rope-mark {
+  color: var(--stamp-red);
+}
+
+.keeper-rope-list {
+  list-style: none;
+  margin: 0 0 0.2rem;
+  padding: 0;
+}
+.keeper-rope-row {
+  gap: 0.45rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.keeper-rope-row:last-child {
+  border-bottom: none;
+}
+.keeper-rope-cut {
+  margin-left: auto;
+}
+.keeper-tie-picker {
+  position: relative;
+}
+.keeper-notes {
+  min-height: 7rem;
+}
+
+/* De Keeperkant, the list page. */
+.keeper-side-group {
+  margin: 0 0 1.4rem;
+}
+.keeper-side-list {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+}
+.keeper-side-row {
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--rule);
+}
+.keeper-side-row:last-child {
+  border-bottom: none;
+}
+.keeper-side-name {
+  flex: 1;
+}
+.keeper-side-twin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* "Kijk als speler": the way in, in the side menu, and the banner that is the
+   only way back out — Beheer and de Keeperkant do not render while it is on. */
+.who-as-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.25rem 0 0;
+  padding-left: 0.6rem;
+  text-decoration: none;
+}
+.who-as-player:hover {
+  text-decoration: underline;
+}
+.keeper-as-player {
+  border-color: var(--stamp-red);
+}
+.keeper-as-player svg {
+  color: var(--stamp-red);
 }

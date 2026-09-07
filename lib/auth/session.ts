@@ -3,10 +3,19 @@ import { cookies } from 'next/headers';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
+import { cleanColourScheme, type ColourScheme } from '@/lib/theme/schemes';
 import { newId, randomToken } from '@/lib/ids';
 import { readCharacterHeader, resolveCharacter } from '@/lib/auth/author';
 
 export const COOKIE_NAME = 'zcf_session';
+/**
+ * §44: "kijk als speler". A Keeper who sets this cookie is handed to the whole
+ * app as a player — every read, every room, every API — until they take it off
+ * again. It can only ever take rights away, so nothing forges anything by
+ * setting it; and because it works by *becoming* a player rather than by
+ * pretending on one page, there is no surface it can be forgotten on.
+ */
+export const AS_PLAYER_COOKIE = 'zcf_as_player';
 /** §4: 90-day rolling expiry. */
 const MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 /** Refresh the row and cookie at most once a day, not on every request. */
@@ -19,6 +28,17 @@ export type SessionUser = {
   lastSeenAt: number | null;
   /** §29: the face they read in; '' is the archive's own. */
   readingFont: ReadingFont;
+  /** §45: light, dark, or '' for whatever the system says. */
+  colourScheme: ColourScheme;
+  /**
+   * §44: is this account a Keeper *really* — before "kijk als speler" was
+   * taken into account? The only thing that may read this is the banner that
+   * offers to take the preview off again; every rule in the archive reads
+   * `isKeeper`, which is false while the preview is on.
+   */
+  isRealKeeper: boolean;
+  /** §44: is the preview on right now. */
+  asPlayer: boolean;
   /**
    * §18b: the onderzoeker this *window* is writing as — the validated
    * `X-Character` header, or the account's own `active_character_id` when the
@@ -92,6 +112,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       isDisabled: schema.users.isDisabled,
       lastSeenAt: schema.users.lastSeenAt,
       readingFont: schema.users.readingFont,
+      colourScheme: schema.users.colourScheme,
       activeCharacterId: schema.users.activeCharacterId,
     })
     .from(schema.sessions)
@@ -123,6 +144,17 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
 
   /*
+   * §44: "kijk als speler", taken into account before anything else asks a
+   * question about this person. A Keeper with the cookie on *is* a player from
+   * here down — `isKeeper` is what every visibility rule, room gate and page
+   * reads, and it is false — so the preview cannot miss a surface the way a
+   * per-page flag would. It also means they write as nobody, which is right:
+   * a Keeper looking through a player's eyes is not holding a pen.
+   */
+  const asPlayer = row.isKeeper && Boolean(jar.get(AS_PLAYER_COOKIE)?.value);
+  const isKeeper = row.isKeeper && !asPlayer;
+
+  /*
    * §18b: who this *window* is writing as. The header is the window's answer to
    * "Met wie ben je nu aan het schrijven?", checked against the fiches this
    * account holds; a header naming anyone else falls through to the account's
@@ -130,7 +162,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
    * A Keeper is asked nothing and gets nothing.
    */
   let characterId: string | null = null;
-  if (!row.isKeeper) {
+  if (!isKeeper) {
     const asked = await readCharacterHeader();
     characterId = (asked ? resolveCharacter(row.id, asked) : null) ?? row.activeCharacterId ?? null;
   }
@@ -138,12 +170,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return {
     id: row.id,
     username: row.username,
-    isKeeper: row.isKeeper,
+    isKeeper,
+    isRealKeeper: row.isKeeper,
+    asPlayer,
     characterId,
     // The value from *before* this visit — that is what "since you were last here" means.
     lastSeenAt: previousLastSeen,
     // A row written before this column existed has null; read it defensively.
     readingFont: cleanReadingFont(row.readingFont),
+    colourScheme: cleanColourScheme(row.colourScheme),
   };
 }
 

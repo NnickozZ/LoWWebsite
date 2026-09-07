@@ -21,6 +21,20 @@ import { visibleEntryCondition } from '@/lib/entries/visibility';
 /** Who may pass judgement on a proposal for this fiche: a Keeper, or its owner. */
 export function canReview(entryId: string, user: { id: string; isKeeper: boolean }): boolean {
   if (user.isKeeper) return true;
+  /*
+   * §9, and §17's third rule: nobody judges what they may not read. The
+   * reviewer here is the *owner*, and an owner stays the owner after the
+   * Keeper takes their artikel to the Keeperkant (§44) or hides it under §9 —
+   * so without this line the queue on a fiche they can no longer open still
+   * answered them, and a proposal prints that fiche's current name, body,
+   * tags and infobox as the "before" beside what it would become.
+   */
+  const visible = db
+    .select({ id: schema.entries.id })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(user)))
+    .get();
+  if (!visible) return false;
   const row = loadAccessRow('entry', entryId);
   return Boolean(row && row.createdBy === user.id && canManageAccess(row, user));
 }

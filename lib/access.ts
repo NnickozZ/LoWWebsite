@@ -46,6 +46,8 @@ export type AccessRow = {
   viewMode: AccessMode;
   editMode: AccessMode;
   accessLocked?: boolean;
+  /** §44. Absent on an artikel, which says it with `visibility` instead. */
+  keeperOnly?: boolean;
 };
 
 export type Grant = { userId: string; canView: boolean; canEdit: boolean };
@@ -75,7 +77,7 @@ const TABLES = {
  * second copy of a table already joined into a query — §19's speld that points
  * at another landkaart joins `maps` twice and has to ask the *target's* dial.
  */
-export type AccessColumns = { id: Column; viewMode: Column; createdBy: Column };
+export type AccessColumns = { id: Column; viewMode: Column; createdBy: Column; keeperOnly?: Column };
 
 /**
  * The view rule as a WHERE fragment for one of the tables above. Keepers get
@@ -91,8 +93,18 @@ export function viewableCondition(
 ): SQL {
   const t: AccessColumns = on ?? TABLES[target];
   if (viewer?.isKeeper) return sql`1 = 1`;
-  if (!viewer) return sql`${t.viewMode} = 'all'`;
-  return sql`(
+  /*
+   * §44: the Keeper's side, AND-ed on in front of the owner's dials rather
+   * than folded into them. A dossier, prikbord, landkaart or tijdlijn with
+   * `keeper_only` set is not a thing with strict rights: it is a thing the
+   * table may not know exists, and no dial, grant or ownership opens it.
+   * `entries` is not in this — an artikel has said the same with §9's
+   * `visibility = 'keeper'` since Phase 3, and two ways to say one thing is
+   * how a leak gets written. The column is absent there, so this adds nothing.
+   */
+  const notKeepers = t.keeperOnly ? sql`${t.keeperOnly} = 0 AND ` : sql``;
+  if (!viewer) return sql`${notKeepers}${t.viewMode} = 'all'`;
+  return sql`${notKeepers}(
     ${t.viewMode} = 'all'
     OR ${t.createdBy} = ${viewer.id}
     OR (${t.viewMode} = 'some' AND EXISTS (
@@ -108,6 +120,9 @@ export function viewableCondition(
 /** The same rule as a plain predicate, for in-memory checks and tests. */
 export function canView(row: AccessRow, viewer: Viewer, grant?: Grant | null): boolean {
   if (viewer?.isKeeper) return true;
+  // §44: same order as the SQL above — the Keeper's side first, and nothing
+  // below it can talk its way past.
+  if (row.keeperOnly) return false;
   if (row.viewMode === 'all') return true;
   if (!viewer) return false;
   if (row.createdBy === viewer.id) return true;
@@ -197,16 +212,30 @@ export function accessSettings(row: AccessRow, target: AccessTargetType, id: str
 /** The one thing a per-row check needs and every table has. */
 export function loadAccessRow(target: AccessTargetType, id: string): AccessRow | undefined {
   const t = TABLES[target];
-  return db
-    .select({
-      createdBy: t.createdBy,
-      viewMode: t.viewMode,
-      editMode: t.editMode,
-      accessLocked: t.accessLocked,
-    })
-    .from(t)
-    .where(eq(t.id, id))
-    .get();
+  /*
+   * §44: `keeper_only` comes with the row, or the predicate beside the SQL
+   * reads `undefined` for it and waves a Keeper-only dossier, prikbord,
+   * landkaart or tijdlijn straight past `canView` on its owner's dial. The
+   * flag was written into `viewableCondition` and not into the one loader
+   * `canEdit`, `viewerCanEdit` and `canManageAccess` are all fed from — the
+   * exact shape of gap this file exists to keep shut. `entries` has no such
+   * column (§9 says it with `visibility`), so it is asked for only where it is.
+   */
+  const base = {
+    createdBy: t.createdBy,
+    viewMode: t.viewMode,
+    editMode: t.editMode,
+    accessLocked: t.accessLocked,
+  };
+  const row =
+    target === 'entry'
+      ? db.select(base).from(t).where(eq(t.id, id)).get()
+      : db
+          .select({ ...base, keeperOnly: (t as typeof schema.cases).keeperOnly })
+          .from(t)
+          .where(eq(t.id, id))
+          .get();
+  return row as AccessRow | undefined;
 }
 
 /** True when this viewer may change the thing. Loads what it needs; one query or two. */

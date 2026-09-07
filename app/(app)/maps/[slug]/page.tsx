@@ -6,6 +6,9 @@ import { Icon } from '@/components/Icon';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
+import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
+import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { keeperRef } from '@/lib/keeper/side';
 import { accessSettings, canManageAccess } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -100,6 +103,9 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
       <div className="page-canvas">
         <LivePage place={mapKey(map.id)} watch={['entries']} pointers={false} />
         <header className="canvas-head">
+          {/* §44/§45: the Keeper's own landkaart says so, in a word and in
+              the colours of the whole page. */}
+          <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('map', map.id, user)?.keeperOnly)} />
           <p className="eyebrow">
             <Link href="/maps" style={{ color: 'inherit' }}>
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {words.navMaps}
@@ -180,6 +186,18 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
             viewerId: user?.id ?? '',
           }}
         />
+      )}
+      {/*
+       * §44: the Keeper's corner, under the rest of their tools and below the
+       * fold with them — the switch to the other face of this landkaart, the
+       * "this map is mine" toggle, its touwtjes and the shared notes. A
+       * landkaart never had keeper notes before; it has the same ones as an
+       * artikel now, and a twin shares one text with its other face.
+       */}
+      {user?.isKeeper && (
+        <div className="keeper-underfold">
+          <KeeperPanelServer kind="map" id={map.id} user={user} />
+        </div>
       )}
     </div>
   );

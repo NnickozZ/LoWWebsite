@@ -13,6 +13,7 @@ import {
   restoreCaseRevision,
   restoreFromTrash,
 } from '@/lib/admin/trash';
+import { saveSchemes, schemesFromForm } from '@/lib/admin/schemes';
 import { createType, deleteType, purgeOrphanField, updateType } from '@/lib/admin/types';
 import { saveWords } from '@/lib/admin/words';
 import { makeInviteCode } from '@/lib/db/seed.mjs';
@@ -191,11 +192,24 @@ export async function saveSiteAction(_prev: AdminState, formData: FormData): Pro
     return { error: 'Een kleur ziet eruit als #A8321E.' };
   }
 
+  /*
+   * §45: `theme` is a bag now, not one value. It held nothing but `accent`
+   * until this round, so `theme: accent ? { accent } : {}` was harmless — and
+   * from the day the Kleuren pane started writing `theme.schemes` beside it,
+   * saving the site's name would have thrown all four palettes away. Read,
+   * merge, write; and clearing the accent box removes that one key rather
+   * than emptying the bag.
+   */
+  const row = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
+  const theme = { ...(row?.theme ?? {}) };
+  if (accent) theme.accent = accent;
+  else delete theme.accent;
+
   db.update(schema.siteSettings)
     .set({
       name: name.slice(0, 80),
       tagline: tagline.slice(0, 120),
-      theme: accent ? { accent } : {},
+      theme,
       intro: intro.slice(0, 4000),
     })
     .where(eq(schema.siteSettings.id, 1))
@@ -293,6 +307,32 @@ export async function saveWordsAction(
       ? `Opgeslagen. ${changed} ${changed === 1 ? 'woord wijkt' : 'woorden wijken'} af van de standaard.`
       : 'Opgeslagen. Alles staat weer op de standaardwoorden.',
   };
+}
+
+/* ----------------------------------------------------------- colours (§45) */
+
+/**
+ * Beheer → Kleuren. The form posts all four palettes, nineteen colours each,
+ * as `<schemeKey>.<tokenKey>`; `schemesFromForm` reads them back and
+ * `cleanSchemes` throws away anything that is not six hex digits, so nothing a
+ * Keeper can type reaches the stylesheet but a colour.
+ *
+ * `revalidatePath('/', 'layout')` and not `/admin`: the palettes are rendered
+ * by the signed-in layout, which is every page in the archive.
+ */
+export async function saveSchemesAction(
+  _prev: AdminState,
+  formData: FormData,
+): Promise<AdminState> {
+  const keeper = await requireKeeper();
+  const schemes = schemesFromForm((name) => {
+    const value = formData.get(name);
+    return typeof value === 'string' ? value : null;
+  });
+
+  saveSchemes(schemes, keeper.id);
+  revalidatePath('/', 'layout');
+  return { ok: 'Opgeslagen. De nieuwe kleuren staan op elke pagina.' };
 }
 
 export async function createTypeAction(_prev: AdminState, formData: FormData): Promise<AdminState> {

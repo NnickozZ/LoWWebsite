@@ -10,7 +10,10 @@ import { getPin, updateMap, updatePin, viewerCanEditMap } from '@/lib/maps/servi
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { getEvent, updateEvent, viewerCanEditTimeline } from '@/lib/timelines/service';
 import type { FieldValues, RoomSpec } from './docs';
-import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, mapFieldsRoomKey, pinFieldsRoomKey } from './keys';
+import { isKeeperKind, type KeeperKind } from '@/lib/keeper/kinds';
+import { keeperNotesForRoom, notesTarget, writeKeeperNotes } from '@/lib/keeper/notes';
+import { keeperRef } from '@/lib/keeper/side';
+import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, keeperNotesRoomKey, mapFieldsRoomKey, pinFieldsRoomKey } from './keys';
 
 /**
  * §20: which rooms exist, and who gets in.
@@ -41,9 +44,19 @@ import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, mapFieldsRoo
  * while README rule 1 still holds — the room's membership *is* the visibility
  * rule.
  *
- * Keeper notes are deliberately not a room: a private scratch field one
- * person edits does not need a CRDT, and a room for it would be one more
- * Keeper-only channel to audit.
+ * Keeper notes *were* deliberately not a room — "a private scratch field one
+ * person edits does not need a CRDT". §44 reverses that, and says why: they
+ * are no longer one person's scratch field. A thing and its Keeper twin share
+ * one text (`lib/keeper/notes.ts`), so the same note is open on two pages at
+ * once, and two Keepers preparing a session are two people typing. Without a
+ * room, the second save silently threw the first away.
+ *
+ *   keeper:{kind}:{id}:notes   the Keeper's notes about one thing
+ *
+ * Its gate is the only one in this file that is not a visibility rule but a
+ * role: a Keeper, and nobody else, ever. It is also the only key a page must
+ * *resolve* before asking for — a twin's two faces both address the pair's
+ * Keeper side, which is what makes one text out of two pages.
  */
 
 export type Admission = {
@@ -67,6 +80,7 @@ const CASE_FIELDS_KEY = /^case:([A-Za-z0-9_-]{1,64}):fields$/;
 const MAP_FIELDS_KEY = /^map:([A-Za-z0-9_-]{1,64}):fields$/;
 const PIN_FIELDS_KEY = /^pin:([A-Za-z0-9_-]{1,64}):fields$/;
 const EVENT_FIELDS_KEY = /^event:([A-Za-z0-9_-]{1,64}):fields$/;
+const KEEPER_NOTES_KEY = /^keeper:([a-z]+):([A-Za-z0-9_-]{1,64}):notes$/;
 
 const asFields = (value: unknown): FieldValues =>
   value && typeof value === 'object'
@@ -324,6 +338,33 @@ export function admit(key: string, viewer: RoomViewer): Admission | null {
   return admission;
 }
 
+/**
+ * §44: the Keeper's notes about one thing. Three refusals, in order: not a
+ * Keeper, not a thing you can see, and not the side the pair keeps its text on
+ * — the last so that a twin can never open a second room and split the note in
+ * two. A page always asks with `notesTarget()` already applied.
+ */
+function keeperNotesAdmission(kind: KeeperKind, id: string, viewer: Viewer): Admission | null {
+  if (!viewer?.isKeeper) return null;
+  if (!keeperRef(kind, id, viewer)) return null;
+  const target = notesTarget(kind, id);
+  if (target.kind !== kind || target.id !== id) return null;
+  return {
+    canEdit: true,
+    spec: {
+      key: keeperNotesRoomKey(kind, id),
+      kind: 'fields',
+      seed: () => ({ notes: keeperNotesForRoom(target) }),
+      persist: (value, actor) => {
+        if (!actor.isKeeper) return;
+        const texts = asFields(value);
+        if (texts.notes === undefined) return;
+        writeKeeperNotes(kind, id, texts.notes, actor);
+      },
+    },
+  };
+}
+
 function roomFor(key: string, viewer: Viewer): Admission | null {
   const entryMatch = ENTRY_KEY.exec(key);
   if (entryMatch) return entryAdmission(entryMatch[1], viewer);
@@ -341,5 +382,9 @@ function roomFor(key: string, viewer: Viewer): Admission | null {
   if (sectionMatch) return sectionAdmission(sectionMatch[1], viewer);
   const caseMatch = CASE_KEY.exec(key);
   if (caseMatch) return caseAdmission(caseMatch[1], viewer);
+  const keeperNotesMatch = KEEPER_NOTES_KEY.exec(key);
+  if (keeperNotesMatch && isKeeperKind(keeperNotesMatch[1])) {
+    return keeperNotesAdmission(keeperNotesMatch[1], keeperNotesMatch[2], viewer);
+  }
   return null;
 }

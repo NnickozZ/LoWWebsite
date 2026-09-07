@@ -1,8 +1,10 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { viewableCondition } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import { newId } from '@/lib/ids';
 import { uniqueSlug } from '@/lib/slug';
-import type { AccessMode, CoverCrop } from '@/lib/db/schema';
+import type { AccessMode } from '@/lib/db/schema';
+import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 import { docToText } from '@/lib/entries/doc';
 import { recomputeCaseMentions } from '@/lib/entries/mentions';
 import type { Author } from '@/lib/auth/author';
@@ -16,19 +18,6 @@ import { visibleCaseCondition } from './visibility';
 
 export type CaseStatus = 'open' | 'cold' | 'closed';
 
-/** A crop off the wire, clamped so nothing odd reaches a style attribute. */
-export function cleanCrop(input: unknown): CoverCrop | null {
-  if (!input || typeof input !== 'object') return null;
-  const raw = input as Partial<CoverCrop>;
-  const num = (value: unknown, fallback: number) =>
-    typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  return {
-    x: Math.min(1, Math.max(0, num(raw.x, 0.5))),
-    y: Math.min(1, Math.max(0, num(raw.y, 0.5))),
-    zoom: Math.min(4, Math.max(1, num(raw.zoom, 1))),
-  };
-}
-
 export type CaseSummary = {
   id: string;
   name: string;
@@ -41,7 +30,7 @@ export type CaseSummary = {
   accessLocked: boolean;
   createdBy: string | null;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   /**
    * §30: the soorten whose tabs this dossier always has. Null — the default —
    * is "whatever is filed here decides", which is what every dossier did
@@ -232,13 +221,13 @@ export function listCaseMembers(caseId: string): CaseMember[] {
 }
 
 /**
- * An entry as it appears in one case: its own note, and its own crop of the
- * cover, which falls back to the entry's when this case has not set one.
+ * An entry as it appears in one case: with its own note. Round 19: the cover
+ * is the artikel's, crops and all — a dossier no longer keeps a crop of its
+ * own (`case_entries.crop` is nulled and unread).
  */
 export type CaseEntry = EntrySummary & {
   caseNote: string;
   addedAt: number;
-  caseCrop: CoverCrop | null;
 };
 
 /**
@@ -252,7 +241,6 @@ export function listCaseEntries(caseId: string, viewer: Viewer): CaseEntry[] {
       ...ENTRY_COLUMNS,
       caseNote: schema.caseEntries.note,
       addedAt: schema.caseEntries.addedAt,
-      caseCrop: schema.caseEntries.crop,
     })
     .from(schema.caseEntries)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.caseEntries.entryId))
@@ -337,14 +325,6 @@ export function setCaseEntryNote(
   logActivity({ actorId: userId, characterId: actorCharacter(by), verb: 'case.note_changed', caseId, entryId });
 }
 
-/** This case's own crop of the cover. Null means "use the entry's". */
-export function setCaseEntryCrop(caseId: string, entryId: string, crop: CoverCrop | null) {
-  db.update(schema.caseEntries)
-    .set({ crop })
-    .where(and(eq(schema.caseEntries.caseId, caseId), eq(schema.caseEntries.entryId, entryId)))
-    .run();
-}
-
 /** Is this entry already filed in this case? Used by the board's filing prompt. */
 export function caseHasEntry(caseId: string, entryId: string): boolean {
   return Boolean(
@@ -410,7 +390,7 @@ export type CasePatch = Partial<{
   notes: unknown;
   status: CaseStatus;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   keeperNotes: string;
 }>;
 
@@ -432,7 +412,7 @@ export function updateCase(
   }
   if (patch.status !== undefined) values.status = patch.status;
   if (patch.coverAssetId !== undefined) values.coverAssetId = patch.coverAssetId;
-  if (patch.coverCrop !== undefined) values.coverCrop = cleanCrop(patch.coverCrop);
+  if (patch.coverCrop !== undefined) values.coverCrop = normaliseCrops(patch.coverCrop);
   if (patch.keeperNotes !== undefined && user.isKeeper) values.keeperNotes = patch.keeperNotes;
   // §17: who may see or edit the case is not a field on it — it goes through
   // lib/access.ts and /api/access, with its own rules about who may change it.
@@ -585,7 +565,9 @@ export function listCaseActivity(caseId: string, viewer: Viewer, limit = 120): C
       entryId: schema.activity.entryId,
       entryName: schema.entries.name,
       entrySlug: schema.entries.slug,
+      boardId: schema.activity.boardId,
       boardName: schema.boards.name,
+      meta: schema.activity.meta,
     })
     .from(schema.activity)
     .leftJoin(schema.users, eq(schema.users.id, schema.activity.actorId))
@@ -610,8 +592,54 @@ export function listCaseActivity(caseId: string, viewer: Viewer, limit = 120): C
       : [],
   );
 
+  /*
+   * §44: and the same for the other two records a row can be *about*. A
+   * prikbord or a tijdlijn on the Keeper's side may hang in a dossier the
+   * table can open — `createTwin` copies the dossier across — and this tab
+   * was the one place that said so: "Keeper maakte prikbord Wie het deed aan"
+   * names a wall nothing else in the archive will admit exists, and "maakte
+   * tijdlijn aan" for an axis that never appears on the shelf gives it away
+   * just as loudly without naming it. Both rows are dropped, exactly as a row
+   * about an artikel this viewer may not see already is. A tijdlijn is only
+   * in `meta` (there is no `timeline_id` column), so that is where it is read.
+   */
+  const boardIds = [...new Set(rows.flatMap((row) => (row.boardId ? [row.boardId] : [])))];
+  const allowedBoards = new Set(
+    boardIds.length
+      ? db
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(and(inArray(schema.boards.id, boardIds), viewableCondition('board', viewer)))
+          .all()
+          .map((r) => r.id)
+      : [],
+  );
+  const timelineOf = (meta: unknown): string | null => {
+    const id = (meta as { timelineId?: unknown } | null | undefined)?.timelineId;
+    return typeof id === 'string' && id ? id : null;
+  };
+  const timelineIds = [...new Set(rows.flatMap((row) => {
+    const id = timelineOf(row.meta);
+    return id ? [id] : [];
+  }))];
+  const allowedTimelines = new Set(
+    timelineIds.length
+      ? db
+          .select({ id: schema.timelines.id })
+          .from(schema.timelines)
+          .where(and(inArray(schema.timelines.id, timelineIds), viewableCondition('timeline', viewer)))
+          .all()
+          .map((r) => r.id)
+      : [],
+  );
+
   return rows
     .filter((row) => !row.entryId || allowed.has(row.entryId))
+    .filter((row) => !row.boardId || allowedBoards.has(row.boardId))
+    .filter((row) => {
+      const timelineId = timelineOf(row.meta);
+      return !timelineId || allowedTimelines.has(timelineId);
+    })
     .map((row) => ({
       id: row.id,
       verb: row.verb,

@@ -2442,3 +2442,540 @@ clusters and looks like one; the seeded demo does not. A karakter's *activity*
 (every revision, card and speld with its `character_id`) as a line was offered
 and not chosen; it is a fifth violet kind waiting on a decision. Keeper-only
 ghosts for the Keeper (see what a player would *not* see) were not asked for.
+
+## Round 17 — 7 September 2026: het web ademt (§43)
+
+One complaint from Nick, with a screenshot of a filled archive (round 16's
+`seed-wereld`, fifteen artikelen per soort): the web and anything more than one
+step deep were "kleurenkots", low framerate, unreadable, and the knots sat in a
+clot he could not move — a dragged knot sprang straight back. He likes the colour
+code and said so; nothing about which colour means what changed.
+
+**Why it clotted, and the three knobs that fix it.** Every spring pulled with the
+same strength (0.4), so a hub with thirty lines pulled thirty times as hard as
+anything pushed back, and repulsion (`90/(d²+60)`) was a fraction of one spring.
+Round 17 divides a spring by the smaller degree of its two ends — d3's
+`1 / min(count)` — so thirty lines on a hub add up to about one; puts a hard
+collision floor of `r + pad` round every knot (`pad` is room for a label) that is
+resolved as a *move*, because a force is scaled by alpha and a cooling web let
+knots drift back together; and raises repulsion and link distance for the large
+web. Radius was `4.5 + 2.4√degree`, cap 22; in a filled archive nearly everything
+is a hub, so nearly everything was forty pixels wide. Now `3.5 + 1.6√degree`,
+cap 14, and the middle alone may reach 20.
+
+**Rings, then bands.** Nick chose "ringen + rustige rand" for depth ≥ 2. The first
+cut pulled each depth to a circle wide enough for its knots at 64 px of arc each;
+measured on the seeded archive, depth 2 wanted a radius of 1436 and sat at 420,
+because 141 knots on one circumference is a radius every spring fights. The
+second cut is what shipped: each depth gets an **annulus** with enough *area* for
+its knots, a 70 px gutter between annuli, and the pull acts only on a knot that
+has left its band — inside it the springs and collisions arrange things as they
+always did. The gutters are shaded a shade darker on the paper and carry
+"1 stap" / "2 stappen", so the steps read without a legend. In the whole web,
+which has no middle, there are no bands.
+
+**A dragged knot stays.** Options offered: pinned where dropped, or Obsidian's
+gentle spring-back. Nick chose pinned. `ForceNode` gained `pinned` beside `fixed`
+(a hand on it); the sim moves neither. A pinned knot wears a speld; a tap on it
+lets that one go, the toolbar's "n losmaken" lets all go. Drag reheats to 0.12
+instead of 0.25, so the far side of the web no longer bobs on every drag.
+
+**The rustige rand.** A line between two knots that are both two or more steps out
+says nothing about the middle, and there are hundreds of them at depth 2. At rest
+they are drawn at 0.12 alpha, in their own colour; on hover full. In the columns
+the same rule applies to a tie inside one column, and to lines into a fold row —
+a hundred lines landing on "… nog 100" made a black fan. The column limit went
+from 40 to 28, and a column fit never goes below zoom 0.45: a column of needles
+is worse than a column you scroll.
+
+**Names.** `showLabel` used to fire at `zoom ≥ 1.25 || r·zoom ≥ 15`, and `fit()`
+zooms an organic focus web to 1.6, so a focus web that fit the window labelled
+every knot, on a paper slip, with no collision test. Names are now a pass after
+the knots: sorted by rank (middle, chosen and hovered, lit, hubs, the rest), a
+name is skipped if its box would sit on another name or on a knot (the middle,
+the chosen and the hovered always speak); the rest fade in between zoom 0.7 and
+1.05; the slip became a stroke of paper behind the letters.
+
+**The frame.** Three things made a hover frame on 600 knots cost tens of
+milliseconds, none of them the simulation. `ctx.font` was assigned per labelled
+knot with `10/zoom` in the string — a font parse per knot, and a `measureText`
+cache keyed on that string that missed on every zoom step; text is now measured
+once at 20 px per (weight, text) on a context of its own and scaled linearly, and
+the drawing font is set only when the string differs (`Type`). Covers were
+`clip()`-ed per knot per frame; a cover is now cut once to its knot's shape into a
+sprite and stamped, at most twenty-four new sprites a frame. Line buckets were
+keyed on `alpha.toFixed(2)` times each knot's birth scale, so during a depth step
+almost every line was its own `Path2D`; alpha is quantised to 0.05 and the birth
+scale to quarters. `devicePixelRatio` is capped at 2, not 3; the column card's
+canvas shadow became a second offset rectangle.
+
+**Not done, on purpose.** The whole web of a filled archive is still a hairball
+with hubs; that is what it is, and round 15 said so. No dependency was added.
+Ring/band gravity does not touch the whole web. The e2e suite gained one spec
+(drag → pinned → losmaken) and the unit suite three (pins, a hub that cannot
+swallow its neighbours, bands).
+
+## Round 18 — 7 September 2026: het web op 4K, en zes dingen eromheen (§43, §27)
+
+Nick, after round 17: better, but on his 4K screen a focus web at two steps ran
+at three frames a second. Plus six things, all of them "cruciaal": the text line
+thin and yielding, private walls private, draadjes with their own words, a wall
+that can opt out of the web, and `@` in the plain boxes. A plan first, four
+questions, then the build. Four answers, all the recommended way.
+
+**The three frames a second were measured, not guessed.** On a 4K-class canvas
+(2560×1350 CSS px at dpr 2) a hover frame cost **133 ms**. JS-side it cost four:
+the time was in the raster. Switching things off one at a time: no dashes, 111;
+no text halos, 133; **no line strokes, 19**; half the pixels, 77. Nine hundred
+anti-aliased lines over eight million pixels, redrawn on every hover, every pan,
+and every one of the simulation's three hundred ticks — and because the
+simulation cools per tick, a slow frame stretched the settling into a minute of
+"3 fps". `window.__web.stats` now carries the per-section timing so the next
+person measures too.
+
+**Two canvases.** The resting lines and the step rings moved to a canvas of their
+own under the drawing. First cut: an offscreen canvas blitted into the main one
+each frame — 133 → 49 ms, and 30 of the 49 were the blit itself (a full-canvas
+`drawImage` in software raster). Second cut, what shipped: the layer is a
+`<canvas>` element in the DOM, and the compositor stacks the two — dimming under
+a lit knot is CSS opacity, a moving camera is a CSS transform, and a hover frame
+costs the compositor's floor (16 ms measured, which is what an *empty* frame
+costs in headless). The layer is rebuilt on a key of everything under it: mode,
+layout, palette, size, a motion counter the simulation and the tweens bump, the
+edge count, and the layer's own resolution. While knots move it is drawn at half
+a pixel per CSS pixel without dashes or the faint lines; while only the camera
+moves the last layer is reused under a transform and redrawn sharp 160 ms after
+the hand stops. One bug on the way, worth writing down: "did the camera move"
+was first measured against the *layer's* camera, so a reused layer looked like a
+moving camera forever and the sharp redraw never came. It is measured against
+the previous frame's camera now.
+
+**The simulation ticks several times a frame** while hot (four above alpha 0.3,
+three above 0.05, two below), and a warm graph change — a depth step, a legend
+tick — takes thirty ticks off-screen before the first frame. Full reheat to rest:
+10.1 s → 2.9 s in software raster; on a GPU far less.
+
+**A text line yields.** Nick's words: "meteen weggaan als er ook maar ergens
+anders een andere lijn is die de twee verbindt". `collapseMentions` in
+`slice.ts` drops a `mention` or `section` edge between two knots when any edge
+of another kind ties the same pair either way round; two text edges between the
+same pair both stay, having nothing stronger to yield to. Applied once, when the
+graph is built, so the count, the panel and the drawing agree — and the legend
+cannot bring a collapsed line back by hiding the kind that collapsed it, which
+is accepted. What remains is 0.8 px at a third of the resting alpha. Nick chose
+mention + section; an infobox field stays a full line because it is a fact, not
+a mention.
+
+**Private walls were already private.** A wall on *privé* is its maker's, on
+*sommigen* the granted people's; the web is built per viewer through the same
+`viewableCondition` every reader uses. What was not private was the Keeper's
+web, which held every player's private wall because a Keeper may open anything.
+Nick chose "off, with a switch": the Keeper's web now reads the containers —
+dossiers, prikborden, landkaarten, tijdlijnen — *as a player* (`containerViewer`
+in `service.ts`: the same dials minus the skeleton key), unless the legend's
+"Ook privé van anderen" is on (`?others=1`). Artikelen and sections keep the
+real viewer, so the Keeper's own hidden pages stay in. A player's web ignores
+the flag.
+
+**A draad brings its own words.** "Not 'draadje op prikbord' but 'heeft gelogen
+over'." The line's phrase is the string's label verbatim, "draad" when empty. And
+two things Nick chose on top: a labelled draad points from its from-card to its
+to-card (`focusSlice` places it accordingly, the panel shows → or ←; an
+unlabelled draad keeps its ↔ and its place on the out side), and the line is
+drawn in the colour the draad has on the wall — `WebEdge.colour`, one of the six
+`STRING_COLOURS`, mapped through `LINE_COLOURS` to the same inks the kinds use,
+with `--web-line-<colour>` for the panel. A wall's red draad is still red; a
+blue one is blue in the web too.
+
+**A wall can opt out.** `boards.in_web`, default 1, migration 0018, a checkbox
+"Telt mee in het web" in the wall's Rechten sheet for whoever manages its rights
+(`PATCH /api/boards/{id}` with `inWeb`, refused for a mere editor). Nick chose
+"web én Genoemd in": `buildWebGraph` filters the walls on it and `listMentions`
+adds `eq(in_web, true)` to the wall query — a schizo wall leaks nowhere. The
+wall itself is untouched and as visible as its rights say.
+
+**`@` in the plain boxes.** Nick's question was whether notities, empty
+tijdlijn-gebeurtenissen and the scribbles under cards *should* be able to
+reference with `@`. They could, half-way, since round 6: `entryIdsInText` reads
+`@Naam` and `[[Naam]]` out of a notitie's text, a notitie-speld and an event's
+text — but nothing ever offered a name, so nobody knew, and a name one letter off
+matched nothing; and the scribble under an *artikel* card was not read at all.
+So: `MentionPopover` (`components/ui/`), which attaches to a textarea it does
+not own, offers names from `/api/suggest` on `@` or `[[`, and inserts `[[Naam]]`
+— the exact form, so a two-word name or a name inside a name is read back
+whole. It writes through the native value setter plus an `input` event, which
+is what a keystroke is, so the plain box (React's onChange) and the Yjs-bound
+`LiveField` (its diffing onChange) hear it the same way; a `LiveField` gets it
+with `mentions`. The popover is portalled to `body`: a `position: fixed` box
+inside a transformed prikbord canvas is fixed to the canvas. `MentionText`
+prints `[[Naam]]` as a chip where the text is shown; `@Naam` stays as typed,
+because where that name ends is only known to the reader with the index. The
+scribble under an artikel card now counts (never for its own artikel), and
+migration 0019 empties the walls' mention rows so `ensureMentionsBackfilled()`
+rewrites them at start-up. Two things the popover's spec found that are older
+than this round and left as they are: a keystroke in the first ~100 ms after a
+bound field's room arrives can be lost while the seeded text is still landing,
+and an edit made inside the last 80 ms before a sheet closes leaves with the
+sheet (`UPDATE_BATCH_MS`). Both are noted in the spec's comments.
+
+**Chosen against.** Storing an id in the plain text (`[[id|Naam]]`) would survive
+a rename but makes the raw box unreadable; the name-based match and its rename
+weakness stay, as they were. A monochrome web at rest was proposed in round 17
+and declined — the colour code is Nick's and stays.
+
+## Round 19 — 7 September 2026: zoom tot 12, kolommen op hun plek, wat en hoe, drie uitsneden (§43, rule 5)
+
+Nick, after round 18: the web could not be zoomed in far enough to see a face;
+columns "sometimes" came out as a web with S-curves for lines; the legend could
+switch a kind of *line* off but not a kind of *thing*; the panel said what a
+knot was called and nothing about it; and cropping a picture meant cropping it
+three times in three places. Five things, all refinements of §43 and rule 5;
+no new rule.
+
+**Kolommen staan waar de layout ze zet.** The columns bug was real and could not
+be reproduced with animations on. The layout effect used to leave a node at
+its *prior* position and trust the tween to carry it to the column; under
+`prefers-reduced-motion` no tween is made, so every card stayed at its organic
+coordinates for ever — columns that looked like a web, with the S-curved lines
+the fold draws between two points that are not in a column. Now
+`columnLayout`'s x/y go straight into `placed`; a tween, made only when motion
+is allowed and the node actually moved, is a way of *showing* the move and
+nothing more (`currentPos` walks it and lands on the layout). Alongside, the
+layout key gained a fingerprint of the graph — every node's step and side and
+a hash of the edges — because a legend tick or a live respin can change what
+the columns depend on without changing a single id, and before this the layout
+never re-ran for it. The second field of the key stays the focus, because
+`nodePoint()` in the e2e specs reads it; `tests/e2e/web.spec.ts` now runs the
+refocus-then-columns road with reduced motion on and off.
+
+**Zoom tot 12 in plaats van 4.** Three things had to give for that not to be
+mush. A cover sprite is rasterised at 2 texels per world pixel, which is sharp
+at zoom 1 on a retina screen and a blur at 12; so the sprite is also keyed on a
+bucket (1, 2, 4, 8 — `zoomBucket(zoom, dpr)`), chosen so the sprite has at
+least the screen's texels per world pixel, capped at 8 and at 1024 px so a hub
+at zoom 12 is a 1.5× upsample rather than a canvas the size of the screen.
+Four buckets and not a continuous scale, because every bucket is another
+sprite per cover in the cache. From bucket 4 up the 900 px `?s=card` is
+fetched instead of the 400 px thumb, the thumb drawing meanwhile so a knot
+never blanks; never for a whole web at zoom 1, so nothing gets slower for a
+reader who never zooms in. A line used to grow with the zoom like everything
+else, and at 12 a line was a rope; now its on-screen width grows as √zoom up
+to 4 — the old maximum, so nothing below it changed — and then stops
+(`lineZoom`, dashes and arrowheads too). And the cull margin is 200 *screen*
+pixels rather than world pixels, so a zoomed-in knot whose centre is just off
+the glass still draws its body. A fourth showed up in the sandbox: a name under a knot at zoom 12 was a row of scattered letters, because a canvas places glyphs at the *nominal* font size and `10 / 12 px` is below a pixel — so past zoom 2 a caption is drawn at 10 px on a context scaled back down (`crispText`).
+
+**Het web: een verborgen soort knoop is afwezig, niet gedimd; het middelpunt is
+uitgezonderd.** The legend's new "Wat" block — dossiers, prikborden,
+landkaarten, tijdlijnen under *Verzamelingen*, and every soort in the web
+under the artikelen word, each with its count — could have dimmed the knots it
+switches off. Dimming keeps the lines and the layout, and a web of a hundred
+personen with the personen dimmed is still a web of a hundred personen. So
+the filter runs in the slice (`hiddenNodeKinds` / `hiddenTypes` in
+`SliceOptions`, `hiddenNode()`), *before* the focus walk: a hidden knot is
+absent, its edges go with it, and a knot reachable only through it is not in
+the web either — which is what "without the dossiers" means. The focus is
+exempt, because the page *is* that thing (`?focus=` would otherwise draw
+nothing) and "hide personen while looking at one persoon" means the other
+personen. Two more `localStorage` keys beside the lines' one; the "Hoe" block
+is the old legend, renamed by a heading and nothing else. The panel shows the
+knot's short description under its name (`summary` on the node: an artikel's
+`short_description`, a dossier's `summary`, a landkaart's or tijdlijn's
+`description`; a prikbord has none).
+
+**Drie uitsneden per afbeelding.** This reverses "Every placement keeps its own
+crop" (under "Borders, per-place crops and string anchors", above). An artikel's crop was set for the 3:4 card and
+borrowed by every other shape, and a dossier's filing and a prikbord card could
+each keep their own — three UIs for one decision, and a face still did not
+look the same on every list, because the tijdlijn's window is wide and a knot
+is round. Now a picture carries one set of three — liggend 3:2, staand 3:4,
+vierkant 1:1 (`lib/images/shapes.ts`, the only place a ratio lives) — set once
+under "Afbeelding › Bijsnijden" on the artikel (and on a dossier's own
+picture) and drawn by every list, card, thumb and knot in the shape it uses.
+Still no server-side derivatives: each crop is a focal point and a zoom,
+applied by CSS at render or, on the web canvas, as a source rect
+(`drawCover`); the artikel page still shows the whole picture; nothing on
+disk changed shape. A bare `{ x, y, zoom }` from before is read as the staand
+crop, in the drizzle column type, so nothing that showed yesterday shows
+differently today. `case_entries.crop` is nulled by `0020_one_crop_per_picture`
+and the column stays so an old backup restores; a card's `crop` is dropped
+on read, board state being one JSON blob. A shape not among the three is a
+fourth key in the bag, not a fourth column.
+
+**Chosen against.** A continuous sprite scale (a sprite per zoom step is a
+sprite per cover per step). Lines that keep growing past zoom 4 (a rope). A
+dimmed knot for the "Wat" filter (see above). Cropping the file on disk, or a
+crop per placement kept "just as an override" — one set, or the three UIs
+come back.
+
+## Round 20 — 7 September 2026: de foto's in het web mogen scherp zijn (§43, rule 5)
+
+Nick, the same day: *"Image qualiteit in het connecties web mag echt wel
+normaal zijn, dat was iets teveel voor performance. Nu issie lelijk."* The
+covers in the knots were blurred and speckled. Both halves were round 19's
+sprite ladder, and both are undone here without touching what round 18 bought.
+
+**The ladder runs to 16.** `zoomBucket` stopped at 8, "so a hub at zoom 12 is a
+1.5× upsample rather than a canvas the size of the screen" — which is exactly
+what a reader sees when they zoom in on a face: half again more screen pixels
+than the sprite has texels. The sixteenth rung is one more sprite per cover,
+and only for the handful of knots that are on the glass past zoom 8; below
+that nothing changes, so a whole web at zoom 1 costs what it cost. Two things
+had to move with it: `SPRITE_MAX_PX` from 1024 to 1280, because the middle
+knot (radius 20) at bucket 16 asks for 1280 and a cap under that silently
+gives the top rung back for the one knot the eye is on; and from bucket 16 the
+1600 px `?s=full` is fetched, because a card's 900 px is 600 across a square
+crop — enough for zoom 12 on a flat crop, nothing left for a crop that zoomed
+in. The unit test no longer pins the cap; it pins the property, that a bucket
+never has fewer texels per world pixel than the screen, across the zoom range.
+
+**And the filter.** `imageSmoothingQuality` was never set, so every reduction
+in the web ran on the default `'low'`: four texels deciding a pixel while a
+900 px card is cut down to a 200 px sprite, or a 400 px thumb squeezed into a
+column card's 26 px. That is the speckle — not blur, aliasing. It is now
+`'high'` on the sprite context, where the picture's own pixels are chosen, and
+on the canvas, where sprites are stamped and column thumbs are drawn.
+
+**A line is on the glass when its box is.** Nick, in the same breath: lines
+sometimes appear and disappear, no reproduction. An edge was culled unless one
+of its two ends or its midpoint was in view — three points on a line that can
+be a screen long at zoom 12. Zoomed in on the belly of one, all three are off
+the glass and the line vanished. `spansView` overlaps the edge's box with the
+view instead: it can draw a line too many, never one too few.
+
+**Chosen against.** Raising the `devicePixelRatio` cap of 2 (round 17), which
+would sharpen everything for a 3× screen and cost 2.25× the fill on every
+phone — the sprites now carry their own sharpness and the cap can stay.
+Fetching the card earlier than bucket 4: at bucket 2 a sprite is 100 px and
+the thumb has 267 to give, so the thumb is not what is missing there. A
+continuous sprite scale, still (round 19's reason holds).
+
+## Round 21 — 7 September 2026: een naam in een plat vak is een artikel (§27, §6)
+
+Nick: *"Wanneer ik een referentie artikel plaats in een description van een
+notitie of event dan kan ik er niet op klikken. Ook in het editing menu zou ik
+erop moeten klikken net zoals overal dat kan. Momenteel ziet het er gewoon uit
+als [[Ding wat het refereert]]."*
+
+**One chip everywhere.** Round 18 printed `[[Naam]]` in a plain box as a flat
+highlight (`.mention-chip`) that was not a link, and left `@Naam` as prose. Both
+followed from one fact: the browser has no name index and must not be given
+one. So the browser stopped asking. It now asks about the text it is already
+showing — `POST /api/mentions` takes the texts on the screen and answers with
+*spans*: where each piece of shorthand stands, and what it means. The reading
+that answers is the same one a save uses; `mentionSpans` is now the truth and
+`entryIdsInText` a view of it, so what a chip claims and what `entry_mentions`
+recorded can never drift apart. What comes back is drawn as `.entry-chip` with
+`data-entry-id` — the exact markup the rich editor writes — so the hover
+preview, the long-press on a phone and the click all arrive for free, and
+`@Jan Vermeer` can be a chip too: where a name ends is the index's business,
+and the index is the one answering.
+
+**Resolve archive-wide, then hold it against the reader.** A name means one
+artikel — the oldest that carries it, the same one the mentions table recorded
+— and only then is that artikel put through `visibleEntryCondition`. Never the
+other way around: resolving on "the artikelen you may see" would quietly hand a
+player a *different* "De brief" than the writer meant, and the chip would lie
+about what the sentence says. A name that lands on nothing the reader may open
+is a dead chip, `.entry-chip-missing` — which is exactly what a typo gets, so
+the two cannot be told apart and rule 1 of `mentions.ts` still holds: no id, no
+slug, no name of an artikel the reader may not see leaves the server. The name
+in the sentence was the writer's to show either way.
+
+**A textarea cannot hold a chip.** So the two sheets whose only face is a box
+being typed in — the gebeurtenis sheet, the notitie-speld sheet — print the
+chips underneath it ("Verwijst naar …", `MentionRow`), clickable while you
+write, settled 400 ms after the last keystroke. A prikbord kaart needs none:
+it is a box only while you are in it, and shows its chips the moment you leave.
+A canvas cannot hold one either, so a knot's name in the web has its brackets
+taken off server-side (`plainMentions`); the panel's short description keeps
+them, because there `MentionText` can do its work.
+
+**Found on the way.** The `@` scan matched a hundred and twenty characters from
+the first `@` and read only the longest name at its head, so the second name in
+a sentence — "@Jan en @Piet" — was never looked for at all. Every `@` now gets
+its own look. Silent since round 6; the new spans are what made it visible.
+
+**Chosen against.** Giving the browser a name index (it would be the whole
+archive's names, to every reader). Rendering chips inside the textarea with an
+overlay — a `LiveField` is bound to a Yjs room and owns its own value; a second
+thing drawing on top of it is the bug factory rule 4 was written about. A
+"maak dit artikel" button on a dead chip: a dead chip is also what a hidden
+artikel gets, and offering to create one there would say so out loud.
+
+## Round 22 — 7 September 2026: de Keeperkant, en vier kleurschema's (§44, §45)
+
+Two features in one round, and they meet in one place: a page that is the
+Keeper's own is painted in the Keeper's colours.
+
+**§44 — the archive has two sides.** Until now only an artikel could be the
+Keeper's alone (§9's `visibility = 'keeper'`, Phase 3). A dossier, a prikbord,
+a landkaart and a tijdlijn had nothing but the §17 dials, where the nearest
+thing to "only the Keeper" was `private` with a Keeper for an owner — which is
+not the same claim, and quietly stops being true the moment somebody else makes
+the thing. Migration `0021_keeper_side` gives those four a `keeper_only` flag,
+`0` on every existing row, AND-ed **in front of** the owner's dials inside
+`viewableCondition()` and `canView()`. Not folded into them: this is not a
+strict setting, it is the Keeper deciding whether the table may know the thing
+exists, and the owner deciding who among them. Two spellings of one idea are
+kept, and `isKeeperSide()` is the only place the difference is written down —
+one column for all five would have been a migration of `entries` and a second
+way to say what §9 already says, which is how a leak gets written.
+
+**A twin is a pair; a touwtje is everything else.** The pair is the thing Nick
+asked for — a Keeper's version of a page, one button away from the players'
+one. It is exactly one per side, enforced by two partial unique indexes rather
+than by `ties.ts` promising it, and `createTwin` copies only what makes the new
+page make sense: the soort and the origin-dossier, a landkaart's picture, a
+tijdlijn's scale and anchor. Deliberately **not the text** — a Keeper's face
+that opens as a copy of the page you just read is a page nobody rewrites.
+Everything else is a touwtje: any number, both directions, across kinds, for
+the Keeper page about a conspiracy that touches five artikelen and a landkaart.
+`counterparts` is polymorphic on *both* ends, which is the shape §39's warning
+about a single `target_map_id` column asks for.
+
+**A tie is not a permission.** Every end of every tie is read through
+`keeperRef()`, which asks that kind's own visibility rule; null means "gone, or
+not for you" and the caller may not tell those apart. That is what makes the
+switch, the touwtjes menu and the Keeperkant list safe by construction rather
+than by each of them remembering to filter.
+
+**One text per pair.** Keeper notes moved out of `entries` and `cases` into
+`keeper_notes`, keyed by `(kind, id)`: all five kinds have them now, and a twin
+shares **one** row, kept on the Keeper's side. `notesTarget()` is the whole
+rule. This **reverses** the decision recorded in `lib/live/rooms.ts` that
+"Keeper notes are deliberately not a room — a private scratch field one person
+edits does not need a CRDT". The reasoning was right; its premise stopped being
+true. The same note is now open on two pages at once, and two Keepers preparing
+a session are two people typing — without a room the second save silently threw
+the first away. Its gate is the only one in that file that is a role rather than
+a visibility rule, and its key is the only one a page must resolve before
+asking for.
+
+**404, not "u mag dit niet zien".** A keeper-only page answers the same nothing
+a made-up id gets, because a refusal would itself confirm the thing exists
+(§40). `/api/access` was answering 403 and now answers 404 for the same reason.
+That made `app/(app)/not-found.tsx` necessary: `notFound()` fell through to
+Next's own page, which is drawn above this group's layout and therefore without
+the shell — and the shell is where the "kijk als speler" banner lives, so a
+Keeper with the preview on who walked into Beheer landed on a page with no menu
+and no way back. It prints the number 404 on purpose: a spec reads it, and a
+reader who lands there by accident can repeat it to somebody.
+
+**"Kijk als speler" becomes a player rather than pretending to be one.**
+`getSessionUser` turns `isKeeper` off for the whole request when the cookie is
+set, so every read, every room and every API answers the way it would for the
+table — a per-page flag would have needed every surface to remember it, and one
+of them would not have. `isRealKeeper` exists for one thing only: the banner
+that offers the eyes back.
+
+**§45 — four palettes.** Spelers licht en donker, Keeper licht en donker;
+nineteen tokens each; **the page picks the side, the person picks the light**.
+Four, because a glance should say which side of the archive you are standing on
+before you have read a word. Nineteen and not the hundred the stylesheet has,
+because the rest are `var()` aliases onto these — the web's sixteen
+`--web-<kind>` properties became aliases onto its six line colours, so a Keeper
+turns "wat op een prikbord hangt" once and the legend, the panel and the canvas
+cannot disagree. Nothing stores "this account uses the Keeper colours": a
+keeper-only page renders `data-side="keeper"` and *is* Keeper-coloured, for
+whoever is looking at it, which is only ever a Keeper.
+
+**One emitter, two callers, and a test between them.** `schemeCss()` writes the
+block; `app/globals.css` carries its output for the defaults between two
+markers, and `app/(app)/layout.tsx` renders the Keeper's saved palettes as a
+server-rendered `<style>` later in the document, so no screen is ever painted in
+the wrong palette first. `tests/unit/schemes.test.ts` reads the stylesheet and
+fails if the two drift. That test is the reason for the arrangement: a token
+added to the module and forgotten in `globals.css` would leave every archive
+whose Keeper never opened the Kleuren pane one round behind in exactly one
+colour, with nothing broken, nothing thrown, and nothing to notice.
+
+Four smaller decisions inside §45, so nobody has to rediscover that they were
+decisions. The selectors are `:root:has(…)` and not a class, for §29's portal
+reason — a `Sheet` renders onto `<body>`, and only a variable named on the root
+reaches it. The `@media (prefers-color-scheme: dark)` block is fenced with
+`:not(:has([data-theme='light']))`, because a person who chose Licht means it,
+even at midnight. `--accent` stays an alias of `--stamp-red` rather than
+becoming a twentieth token, and §11's old single accent is folded in as the
+stamp of all four schemes until the pane is opened, so an archive that set one
+keeps it. And the cork speck's alpha is baked on by the emitter as two more hex
+digits, so what a Keeper is shown is a plain colour and not a colour with an
+opacity attached to it.
+
+**Stored in full, and warned rather than refused.** Words (§11) are stored
+sparsely so that a later change to a default still reaches a Keeper who never
+touched that word. Colours are stored whole — all four palettes, all nineteen
+tokens, defaults included — because a palette *is* a whole: a Keeper who tuned
+three colours does not want the other sixteen moving under them in a later
+round. The pane warns below WCAG's 4.5:1 for ink on paper and saves anyway: the
+archive is theirs, but nobody should be able to make the whole thing unreadable
+by accident and find out on a phone in a tent.
+
+**Found on the way: four leaks, and one rule.** An audit of everything §44
+touched found four, each now pinned by `tests/unit/keeper-leaks.test.ts`. A
+dossier's Activiteit tab named the Keeper's own prikbord out loud ("Keeper
+maakte prikbord *Wie het werkelijk deed* aan") because `createTwin` copies the
+source's `case_id` and the query left-joined `boards` with no rule; board rows
+now go through `viewableCondition('board')` and timeline rows through the same
+on `meta.timelineId`, and both are dropped rather than merely unnamed. "Op de
+kaart" in the wiki listed an artikel because it is pinned on a landkaart the
+Keeper is keeping back; the EXISTS subquery now carries `visibleMapCondition`.
+`loadAccessRow` selected `keeper_only` in the SQL but not into the row
+`canView` / `canEdit` / `canManageAccess` are fed from, so the rechten panel
+opened on a keeper-only board for its original owner and named everyone who may
+see it. And the voorstel queue let an owner read pending edits for an artikel
+the Keeper had since hidden — a payload carrying that artikel's current name,
+body, tags, infobox and cover. The rule underneath all four, written into rule
+44: **a check that asks "is this yours?" must ask "may you see it?" first.** Two
+of them were leaking a *private* prikbord and a *private* landkaart before §44
+existed.
+
+**Found on the way: two bugs only a browser finds.** The "kijk als speler"
+cookie was set through `cookies()` on a route handler that returns a plain
+`Response`, where the jar's edits are simply dropped — they belong to the
+response Next builds for you, and a redirect is not that response. Fixed, and
+then the second one appeared behind it: `NextResponse.redirect(new URL(back,
+url.origin))` sent the browser to a *different origin* than it came from,
+because a route handler's request URL carries the address the server is bound to
+(`0.0.0.0`, or `localhost`) and not the one the browser typed — so the cookie
+was stored on `127.0.0.1` and never sent to `localhost`. Both times the redirect
+worked, the page rendered, and the preview silently never came on, with no error
+anywhere. The route now answers 303 with a **relative** `Location`. Neither
+would have been caught by a unit test or a type; both are the argument for
+running the browser suite before declaring a feature done. And a third, cheaper
+one: `saveSiteAction` wrote `theme: accent ? { accent } : {}`, harmless while
+`theme` held one key, and a wipe of all four palettes the first time the site's
+name was saved. It reads, merges and writes now.
+
+**Deliberately left undone.** `page:/keeper` is not in `PAGE_PLACES`, so the
+Keeperkant list refreshes like every other collection but hands out no presence
+— a one-line fix in `lib/live/keys.ts` on the day somebody wants a dot on it.
+"Kijk als speler" is in the desktop side menu only; the banner that turns it off
+is everywhere, which is the half that matters. Collection-key change signals
+still fire for a keeper-only record (they name no row; accepted since §21).
+`isAdrift` in `lib/entries/caseName.ts` and `SUMMARY_COLUMNS`, which ships
+`originCaseId` to a player's HTML, were both looked at and left. `/api/assets/[id]`
+still serves any asset to any signed-in account, which pre-dates all of this. And
+an open `/api/live/site` connection keeps the rights it was opened with, so
+"kijk als speler" does not reach that one stream until it reconnects.
+
+**Chosen against.** A single `keeper_only` column on all five kinds, including
+`entries` (two ways to say one thing, and §9 already says it). A polymorphic
+`target_kind` on ties that could point at anything (the five kinds are the five
+kinds; a sixth is a row in `KEEPER_KINDS`, not a new shape). Copying the
+players' text into a new twin. A 403 with a reason on a keeper-only address. A
+class on `<body>` for the palettes, which a portalled Sheet never sees. And a
+Kleuren pane that refuses to save an unreadable palette.
+
+**Where round 22 finishes.** 772 unit tests in 52 files, where main had 49
+files: the three new ones are `schemes` (25), `keeper-side` (23) and
+`keeper-leaks` (10), and no existing test file changed. One new browser spec, `tests/e2e/keeper-side.spec.ts` — a twin sharing one
+text, a touwtje appearing at both ends, a player being told nothing, and the
+road in and out of "kijk als speler" — four cases on both projects, all eight
+green. `tsc --noEmit` silent and `npm run build` clean.
+The full browser suite: **201 passed, 34 skipped, 1 failed** on desktop and
+phone together — and that one failure is `per-place-crops.spec.ts:13`, which
+fails the same way on untouched `main` (verified in a worktree at `1d67f5c`).
+It tests the per-placement crop round 19 removed and nobody retired the spec
+with the feature; it is named in CLAUDE.md §8 so the next round does not
+diagnose it again.

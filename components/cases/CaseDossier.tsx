@@ -30,7 +30,7 @@ import { useMayType } from '@/components/you/AuthorProvider';
 import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
 import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/service';
-import type { CoverCrop } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 import { PreferredCases } from '@/components/entry/PreferredCases';
 import { CaseAddSearch } from './CaseAddSearch';
 import { CaseTabsButton, type CaseTabSoort } from './CaseTabsButton';
@@ -60,9 +60,8 @@ export type CaseDossierData = {
   summary: string;
   status: CaseStatus;
   notes: unknown;
-  keeperNotes: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
 };
 
 /** §17: the owner's dials and what this viewer may do with them. */
@@ -113,6 +112,7 @@ export function CaseDossier({
   liveFields,
   openAddMore,
   binSlot,
+  keeperSlot,
 }: {
   data: CaseDossierData;
   groups: CaseGroup[];
@@ -146,6 +146,12 @@ export function CaseDossier({
    * dossier away.
    */
   binSlot: ReactNode;
+  /**
+   * §44: the Keeper's corner, rendered on the server behind `isKeeper` and
+   * handed over whole. Null for anybody who is not one — a player's HTML never
+   * carries it, hidden or otherwise.
+   */
+  keeperSlot: ReactNode;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -183,7 +189,6 @@ export function CaseDossier({
   const reading = mode === 'view';
   const readOnly = !mayEdit;
   const locked = readOnly || reading;
-  const [keeperNotes, setKeeperNotes] = useState(data.keeperNotes);
   const [cover, setCover] = useState({ assetId: data.coverAssetId, crop: data.coverCrop });
   const [assignOpen, setAssignOpen] = useState(false);
   // §21: when someone else changes the record the page is re-rendered from the
@@ -195,9 +200,6 @@ export function CaseDossier({
   useEffect(() => {
     setCover({ assetId: data.coverAssetId, crop: data.coverCrop });
   }, [data.coverAssetId, data.coverCrop]);
-  useEffect(() => {
-    if (document.activeElement?.id !== 'case-keeper-notes') setKeeperNotes(data.keeperNotes);
-  }, [data.keeperNotes]);
   useEffect(() => {
     if (liveFields?.canEdit) return; // the room owns these
     if (document.activeElement?.id !== 'case-name') setName(data.name);
@@ -336,31 +338,15 @@ export function CaseDossier({
         </>
       )}
 
-      {isKeeper && (
-        <details className="section" style={{ marginTop: '1.5rem' }}>
-          <summary>
-            <Icon name="shield" size={14} /> Notities van de Keeper
-          </summary>
-          {locked ? (
-            <p className="small" style={{ margin: '0.5rem 0 1rem', whiteSpace: 'pre-wrap' }}>
-              {keeperNotes || <span className="muted">Nog niets opgeschreven.</span>}
-            </p>
-          ) : (
-            <textarea
-              id="case-keeper-notes"
-              className="textarea"
-              style={{ margin: '0.5rem 0 1rem' }}
-              value={keeperNotes}
-              placeholder="Nooit zichtbaar voor spelers."
-              onChange={(event) => {
-                setKeeperNotes(event.target.value);
-                set({ keeperNotes: event.target.value });
-              }}
-              onBlur={() => void flush()}
-            />
-          )}
-        </details>
-      )}
+      {/*
+        §44: the Keeper's corner — the switch to the other face, the "this
+        dossier is mine" toggle, the touwtjes and the notes. It replaced the
+        plain keeper-notes textarea that stood here: the notes are one text a
+        twin's two pages share now, so they are a room (`lib/live/rooms.ts`),
+        which a `<textarea>` inside this client component could not be. Handed
+        in as a slot, rendered on the server behind `isKeeper`.
+      */}
+      {keeperSlot ?? null}
 
       {/* §11: the bin, at the foot of the file and folded — the same place and
           the same manners as the artikel's. */}
@@ -523,14 +509,15 @@ export function CaseDossier({
   const header = (
     <header className={`case-head${showsCover ? '' : ' case-head-solo'}`}>
       {/* The file's own picture: a location, a photograph of the principal, a
-          scan of the thing that started it. Shown whole here; the Case Files
-          grid squares it off with its own crop, exactly like an entry.
+          scan of the thing that started it. Shown whole while editing; the
+          Case Files grid and the reading face draw its staand crop, and it
+          has the same three crops an artikel has (round 19).
           §22: reading, a dossier with no picture has no frame at all — the
           same rule the artikel's reading face follows. */}
       {locked ? (
         cover.assetId && (
           <figure className="entry-figure" style={{ margin: 0 }}>
-            <Cover assetId={cover.assetId} crop={cover.crop} alt={name} icon="folder" colour="var(--ink-muted)" />
+            <Cover assetId={cover.assetId} crop={cover.crop} shape="portrait" alt={name} icon="folder" colour="var(--ink-muted)" />
           </figure>
         )
       ) : (

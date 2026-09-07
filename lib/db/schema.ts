@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
+import type { ColourScheme, SchemeKey, TokenKey } from '@/lib/theme/schemes';
 import type { ReadingFont } from '@/lib/readingFont';
 import type { PageBlock, TypeText } from '@/lib/pageBlocks';
 import {
   blob,
+  customType,
   index,
   integer,
   primaryKey,
@@ -11,8 +13,47 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 
 const now = sql`(unixepoch())`;
+
+/**
+ * How a picture sits inside a frame — three crops, one per shape (round 19).
+ *
+ * See `lib/images/shapes.ts`: `{ landscape?, portrait?, square? }`, each a
+ * focal point in 0..1 of the source and a zoom that is 1 for "fit the frame".
+ * That carries the same information as a rectangle and maps straight onto CSS
+ * (object-position + transform-origin + scale), so the uploaded file is never
+ * cropped on disk and a crop can be redone for ever.
+ *
+ * The per-placement rule is *reversed* this round: an artikel's three crops
+ * are the only crops there are, used by every list, card and knot that shows
+ * it. `case_entries.crop` is unread and a board card no longer carries one, so
+ * a face looks the same everywhere it appears.
+ *
+ * A JSON text column, as it always was, so the column itself needs no SQL
+ * migration. The rows written before this round hold a bare `{ x, y, zoom }`;
+ * this column type puts every read — every `select` on either table — through
+ * `normaliseCrops`, which reads that as `{ portrait }` (the 3:4 card was the
+ * only frame it was drawn for) and clamps whatever else it finds. Nothing
+ * reads `cover_crop` around drizzle, so there is no second road to keep in
+ * step. The artikel page itself still shows the whole picture, uncropped.
+ */
+const coverCrops = customType<{ data: CoverCrops | null; driverData: string }>({
+  dataType() {
+    return 'text';
+  },
+  toDriver(value) {
+    return JSON.stringify(value);
+  },
+  fromDriver(value) {
+    try {
+      return normaliseCrops(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  },
+});
 
 export const users = sqliteTable(
   'users',
@@ -45,6 +86,13 @@ export const users = sqliteTable(
      * alternatives are bundled locally, so nothing is fetched at runtime.
      */
     readingFont: text('reading_font').$type<ReadingFont>().notNull().default(''),
+    /**
+     * §45: which half of the four colour schemes this person reads in —
+     * '' follows the system, 'light' and 'dark' overrule it. Which *side's*
+     * colours they are is not stored anywhere: the page they are standing on
+     * decides that (`lib/theme/schemes.ts`).
+     */
+    colourScheme: text('colour_scheme').$type<ColourScheme>().notNull().default(''),
   },
   (t) => [uniqueIndex('users_username_lower_idx').on(t.usernameLower)],
 );
@@ -70,7 +118,15 @@ export const siteSettings = sqliteTable('site_settings', {
   tagline: text('tagline').notNull().default('Archief van het Eiland'),
   logoAssetId: text('logo_asset_id'),
   inviteCode: text('invite_code').notNull(),
-  theme: text('theme', { mode: 'json' }).$type<{ accent?: string }>().notNull().default({}),
+  /**
+   * §11's accent, and since §45 the four colour schemes beside it. `accent` is
+   * kept and still read: a Keeper who set one before §45 has it folded into the
+   * stamp of all four schemes until they touch the new pane (`cleanSchemes`).
+   */
+  theme: text('theme', { mode: 'json' })
+    .$type<{ accent?: string; schemes?: Partial<Record<SchemeKey, Partial<Record<TokenKey, string>>>> }>()
+    .notNull()
+    .default({}),
   /**
    * §11: the Keeper's own words for the things the interface names — only the
    * ones they changed, keyed by `lib/words.ts`. Everything else falls back to
@@ -169,7 +225,8 @@ export const entries = sqliteTable(
     bodyText: text('body_text').notNull().default(''),
     fields: text('fields', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
     coverAssetId: text('cover_asset_id'),
-    coverCrop: text('cover_crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /** Three crops by shape; see `coverCrops` above. Null = centred, unzoomed, in every shape. */
+    coverCrop: coverCrops('cover_crop'),
     tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),
     status: text('status').$type<'draft' | 'published'>().notNull().default('published'),
     isLocked: integer('is_locked', { mode: 'boolean' }).notNull().default(false),
@@ -208,19 +265,8 @@ export const entries = sqliteTable(
   ],
 );
 
-/**
- * How a picture sits inside a frame, stored as focal point + zoom rather than
- * four edges.
- * `x`/`y` are the centre of the crop in 0..1 of the source image; `zoom` is 1
- * for "fit the frame" and higher as the user pinches in. This carries the same
- * information as an explicit rectangle and maps straight onto CSS
- * (object-position + transform-origin + scale). The uploaded image is never
- * cropped on disk, so a crop can be redone forever — and every *placement*
- * keeps its own: this one is the entry's default for lists, while a case card
- * and a board card each hold theirs. The entry page itself shows the whole
- * picture, uncropped, whatever shape it is.
- */
-export type CoverCrop = { x: number; y: number; zoom: number };
+/** The bag on `entries.cover_crop` and `cases.cover_crop`; see `coverCrops` at the top of this file. */
+export type { CoverCrops } from '@/lib/images/shapes';
 
 export const entryReveals = sqliteTable(
   'entry_reveals',
@@ -343,9 +389,15 @@ export const cases = sqliteTable(
     viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
     editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
     accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §44: the Keeper's own side. True means the table may not know this
+     * exists at all — AND-ed onto the §17 dials in `viewableCondition`, never
+     * substituted for them, exactly as §9's `visibility` is for an artikel.
+     */
+    keeperOnly: integer('keeper_only', { mode: 'boolean' }).notNull().default(false),
     coverAssetId: text('cover_asset_id'),
-    /** How the Case Files grid squares off the cover; the dossier shows it whole. */
-    coverCrop: text('cover_crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /** Three crops by shape, like an artikel's; the Case Files grid and the cards use them. */
+    coverCrop: coverCrops('cover_crop'),
     /**
      * §28: which soorten belong in this dossier, as type slugs. Null is "let the
      * tabs follow whatever is filed here", which is what every dossier did
@@ -378,8 +430,12 @@ export const caseEntries = sqliteTable(
     addedBy: text('added_by'),
     addedAt: integer('added_at').notNull().default(now),
     note: text('note').notNull().default(''),
-    /** This case's own crop of the entry's cover; null falls back to the entry's. */
-    crop: text('crop', { mode: 'json' }).$type<CoverCrop | null>(),
+    /**
+     * Pre-round 19: this case's own crop of the entry's cover. Nulled by
+     * `0020_one_crop_per_picture` and read by nothing — the artikel's own three
+     * crops are used everywhere. The column stays so an old backup restores.
+     */
+    crop: text('crop', { mode: 'json' }).$type<unknown>(),
   },
   (t) => [primaryKey({ columns: [t.caseId, t.entryId] })],
 );
@@ -403,6 +459,14 @@ export const boards = sqliteTable('boards', {
   viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
   editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
   accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+  /** §43, round 18: false keeps this wall out of the web and out of "Genoemd in". */
+  inWeb: integer('in_web', { mode: 'boolean' }).notNull().default(true),
+  /**
+   * §44: the Keeper's own side. True means the table may not know this
+   * exists at all — AND-ed onto the §17 dials in `viewableCondition`, never
+   * substituted for them, exactly as §9's `visibility` is for an artikel.
+   */
+  keeperOnly: integer('keeper_only', { mode: 'boolean' }).notNull().default(false),
   createdBy: text('created_by'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
@@ -529,6 +593,12 @@ export const maps = sqliteTable(
     viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
     editMode: text('edit_mode').$type<AccessMode>().notNull().default('private'),
     accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §44: the Keeper's own side. True means the table may not know this
+     * exists at all — AND-ed onto the §17 dials in `viewableCondition`, never
+     * substituted for them, exactly as §9's `visibility` is for an artikel.
+     */
+    keeperOnly: integer('keeper_only', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
@@ -603,6 +673,12 @@ export const timelines = sqliteTable(
     viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
     editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
     accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §44: the Keeper's own side. True means the table may not know this
+     * exists at all — AND-ed onto the §17 dials in `viewableCondition`, never
+     * substituted for them, exactly as §9's `visibility` is for an artikel.
+     */
+    keeperOnly: integer('keeper_only', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
@@ -679,3 +755,69 @@ export const inkLayers = sqliteTable('ink_layers', {
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull().default(now),
 });
+
+/* --------------------------------------------------------------- §44 */
+
+/**
+ * §44: the tie between the Keeper's own page and the one the table reads.
+ *
+ * Polymorphic on both ends — an artikel, a dossier, a prikbord, een landkaart
+ * or een tijdlijn on either side — because the Keeper's page about a
+ * conspiracy hangs off five different things and a single `target_*_id`
+ * column would only ever hold one of them (§39's warning, taken).
+ *
+ * `isTwin` marks the one tie that is a *pair*: the Keeper's other face of that
+ * exact thing, made with one button, sharing its notes, and reachable from it
+ * with one press. At most one twin per side, which two partial unique indexes
+ * in migration 0021 enforce in the database rather than in a promise. Every
+ * other tie is a plain rope: several are allowed, in both directions.
+ *
+ * A row here says nothing about who may see either end. Both are asked their
+ * own visibility rule on every read (`lib/keeper/ties.ts`), so a tie can never
+ * be the thing that reveals a page.
+ */
+export const counterparts = sqliteTable(
+  'counterparts',
+  {
+    id: text('id').primaryKey(),
+    keeperKind: text('keeper_kind').$type<KeeperKind>().notNull(),
+    keeperId: text('keeper_id').notNull(),
+    playerKind: text('player_kind').$type<KeeperKind>().notNull(),
+    playerId: text('player_id').notNull(),
+    isTwin: integer('is_twin', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [
+    uniqueIndex('counterparts_pair_idx').on(t.keeperKind, t.keeperId, t.playerKind, t.playerId),
+    index('counterparts_player_idx').on(t.playerKind, t.playerId),
+    index('counterparts_keeper_idx').on(t.keeperKind, t.keeperId),
+  ],
+);
+
+/** The five kinds of thing that can have a Keeper side (§44). */
+export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline';
+
+/**
+ * §44: the Keeper's notes, for all five kinds, in one place.
+ *
+ * They used to be a column on `entries` and on `cases` and nowhere else. A
+ * page and its twin share one text — the twin's — so the notes had to stop
+ * belonging to a row and start belonging to a *pair*; keyed by (kind, id) they
+ * do, and the other three kinds get notes they never had.
+ *
+ * Nothing here is ever handed to a player: every read goes through
+ * `lib/keeper/notes.ts`, which refuses anyone but a Keeper before it opens the
+ * table at all.
+ */
+export const keeperNotes = sqliteTable(
+  'keeper_notes',
+  {
+    kind: text('kind').$type<KeeperKind>().notNull(),
+    targetId: text('target_id').notNull(),
+    text: text('text').notNull().default(''),
+    updatedAt: integer('updated_at').notNull().default(now),
+    updatedBy: text('updated_by'),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.targetId] })],
+);

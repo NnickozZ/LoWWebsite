@@ -3,6 +3,9 @@ import { caseFieldsRoomKey, caseKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import { asc } from 'drizzle-orm';
 import { CaseDossier, type CaseGroup } from '@/components/cases/CaseDossier';
+import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
+import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { keeperRef } from '@/lib/keeper/side';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -181,6 +184,9 @@ export default async function CasePage({
   return (
     <>
       <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'timelines', 'users']} />
+      {/* §44/§45: a dossier on the Keeper's own side says so in a word, and
+          paints the page in the Keeper's colours. */}
+      <KeeperStamp on={Boolean(user?.isKeeper && keeperRef('case', record.id, user)?.keeperOnly)} />
       <CaseDossier
       data={{
         id: record.id,
@@ -189,7 +195,6 @@ export default async function CasePage({
         summary: record.summary,
         status: record.status,
         notes: record.notes,
-        keeperNotes: record.keeperNotes ?? '',
         coverAssetId: record.coverAssetId,
         coverCrop: record.coverCrop,
       }}
@@ -212,6 +217,9 @@ export default async function CasePage({
        * on `?new=1` — which opens with everything open.
        */
       openAddMore={query.new === '1'}
+      keeperSlot={
+        user?.isKeeper ? <KeeperPanelServer kind="case" id={record.id} user={user} /> : null
+      }
       binSlot={
         mayEdit ? (
           <details className="section" style={{ marginTop: '1.5rem' }}>

@@ -32,7 +32,8 @@ import {
   type PageBlock,
   type TypeText,
 } from '@/lib/pageBlocks';
-import type { CoverCrop, FieldDef, Visibility } from '@/lib/db/schema';
+import type { FieldDef, Visibility } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 import { capitalise } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
@@ -53,7 +54,7 @@ export type EntryViewData = {
   fields: Record<string, unknown>;
   tags: string[];
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
@@ -64,7 +65,6 @@ export type EntryViewData = {
   typeText: TypeText;
   visibility: Visibility;
   isLocked: boolean;
-  keeperNotes: string;
   /** Keeper only; a player's list is empty because it never left the server. */
   revealedTo: string[];
 };
@@ -266,7 +266,6 @@ export function EntryView({
   const [tags, setTags] = useState(entry.tags);
   const [fields, setFields] = useState(entry.fields);
   const [cover, setCover] = useState({ assetId: entry.coverAssetId, crop: entry.coverCrop });
-  const [keeperNotes, setKeeperNotes] = useState(entry.keeperNotes);
   const [visibility, setVisibility] = useState(entry.visibility);
   const [revealedTo, setRevealedTo] = useState(entry.revealedTo);
   const [isLocked, setIsLocked] = useState(entry.isLocked);
@@ -383,7 +382,7 @@ export function EntryView({
           tags: string[];
           fields: Record<string, unknown>;
           coverAssetId: string | null;
-          coverCrop: CoverCrop | null;
+          coverCrop: CoverCrops | null;
         };
         if (cancelled) return;
         const active = document.activeElement as HTMLElement | null;
@@ -1173,26 +1172,16 @@ export function EntryView({
 
       <ProposalsPanel entryId={entry.id} initial={proposals} />
 
-      {isKeeper && (
-        <>
-          <details className="section">
-            <summary>
-              <Icon name="shield" size={14} /> {words.keeperNotes}
-            </summary>
-            <textarea
-              className="textarea"
-              style={{ margin: '0.5rem 0 1rem' }}
-              value={keeperNotes}
-              placeholder="Wordt nooit aan spelers getoond."
-              onChange={(event) => {
-                setKeeperNotes(event.target.value);
-                set({ keeperNotes: event.target.value });
-              }}
-              onBlur={() => void flush()}
-            />
-          </details>
-        </>
-      )}
+      {/*
+       * §44: the Keeper's corner, rendered on the server and handed in as a
+       * slot — the switch to the other face, whether this page is the
+       * Keeper's, its touwtjes, and the notes. It replaced the plain
+       * keeper-notes textarea that stood here: those notes are no longer one
+       * person's scratch field but one text a twin's two pages share, so they
+       * are a room now (`lib/live/rooms.ts`) and a `<textarea>` in a client
+       * component could not have been one.
+       */}
+      {slots.keeper ?? null}
 
       {slots.delete ?? null}
     </section>

@@ -42,6 +42,7 @@ Then, in a second terminal:
 ```bash
 npm run bootstrap    # creates the first Keeper and prints the invite code
 npm run seed-demo    # optional: 21 Zeeland entries, one open case, one board
+npm run seed-wereld  # optional: a full Dutch test world, ~15 per soort
 ```
 
 Sign in as the Keeper. Everyone else signs up at `/signup` with the invite code,
@@ -49,6 +50,37 @@ which you can see and regenerate under **You → Admin**.
 
 `npm run seed-demo` refuses to run once the archive has entries in it, so it can
 never trample real notes. `make reset` deletes `./data` after a confirmation.
+
+### The two seeds, and why there are two
+
+`seed-demo` is the **fixture**: 21 entries in English, one dossier, one
+prikbord. `tests/e2e/prepare.mjs` runs it before every Playwright run and
+several specs click the names in it, so its contents are load-bearing — change
+them and the suite goes red twenty minutes later, somewhere that looks
+unrelated.
+
+`seed-wereld` is the **test world**: about fifteen artikelen of every soort, in
+Dutch, tied to each other through their infobox fields and their running text,
+plus dossiers with tabbladen and werknotities, prikborden with kaarten and
+touwtjes, tijdlijnen, landkaarten with spelden, omslagen, six player accounts
+wearing karakters, voorstellen, activity and revisions. It is for looking at a
+*full* archive — the web (§43), "Genoemd in" (§27), the afgeleide blokken
+(§11), the rechten (§17) — before there is a real one. It leaves the fixture
+alone.
+
+```bash
+npm run seed-wereld -- --per 25    # more per soort (the pools are the ceiling)
+npm run seed-wereld -- --seed 7    # a different, equally repeatable world
+npm run seed-wereld -- --no-images # skip the drawn covers and map plates
+npm run seed-wereld -- --clean     # remove exactly what it put there
+```
+
+It writes what it made to `data/seed-wereld.json`; `--clean` reads that file,
+and while it exists a second run refuses to lay another world on top of the
+first. The six accounts are Kees, Elsje, Bram, Nel, Truus and Machteld, all
+with the password `wereld1934` — which is why this belongs nowhere near a
+server anybody else can reach. The words are in `scripts/seed-wereld.data.mjs`,
+the wiring in `scripts/seed-wereld.mjs`.
 
 ### Testing on a phone
 
@@ -65,7 +97,8 @@ LAN address works.
 | `make dev` | The app at `localhost:3000`, also on the LAN — **development only, never on a server** |
 | `npm ci && npm run build && npm start` | The production server, which is what a VPS runs |
 | `make bootstrap` | Create a Keeper (`--username X --password Y` for scripts) |
-| `make seed-demo` | Load the Zeeland demo dataset |
+| `make seed-demo` | Load the small Zeeland demo dataset (also the e2e fixture) |
+| `make seed-wereld` | Fill the archive with a full Dutch test world (`-- --clean` removes it) |
 | `make reset` | Delete `./data` after confirming |
 | `make backup` | Write a zip of every table plus all assets to `./data/backups` |
 | `make restore FILE=…` | Restore from one of those zips |
@@ -381,8 +414,8 @@ app/
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
-  entry/             cover (its tools behind one "Afbeelding" menu), the list
-                     crop, type fields — as a form on the editing face and as
+  entry/             cover (its tools behind one "Afbeelding" menu), the three
+                     crops (round 19), type fields — as a form on the editing face and as
                      printed facts on the reading one (`FieldsView`) — tags,
                      the pickers for a linked artikel (EntryPicker), a linked
                      dossier (CasePicker) and the landkaart that draws this
@@ -466,12 +499,24 @@ lib/
                      axis and how wide it is, in both stroke formats)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server)
+  keeper/            §44: de Keeperkant — kinds.ts (pure: the five kinds and
+                     where each lives), side.ts (the one read, `keeperRef`,
+                     and the only place the two spellings of keeper-only are
+                     written), ties.ts (a twin and a touwtje), notes.ts (one
+                     text per pair, `notesTarget`)
+  theme/             §45: schemes.ts — the four palettes, their nineteen
+                     tokens, and the emitter both `globals.css` and the
+                     signed-in layout are written from. Pure; the half that
+                     reads and writes settings is `lib/admin/schemes.ts`
   web/               §43: het web — types.ts (node, edge, the sixteen kinds
                      of tie), kinds.ts (pure: colour, dash and word per kind),
                      service.ts (the graph for one viewer, rule 1 by
                      construction), slice.ts (pure: the focus walk, the
                      legend), layout.ts (pure: the columns and the fold),
                      force.ts (pure: the organic web, no d3)
+  images/            shapes.ts (round 19, pure and client-safe): the three
+                     crop shapes — liggend, staand, vierkant — their ratios,
+                     and the one reader of a `cover_crop` bag
   ink/               §33: the tekenlaag — types.ts (the stroke, the eight
                      colours, the limits), merge.ts (pure: append, sort,
                      tombstones, the view for one person), service.ts (the
@@ -499,7 +544,7 @@ assets.ts            pictures in three sizes; re-exports the two ceilings and
                      is where they are enforced
 pageBlocks.ts        what a soort artikel's page is made of (pure; the queries
                      behind it live in lib/entries/derived.ts)
-scripts/             dev, bootstrap, seed-demo, backup, restore
+scripts/             dev, bootstrap, seed-demo, seed-wereld, backup, restore
 tests/unit/          vitest
 tests/e2e/           playwright, the golden flows
 ```
@@ -507,7 +552,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Forty-two rules worth knowing before changing anything:
+Forty-five rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -544,12 +589,22 @@ Forty-two rules worth knowing before changing anything:
    plain JavaScript so that `npm run bootstrap` and the app cannot drift into two
    ways of storing a password, two versions of the schema, or two lists of border
    treatments.
-5. **A picture is cropped per *placement*, never on disk.** The entry page shows
-   the whole image at whatever shape it is. `entries.cover_crop` is only the
-   default for lists; `case_entries.crop` and a board card's own `crop` override
-   it where they are set. All three are `{ x, y, zoom }` and all three fall back
-   to the one above when null. A case's own picture works the same way
-   (`cases.cover_asset_id` + `cases.cover_crop`).
+5. **A picture is cropped per *shape*, never on disk.** An artikel's page shows
+   the whole picture at whatever shape it is. Lists need a shape, so the
+   picture carries three crops (`entries.cover_crop`: liggend 3:2, staand 3:4,
+   vierkant 1:1 — `lib/images/shapes.ts`, the only place a ratio lives), set
+   once under "Afbeelding › Bijsnijden" and drawn by every list, card, thumb
+   and knot in the shape it uses: cards and thumbs staand, the tijdlijn's
+   window and the web's panel liggend, a web knot vierkant. The file on disk
+   is never cropped; each crop is a focal point and a zoom, applied by CSS
+   (`coverStyle`, with the frame's aspect from `coverClass(shape)`) or as a
+   source rect on the web canvas at render. A row written before round 19
+   holds a bare `{ x, y, zoom }` and is read as the staand crop. A dossier's
+   own picture (`cases.cover_asset_id` + `cases.cover_crop`) has the same
+   three. A dossier's filing of an artikel and a prikbord card no longer keep
+   a crop of their own (round 19; `case_entries.crop` is nulled by migration
+   `0020` and read by nothing, a card's `crop` is dropped on read) — one set
+   per picture, used everywhere, so a face looks the same on every list.
 6. **Anything a player may not see is dropped on the server.** A Keeper-only
    entry never reaches a query (`visibleEntryCondition`); a hidden section never
    reaches the props (`listSections`); Keeper notes are blanked in
@@ -810,6 +865,21 @@ Forty-two rules worth knowing before changing anything:
     the investigation away whether it is named or not. A new kind of source adds
     a `fromKind`, a recompute on its save path and a branch in `listMentions`
     carrying its own condition — never a name written into the row.
+
+    Round 18 added two things at the edges. A prikbord has a switch, **"Telt
+    mee in het web"** (`boards.in_web`, in the wall's Rechten sheet, for
+    whoever manages its rights): off, and the wall is out of the web *and* out
+    of "Genoemd in", both readers checking the same column — a hunch pinned up
+    on a private wall should not surface as a fact on an artikel's page. And
+    the plain boxes — a card's writing, a notitie-speld, the text under a
+    gebeurtenis — offer artikel names on `@` and `[[` (`MentionPopover`,
+    `components/ui/`), inserting `[[Naam]]`, the exact form `entryIdsInText`
+    reads; the popover attaches to a textarea it does not own and writes into
+    it through the native value setter plus an `input` event, so a plain box
+    and a Yjs-bound `LiveField` hear it the same way. The scribble under an
+    *artikel* card counts as a mention now too, never for its own artikel;
+    migration 0019 empties the walls' rows so `ensureMentionsBackfilled()`
+    rewrites them at the next start-up.
 
 27. **A dossier's tabs are a decision, not a report.** §28. `cases.tab_types` is
     null for every dossier that has never been told otherwise, and null means
@@ -1414,7 +1484,8 @@ Forty-two rules worth knowing before changing anything:
     the same reason: a card at 250% has a cover two and a half times as wide on
     the glass, so a hand travelling 100 px has crossed less of the picture, and
     without it cropping an enlarged card moved the photograph two and a half
-    times too fast. Everything on the paper scales, **including the 1px border
+    times too fast. (Round 19 retired that crop mode: a card draws the
+    artikel's own staand crop, rule 5.) Everything on the paper scales, **including the 1px border
     and the shadow** — Nick's decision, and it is what the wall's own zoom has
     always done to a card's border, so a card at 200% looks like the same card
     seen at 200% zoom. A card past 150% asks for the full-size picture rather
@@ -1498,13 +1569,75 @@ Forty-two rules worth knowing before changing anything:
     to to"; the column layout (`lib/web/layout.ts`) draws what points at the
     focus on the left and what it points at on the right, a node reachable
     both ways sits once on the side that found it first (`out` wins a tie),
-    and a column past forty rows folds into "… nog n". The organic layout
-    (`lib/web/force.ts`) is hand-written, deterministic (a node starts on a
-    spiral seeded by its id) and local — repulsion stops at 300 px and a weak
-    gravity holds the pieces — so five hundred knots settle in under a second
-    and a reload does not shuffle the wall. Both are drawn by one `<canvas>`
-    (`components/web/WebCanvas.tsx`); nothing in the web is a DOM element, and
-    the frame loop stops when nothing moves.
+    and a column past twenty-eight rows folds into "… nog n". The organic
+    layout (`lib/web/force.ts`) is hand-written, deterministic (a node starts
+    on a spiral seeded by its id) and local — repulsion stops at 300 px and a
+    weak gravity holds the pieces — so five hundred knots settle in under a
+    second and a reload does not shuffle the wall. Three things keep a filled
+    archive from clotting (round 17): a spring is divided by the smaller
+    degree of its two ends, so a hub with thirty lines is pulled on about as
+    hard as a knot with one; two knots may never come closer than `r + pad`
+    each, `pad` being room for a label, and that floor is a *move*, not a
+    force a cooling alpha can starve; and in a focus web every depth has a
+    **band** — an annulus with enough area for its knots, a gutter between
+    bands — that a strayed knot is moved back into, so the organic web reads
+    "one step, two steps" like the columns do. A knot a hand drags is
+    **pinned** where it is dropped (`ForceNode.pinned`); it wears a speld, a
+    tap on the speld or the toolbar's "losmaken" lets it go. Both layouts are
+    drawn by one `<canvas>` (`components/web/WebCanvas.tsx`); nothing in the
+    web is a DOM element, the frame loop stops when nothing moves, text is
+    measured once at one size and scaled (a font string per zoom step is a
+    font parse per knot), and a cover is stamped from a sprite cut once to its
+    knot's shape rather than clipped every frame. Names are a pass of their
+    own: by rank (the middle, the chosen, the lit, the hubs, the rest) and only
+    where the name would not sit on another name or knot; the rest fade in as
+    you come closer. A line between two knots that are both two or more steps
+    out is drawn faint at rest, in its own colour, and lit on hover.
+
+    Round 18 made the drawing two canvases and four rules. The **resting lines
+    and the step rings live on a canvas of their own under the drawing**
+    (`.web-canvas-layer`), redrawn only when a knot, the camera, the size, the
+    palette or the graph changed; a hover frame strokes the handful of lit
+    lines on top and the compositor stacks the two — measured on a 4K canvas,
+    a hover frame went from 133 ms to the compositor's own floor. While knots
+    move the layer is drawn at half a pixel per CSS pixel without dashes or
+    the faint lines; while only the camera moves it is shifted by a CSS
+    transform and redrawn sharp once the hand is still (160 ms); the
+    simulation takes several ticks per frame while hot and a warm graph
+    change settles thirty ticks off-screen first. The four rules: **a text
+    line yields** — a `mention` or `section` edge between two knots is dropped
+    at build time (`collapseMentions` in `slice.ts`) when any edge of another
+    kind ties the same pair, and what remains is 0.8 px at a third of the
+    resting alpha; **a draad brings its own words, direction and colour** —
+    the line reads the string's label verbatim, a labelled draad points from
+    its from-card to its to-card (an unlabelled one still has no direction),
+    and `WebEdge.colour` carries the string's colour on the wall
+    (`LINE_COLOURS`, `--web-line-<colour>`); **a wall can opt out**
+    (`boards.in_web`, see rule 26); and **a Keeper's web reads the containers
+    as a player** — dossiers, prikborden, landkaarten and tijdlijnen go through
+    the ordinary dials without the Keeper's skeleton key unless the legend's
+    "Ook privé van anderen" (`?others=1`) is on, while artikelen and sections
+    keep the real viewer, so the Keeper's own hidden pages stay.
+
+    Round 19 refined four things. The web **zooms to 12** instead of 4: a
+    cover sprite is keyed on a zoom bucket (1, 2, 4 or 8, `zoomBucket`) and
+    cut again at that resolution, fetching the 900 px `?s=card` from bucket 4
+    up — never for a whole web at zoom 1 — while a line's on-screen width
+    grows as √zoom up to zoom 4 and then stops (`lineZoom`), so a close look
+    at a knot is a picture and not a rope. The legend now has **two parts**:
+    under *Wat* you switch kinds of knot on and off — dossiers, prikborden,
+    landkaarten, tijdlijnen and every soort of artikel in the web, each with
+    a count — and under *Hoe* the kinds of line; a knot switched off is
+    *absent* (`hiddenNodeKinds` / `hiddenTypes` in `slice.ts`), it goes with
+    everything that hung only from it, and the middle itself is never hidden.
+    In the panel the **short description** of what you clicked stands under
+    its name. In **Kolommen** the layout's coordinates are the truth and a
+    tween is only the way there — under `prefers-reduced-motion`, where no
+    tween is made, cards used to stay at their organic spots for ever — and
+    the layout key carries a fingerprint of the graph (every knot's step and
+    side, a hash of the edges), so a legend tick re-runs the columns even when
+    no id changed. A knot wears the picture's **vierkant** crop, the columns'
+    thumb its staand one and the panel its liggend one (rule 5).
 
     How a line is tied is a *kind* (`WebEdgeKind`, sixteen of them) with one
     colour and dash in `lib/web/kinds.ts` and one CSS custom property
@@ -1516,3 +1649,140 @@ Forty-two rules worth knowing before changing anything:
     wall's own question — "…en in het dossier?" — once for the batch; the
     lines never become draden, because a draad is the investigator's claim and
     the web's lines are the archive's.
+
+44. **The archive has two sides, and a tie between them is never a right.** §44.
+    Any artikel, dossier, prikbord, landkaart or tijdlijn can be the Keeper's
+    own: a page the table may not know exists. It is written **two ways on
+    purpose**, and `isKeeperSide()` in `lib/keeper/side.ts` is the only place in
+    the app where that difference is spelled out. An **artikel** says it with
+    §9's `visibility = 'keeper'`, as it has since Phase 3. The other four say it
+    with `keeper_only` (migration `0021_keeper_side`, `0` on every existing
+    row), AND-ed **in front of** the owner's dials inside `viewableCondition()`
+    and `canView()` — not folded into them, because this is not a strict setting
+    of the §17 kind: no dial, no grant and no ownership opens it. Two ways to
+    say one thing is how a leak gets written, so nothing but `isKeeperSide()`
+    may ask a record which of the two it uses, and `entries` deliberately has no
+    such column.
+
+    **A twin is a pair; a touwtje is everything else.** A twin is one Keeper
+    page that is the other face of exactly one player-facing thing — at most one
+    per side, and the *database* says so (two partial unique indexes on
+    `counterparts`), not a promise in `ties.ts`. `createTwin` makes a record of
+    the same kind with the same name and copies only what makes the new page
+    make sense: the soort and the origin-dossier of an artikel, a landkaart's
+    picture, a tijdlijn's scale and anchor, the dossier a prikbord hangs in.
+    Never the text — the Keeper's face is for what the players' one does not
+    say, and a page that starts as a copy of the one you were just reading is a
+    page nobody rewrites. A touwtje is any other tie, any number, in both
+    directions, across kinds; the Keeper end must actually be a Keeper page.
+
+    **A tie is not a permission.** Every end of every tie is read through
+    `keeperRef()`, which asks that kind's own visibility rule and returns null
+    for "gone, or not for you" — the caller may not tell those apart. A rope to
+    something you may not open is simply not in the list you are given, so no
+    switch, no menu and no Keeperkant listing can be the thing that reveals a
+    page.
+
+    **A twin's two faces share one set of notes.** Keeper notes left `entries`
+    and `cases` for `keeper_notes`, keyed by `(kind, id)`, so all five kinds
+    have them and a pair keeps **one** text — held on the Keeper's side.
+    `notesTarget()` is the whole rule and the only place it is written. They are
+    a live room now (`keeper:{kind}:{id}:notes`), which **reverses** the note in
+    `lib/live/rooms.ts` that said Keeper notes deliberately are not one: the
+    premise stopped being true, not the reasoning. The same text is open on two
+    pages at once and two Keepers preparing a session are two people typing, and
+    without a room the second save threw the first away. Its gate is the only
+    one in that file that is a **role** rather than a visibility rule, and its
+    key is the only one a page must **resolve before asking for**: request
+    `keeper:{this page}:notes` on a page whose notes live next door and
+    admission is null, on purpose — that refusal is what keeps one text from
+    becoming two.
+
+    **Nothing keeper-only reaches a player's HTML.** The switch, the panel and
+    the stamp are rendered by a server that has already established `isKeeper`;
+    they are absent, not hidden. A keeper-only page wears `KeeperStamp`, which
+    renders `KeeperSideMark` — the marker §45's palette selectors look for, and
+    a paint instruction only: nothing anywhere reads `data-side` to decide what
+    to show. A page you may not open answers **404**, never "u mag dit niet
+    zien", because the refusal itself would confirm the thing exists (§40); that
+    now includes `/api/access`, which used to say 403. `app/(app)/not-found.tsx`
+    exists so that 404 keeps the shell: `notFound()` fell through to Next's own
+    page, drawn above this group's layout, and the shell is where the way back
+    lives. It prints the number **404** on the page on purpose —
+    `tests/e2e/phase3-keeper-tools.spec.ts` reads it, and a reader who lands
+    there by mistake can repeat it.
+
+    **"Kijk als speler" works by becoming one.** `getSessionUser` turns
+    `isKeeper` off for the whole request when the cookie is set, so every read,
+    room and API answers the way it would for the table and no surface can be
+    forgotten the way a per-page flag would forget one. It also means they write
+    as nobody, which is right. `isRealKeeper` exists for exactly one thing: the
+    banner in the shell that offers the eyes back — Beheer and de Keeperkant
+    refuse to render while the preview is on, so the way out cannot live on
+    either.
+
+    And the rule the leak audit that came with this round wrote down, which is
+    older than §44 and outlives it: **a check that asks "is this yours?" must
+    ask "may you see it?" first.** An owner stays the owner after the Keeper
+    takes their wall or their artikel across, and four places were answering
+    them on that alone — a dossier's Activiteit tab naming a prikbord
+    (`listCaseActivity`), "op de kaart" in the wiki listing an artikel through a
+    landkaart the reader may not open (`browseEntries`), the rechten panel
+    opening on a keeper-only board (`loadAccessRow` selected `keeper_only` in
+    the SQL but not into the row the predicates are fed from), and the voorstel
+    queue serving pending edits — name, body, tags, infobox, cover — for an
+    artikel since hidden (`canReview`). Two of the four were leaking a *private*
+    prikbord and a *private* landkaart before §44 existed.
+    `tests/unit/keeper-leaks.test.ts` pins all four.
+
+45. **Four palettes: the page picks the side, the person picks the light.** §45.
+    Spelers licht, Spelers donker, Keeper licht, Keeper donker — nineteen tokens
+    each, in `lib/theme/schemes.ts`, editable in **Beheer → Kleuren**. Four and
+    not two, because a glance at the screen should say which side of the archive
+    you are standing on before you have read a word; nineteen and not a hundred,
+    because every other colour in the stylesheet is a `var()` alias onto one of
+    these — the web's sixteen `--web-<kind>` properties are aliases onto its
+    **six** line colours, so "wat op een prikbord hangt" is one choice and the
+    legend cannot disagree with the drawing. Nothing stores "this account uses
+    the Keeper colours": a keeper-only page renders `data-side="keeper"` (§44)
+    and *is* Keeper-coloured for whoever is looking at it, which is only ever a
+    Keeper. Light against dark is the person's, on their account
+    (`users.colour_scheme`; Systeem · Licht · Donker on Jij), written as
+    `data-theme` by the signed-in layout.
+
+    **One emitter, two callers, and a test between them.** `schemeCss()` writes
+    the whole block; `app/globals.css` carries its output for `DEFAULT_SCHEMES`
+    **between two markers** and `app/(app)/layout.tsx` renders the Keeper's
+    saved palettes as a `<style>` later in the document. Never hand-edit a
+    colour between those markers: change the module and paste its output back.
+    `tests/unit/schemes.test.ts` fails the moment the two drift, and that test
+    is the point of the arrangement — a token added to the module and forgotten
+    in the stylesheet would leave every archive whose Keeper never opened the
+    pane one round behind in exactly one colour, with nothing broken and nothing
+    to notice.
+
+    Every selector is `:root:has(…)` rather than a class on a wrapper, for §29's
+    reason: a `Sheet` portals onto `<body>`, and only a variable named on the
+    root reaches it. Specificity does the choosing, so the four blocks can be
+    written in one order and read in another. The `@media (prefers-color-scheme:
+    dark)` half is fenced with `:not(:has([data-theme='light']))`, because a
+    person who chose Licht means it, even at midnight. `--accent` is not a
+    token: it has always been "whatever the stamp is" and the emitter keeps it
+    an alias of `--stamp-red`. The kurk speck's alpha is baked on by the emitter
+    as two more hex digits (`#rrggbb` + `29` or `4d`, per half) so the picker
+    stays a plain colour. Everything a
+    Keeper types goes through `cleanSchemes()`, so nothing but six hex digits
+    reaches the CSS, and §11's old single accent is folded in as the stamp of
+    all four schemes until the Kleuren pane is opened.
+
+    Two decisions that read as inconsistencies and are not. Schemes are stored
+    **in full**, defaults included, where §11's words are stored sparsely: a
+    word left alone should follow a later change to its default, but a Keeper
+    who tuned three of nineteen colours does not want the other sixteen moving
+    under them in a later round. And the pane **warns** below WCAG's 4.5:1 for
+    ink on paper rather than refusing the save — the archive is the Keeper's,
+    but nobody should be able to make the whole thing unreadable by accident and
+    find out on a phone in a tent. The canvas is not exempt from any of this:
+    `WebCanvas` reads the custom properties (`readPalette`) rather than keeping
+    its own copies, so the dark face, the Keeper's side and the Keeper's own
+    palette all reach the drawing.

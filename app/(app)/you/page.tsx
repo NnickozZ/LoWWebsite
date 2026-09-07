@@ -8,6 +8,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
+import { ColourSchemeForm } from './ColourSchemeForm';
 import { ReadingFontForm } from './ReadingFontForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
 import { logoutAction, logoutEverywhereAction } from './actions';
@@ -118,6 +119,18 @@ export default async function YouPage() {
             Waarin je het archief leest. Alleen voor jou, op elk apparaat waar je inlogt.
           </p>
           <ReadingFontForm current={user.readingFont} />
+
+          <hr className="rule" />
+          {/* §45: het licht waarin je leest. Per account, net als het lettertype. */}
+          <h2 id="kleuren">Kleuren</h2>
+          <p className="small muted">
+            In welk licht je het archief leest. Alleen voor jou, op elk apparaat waar je inlogt.
+          </p>
+          <ColourSchemeForm
+            current={user.colourScheme}
+            isKeeper={user.isKeeper}
+            keeperWord={words.keeper}
+          />
         </>
       )}
 

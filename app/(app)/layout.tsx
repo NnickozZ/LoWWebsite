@@ -9,6 +9,8 @@ import { db, schema } from '@/lib/db';
 import { listEntryTypes } from '@/lib/entries/service';
 import { cleanTypeText } from '@/lib/pageBlocks';
 import { readingFontAttr } from '@/lib/readingFont';
+import { getSchemes } from '@/lib/admin/schemes';
+import { schemeStyle, themeAttr } from '@/lib/theme/schemes';
 import { resolveWords } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
@@ -39,18 +41,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     id: user.id,
     username: user.username,
     isKeeper: user.isKeeper,
+    // §44: a Keeper looking through a player's eyes is a player everywhere but
+    // in the one banner that offers to give them their own eyes back.
+    isRealKeeper: user.isRealKeeper,
+    asPlayer: user.asPlayer,
     characters: user.isKeeper ? [] : listCharacters(user.id),
     activeId: user.isKeeper ? null : (activeCharacter(user.id)?.entryId ?? null),
   };
 
-  // §11: the Keeper's accent colour, applied as the two red variables the
-  // theme is built on. Validated on the way in, so this can never be anything
-  // but a hex colour.
-  const accent = (settings?.theme as { accent?: string } | null)?.accent;
-  const accentCss =
-    accent && /^#[0-9a-fA-F]{6}$/.test(accent)
-      ? `:root,[data-theme='dark']{--stamp-red:${accent};--accent:${accent};}`
-      : null;
+  /*
+   * §45: the four colour schemes, written out as one block of custom
+   * properties. This replaces §11's single accent rule, which set two
+   * variables — the accent is still honoured, folded into the stamp of all
+   * four schemes by `cleanSchemes` until the Keeper touches the Kleuren pane.
+   *
+   * Every colour that reaches the page has been through `cleanSchemes`, so
+   * nothing but six hex digits can be in here; and it is rendered on the
+   * server, so no screen is ever painted in the wrong palette first.
+   */
+  const schemeCss = schemeStyle(getSchemes());
 
   /*
    * §29: the face this person reads in. `<html>` belongs to the root layout,
@@ -63,8 +72,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const fontAttr = readingFontAttr(user.readingFont);
 
   return (
-    <div data-font={fontAttr}>
-      {accentCss && <style>{accentCss}</style>}
+    /*
+     * §45: `data-theme` sits on the same wrapper as §29's `data-font`, and for
+     * the same reason — it is found from the root with `:has()`, so it reaches
+     * a Sheet portalled onto <body> as well as the page. Which *side's*
+     * colours these are is not decided here: a keeper-only page renders its
+     * own `data-side` marker (`components/keeper/KeeperSideMark.tsx`), and the
+     * selectors in `lib/theme/schemes.ts` do the rest.
+     */
+    <div data-font={fontAttr} data-theme={themeAttr(user.colourScheme)}>
+      <style>{schemeCss}</style>
       {/*
        * §18b: who this *window* is writing as. Above the shell on purpose —
        * it has to put the window's remembered answer where the `fetch` patch

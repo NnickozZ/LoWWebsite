@@ -53,6 +53,11 @@ change.
 | overview | overzicht | |
 | border (card border) | rand | |
 | section (on an entry) | sectie | §9's revealable blocks |
+| the Keeper's side of the archive | Keeperkant | *de* Keeperkant (§44); `keeperSide` in `lib/words.ts` |
+| twin (a page's Keeper face) | Keeperversie / Spelersversie | the two faces of one thing, one button apart (§44); `keeperVersion` / `playerVersion` |
+| tie (between a Keeper page and a player-facing one) | touwtje | *het* touwtje; any number, both directions. Not renameable |
+| view as a player | kijk als speler | the Keeper's preview through a player's eyes (§44); `asPlayer` |
+| colour scheme / palette | kleurschema / palet | four of them (§45); the pane in Beheer is **Kleuren** |
 | reveal / revealed to | onthullen / onthuld aan | |
 | visibility | zichtbaarheid | |
 | locked / to lock | vergrendeld / vergrendelen | |
@@ -106,12 +111,13 @@ Geschiedenis · Site · Export · Logboek
 | Remove from case | Uit dossier halen |
 | Add case note / Edit case note | Dossiernotitie toevoegen / bewerken |
 | Why this matters here | Waarom dit hier van belang is |
-| Crop for this case | Bijsnijden voor dit dossier |
-| Use the entry’s crop | Uitsnede van het artikel gebruiken |
 | Options for X | Opties voor X |
 | Add cover | Afbeelding toevoegen |
 | Replace | Vervangen |
-| Crop for lists | Bijsnijden voor lijsten |
+| Crop / Close crop (menu item on the artikel; round 19 — one set of crops per picture, no crop on a dossier's filing or a board card any more) | Bijsnijden / Bijsnijden sluiten |
+| Landscape 3:2 / Portrait 3:4 / Square 1:1 (the three crop frames) | Liggend 3:2 / Staand 3:4 / Vierkant 1:1 |
+| Crop (noun, the frame's label) | Uitsnede liggend / staand / vierkant |
+| Three crops — landscape, portrait and square. Every list, card and knot picks one. Drag to move; scroll to zoom. | Drie uitsneden — liggend, staand en vierkant. Elke lijst, kaart en knoop kiest er een. Sleep om te verschuiven; scrol om te zoomen. |
 | Remove | Verwijderen |
 | Done | Klaar |
 | Cancel | Annuleren |
@@ -126,7 +132,6 @@ Geschiedenis · Site · Export · Logboek
 | Pin | Punaise |
 | Add photo / Replace photo / Remove photo | Foto toevoegen / Foto vervangen / Foto verwijderen |
 | Hide picture / Show picture | Foto verbergen / Foto tonen |
-| Crop | Bijsnijden |
 | Remove card / Remove N | Kaart verwijderen / N verwijderen |
 | Card border | Rand van de kaart |
 | Border: from type (X) | Rand: van soort (X) |
@@ -653,8 +658,12 @@ draagt blijft van jou, per venster (§18b).
 | **Hele web** | de knop naast het zoekvak | Terug naar alles. |
 | **− n +** (*Minder diep* · *Dieper*) | de dieptestapper, alleen met een middelpunt | Hoeveel stappen vanaf het midden, 1 tot 4. |
 | **Kolommen** · **Web** | de vorm, alleen met een middelpunt | Links wat hierheen wijst, rechts waar dit heen wijst; of als een los web. Het web is de standaard. |
-| **Legenda** | de knop rechts | Elke soort lijn in zijn kleur en streep, met een vinkje en een telling. |
-| **Tussen {artikelen}** · **Met {dossiers}** · **Op {prikborden}** · **Op {landkaarten}** · **Op tijdlijnen** · **Met {karakters}** | de groepen in de legenda | Klik op de kop en de hele groep gaat aan of uit. |
+| **Legenda** | de knop rechts | Twee delen sinds ronde 19: *Wat* (de knopen) en *Hoe* (de lijnen), elk met een vinkje en een telling. |
+| **Wat** | het kopje boven het eerste deel van de legenda | Welke soorten knopen meedoen. Een uitgezette knoop is weg, met alles wat er alleen via hem aan hing; het middelpunt zelf blijft altijd staan. |
+| **Verzamelingen** | de eerste groep onder *Wat* | {Dossiers}, {prikborden}, {landkaarten} en tijdlijnen, elk met hoeveel er in het web zitten. Klik op de kop en de hele groep gaat aan of uit. |
+| **{Artikelen}** | de tweede groep onder *Wat* | Elke soort artikel in het web, met icoon, kleur en telling; een {karakter} telt onder zijn soort. |
+| **Hoe** | het kopje boven het tweede deel van de legenda | Elke soort lijn in zijn kleur en streep. |
+| **Tussen {artikelen}** · **Met {dossiers}** · **Op {prikborden}** · **Op {landkaarten}** · **Op tijdlijnen** · **Met {karakters}** | de groepen onder *Hoe* | Klik op de kop en de hele groep gaat aan of uit. |
 | **genoemd in de tekst** · **relatie met een naam** · **in de infobox** · **in een {sectie}** | de vier lijnen tussen artikelen | Doorgetrokken inkt is de lopende tekst; een streepje is een feit óver het artikel. |
 | **in het {dossier}** · **in de aantekeningen** · **{dossier} in de infobox** · **hangt in het {dossier}** | de vier met dossiers (goud) | De laatste is een {prikbord} of tijdlijn dat in een dossier hangt. |
 | **{kaart} op het {prikbord}** · **in een {notitie} op het {prikbord}** · **{draad} op het {prikbord}** | de drie op prikborden (rood) | Een draad tussen twee kaarten is een lijn tussen de twee dingen die ze voorstellen, met het prikbord erbij genoemd. |
@@ -663,7 +672,8 @@ draagt blijft van jou, per venster (§18b).
 | **{karakter} op het {dossier}** · **{speler} in de infobox** | de twee met karakters (paars) | De eerste is de toewijzing (§17); de tweede een infoboxveld *Koppeling naar een speler*, getekend als diens karakter. |
 | **Losse {notitie}s op {prikborden}** | vinkje onderaan de legenda | Standaard uit: het zijn er veel en ze zeggen weinig. |
 | **Altijd zeggen hoe** | vinkje onderaan de legenda | Het woord op élke lijn, in plaats van alleen bij de knoop waar je op staat. |
-| **Afbeeldingen tonen** | vinkje onderaan de legenda | De omslag in de knoop (web) of naast de naam (kolommen). Standaard uit. |
+| **Afbeeldingen tonen** | vinkje onderaan de legenda | De omslag in de knoop (web, de vierkante uitsnede) of naast de naam (kolommen, de staande). Standaard uit. Zoomen kan tot 12× sinds ronde 19; van dichtbij wordt de grotere afbeelding geladen. |
+| *(de korte beschrijving)* | het paneel rechts, onder de naam | Wat het ding in één regel is: de korte beschrijving van een {artikel}, de samenvatting van een {dossier}, de omschrijving van een {landkaart} of tijdlijn. Een {prikbord} heeft er geen. Alleen als die er is. |
 | **Tussen {artikelen} (n)** · **Met {dossiers} (n)** · **Op {prikborden} (n)** · … | het paneel rechts, bij één gekozen knoop | Elke lijn, gegroepeerd op soort verband (dezelfde groepen als de legenda), met hoe, in de kleur van de lijn. Klik: kiezen; dubbelklik: middelpunt. |
 | **→ verwijst naar · ← wijst hierheen · ↔ {draad}** | het pijltje voor elke rij, en de uitleg onderaan het paneel | De richting, gelezen vanaf de gekozen knoop. |
 | **Zoek in n verbindingen…** | het paneel, boven de 12 rijen | Filtert op naam en op hoe. |
@@ -679,3 +689,73 @@ draagt blijft van jou, per venster (§18b).
 | **Dit middelpunt is er niet, of je mag het niet zien.** | boven de tekening | Een adres naar iets dat weg is of verborgen: geen lek, geen lege pagina. |
 | **Het hele web is iets voor een groot scherm. Zoek hier iets en je krijgt zijn verbindingen.** | op een telefoon, zonder middelpunt | |
 | **Het web wordt gesponnen…** | terwijl het laadt | |
+
+## Ronde 22 — de Keeperkant en de kleuren van het archief (§44, §45)
+
+Woorden tussen accolades komen uit **Beheer → Woorden** (`lib/words.ts`) en
+staan hier met hun standaardwoord: `{artikel}`, `{dossier}`, `{prikbord}`,
+`{landkaart}`, `{tijdlijn}`, `{Keeper}`, `{speler}`. Vier woorden zijn er deze
+ronde bij gekomen — `keeperSide`, `keeperVersion`, `playerVersion` en
+`asPlayer` — dus **Keeperkant**, **Keeperversie**, **Spelersversie** en **Kijk
+als speler** mogen door de Keeper hernoemd worden en horen nergens hard in een
+component te staan. *Touwtje* is geen woord van de Keeper: dat staat vast.
+
+### De Keeperkant (§44)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **{Keeperkant}** | het hoofdmenu (alleen voor een {Keeper}), de titel van die pagina, én de kop van het blok onderaan elk {artikel}, {dossier}, {prikbord}, {landkaart} en {tijdlijn} | De kant van het archief die alleen de Keeper ziet. Eén woord voor alle drie, want het is één ding. |
+| **Alles wat alleen jij ziet.** | onder de titel van de Keeperkant | |
+| **Nog niets aan deze kant. Open een {artikel}, {dossier}, {prikbord}, {landkaart} of {tijdlijn} en druk op ‘{Keeperversie} maken’.** | de lege Keeperkant | |
+| **Deze pagina is van de {Keeper}** | het vinkje in het Keeperkant-blok | Zet dit aan en de pagina bestaat niet meer voor de rest van het archief. |
+| **Alleen de {Keeper} ziet deze pagina — in lijsten, in het web, en op het adres zelf.** · **Zet dit aan en de pagina verdwijnt voor iedereen behalve de {Keeper}.** | eronder, aan en uit | *En op het adres zelf* is letterlijk: wie het adres intikt krijgt een 404. |
+| **De andere kant blijft staan waar hij stond.** | achter die regel, als deze pagina een {Keeperversie} heeft | |
+| **{Keeperversie}** · **{Keeperversie} maken** | de knop bovenaan het blok, op een spelerspagina | De eerste springt naar de Keeperkant van dít ding; de tweede maakt hem. Naam en soort gaan mee, de tekst niet. |
+| **{Spelersversie}** | dezelfde knop, op een Keeperpagina | De weg terug naar de kant die de {spelers} zien. |
+| **Geen {spelersversie}** | dezelfde plek, op een Keeperpagina zonder tegenhanger | Een Keeperpagina hoeft er geen te hebben; er is geen knop om er een te maken. |
+| **Touwtjes** · **Touwtjes (n)** | de kop in het blok, en het knopje bovenaan | Alles waar deze Keeperpagina over gáát: artikelen, dossiers, prikborden, landkaarten, tijdlijnen. Zoveel als je wilt, beide kanten op. |
+| **Waar deze pagina over gaat. Een touwtje is geen recht: wie de andere kant niet mag zien, krijgt hem ook hier niet te zien.** | onder die kop | De hele regel van §44 in één zin. |
+| **Nog geen touwtjes.** | als er geen zijn | |
+| **Zoek iets om een touwtje aan vast te maken** | het zoekvak eronder (voor een schermlezer) | Dit vak **maakt niets aan** — er is geen ‘… aanmaken’-regel: een touwtje gaat tussen twee dingen die al bestaan. |
+| **Touwtje naar *X* losmaken** | het kruisje achter een touwtje (voor een schermlezer) | Losmaken haalt alleen het touwtje weg, nooit de pagina. |
+| **{Notities van de Keeper}** | de laatste kop in het blok | Nu op alle vijf de soorten, en samen met de {Keeperversie} **één tekst**. |
+| **Eén tekst, gedeeld met *X*.** | eronder, als dit ding een andere kant heeft | Wat je hier typt staat ook op de andere pagina, terwijl je het typt. |
+| **Wordt nooit aan {spelers} getoond.** | in het lege notitieveld | |
+
+### Kijken door de ogen van een speler (§44)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **{Kijk als speler}** | in de zijbalk, onder wie je bent en waarmee je schrijft (alleen op een groot scherm, en alleen voor een echte {Keeper}) | Zolang dit aanstaat is de Keeper voor het hele archief een speler: geen Keeperkant, geen Beheer, en schrijven gaat niet. |
+| **Je kijkt als {speler}.** *Je ziet nu precies wat de {spelers} zien — niets van de {Keeperkant}, en schrijven gaat niet.* **Stop met kijken als {speler}.** | de balk bovenaan élke pagina zolang het aanstaat | De balk staat in de schil en niet op een pagina, want Beheer en de Keeperkant gaan zelf niet open zolang je kijkt. Dit is dus de enige weg terug. |
+
+### Een pagina die er niet is (§44, §40)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **404** · **Deze pagina is er niet.** | de 404-pagina van het archief | Het getal staat er met opzet: het is wat je kunt doorgeven aan iemand anders. |
+| **Hij bestaat niet, of hij is niet van jou om te lezen. De rest van het archief staat er nog.** | eronder | Met opzet twee antwoorden in één zin: zou het archief zeggen *je mag dit niet zien*, dan had het al verklapt dat het bestaat. |
+| **Naar het begin** · **Zoeken** | de twee knoppen eronder | |
+
+### Kleuren (§45)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Kleuren** | Beheer, het tabblad; en Jij, het kopje onder *Lettertype* | Geen woord van de Keeper: een kleur is een kleur. |
+| **Spelers — licht** · **Spelers — donker** · **Keeper — licht** · **Keeper — donker** | de vier tabjes in Beheer → Kleuren | Vier paletten van negentien kleuren. De pagina kiest de kant, de lezer kiest het licht. |
+| **Terug naar de kleuren van het archief** | per palet | Zet dit ene palet terug op de kleuren waar het archief mee komt. |
+| **Het archief, in deze kleuren** · **Een bijschrift, en een verwijzing ernaast.** · **Stempel** · **Kaart op kurk** | het proefje boven de kleurkiezers | Staat er in de kleuren die je nú kiest, niet in die van de pagina eromheen. |
+| **Inkt op papier: n:1. Ruim leesbaar.** | onder het proefje | |
+| **Let op: inkt op papier haalt maar n:1. Onder 4.5:1 is gewone tekst voor veel mensen niet meer te lezen — vooral niet op een telefoon buiten. Je kunt het toch opslaan.** | idem, bij te weinig verschil | Een waarschuwing, nooit een weigering. |
+| **Papier en inkt** — *De negen kleuren waar elk scherm op staat.* | de eerste groep kleuren | |
+| **Het prikbord** — *Alleen het kurk en de kaarten die erop hangen.* | de tweede groep | |
+| **Het web** — *De zes kleuren waarin het web zijn lijnen tekent.* | de derde groep | Zes, niet zestien: elke soort lijn in het web hangt aan een van deze zes. |
+| **Het papier** · **Papier in de schaduw** · **Papier dat omhoog ligt** · **De inkt** · **Zachte inkt** · **De liniaal** · **De stempel** · **Het draadje** · **Een verwijzing** | de namen van de negen kleuren van *Papier en inkt* | Zoals ze in het archief heten, niet zoals ze in de CSS heten. |
+| **Het kurk van een prikbord** · **De spikkels in het kurk** · **Het vlak van een kaart op een prikbord** · **De rand van zo’n kaart** | de vier van *Het prikbord* | |
+| **Web: wat de tekst noemt** · **wat op een prikbord hangt** · **wat op een landkaart staat** · **wat in een dossier zit** · **wat op een tijdlijn staat** · **wie het leest en schrijft** | de zes van *Het web* | Dezelfde zes kleuren als de legenda van het web. |
+| **In welk licht je het archief leest. Alleen voor jou, op elk apparaat waar je inlogt.** | Jij → Kleuren | |
+| **Systeem** — *Wat je apparaat zegt: licht overdag, donker als je telefoon dat ’s avonds omzet.* | het eerste chipje | De standaard, en wat elk scherm vóór deze ronde deed. |
+| **Licht** — *Altijd licht papier, wat het apparaat er ook van vindt.* | het tweede | Wie dit kiest houdt het licht, ook al zet de telefoon zichzelf ’s avonds om. |
+| **Donker** — *Altijd donker papier — prettig aan tafel bij weinig licht.* | het derde | |
+| **De kleuren van de {Keeper} verschijnen vanzelf op de pagina’s die alleen van de {Keeper} zijn — daar hoef je niets voor te kiezen, licht of donker blijft jouw keuze.** | onder de chipjes, voor een {Keeper} | Er is met opzet geen vierde chipje: niemand *kiest* de Keeperkleuren, de pagina brengt ze mee. |
+| **De {Keeper} kiest de kleuren van het archief zelf; jij kiest alleen of je ze licht of donker leest.** | dezelfde plek, voor een {speler} | |

@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 48 files, 681 tests as of round 15 (round 13: 44 / 627)
+npx vitest run         # 52 files, 772 tests as of round 22 (round 21: 49 / 713)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -29,6 +29,11 @@ npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
 If any of those is red on an untouched checkout, **say so and stop**. Do not
 start a feature on a broken baseline; you will not be able to tell your damage
 from what was already there.
+
+With one known exception, as of round 22: `tests/e2e/per-place-crops.spec.ts`
+fails on untouched `main` too. It is a spec for a feature round 19 removed —
+see §8. Do not spend an hour diagnosing it, and do not let it hide a real
+failure either: check the rest of the run.
 
 The Playwright run takes about twenty minutes and rebuilds the app each time.
 That is not a reason to skip it — it is a reason to run it *early*, while it is
@@ -140,15 +145,16 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§4[0-9]" app components lib` before
-  choosing a number — the latest is §43 / rule 43 (het web, round 15).
+  choosing a number — the latest is §45 / rule 45 (de vier kleurschema's,
+  round 22; §44 is de Keeperkant, same round).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0017_pin_targets`, so the next is `0018_`. Never edit an existing block, and
-  that includes the `--` comments inside its SQL string.
+  `0021_keeper_side`, so the next is `0022_`. Never edit an existing
+  block, and that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
   migration. Do not write a SQL migration for board state. Round 13's `scale`
@@ -201,6 +207,41 @@ freely there.
   now, not the whole file.
 - **`lib/assets.ts` loads sharp and the database**, so nothing client-side may
   import it. Pure, client-safe helpers belong in `lib/upload.ts`.
+- **Never bulk-upgrade the dependencies.** `npm update --save`, `npx npm-check-updates -u`
+  or `npm install <pkg>@latest` across the board will take Next from 15.5.25 to
+  16, Tiptap from 2 to 3, drizzle from 0.39 to 0.45 and sharp from 0.33 to 0.35
+  in one go — and the app is written for the left-hand side of every one of
+  those. Done on 7 Sep 2026, it produced this, on every artikel page:
+
+  ```
+  TypeError: Cannot read properties of undefined (reading 'doc')
+      at createDecorations (y-prosemirror/…/cursor-plugin.js)
+  ```
+
+  Tiptap 3 wants `@tiptap/pm@3`, but that range alone was left at `^2.11.5`, so
+  the browser loaded **two copies of `prosemirror-state`**. A `PluginKey` is
+  per-copy, so `ySyncPluginKey.getState(state)` in y-prosemirror's cursor plugin
+  returned `undefined` and `.doc` threw. The cheaper tell, in the dev log:
+  `[tiptap warn]: Duplicate extension names found: ['link']` — StarterKit 3
+  bundles Link, StarterKit 2 does not, so that warning alone names the major.
+  Cure: `git checkout -- package.json package-lock.json`, delete `node_modules`,
+  `npm ci`. Reproduced and cured both ways in the sandbox; the *data* in the
+  archive has nothing to do with it, and neither does anything under `app/`.
+  A real upgrade of any of those four is a round of its own, not an install.
+- **`scripts/seed-demo.mjs` is a fixture, not a demo.** `tests/e2e/prepare.mjs`
+  runs it before every Playwright run, and `timelines`, `flow-2-link-and-create`
+  and `flow-3-case-dossier` click the names inside it ("Westkapelle Lighthouse",
+  "The Unwound Light", "Jacob den Hollander"). Rewriting its content turns the
+  suite red twenty minutes later, in specs that look unrelated. Want a full
+  archive to look at instead? That is `npm run seed-wereld` (round 16) — ~15
+  artikelen per soort in Dutch, wired through fields and text, with dossiers,
+  prikborden, tijdlijnen, landkaarten, karakters and voorstellen. It records
+  every id in `data/seed-wereld.json` and `--clean` puts it all back.
+  Two things it must keep doing, if it is ever extended: write `entry_mentions`
+  itself (the opening backfill runs once per archive, so anything seeded after
+  that would never show under "Genoemd in"), and give every `%A` in
+  `seed-wereld.data.mjs` an `a:` saying which soort it may draw from — without
+  it you get "wie iets wil regelen bij Een koperen uniformknoop".
 - **The web (§43) is one `<canvas>` and a bag of mutable state**
   (`components/web/WebCanvas.tsx`): a React re-render never restarts its frame
   loop, and every prop is read through `propsRef` on the next frame. The
@@ -212,6 +253,131 @@ freely there.
   `WebEdgeKind` in `types.ts`, a row in `kinds.ts`, a `--web-<kind>` in
   `globals.css`, and an edge in `service.ts` — all four, or the legend and the
   canvas disagree about its colour.
+- **The web's simulation has three floors that are not forces** (round 17,
+  `lib/web/force.ts`): a spring is divided by the smaller degree of its ends
+  (`ForceLink.strength`), two knots may not come closer than `r + pad` each
+  (a positional move after integration), and in a focus web a knot outside its
+  depth's **band** (`sim.rings[depth]`, an annulus with area for its knots)
+  is moved back in by `ringGravity` of the way. All three were forces first
+  and lost to the springs of a hub — measured, not guessed. Do not turn them
+  back into forces, do not put a band on the whole web (it has no middle),
+  and keep `pinned` separate from `fixed`: `fixed` is a hand on the knot,
+  `pinned` is a hand that let go. In `WebCanvas.tsx`, never assign
+  `ctx.font` in a loop — go through `Type.font()`, which skips a string that
+  is already set, and measure with `Type.width()`, which measures once at
+  20 px and scales; and never `clip()` a cover per frame — `coverSprite()`.
+- **The web is two canvases** (round 18): `.web-canvas-layer` under
+  `.web-canvas`. The lower one holds the resting lines and the step rings
+  and is rebuilt only when its key changes (`baseKey` in `frame()`: mode,
+  layout, palette, size, `s.motion`, edge count); everything that depends on
+  the hover or the selection is drawn on the upper one every frame. Do not
+  draw anything hover-dependent into the layer, do not blit the layer with
+  `drawImage` (that was 30 ms of a 49 ms frame — the compositor stacks the
+  two for free), and bump `s.motion` whenever you move a knot outside the
+  simulation and the tweens. Measure with `window.__web.stats` before and
+  after any change to `frame()`; `scratch-perf*.mjs`-style scripts against a
+  2560×1350 viewport at dpr 2 are the benchmark this round used.
+- **In Kolommen the layout's coordinates are the truth; a tween is only the
+  way there** (round 19). The layout effect in `WebCanvas.tsx` writes
+  `columnLayout`'s x/y straight into `placed`, and a tween — made only when
+  `prefers-reduced-motion` is off and the node actually moved — is walked by
+  `currentPos` and lands exactly on it. Storing the prior position and
+  trusting the tween to carry the card over meant that under reduced motion,
+  where no tween is made, every card stayed at its organic coordinates for
+  ever: the "columns like a web, with S-curves" report nobody could reproduce
+  with animations on. The layout key is
+  `mode|focus|depth|graphFingerprint|expanded`; the second field stays the
+  focus because `nodePoint()` in the e2e specs reads it, and the fingerprint
+  carries every node's depth and side and a hash of the edges, so a legend
+  tick with the same ids still re-runs the layout. Also round 19: `ZOOM_MAX`
+  is 12. A cover sprite is keyed on `zoomBucket(zoom, dpr)` ∈ {1, 2, 4, 8}
+  and rasterised at `SPRITE_SCALE × bucket` (≤ `SPRITE_MAX_PX` = 1024),
+  loading `?s=card` instead of `?s=thumb` from bucket 4 up — never for a
+  whole web at zoom 1; a line's on-screen width grows as √zoom up to
+  `LINE_ZOOM_CAP` = 4 and then stops (`lineZoom`, also for dashes and
+  arrowheads); the cull margin is 200 *screen* px; and past `TEXT_CRISP_ZOOM`
+  = 2 every caption (names, chips, "n stappen") goes through `crispText`,
+  which draws at `10 px` on a context scaled back by `1/zoom` instead of at
+  `10 / zoom px` — glyph placement happens at the nominal size, and at 0.8 px
+  a name came out as a row of scattered letters. `lineZoom`, `zoomBucket`
+  and `graphFingerprint` are exported from `WebCanvas.tsx` and unit tested in
+  `tests/unit/web-layout.test.ts`.
+- **Hiding a kind of knot is a slice option, not a drawing trick** (round 19).
+  The legend's "Wat" block (dossiers, prikborden, landkaarten, tijdlijnen, and
+  every soort in the web) feeds `hiddenNodeKinds` / `hiddenTypes` in
+  `SliceOptions` (`lib/web/slice.ts`, `hiddenNode()`), next to `hiddenKinds`
+  for the lines. A hidden knot is *absent* — its edges go with it, and a knot
+  reachable only through it drops out of the focus walk — and the focus
+  itself is always exempt. Two `localStorage` keys, `web:hidden-things` and
+  `web:hidden-soorten`, beside `web:hidden-kinds`; `kindCounts` in
+  `WebView.tsx` gets the same two sets, so a line to a hidden knot is not
+  counted as one the legend could bring back.
+- **A picture has three crops, one per shape** (round 19). `entries.cover_crop`
+  and `cases.cover_crop` hold `{ landscape?, portrait?, square? }`, each a
+  focal point + zoom, set once in the artikel's crop section
+  (`components/entry/CoverEditor.tsx`) and used by every list, card and knot.
+  A row written before round 19 holds a bare `{ x, y, zoom }` and reads as
+  `{ portrait }`. Normalising happens on read, in the drizzle column type in
+  `lib/db/schema.ts` (`coverCrops` → `normaliseCrops`), and again, cheaply, in
+  `coverStyle`; do not add a second road. `lib/images/shapes.ts` is the only
+  place a ratio lives — a frame gets its aspect from `coverClass(shape)`
+  (`.cover-landscape` / `.cover-portrait` / `.cover-square` in `globals.css`),
+  never from its own CSS rule. A dossier's filing and a prikbord card have no
+  crop of their own any more: `case_entries.crop` is nulled and unread, and
+  `normaliseState` drops `crop` off a card.
+- **The web node carries `coverCrop`** already normalised — it comes through
+  the drizzle column type, so `service.ts` passes it on as is. On the canvas
+  `drawCover` takes a `Crop` and turns it into a source rect (a knot wears
+  the vierkant crop, the columns thumb the staand one); the crop is part of
+  the sprite key (`spriteKey`), or a changed crop would stamp the old sprite.
+- **A text line yields, at build time.** `collapseMentions` runs in
+  `buildWebGraph`, not in the browser: the count, the panel and the drawing
+  must agree. Adding a kind that should also yield means adding it to
+  `TEXT_KINDS` in `slice.ts` and nothing else.
+- **The Keeper's web reads containers as a player** (`containerViewer` in
+  `lib/web/service.ts`) unless `othersPrivate` is set. Keep artikelen and
+  sections on the real viewer. `boards.in_web` is checked in exactly two
+  places — `buildWebGraph` and `listMentions` — and must stay checked in
+  both.
+- **`MentionPopover` never owns the textarea.** It attaches through a ref or
+  an element-as-state (`LiveField mentions` uses state, because the room swaps
+  the element under a `next/dynamic` boundary) and writes with the native
+  value setter + an `input` event. If you find yourself calling a component's
+  `onChange` from it, stop: that breaks the Yjs-bound path.
+- **"The Keeper's own" is spelled two ways, and `isKeeperSide()` owns the
+  difference** (§44, round 22). An **artikel** says it with §9's
+  `visibility = 'keeper'`; a **dossier, prikbord, landkaart or tijdlijn** says
+  it with the `keeper_only` column from `0021_keeper_side`, AND-ed in front of
+  the owner's dials inside `viewableCondition()` and `canView()` in
+  `lib/access.ts`. `lib/keeper/side.ts` is the only file allowed to know that,
+  and `keeperRef()` is the only way anything in the Keeperkant learns a record
+  exists — it returns null for "gone, or not for you", and a caller may not
+  tell those apart. Do not add a `keeper_only` to `entries`, do not read either
+  flag directly in a page, and remember that `loadAccessRow` has to *select*
+  `keeper_only` or the predicates beside the SQL read `undefined` and wave a
+  Keeper-only record past on its owner's dial (that was one of round 22's four
+  leaks). The audit rule from the same round, worth repeating anywhere a check
+  asks about ownership: **"is this yours?" must ask "may you see it?" first.**
+  A twin's notes live on the *pair's* Keeper side, so a page resolves
+  `notesTarget()` before asking for the `keeper:{kind}:{id}:notes` room —
+  asking with its own id when the notes live next door gets null admission, on
+  purpose.
+- **The four palettes in `app/globals.css` are generated — never hand-edit
+  them** (§45, round 22). Everything between `/* §45 SCHEMES START */` and
+  `/* §45 SCHEMES END */` is character for character what
+  `schemeCss(DEFAULT_SCHEMES)` returns from `lib/theme/schemes.ts`, and
+  `tests/unit/schemes.test.ts` reads the stylesheet and fails if the two drift.
+  Change a colour or add a token in the module and paste its output back. Ten
+  seconds of care, because the failure mode is silent: a token added to the
+  module and forgotten in the stylesheet leaves every archive whose Keeper
+  never opened Beheer → Kleuren one round behind in exactly one colour, with
+  nothing broken. `lib/theme/schemes.ts` stays **pure** (client components
+  import it); `lib/admin/schemes.ts` is the half that touches the database, the
+  same split `lib/words.ts` and `lib/admin/words.ts` have. And the nineteen
+  tokens are the whole vocabulary: every other colour is a `var()` alias onto
+  one of them — the web's sixteen `--web-<kind>` properties now alias its six
+  `--web-line-*`, so a new `WebEdgeKind` picks one of the six rather than
+  bringing a colour.
 
 ---
 
@@ -307,7 +473,75 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12 and 13
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19 and 22
+
+**One spec is red on untouched `main`, and has been since round 19.**
+`tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
+without touching the entry") tests a feature that no longer exists: round 19
+made a picture carry one set of three crops, `case_entries.crop` is nulled and
+unread, and the spec was never retired with the feature. Verified by running it
+in a worktree at `1d67f5c`, round 22's base. It is pre-existing red, not
+anybody's damage — retire the spec (or rewrite it for the three-crop road) the
+next time somebody is in that file, and until then do not spend an hour
+diagnosing it.
+
+Round 22 (§44, §45) leaves three, all named on purpose:
+
+- `page:/keeper` is not in `PAGE_PLACES` (`lib/live/keys.ts`), so the
+  Keeperkant list re-reads like every other collection but hands out no
+  presence — no dot, no "wie kijkt er mee". One line, on the day somebody
+  wants it.
+- "Kijk als speler" has a control only in the **desktop side menu**
+  (`AsPlayerLink` inside `.sidenav`). A phone can be *in* the preview — the
+  banner that turns it off is in the shell everywhere — but cannot start one.
+- The leak audit knowingly left four things as they are: collection-key change
+  signals still fire for a keeper-only record (they name no row; accepted since
+  §21); `isAdrift` in `lib/entries/caseName.ts`; `SUMMARY_COLUMNS` shipping
+  `originCaseId` to a player's HTML; and `/api/assets/[id]` serving any asset
+  to any signed-in account, which pre-dates all of this. One more is a property
+  of the transport rather than a bug: an open `/api/live/site` connection keeps
+  the rights it was opened with, so "kijk als speler" does not reach that
+  stream until it reconnects.
+
+Round 19 leaves four, all small and all named on purpose:
+
+- The masthead logo (`.masthead-logo`, `object-fit: contain`) and the
+  landkaart card (`app/(app)/maps/page.tsx`, a bare `<img>` of `maps.asset_id`)
+  have no crop: `maps` has no `cover_crop` column and neither picture goes
+  through `coverClass`. Deliberate — a logo is shown whole, a map is the one
+  picture people zoom into.
+- `?s=card` at high zoom is a second image fetch per knot from bucket 4 up
+  (`coverFor` in `WebCanvas.tsx`). Never for a whole web at zoom 1, and the
+  thumb keeps drawing until the card arrives, but a reader who zooms into a
+  hundred knots loads a hundred 900 px pictures.
+- Captions past zoom 2 pay a `save`/`restore` each (`crispText`); fine where
+  few are in view, but do not route the columns' card text through it.
+- The hidden-soort filter cannot hide the focus (`hiddenNode()` exempts
+  `graph.focus`). By design — the page *is* that thing — but a Keeper who
+  unticks the focus's own soort sees one knot of it stay and may ask.
+
+Round 18 leaves three, none of them the web's:
+
+- A keystroke in the first ~100 ms after a `LiveField`'s room arrives can be
+  lost while the seeded text is still landing (`BoundField`, `ready` vs the
+  first observer update). The timelines spec waits half a second; a fix is a
+  `shown`-is-seeded flag before `readOnly` lifts.
+- An edit inside the last 80 ms before a sheet closes leaves with the sheet
+  (`UPDATE_BATCH_MS` in `useLiveDoc`). A flush on unmount would close it.
+- `@Naam` typed by hand (without picking) is read by the index but printed as
+  plain text; only `[[Naam]]` gets the chip. Deliberate — the client has no
+  index — but a Keeper may ask.
+
+Round 17 (the web breathing) leaves two small ones of its own:
+
+- The whole web of a filled archive is a hairball with hubs, on purpose; if it
+  ever needs structure, the cheap road is a band per *soort* or per dossier —
+  the band machinery in `force.ts` takes any integer `ring`, it only ever gets
+  the BFS depth today.
+- Pins live in the sim and die with the page. If a Keeper wants a hand-laid web
+  to survive a reload, that is a `web_layout` row per viewer — a round, not a
+  fix.
+
 
 Genuine debt, worth picking up. Round 13 narrowed one of these (the
 `router.refresh()` gap) and added two of its own at the bottom; the rest it went

@@ -82,7 +82,7 @@ export const WORD_GROUPS: WordGroup[] = [
   },
   {
     title: 'Het menu',
-    note: 'De negen plekken in de zijbalk, en de balk onderaan op een telefoon.',
+    note: 'De plekken in de zijbalk, en de balk onderaan op een telefoon.',
     words: [
       { key: 'navHome', what: 'Start', fallback: 'Start' },
       { key: 'navCases', what: 'Dossiers', fallback: 'Dossiers' },
@@ -94,7 +94,39 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'navYou', what: 'Jij', fallback: 'Jij' },
       // §43: the web — the archive drawn as what points at what.
       { key: 'navWeb', what: 'Het web', fallback: 'Het web' },
+      // §44: de Keeperkant — alleen in de zijbalk, en alleen voor Keepers.
+      { key: 'navKeeper', what: 'De Keeperkant', fallback: 'Keeperkant' },
       { key: 'navAdmin', what: 'Beheer', fallback: 'Beheer' },
+    ],
+  },
+  {
+    // §44
+    title: 'De Keeperkant',
+    note:
+      'De tweede kant van het archief: de pagina’s die alleen de Keeper ziet, de knop tussen de twee kanten, en de voorvertoning door de ogen van een speler.',
+    words: [
+      {
+        key: 'keeperSide',
+        what: 'De kant van het archief die alleen de Keeper ziet',
+        fallback: 'Keeperkant',
+        hint: 'Zowel het stempel op zo’n pagina als de naam van de lijst in het menu.',
+      },
+      {
+        key: 'keeperVersion',
+        what: 'De knop naar de Keeperversie van deze pagina',
+        fallback: 'Keeperversie',
+      },
+      {
+        key: 'playerVersion',
+        what: 'De knop terug naar de spelersversie',
+        fallback: 'Spelersversie',
+      },
+      {
+        key: 'asPlayer',
+        what: 'Kijken door de ogen van een speler',
+        fallback: 'Kijk als speler',
+        hint: 'Zolang dit aanstaat is de Keeper voor het hele archief een speler.',
+      },
     ],
   },
   {

@@ -4,6 +4,8 @@ import { LivePage } from '@/components/live/LivePage';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
+import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
+import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { PreferredCases } from '@/components/entry/PreferredCases';
 import { caseIdsInFields } from '@/lib/entries/caseFields';
 import { EntryCard } from '@/components/EntryCard';
@@ -429,6 +431,18 @@ export default async function EntryPage({
     }
   }
 
+  /*
+   * §44: the Keeper's corner — the switch to the other face, the "this page is
+   * mine" toggle, the touwtjes and the shared notes. A slot for the same reason
+   * every other one is: it is a read of the archive (`keeperRef`, `tiesFor`,
+   * the notes room), so it is done on the server and never travels to a
+   * player's browser as props. It stands under "Beheer van dit artikel", where
+   * the keeper-notes box used to be.
+   */
+  if (isKeeper) {
+    slots.keeper = <KeeperPanelServer key="keeper" kind="entry" id={entry.id} user={user} />;
+  }
+
   // The bin: a server action, so it is made here and handed over as a slot
   // like the other reads — EntryView files it under "Beheer van dit artikel".
   if (mayEdit) {
@@ -461,6 +475,11 @@ export default async function EntryPage({
   return (
     <>
       <LivePage place={entryKey(entry.id)} watch={['cases', 'maps', 'types']} />
+      {/* §44/§45: this artikel is the Keeper's own side — the stamp says so in
+          a word, and the marker beside it paints the page in the Keeper's
+          colours. Rendered only for a Keeper looking at a keeper-only artikel;
+          nobody else could be standing here at all. */}
+      <KeeperStamp on={isKeeper && entry.visibility === 'keeper'} />
       {/*
         §31: the dossiers this artikel is filed in — already behind
         `visibleCaseCondition`, because `listCasesForEntry` took this viewer.
@@ -488,7 +507,6 @@ export default async function EntryPage({
           typeText,
           visibility: entry.visibility,
           isLocked: entry.isLocked,
-          keeperNotes: entry.keeperNotes ?? '',
           revealedTo: isKeeper ? listEntryReveals(entry.id) : [],
         }}
         knownTags={knownTags}

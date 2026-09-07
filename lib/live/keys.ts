@@ -27,7 +27,7 @@ export const ID = '[A-Za-z0-9_-]{1,64}';
 
 const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event|ink):(${ID})$`);
 const ROOM_KEY = new RegExp(
-  `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields)$`,
+  `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields|keeper:(?:entry|case|board|map|timeline):${ID}:notes)$`,
 );
 
 /** Keys any signed-in person may watch: a list moved, nothing about which row. */
@@ -59,6 +59,14 @@ export const mapKey = (id: string) => `map:${id}`;
 export const pinKey = (id: string) => `pin:${id}`;
 export const timelineKey = (id: string) => `timeline:${id}`;
 export const eventKey = (id: string) => `event:${id}`;
+/**
+ * §44: the Keeper's notes about one thing, as shared text. Keeper-only at the
+ * gate (`lib/live/rooms.ts`), and always addressed by the *pair's* side — two
+ * faces of one thing resolve to one key, which is what makes typing on either
+ * page typing on both.
+ */
+export const keeperNotesRoomKey = (kind: string, id: string) => `keeper:${kind}:${id}:notes`;
+
 /** §33: the tekenlaag on the thing with this id (a prikbord, landkaart or tijdlijn). */
 export const inkKey = (id: string) => `ink:${id}`;
 /** A wiki soort's list page, as a place. */

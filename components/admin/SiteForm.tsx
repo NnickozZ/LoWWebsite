@@ -136,7 +136,9 @@ export function SiteForm({
             style={{ width: 72, padding: '0.2rem' }}
           />
           <span className="tiny muted">
-            De stempelrode kleur van knoppen en stempels. Standaard #A8321E.
+            De stempelrode kleur van knoppen en stempels. Standaard #A8321E. Dit is de oude, enige
+            kleur: zodra je onder <em>Kleuren</em> een palet opslaat, staat de stempel daar — per
+            palet — en telt dit vakje niet meer mee.
           </span>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { LiveStrip } from '@/components/live/LiveStrip';
 import { UiProvider, useUi, type EntryTypeLite } from '@/components/ui/UiProvider';
 import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
 import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
+import { AsPlayerBanner, AsPlayerLink } from '@/components/keeper/AsPlayer';
 import type { Words } from '@/lib/words';
 
 /**
@@ -18,7 +19,15 @@ import type { Words } from '@/lib/words';
  * Woorden, so the labels are word keys rather than words; the hrefs and the
  * icons are the app's own and stay put.
  */
-const NAV: { href: string; word: string; icon: string; compact?: boolean; desktopOnly?: boolean }[] = [
+const NAV: {
+  href: string;
+  word: string;
+  icon: string;
+  compact?: boolean;
+  desktopOnly?: boolean;
+  /** §44: not rendered at all for anyone but a Keeper — never hidden with CSS. */
+  keeperOnly?: boolean;
+}[] = [
   { href: '/', word: 'navHome', icon: 'home' },
   { href: '/cases', word: 'navCases', icon: 'folder' },
   { href: '/wiki', word: 'navWiki', icon: 'book' },
@@ -30,6 +39,10 @@ const NAV: { href: string; word: string; icon: string; compact?: boolean; deskto
   // on a phone the whole web is a search box anyway — the way in there is the
   // Verbindingen button on the thing you are looking at.
   { href: '/web', word: 'navWeb', icon: 'web', desktopOnly: true },
+  // §44: de Keeperkant. Desktop sidebar only, for the same arithmetic as the
+  // web above — the phone's tab row fits eight and is already full — and
+  // `keeperOnly`, so a player's HTML never carries the link at all.
+  { href: '/keeper', word: 'navKeeper', icon: 'shield', desktopOnly: true, keeperOnly: true },
   // Eight tabs do not fit a phone with a word under each. The two whose icon
   // everybody knows — a magnifier, a person — go without one there.
   { href: '/search', word: 'navSearch', icon: 'search', compact: true },
@@ -77,8 +90,11 @@ function Nav({
         <div className="who-block">
           <CharacterSwitcher me={me} />
           <WritingAsLine />
+          {/* §44: the way into "kijk als speler", beside who you are being —
+              the other question about whose eyes you are reading with. */}
+          <AsPlayerLink show={Boolean(me.isRealKeeper && !me.asPlayer)} words={words} />
         </div>
-        {NAV.map((item) => (
+        {NAV.filter((item) => !item.keeperOnly || me.isKeeper).map((item) => (
           <Link key={item.href} href={item.href} aria-current={isCurrent(pathname, item.href) ? 'page' : undefined}>
             <Icon name={item.icon} size={18} />
             {words[item.word]}
@@ -99,7 +115,7 @@ function Nav({
       </nav>
 
       <nav className="tabs" aria-label="Hoofdmenu">
-        {NAV.filter((item) => !item.desktopOnly).map((item) => (
+        {NAV.filter((item) => !item.desktopOnly && (!item.keeperOnly || me.isKeeper)).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -160,6 +176,14 @@ export function AppShell({
              * no page where they *can* write and no toast that survives long
              * enough to be read.
              */}
+            {/*
+             * §44: and, above that, the one banner a Keeper looking through a
+             * player's eyes must always be able to reach. It stands here, in
+             * the shell, because Beheer and the Keeperkant refuse to render
+             * while the preview is on and the shell survives a page that
+             * throws — so the way back is never on the page that is missing.
+             */}
+            <AsPlayerBanner on={Boolean(me.asPlayer)} words={words} />
             <ReadOnlyBanner words={words} />
             {children}
           </main>
