@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { createContext, useCallback, useContext, useState, type ComponentType, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
+import { MentionPopover } from '@/components/ui/MentionPopover';
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
@@ -92,6 +93,8 @@ type Common = {
   /** Every change, from this keyboard or another. `live` says whether the room saves it. */
   onValue: (next: string, meta: { live: boolean }) => void;
   onBlur?: () => void;
+  /** Round 18, textareas: offer artikel names on `@` and `[[` (see `MentionPopover`). */
+  mentions?: boolean;
 };
 
 export type InputProps = Common & { as?: 'input' } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onBlur' | 'ref'>;
@@ -99,7 +102,37 @@ export type TextareaProps = Common & { as: 'textarea' } & Omit<TextareaHTMLAttri
 export type FieldProps = InputProps | TextareaProps;
 
 export function LiveField(props: FieldProps) {
+  const { mentions, ...plain } = props;
   const fields = useContext(FieldsContext);
+  // Round 18: a textarea that offers artikel names on `@` — the popover
+  // attaches to the element through a ref and writes into it like a
+  // keystroke, so the bound room and the plain box both hear it.
+  // As state, not a ref: the box is swapped for the room's bound one when
+  // the room arrives (`next/dynamic`), and the popover must follow it.
+  const [mentionEl, setMentionEl] = useState<HTMLTextAreaElement | null>(null);
+  const withRef =
+    mentions && plain.as === 'textarea'
+      ? ({
+          ...plain,
+          ref: (el: HTMLTextAreaElement | null) => {
+            setMentionEl((current) => (current === el ? current : el));
+            const outer = plain.ref;
+            if (typeof outer === 'function') outer(el);
+            else if (outer) (outer as React.MutableRefObject<HTMLInputElement | HTMLTextAreaElement | null>).current = el;
+          },
+        } as FieldProps)
+      : plain;
+  const field = <LiveFieldInner {...withRef} fields={fields} />;
+  if (!mentions || plain.as !== 'textarea') return field;
+  return (
+    <>
+      {field}
+      <MentionPopover element={mentionEl} disabled={plain.readOnly} />
+    </>
+  );
+}
+
+function LiveFieldInner({ fields, ...props }: FieldProps & { fields: FieldsValue | null }) {
   /*
    * §18b: one gate for every short text in the archive — an artikel's name and
    * one-liner, a dossier's, an infobox field, the name on a speld, the words a

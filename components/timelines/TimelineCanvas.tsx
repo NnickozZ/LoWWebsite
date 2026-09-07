@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { assetUrl } from '@/components/Cover';
+import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
@@ -1329,6 +1330,9 @@ function Popout({
   const HEADROOM = 8;
   const top = side === 'up' ? Math.max(-HEADROOM, tagTop - 6 - (height ?? 0)) : tagBottom + 6;
   const image = event.kind === 'entry' ? (event.entry?.coverAssetId ?? null) : event.assetId;
+  // Round 19: an artikel's picture comes with its liggend crop; a gebeurtenis's
+  // own picture has none and is drawn centred.
+  const crops = event.kind === 'entry' ? (event.entry?.coverCrop ?? null) : null;
   const colour = event.kind === 'entry' ? (event.entry?.typeColour ?? 'var(--ink-muted)') : NOTE_COLOUR;
   const framed = event.showImage;
 
@@ -1345,29 +1349,26 @@ function Popout({
         <Icon name="close" size={14} />
       </button>
       {/*
-        The picture runs the full width of the window and keeps its own shape
-        up to a ceiling, instead of being a bordered 4:3 square floating inside
-        the window's padding. Two things were wrong with the square: a picture
-        in a box in a box reads as a form field rather than a photograph, and
-        4:3 `cover` is a crop, so the one thing people actually paste onto a
-        tijdlijn — a screenshot of something with writing on it — arrived with
-        its top and bottom cut off. Now a wide picture is shown whole and only
-        a very tall one is trimmed, from the top down, where the writing is.
+        The picture runs the full width of the window, as a liggend 3:2 frame
+        (round 19) drawn with the artikel's own liggend crop — the same crop
+        every other wide frame of it uses, set once on the artikel. A
+        gebeurtenis's own picture, which has no crops, sits centred in it.
 
         And it is a button: 250 px is a thumbnail, so a click opens the file
-        over the whole screen.
+        over the whole screen — which is where a screenshot with writing on it
+        is read, whole.
       */}
       {framed &&
         (image ? (
           <button
             type="button"
-            className="timeline-popout-picture"
+            className={`timeline-popout-picture ${coverClass('landscape')}`}
             title="Klik om de afbeelding groot te bekijken"
             aria-label={`${event.name} — afbeelding groot bekijken`}
             onClick={() => onViewFull(image)}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={assetUrl(image, 'card')} alt="" />
+            <img src={assetUrl(image, 'card')} alt="" style={coverStyle(crops, 'landscape')} />
             <span className="timeline-popout-zoom" aria-hidden="true">
               <Icon name="zoomIn" size={13} />
             </span>
@@ -1387,7 +1388,7 @@ function Popout({
         </p>
       )}
       {event.text ? (
-        <p className="small timeline-popout-text">{event.text}</p>
+        <p className="small timeline-popout-text"><MentionText text={event.text} /></p>
       ) : event.kind === 'entry' && event.entry?.shortDescription ? (
         <p className="small muted timeline-popout-text">{event.entry.shortDescription}</p>
       ) : null}

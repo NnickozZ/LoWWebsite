@@ -131,26 +131,26 @@ test('the picture sits above the facts in one box, and its tools are in a menu',
 
   // The three tools are behind one button, and nowhere else on the page.
   await expect(page.getByRole('button', { name: 'Vervangen' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Bijsnijden voor lijsten/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Bijsnijden/ })).toHaveCount(0);
   await page.locator('.cover-menu-button').click();
   const menu = page.getByRole('menu', { name: 'Afbeelding' });
   await expect(menu.getByRole('menuitem', { name: 'Vervangen' })).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: /Bijsnijden voor lijsten/ })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /^Bijsnijden/ })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: 'Verwijderen' })).toBeVisible();
 
   // Escape closes it, as it closes the Filters popover.
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
 
-  // The crop frame still opens from in there.
-  await imageMenu(page, /Bijsnijden voor lijsten/);
-  await expect(page.locator('.entry-crop-frame')).toBeVisible();
+  // The crop frames still open from in there — three of them (round 19).
+  await imageMenu(page, /^Bijsnijden/);
+  await expect(page.locator('.crop-frame')).toHaveCount(3);
 
   // Reading, the picture is still there and not one tool is.
   await flip(page, 'lezen');
   await expect(page.locator('.entry-cover-whole img')).toBeVisible();
   await expect(page.locator('.cover-menu-button')).toHaveCount(0);
-  await expect(page.locator('.entry-crop-frame')).toHaveCount(0);
+  await expect(page.locator('.crop-frame')).toHaveCount(0);
 
   // And an artikel with no picture has no empty frame in its margin. Off the
   // artikel first: `newEntry` waits for an /e/ URL, and we are already on one.

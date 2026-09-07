@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import type { CoverCrops } from '@/lib/images/shapes';
 import { db, schema } from '@/lib/db';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { logActivity } from '@/lib/entries/service';
@@ -49,6 +50,8 @@ export type CharacterLite = {
   typeIcon: string;
   typeColour: string;
   coverAssetId: string | null;
+  /** Round 19: the fiche's own crops, so the wardrobe shows the same face as every list. */
+  coverCrop: CoverCrops | null;
 };
 
 const CHARACTER_COLUMNS = {
@@ -59,6 +62,7 @@ const CHARACTER_COLUMNS = {
   typeIcon: schema.entryTypes.icon,
   typeColour: schema.entryTypes.colour,
   coverAssetId: schema.entries.coverAssetId,
+  coverCrop: schema.entries.coverCrop,
 } as const;
 
 /** This person, as a viewer of their own fiches. */

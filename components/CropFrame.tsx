@@ -1,39 +1,36 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { assetUrl, coverStyle } from '@/components/Cover';
-import type { CoverCrop } from '@/lib/db/schema';
-
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 4;
+import { assetUrl, coverClass, cropStyle } from '@/components/Cover';
+import { CENTRED, MAX_ZOOM, MIN_ZOOM, SHAPES, type Crop, type CropShape } from '@/lib/images/shapes';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export const CENTRED: CoverCrop = { x: 0.5, y: 0.5, zoom: 1 };
-
 /**
- * One frame you drag a picture around inside: the same gesture wherever a crop
- * is set, so the entry's default, a case's own and a board card's own all
- * behave identically. Nothing is written to the file — only a focal point and
- * a zoom, and only for the placement that owns this frame.
+ * One frame you drag a picture around inside, for one *shape* (round 19):
+ * its aspect is `SHAPES[shape]`, never the caller's, so the crop being set is
+ * exactly the crop every list of that shape will draw. Nothing is written to
+ * the file — only a focal point and a zoom.
  */
 export function CropFrame({
   assetId,
   crop,
+  shape,
   className = 'crop-frame',
   onCommit,
 }: {
   assetId: string;
-  crop: CoverCrop | null;
+  crop: Crop | null;
+  shape: CropShape;
   className?: string;
   /** Called when the gesture ends, with the crop to save. */
-  onCommit: (crop: CoverCrop) => void;
+  onCommit: (crop: Crop) => void;
 }) {
-  const [local, setLocal] = useState<CoverCrop>(crop ?? CENTRED);
+  const [local, setLocal] = useState<Crop>(crop ?? CENTRED);
   const frameRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ pointerId: number; startX: number; startY: number; from: CoverCrop } | null>(
+  const drag = useRef<{ pointerId: number; startX: number; startY: number; from: Crop } | null>(
     null,
   );
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
@@ -98,7 +95,9 @@ export function CropFrame({
 
   return (
     <div
-      className={className}
+      className={`${className} ${coverClass(shape)}`}
+      data-shape={shape}
+      aria-label={`Uitsnede ${SHAPES[shape].label.toLowerCase()}`}
       ref={frameRef}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -109,7 +108,7 @@ export function CropFrame({
       onTouchEnd={onTouchEnd}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={assetUrl(assetId, 'full')} alt="" style={coverStyle(local)} draggable={false} />
+      <img src={assetUrl(assetId, 'full')} alt="" style={cropStyle(local)} draggable={false} />
     </div>
   );
 }

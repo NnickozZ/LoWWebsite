@@ -94,7 +94,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
           {sorted.map((item) => (
             <Link key={item.id} className="card" href={`/c/${item.slug}`}>
               <div style={{ position: 'relative' }}>
-                <Cover assetId={item.coverAssetId} crop={item.coverCrop} alt="" icon="folder" />
+                <Cover assetId={item.coverAssetId} crop={item.coverCrop} shape="portrait" alt="" icon="folder" />
                 <span
                   className={`stamp${item.status === 'open' ? '' : ' stamp-muted'}`}
                   style={{ position: 'absolute', top: 8, left: 8, background: 'var(--paper)' }}

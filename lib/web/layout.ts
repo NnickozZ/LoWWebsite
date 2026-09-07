@@ -28,10 +28,16 @@ import type { WebGraph, WebNodeId } from './types';
 export const COLUMN_NODE_W = 188;
 export const COLUMN_NODE_H = 36;
 export const COLUMN_GAP_X = 130;
-export const COLUMN_GAP_Y = 12;
+export const COLUMN_GAP_Y = 14;
 export const FOCUS_NODE_W = 240;
 export const FOCUS_NODE_H = 56;
-export const DEFAULT_COLUMN_LIMIT = 40;
+/**
+ * Round 17: 40 → 28. With fifteen artikelen per soort, every column at depth 2
+ * ran past forty, and a fit that had to show forty rows shrank the cards to
+ * needles. Twenty-eight rows fit a laptop window at a legible zoom; the fold
+ * row keeps the rest one double-click away.
+ */
+export const DEFAULT_COLUMN_LIMIT = 28;
 
 export type LaidNode = {
   id: WebNodeId;

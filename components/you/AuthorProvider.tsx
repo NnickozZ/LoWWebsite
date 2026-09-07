@@ -495,6 +495,8 @@ function WritingAsSheet({
               >
                 <Thumb
                   assetId={character.coverAssetId}
+                  crop={character.coverCrop}
+                  shape="portrait"
                   icon={character.typeIcon}
                   colour={character.typeColour}
                 />

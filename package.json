@@ -8,6 +8,7 @@
     "start": "node scripts/start.mjs",
     "bootstrap": "node scripts/bootstrap.mjs",
     "seed-demo": "node scripts/seed-demo.mjs",
+    "seed-wereld": "node scripts/seed-wereld.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "logs": "node scripts/logs.mjs",

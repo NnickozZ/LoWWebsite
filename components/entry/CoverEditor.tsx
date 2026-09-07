@@ -6,7 +6,7 @@ import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
-import type { CoverCrop } from '@/lib/db/schema';
+import { cropFor, SHAPE_ORDER, SHAPES, type CoverCrops, type Crop, type CropShape } from '@/lib/images/shapes';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 
@@ -15,10 +15,13 @@ import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from 
  *
  * The entry itself shows the whole picture at whatever shape it is — a tall
  * portrait, a wide map, a scan of a letter — and never crops it. Lists are a
- * different problem: they need one uniform shape, so the picture gets a small
- * 3:4 crop that they use and this page does not. That crop is only the
- * *default*: a case card and a board card each keep their own. The file on disk
- * is untouched either way; only a focal point and a zoom are stored.
+ * different problem: they need a uniform shape, so the picture gets three
+ * small crops — liggend 3:2, staand 3:4, vierkant 1:1 (round 19,
+ * `lib/images/shapes.ts`) — that every list, card and knot draws with and
+ * this page does not. They are set here and nowhere else: a dossier's card and
+ * a prikbord card used to keep crops of their own, which was three UIs for one
+ * decision. The file on disk is untouched either way; only a focal point and
+ * a zoom per shape are stored.
  *
  * §22 (5 Sep 2026). This lives in the artikel's right-hand column now, at the
  * top of the box whose lower half is the infobox — the shape Wikipedia,
@@ -27,7 +30,7 @@ import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from 
  *
  *  - Reading, there is no chrome at all. `readOnly` with no picture renders
  *    nothing, so an artikel without one has no empty frame in its margin.
- *  - Editing, the three tools — replace, crop for lists, remove — are behind
+ *  - Editing, the three tools — replace, crop, remove — are behind
  *    one "Afbeelding" button. They were a row of three buttons under the
  *    picture, which in a narrow column wraps to three lines of chrome sitting
  *    above the facts. A menu is one line and the tools are where you would go
@@ -46,13 +49,13 @@ export function CoverEditor({
   onChange,
 }: {
   assetId: string | null;
-  crop: CoverCrop | null;
+  crop: CoverCrops | null;
   alt: string;
   icon: string;
   colour: string;
   /** §22: the reading face — the picture, and not one control. */
   readOnly?: boolean;
-  onChange: (next: { coverAssetId: string | null; coverCrop: CoverCrop | null }) => void;
+  onChange: (next: { coverAssetId: string | null; coverCrop: CoverCrops | null }) => void;
 }) {
   const ui = useUi();
   /*
@@ -66,12 +69,12 @@ export function CoverEditor({
   const [busy, setBusy] = useState(false);
   const [cropping, setCropping] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [local, setLocal] = useState<CoverCrop>(crop ?? { x: 0.5, y: 0.5, zoom: 1 });
+  const [local, setLocal] = useState<CoverCrops | null>(crop);
   const fileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setLocal(crop ?? { x: 0.5, y: 0.5, zoom: 1 });
+    setLocal(crop);
   }, [crop]);
 
   const upload = useCallback(
@@ -92,10 +95,10 @@ export function CoverEditor({
           ui.toast(result.error);
           return;
         }
-        const fresh = { x: 0.5, y: 0.5, zoom: 1 };
-        setLocal(fresh);
+        // A new picture starts centred and unzoomed in all three shapes.
+        setLocal(null);
         setCropping(false);
-        onChange({ coverAssetId: result.data.asset.id, coverCrop: fresh });
+        onChange({ coverAssetId: result.data.asset.id, coverCrop: null });
       } finally {
         setBusy(false);
       }
@@ -205,7 +208,7 @@ export function CoverEditor({
                   }}
                 >
                   <Icon name="crosshair" size={14} />
-                  {cropping ? 'Bijsnijden sluiten' : 'Bijsnijden voor lijsten'}
+                  {cropping ? 'Bijsnijden sluiten' : 'Bijsnijden'}
                 </button>
                 <button
                   type="button"
@@ -248,20 +251,29 @@ export function CoverEditor({
       </div>
 
       {cropping && assetId && (
-        <div className="entry-crop-row">
-          <CropFrame
-            key={assetId}
-            assetId={assetId}
-            crop={local}
-            className="entry-crop-frame"
-            onCommit={(next) => {
-              setLocal(next);
-              onChange({ coverAssetId: assetId, coverCrop: next });
-            }}
-          />
+        <div className="entry-crop-row" data-testid="crop-shapes">
+          <div className="entry-crop-frames">
+            {SHAPE_ORDER.map((shape: CropShape) => (
+              <figure className="entry-crop-shape" key={`${assetId}-${shape}`}>
+                <CropFrame
+                  assetId={assetId}
+                  crop={cropFor(local, shape)}
+                  shape={shape}
+                  onCommit={(next: Crop) => {
+                    const bag: CoverCrops = { ...(local ?? {}), [shape]: next };
+                    setLocal(bag);
+                    onChange({ coverAssetId: assetId, coverCrop: bag });
+                  }}
+                />
+                <figcaption className="tiny muted">
+                  {SHAPES[shape].label} {SHAPES[shape].css.replace(' / ', ':')}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
           <p className="tiny muted" style={{ margin: 0 }}>
-            Zo wordt de afbeelding in lijsten uitgesneden. Sleep om te verschuiven; scrol om te
-            zoomen.
+            Drie uitsneden — liggend, staand en vierkant. Elke lijst, kaart en knoop kiest er een.
+            Sleep om te verschuiven; scrol om te zoomen.
           </p>
           <button type="button" className="btn btn-small" onClick={() => setCropping(false)}>
             Klaar

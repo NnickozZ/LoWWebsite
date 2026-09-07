@@ -6,13 +6,13 @@ import { listBoards } from '@/lib/boards/service';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { caseIdsIn } from '@/lib/entries/caseFields';
 import { extractEntryLinks } from '@/lib/entries/doc';
-import { entryIdsIn, revealedSectionIds } from '@/lib/entries/mentions';
+import { entryIdsIn, plainMentions, revealedSectionIds } from '@/lib/entries/mentions';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
-import { degrees } from './slice';
-import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode, type WebNodeId } from './types';
+import { collapseMentions, degrees } from './slice';
+import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebLineColour, type WebNode, type WebNodeId } from './types';
 
 /**
  * §43: building the whole web for one viewer.
@@ -52,6 +52,15 @@ import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode,
 export type BuildWebOptions = {
   /** Loose notities on prikborden become nodes of their own. */
   notes?: boolean;
+  /**
+   * Round 18, Keepers only: also spin in the private walls, dossiers,
+   * landkaarten and tijdlijnen of *other* people. Off by default: a Keeper
+   * may open anything, but a speler's private wall is the speler's thinking,
+   * and the Keeper's web is about the archive, not about who is thinking
+   * what. The Keeper's own private things, and what is shared with them,
+   * are always in. Ignored for a player, whose web never had them.
+   */
+  othersPrivate?: boolean;
 };
 
 type NodeMap = Map<WebNodeId, WebNode>;
@@ -59,8 +68,19 @@ type NodeMap = Map<WebNodeId, WebNode>;
 /** How long a nameless notitie's first line may be, as its name on the web. */
 const NOTE_NAME_LENGTH = 40;
 
+/** The panel's short description: trimmed, and absent rather than empty. */
+function summaryOf(text: string | null | undefined): string | undefined {
+  const trimmed = (text ?? '').trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): WebGraph {
   const showNotes = Boolean(options.notes);
+  // The containers — dossiers, prikborden, landkaarten, tijdlijnen — are read
+  // *as a player* for a Keeper who has not asked for other people's private
+  // things: the same dials, minus the Keeper's skeleton key. Artikelen and
+  // sections keep the real viewer, so the Keeper's own hidden pages stay.
+  const containerViewer: Viewer = viewer?.isKeeper && !options.othersPrivate ? { ...viewer, isKeeper: false } : viewer;
   const nodes: NodeMap = new Map();
   const edges = new Map<string, WebEdge>();
 
@@ -71,12 +91,12 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   };
   const has = (kind: WebNode['kind'], refId: string | null | undefined): refId is string =>
     Boolean(refId) && nodes.has(webNodeId(kind, refId as string));
-  const add = (kind: WebEdgeKind, from: WebNodeId, to: WebNodeId, detail = '', via?: WebNodeId) => {
+  const add = (kind: WebEdgeKind, from: WebNodeId, to: WebNodeId, detail = '', via?: WebNodeId, colour?: WebLineColour) => {
     if (from === to) return;
     if (!nodes.has(from) || !nodes.has(to)) return;
     const id = `${kind}:${from}>${to}:${detail}${via ? `@${via}` : ''}`;
     if (edges.has(id)) return;
-    edges.set(id, { id, from, to, kind, detail, ...(via ? { via } : {}) });
+    edges.set(id, { id, from, to, kind, detail, ...(via ? { via } : {}), ...(colour ? { colour } : {}) });
   };
 
   /* ----------------------------------------------------------- the nodes */
@@ -99,6 +119,8 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: schema.entries.name,
       slug: schema.entries.slug,
       coverAssetId: schema.entries.coverAssetId,
+      coverCrop: schema.entries.coverCrop,
+      shortDescription: schema.entries.shortDescription,
       fields: schema.entries.fields,
       typeSlug: schema.entryTypes.slug,
       typeLabel: schema.entryTypes.label,
@@ -122,22 +144,41 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       typeColour: row.typeColour,
       isCharacter: characterIds.has(row.id),
       coverAssetId: row.coverAssetId ?? null,
+      coverCrop: row.coverCrop ?? null,
       subtitle: row.typeLabel,
+      summary: summaryOf(row.shortDescription),
     });
   }
 
   const caseRows = db
-    .select({ id: schema.cases.id, name: schema.cases.name, slug: schema.cases.slug, coverAssetId: schema.cases.coverAssetId })
+    .select({
+      id: schema.cases.id,
+      name: schema.cases.name,
+      slug: schema.cases.slug,
+      coverAssetId: schema.cases.coverAssetId,
+      coverCrop: schema.cases.coverCrop,
+      summary: schema.cases.summary,
+    })
     .from(schema.cases)
-    .where(visibleCaseCondition(viewer))
+    .where(visibleCaseCondition(containerViewer))
     .all();
   const caseNames = new Map<string, string>();
   for (const row of caseRows) {
     caseNames.set(row.id, row.name);
-    put({ kind: 'case', refId: row.id, name: row.name, href: `/c/${row.slug}`, coverAssetId: row.coverAssetId ?? null });
+    put({
+      kind: 'case',
+      refId: row.id,
+      name: row.name,
+      href: `/c/${row.slug}`,
+      coverAssetId: row.coverAssetId ?? null,
+      coverCrop: row.coverCrop ?? null,
+      summary: summaryOf(row.summary),
+    });
   }
 
-  const boardSummaries = listBoards(viewer);
+  // Round 18: a wall its manager keeps out of the web is not in it — not as
+  // a knot, not as a line, not as the prikbord a draad hangs on.
+  const boardSummaries = listBoards(containerViewer).filter((board) => board.inWeb);
   const boardStates = new Map<string, BoardState>();
   if (boardSummaries.length) {
     const states = db
@@ -158,9 +199,15 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   }
 
   const mapRows = db
-    .select({ id: schema.maps.id, name: schema.maps.name, slug: schema.maps.slug, entryId: schema.maps.entryId })
+    .select({
+      id: schema.maps.id,
+      name: schema.maps.name,
+      slug: schema.maps.slug,
+      entryId: schema.maps.entryId,
+      description: schema.maps.description,
+    })
     .from(schema.maps)
-    .where(visibleMapCondition(viewer))
+    .where(visibleMapCondition(containerViewer))
     .all();
   const entryNames = new Map(entryRows.map((row) => [row.id, row.name] as const));
   for (const row of mapRows) {
@@ -170,10 +217,11 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: row.name,
       href: `/maps/${row.slug}`,
       subtitle: row.entryId ? entryNames.get(row.entryId) : undefined,
+      summary: summaryOf(row.description),
     });
   }
 
-  const timelineRows = listTimelines(viewer);
+  const timelineRows = listTimelines(containerViewer);
   for (const row of timelineRows) {
     put({
       kind: 'timeline',
@@ -181,6 +229,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: row.name,
       href: `/timelines/${row.slug}`,
       subtitle: row.caseId ? caseNames.get(row.caseId) : undefined,
+      summary: summaryOf(row.description),
     });
   }
 
@@ -339,7 +388,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       const from = cardNode.get(string.from.card);
       const to = cardNode.get(string.to.card);
       if (!from || !to) continue;
-      add('thread', from, to, string.label, boardNode);
+      add('thread', from, to, string.label, boardNode, string.colour);
     }
   }
 
@@ -411,7 +460,8 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   /* ----------------------------------------------------------- the closing */
 
   // Rule 1, once more and for everything above: no edge leaves the node map.
-  const edgeList = [...edges.values()].filter((edge) => nodes.has(edge.from) && nodes.has(edge.to));
+  // Round 18: a text line yields to any other tie between the same two knots.
+  const edgeList = collapseMentions([...edges.values()].filter((edge) => nodes.has(edge.from) && nodes.has(edge.to)));
   const nodeList = [...nodes.values()];
   const graph: WebGraph = { nodes: nodeList, edges: edgeList };
   const degree = degrees(graph);
@@ -426,11 +476,17 @@ function isNoteCard(card: Pick<BoardCard, 'kind'>): boolean {
   return card.kind === 'note' || card.kind === 'photo';
 }
 
-/** What a notitie is called on the web: its name, or the start of its text. */
+/**
+ * What a notitie is called on the web: its name, or the start of its text.
+ * Round 21: without its brackets. A knot's name is drawn on a canvas, which
+ * has no room for a chip, so `[[Jan Vermeer]]` would be printed as its own
+ * punctuation; the panel's short description keeps the shorthand, because
+ * there `MentionText` turns it into a chip.
+ */
 export function noteName(card: Pick<BoardCard, 'name' | 'text'>): string {
-  const name = (card.name ?? '').trim();
+  const name = plainMentions((card.name ?? '').trim());
   if (name) return name;
-  const text = (card.text ?? '').trim().replace(/\s+/g, ' ');
+  const text = plainMentions((card.text ?? '').trim()).replace(/\s+/g, ' ');
   if (!text) return '';
   return text.length > NOTE_NAME_LENGTH ? `${text.slice(0, NOTE_NAME_LENGTH).trimEnd()}…` : text;
 }

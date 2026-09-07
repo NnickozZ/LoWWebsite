@@ -10,6 +10,7 @@ import { caseIdsIn } from '@/lib/entries/caseFields';
 import { parseDutchDate } from '@/lib/timelines/time';
 import { EntryPicker, type EntryRef } from './EntryPicker';
 import { CasePicker } from './CasePicker';
+import { MentionText } from '@/components/ui/MentionPopover';
 
 type Values = Record<string, unknown>;
 
@@ -248,7 +249,11 @@ export function fieldValue(field: FieldDef, value: unknown, cases: CaseRefs = {}
       const text = typeof value === 'string' ? value.trim() : '';
       if (!text) return null;
       return field.kind === 'longtext' ? (
-        <span style={{ whiteSpace: 'pre-wrap' }}>{text}</span>
+        <span style={{ whiteSpace: 'pre-wrap' }}>
+          <MentionText text={text} />
+        </span>
+      ) : field.kind === 'text' ? (
+        <MentionText text={text} />
       ) : (
         text
       );

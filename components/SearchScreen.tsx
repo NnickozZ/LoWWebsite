@@ -24,6 +24,7 @@ function ResultRow({ entry }: { entry: EntrySummary }) {
       <Thumb
         assetId={entry.coverAssetId}
         crop={entry.coverCrop}
+        shape="portrait"
         icon={entry.typeIcon}
         colour={entry.typeColour}
       />

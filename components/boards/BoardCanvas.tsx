@@ -158,6 +158,8 @@ export function BoardCanvas({
     canManage: boolean;
     isKeeper: boolean;
     viewerId: string;
+    /** §43, round 18: whether this wall counts in the web and under "Genoemd in". */
+    inWeb: boolean;
   };
   /** The case this board belongs to, if any — the filing prompt needs it. */
   caseId: string | null;
@@ -196,7 +198,6 @@ export function BoardCanvas({
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
-  const [croppingId, setCroppingId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     assetId: string;
     name: string;
@@ -250,16 +251,11 @@ export function BoardCanvas({
     /** The board before the press, pushed to undo only once something moves. */
     before: Snapshot;
   } | null>(null);
-  const cropDrag = useRef<{
-    startX: number;
-    startY: number;
-    from: { x: number; y: number; zoom: number };
-  } | null>(null);
   /**
-   * The third thing a press on a card can be, beside moving it and moving the
-   * picture inside it: the corner grip, which makes the card bigger.
+   * The second thing a press on a card can be, beside moving it: the corner
+   * grip, which makes the card bigger.
    *
-   * Held as a ref like the other two, and for the same reason — a resize is a
+   * Held as a ref like the drag, and for the same reason — a resize is a
    * stream of pointer moves, and re-rendering the wall to remember where the
    * hand started would cost a frame each time. `distance` is how far the grip
    * was from the card's middle when it was taken; the card's size is that
@@ -292,6 +288,8 @@ export function BoardCanvas({
   // editing still work, or the inspector would be unreachable on a phone.
   const interactive = !isPhone && !readOnly;
   const [accessOpen, setAccessOpen] = useState(false);
+  // §43, round 18: the wall's own say in whether it is a line in the web.
+  const [inWeb, setInWeb] = useState(access.inWeb);
 
   /**
    * §8, live: this tab. One person with the board open twice is two hands on
@@ -303,7 +301,7 @@ export function BoardCanvas({
   if (!clientIdRef.current) clientIdRef.current = `t_${Math.random().toString(36).slice(2, 12)}`;
   const clientId = clientIdRef.current;
 
-  const busy = Boolean(drag.current || cropDrag.current || resize.current || drawing || marquee);
+  const busy = Boolean(drag.current || resize.current || drawing || marquee);
 
   /**
    * Applying someone else's version of the board. Shared with the save path,
@@ -327,7 +325,6 @@ export function BoardCanvas({
     setSelectedStringId((current) =>
       current && state.strings.some((line) => line.id === current) ? current : null,
     );
-    setCroppingId((current) => (current && alive.has(current) ? current : null));
   }, []);
 
   const sync = useBoardSync({
@@ -495,7 +492,6 @@ export function BoardCanvas({
       kind: 'pin',
       entryId: null,
       assetId: null,
-      crop: null,
       border: null,
       showImage: false,
       name: '',
@@ -663,7 +659,6 @@ export function BoardCanvas({
         caseId: null,
         timelineId: null,
         assetId: null,
-        crop: null,
         border: null,
         // Every new card is the size a card has always been; the grip and the
         // bar are how it becomes anything else.
@@ -724,7 +719,6 @@ export function BoardCanvas({
         strings: strings.filter((line) => !touches(line)),
       });
       setSelected(new Set());
-      setCroppingId(null);
 
       ui.toast(
         `${removedCards.length === 1 ? 'Kaart' : `${removedCards.length} kaarten`} verwijderd.`,
@@ -813,7 +807,6 @@ export function BoardCanvas({
         }
         const data = result.data;
 
-        const fresh = { x: 0.5, y: 0.5, zoom: 1 };
         if (photoTarget.current === 'new') {
           const placed = addCard({
             id: newCardId(),
@@ -835,7 +828,6 @@ export function BoardCanvas({
              */
             kind: 'note',
             assetId: data.asset.id,
-            crop: fresh,
             // Said out loud rather than left to the default (`note` starts with
             // its frame shut): this one card is made *around* a picture, so its
             // frame is the whole point of it.
@@ -851,15 +843,11 @@ export function BoardCanvas({
           });
           setSelected(new Set([placed.id]));
           setSelectedStringId(null);
-          setCroppingId(placed.id);
         } else {
-          const cardId = photoTarget.current;
-          patchCard(cardId, {
+          patchCard(photoTarget.current, {
             assetId: data.asset.id,
-            crop: fresh,
             showImage: true,
           });
-          setCroppingId(cardId);
         }
       } finally {
         setUploading(false);
@@ -933,26 +921,11 @@ export function BoardCanvas({
    * entire vocabulary: open the artikel, open the picture, start writing. The
    * blue sweep that preventDefault was wanted for is already gone — `.board-card`
    * carries `user-select: none`, so a drag that begins on a card selects
-   * nothing at all, here or anywhere else on the page. The two places on a card
-   * that are drags and nothing else — the pin head and the crop — do refuse it.
+   * nothing at all, here or anywhere else on the page. The one place on a card
+   * that is a drag and nothing else — the pin head — does refuse it.
    */
   function onCardPointerDown(event: React.PointerEvent, cardId: string) {
     if (event.button !== 0) return;
-
-    // While cropping, dragging inside the card moves the picture, not the card.
-    if (croppingId === cardId) {
-      const card = cardById.get(cardId);
-      if (!card) return;
-      event.preventDefault();
-      cropDrag.current = {
-        startX: event.clientX,
-        startY: event.clientY,
-        from: card.crop ?? { x: 0.5, y: 0.5, zoom: 1 },
-      };
-      return;
-    }
-
-    if (croppingId) setCroppingId(null);
 
     const additive = event.shiftKey;
     const alreadySelected = selected.has(cardId);
@@ -1041,7 +1014,6 @@ export function BoardCanvas({
   function onStringPointerDown(event: React.PointerEvent, stringId: string) {
     event.stopPropagation();
     setSelected(new Set());
-    setCroppingId(null);
     setSelectedStringId(stringId);
   }
 
@@ -1083,7 +1055,6 @@ export function BoardCanvas({
 
     setSelected(new Set());
     setSelectedStringId(null);
-    setCroppingId(null);
 
     if (event.shiftKey && interactive) {
       const point = toBoard(event.clientX, event.clientY);
@@ -1126,35 +1097,6 @@ export function BoardCanvas({
       sync.touch();
       setCards((current) =>
         current.map((card) => (card.id === state.id ? { ...card, scale } : card)),
-      );
-      return;
-    }
-
-    if (cropDrag.current && croppingId) {
-      const rect = viewportRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const state = cropDrag.current;
-      /*
-       * The frame is CARD_WIDTH wide at zoom 1 *and at scale 1*; dragging right
-       * moves the picture right, so the focal point moves left.
-       *
-       * §41: the card's own size belongs in this divisor beside the board's zoom,
-       * for exactly the same reason: a card at 250% has a cover two and a half
-       * times as wide on screen, so a hand that travels 100 px has crossed less
-       * of the picture. Without it, cropping a card somebody had enlarged moved
-       * the photograph two and a half times too fast.
-       */
-      const paper = viewport.zoom * (cardById.get(croppingId)?.scale ?? DEFAULT_CARD_SCALE);
-      const dx = (event.clientX - state.startX) / paper / CARD_WIDTH / state.from.zoom;
-      const dy = (event.clientY - state.startY) / paper / ((CARD_WIDTH * 4) / 3) / state.from.zoom;
-      const next = {
-        x: clamp(state.from.x - dx, 0, 1),
-        y: clamp(state.from.y - dy, 0, 1),
-        zoom: state.from.zoom,
-      };
-      sync.touch();
-      setCards((current) =>
-        current.map((card) => (card.id === croppingId ? { ...card, crop: next } : card)),
       );
       return;
     }
@@ -1228,12 +1170,6 @@ export function BoardCanvas({
         if (changed) void sync.saveNow();
         else sync.markDirty();
       }
-      return;
-    }
-
-    if (cropDrag.current) {
-      cropDrag.current = null;
-      if (!readOnly) sync.markDirty();
       return;
     }
 
@@ -1374,17 +1310,6 @@ export function BoardCanvas({
   );
 
   function onWheel(event: React.WheelEvent) {
-    // While cropping, the wheel zooms the picture rather than the board.
-    if (croppingId) {
-      const card = cardById.get(croppingId);
-      if (!card) return;
-      const crop = card.crop ?? { x: 0.5, y: 0.5, zoom: 1 };
-      const nextZoom = clamp(crop.zoom * (event.deltaY < 0 ? 1.08 : 1 / 1.08), 1, 4);
-      patchCard(croppingId, {
-        crop: { ...crop, zoom: Number(nextZoom.toFixed(3)) },
-      });
-      return;
-    }
     if (!event.ctrlKey && Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -1400,29 +1325,10 @@ export function BoardCanvas({
     const [a, b] = [event.touches[0], event.touches[1]];
     const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
     if (!pinch.current) {
-      pinch.current = { distance, zoom: croppingId ? 1 : viewport.zoom };
+      pinch.current = { distance, zoom: viewport.zoom };
       return;
     }
     const ratio = distance / pinch.current.distance;
-
-    if (croppingId) {
-      const card = cardById.get(croppingId);
-      if (!card) return;
-      const crop = card.crop ?? { x: 0.5, y: 0.5, zoom: 1 };
-      setCards((current) =>
-        current.map((item) =>
-          item.id === croppingId
-            ? {
-                ...item,
-                crop: { ...crop, zoom: clamp(crop.zoom * ratio, 1, 4) },
-              }
-            : item,
-        ),
-      );
-      pinch.current = { distance, zoom: 1 };
-      sync.touch();
-      return;
-    }
 
     const nextZoom = clamp(pinch.current.zoom * ratio, MIN_ZOOM, MAX_ZOOM);
     setViewport((current) => ({ ...current, zoom: nextZoom }));
@@ -1457,7 +1363,6 @@ export function BoardCanvas({
       if (event.key === 'Escape') {
         if (lightbox) setLightbox(null);
         else if (inkTool.active) inkTool.setActive(false);
-        else if (croppingId) setCroppingId(null);
         else if (drawing) setDrawing(null);
         else if (!typing) {
           setSelected(new Set());
@@ -1493,17 +1398,13 @@ export function BoardCanvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, selectedStringId, croppingId, drawing, lightbox, removeCards, removeString, undo, readOnly, inkActive, inkTool, ink]);
+  }, [selected, selectedStringId, drawing, lightbox, removeCards, removeString, undo, readOnly, inkActive, inkTool, ink]);
 
   /** If the pointer leaves the board mid-drag, finish rather than stick. */
   useEffect(() => {
     const finish = () => {
       if (drag.current) {
         drag.current = null;
-        if (!readOnly) sync.markDirty();
-      }
-      if (cropDrag.current) {
-        cropDrag.current = null;
         if (!readOnly) sync.markDirty();
       }
       if (resize.current) {
@@ -2226,7 +2127,6 @@ export function BoardCanvas({
               subject={subjectFor(card)}
               selected={selected.has(card.id)}
               interactive={interactive}
-              cropping={croppingId === card.id}
               canOpenOnTap={() => !interactive && pressWasSelected.current === card.id}
               onPointerDown={(event) => onCardPointerDown(event, card.id)}
               onPinPointerDown={(event) => onPinPointerDown(event, card.id)}
@@ -2250,7 +2150,7 @@ export function BoardCanvas({
                   onCreated: (created) => {
                     /*
                      * A picture pinned to this card comes along as the new
-                     * artikel's cover, crop and all. Without this the road out
+                     * artikel's cover. Without this the road out
                      * of a pasted photograph lost the photograph: you pasted a
                      * document, made an artikel of it, and the artikel came
                      * into the world blank while the picture stayed behind on
@@ -2264,7 +2164,7 @@ export function BoardCanvas({
                       void fetch(`/api/entries/${created.id}`, {
                         method: 'PATCH',
                         headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({ coverAssetId: carried, coverCrop: card.crop ?? null }),
+                        body: JSON.stringify({ coverAssetId: carried }),
                       }).then(() => router.refresh());
                     }
                     setEntries((current) => ({
@@ -2274,7 +2174,7 @@ export function BoardCanvas({
                         slug: created.slug,
                         name: created.name,
                         coverAssetId: carried,
-                        coverCrop: carried ? (card.crop ?? null) : null,
+                        coverCrop: null,
                         typeIcon: created.typeIcon,
                         typeColour: created.typeColour,
                         typeBorder: 'solid',
@@ -2355,7 +2255,7 @@ export function BoardCanvas({
             inside the card is being moved — that is the same drag, on the same
             card, meaning something else.
           */}
-          {interactive && singleSelected && !croppingId && !inkActive && (() => {
+          {interactive && singleSelected && !inkActive && (() => {
             const box = cardBox(singleSelected);
             return (
               <button
@@ -2451,7 +2351,6 @@ export function BoardCanvas({
               if (next) {
                 setSelected(new Set());
                 setSelectedStringId(null);
-                setCroppingId(null);
               }
             }}
             onTool={inkTool.setTool}
@@ -2498,9 +2397,7 @@ export function BoardCanvas({
         <BoardInspector
           cards={selectedCards}
           string={selectedString}
-          cropping={Boolean(croppingId)}
           busy={uploading}
-          canCrop={Boolean(singleSelected?.showImage && selectedImage?.assetId)}
           /* A card with nothing to put in a frame no longer draws one whatever
              the flag says, so "Foto tonen" on a bare notitie would be a button
              that does nothing at all. Offered where there is something to show
@@ -2535,11 +2432,9 @@ export function BoardCanvas({
             selectedString && patchString(selectedString.id, { style })
           }
           onRemoveString={() => selectedString && removeString(selectedString.id)}
-          onCrop={() => singleSelected && setCroppingId(singleSelected.id)}
-          onDoneCropping={() => setCroppingId(null)}
           onAddPhoto={() => singleSelected && askForPhoto(singleSelected.id)}
           onRemovePhoto={() =>
-            singleSelected && patchCard(singleSelected.id, { assetId: null, crop: null })
+            singleSelected && patchCard(singleSelected.id, { assetId: null })
           }
           onToggleImage={() =>
             singleSelected &&
@@ -2556,7 +2451,6 @@ export function BoardCanvas({
           onClose={() => {
             setSelected(new Set());
             setSelectedStringId(null);
-            setCroppingId(null);
           }}
         />
         )}
@@ -2587,6 +2481,31 @@ export function BoardCanvas({
             viewerId={access.viewerId}
             nouns={{ this: `dit ${ui.words.board}` }}
           />
+          {access.canManage && (
+            <label className="row" style={{ gap: '0.6rem', marginTop: '1rem', alignItems: 'flex-start' }} data-testid="board-in-web">
+              <input
+                type="checkbox"
+                checked={inWeb}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setInWeb(next);
+                  void fetch(`/api/boards/${boardId}`, {
+                    method: 'PATCH',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ inWeb: next }),
+                  }).then((response) => {
+                    if (!response.ok) setInWeb(!next);
+                  });
+                }}
+              />
+              <span>
+                <strong style={{ display: 'block' }}>Telt mee in het web</strong>
+                <span className="small muted">
+                  Uit: wat hier hangt wordt geen lijn in het web en staat niet onder &ldquo;Genoemd in&rdquo; op een {ui.words.entry}. Het {ui.words.board} zelf blijft zo zichtbaar als de rechten zeggen.
+                </span>
+              </span>
+            </label>
+          )}
           {access.isKeeper && (
             <InkKeeperControls
               enabled={ink.enabled}

@@ -155,32 +155,99 @@ export function fieldMentionsIn(
  * *is* a name wins, so "@Jan Vermeer kwam langs" finds Jan Vermeer and not Jan.
  */
 export function entryIdsInText(text: string, byName: ReadonlyMap<string, string>): string[] {
-  if (!text || !byName.size) return [];
+  if (!byName.size) return [];
   const out: string[] = [];
   const seen = new Set<string>();
-  const take = (name: string) => {
-    const id = byName.get(name.trim().toLowerCase());
-    if (id && !seen.has(id)) {
-      seen.add(id);
-      out.push(id);
-    }
-  };
+  for (const span of mentionSpans(text, byName)) {
+    if (!span.entryId || seen.has(span.entryId)) continue;
+    seen.add(span.entryId);
+    out.push(span.entryId);
+  }
+  return out;
+}
 
-  for (const match of text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) take(match[1]);
+/**
+ * One piece of shorthand where it stands in the text. Round 21: the reading
+ * above used to throw the positions away, because the only question was which
+ * artikelen a save mentions. A browser asks the other half of the same
+ * question — *where* in this text, so it can print a chip there — and the two
+ * answers may never disagree, so there is one reading and `entryIdsInText`
+ * is now a view of it.
+ *
+ * `entryId` is null for a `[[Naam]]` that matches nothing: the brackets are a
+ * claim the writer made, and a claim that does not land is worth showing as
+ * not landing. A bare `@` that matches nothing is not a span at all — it is
+ * an e-mail address, a handle, a price, prose.
+ */
+export type MentionSpan = {
+  /** Index of the first character of the shorthand in the text. */
+  start: number;
+  /** Index one past its last character. */
+  end: number;
+  /** The name as the text spells it, without brackets or `@`. */
+  name: string;
+  /** What it means on the archive-wide index; null when no name matches. */
+  entryId: string | null;
+};
 
-  for (const match of text.matchAll(/@([^\n]{1,120})/g)) {
-    const words = match[1].split(/\s+/).filter(Boolean).slice(0, 8);
+/** Where the n-th whitespace-separated word of `rest` ends, counted in `rest`. */
+function endOfWord(rest: string, n: number): number {
+  const word = /\S+/g;
+  let end = 0;
+  for (let i = 0; i < n; i++) {
+    const m = word.exec(rest);
+    if (!m) break;
+    end = m.index + m[0].length;
+  }
+  return end;
+}
+
+export function mentionSpans(text: string, byName: ReadonlyMap<string, string>): MentionSpan[] {
+  if (!text) return [];
+  const spans: MentionSpan[] = [];
+  const idFor = (name: string) => byName.get(name.trim().toLowerCase()) ?? null;
+
+  for (const match of text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) {
+    const start = match.index ?? 0;
+    spans.push({ start, end: start + match[0].length, name: match[1].trim(), entryId: idFor(match[1]) });
+  }
+
+  /*
+   * The `@` scan walks the text one `@` at a time rather than matching a
+   * hundred and twenty characters at once, which is what it used to do — and
+   * which quietly meant that only the first `@` of every such window was ever
+   * read: "@Jan en @Piet" found Jan and lost Piet. Each `@` now gets its own
+   * look, and the scan resumes after whatever it took.
+   */
+  for (let at = text.indexOf('@'); at !== -1; at = text.indexOf('@', at + 1)) {
+    if (spans.some((s) => at >= s.start && at < s.end)) continue;
+    const line = text.slice(at + 1, at + 1 + 120).split('\n')[0];
+    const words = line.split(/\s+/).filter(Boolean).slice(0, 8);
     // Longest first: a name is allowed to contain another name.
     for (let n = words.length; n > 0; n--) {
       // Trailing punctuation belongs to the sentence, not to the name.
-      const candidate = words.slice(0, n).join(' ').replace(/[.,;:!?)\]}'"]+$/, '');
-      if (byName.has(candidate.toLowerCase())) {
-        take(candidate);
-        break;
-      }
+      const raw = words.slice(0, n).join(' ');
+      const candidate = raw.replace(/[.,;:!?)\]}'"]+$/, '');
+      const id = idFor(candidate);
+      if (!id) continue;
+      const end = at + 1 + endOfWord(line, n) - (raw.length - candidate.length);
+      spans.push({ start: at, end, name: candidate, entryId: id });
+      at = end - 1;
+      break;
     }
   }
-  return out;
+
+  return spans.sort((a, b) => a.start - b.start);
+}
+
+/**
+ * The same text with the brackets taken off — what a canvas prints, where a
+ * chip cannot live: a knot's name in the web, the short description in its
+ * panel. `@Naam` is left exactly as typed; it reads as a name already, and
+ * without the index the browser cannot tell where it ends anyway.
+ */
+export function plainMentions(text: string): string {
+  return text.replace(/\[\[([^\]\n]{1,120})\]\]/g, (_, name: string) => name.trim());
 }
 
 /**
@@ -202,6 +269,70 @@ export function entryNameIndex(): Map<string, string> {
     if (key && !out.has(key)) out.set(key, row.id);
   }
   return out;
+}
+
+/**
+ * One span, ready for a browser to print: a chip that opens the artikel, or a
+ * dead one that does not.
+ *
+ * The name is resolved on the *archive-wide* index and only then held against
+ * `visibleEntryCondition`, never resolved on a smaller index of its own. That
+ * order is the whole point. A name means one artikel — the oldest that carries
+ * it, the same one `entry_mentions` recorded — and a reader who may not open
+ * that one is told nothing else; resolving on "the artikelen you may see"
+ * would hand a player a *different* "De brief" than the one the writer meant,
+ * and the chip would lie about what the sentence says.
+ *
+ * Rule 1 of this file (nothing comes out without the reader's own rule) is
+ * kept: no id, no name, no slug of an artikel the reader may not see ever
+ * leaves here. What is left behind is a dead chip — which is exactly what a
+ * plain typo leaves too, so the two cannot be told apart, and the name in the
+ * sentence was the writer's to show either way.
+ */
+export type ResolvedMention = {
+  start: number;
+  end: number;
+  name: string;
+  /** Null for a name that matches nothing this reader may open. */
+  entryId: string | null;
+  slug: string | null;
+  icon: string | null;
+  colour: string | null;
+};
+
+export function resolveMentions(viewer: Viewer, texts: string[]): ResolvedMention[][] {
+  const byName = entryNameIndex();
+  const perText = texts.map((text) => mentionSpans(text, byName));
+  const wanted = [...new Set(perText.flat().map((s) => s.entryId).filter((id): id is string => Boolean(id)))];
+  const rows = wanted.length
+    ? db
+        .select({
+          id: schema.entries.id,
+          slug: schema.entries.slug,
+          name: schema.entries.name,
+          icon: schema.entryTypes.icon,
+          colour: schema.entryTypes.colour,
+        })
+        .from(schema.entries)
+        .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+        .where(and(inArray(schema.entries.id, wanted), visibleEntryCondition(viewer)))
+        .all()
+    : [];
+  const open = new Map(rows.map((row) => [row.id, row]));
+  return perText.map((spans) =>
+    spans.map((span) => {
+      const row = span.entryId ? open.get(span.entryId) : undefined;
+      return {
+        start: span.start,
+        end: span.end,
+        name: span.name,
+        entryId: row ? row.id : null,
+        slug: row ? row.slug : null,
+        icon: row ? row.icon : null,
+        colour: row ? row.colour : null,
+      };
+    }),
+  );
 }
 
 /* ------------------------------------------------- one source at a time */
@@ -258,7 +389,8 @@ export function recomputeSectionMentions(entryId: string): void {
  * A prikbord. An `entry` card stands for its artikel outright, so it prints
  * nothing after the board's name — the card's own name is a copy of the
  * artikel's, and repeating the page you are already on says nothing. A
- * `note` card is the card's own writing, so it prints the card's name.
+ * `note` card is the card's own writing, so it prints the card's name; so
+ * does the scribble under an artikel card when it names *another* artikel.
  */
 export function recomputeBoardMentions(boardId: string, state?: unknown): void {
   const raw =
@@ -276,11 +408,17 @@ export function recomputeBoardMentions(boardId: string, state?: unknown): void {
     const ref = cardRef(card);
     if (ref?.kind === 'entry') targets.push({ toEntryId: ref.id });
   }
-  const notes = cards.filter((card) => card.kind === 'note' && card.text);
-  if (notes.length) {
+  // What is written on the wall: a notitie's text, and — round 18 — the
+  // scribble under an artikel's own card, which names other artikelen just
+  // as readily ("zag @Jan Vermeer bij de sluis"). A card naming its own
+  // artikel says nothing new and is skipped.
+  const written = cards.filter((card) => card.text && (card.kind === 'note' || cardRef(card)?.kind === 'entry'));
+  if (written.length) {
     const byName = entryNameIndex();
-    for (const card of notes) {
+    for (const card of written) {
+      const own = cardRef(card)?.kind === 'entry' ? cardRef(card)?.id : undefined;
       for (const toEntryId of entryIdsInText(card.text, byName)) {
+        if (toEntryId === own) continue;
         targets.push({ toEntryId, detail: card.name });
       }
     }
@@ -389,8 +527,23 @@ export function rebuildAllMentions(): { cases: number; entries: number; boards: 
  */
 export function ensureMentionsBackfilled(): boolean {
   const any = db.select({ toEntryId: schema.entryMentions.toEntryId }).from(schema.entryMentions).limit(1).get();
-  if (any) return false;
-  rebuildAllMentions();
+  if (!any) {
+    rebuildAllMentions();
+    return true;
+  }
+  // Round 18: migration 0019 emptied the walls' rows so the scribbles under
+  // artikel cards get read; no board row at all while there are walls means
+  // they have not been written back yet. A wall is cheap to read again.
+  const anyBoard = db
+    .select({ toEntryId: schema.entryMentions.toEntryId })
+    .from(schema.entryMentions)
+    .where(eq(schema.entryMentions.fromKind, 'board'))
+    .limit(1)
+    .get();
+  if (anyBoard) return false;
+  const boards = db.select({ id: schema.boards.id }).from(schema.boards).where(isNull(schema.boards.deletedAt)).all();
+  if (!boards.length) return false;
+  for (const board of boards) recomputeBoardMentions(board.id);
   return true;
 }
 
@@ -452,6 +605,8 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
         and(
           inArray(schema.boards.id, boardIds),
           isNull(schema.boards.deletedAt),
+          // Round 18: a wall kept out of the web is kept out of here too.
+          eq(schema.boards.inWeb, true),
           viewableCondition('board', viewer),
         ),
       )

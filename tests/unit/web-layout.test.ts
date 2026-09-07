@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { graphFingerprint, lineZoom, zoomBucket } from '@/components/web/WebCanvas';
 import { COLUMN_NODE_W, COLUMN_GAP_X, DEFAULT_COLUMN_LIMIT, columnLayout, foldId } from '@/lib/web/layout';
 import { focusSlice } from '@/lib/web/slice';
 import type { WebGraph, WebNode } from '@/lib/web/types';
@@ -101,5 +102,71 @@ describe('columnLayout', () => {
 
   it('is empty without a focus', () => {
     expect(columnLayout(star(2, 2)).nodes).toEqual([]);
+  });
+});
+
+describe('the drawing\'s layout key (round 19)', () => {
+  it('changes when an edge changes and the node ids do not', () => {
+    const a = focusSlice(star(1, 1), 'entry:f', 1);
+    const b = structuredClone(a);
+    b.edges[0] = { ...b.edges[0], kind: 'field' };
+    expect(graphFingerprint(a)).not.toBe(graphFingerprint(b));
+    // Dropping an edge (a legend tick) is a change too, even with every node still there.
+    const c = structuredClone(a);
+    c.edges.pop();
+    expect(graphFingerprint(c)).not.toBe(graphFingerprint(a));
+  });
+
+  it('changes when a node moves to another step or side', () => {
+    const a = focusSlice(star(1, 1), 'entry:f', 1);
+    const b = structuredClone(a);
+    const moved = b.nodes.find((n) => n.id === 'entry:l0')!;
+    moved.side = 'out';
+    expect(graphFingerprint(a)).not.toBe(graphFingerprint(b));
+    const c = structuredClone(a);
+    c.nodes.find((n) => n.id === 'entry:l0')!.depth = 2;
+    expect(graphFingerprint(a)).not.toBe(graphFingerprint(c));
+  });
+
+  it('is the same for the same graph built twice, and keeps the ids readable', () => {
+    const a = focusSlice(star(2, 3), 'entry:f', 1);
+    const b = focusSlice(star(2, 3), 'entry:f', 1);
+    expect(graphFingerprint(a)).toBe(graphFingerprint(b));
+    expect(graphFingerprint(a)).toContain('entry:f@0');
+  });
+});
+
+describe('zooming past 4 (round 19)', () => {
+  it('lets a line grow as √zoom up to 4 and not at all beyond', () => {
+    // On-screen width = nominal × zoom / lineZoom(zoom).
+    const onScreen = (zoom: number) => zoom / lineZoom(zoom);
+    expect(onScreen(1)).toBeCloseTo(1, 6);
+    expect(onScreen(4)).toBeCloseTo(2, 6);
+    expect(onScreen(12)).toBeCloseTo(2, 6);
+    // Continuous at the cap.
+    expect(lineZoom(4 - 1e-9)).toBeCloseTo(lineZoom(4 + 1e-9), 6);
+  });
+
+  it('picks a sprite bucket that is at least the screen\'s texels per world pixel', () => {
+    // SPRITE_SCALE is 2: zoom 1 on a retina screen is bucket 1, as before.
+    expect(zoomBucket(1, 2)).toBe(1);
+    expect(zoomBucket(0.4, 2)).toBe(1);
+    expect(zoomBucket(1.5, 2)).toBe(2);
+    expect(zoomBucket(4, 2)).toBe(4);
+    expect(zoomBucket(4, 1)).toBe(2);
+    expect(zoomBucket(8, 2)).toBe(8);
+    // Round 20: the ladder no longer stops at 8. It stopped there in round 19
+    // and a knot at zoom 12 was blown up half again over its own texels —
+    // the blur. Now the sixteenth rung carries the top of the zoom range.
+    expect(zoomBucket(12, 2)).toBe(16);
+    expect(zoomBucket(100, 2)).toBe(16);
+  });
+
+  it('never gives a knot fewer texels than the screen has pixels for it', () => {
+    for (const dpr of [1, 1.5, 2]) {
+      for (const zoom of [0.3, 1, 2, 3.9, 4, 7, 8.1, 12]) {
+        expect(zoomBucket(zoom, dpr) * 2).toBeGreaterThanOrEqual(zoom * dpr);
+      }
+    }
   });
 });

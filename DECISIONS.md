@@ -2973,8 +2973,10 @@ files: the three new ones are `schemes` (25), `keeper-side` (23) and
 text, a touwtje appearing at both ends, a player being told nothing, and the
 road in and out of "kijk als speler" — four cases on both projects, all eight
 green. `tsc --noEmit` silent and `npm run build` clean.
-The full browser suite: **201 passed, 34 skipped, 1 failed** on desktop and
-phone together — and that one failure is `per-place-crops.spec.ts:13`, which
+The full browser suite: **200 passed, 34 skipped, 2 failed** on desktop and
+phone together. One of the two is `thumbnails.spec.ts:13` on the phone, which
+passes on its own and has failed in three of five long runs under load in both
+directions — a flake, not a fault. The other is `per-place-crops.spec.ts:13`, which
 fails the same way on untouched `main` (verified in a worktree at `1d67f5c`).
 It tests the per-placement crop round 19 removed and nobody retired the spec
 with the feature; it is named in CLAUDE.md §8 so the next round does not

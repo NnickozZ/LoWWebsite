@@ -5,7 +5,7 @@ import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
-import type { CoverCrop } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 
 export type TrayEntry = {
   id: string;
@@ -13,7 +13,7 @@ export type TrayEntry = {
   name: string;
   shortDescription: string;
   coverAssetId: string | null;
-  coverCrop: CoverCrop | null;
+  coverCrop: CoverCrops | null;
   typeIcon: string;
   typeColour: string;
   typeLabel: string;
@@ -128,6 +128,7 @@ export function BoardTray({
                 <Cover
                   assetId={entry.coverAssetId}
                   crop={entry.coverCrop}
+                  shape="portrait"
                   alt=""
                   icon={entry.typeIcon}
                   colour={entry.typeColour}

@@ -87,7 +87,7 @@ export function useBoardLive({
   clientId: string;
   /** Cards this person has selected or is dragging, for everyone else to see. */
   holding: string[];
-  /** True while a drag, crop, string or marquee is in flight. */
+  /** True while a drag, resize, string or marquee is in flight. */
   paused: boolean;
   /** True while this client has changes it has not saved yet. */
   dirty: boolean;

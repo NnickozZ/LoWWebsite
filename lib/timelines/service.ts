@@ -2,7 +2,8 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { viewableCondition, viewerCanEdit } from '@/lib/access';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
-import type { AccessMode, CoverCrop, TimelineScale } from '@/lib/db/schema';
+import type { AccessMode, TimelineScale } from '@/lib/db/schema';
+import type { CoverCrops } from '@/lib/images/shapes';
 import { recomputeTimelineMentions } from '@/lib/entries/mentions';
 import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
@@ -104,7 +105,7 @@ export type TimelineEvent = {
     typeIcon: string;
     typeColour: string;
     coverAssetId: string | null;
-    coverCrop: CoverCrop | null;
+    coverCrop: CoverCrops | null;
   } | null;
 };
 
@@ -455,7 +456,7 @@ type EventRow = {
   entryName: string | null;
   entryShort: string | null;
   entryCover: string | null;
-  entryCrop: CoverCrop | null;
+  entryCrop: CoverCrops | null;
   typeSlug: string | null;
   typeLabel: string | null;
   typeIcon: string | null;

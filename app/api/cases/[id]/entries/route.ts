@@ -4,11 +4,9 @@ import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
   addEntryToCase,
-  cleanCrop,
   getCaseById,
   getCaseBySlug,
   removeEntryFromCase,
-  setCaseEntryCrop,
   setCaseEntryNote,
 } from '@/lib/cases/service';
 
@@ -26,7 +24,7 @@ function assertEditable(id: string, viewer: { id: string; isKeeper: boolean }) {
   if (!viewerCanEdit('case', id, viewer)) throw new Error('Je mag dit dossier niet bewerken.');
 }
 
-/** Add an entry to the case, or change its case note or its crop of the cover. */
+/** Add an entry to the case, or change its case note. */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
@@ -39,14 +37,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       entryId?: string;
       note?: string;
       noteOnly?: boolean;
-      /** Set with cropOnly to change how this case squares off the cover. */
-      crop?: unknown;
+      /** Pre-round 19: a dossier's own crop. Refused — the artikel's crops are the only ones. */
       cropOnly?: boolean;
     };
     if (!body.entryId) return json({ error: 'Geen artikel opgegeven.' }, { status: 400 });
+    if (body.cropOnly) {
+      return json({ error: 'Een dossier heeft geen eigen uitsnede meer; snij het artikel bij.' }, { status: 400 });
+    }
 
-    if (body.cropOnly) setCaseEntryCrop(id, body.entryId, cleanCrop(body.crop));
-    else if (body.noteOnly) setCaseEntryNote(id, body.entryId, body.note ?? '', user);
+    if (body.noteOnly) setCaseEntryNote(id, body.entryId, body.note ?? '', user);
     else addEntryToCase(id, body.entryId, user, body.note ?? '');
 
     return json({ ok: true });

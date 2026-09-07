@@ -21,6 +21,7 @@ export function EntryCard({
       <Cover
         assetId={entry.coverAssetId}
         crop={entry.coverCrop}
+        shape="portrait"
         alt=""
         icon={entry.typeIcon}
         colour={entry.typeColour}

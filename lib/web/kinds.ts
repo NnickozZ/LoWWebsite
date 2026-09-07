@@ -1,5 +1,5 @@
 import type { Words } from '@/lib/words';
-import type { WebEdgeKind, WebNodeKind } from './types';
+import type { WebEdgeKind, WebLineColour, WebNodeKind } from './types';
 
 /**
  * §43: how each kind of tie is drawn, and what it is called.
@@ -21,6 +21,8 @@ export type EdgeStyle = {
   /** Canvas dash pattern; empty = solid. */
   dash: number[];
   width: number;
+  /** A factor on the line's alpha at rest: a mention is drawn nearly transparent (round 18). */
+  restAlpha?: number;
 };
 
 export type EdgeKindInfo = EdgeStyle & {
@@ -55,7 +57,10 @@ export const EDGE_KINDS: Record<WebEdgeKind, EdgeKindInfo> = {
     colour: INK,
     colourDark: INK_DARK,
     dash: [],
-    width: 1.4,
+    // Round 18: the thinnest, faintest line there is — the text naming
+    // something is the weakest tie, and it yields to any other (slice.ts).
+    width: 0.8,
+    restAlpha: 0.35,
     group: 'text',
     label: () => 'genoemd in de tekst',
     phrase: () => 'genoemd in de tekst',
@@ -82,7 +87,8 @@ export const EDGE_KINDS: Record<WebEdgeKind, EdgeKindInfo> = {
     colour: INK,
     colourDark: INK_DARK,
     dash: [2, 4],
-    width: 1.4,
+    width: 0.8,
+    restAlpha: 0.35,
     group: 'text',
     label: (w) => `in een ${w.section}`,
     phrase: (w, detail) => withDetail(w.section, detail),
@@ -148,7 +154,9 @@ export const EDGE_KINDS: Record<WebEdgeKind, EdgeKindInfo> = {
     width: 2.4,
     group: 'board',
     label: (w) => `${w.string} op het ${w.board}`,
-    phrase: (w, detail) => withDetail(w.string, detail),
+    // Round 18: the draad's own words are the line — "heeft vermoord", not
+    // "draad: heeft vermoord". Without a label it is just a draad.
+    phrase: (w, detail) => detail || w.string,
   },
   pin: {
     colour: BLUE,
@@ -196,6 +204,21 @@ export const EDGE_KINDS: Record<WebEdgeKind, EdgeKindInfo> = {
     phrase: (_w, detail) => withDetail('infobox', detail),
   },
 };
+
+/** A draad's own colour on the wall, on light and dark paper — the same six inks the kinds use. */
+export const LINE_COLOURS: Record<WebLineColour, { colour: string; colourDark: string }> = {
+  red: { colour: RED, colourDark: RED_DARK },
+  ink: { colour: INK, colourDark: INK_DARK },
+  blue: { colour: BLUE, colourDark: BLUE_DARK },
+  green: { colour: GREEN, colourDark: GREEN_DARK },
+  gold: { colour: GOLD, colourDark: GOLD_DARK },
+  violet: { colour: VIOLET, colourDark: VIOLET_DARK },
+};
+
+/** The CSS custom property that prints an edge in the colour the canvas draws it. */
+export function edgeColourVar(edge: { kind: WebEdgeKind; colour?: WebLineColour }): string {
+  return edge.colour ? `var(--web-line-${edge.colour})` : `var(--web-${edge.kind})`;
+}
 
 export const EDGE_KIND_ORDER: WebEdgeKind[] = [
   'mention',

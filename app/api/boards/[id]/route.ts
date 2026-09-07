@@ -1,8 +1,8 @@
-import { viewerCanEdit } from '@/lib/access';
+import { canManageAccess, loadAccessRow, viewerCanEdit } from '@/lib/access';
 import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { getBoard, renameBoard, saveBoard, softDeleteBoard } from '@/lib/boards/service';
+import { getBoard, renameBoard, saveBoard, setBoardInWeb, softDeleteBoard } from '@/lib/boards/service';
 import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps, resolveBoardTimelines } from '@/lib/boards/service';
 import { publishChange } from '@/lib/boards/live';
 import { cardRef, type BoardPatch, type BoardState } from '@/lib/boards/merge';
@@ -98,10 +98,18 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (!viewerCanEdit('board', id, user)) {
       return json({ error: 'Je mag dit prikbord niet bewerken.' }, { status: 403 });
     }
-    const body = (await request.json()) as { name?: string; clientId?: string };
+    const body = (await request.json()) as { name?: string; clientId?: string; inWeb?: boolean };
     if (body.name !== undefined) {
       renameBoard(id, body.name);
       // A rename is a change like any other: everyone else's title bar follows.
+      publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
+    }
+    if (typeof body.inWeb === 'boolean') {
+      // §43, round 18: whoever manages the wall's rights decides whether it
+      // counts in the web; an editor does not.
+      const row = loadAccessRow('board', id);
+      if (!row || !canManageAccess(row, user)) return json({ error: 'Alleen wie de rechten van dit prikbord beheert kan dit veranderen.' }, { status: 403 });
+      setBoardInWeb(id, body.inWeb);
       publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
     }
     return json({ ok: true });

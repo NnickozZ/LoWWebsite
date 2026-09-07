@@ -36,6 +36,8 @@ type Deps = {
   recomputeMentions: typeof import('@/lib/entries/mentions').recomputeMentions;
   rebuildAllMentions: typeof import('@/lib/entries/mentions').rebuildAllMentions;
   entryIdsInText: typeof import('@/lib/entries/mentions').entryIdsInText;
+  mentionSpans: typeof import('@/lib/entries/mentions').mentionSpans;
+  plainMentions: typeof import('@/lib/entries/mentions').plainMentions;
   groupMentions: typeof import('@/lib/entries/mentions').groupMentions;
 };
 let deps: Deps;
@@ -88,6 +90,8 @@ beforeAll(async () => {
     recomputeMentions: mentions.recomputeMentions,
     rebuildAllMentions: mentions.rebuildAllMentions,
     entryIdsInText: mentions.entryIdsInText,
+    mentionSpans: mentions.mentionSpans,
+    plainMentions: mentions.plainMentions,
     groupMentions: mentions.groupMentions,
   };
 
@@ -260,7 +264,9 @@ describe('a card on a wall', () => {
             kind: 'entry',
             entryId: vuurtoren,
             name: 'De Vuurtoren',
-            text: '',
+            // Round 18: the scribble under an artikel card names another
+            // artikel — and its own, which says nothing new.
+            text: 'Hier stond @Jan Vermeer op de avond zelf, bij [[De Vuurtoren]].',
             showImage: true,
             x: 0,
             y: 0,
@@ -292,8 +298,17 @@ describe('a card on a wall', () => {
   });
 
   it('and a notitie that writes a name down counts, under the card', () => {
-    const mention = deps.listMentions(jan, BRAM).find((m) => m.kind === 'board');
-    expect(mention?.detail).toBe('Wie had de sleutel?');
+    const mentions = deps.listMentions(jan, BRAM).filter((m) => m.kind === 'board');
+    expect(mentions.map((m) => m.detail).sort()).toEqual(['De Vuurtoren', 'Wie had de sleutel?']);
+  });
+
+  it('a scribble under an artikel card counts too, but never for its own artikel (round 18)', () => {
+    // The Vuurtoren card names the Vuurtoren in its scribble: still one
+    // mention for the Vuurtoren from this wall — the card itself — with
+    // nothing printed after it.
+    const mine = deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board');
+    expect(mine).toHaveLength(1);
+    expect(mine[0].detail).toBe('');
   });
 
   it('but not a private wall somebody else hung', () => {
@@ -302,6 +317,14 @@ describe('a card on a wall', () => {
     // Its owner still has it.
     expect(deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board')).toHaveLength(1);
     deps.sqlite.prepare(`UPDATE boards SET view_mode = 'all' WHERE id = ?`).run(boardId);
+  });
+
+  it('nor a wall its manager keeps out of the web — not even for its owner (round 18)', () => {
+    deps.sqlite.prepare(`UPDATE boards SET in_web = 0 WHERE id = ?`).run(boardId);
+    expect(deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board')).toEqual([]);
+    expect(deps.listMentions(vuurtoren, KEEPER).filter((m) => m.kind === 'board')).toEqual([]);
+    deps.sqlite.prepare(`UPDATE boards SET in_web = 1 WHERE id = ?`).run(boardId);
+    expect(deps.listMentions(vuurtoren, BRAM).filter((m) => m.kind === 'board')).toHaveLength(1);
   });
 });
 
@@ -331,6 +354,48 @@ describe('reading a name out of plain text', () => {
   it('and claims nothing it cannot match exactly', () => {
     expect(deps.entryIdsInText('@Jannetje uit Veere', byName)).toEqual([]);
     expect(deps.entryIdsInText('gewoon een zin over de vuurtoren', byName)).toEqual([]);
+  });
+
+  /* Round 21: the same reading, now with the positions kept. */
+
+  it('says where each name stands, so a browser can print a chip there', () => {
+    const text = 'zie [[De Vuurtoren]] en @Jan Vermeer.';
+    const spans = deps.mentionSpans(text, byName);
+    expect(spans.map((s) => [text.slice(s.start, s.end), s.name, s.entryId])).toEqual([
+      ['[[De Vuurtoren]]', 'De Vuurtoren', 'e-toren'],
+      ['@Jan Vermeer', 'Jan Vermeer', 'e-jan'],
+    ]);
+  });
+
+  it('reads every @ in a line, not only the first', () => {
+    // Before round 21 the scan swallowed a hundred and twenty characters at a
+    // time, so the second name in a sentence was never looked for.
+    expect(deps.entryIdsInText('@Jan Vermeer en @De Vuurtoren', byName)).toEqual(['e-jan', 'e-toren']);
+  });
+
+  it('keeps a bracketed name that matches nothing, and drops a bare @ that does not', () => {
+    const spans = deps.mentionSpans('[[Niemand]] en @niemand', byName);
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({ name: 'Niemand', entryId: null });
+  });
+
+  it('gives the same ids as the reading it replaced', () => {
+    for (const text of [
+      'zie [[De Vuurtoren]] en @Jan Vermeer',
+      '@Jan Vermeer kwam langs',
+      '@Jan kwam langs',
+      'en toen kwam @Jan Vermeer.',
+      '@Jannetje uit Veere',
+      'e-mail: post@vuurtoren.nl',
+    ]) {
+      const fromSpans = [...new Set(deps.mentionSpans(text, byName).map((s) => s.entryId).filter(Boolean))];
+      expect(deps.entryIdsInText(text, byName)).toEqual(fromSpans);
+    }
+  });
+
+  it('takes the brackets off for a canvas, and leaves @ alone', () => {
+    expect(deps.plainMentions('zie [[De Vuurtoren]] en @Jan Vermeer')).toBe('zie De Vuurtoren en @Jan Vermeer');
+    expect(deps.plainMentions('niets bijzonders')).toBe('niets bijzonders');
   });
 });
 

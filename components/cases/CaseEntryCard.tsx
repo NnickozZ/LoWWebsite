@@ -5,15 +5,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { borderClass } from '@/components/borders';
 import { Cover } from '@/components/Cover';
-import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CaseEntry } from '@/lib/cases/service';
-import type { CoverCrop } from '@/lib/db/schema';
 
 /**
  * §7: uniform 3:4 cover, name, short description clamped to two lines, the case
- * note in italics. The kebab removes it from the case or pins it to a board.
+ * note in italics. The kebab edits the note or removes it from the case.
+ *
+ * Round 19: the cover is drawn with the artikel's own staand crop — the one
+ * every list uses. A dossier no longer keeps a crop of its own, so there is
+ * no crop mode here; "Bijsnijden" lives on the artikel.
  */
 export function CaseEntryCard({
   caseId,
@@ -24,7 +26,7 @@ export function CaseEntryCard({
   caseId: string;
   entry: CaseEntry;
   onChanged: () => void;
-  /** §17: no note, crop or remove for someone who may only look. */
+  /** §17: no note or remove for someone who may only look. */
   readOnly?: boolean;
 }) {
   const ui = useUi();
@@ -32,18 +34,6 @@ export function CaseEntryCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [note, setNote] = useState(entry.caseNote);
-  const [cropping, setCropping] = useState(false);
-  // This case's own crop of the cover; null means "use the entry's".
-  const [crop, setCrop] = useState<CoverCrop | null>(entry.caseCrop);
-
-  async function saveCrop(next: CoverCrop | null) {
-    setCrop(next);
-    await fetch(`/api/cases/${caseId}/entries`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ entryId: entry.id, crop: next, cropOnly: true }),
-    });
-  }
 
   async function saveNote(next: string) {
     setNote(next);
@@ -80,24 +70,16 @@ export function CaseEntryCard({
 
   return (
     <div className={`card ${borderClass(entry.typeBorder)}`}>
-      {cropping && entry.coverAssetId ? (
-        <CropFrame
+      <Link href={`/e/${entry.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Cover
           assetId={entry.coverAssetId}
-          crop={crop ?? entry.coverCrop}
-          className="card-cover card-cover-cropping"
-          onCommit={(next) => void saveCrop(next)}
+          crop={entry.coverCrop}
+          shape="portrait"
+          alt=""
+          icon={entry.typeIcon}
+          colour={entry.typeColour}
         />
-      ) : (
-        <Link href={`/e/${entry.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-          <Cover
-            assetId={entry.coverAssetId}
-            crop={crop ?? entry.coverCrop}
-            alt=""
-            icon={entry.typeIcon}
-            colour={entry.typeColour}
-          />
-        </Link>
-      )}
+      </Link>
 
       {!readOnly && (
       <button
@@ -130,49 +112,9 @@ export function CaseEntryCard({
             <Icon name="file" size={15} />
             {note ? 'Dossiernotitie bewerken' : 'Dossiernotitie toevoegen'}
           </button>
-          {entry.coverAssetId && (
-            <button
-              type="button"
-              className="suggest-item"
-              onClick={() => {
-                setMenuOpen(false);
-                setCropping(true);
-              }}
-            >
-              <Icon name="camera" size={15} />
-              Bijsnijden voor dit dossier
-            </button>
-          )}
-          {entry.coverAssetId && crop && (
-            <button
-              type="button"
-              className="suggest-item"
-              onClick={() => {
-                setMenuOpen(false);
-                setCropping(false);
-                void saveCrop(null);
-              }}
-            >
-              <Icon name="close" size={15} />
-              Uitsnede van het {ui.words.entry} gebruiken
-            </button>
-          )}
           <button type="button" className="suggest-item" onClick={remove}>
             <Icon name="trash" size={15} />
             Uit dossier halen
-          </button>
-        </div>
-      )}
-
-      {cropping && (
-        <div className="card-crop-bar">
-          <span className="tiny muted">Slepen &middot; scrollen om te zoomen</span>
-          <button
-            type="button"
-            className="btn btn-small btn-primary"
-            onClick={() => setCropping(false)}
-          >
-            Klaar
           </button>
         </div>
       )}

@@ -15,14 +15,17 @@
  * *holds* an artikel, a prikbord *shows* a landkaart, an artikel's text *names*
  * another artikel. The focus view draws what points at the focus on the left
  * and what the focus points at on the right, so the direction matters. A draad
- * (`thread`) is the one kind with no natural direction; it is drawn on the
- * right and its `via` names the prikbord it hangs on.
+ * (`thread`) without a label is the one kind with no natural direction; it is
+ * drawn on the right and its `via` names the prikbord it hangs on. A draad
+ * *with* a label reads from its from-card to its to-card (round 18).
  *
  * Rule 1 holds here exactly as it does under "Genoemd in": a node this viewer
  * may not open is **not in the graph**, and neither is any edge touching it.
  * Not stamped MISSING, not dimmed — absent. The server builds the graph per
  * viewer and the browser never sees what was left out.
  */
+import type { CoverCrops } from '@/lib/images/shapes';
+
 
 export type WebNodeKind = 'entry' | 'case' | 'map' | 'board' | 'timeline' | 'note';
 
@@ -44,10 +47,14 @@ export type WebNode = {
   typeColour?: string;
   /** Artikel only: somebody wears this fiche as a karakter (§18). */
   isCharacter?: boolean;
-  /** A picture to show in the panel; never drawn on the canvas. */
+  /** A picture: the panel shows it liggend, a knot wears it vierkant (round 19). */
   coverAssetId?: string | null;
+  /** Its three crops (`lib/images/shapes.ts`), already normalised by the column type. */
+  coverCrop?: CoverCrops | null;
   /** One line under the name in the panel: a soort, a dossier, a moment. */
   subtitle?: string;
+  /** A few lines under that: the thing's short description, trimmed; absent when it has none. */
+  summary?: string;
   /** How many edges touch this node in the whole visible graph. */
   degree: number;
   /**
@@ -92,6 +99,9 @@ export type WebEdgeKind =
   /** A "speler" infobox field names a player, drawn as their karakter; `detail` is the label. */
   | 'player';
 
+/** The six colours a draad can have on a prikbord (`STRING_COLOURS` in `lib/boards/merge.ts`). */
+export type WebLineColour = 'red' | 'ink' | 'blue' | 'green' | 'gold' | 'violet';
+
 export type WebEdge = {
   id: string;
   from: WebNodeId;
@@ -101,6 +111,13 @@ export type WebEdge = {
   detail: string;
   /** `thread` only: the prikbord the draad hangs on. */
   via?: WebNodeId;
+  /**
+   * `thread` only (round 18): the colour the draad has on the wall, so the
+   * web draws it in that colour rather than the prikbord's red. A labelled
+   * draad is read from → to ("A — heeft vermoord → B"); an unlabelled one
+   * still has no direction.
+   */
+  colour?: WebLineColour;
 };
 
 export type WebGraph = {
