@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { MentionPopover } from './MentionPopover';
+import { MentionPopover, MentionRow } from './MentionPopover';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { useUi } from './UiProvider';
 import { Sheet } from './Sheet';
@@ -139,6 +139,8 @@ export function NewCaseSheet({
             The popover swallows Enter while it is open, so the key above still
             belongs to the sheet the moment there is no list. */}
         <MentionPopover forRef={summaryRef} />
+        {/* §54: the chips of the one line, under it and clickable. */}
+        <MentionRow text={summary} />
       </div>
 
       <SideChoice show={ui.isKeeper} keeper={keeperSide} onChange={setKeeperSide} words={ui.words} />

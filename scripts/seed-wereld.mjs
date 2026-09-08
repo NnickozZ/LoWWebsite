@@ -348,6 +348,7 @@ const SOORTEN = [
   { slug: 'abnormality', label: 'Abnormaliteiten', pot: DATA.ABNORMALITEITEN, zinnen: 'abnormality' },
   { slug: 'event', label: 'Gebeurtenissen', pot: DATA.GEBEURTENISSEN, zinnen: 'event' },
   { slug: 'lore', label: 'Overlevering en folklore', pot: DATA.OVERLEVERING, zinnen: 'lore' },
+  { slug: 'language', label: 'Talen', pot: DATA.TALEN, zinnen: 'language' },
   { slug: 'session', label: 'Sessierapporten', pot: DATA.SESSIES, zinnen: 'session' },
 ];
 
@@ -532,8 +533,18 @@ for (const row of alle) {
   const abnormaal = van('abnormality');
   const relieken = van('object');
   const families = van('family');
+  const talen = van('language');
 
   const velden = row.velden;
+
+  /* Ronde 27: welke talen dit ding spreekt of waarin het geschreven staat.
+     Lang niet alles krijgt er een — een lijstje talen bij elk artikel maakt het
+     veld waardeloos. */
+  const spreektTalen = (kans, hoeveel = 1 + Math.floor(random() * 2)) => {
+    if (!talen.length || !chance(kans)) return;
+    const gekozen = some(talen, hoeveel);
+    if (gekozen.length) velden.talen = gekozen.map(ref);
+  };
 
   switch (row.soort) {
     case 'character': {
@@ -542,6 +553,7 @@ for (const row of alle) {
       // §51: de andere kant van Families → Leden. Niet iedereen heeft een
       // familie in het archief, dus lang niet elke persoon krijgt er een.
       if (families.length && chance(0.6)) velden.familie = ref(omDeBeurt('familie', families));
+      spreektTalen(0.55);
       break;
     }
     case 'investigator': {
@@ -553,6 +565,7 @@ for (const row of alle) {
         'Rustig, tot iemand over de tweede begrafenis begint.',
         'Telt hardop. Merkt het zelf niet.',
       ]);
+      spreektTalen(0.7, 1 + Math.floor(random() * 3));
       break;
     }
     case 'family': {
@@ -567,12 +580,14 @@ for (const row of alle) {
     case 'faction': {
       if (personen.length) velden.leader = ref(omDeBeurt('leider', personen));
       if (locaties.length) velden.base = ref(omDeBeurt('basis', locaties));
+      spreektTalen(0.4);
       break;
     }
     case 'object': {
       const houders = [...personen, ...onderzoekers];
       if (houders.length && chance(0.75)) velden.current_holder = ref(omDeBeurt('houder', houders));
       if (locaties.length) velden.current_location = ref(omDeBeurt('ligt-in', locaties));
+      spreektTalen(0.5);
       break;
     }
     case 'item': {
@@ -591,6 +606,18 @@ for (const row of alle) {
     }
     case 'abnormality': {
       if (locaties.length) velden.first_sighting = ref(omDeBeurt('eerste-waarneming', locaties));
+      spreektTalen(0.3);
+      break;
+    }
+    case 'lore': {
+      spreektTalen(0.6);
+      break;
+    }
+    case 'language': {
+      const gebied = some(locaties, 1 + Math.floor(random() * 3));
+      if (gebied.length) velden.gebied = gebied.map(ref);
+      const verwant = some(talen.filter((r) => r.id !== row.id), Math.floor(random() * 2));
+      if (verwant.length) velden.verwant_aan = verwant.map(ref);
       break;
     }
     case 'event': {

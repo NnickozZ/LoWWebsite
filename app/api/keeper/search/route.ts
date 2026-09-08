@@ -4,6 +4,7 @@ import { listBoards } from '@/lib/boards/service';
 import { listCases } from '@/lib/cases/service';
 import { isKeeperKind, KEEPER_KINDS, type KeeperKind, type KeeperRef } from '@/lib/keeper/kinds';
 import { keeperRef } from '@/lib/keeper/side';
+import { twinRow } from '@/lib/keeper/ties';
 import { listMaps } from '@/lib/maps/service';
 import { suggestEntries } from '@/lib/search/service';
 import { listTimelines } from '@/lib/timelines/service';
@@ -31,17 +32,34 @@ export async function GET(request: Request) {
     const q = (url.searchParams.get('q') ?? '').trim();
     const skipKind = url.searchParams.get('notKind') ?? '';
     const skipId = url.searchParams.get('notId') ?? '';
+    /*
+     * §53: the twin picker asks the same question with three narrowings — one
+     * soort, one side, and only what is still free. They are query parameters
+     * rather than a second route because it is one question ("wat mag hier aan
+     * vast?") asked more precisely, and a second search road would be a second
+     * set of rules about who may see what.
+     */
+    const onlyKindRaw = url.searchParams.get('onlyKind') ?? '';
+    const onlyKind = isKeeperKind(onlyKindRaw) ? onlyKindRaw : null;
+    const sideRaw = url.searchParams.get('side') ?? '';
+    const wantKeeperSide = sideRaw === 'keeper' ? true : sideRaw === 'player' ? false : null;
+    const freeOnly = url.searchParams.get('free') === '1';
     if (!q) return json({ results: [] });
     const needle = q.toLowerCase();
+    // One soort at a time is a shorter list, so it may be a longer one.
+    const perKind = onlyKind ? 20 : PER_KIND;
+    const wants = (kind: KeeperKind) => !onlyKind || onlyKind === kind;
 
     const candidates: { kind: KeeperKind; id: string }[] = [];
     // §50: `bothSides` — `suggestEntries` is sided everywhere else now; this
     // one picker is the §44 bridge and keeps offering the whole archive.
-    for (const entry of suggestEntries(keeper, q, { limit: PER_KIND, bothSides: true })) {
-      candidates.push({ kind: 'entry', id: entry.id });
+    if (wants('entry')) {
+      for (const entry of suggestEntries(keeper, q, { limit: perKind, bothSides: true })) {
+        candidates.push({ kind: 'entry', id: entry.id });
+      }
     }
     const named = <T extends { id: string; name: string }>(rows: T[]) =>
-      rows.filter((row) => row.name.toLowerCase().includes(needle)).slice(0, PER_KIND);
+      rows.filter((row) => row.name.toLowerCase().includes(needle)).slice(0, perKind);
     /*
      * §46: `bothSides` on every one of them. A touwtje is tied *across* the
      * two sides by definition — its Keeper end is keeper-only and its other
@@ -49,16 +67,23 @@ export async function GET(request: Request) {
      * this Keeper may see, whichever side they happen to be standing on.
      */
     const both = { sort: 'name', bothSides: true } as const;
-    for (const row of named(listCases(keeper, both))) candidates.push({ kind: 'case', id: row.id });
-    for (const row of named(listBoards(keeper, both))) candidates.push({ kind: 'board', id: row.id });
-    for (const row of named(listMaps(keeper, both))) candidates.push({ kind: 'map', id: row.id });
-    for (const row of named(listTimelines(keeper, both))) candidates.push({ kind: 'timeline', id: row.id });
+    if (wants('case')) for (const row of named(listCases(keeper, both))) candidates.push({ kind: 'case', id: row.id });
+    if (wants('board')) for (const row of named(listBoards(keeper, both))) candidates.push({ kind: 'board', id: row.id });
+    if (wants('map')) for (const row of named(listMaps(keeper, both))) candidates.push({ kind: 'map', id: row.id });
+    if (wants('timeline')) {
+      for (const row of named(listTimelines(keeper, both))) candidates.push({ kind: 'timeline', id: row.id });
+    }
 
     const results: KeeperRef[] = [];
     for (const candidate of candidates) {
       if (isKeeperKind(skipKind) && candidate.kind === skipKind && candidate.id === skipId) continue;
       const ref = keeperRef(candidate.kind, candidate.id, keeper);
-      if (ref) results.push(ref);
+      if (!ref) continue;
+      // §53: the wrong side of the archive, or a page that already has another
+      // face — left out of the list rather than refused after the click.
+      if (wantKeeperSide !== null && ref.keeperOnly !== wantKeeperSide) continue;
+      if (freeOnly && twinRow(ref.kind, ref.id)) continue;
+      results.push(ref);
     }
     // Keeper pages first — a rope almost always has one at the other end.
     results.sort(

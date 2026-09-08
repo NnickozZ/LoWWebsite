@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
-import { MentionPopover, MentionText } from '@/components/ui/MentionPopover';
+import { MentionPopover, MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import {
@@ -33,7 +33,7 @@ export const CARD_WIDTH = 160;
  * from the first.
  */
 export type CardSubject = {
-  kind: 'entry' | 'map' | 'case' | 'timeline';
+  kind: 'entry' | 'map' | 'case' | 'timeline' | 'board';
   name: string;
   /** Where a double-click goes. */
   href: string;
@@ -101,6 +101,27 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
       colour: 'var(--ink-muted)',
       border: 'dashed',
       noun: 'tijdlijn',
+    };
+  }
+
+  if (ref.kind === 'board') {
+    // §52: a wall on a wall. The thinnest subject of the five — a prikbord has
+    // no slug (its address is its id) and no cover, so the frame stays shut and
+    // the pin's icon stands for it.
+    const other = refs.boards?.[ref.id];
+    if (!other) return undefined;
+    return {
+      kind: 'board',
+      name: other.name,
+      href: `/b/${other.id}`,
+      assetId: null,
+      crop: null,
+      icon: 'board',
+      colour: 'var(--ink-muted)',
+      // The same dashed edge a landkaart and a tijdlijn wear: this card is a
+      // door to somewhere else, not a piece of paper about a thing.
+      border: 'dashed',
+      noun: 'prikbord',
     };
   }
 
@@ -211,7 +232,13 @@ export function BoardCardView({
 
   // Three kinds of card stand for something in the archive; all three go
   // MISSING the same way when what they stand for is gone or out of reach.
-  const refers = card.kind === 'entry' || card.kind === 'map' || card.kind === 'case' || card.kind === 'timeline';
+  const refers =
+    card.kind === 'entry' ||
+    card.kind === 'map' ||
+    card.kind === 'case' ||
+    card.kind === 'timeline' ||
+    // §52: and a prikbord, which is a card like the other four.
+    card.kind === 'board';
   const missing = refers && !subject;
   const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, subject);
   const zoomed = (imageCrop?.portrait?.zoom ?? 1) > 1.05;
@@ -385,7 +412,7 @@ export function BoardCardView({
                * asks for the full file, the same as a cropped-in one does.
                */
               src={assetUrl(image, zoomed || card.scale > 1.5 ? 'full' : 'card')}
-              alt={card.name || ''}
+              alt={(refers && subject ? subject.name : card.name) || ''}
               style={coverStyle(imageCrop, 'portrait')}
               draggable={false}
             />
@@ -417,7 +444,16 @@ export function BoardCardView({
             if (refers && subject) open(event);
           }}
         >
-          {card.name || 'Naamloos'}
+          {/*
+            §52: the live name, not the one copied onto the card when it was
+            pinned. Renaming an artikel used to leave every wall it hangs on
+            saying the old thing for ever — the name was resolved per read all
+            along and simply not drawn. `card.name` stays the fallback on
+            purpose: a card whose artikel is gone keeps the name it was pinned
+            under, which is what "opnieuw aanmaken" below writes the new one
+            with, and a notitie, a foto and a speld own that field themselves.
+          */}
+          {(refers && subject ? subject.name : card.name) || 'Naamloos'}
         </p>
 
         {editing ? (
@@ -446,6 +482,9 @@ export function BoardCardView({
           />
           {/* Round 18: `@` offers a name; `[[Naam]]` is what lands in the text. */}
           <MentionPopover forRef={textRef} />
+          {/* §54: a chip cannot live inside a box you are typing in, so it
+              stands under it — the eighth and last plain box to get one. */}
+          <MentionRow text={draft} />
           </>
         ) : (
           <p
@@ -465,7 +504,9 @@ export function BoardCardView({
         {subject && subject.kind !== 'entry' && (
           <span className="board-card-kind">
             <Icon name={subject.icon} size={11} />
-            {subject.noun}
+            {/* §52: the prikbord is a word the Keeper may rename, so it comes
+                from `words` rather than from the pure resolver's noun. */}
+            {subject.kind === 'board' ? words.board : subject.noun}
           </span>
         )}
 

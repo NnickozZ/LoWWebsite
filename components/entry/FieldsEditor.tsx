@@ -10,7 +10,7 @@ import { caseIdsIn } from '@/lib/entries/caseFields';
 import { parseDutchDate } from '@/lib/timelines/time';
 import { EntryPicker, type EntryRef } from './EntryPicker';
 import { CasePicker } from './CasePicker';
-import { MentionText } from '@/components/ui/MentionPopover';
+import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 
 type Values = Record<string, unknown>;
 
@@ -152,10 +152,15 @@ function StringField({
       if (!shared && draft !== value) onChange({ [fieldKey]: draft });
     },
   };
-  return multiline ? (
-    <LiveField as="textarea" mentions={mentions} {...common} />
-  ) : (
-    <LiveField mentions={mentions} {...common} />
+  return (
+    <>
+      {multiline ? <LiveField as="textarea" mentions={mentions} {...common} /> : <LiveField mentions={mentions} {...common} />}
+      {/* §54: the chips of what is in the box, under it and clickable while
+          you type. `MentionRow` draws nothing at all when the words name
+          nobody, so a tidy infobox with no `[[Naam]]` in it stays tidy — the
+          row only ever appears under the one field that earned it. */}
+      {mentions && <MentionRow text={draft} />}
+    </>
   );
 }
 

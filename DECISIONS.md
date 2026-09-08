@@ -3443,3 +3443,190 @@ blijft staan en pint nu vast wat er van §24 over is. `tsc --noEmit` stil.
 Geen nieuwe browserspec: de drie dingen zijn met unittests vastgelegd, en dat
 is een gat dat een volgende ronde mag dichten.
 
+## Ronde 27 — 8 September 2026: het prikbord, de tweeling die gelinkt wordt, een chipje onder het vak, en Talen (§52, §53, §54, §55)
+
+### Een prikbord op een prikbord, en de levende naam (§52)
+
+Dossiers, landkaarten en tijdlijnen konden al op een muur hangen; een prikbord
+niet, terwijl "het bord van die nacht" aan "het bord van de hele zaak" precies
+de vorm is waarvoor die kaartjes bestaan. `board` is daarom de vijfde
+`REFERENCE_KIND` geworden, en verder niets: een kaartje met alleen een id, per
+kijker opgelost. Dat oplossen loopt met opzet door `listBoards` in plaats van
+langs een eigen query — dan gelden §17 en de regel over het dossier eromheen
+vanzelf, en hoeft geen van beide een tweede keer opgeschreven te worden. Een
+muur staat niet in zijn eigen kiezer; twee muren die naar elkaar wijzen mogen
+wél, want dat is geen lus maar twee touwtjes in het web.
+
+Daarnaast een fout die er sinds §8 zat: een verwijzend kaartje drukte de naam
+af die erop gekopieerd werd toen het gemaakt werd, dus een hernoemd artikel
+bleef op de kurk onder zijn oude naam staan — op het kaartje, in de kop van de
+inspector, in de titel van de lightbox en in de `alt` van de foto. Die vier
+lezen nu `subject.name`. De kopie blijft staan en krijgt één taak terug: het is
+wat er onder "Ontbreekt" staat en wat §47's "opnieuw aanmaken" in de sheet
+zet. Een notitie, een speld en een foto dragen hun tekst zelf en veranderen
+niet.
+
+**Een touwtje dat je in het niets loslaat.** Dat zette al een speld neer en
+knoopte het touwtje eraan vast. Nu gaat er ook een kiezer naast de plek open.
+De volgorde is de hele truc: de speld eerst, het touwtje eraan, en het
+antwoord op de kiezer maakt van díé speld het gekozen ding. Escape of ernaast
+klikken laat de muur achter zoals hij vóór deze ronde was — een spoor met een
+plek — en er wordt nooit een touwtje verlegd. De kiezer is daarvoor uit
+`BoardCanvas` gehaald (`BoardPicker`), omdat de balk en de zwevende versie
+alleen verschillen in waar ze staan en wat ze met het antwoord doen.
+
+**"'X' aanmaken" staat alleen op de zwevende.** In de balk verscheen die regel
+vóór het antwoord van de 160 ms gedempte zoekactie, dus een hand die naar het
+net getypte artikel greep landde op "aanmaken" — elf specs werden er rood van.
+In het niets is de vraag juist wél daar te beantwoorden, dus daar hoort hij.
+
+**Het wiel.** React zet `wheel` en `touchmove` passief op de node, en
+`preventDefault()` in een `onWheel`-prop is dan een stille no-op. Zowel de muur
+als `CropFrame` zoomde dus én scrolde de pagina eronder. Allebei hebben nu een
+echte listener met `{ passive: false }` — de vorm die `MapCanvas` al had — en
+`overscroll-behavior: contain`. De muur laat zijn eigen meubels wel scrollen
+(`.board-tray`, `.board-inspector`, `.ink-toolbar`, `.suggest-list`,
+`.board-picker`), zoals de kaart zijn legenda. Een zijwaartse veeg pant nu de
+muur in plaats van niets te doen en ondertussen de pagina mee te nemen.
+`CropFrame` schreef bovendien per klikje van het wiel een uitsnede weg; dat is
+300 ms gedempt en wordt bij unmount doorgespoeld. `MapCanvas`,
+`TimelineCanvas` en `WebCanvas` stonden al goed.
+
+### Een tweeling van twee pagina's die er al zijn (§53)
+
+§44 kon alleen de tweede kant *maken*. Dat is de verkeerde deur voor hoe het
+gereedschap gebruikt wordt: de Keeper zet zijn eigen pagina klaar terwijl de
+tafel het wiki-artikel over hetzelfde ding schrijft, en die twee ontmoeten
+elkaar later. `linkTwin()` is die ontmoeting — er wordt niets gemaakt en niets
+gekopieerd.
+
+Drie regels, en met opzet in het Nederlands geweigerd in plaats van door een
+index in het donker: dezelfde soort, tegenovergestelde kanten, en aan elke kant
+maar één. Die kanten worden aan de *records* gevraagd (`isKeeperSide`) en nooit
+aan de pagina waar de knop op stond — anders bepaalt de plek van de hand wat
+waar terechtkomt. `twinRow` op allebei de uiteinden is strenger dan de twee
+partiële unieke indexen van `0021` en antwoordt eerder, dus de Keeper leest een
+zin in plaats van een 500. Een touwtje dat ooit andersom geknoopt is wordt
+eerst doorgeknipt: `counterparts` houdt de Keeperkant in de Keeperkolom, en één
+paar mag geen twee rijen worden.
+
+`addTie` gaf een bestaand touwtje ongewijzigd terug, dus "maak hier een
+tweeling van" op twee dingen die al aan elkaar hingen deed niets en zei dat het
+gelukt was. Dat touwtje wordt nu gepromoveerd.
+
+**Notities worden samengevoegd, niet overschreven.** `moveNotesToTwin` is
+geschreven voor een kant die een seconde oud en dus leeg is; hier heeft de
+Keeperpagina meestal weken klaargestaan. `mergeNotesIntoTwin` stapelt daarom:
+de tekst van de Keeper, een regel `— van de andere kant —`, en de tekst van de
+spelerskant. Een Keeper kan een regel weggooien; een alinea die de app heeft
+overschreven krijgt hij niet terug. Ontkoppelen zet ze niet terug, en de
+bevestiging zegt dat.
+
+Verder: de dode span "Geen spelersversie" is weg, allebei de *geen tweeling*
+toestanden bieden nu "Link met bestaande …", een tweeling krijgt er
+"Ontkoppelen" naast (het id van het touwtje reist daarvoor mee vanuit
+`KeeperPanelServer`), en `/api/keeper/search` kreeg `onlyKind`, `side` en
+`free=1`. Queryparameters en geen tweede route: het is dezelfde vraag, preciezer
+gesteld, en een tweede zoekweg zou een tweede stel regels zijn over wie wat mag
+zien.
+
+### Twee reparaties zonder eigen regel (in de code als §53 gemarkeerd)
+
+Onder een landkaart stonden drie blokken met drie verschillende bovenmarges, op
+drie schalen, waarvan er één 44 rem breed en gecentreerd was terwijl de andere
+twee de volle breedte namen — met daarboven drie hoofdletterstempels van gelijk
+gewicht en niets dat zei wat de groep wás. Dat is nu één `.map-manage`, gekopieerd
+van `.entry-manage` op de artikelpagina: één breedte, één `3px double` streep,
+één kop ("Beheer van deze {landkaart}"), geen marges binnenin. `details.section`
+zelf is niet aangeraakt.
+
+En het kebabmenu op een dossierkaartje werd afgeknipt door
+`.card { overflow: hidden }` — dat blijft, want een uitgezoomde omslag is een
+`transform: scale()` die buiten zijn doos tekent, en geen `z-index` wint van een
+overflow-clip. Het menu hangt nu aan `document.body`, `position: fixed` vanaf de
+gemeten rechthoek van de knop, met een eigen breedte (232 px: de langste regel
+moet passen, en een kolom in dat raster kan 150 px zijn) en met het
+buiten-klikken en Escape die elk ander menu al had.
+
+### Een chipje onder het vak (§54)
+
+Een `<textarea>` bevat tekens en verder niets, dus een chip kan er niet ín. De
+rijke editor kan het alleen omdat een Tiptap-mention een echte inline atoomnode
+is, en de vier vakken die er het meest toe doen zijn `LiveField`s aan een
+`Y.Text` per veld — die diffs een platte string. `MentionRow` bestond al voor
+precies dit geval en stond onder de speld- en gebeurtenissheet; hij staat nu
+onder elk plat vak dat een `[[Naam]]` kan opleveren, acht in totaal. 400 ms
+gedempt, één chip per artikel, en niets als er geen naam uitkomt — een nette
+infobox blijft netjes. Bewust op de aanroepplekken gezet en niet als vaste
+staart van `LiveField`: de speld- en gebeurtenissheet tekenen hun eigen rij al
+en zouden er twee hebben afgedrukt.
+
+### Het web centreerde zijn rondjes verkeerd (geen nieuwe regel, wél een correctie op §43 en regel 5)
+
+`crop.x` en `crop.y` zijn een `object-position`-breuk: het deel van de
+*overschot* dat boven en links blijft staan. Dat is wat `CropFrame` schrijft en
+wat `cropStyle` overal tekent. `drawCover` las ze als een brandpunt dat midden
+in het kader moest landen (`crop.x * iw - sw / 2`, in de foto geklemd). De twee
+zijn het eens bij 0, 0,5 en 1 en verder nergens, en onder `sh / (2·ih)` klemde
+het canvas hard tegen de bovenrand: een staande foto van 900×1200 op y = 0,25
+in een vierkant knoopje begon op y = 0 in plaats van op y = 75 — "het midden van
+het rondje staat bovenaan". Het leek onregelmatig omdat een oude omslag naar
+`{ portrait }` normaliseert, zodat een knoop die om `square` vraagt `CENTRED`
+krijgt en er goed uitziet.
+
+De rekensom is nu de pure, geëxporteerde `coverSourceRect(iw, ih, w, h, crop)`,
+vastgepind tegen de CSS-lezing in `tests/unit/web-cover-crop.test.ts`. Twee
+kleinere dingen erbij: de duim in Kolommen vroeg de staande uitsnede en tekende
+hem in een kader van 0,87 breed (de breedte komt nu uit `SHAPES.portrait.ratio`),
+en de volle-omslag-URL van het web was `?s=full` — het enige adres in de app dat
+niet de vorm heeft die `assetUrl()` bouwt, dus dezelfde bytes op een tweede plek
+in de HTTP-cache.
+
+**Bekeken en met opzet gelaten:** het centreren en de sleutel van de
+sprite-cache, de meetkunde van de ringen, en het feit dat een niet-rond knoopje
+minder toont dan de hele vierkante uitsnede (een landkaartruit houdt ~58% over,
+een tijdlijnpil een middenband). Dat laatste rechttrekken vraagt om een
+bounding box per soort knoop en verandert hoe élk niet-artikelknoopje eruitziet
+sinds §43 — een keuze voor Nick, geen reparatie. Zie de losse eindjes hieronder.
+
+### Talen (§55)
+
+De vorm is die van Families uit ronde 26, en dat is de reden dat het zonder
+migratie kan. De soort (`language`, `sort_order` 95, naast Overlevering en
+folklore) komt met `INSERT OR IGNORE` mee in een vers én een bestaand archief;
+de andere kant van de band — het veld **Talen** op zes soorten — wordt één keer
+aangeplakt achter de marker `seed:round-27-talen` en nooit overschreven.
+
+Eén schaal voor spreken en lezen samen (*eenvoudig* tot *vrijwel onleesbaar*),
+omdat een taal op dit eiland net zo vaak van een steen gelezen wordt als
+gesproken. De zes soorten die het veld krijgen zijn Personen, Onderzoekers,
+Relieken (`object`), Abnormaliteiten, Facties en Overlevering en folklore.
+Voorwerpen (`item`), Locaties, Gebeurtenissen en Sessierapporten krijgen het
+niet: de talen van een locatie zijn het veld *Waar gesproken* van de taal zelf,
+van de andere kant bekeken. Voor `location`, `event` en `session` staat die
+afwezigheid in een test.
+
+Nick vroeg om "een details tab". Er ís geen tab op een artikelpagina — tabs zijn
+iets van een dossier — en wat hij bedoelt is de infobox. Dat komt goed uit: een
+infoboxveld is ook de enige vorm die gratis `entry_mentions` oplevert, dus
+"Genoemd in" en het web vullen zichzelf. Talen krijgt dus géén tab in een
+dossier, wél een zelfvullende lijst **Sprekers en geschriften** over
+`viaField: 'talen'` met die zes soorten in `fromType`.
+
+### Waar ronde 27 eindigt
+
+852 unittests in 61 bestanden (ronde 26: 822 in 57) — `board-boards-on-boards`,
+`twin-link`, `web-cover-crop` en `talen` erbij, en `board-references` uitgebreid
+met het vijfde soort kaartje. Drie nieuwe browserspecs
+(`tests/e2e/round-27-board|keeper|web.spec.ts`). `tsc --noEmit` stil. Geen
+migratie: de laatste blijft `0022_case_prefix`.
+
+**Losse eindjes, met naam:**
+
+- **Een niet-rond knoopje toont minder dan de vierkante uitsnede.** Zie
+  hierboven: bekeken, begrepen, en niet aangeraakt omdat het het uiterlijk van
+  elk niet-artikelknoopje sinds §43 verandert. Het vraagt om een bounding box
+  per soort knoop en om een beslissing van Nick.
+- **De naam in een `entry_link`-waarde blijft de naam van toen** (ouder dan
+  deze ronde; §52 heeft hem alleen op de kurk opgelost).
+

@@ -424,8 +424,10 @@ components/
   cases/             the dossier — two faces, like an artikel — its add-boxes
                      and cards
   boards/            the canvas, the card (artikel, notitie, foto, punaise,
-                     landkaart, dossier), the inspector, the sync hook, and
-                     the "…and in the dossier too?" question (offerToFile)
+                     landkaart, dossier, tijdlijn, prikbord), the picker the
+                     bar and a dropped string share (§52), the inspector, the
+                     sync hook, and the "…and in the dossier too?" question
+                     (offerToFile)
   maps/              the map canvas (pan, zoom, pins, legend), the Keeper's
                      upload sheet and tools
   timelines/         the tijdlijn: the stage (axis, ticks, tags, the
@@ -598,9 +600,16 @@ Forty-six rules worth knowing before changing anything:
    once under "Afbeelding › Bijsnijden" and drawn by every list, card, thumb
    and knot in the shape it uses: cards and thumbs staand, the tijdlijn's
    window and the web's panel liggend, a web knot vierkant. The file on disk
-   is never cropped; each crop is a focal point and a zoom, applied by CSS
+   is never cropped; each crop is a position and a zoom, applied by CSS
    (`coverStyle`, with the frame's aspect from `coverClass(shape)`) or as a
-   source rect on the web canvas at render. A row written before round 19
+   source rect on the web canvas at render. *Round 27: "a focal point" is what
+   this line used to say and what `drawCover` believed. `x` and `y` are an
+   **`object-position` fraction** — the share of the leftover that sits above
+   and to the left, which is what `CropFrame` authors and what `cropStyle`
+   draws — not a point that must land in the middle of the frame. The two
+   agree at 0, 0.5 and 1 and nowhere else. `coverSourceRect` in
+   `WebCanvas.tsx` is the maths, pinned against the CSS reading in
+   `tests/unit/web-cover-crop.test.ts`.* A row written before round 19
    holds a bare `{ x, y, zoom }` and is read as the staand crop. A dossier's
    own picture (`cases.cover_asset_id` + `cases.cover_crop`) has the same
    three. A dossier's filing of an artikel and a prikbord card no longer keep
@@ -1641,7 +1650,14 @@ Forty-six rules worth knowing before changing anything:
     the layout key carries a fingerprint of the graph (every knot's step and
     side, a hash of the edges), so a legend tick re-runs the columns even when
     no id changed. A knot wears the picture's **vierkant** crop, the columns'
-    thumb its staand one and the panel its liggend one (rule 5).
+    thumb its staand one and the panel its liggend one (rule 5). *Round 27:
+    the canvas read those numbers as a focal point while every card read them
+    as an `object-position` fraction, so a knot's picture sat wrong everywhere
+    but 0, 0.5 and 1 — see rule 5 and `coverSourceRect`. The Kolommen thumb
+    also asked for the staand crop and drew it in a 0.87-wide frame; its width
+    comes from `SHAPES.portrait.ratio` now. And the web's full-size cover URL
+    was `?s=full`, the one address in the app that is not what `assetUrl()`
+    builds — the same bytes at a second HTTP cache entry.*
 
     How a line is tied is a *kind* (`WebEdgeKind`, sixteen of them) with one
     colour and dash in `lib/web/kinds.ts` and one CSS custom property
@@ -2002,7 +2018,9 @@ Forty-six rules worth knowing before changing anything:
     archive does not hold yet is made without leaving the box. Reading, those
     descriptions print chips like every other text, in lists and cards too —
     `flat`, as a `<span>`, because a card is already one big `<a>` and an
-    anchor inside an anchor is invalid HTML.
+    anchor inside an anchor is invalid HTML. *§54 adds the third half of this:
+    a plain box also gets a `MentionRow` under it while it is being typed, so
+    the chips are there before the box is left.*
 
     **In a dossier, the `+` makes something in it.** `useIAmTheCase` in
     `UiProvider` is the dossier page saying "this screen is me", which is what
@@ -2140,4 +2158,149 @@ Forty-six rules worth knowing before changing anything:
     added once behind the marker `seed:round-26-families`, never overwritten.
     A familie is an ordinary soort — makeable everywhere, no dossier in front
     of its name — with a tab of its own in a dossier.
+
+52. **Een prikbord is zelf iets om naar te wijzen, een kaartje leest de
+    levende naam, en het wiel hoort bij de muur.** §52. Round 27's half of the
+    wall, in three parts.
+
+    **A wall may hang on a wall.** `board` is the fifth `REFERENCE_KINDS`
+    (`entry`, `map`, `case`, `timeline`, `board` — `lib/boards/merge.ts`): a
+    card that carries an id and nothing else, resolved per viewer, drawn like
+    the tijdlijn's card because a prikbord has no cover of its own.
+    `resolveBoardBoards` goes through `listBoards`, so §17's dial and §47's
+    parent-dossier rule both apply without being written a second time, and a
+    wall this viewer may not open comes back MISSING rather than as a name.
+    The picker leaves *this* wall out of its own list; two walls pointing at
+    each other is allowed and harmless — the web draws both ties.
+
+    **A card shows the live name.** A reference card carries a copy of the name
+    it was made with, and that copy is what the wall, the inspector header, the
+    lightbox title and the `<img alt>` used to print — so a rename never
+    reached the cork. They read `subject.name` now, and `card.name` is what is
+    left when the artikel is gone: the fallback under "Ontbreekt", and the name
+    §47's "{Artikel} opnieuw aanmaken" writes into the sheet. A notitie, a
+    speld and a photo own their text themselves and are not touched by this.
+
+    **A string let go on bare cork asks what it points at.** The speld goes in
+    and the string is tied to it exactly as before, *and* a picker opens beside
+    the drop. Answer it and that same speld becomes the thing picked — upgraded
+    in place, so no string is ever relaid — and Escape or a click away leaves
+    the wall as this rule found it: a lead with a place on it.
+    `components/boards/BoardPicker.tsx` is that picker and the bar's, extracted
+    from `BoardCanvas` because they differ only in where they sit and what they
+    do with the answer. **"'X' aanmaken" is on the floating one only**: in the
+    bar a create row appears before the 160 ms debounced search has answered,
+    and a hand reaching for the artikel it just typed lands on "aanmaken"
+    instead. The bar keeps the notitie row it has always had.
+
+    **The wheel belongs to the wall.** React registers `wheel` and `touchmove`
+    passively, so `preventDefault()` inside an `onWheel` prop is a silent
+    no-op: `BoardCanvas` and `CropFrame` both zoomed *and* scrolled the page
+    behind them. Both now add a native listener with `{ passive: false }` — the
+    shape `MapCanvas` already used — plus `overscroll-behavior: contain`. The
+    wall lets its own furniture scroll (`.board-tray`, `.board-inspector`,
+    `.ink-toolbar`, `.suggest-list`, `.board-picker`), the way the map lets its
+    legend. A trackpad's sideways swipe now pans the wall instead of doing
+    nothing and taking the page with it. `CropFrame` also wrote a crop per
+    wheel notch; the commit is debounced 300 ms (`COMMIT_WAIT`) and flushed on
+    unmount. `MapCanvas`, `TimelineCanvas` and `WebCanvas` were already right.
+
+53. **Een tweeling wordt ook gelinkt, niet alleen gemaakt.** §53. §44 could
+    only ever *make* the second face (`createTwin`), which is the wrong door
+    for the way the tool is used: a Keeper preps a Keeper page while the table
+    writes the wiki article about the same thing, and the two meet later.
+    `linkTwin()` in `lib/keeper/ties.ts` is that meeting — nothing is created
+    and nothing is copied.
+
+    **Three rules, refused in Dutch rather than by an index in the dark.** The
+    same soort ("een tweeling is twee keer hetzelfde soort ding"); opposite
+    sides, asked of the *records* through `isKeeperSide` and never of the page
+    the button was on; and one face each — `twinRow` on both ends, which is
+    stricter than `0021`'s two partial unique indexes and answers first, so a
+    Keeper reads a sentence instead of a 500. A rope tied while the two stood
+    on the other sides is cut first, because `counterparts` keeps the Keeper's
+    end in the Keeper column and one pair may not become two rows.
+
+    **A rope is promoted, never silently kept.** `addTie`'s `existing`
+    short-circuit handed the rope's id back unchanged, so "maak hier een
+    tweeling van" on two things that were already roped did nothing and said it
+    had worked. The row's `isTwin` is set instead — the guards above have
+    already refused every case where that would be wrong.
+
+    **Notes are merged, not overwritten.** `mergeNotesIntoTwin` stacks the
+    Keeper's own text, a `— van de andere kant —` line, and the player-facing
+    one, and keeps the result on the Keeper's side. `moveNotesToTwin` stays
+    what it was, for a face that was made a second ago and is empty by
+    construction. Unlinking does not move them back, and the confirm says so.
+
+    **Both no-twin states offer it.** The dead "Geen spelersversie" span is
+    gone; a Keeper page and a player page each get "Link met bestaande …", a
+    twin gets "Ontkoppelen" beside the switch (the tie's id travels down from
+    `KeeperPanelServer`, because untying needs it), and `/api/keeper/search`
+    gained `onlyKind`, `side` and `free=1` so the picker offers only what would
+    be accepted. Query parameters, not a second route: it is one question
+    asked more precisely, and a second search road would be a second set of
+    rules about who may see what.
+
+    **And two repairs with no rule of their own, marked §53 in the code.**
+    Everything below a landkaart — the tekenlaag switch, "Deze landkaart
+    (Keeper)" and the Keeperkant — set three top margins in three ways at three
+    scales, and the last was 44 rem and centred while the two above ran the
+    full width; three uppercase `details > summary` stamps of equal weight had
+    nothing above them saying what the group was. It is one `.map-manage`
+    section now, copied from the artikel page's `.entry-manage`: one width, one
+    `3px double` top rule, one heading ("Beheer van deze {landkaart}") and no
+    inline margins. `details.section` itself is untouched. And the kebab menu
+    on a dossier card was clipped by `.card { overflow: hidden }` — load-
+    bearing, because a zoomed cover crop paints outside its box, so it stays —
+    and hard-coded to 190 px inside a grid column that can be 150 px. It is
+    portalled to `document.body` with `position: fixed` from the button's
+    measured rect, `MENU_WIDTH` = 232 (the longest row is what has to fit),
+    clamped to the window, with the outside-click and Escape every other menu
+    already had.
+
+54. **Een chipje onder het vak dat je typt.** §54. A `<textarea>` holds
+    characters and nothing else, so a chip cannot live inside one — the rich
+    editor manages it only because a Tiptap mention is a real inline atom node,
+    and the four boxes that matter most are `LiveField`s bound to a `Y.Text`
+    per field, which diffs a plain string. `MentionRow` (in
+    `components/ui/MentionPopover.tsx`) already existed for exactly this and
+    was used by the speld and gebeurtenis sheets; it now stands under **every**
+    plain box that can produce a `[[Naam]]` — eight of them: an artikel's korte
+    beschrijving, a dossier's samenvatting, the Tekst and Lange tekst rows of
+    an infobox, the boxes in the sheets that make an artikel, a dossier and a
+    landkaart, and a kaartje's text on the wall. It debounces 400 ms, keeps the
+    last answer while the next is on its way, shows one chip per artikel
+    however often the writing names it, and renders **nothing** when no name
+    resolves, so a tidy infobox stays tidy. It is put at the call sites rather
+    than made an automatic tail of `LiveField`, because the speld and
+    gebeurtenis sheets already render their own and would have printed two.
+
+55. **Talen zijn een soort, en de andere kant ervan is een veld.** §55. Soort
+    `language`, label **Talen**, `sort_order` 95 — beside Overlevering en
+    folklore, because a taal is a thing out of the world you look up. Its
+    velden: **Moeilijkheidsgraad** (`select`: eenvoudig · te doen · lastig ·
+    zeer lastig · vrijwel onleesbaar — one scale for the mouth and the eye
+    together, because a taal here is as often read off a stone as spoken),
+    **Schrift**, **Staat** (levend · stervend · uitgestorven · alleen op
+    schrift), **Waar gesproken** (→ Locaties) and **Verwant aan** (→ Talen).
+
+    **The other end is a veld called Talen** (`entry_links` → `language`) on
+    six soorten: Personen, Onderzoekers, Relieken (`object`), Abnormaliteiten,
+    Facties and Overlevering en folklore. Deliberately not on Voorwerpen,
+    Locaties, Gebeurtenissen or Sessierapporten — a locatie's languages are the
+    taal's own "Waar gesproken" read from the other side, and `talen.test.ts`
+    asserts the absence on `location`, `event` and `session`. An infobox veld
+    is the only shape that yields `entry_mentions` for free, so "Genoemd in"
+    and the web fill themselves; the taal's page carries a `derived` list
+    **"Sprekers en geschriften"** over `viaField: 'talen'` with those six in
+    `fromType`, so the band is written from one end only.
+
+    **No tab, no migration.** Talen gets no tab in a dossier — a tab is a
+    dossier thing and an artikel page has none; what is asked for by "een
+    details tab" is the infobox. The soort arrives by `INSERT OR IGNORE` in a
+    fresh archive and an existing one alike, and the reverse veld is stuck on
+    once behind the marker `seed:round-27-talen` — never overwritten, and
+    skipped for a soort that already has a `talen` key or is already at twenty
+    velden.
 

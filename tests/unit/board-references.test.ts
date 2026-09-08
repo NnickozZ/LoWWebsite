@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cardRef,
+  defaultShowImage,
   mergeBoardState,
   normaliseState,
   type BoardCard,
@@ -109,5 +110,57 @@ describe('the merge does not treat them differently', () => {
     expect(stored.strings).toHaveLength(1);
     const gone = mergeBoardState(stored, { deletedCardIds: ['k'] });
     expect(gone.strings).toHaveLength(0);
+  });
+});
+
+/**
+ * §52: and a fourth — a wall on a wall.
+ *
+ * `board` is a card kind like the other three: `normaliseState` keeps it and
+ * the id it carries, `cardRef` reads that id back, and everything downstream
+ * (the merge, the tombstones, the strings) does not know the difference. The
+ * only thing that is not a card's business is which walls may be offered, and
+ * that is `resolveBoardBoards`' job, below.
+ */
+describe('§52: a prikbord card', () => {
+  it('survives a read, keeps its boardId, and resolves through cardRef', () => {
+    const state = normaliseState({
+      cards: [{ ...card({ id: 'b', kind: 'board', boardId: 'brd1', name: 'De haven' }) }],
+    });
+    expect(state.cards[0].kind).toBe('board');
+    expect(state.cards[0].boardId).toBe('brd1');
+    expect(cardRef(state.cards[0])).toEqual({ kind: 'board', id: 'brd1' });
+  });
+
+  it('points at nothing when the id is missing, or when the kind is not board', () => {
+    expect(cardRef(card({ id: 'x', kind: 'board' }))).toBeNull();
+    // The kind decides which id is read: a note carrying a boardId is a note.
+    expect(cardRef(card({ id: 'x', kind: 'note', boardId: 'brd1' }))).toBeNull();
+  });
+
+  it('a wall saved before prikbord cards existed reads back with a null boardId', () => {
+    const state = normaliseState({ cards: [{ id: 'a', kind: 'entry', entryId: 'e1' }] });
+    expect(state.cards[0].boardId).toBeNull();
+  });
+
+  it('merges by id and takes its strings with it when it goes', () => {
+    const stored = normaliseState({
+      cards: [card({ id: 'e', entryId: 'e1' }), card({ id: 'b', kind: 'board', boardId: 'brd1' })],
+      strings: [{ id: 's', from: { card: 'e' }, to: { card: 'b' }, label: '', colour: 'red' }],
+    });
+    const moved = mergeBoardState(stored, {
+      cards: [card({ id: 'b', kind: 'board', boardId: 'brd1', x: 320 })],
+    });
+    expect(moved.cards.find((item) => item.id === 'b')?.x).toBe(320);
+    expect(moved.strings).toHaveLength(1);
+
+    const gone = mergeBoardState(stored, { deletedCardIds: ['b'] });
+    expect(gone.strings).toHaveLength(0);
+  });
+
+  it('starts with its frame shut, because a prikbord has no cover', () => {
+    expect(defaultShowImage('board', false)).toBe(false);
+    // A caller that does not know gets the old answer, as every kind does.
+    expect(defaultShowImage('board')).toBe(true);
   });
 });

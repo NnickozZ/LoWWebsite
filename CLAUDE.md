@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 57 files, 822 tests as of round 26 (round 25: 54 / 791)
+npx vitest run         # 61 files, 852 tests as of round 27 (round 26: 57 / 822)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -144,19 +144,22 @@ freely there.
 
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
-  markers to match. Check `grep -rn "§4[0-9]" app components lib` before
-  choosing a number — the latest is §51 / rule 51 (round 26: §49 the dossier in
-  front of the name, §50 the two sides apart, §51 a koppelingsveld aimed at
-  several soorten; §48 is round 25's born-on-a-side, §47 round 24's four small
-  repairs, §46 de spiegel round 23, §44 de Keeperkant and §45 de vier
-  kleurschema's round 22).
+  markers to match. Check `grep -rn "§5[0-9]" app components lib` before
+  choosing a number — the latest is §55 / rule 55 (round 27: §52 het prikbord,
+  §53 een tweeling linken, §54 een chipje onder het vak, §55 Talen; round 26:
+  §49 the dossier in front of the name, §50 the two sides apart, §51 a
+  koppelingsveld aimed at several soorten; §48 is round 25's born-on-a-side,
+  §47 round 24's four small repairs, §46 de spiegel round 23, §44 de Keeperkant
+  and §45 de vier kleurschema's round 22).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0022_case_prefix`, so the next is `0023_`. Never edit an existing
+  `0022_case_prefix`, so the next is `0023_` (round 27 added none: a new soort
+  and a reverse veld arrive through the seed's `INSERT OR IGNORE` and a marker,
+  §55). Never edit an existing
   block, and that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
@@ -316,7 +319,10 @@ freely there.
   `10 / zoom px` — glyph placement happens at the nominal size, and at 0.8 px
   a name came out as a row of scattered letters. `lineZoom`, `zoomBucket`
   and `graphFingerprint` are exported from `WebCanvas.tsx` and unit tested in
-  `tests/unit/web-layout.test.ts`.
+  `tests/unit/web-layout.test.ts`; round 27 added `coverSourceRect` beside them
+  (`tests/unit/web-cover-crop.test.ts`), because a crop is an
+  `object-position` fraction and the canvas used to read it as a focal point
+  (rule 5).
 - **Hiding a kind of knot is a slice option, not a drawing trick** (round 19).
   The legend's "Wat" block (dossiers, prikborden, landkaarten, tijdlijnen, and
   every soort in the web) feeds `hiddenNodeKinds` / `hiddenTypes` in
@@ -416,8 +422,12 @@ freely there.
   and **`flat` inside anything that is already a link** (a card, a feed row, a
   search hit), because an `<a>` in an `<a>` is invalid HTML and
   `no-console-warnings.spec.ts` fails on it. A new plain box gets `mentions` on
-  the way in and `MentionText` on the way out, or the same text will be chips on
-  one screen and brackets on the next.
+  the way in, `MentionText` on the way out **and a `MentionRow` under it while
+  it is typed** (§54, round 27) — or the same text will be chips on one screen
+  and brackets on the next. `MentionRow` lives in `MentionPopover.tsx`, renders
+  nothing when no name resolves, and belongs at the call site: the speld and
+  gebeurtenis sheets draw their own, and an automatic one in `LiveField` would
+  print two.
 - **`useIAmTheCase` is "this screen is a dossier", and only the dossier says it**
   (§48, round 25). It lives in `UiProvider` because the `+`, the FAB and the `n`
   key are in the *shell*, above the page, where a context set by the page cannot

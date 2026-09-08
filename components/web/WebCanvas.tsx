@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useImperativeHandle, useMemo, useRef, forwardRef } from 'react';
-import { CENTRED, cropFor, type Crop } from '@/lib/images/shapes';
+import { CENTRED, cropFor, SHAPES, type Crop } from '@/lib/images/shapes';
 import { ICON_PATHS } from '@/components/Icon';
 import { ForceSim, radiusFor } from '@/lib/web/force';
 import { EDGE_KINDS, LINE_COLOURS, NODE_KINDS } from '@/lib/web/kinds';
@@ -492,7 +492,11 @@ function coverImage(assetId: string, variant: CoverVariant, onLoad: () => void):
     onLoad();
   };
   img.onerror = () => imageCache.set(key, null);
-  img.src = `/api/assets/${assetId}?s=${variant}`;
+  // The same URL `assetUrl()` in `components/Cover.tsx` builds — full has no
+  // `?s=`, because `?s=full` is the same bytes at a second address and lands
+  // in a second HTTP cache entry, so a knot re-downloaded a picture the crop
+  // editor had already warmed (round 27).
+  img.src = variant === 'full' ? `/api/assets/${assetId}` : `/api/assets/${assetId}?s=${variant}`;
   return null;
 }
 
@@ -578,19 +582,51 @@ function coverSprite(img: HTMLImageElement, key: string, kind: WebNode['kind'], 
 }
 
 /**
+ * The source rectangle a crop asks for, from a picture of `iw × ih` into a
+ * frame of `w × h`. Pure, and exported so the maths can be pinned in a test.
+ *
+ * **`crop.x` / `crop.y` are an `object-position` fraction, not a focal point**
+ * (round 27). That is what `CropFrame` — the editor that *authors* the crop —
+ * writes, and what `cropStyle` in `components/Cover.tsx` turns into
+ * `object-position: {x*100}% {y*100}%`: CSS slides the overflow across, so the
+ * fraction says *how much of the leftover* sits above and to the left, and
+ * 0.25 means a quarter of the surplus above — not "the point at a quarter
+ * height in the middle of the frame". The canvas read it as a focal point
+ * until round 27 (`crop.x * iw - sw / 2`, clamped), which is more extreme
+ * everywhere but 0, 0.5 and 1, and below `sh / (2·ih)` clamped hard to the
+ * top edge: a 900×1200 portrait at y = 0.25 in a square frame started at
+ * y = 0 instead of y = 75 — "the middle of the round is at the top".
+ *
+ * No clamp is needed: `cleanCrop` keeps x and y in [0, 1] and zoom ≥ 1, so
+ * `sw ≤ iw` and `sh ≤ ih` and the rectangle is inside the picture by
+ * construction. The `Math.max(0, …)` is only against a rounding hair.
+ */
+export function coverSourceRect(
+  iw: number,
+  ih: number,
+  w: number,
+  h: number,
+  crop: Crop = CENTRED,
+): { sx: number; sy: number; sw: number; sh: number } {
+  const scale = Math.max(w / iw, h / ih) * crop.zoom;
+  const sw = w / scale;
+  const sh = h / scale;
+  return {
+    sx: crop.x * Math.max(0, iw - sw),
+    sy: crop.y * Math.max(0, ih - sh),
+    sw,
+    sh,
+  };
+}
+
+/**
  * Draws a picture cover-fitted into the current clip, centred on (x, y), by a
  * crop (round 19): the same focal point + zoom that `coverStyle` turns into
  * CSS, here turned into a source rectangle — a round knot wears the vierkant
  * crop, so a face sits in the knot where it sits on every square frame.
  */
 function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, crop: Crop = CENTRED) {
-  const iw = img.naturalWidth;
-  const ih = img.naturalHeight;
-  const scale = Math.max(w / iw, h / ih) * crop.zoom;
-  const sw = w / scale;
-  const sh = h / scale;
-  const sx = Math.min(Math.max(crop.x * iw - sw / 2, 0), iw - sw);
-  const sy = Math.min(Math.max(crop.y * ih - sh / 2, 0), ih - sh);
+  const { sx, sy, sw, sh } = coverSourceRect(img.naturalWidth, img.naturalHeight, w, h, crop);
   ctx.drawImage(img, sx, sy, sw, sh, x - w / 2, y - h / 2, w, h);
 }
 
@@ -1662,8 +1698,12 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         const inset = node.kind === 'entry' ? 0 : isFocus ? 16 : 13;
         let textX = x + inset + (isFocus ? 42 : 31);
         if (thumb) {
-          const tw = isFocus ? 40 : 26;
+          // The frame wears the staand crop, so it wears the staand *ratio*
+          // too (round 27): a 26×30 frame is 0.87 wide where the crop was
+          // authored at 3:4, and the picture came out cut differently here
+          // than on every card. `SHAPES` is the only place a ratio lives.
           const th = p.h - 6;
+          const tw = th * SHAPES.portrait.ratio;
           ctx.save();
           roundRect(ctx, x + inset + 9, p.y - th / 2, tw, th, 2);
           ctx.clip();

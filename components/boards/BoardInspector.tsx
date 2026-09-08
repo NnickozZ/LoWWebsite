@@ -78,6 +78,7 @@ export function BoardInspector({
   onRemoveCards,
   onClose,
   openLabel,
+  subjectName,
 }: {
   /** The selected cards, if any. */
   cards: BoardCard[];
@@ -125,6 +126,13 @@ export function BoardInspector({
    * where the card is resolved rather than guessed here.
    */
   openLabel: string | null;
+  /**
+   * §52: the live name of what the selected card stands for, or null when it
+   * stands for nothing (a notitie, a foto, a speld) or for something out of
+   * reach. The card's own `name` is a copy made when it was pinned, so a
+   * renamed artikel used to keep its old name in this header for ever.
+   */
+  subjectName: string | null;
 }) {
   // §11: what a bare pin is called is the Keeper's to decide.
   const words = useUi().words;
@@ -347,7 +355,7 @@ export function BoardInspector({
     <div className="board-inspector" role="group" aria-label="Geselecteerde kaarten">
       <span className="board-inspector-title">
         <Icon name="board" size={15} />
-        {single ? single.name || 'Kaart' : `${cards.length} kaarten`}
+        {single ? subjectName || single.name || 'Kaart' : `${cards.length} kaarten`}
       </span>
 
       {/* Round 19: no "Bijsnijden" here — a card draws the artikel's own crops. */}

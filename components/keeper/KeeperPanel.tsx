@@ -21,6 +21,8 @@ export type KeeperPanelProps = {
   /** Is the record this panel is on the Keeper's own side (§44)? */
   keeperOnly: boolean;
   twin: KeeperRef | null;
+  /** §53: the tie behind that twin, so it can be untied from either page. */
+  twinTieId: string | null;
   ropes: KeeperRope[];
   /** The pair's notes as the server had them, for the road without a room. */
   notes: string;
@@ -47,7 +49,7 @@ export type KeeperPanelProps = {
  * not in the list rather than being filtered out here.
  */
 export function KeeperPanel(props: KeeperPanelProps) {
-  const { kind, id, keeperOnly, twin, ropes, notes, live } = props;
+  const { kind, id, keeperOnly, twin, twinTieId, ropes, notes, live } = props;
   const words = useUi().words;
 
   return (
@@ -61,6 +63,7 @@ export function KeeperPanel(props: KeeperPanelProps) {
           id={id}
           keeperOnly={keeperOnly}
           twin={twin}
+          twinTieId={twinTieId}
           ropes={ropes.map((rope) => rope.other)}
         />
         <SideToggle kind={kind} id={id} keeperOnly={keeperOnly} hasTwin={Boolean(twin)} />

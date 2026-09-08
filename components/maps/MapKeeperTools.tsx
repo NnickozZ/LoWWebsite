@@ -174,9 +174,10 @@ export function MapKeeperTools({
   }
 
   return (
+    // §53: no margin of its own — the block around it (`.map-manage`) owns the
+    // spacing of everything below the landkaart now.
     <details
       className="section"
-      style={{ marginTop: '1rem' }}
       onToggle={(event) => setPanelOpen((event.currentTarget as HTMLDetailsElement).open)}
     >
       <summary>

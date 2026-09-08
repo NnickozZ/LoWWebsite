@@ -4,7 +4,7 @@ import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { getBoard, renameBoard, saveBoard, setBoardCase, setBoardInWeb, softDeleteBoard } from '@/lib/boards/service';
-import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps, resolveBoardTimelines } from '@/lib/boards/service';
+import { resolveBoardBoards, resolveBoardCases, resolveBoardEntries, resolveBoardMaps, resolveBoardTimelines } from '@/lib/boards/service';
 import { publishChange } from '@/lib/boards/live';
 import { deletedAtOfCase } from '@/lib/cases/service';
 import { cardRef, type BoardPatch, type BoardState } from '@/lib/boards/merge';
@@ -14,13 +14,14 @@ import type { Viewer } from '@/lib/entries/visibility';
 export const dynamic = 'force-dynamic';
 
 /**
- * Everything a board's cards point at, looked up for this viewer. Three kinds
- * of card stand for a record — an artikel, a landkaart, a dossier — and each is
- * resolved behind its own visibility rule, so a card whose record this viewer
- * may not see comes back absent and is stamped MISSING on the wall.
+ * Everything a board's cards point at, looked up for this viewer. Five kinds of
+ * card stand for a record — an artikel, a landkaart, a dossier, een tijdlijn and
+ * (§52) another prikbord — and each is resolved behind its own visibility rule,
+ * so a card whose record this viewer may not see comes back absent and is
+ * stamped MISSING on the wall.
  */
 function referencesOf(state: BoardState, viewer: Viewer) {
-  const ids = { entry: [] as string[], map: [] as string[], case: [] as string[], timeline: [] as string[] };
+  const ids = { entry: [] as string[], map: [] as string[], case: [] as string[], timeline: [] as string[], board: [] as string[] };
   for (const card of state.cards) {
     const ref = cardRef(card);
     if (ref) ids[ref.kind].push(ref.id);
@@ -30,6 +31,7 @@ function referencesOf(state: BoardState, viewer: Viewer) {
     maps: Object.fromEntries(resolveBoardMaps(ids.map, viewer)),
     cases: Object.fromEntries(resolveBoardCases(ids.case, viewer)),
     timelines: Object.fromEntries(resolveBoardTimelines(ids.timeline, viewer)),
+    boards: Object.fromEntries(resolveBoardBoards(ids.board, viewer)),
   };
 }
 

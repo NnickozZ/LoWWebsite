@@ -42,6 +42,7 @@ import {
   type Viewport,
 } from '@/lib/boards/merge';
 import type {
+  BoardBoardFacts,
   BoardCaseFacts,
   BoardEntryFacts,
   BoardMapFacts,
@@ -49,6 +50,7 @@ import type {
   BoardTimelineFacts,
 } from '@/lib/boards/service';
 import { BoardCardView, CARD_WIDTH, cardBorder, cardImage, subjectOf } from './BoardCard';
+import { BoardPicker, type PickableItem, type SuggestedEntry } from './BoardPicker';
 import { BoardInspector } from './BoardInspector';
 import { BoardTray, type TrayEntry } from './BoardTray';
 import { offerToFileEntry } from './offerToFile';
@@ -61,7 +63,6 @@ import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/compone
 import { useElementSize } from '@/components/ink/useElementSize';
 import { useInk } from '@/components/ink/useInk';
 import type { InkLayerView } from '@/lib/ink/types';
-import { fuzzyScore } from '@/lib/search/fuzzy';
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.5;
@@ -140,9 +141,11 @@ export function BoardCanvas({
   initialMaps,
   initialCases,
   initialTimelines,
+  initialBoards,
   pickableMaps,
   pickableCases,
   pickableTimelines,
+  pickableBoards,
   readOnly: locked,
   access,
   initialInk,
@@ -184,6 +187,13 @@ export function BoardCanvas({
   /** §32: the tijdlijnen it points at, and the ones that could still go up. */
   initialTimelines: Record<string, BoardTimelineFacts>;
   pickableTimelines: { id: string; name: string }[];
+  /**
+   * §52: the prikborden it points at, and the ones that could still go up. The
+   * wall's own id is not in the second list — the server leaves it out, so a
+   * wall cannot be pinned to itself.
+   */
+  initialBoards: Record<string, BoardBoardFacts>;
+  pickableBoards: { id: string; name: string }[];
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -195,6 +205,7 @@ export function BoardCanvas({
   const [maps, setMaps] = useState<Record<string, BoardMapFacts>>(initialMaps);
   const [caseFacts, setCaseFacts] = useState<Record<string, BoardCaseFacts>>(initialCases);
   const [timelineFacts, setTimelineFacts] = useState<Record<string, BoardTimelineFacts>>(initialTimelines);
+  const [boardFacts, setBoardFacts] = useState<Record<string, BoardBoardFacts>>(initialBoards);
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
@@ -213,16 +224,19 @@ export function BoardCanvas({
     y1: number;
   } | null>(null);
 
-  const [search, setSearch] = useState('');
-  const [suggestions, setSuggestions] = useState<
-    {
-      id: string;
-      name: string;
-      typeIcon: string;
-      typeColour: string;
-      typeLabel: string;
-    }[]
-  >([]);
+  /**
+   * §52: the picker opened where a string was let go on bare cork. `pin` is
+   * the speld that string is already tied to — picking upgrades that very card
+   * rather than making a second one, so the string never has to be rewritten;
+   * cancelling leaves the speld, which is exactly what dropping a string in
+   * the void has always done.
+   */
+  const [picker, setPicker] = useState<{
+    pin: string;
+    at: { x: number; y: number };
+    left: number;
+    top: number;
+  } | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -315,6 +329,7 @@ export function BoardCanvas({
     setMaps((current) => ({ ...current, ...refs.maps }));
     setCaseFacts((current) => ({ ...current, ...refs.cases }));
     setTimelineFacts((current) => ({ ...current, ...(refs.timelines ?? {}) }));
+    setBoardFacts((current) => ({ ...current, ...(refs.boards ?? {}) }));
     // A card someone else deleted must not stay selected here: the inspector
     // would be editing something that no longer exists.
     const alive = new Set(state.cards.map((card) => card.id));
@@ -381,8 +396,8 @@ export function BoardCanvas({
    * so there is one place that knows how the three kinds are looked up.
    */
   const refs = useMemo<BoardRefs>(
-    () => ({ entries, maps, cases: caseFacts, timelines: timelineFacts }),
-    [entries, maps, caseFacts, timelineFacts],
+    () => ({ entries, maps, cases: caseFacts, timelines: timelineFacts, boards: boardFacts }),
+    [entries, maps, caseFacts, timelineFacts, boardFacts],
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
@@ -648,6 +663,8 @@ export function BoardCanvas({
   );
 
   type NewCard = Pick<BoardCard, 'id' | 'kind' | 'name' | 'text'> & Partial<BoardCard>;
+  /** §52: where a picked thing lands — see `putCard`. */
+  type PlaceWhere = { at?: { x: number; y: number }; onto?: string };
 
   const addCard = useCallback(
     (card: NewCard) => {
@@ -658,6 +675,7 @@ export function BoardCanvas({
         mapId: null,
         caseId: null,
         timelineId: null,
+        boardId: null,
         assetId: null,
         border: null,
         // Every new card is the size a card has always been; the grip and the
@@ -1032,10 +1050,15 @@ export function BoardCanvas({
       // §33: a press on the tekenlaag's sheet or its toolbar is a stroke or a
       // click, never a pan.
       target.closest('.ink-capture') ||
-      target.closest('.ink-toolbar')
+      target.closest('.ink-toolbar') ||
+      // §52: nor is a press in the picker a string was dropped into.
+      target.closest('.board-picker')
     ) {
       return;
     }
+
+    // Anywhere else on the cork closes that picker, leaving the speld behind.
+    if (picker) setPicker(null);
 
     /*
      * Bare cork, and this press is a pan or a marquee. Both are drags, and the
@@ -1258,6 +1281,31 @@ export function BoardCanvas({
           commit({ cards: nextCards, strings: [...strings, line] });
           // Select it, so the inspector is right there to label and colour it.
           setSelectedStringId(line.id);
+          /*
+           * §52: a string let go in the void asks what it points at.
+           *
+           * The speld goes in first and the string is tied to it, exactly as it
+           * always has been — so pressing Escape, or clicking away, leaves the
+           * wall as it was before this round: a lead with a place on it. Answer
+           * the picker and that same speld *becomes* the thing picked, which is
+           * why the knot survives without a single string being rewritten.
+           */
+          if (fresh && interactive) {
+            const rect = viewportRef.current?.getBoundingClientRect();
+            // Kept clear of the right and bottom edges: the cork is clipped,
+            // and a picker half off it cannot be typed in.
+            const width = 336;
+            // Beside the speld, not on top of it: the head and its tag stay
+            // where the hand left them, and stay grabbable.
+            const left = event.clientX - (rect?.left ?? 0) + 48;
+            const top = event.clientY - (rect?.top ?? 0) + 36;
+            setPicker({
+              pin: fresh.id,
+              at: point,
+              left: Math.max(8, Math.min(left, (rect?.width ?? width) - width)),
+              top: Math.max(8, Math.min(top, (rect?.height ?? 0) - 90)),
+            });
+          }
         }
       }
       setDrawing(null);
@@ -1309,8 +1357,49 @@ export function BoardCanvas({
     [sync],
   );
 
+  /*
+   * §52: keep the page still under the wall.
+   *
+   * React attaches `wheel` passively, so `preventDefault` inside the `onWheel`
+   * prop below is a silent no-op — every notch zoomed the cork *and* scrolled
+   * the page behind it. A real listener with `{ passive: false }` is the only
+   * thing a browser honours; this is the shape `MapCanvas` has used since it
+   * was written, and `TimelineCanvas` and `WebCanvas` after it.
+   *
+   * The furniture that lives inside the viewport and scrolls on its own is
+   * excluded, the way the landkaart excludes its legend: the drawer, the
+   * inspector, the tekenlaag's toolbar, and either picker's list of hits.
+   */
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return;
+    const block = (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          '.board-tray, .board-inspector, .ink-toolbar, .suggest-list, .board-picker',
+        )
+      ) {
+        return;
+      }
+      event.preventDefault();
+    };
+    node.addEventListener('wheel', block, { passive: false });
+    return () => node.removeEventListener('wheel', block);
+  }, []);
+
   function onWheel(event: React.WheelEvent) {
-    if (!event.ctrlKey && Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    /*
+     * §52: a trackpad's sideways swipe pans the wall. It used to fall straight
+     * through this early return, which meant the gesture did nothing here and
+     * scrolled the *page* instead — the worst of both. Nothing above it is
+     * refused any more, so it may as well do the thing it looks like.
+     */
+    if (!event.ctrlKey && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+      setViewport((current) => ({ ...current, x: current.x - event.deltaX }));
+      if (!readOnly) sync.markDirty();
+      return;
+    }
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
     zoomAround(
@@ -1361,7 +1450,11 @@ export function BoardCanvas({
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
       if (event.key === 'Escape') {
-        if (lightbox) setLightbox(null);
+        // §52: the picker a dropped string opened. Closing it leaves the speld
+        // and the string exactly as they were — nothing is placed and nothing
+        // is taken back.
+        if (picker) setPicker(null);
+        else if (lightbox) setLightbox(null);
         else if (inkTool.active) inkTool.setActive(false);
         else if (drawing) setDrawing(null);
         else if (!typing) {
@@ -1426,28 +1519,44 @@ export function BoardCanvas({
 
   /* ------------------------------------------------------------- search */
 
-  useEffect(() => {
-    const typed = search.trim();
-    if (typed.length < 1) {
-      setSuggestions([]);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/suggest?q=${encodeURIComponent(typed)}&limit=6`, {
-          signal: controller.signal,
+  /*
+   * §52: where a picked thing lands.
+   *
+   * `at` is a board point — a card dragged out of the tray, or a string let go
+   * on the cork. `onto` is a card that is already there and is to *become* the
+   * thing picked, which is the one the string drop uses: the string is tied to
+   * that speld already, so changing the card in place keeps the knot and a new
+   * card would not.
+   */
+  const putCard = useCallback(
+    (card: NewCard, where: PlaceWhere = {}) => {
+      const box = where.at
+        ? {
+            x: Math.round(where.at.x - CARD_WIDTH / 2),
+            y: Math.round(where.at.y - CARD_SIZE.height / 2),
+          }
+        : {};
+      if (where.onto) {
+        const { id: _newId, ...rest } = card;
+        patchCard(where.onto, {
+          // Every id this card might have carried before is cleared first, so a
+          // speld that becomes a dossier cannot keep pointing at an artikel.
+          entryId: null,
+          mapId: null,
+          caseId: null,
+          timelineId: null,
+          boardId: null,
+          ...rest,
+          ...box,
+          // It was a speld a moment ago, and a speld stands straight.
+          rotation: placementRotation(),
         });
-        if (response.ok) setSuggestions((await response.json()).entries ?? []);
-      } catch {
-        /* aborted */
+        return where.onto;
       }
-    }, 160);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [search]);
+      return addCard({ ...card, ...box }).id;
+    },
+    [addCard, patchCard],
+  );
 
   /**
    * Puts an entry on the wall. `at` is a board point when the card was dragged
@@ -1466,7 +1575,7 @@ export function BoardCanvas({
         typeColour?: string;
         typeBorder?: string;
       },
-      at?: { x: number; y: number },
+      where: PlaceWhere = {},
     ) => {
       if (entry.slug) {
         setEntries((current) => ({
@@ -1484,21 +1593,21 @@ export function BoardCanvas({
           },
         }));
       }
-      addCard({
-        id: newCardId(),
-        kind: 'entry',
-        entryId: entry.id,
-        name: entry.name,
-        text: '',
-        // §32: an artikel without a cover keeps its frame shut until somebody
-        // opens it; `undefined` (a caller that does not know) keeps the old answer.
-        showImage: defaultShowImage('entry', entry.coverAssetId === undefined ? undefined : Boolean(entry.coverAssetId)),
-        ...(at
-          ? { x: Math.round(at.x - CARD_WIDTH / 2), y: Math.round(at.y - CARD_SIZE.height / 2) }
-          : {}),
-      });
+      putCard(
+        {
+          id: newCardId(),
+          kind: 'entry',
+          entryId: entry.id,
+          name: entry.name,
+          text: '',
+          // §32: an artikel without a cover keeps its frame shut until somebody
+          // opens it; `undefined` (a caller that does not know) keeps the old answer.
+          showImage: defaultShowImage('entry', entry.coverAssetId === undefined ? undefined : Boolean(entry.coverAssetId)),
+        },
+        where,
+      );
     },
-    [addCard],
+    [putCard],
   );
 
   /**
@@ -1507,24 +1616,22 @@ export function BoardCanvas({
    * per viewer like everything else.
    */
   const placeMap = useCallback(
-    (map: { id: string; name: string }) => {
+    (map: PickableItem, where: PlaceWhere = {}) => {
       setMaps((current) =>
         current[map.id]
           ? current
           : { ...current, [map.id]: { id: map.id, slug: '', name: map.name, assetId: null, missing: false } },
       );
-      addCard({ id: newCardId(), kind: 'map', mapId: map.id, name: map.name, text: '' });
-      setSearch('');
-      setSuggestions([]);
+      putCard({ id: newCardId(), kind: 'map', mapId: map.id, name: map.name, text: '' }, where);
       // The slug and the picture come back with the next pull; until then the
       // card shows its name, which is what was just typed.
       void sync.saveNow();
     },
-    [addCard, sync],
+    [putCard, sync],
   );
 
   const placeCase = useCallback(
-    (item: { id: string; name: string }) => {
+    (item: PickableItem, where: PlaceWhere = {}) => {
       setCaseFacts((current) =>
         current[item.id]
           ? current
@@ -1541,51 +1648,112 @@ export function BoardCanvas({
               },
             },
       );
-      addCard({ id: newCardId(), kind: 'case', caseId: item.id, name: item.name, text: '' });
-      setSearch('');
-      setSuggestions([]);
+      putCard({ id: newCardId(), kind: 'case', caseId: item.id, name: item.name, text: '' }, where);
       void sync.saveNow();
     },
-    [addCard, sync],
+    [putCard, sync],
   );
 
   /** §32: a tijdlijn on the wall — the same shape as a landkaart card. */
   const placeTimeline = useCallback(
-    (item: { id: string; name: string }) => {
+    (item: PickableItem, where: PlaceWhere = {}) => {
       setTimelineFacts((current) =>
         current[item.id] ? current : { ...current, [item.id]: { id: item.id, slug: '', name: item.name, scale: 'day', missing: false } },
       );
-      addCard({ id: newCardId(), kind: 'timeline', timelineId: item.id, name: item.name, text: '', showImage: false });
-      setSearch('');
-      setSuggestions([]);
+      putCard(
+        { id: newCardId(), kind: 'timeline', timelineId: item.id, name: item.name, text: '', showImage: false },
+        where,
+      );
       void sync.saveNow();
     },
-    [addCard, sync],
+    [putCard, sync],
   );
 
-  /** Landkaarten, dossiers and tijdlijnen matching what is typed, and not already up. */
-  const otherMatches = useMemo(() => {
-    const typed = search.trim();
-    if (!typed) return { maps: [], cases: [], timelines: [] };
-    const onWall = {
-      map: new Set(cards.filter((card) => card.kind === 'map').map((card) => card.mapId)),
-      case: new Set(cards.filter((card) => card.kind === 'case').map((card) => card.caseId)),
-      timeline: new Set(cards.filter((card) => card.kind === 'timeline').map((card) => card.timelineId)),
-    };
-    const pick = <T extends { id: string; name: string }>(list: T[], up: Set<unknown>) =>
-      list
-        .filter((item) => !up.has(item.id))
-        .map((item) => ({ item, score: fuzzyScore(item.name, typed) }))
-        .filter((row) => row.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
-        .map((row) => row.item);
-    return {
-      maps: pick(pickableMaps, onWall.map),
-      cases: pick(pickableCases, onWall.case),
-      timelines: pick(pickableTimelines, onWall.timeline),
-    };
-  }, [search, cards, pickableMaps, pickableCases, pickableTimelines]);
+  /**
+   * §52: another prikbord on this one. The same card as a tijdlijn's — a name,
+   * an icon and a door — because a wall has no cover of its own either. What is
+   * behind it is resolved per viewer, so a wall somebody may not open comes
+   * back MISSING rather than named.
+   */
+  const placeBoard = useCallback(
+    (item: PickableItem, where: PlaceWhere = {}) => {
+      setBoardFacts((current) =>
+        current[item.id]
+          ? current
+          : { ...current, [item.id]: { id: item.id, name: item.name, caseName: null, missing: false } },
+      );
+      putCard(
+        { id: newCardId(), kind: 'board', boardId: item.id, name: item.name, text: '', showImage: false },
+        where,
+      );
+      void sync.saveNow();
+    },
+    [putCard, sync],
+  );
+
+  /**
+   * §52: "'X' aanmaken" — write the artikel and hang it up in one gesture.
+   *
+   * The same sheet a card's "Artikel aanmaken" button opens (§24: a wall that
+   * hangs off a dossier is that dossier's, so what is written here is written
+   * in it), with the card placed when the sheet answers. If the sheet is
+   * closed without writing anything, nothing is placed: `onCreated` is the
+   * only road out.
+   */
+  const startEntry = useCallback(
+    (entryName: string, where: PlaceWhere = {}) => {
+      ui.openNewEntry({
+        name: entryName,
+        caseId: caseId ?? undefined,
+        onCreated: (created) => {
+          setEntries((current) => ({
+            ...current,
+            [created.id]: {
+              id: created.id,
+              slug: created.slug,
+              name: created.name,
+              coverAssetId: null,
+              coverCrop: null,
+              typeIcon: created.typeIcon,
+              typeColour: created.typeColour,
+              typeBorder: 'solid',
+              missing: false,
+            },
+          }));
+          // A freshly written artikel has no cover, so its frame starts shut.
+          putCard(
+            {
+              id: newCardId(),
+              kind: 'entry',
+              entryId: created.id,
+              name: created.name,
+              text: '',
+              showImage: defaultShowImage('entry', false),
+            },
+            where,
+          );
+          void sync.saveNow();
+        },
+      });
+    },
+    [caseId, putCard, sync, ui],
+  );
+
+  /**
+   * §52: the speld the open picker is standing on, as a `PlaceWhere`, and the
+   * picker closed in the same breath — every row of that list wants both.
+   */
+  const pickedHere = useCallback((): PlaceWhere => {
+    const where: PlaceWhere = picker ? { onto: picker.pin, at: picker.at } : {};
+    setPicker(null);
+    return where;
+  }, [picker]);
+
+  // The speld can go while the picker is open — an undo, or somebody else's
+  // delete. Nothing to hang a card on any more, so the box goes with it.
+  useEffect(() => {
+    if (picker && !cards.some((card) => card.id === picker.pin)) setPicker(null);
+  }, [cards, picker]);
 
   /** Everything in the case that is not already a card on this wall. */
   const trayEntries = useMemo(() => {
@@ -1595,7 +1763,7 @@ export function BoardCanvas({
     return caseEntries.filter((entry) => !onWall.has(entry.id));
   }, [caseEntries, cards]);
 
-  async function addEntryCard(entryId: string, entryName: string) {
+  async function addEntryCard(entryId: string, entryName: string, where: PlaceWhere = {}) {
     // §32: unknown until the preview answers; a card of an artikel without a
     // cover starts with its frame shut (`defaultShowImage`).
     let hasCover: boolean | undefined;
@@ -1620,16 +1788,17 @@ export function BoardCanvas({
         }));
       }
     }
-    addCard({
-      id: newCardId(),
-      kind: 'entry',
-      entryId,
-      name: entryName,
-      text: '',
-      showImage: defaultShowImage('entry', hasCover),
-    });
-    setSearch('');
-    setSuggestions([]);
+    putCard(
+      {
+        id: newCardId(),
+        kind: 'entry',
+        entryId,
+        name: entryName,
+        text: '',
+        showImage: defaultShowImage('entry', hasCover),
+      },
+      where,
+    );
     offerToFile(entryId, entryName);
   }
 
@@ -1858,104 +2027,26 @@ export function BoardCanvas({
       {!readOnly && (
       <div className="board-tools">
         <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 0 }}>
-          <label className="visually-hidden" htmlFor="board-search">
-            {capitalise(ui.words.card)} toevoegen
-          </label>
-          <input
-            id="board-search"
-            className="input"
-            value={search}
-            placeholder={`Zoek een ${ui.words.entry}, een landkaart of een ${ui.words.case}…`}
-            onChange={(event) => setSearch(event.target.value)}
+          {/* §52: the same picker the string drop opens, in the bar where it
+              has always been. Everything picked here lands in the middle of
+              the view, as the search box has always done. */}
+          <BoardPicker
+            variant="bar"
+            cards={cards}
+            pickableMaps={pickableMaps}
+            pickableCases={pickableCases}
+            pickableTimelines={pickableTimelines}
+            pickableBoards={pickableBoards}
+            onPickEntry={(item) => void addEntryCard(item.id, item.name)}
+            onPickMap={(item) => placeMap(item)}
+            onPickCase={(item) => placeCase(item)}
+            onPickTimeline={(item) => placeTimeline(item)}
+            onPickBoard={(item) => placeBoard(item)}
+            onCreateNote={(noteName) =>
+              addCard({ id: newCardId(), kind: 'note', name: noteName, text: '' })
+            }
+            onCreateEntry={(entryName) => startEntry(entryName)}
           />
-          {search.trim() && (
-            <ul
-              className="suggest-list"
-              style={{ position: 'absolute', zIndex: 30, left: 0, right: 0 }}
-            >
-              {suggestions.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="suggest-item"
-                    onClick={() => void addEntryCard(item.id, item.name)}
-                  >
-                    <Icon name={item.typeIcon} size={16} style={{ color: item.typeColour }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong>{item.name}</strong>
-                      <span className="tiny muted" style={{ display: 'block' }}>
-                        {item.typeLabel}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-
-              {/* The other two things this archive holds that a wall might
-                  want to point at. Matched here rather than asked for: you
-                  have a dozen landkaarten, not a thousand. */}
-              {otherMatches.maps.map((item) => (
-                <li key={`map-${item.id}`}>
-                  <button type="button" className="suggest-item" onClick={() => placeMap(item)}>
-                    <Icon name="map" size={16} style={{ color: 'var(--ink-muted)' }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong>{item.name}</strong>
-                      <span className="tiny muted" style={{ display: 'block' }}>
-                        Landkaart
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {otherMatches.cases.map((item) => (
-                <li key={`case-${item.id}`}>
-                  <button type="button" className="suggest-item" onClick={() => placeCase(item)}>
-                    <Icon name="folder" size={16} style={{ color: 'var(--ink-muted)' }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong>{item.name}</strong>
-                      <span className="tiny muted" style={{ display: 'block' }}>
-                        {capitalise(ui.words.case)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {otherMatches.timelines.map((item) => (
-                <li key={`timeline-${item.id}`}>
-                  <button type="button" className="suggest-item" onClick={() => placeTimeline(item)}>
-                    <Icon name="timeline" size={16} style={{ color: 'var(--ink-muted)' }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong>{item.name}</strong>
-                      <span className="tiny muted" style={{ display: 'block' }}>
-                        {capitalise(ui.words.timeline)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              <li>
-                <button
-                  type="button"
-                  className="suggest-item"
-                  onClick={() => {
-                    addCard({
-                      id: newCardId(),
-                      kind: 'note',
-                      name: search.trim(),
-                      text: '',
-                    });
-                    setSearch('');
-                    setSuggestions([]);
-                  }}
-                >
-                  <Icon name="plus" size={16} style={{ color: 'var(--stamp-red)' }} />
-                  <span>
-                    &lsquo;<strong>{search.trim()}</strong>&rsquo; als notitie toevoegen
-                  </span>
-                </button>
-              </li>
-            </ul>
-          )}
         </div>
 
         <button
@@ -2042,7 +2133,7 @@ export function BoardCanvas({
           if (!entry) return;
           event.preventDefault();
           const point = toBoard(event.clientX, event.clientY);
-          placeEntry(entry, point);
+          placeEntry(entry, { at: point });
         }}
       >
         {/* §33: the tekenlaag, under the cork's cards and strings. */}
@@ -2195,7 +2286,10 @@ export function BoardCanvas({
               }}
               onViewFull={() => {
                 if (dragMoved.current) return;
-                if (card.assetId) setLightbox({ assetId: card.assetId, name: card.name });
+                // §52: the live name, like the card's own title — the copy on
+                // the card is a fallback for what no longer resolves.
+                if (card.assetId)
+                  setLightbox({ assetId: card.assetId, name: subjectFor(card)?.name || card.name });
               }}
               canMakeEntry={!readOnly}
               onConvertToEntry={() =>
@@ -2388,6 +2482,37 @@ export function BoardCanvas({
           ))}
         </div>
 
+        {/*
+          §52: the picker a string was dropped into, at the spot it was dropped.
+          Outside `.board-world` on purpose — that layer carries the wall's
+          zoom, and a search box drawn at 40% is not a search box.
+        */}
+        {picker && !readOnly && (
+          <BoardPicker
+            variant="float"
+            style={{ left: picker.left, top: picker.top }}
+            cards={cards}
+            pickableMaps={pickableMaps}
+            pickableCases={pickableCases}
+            pickableTimelines={pickableTimelines}
+            pickableBoards={pickableBoards}
+            onPickEntry={(item) => {
+              const where = pickedHere();
+              void addEntryCard(item.id, item.name, where);
+            }}
+            onPickMap={(item) => placeMap(item, pickedHere())}
+            onPickCase={(item) => placeCase(item, pickedHere())}
+            onPickTimeline={(item) => placeTimeline(item, pickedHere())}
+            onPickBoard={(item) => placeBoard(item, pickedHere())}
+            onCreateNote={(noteName) => {
+              const where = pickedHere();
+              putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' }, where);
+            }}
+            onCreateEntry={(entryName) => startEntry(entryName, pickedHere())}
+            onCancel={() => setPicker(null)}
+          />
+        )}
+
         {inkActive && (
           <InkCapture
             tool={inkTool.tool}
@@ -2505,6 +2630,7 @@ export function BoardCanvas({
           onBorderChange={(border) => singleSelected && patchCard(singleSelected.id, { border })}
           onRename={(name) => singleSelected && patchCard(singleSelected.id, { name })}
           onOpenEntry={() => selectedSubject && router.push(selectedSubject.href)}
+          subjectName={selectedSubject?.name ?? null}
           onRemoveCards={() => removeCards(selectedCards.map((card) => card.id))}
           onClose={() => {
             setSelected(new Set());

@@ -131,6 +131,22 @@ export const FAMILIES = [
   ['Het huis Van Ostade', 'Utrechts geslacht met een tak op Walcheren die niemand op het eiland ooit heeft gezien.', { status: 'bloeiend', wapenspreuk: 'Wat men vertelt bewaren wij' }],
 ];
 
+/* ---------------------------------------------------------------- talen */
+
+export const TALEN = [
+  ['Walchers', 'Het dialect van het eiland. Wie het niet spreekt wordt beleefd te woord gestaan en verder niets verteld.', { moeilijkheidsgraad: 'eenvoudig', schrift: 'Zelden geschreven; wie het opschrijft spelt naar gehoor', staat: 'levend' }],
+  ['Hoogduits', 'De taal van de overkant, en sinds de Drift van de helft van de post die het eiland nog bereikt.', { moeilijkheidsgraad: 'eenvoudig', schrift: 'Fraktur, in alles van voor 1930', staat: 'levend' }],
+  ['Vlaams van de overkant', 'Wat er op de Wielingen gesproken werd toen daar nog heen en weer gevaren werd.', { moeilijkheidsgraad: 'eenvoudig', schrift: 'Zoals het Nederlands, met andere woorden ertussen', staat: 'stervend' }],
+  ['Kerklatijn', 'De taal van de abdij. Vier man op het eiland lezen het vlot en drie daarvan zijn dominee.', { moeilijkheidsgraad: 'te doen', schrift: 'Romeins, in de abdijboeken', staat: 'levend' }],
+  ['De baaktekens van het Sloe', 'Geen taal om te spreken: kerven en verf waarmee baakmeesters elkaar het vaarwater doorgeven.', { moeilijkheidsgraad: 'te doen', schrift: 'Kerven in hout, verf op tonnen', staat: 'stervend' }],
+  ['Middelnederlands', 'Het Nederlands van de kronieken. Leesbaar tot je bij de plaatsnamen komt die er niet meer zijn.', { moeilijkheidsgraad: 'lastig', schrift: 'Gotisch schrift op perkament', staat: 'alleen op schrift' }],
+  ['Koinè-Grieks', 'Van de universiteit meegebracht en op het eiland precies één keer nuttig gebleken.', { moeilijkheidsgraad: 'lastig', schrift: 'Grieks alfabet', staat: 'alleen op schrift' }],
+  ['Oud-Fries', 'De taal van de terpen. Wat ervan over is staat op steen, en de stenen staan scheef.', { moeilijkheidsgraad: 'zeer lastig', schrift: 'Runen, later Latijns schrift', staat: 'uitgestorven' }],
+  ['Het kreekschrift', 'Tekens die in natte klei worden getrokken en niet opdrogen. Niemand weet wie ze trekt.', { moeilijkheidsgraad: 'zeer lastig', schrift: 'In de klei, en het droogt niet uit', staat: 'alleen op schrift' }],
+  ['Aklo', 'De naam staat in drie boeken en verder nergens. Twee lezers komen zelden op dezelfde zin uit.', { moeilijkheidsgraad: 'vrijwel onleesbaar', schrift: 'Tekens die per lezer verschillen', staat: 'alleen op schrift' }],
+  ['De diepe spraak', 'Wat de vissers meenden te horen onder de kiel. Wie het naspreekt houdt er zelf mee op.', { moeilijkheidsgraad: 'vrijwel onleesbaar', schrift: 'Niet te schrijven; men heeft het geprobeerd', staat: 'levend' }],
+];
+
 /* ------------------------------------------------------------- relieken */
 
 export const RELIEKEN = [
@@ -351,6 +367,15 @@ export const ZINNEN = {
     { t: 'Volgens %A loopt er iets in de bloedlijn dat er niet in hoort.', a: 'lore' },
     { t: 'Er is in maart een %A op zolder gevonden die volgens de erfgenamen nooit van hen is geweest.', a: 'object' },
   ],
+  language: [
+    { t: 'Wordt op %A nog dagelijks gesproken, al wordt er weinig in opgeschreven.', a: 'location' },
+    { t: '%A geldt als de laatste op het eiland die het vlot leest.', a: 'character' },
+    { t: 'Staat op %A, in tekens die volgens de eerste opname korter waren.', a: 'object' },
+    { t: 'Wie %A wil begrijpen moet hier eerst doorheen.', a: 'lore' },
+    { t: '%A gebruikt het onderling, en niet in het openbaar.', a: 'faction' },
+    { t: 'Sinds %A is het aantal mensen dat het kan lezen met drie afgenomen.', a: 'event' },
+    { t: 'Wat %A voortbrengt lijkt erop, en is het volgens de kenners net niet.', a: 'abnormality' },
+  ],
   faction: [
     { t: 'Vergadert waar %A het zegt, en niet waar het in de notulen staat.', a: 'character' },
     { t: 'Sinds de Drift meer macht dan bevoegdheid, en dat verschil wordt kleiner.' },
@@ -433,6 +458,7 @@ export const OPENINGEN = {
   abnormality: ['Meermalen waargenomen, nooit verklaard.', 'Volgt een regelmaat die niemand kan benoemen.', 'Begint klein en houdt niet op.'],
   event: ['Wat er die dag gebeurde is grotendeels bekend.', 'De feiten zijn eenvoudig; de volgorde niet.', 'Één avond, en drie versies.'],
   lore: ['Zo vertelt men het op Walcheren.', 'Opgetekend uit de mond van ouderen.', 'Een oud verhaal, met een nieuwe bruikbaarheid.'],
+  language: ['Meer gelezen dan gesproken.', 'Op het eiland kent men er woorden van.', 'Wie het kan, zegt van niet.'],
   session: ['Verslag van de avond.', 'Kort verslag, want er is weinig van gekomen.', 'Uitgebreid verslag; het liep anders.'],
 };
 
@@ -449,5 +475,6 @@ export const TAGS = {
   abnormality: ['onverklaard', 'water', 'folklore', 'nacht'],
   event: ['1934', 'tijdlijn', 'getuigen'],
   lore: ['folklore', 'overlevering', 'kerk', 'vissers'],
+  language: ['taal', 'schrift', 'vertaling', 'walcheren', 'onleesbaar'],
   session: ['sessie', 'verslag'],
 };

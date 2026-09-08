@@ -25,7 +25,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
   ssr: false,
   loading: () => <div className="editor-body" aria-busy="true" />,
 });
-import { MentionText } from '@/components/ui/MentionPopover';
+import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { useIAmTheCase, useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
@@ -718,6 +718,9 @@ export function CaseDossier({
               }}
               onBlur={() => void flush()}
             />
+            {/* §54: the chips of the samenvatting, under the box and clickable
+                while it is being written. */}
+            <MentionRow text={summary} />
           </>
         )}
 

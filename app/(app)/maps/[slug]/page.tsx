@@ -166,14 +166,31 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
         />
       </div>
 
-      {/* The Keeper's tools are below the fold: a landkaart is looked at far
-          more often than it is re-hung. The empty div is where `MapCanvas`
-          puts the tekenlaag switch — it is a tool like the rest of them, and
-          inside the canvas column it was 132 px off the map on a telephone.
-          Both are Keeper-only, so a player's page is still nothing but the
-          canvas and does not scroll (`.page-canvas:last-child`). */}
-      {user?.isKeeper && <div id="map-underfold" />}
+      {/*
+       * The Keeper's tools are below the fold: a landkaart is looked at far
+       * more often than it is re-hung. They are Keeper-only, so a player's page
+       * is still nothing but the canvas and does not scroll
+       * (`.page-canvas:last-child`).
+       *
+       * §53 (round 27) put the three of them in **one** block, the way the
+       * artikel page's `.entry-manage` holds its own: one width, one top rule,
+       * one heading above the lot, and no per-block margins. Before, each of
+       * the three set its own top margin in its own way and at its own scale,
+       * and the last of them was 44 rem wide and centred while the two above it
+       * ran the full width of the page — three headings of equal weight, none
+       * of them saying what the group was.
+       *
+       * The empty div is where `MapCanvas` puts the tekenlaag switch: it is a
+       * tool like the rest of them, and inside the canvas column it was 132 px
+       * off the map on a telephone.
+       */}
       {user?.isKeeper && (
+        <section className="map-manage" aria-labelledby="map-manage-title">
+          <h2 id="map-manage-title" className="map-manage-title">
+            <Icon name="shield" size={15} />
+            Beheer van deze {words.map}
+          </h2>
+          <div id="map-underfold" />
         <MapKeeperTools
           map={map}
           ofEntry={
@@ -204,18 +221,16 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
             viewerId: user?.id ?? '',
           }}
         />
-      )}
-      {/*
-       * §44: the Keeper's corner, under the rest of their tools and below the
-       * fold with them — the switch to the other face of this landkaart, the
-       * "this map is mine" toggle, its touwtjes and the shared notes. A
-       * landkaart never had keeper notes before; it has the same ones as an
-       * artikel now, and a twin shares one text with its other face.
-       */}
-      {user?.isKeeper && (
-        <div className="keeper-underfold">
+          {/*
+           * §44: the Keeper's corner — the switch to the other face of this
+           * landkaart, the "this map is mine" toggle, its touwtjes and the
+           * shared notes. A landkaart never had keeper notes before; it has the
+           * same ones as an artikel now, and a twin shares one text with its
+           * other face. §53: inside the block with the rest of the tools, with
+           * no wrapper and no margin of its own.
+           */}
           <KeeperPanelServer kind="map" id={map.id} user={user} />
-        </div>
+        </section>
       )}
     </div>
   );

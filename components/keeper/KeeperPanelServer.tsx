@@ -61,6 +61,8 @@ export function KeeperPanelServer({
       id={id}
       keeperOnly={self.keeperOnly}
       twin={ties.twin?.other ?? null}
+      /* §53: the tie itself, not only where it goes — "Ontkoppelen" needs its id. */
+      twinTieId={ties.twin?.id ?? null}
       ropes={ties.ropes.map((tie) => ({ tieId: tie.id, other: tie.other }))}
       notes={readKeeperNotes(kind, id, user)}
       live={live}

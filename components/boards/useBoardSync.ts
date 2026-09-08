@@ -111,13 +111,15 @@ export function useBoardSync({
         maps: BoardRefs['maps'];
         cases: BoardRefs['cases'];
         timelines?: BoardRefs['timelines'];
+        // §52: absent from an older server, which is what the `?? {}` below is for.
+        boards?: BoardRefs['boards'];
       };
       setState('saved');
       // Applying the merge mid-drag, or on top of newer local edits, would
       // fight the pointer — so it only lands when the client is quiet and the
       // response still describes what we sent.
       if (!latest.current.paused && version.current === sentVersion) {
-        onMergedRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {} });
+        onMergedRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {}, boards: data.boards ?? {} });
       }
     } catch {
       // Put them back so they are retried rather than lost.

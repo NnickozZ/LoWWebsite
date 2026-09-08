@@ -2,7 +2,7 @@ import { apiError, json } from '@/lib/api';
 import { requireKeeper } from '@/lib/auth/session';
 import { isKeeperKind, type KeeperKind } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef } from '@/lib/keeper/side';
-import { addTie, removeTie, tiesFor } from '@/lib/keeper/ties';
+import { addTie, linkTwin, removeTie, tiesFor } from '@/lib/keeper/ties';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,10 +20,20 @@ type End = { kind: KeeperKind; id: string };
 export async function POST(request: Request) {
   try {
     const keeper = await requireKeeper();
-    const body = (await request.json()) as { self?: unknown; other?: unknown };
+    const body = (await request.json()) as { self?: unknown; other?: unknown; twin?: unknown };
     const self = end(body.self, keeper);
     const other = end(body.other, keeper);
     if (!self || !other) return json({ error: 'Niet gevonden.' }, { status: 404 });
+    /*
+     * §53: the same two ends, tied as a tweeling instead of a touwtje. Which
+     * of the two is the Keeper's is decided by `linkTwin` itself, because for
+     * a twin that is not a detail but the rule — a pair on one side is refused
+     * there in a sentence rather than falling through this line's `?:` into a
+     * message about touwtjes.
+     */
+    if (body.twin === true) {
+      return json({ ok: true, id: linkTwin(self, other, keeper.id), twin: true });
+    }
     const keeperEnd = isKeeperSide(self.kind, self.id) ? self : other;
     const playerEnd = keeperEnd === self ? other : self;
     const id = addTie(keeperEnd, playerEnd, keeper.id);

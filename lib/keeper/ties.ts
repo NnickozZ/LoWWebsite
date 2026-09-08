@@ -8,7 +8,7 @@ import { newId } from '@/lib/ids';
 import { createMap } from '@/lib/maps/service';
 import { createTimeline } from '@/lib/timelines/service';
 import { isKeeperKind, type KeeperKind, type KeeperRef } from './kinds';
-import { moveNotesToTwin } from './notes';
+import { mergeNotesIntoTwin, moveNotesToTwin } from './notes';
 import { isKeeperSide, keeperRef, setKeeperSide } from './side';
 
 /**
@@ -138,7 +138,7 @@ export function addTie(keeperEnd: TieEnd, playerEnd: TieEnd, keeperId: string, i
     }
   }
   const existing = db
-    .select({ id: schema.counterparts.id })
+    .select({ id: schema.counterparts.id, isTwin: schema.counterparts.isTwin })
     .from(schema.counterparts)
     .where(
       and(
@@ -149,7 +149,30 @@ export function addTie(keeperEnd: TieEnd, playerEnd: TieEnd, keeperId: string, i
       ),
     )
     .get();
-  if (existing) return existing.id;
+  if (existing) {
+    /*
+     * §53: a rope between this pair already exists. It used to be handed back
+     * as it stood, which meant "maak hier een tweeling van" on two things that
+     * were already roped did *nothing* and said it had worked. The pair is
+     * promoted instead — the guards above have already refused it if either
+     * end has another face, so this can only ever be the tie the Keeper asked
+     * for.
+     */
+    if (isTwin && !existing.isTwin) {
+      db.update(schema.counterparts)
+        .set({ isTwin: true })
+        .where(eq(schema.counterparts.id, existing.id))
+        .run();
+      logAudit({
+        actorId: keeperId,
+        action: 'keeper.twin_tied',
+        targetType: keeperEnd.kind,
+        targetId: keeperEnd.id,
+        meta: { to: `${playerEnd.kind}:${playerEnd.id}` },
+      });
+    }
+    return existing.id;
+  }
 
   const id = newId();
   db.insert(schema.counterparts)
@@ -184,6 +207,68 @@ export function removeTie(tieId: string, keeperId: string) {
     targetId: row.keeperId,
     meta: { to: `${row.playerKind}:${row.playerId}` },
   });
+}
+
+/* ------------------------------------------------- §53: linking a twin */
+
+/**
+ * §53: make a tweeling out of two pages that already exist.
+ *
+ * §44 could only ever *make* the second face (`createTwin`), which is the
+ * wrong door for the way the tool is actually used: a Keeper preps a Keeper
+ * page while the table writes the wiki article about the same thing, and the
+ * two meet later. This is that meeting. Nothing is created and nothing is
+ * copied — the pair simply becomes one thing with two faces, exactly the twin
+ * `createTwin` leaves behind.
+ *
+ * Three rules, refused here in Dutch rather than by an index in the dark:
+ *
+ *   1. **opposite sides.** A twin is the Keeper's face *of* a player-facing
+ *      thing; two pages on one side are not two faces of anything. Asked of
+ *      the records (`isKeeperSide`), never of the page the button was on.
+ *   2. **the same soort.** "De Keeperversie van dit ding" is the same kind of
+ *      ding — an artikel's other face is an artikel. A rope is what ties a
+ *      Keeper's dossier to a landkaart, and it has no such rule.
+ *   3. **one each.** Neither end may already have another face; `twinRow` is
+ *      stricter than the two partial unique indexes and answers first, so the
+ *      Keeper reads a sentence instead of a 500.
+ *
+ * The pair's notes become one text on the Keeper's side (`mergeNotesIntoTwin`)
+ * — the same place `createTwin` puts them, except that here both ends may
+ * already have written something, so nothing is thrown away.
+ */
+export function linkTwin(a: TieEnd, b: TieEnd, keeperId: string): string {
+  if (a.kind === b.kind && a.id === b.id) throw new Error('Iets kan niet aan zichzelf vastzitten.');
+  if (a.kind !== b.kind) throw new Error('Een tweeling is twee keer hetzelfde soort ding.');
+  const aKeeper = isKeeperSide(a.kind, a.id);
+  const bKeeper = isKeeperSide(b.kind, b.id);
+  if (aKeeper === bKeeper) {
+    throw new Error('Een tweeling is één pagina van de Keeper en één van de spelers.');
+  }
+  const keeperEnd = aKeeper ? a : b;
+  const playerEnd = aKeeper ? b : a;
+  if (twinRow(keeperEnd.kind, keeperEnd.id) || twinRow(playerEnd.kind, playerEnd.id)) {
+    throw new Error('Een van de twee heeft al een andere kant.');
+  }
+  /*
+   * A rope tied while the two stood on the *other* sides is the same rope with
+   * its ends the wrong way round, and `counterparts` keeps the Keeper's end in
+   * the Keeper column. It is cut here so the twin below can be written the
+   * right way round rather than becoming a second row about one pair.
+   */
+  db.delete(schema.counterparts)
+    .where(
+      and(
+        eq(schema.counterparts.keeperKind, playerEnd.kind),
+        eq(schema.counterparts.keeperId, playerEnd.id),
+        eq(schema.counterparts.playerKind, keeperEnd.kind),
+        eq(schema.counterparts.playerId, keeperEnd.id),
+      ),
+    )
+    .run();
+  const id = addTie(keeperEnd, playerEnd, keeperId, true);
+  mergeNotesIntoTwin(playerEnd, keeperEnd);
+  return id;
 }
 
 /* --------------------------------------------------------- making a twin */

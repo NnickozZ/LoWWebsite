@@ -60,7 +60,7 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   // -- a case note on one card ----------------------------------------------
   const card = page.locator('.card', { hasText: 'Pier Boone' }).first();
   await card.getByRole('button', { name: /Opties voor/ }).click();
-  await page.getByRole('button', { name: /dossiernotitie/i }).click();
+  await page.getByRole('menuitem', { name: /dossiernotitie/i }).click();
   await page.locator('textarea[placeholder="Waarom dit hier van belang is"]').fill('Keeps the second ledger.');
   await page.locator('textarea[placeholder="Waarom dit hier van belang is"]').blur();
   await expect(page.getByText('Keeps the second ledger.')).toBeVisible();

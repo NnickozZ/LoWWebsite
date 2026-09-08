@@ -109,6 +109,38 @@ export function writeKeeperNotes(kind: KeeperKind, id: string, text: string, kee
  * kept on the Keeper's side. Nothing is merged: the new face has no notes yet,
  * so there is nothing to merge with.
  */
+/**
+ * §53: the same move, for two pages that both already existed — and may
+ * therefore both already carry notes.
+ *
+ * `moveNotesToTwin` is written for a face that was made a second ago and is
+ * empty by construction; here the Keeper's page has usually been prepped for
+ * weeks. Nothing is thrown away and nothing is chosen between: the two texts
+ * are stacked, the Keeper's own first, with a line saying where the second one
+ * came from. A Keeper can delete a line; they cannot get back a paragraph the
+ * app decided to overwrite.
+ */
+export function mergeNotesIntoTwin(from: NotesTarget, to: NotesTarget) {
+  const incoming = rawNotes(from);
+  if (!incoming) return;
+  const standing = rawNotes(to);
+  if (!standing) {
+    moveNotesToTwin(from, to);
+    return;
+  }
+  const joined = `${standing}\n\n— van de andere kant —\n\n${incoming}`.slice(0, 20000);
+  db.insert(schema.keeperNotes)
+    .values({ kind: to.kind, targetId: to.id, text: joined })
+    .onConflictDoUpdate({
+      target: [schema.keeperNotes.kind, schema.keeperNotes.targetId],
+      set: { text: joined },
+    })
+    .run();
+  db.delete(schema.keeperNotes)
+    .where(and(eq(schema.keeperNotes.kind, from.kind), eq(schema.keeperNotes.targetId, from.id)))
+    .run();
+}
+
 export function moveNotesToTwin(from: NotesTarget, to: NotesTarget) {
   const text = rawNotes(from);
   if (!text) return;

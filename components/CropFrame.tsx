@@ -1,12 +1,15 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { assetUrl, coverClass, cropStyle } from '@/components/Cover';
 import { CENTRED, MAX_ZOOM, MIN_ZOOM, SHAPES, type Crop, type CropShape } from '@/lib/images/shapes';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
+
+/** §52: how long the wheel must be still before the crop is saved. */
+const COMMIT_WAIT = 300;
 
 /**
  * One frame you drag a picture around inside, for one *shape* (round 19):
@@ -34,6 +37,69 @@ export function CropFrame({
     null,
   );
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+
+  /*
+   * §52: the wheel, twice repaired.
+   *
+   * It was a React `onWheel`, and React attaches wheel listeners *passively*,
+   * so `preventDefault` inside one is a silent no-op: every notch zoomed the
+   * picture and scrolled the page out from under the frame at the same time.
+   * A real listener with `{ passive: false }` is the only thing a browser
+   * honours — the same shape `MapCanvas` has always used.
+   *
+   * And it saved on every notch. A wheel sends a dozen events for one gesture,
+   * so setting a crop wrote a dozen times. The zoom stays live on the screen
+   * (that is what a zoom is for) and the *saving* waits until the wheel has
+   * been still for a moment. `localRef` carries the newest crop into the
+   * timer without re-arming the listener on every frame, and a pending save is
+   * flushed if the frame is taken away before it fires — a crop set and
+   * immediately closed must not be the one that is lost.
+   */
+  const localRef = useRef<Crop>(local);
+  localRef.current = local;
+  const commitRef = useRef(onCommit);
+  commitRef.current = onCommit;
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const commitSoon = useCallback(() => {
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => {
+      commitTimer.current = null;
+      commitRef.current(localRef.current);
+    }, COMMIT_WAIT);
+  }, []);
+
+  const commitNow = useCallback((crop: Crop) => {
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    commitRef.current(crop);
+  }, []);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const current = localRef.current;
+      const next = clamp(current.zoom * (event.deltaY < 0 ? 1.08 : 0.93), MIN_ZOOM, MAX_ZOOM);
+      setLocal({ ...current, zoom: Number(next.toFixed(3)) });
+      commitSoon();
+    };
+    frame.addEventListener('wheel', onWheel, { passive: false });
+    return () => frame.removeEventListener('wheel', onWheel);
+  }, [commitSoon]);
+
+  useEffect(
+    () => () => {
+      if (!commitTimer.current) return;
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+      commitRef.current(localRef.current);
+    },
+    [],
+  );
 
   function onPointerDown(event: React.PointerEvent) {
     event.stopPropagation();
@@ -64,14 +130,7 @@ export function CropFrame({
   function onPointerUp() {
     if (!drag.current) return;
     drag.current = null;
-    onCommit(local);
-  }
-
-  function onWheel(event: React.WheelEvent) {
-    const next = clamp(local.zoom * (event.deltaY < 0 ? 1.08 : 0.93), MIN_ZOOM, MAX_ZOOM);
-    const crop = { ...local, zoom: Number(next.toFixed(3)) };
-    setLocal(crop);
-    onCommit(crop);
+    commitNow(local);
   }
 
   function onTouchMove(event: React.TouchEvent) {
@@ -90,7 +149,7 @@ export function CropFrame({
   function onTouchEnd() {
     if (!pinch.current) return;
     pinch.current = null;
-    onCommit(local);
+    commitNow(local);
   }
 
   return (
@@ -103,7 +162,6 @@ export function CropFrame({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onWheel={onWheel}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >

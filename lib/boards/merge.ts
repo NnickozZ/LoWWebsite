@@ -17,11 +17,17 @@ import { normaliseBorder } from '@/lib/borders.mjs';
  * them — and, like an entry card, they carry only an id. What is behind that
  * id is resolved per viewer, so a dossier somebody may not open comes back as
  * MISSING rather than as a name.
+ *
+ * §52: `board` joins them. A wall may point at another wall — the board of the
+ * night itself hanging on the board of the whole affair — and it is a card like
+ * the rest. A wall may not hold itself (the picker leaves this board out of its
+ * own list), but two walls pointing at each other is allowed and harmless: the
+ * web simply draws both ties.
  */
-export type CardKind = 'entry' | 'note' | 'photo' | 'pin' | 'map' | 'case' | 'timeline';
+export type CardKind = 'entry' | 'note' | 'photo' | 'pin' | 'map' | 'case' | 'timeline' | 'board';
 
 /** The card kinds that stand for a record elsewhere in the archive. */
-export const REFERENCE_KINDS = ['entry', 'map', 'case', 'timeline'] as const;
+export const REFERENCE_KINDS = ['entry', 'map', 'case', 'timeline', 'board'] as const;
 
 /** Index cards are all one size; a pin is a head and a tag. */
 export const CARD_SIZE = { width: 160, height: 250 } as const;
@@ -220,7 +226,13 @@ export function cardBox(card: Placed, base = intrinsicSize(card)): CardBox {
  */
 export function defaultShowImage(kind: CardKind, hasPicture?: boolean): boolean {
   if (kind === 'note' || kind === 'pin') return false;
-  if ((kind === 'entry' || kind === 'case' || kind === 'timeline') && hasPicture === false) return false;
+  // §52: a prikbord has no cover of its own, so it goes with the tijdlijn —
+  // the caller says `hasPicture === false` and the frame stays shut.
+  if (
+    (kind === 'entry' || kind === 'case' || kind === 'timeline' || kind === 'board') &&
+    hasPicture === false
+  )
+    return false;
   return true;
 }
 
@@ -230,12 +242,14 @@ export function defaultShowImage(kind: CardKind, hasPicture?: boolean): boolean 
  * page that builds the props — asks once instead of three times.
  */
 export function cardRef(
-  card: Pick<BoardCard, 'kind' | 'entryId' | 'mapId' | 'caseId' | 'timelineId'>,
-): { kind: 'entry' | 'map' | 'case' | 'timeline'; id: string } | null {
+  card: Pick<BoardCard, 'kind' | 'entryId' | 'mapId' | 'caseId' | 'timelineId' | 'boardId'>,
+): { kind: 'entry' | 'map' | 'case' | 'timeline' | 'board'; id: string } | null {
   if (card.kind === 'entry' && card.entryId) return { kind: 'entry', id: card.entryId };
   if (card.kind === 'map' && card.mapId) return { kind: 'map', id: card.mapId };
   if (card.kind === 'case' && card.caseId) return { kind: 'case', id: card.caseId };
   if (card.kind === 'timeline' && card.timelineId) return { kind: 'timeline', id: card.timelineId };
+  // §52: a wall on a wall.
+  if (card.kind === 'board' && card.boardId) return { kind: 'board', id: card.boardId };
   return null;
 }
 
@@ -265,6 +279,8 @@ export type BoardCard = {
   caseId?: string | null;
   /** Set for kind 'timeline' — the tijdlijn this card stands for (§32). */
   timelineId?: string | null;
+  /** Set for kind 'board' — the prikbord this card stands for (§52). */
+  boardId?: string | null;
   /**
    * A picture belonging to this card. Notes may gain one after the fact.
    *
@@ -561,13 +577,15 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
             card.kind === 'pin' ||
             card.kind === 'map' ||
             card.kind === 'case' ||
-            card.kind === 'timeline'
+            card.kind === 'timeline' ||
+            card.kind === 'board'
               ? card.kind
               : 'entry',
           entryId: card.entryId ?? null,
           mapId: card.mapId ?? null,
           caseId: card.caseId ?? null,
           timelineId: card.timelineId ?? null,
+          boardId: card.boardId ?? null,
           assetId: card.assetId ?? null,
           // Round 19: a `crop` saved on a card before this round is dropped
           // here, on read — the artikel's own crops are used everywhere.

@@ -1616,6 +1616,38 @@ details.section[open] > summary::before {
   padding: 0.4rem 0.6rem;
 }
 
+/*
+ * §52: the wall's picker. In the bar it is nothing but a box that lets its
+ * list hang under it (the list is positioned by the component, as it always
+ * was); dropped on the cork it is a small floating panel at the point the
+ * string was let go — above the cards, below nothing.
+ */
+.board-picker {
+  position: relative;
+}
+.board-picker-float {
+  position: absolute;
+  z-index: 40;
+  width: min(20rem, calc(100% - 1.5rem));
+  max-width: 20rem;
+  padding: 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.28);
+}
+.board-picker-float .input {
+  width: 100%;
+}
+/* The cork is clipped, so a long list would simply be cut off at the bottom
+   edge; it scrolls on its own instead — and the viewport's wheel blocker
+   leaves `.suggest-list` alone for exactly this. */
+.board-picker-float .suggest-list {
+  max-height: 15rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .board-viewport {
   position: relative;
   /*
@@ -1637,6 +1669,10 @@ details.section[open] > summary::before {
   height: calc(100dvh - 320px);
   min-height: 380px;
   touch-action: none;
+  /* §52: the wheel belongs to the wall. `BoardCanvas` refuses the event with a
+     non-passive listener (React's own is passive and cannot); this stops
+     whatever the pointer is over from passing the leftovers up the page. */
+  overscroll-behavior: contain;
   cursor: grab;
   /* A flat cork tile: one seamless 48px SVG of sparse specks, no gradients. */
   background-color: var(--cork);
@@ -2666,6 +2702,19 @@ details.section[open] > summary::before {
   box-shadow: 4px 4px 0 rgba(31, 27, 22, 0.18);
   padding: 0.25rem;
 }
+/*
+ * §53: the same menu, hung from the body instead of from its button.
+ *
+ * A menu inside a `.card` is cut off by that card's `overflow: hidden` (which
+ * is holding a zoomed cover crop in), and no `z-index` beats an overflow clip.
+ * So the kebab on a dossier's card portals its menu to the body and places it
+ * from the button's own rectangle — `position: fixed`, above `.cover-menu`'s
+ * own layer and below `.mention-pop`'s 60.
+ */
+.cover-menu-float {
+  position: fixed;
+  z-index: 50;
+}
 .cover-menu button {
   display: flex;
   align-items: center;
@@ -2729,6 +2778,11 @@ details.section[open] > summary::before {
   position: relative;
   cursor: grab;
   touch-action: none;
+  /* §52: the wheel zooms the picture and nothing else. `CropFrame` refuses the
+     event itself with a non-passive listener; this is the belt to that pair of
+     braces — a chain of scroll boxes above the frame must not be handed the
+     gesture either. */
+  overscroll-behavior: contain;
 }
 .crop-frame img {
   width: 100%;
@@ -3908,6 +3962,48 @@ details.section[open] > summary::before {
   color: var(--ink-muted);
   font-weight: 400;
   letter-spacing: 0;
+}
+
+/*
+ * §53: everything below the landkaart, as one block.
+ *
+ * The three things under the drawing — the tekenlaag switch, "Deze landkaart
+ * (Keeper)" and the Keeperkant — each set their own top margin, in three
+ * different ways and at three different scales, and the last of them was 44 rem
+ * wide and centred while the two above it ran the full width of an uncapped
+ * page. That misalignment, and three uppercase headings of equal weight with
+ * nothing above them saying what the group was, is what read as "gekke spacing
+ * en header same-ness".
+ *
+ * So: the artikel page's manage block (`.entry-manage`), which had solved this
+ * already. One wrapper with one width and one top rule, one heading at the
+ * level above the folds, and no margins inside — the `<details>` under it keep
+ * the manners they have everywhere else in the app, untouched.
+ */
+.map-manage {
+  max-width: 44rem;
+  margin: 2rem auto 0;
+  padding: 0.6rem 0.2rem 0;
+  border-top: 3px double var(--rule);
+}
+.map-manage-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.2rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+/* The tekenlaag switch is portalled in here by `MapCanvas` and brings its own
+   rule and margin — one line under a heading that already has one above it. */
+.map-manage .ink-keeper {
+  margin-top: 0.2rem;
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* ------------------------------------------------------------------ §19 maps */
@@ -5585,6 +5681,23 @@ details.section[open] > summary::before {
    links rather than buttons, so they need their own layout. */
 .keeper-switch {
   gap: 0.4rem;
+}
+/* §53: the switch and, under it, the picker that links the other face. One
+   column, because the picker is a search box with a list of pages to read and
+   not a thing to hang in a popover beside a button. */
+.keeper-switch-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.keeper-twin-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 30rem;
+}
+.keeper-twin-empty {
+  margin: 0.1rem 0 0;
 }
 .keeper-rope-anchor {
   position: relative;

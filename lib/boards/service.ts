@@ -403,6 +403,8 @@ export type BoardRefs = {
   maps: Record<string, BoardMapFacts>;
   cases: Record<string, BoardCaseFacts>;
   timelines: Record<string, BoardTimelineFacts>;
+  /** §52: the walls hanging on this wall. */
+  boards: Record<string, BoardBoardFacts>;
 };
 
 /**
@@ -503,6 +505,34 @@ export function resolveBoardTimelines(timelineIds: string[], viewer: Viewer): Ma
   for (const timeline of listTimelines(viewer)) {
     if (ids.includes(timeline.id)) {
       out.set(timeline.id, { id: timeline.id, slug: timeline.slug, name: timeline.name, scale: timeline.scale, missing: false });
+    }
+  }
+  return out;
+}
+
+/**
+ * §52: what a prikbord card shows. A wall has no slug and no cover, so this is
+ * the thinnest of the four — a name and whether it is still there.
+ *
+ * It goes through `listBoards`, which is the only reader that carries §17's
+ * view dial *and* the parent-dossier rule, so a wall behind a dossier this
+ * viewer may not open comes back MISSING rather than named. Resolving it with
+ * a select of its own would have quietly skipped both.
+ */
+export type BoardBoardFacts = {
+  id: string;
+  name: string;
+  caseName: string | null;
+  missing: boolean;
+};
+
+export function resolveBoardBoards(boardIds: string[], viewer: Viewer): Map<string, BoardBoardFacts> {
+  const out = new Map<string, BoardBoardFacts>();
+  const ids = [...new Set(boardIds.filter(Boolean))];
+  if (!ids.length) return out;
+  for (const board of listBoards(viewer)) {
+    if (ids.includes(board.id)) {
+      out.set(board.id, { id: board.id, name: board.name, caseName: board.caseName, missing: false });
     }
   }
   return out;

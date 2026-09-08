@@ -17,7 +17,7 @@ import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/ed
 import { LiveField, LiveFields } from '@/components/live/LiveFields';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { entryKey } from '@/lib/live/keys';
-import { MentionText } from '@/components/ui/MentionPopover';
+import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsWide } from '@/components/useIsPhone';
 
@@ -874,6 +874,12 @@ export function EntryView({
               }}
               onBlur={() => void flush()}
             />
+            {/* §54: the chips of the korte beschrijving, under the box and
+                clickable while it is being written. A textarea holds
+                characters, so a chip can never live inside one — the reading
+                face prints `MentionText` in the text itself, and this is the
+                editing face's answer to the same wish. */}
+            <MentionRow text={shortDescription} />
           </>
         )}
 

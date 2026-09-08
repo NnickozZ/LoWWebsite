@@ -712,7 +712,7 @@ component te staan. *Touwtje* is geen woord van de Keeper: dat staat vast.
 | **De andere kant blijft staan waar hij stond.** | achter die regel, als deze pagina een {Keeperversie} heeft | |
 | **{Keeperversie}** · **{Keeperversie} maken** | de knop bovenaan het blok, op een spelerspagina | De eerste springt naar de Keeperkant van dít ding; de tweede maakt hem. Naam en soort gaan mee, de tekst niet. |
 | **{Spelersversie}** | dezelfde knop, op een Keeperpagina | De weg terug naar de kant die de {spelers} zien. |
-| **Geen {spelersversie}** | dezelfde plek, op een Keeperpagina zonder tegenhanger | Een Keeperpagina hoeft er geen te hebben; er is geen knop om er een te maken. |
+| ~~**Geen {spelersversie}**~~ | *weg sinds §53* | Stond op een Keeperpagina zonder tegenhanger en deed niets. Er is nog steeds geen knop om er een te *maken*, maar er staat nu wel **Link met bestaande {spelersversie}** — zie ronde 27. |
 | **Touwtjes** · **Touwtjes (n)** | de kop in het blok, en het knopje bovenaan | Alles waar deze Keeperpagina over gáát: artikelen, dossiers, prikborden, landkaarten, tijdlijnen. Zoveel als je wilt, beide kanten op. |
 | **Waar deze pagina over gaat. Een touwtje is geen recht: wie de andere kant niet mag zien, krijgt hem ook hier niet te zien.** | onder die kop | De hele regel van §44 in één zin. |
 | **Nog geen touwtjes.** | als er geen zijn | |
@@ -915,3 +915,76 @@ En de knop die daarvoor nodig was, en die voor élk koppelingsveld geldt:
 | Op het scherm | Waar | Betekenis |
 |---|---|---|
 | **Alleen deze soorten mogen erin (leeg = alles)** | Beheer → Soorten, een rij chipjes onder een veld van het type *Koppeling* of *Koppelingen* | Waar dit vak op mag mikken. Meer dan één mag: *Leden* staat op drie soorten tegelijk. Laat je alles uit staan, dan mag alles erin. De eerste die je aanzet telt extra: de regel **‘…’ aanmaken** in het keuzelijstje maakt een {artikel} van díé soort. |
+
+## Ronde 27 — een {prikbord} op een {prikbord}, een {tweeling} die je linkt, chipjes onder het vak, en Talen (§52, §53, §54, §55)
+
+Geen nieuw hernoembaar woord. Eén nieuwe soort met zijn velden, en verder
+knoppen en zinnetjes op wat er al stond.
+
+### Een {prikbord} op een {prikbord}, en het touwtje in het niets (§52)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Zoek een {artikel}, landkaart, {dossier}, {prikbord} of {tijdlijn}…** | het zoekvak in de balk van een {prikbord} | Er staat sinds deze ronde ook {prikbord} in: een muur kan op een muur hangen. Dit {prikbord} zelf staat niet in zijn eigen lijst. |
+| **{Prikbord}** | het grijze labeltje op zo'n kaartje | Zegt waar het kaartje voor staat, zoals bij een {dossier} of een {tijdlijn}. Klikken opent die muur. |
+| *(hetzelfde zoekvak, zwevend)* | naast de plek waar je een {touwtje} in de lege kurk loslaat | Vraagt waar dit spoor naartoe wijst. De speld en het {touwtje} staan er al; wat je kiest wordt díé speld. Escape of ernaast klikken laat de speld gewoon staan — er gaat niets verloren. |
+| **‘…’ aanmaken** | alleen in dat zwevende vak, boven *‘…’ als {notitie} toevoegen* | Schrijft het {artikel} en hangt het meteen op. In de balk bovenaan staat deze regel niet: daar zou hij verschijnen vóór de zoekresultaten en zou je hem per ongeluk raken. |
+
+Twee dingen zonder eigen tekst:
+
+- **Een kaartje toont de naam van nu.** Hernoem je een {artikel}, dan verandert
+  het kaartje mee — ook in de inspector, in de titel van de vergroting en in de
+  alt-tekst van de foto. Alleen een kaartje dat zijn {artikel} kwijt is
+  (*Ontbreekt*) toont nog de naam van toen, want daar wordt *opnieuw aanmaken*
+  mee gevuld.
+- **Het wiel hoort bij de muur.** Scrollen boven de kurk zoomt en neemt de
+  pagina niet meer mee; zijwaarts vegen schuift de muur. Hetzelfde in het
+  bijsnijdvenster, waar de uitsnede nu pas na een korte stilte wordt opgeslagen
+  in plaats van bij elk klikje van het wiel. De laatjes, de inspector en de
+  keuzelijstjes scrollen wél gewoon.
+
+### Een {tweeling} maken van twee pagina's die er al zijn (§53)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Link met bestaande {keeperversie}** / **Link met bestaande {spelersversie}** | naast de schakelaar bovenaan, op een pagina die nog geen {tweeling} heeft — aan allebei de kanten | Twee pagina's die allebei al bestaan aan elkaar knopen. Er wordt niets gemaakt en niets gekopieerd. (Op de plek waar aan de {Keeperkant} vroeger het dode zinnetje *Geen spelersversie* stond.) |
+| **Zoek de {keeperversie} die al bestaat…** | het zoekvak dat daaronder opengaat | Toont alleen wat geknoopt mág worden: dezelfde soort, de andere kant, en nog vrij. |
+| **{Naam} de andere kant van deze pagina maken?** | de vraag daarna, met de knop **Koppelen** | Zegt wat er gebeurt: allebei de pagina's blijven staan, de knop bovenaan springt van nu af tussen de twee heen en weer, en de {Notities van de Keeper} van de twee worden één tekst aan de {Keeperkant}. |
+| **— van de andere kant —** | een regel middenin die samengevoegde tekst | Waar de tweede tekst begon. Er wordt niets weggegooid: de tekst van de {Keeper} staat boven, die van de andere kant eronder. |
+| **Ontkoppelen** | naast de schakelaar, zodra er een {tweeling} is | Knipt de band door. Allebei de pagina's blijven staan. |
+| **{Naam} loskoppelen van deze pagina?** | de vraag daarna | Zegt er meteen bij dat de samengevoegde {Notities van de Keeper} blijven staan waar ze nu staan — ze gaan niet terug. |
+| **Een tweeling is twee keer hetzelfde soort ding.** | melding | Je probeert bijvoorbeeld een {dossier} aan een {landkaart} te knopen. Dat is een {touwtje}, geen {tweeling}. |
+| **Een tweeling is één pagina van de {Keeper} en één van de {spelers}.** | melding | Allebei de pagina's staan aan dezelfde kant van het archief. Zet er eerst één over. |
+| **Een van de twee heeft al een andere kant.** | melding | Elke pagina heeft er hoogstens één. |
+
+En twee dingen die alleen anders staan dan eerst:
+
+- **Alles onder een {landkaart} staat in één blok**, met daarboven één kop:
+  **Beheer van deze {landkaart}** — zoals de artikelpagina dat al deed.
+- **Het `⋮`-menu op een kaartje in een {dossier} wordt niet meer afgeknipt** en
+  is breed genoeg voor *Dossiernotitie bewerken*. Klik ernaast of druk op
+  Escape om het te sluiten.
+
+### Chipjes onder het vak dat je typt (§54)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Verwijst naar** *(gevolgd door chipjes)* | onder elk plat tekstvak waar je een naam in zet: de korte beschrijving van een {artikel}, de samenvatting van een {dossier}, de velden *Tekst* en *Lange tekst* in een infobox, de vakken in de sheets die een {artikel}, een {dossier} of een {landkaart} maken, en de tekst van een kaartje op een {prikbord} | Wat je aan het schrijven bent verwijst naar deze {artikelen}. Klikbaar terwijl je typt. Er staat niets als geen enkele naam een {artikel} blijkt te zijn, en elk {artikel} staat er hoogstens één keer. |
+
+Dit stond al onder de speld- en de gebeurtenissheet; nu onder alle acht.
+
+### Talen (§55)
+
+Een nieuwe soort met zijn velden. Alles hernoembaar door de {Keeper} in
+Beheer → Soorten, zoals bij elke soort.
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Talen** | de wiki en het menu van de soorten | Een taal of een schrift als ding op zichzelf. Géén eigen tabblad in een {dossier}: een taal zoek je op. |
+| **Moeilijkheidsgraad** | veld op een taal | Keuze uit: *eenvoudig* · *te doen* · *lastig* · *zeer lastig* · *vrijwel onleesbaar*. Eén schaal voor spreken en lezen samen — op dit eiland lees je een taal net zo vaak van een steen. |
+| **Schrift** | veld op een taal | Waarin zij geschreven wordt. Eén regel tekst. |
+| **Staat** | veld op een taal | Keuze uit: *levend* · *stervend* · *uitgestorven* · *alleen op schrift*. |
+| **Waar gesproken** | veld op een taal | Wijst naar Locaties. Dit is ook het antwoord op "welke talen spreekt men hier?" — een locatie heeft zelf geen Talen-veld. |
+| **Verwant aan** | veld op een taal | Wijst naar andere Talen. |
+| **Talen** | veld op een persoon, een onderzoeker, een reliek, een abnormaliteit, een factie en een overlevering | Welke talen dit ding spreekt, draagt of waarin het geschreven staat. |
+| **Sprekers en geschriften** | een zelfvullende lijst op de pagina van een taal | Alles waarvan het veld *Talen* deze taal noemt — wie haar spreekt, en waar zij geschreven staat. Je vult de band dus maar aan één kant in. |

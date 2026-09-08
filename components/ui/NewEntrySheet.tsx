@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { useMayStartEntry } from '@/components/you/AuthorProvider';
-import { MentionPopover } from './MentionPopover';
+import { MentionPopover, MentionRow } from './MentionPopover';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
@@ -310,6 +310,10 @@ export function NewEntrySheet({
             and the first description somebody writes is exactly where they
             reach for one. */}
         <MentionPopover forRef={descriptionRef} />
+        {/* §54: and the chips of what was typed, under the box — a textarea
+            holds characters, so this is the only place a name in it can be
+            clicked while it is being written. */}
+        <MentionRow text={description} />
       </div>
 
       {/* §49: the one question left about the dossier. Not *whether* it goes in

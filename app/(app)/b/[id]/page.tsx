@@ -11,6 +11,8 @@ import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access
 import { getSessionUser } from '@/lib/auth/session';
 import {
   getBoard,
+  listBoards,
+  resolveBoardBoards,
   resolveBoardCases,
   resolveBoardEntries,
   resolveBoardMaps,
@@ -46,7 +48,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
 
   // Everything the wall points at, grouped by what kind of thing it is. Each
   // list is resolved behind its own visibility rule below.
-  const refs = { entry: [] as string[], map: [] as string[], case: [] as string[], timeline: [] as string[] };
+  const refs = { entry: [] as string[], map: [] as string[], case: [] as string[], timeline: [] as string[], board: [] as string[] };
   for (const card of board.state.cards) {
     const ref = cardRef(card);
     if (ref) refs[ref.kind].push(ref.id);
@@ -63,6 +65,11 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const pickableMaps = listMaps(user).map((map) => ({ id: map.id, name: map.name }));
   const pickableCases = listCases(user).map((item) => ({ id: item.id, name: item.name }));
   const pickableTimelines = listTimelines(user).map((item) => ({ id: item.id, name: item.name }));
+  // §52: the other walls. This one is left out of its own list — a wall that
+  // holds itself is a card pointing at the paper it is pinned to.
+  const pickableBoards = listBoards(user)
+    .filter((item) => item.id !== board.id)
+    .map((item) => ({ id: item.id, name: item.name }));
 
   // What this case already holds. Two things need it: the prompt that offers
   // to file a pinned entry, and the tray of everything in the case that is not
@@ -103,9 +110,11 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       initialMaps={Object.fromEntries(resolveBoardMaps(refs.map, user))}
       initialCases={Object.fromEntries(resolveBoardCases(refs.case, user))}
       initialTimelines={Object.fromEntries(resolveBoardTimelines(refs.timeline, user))}
+      initialBoards={Object.fromEntries(resolveBoardBoards(refs.board, user))}
       pickableMaps={pickableMaps}
       pickableCases={pickableCases}
       pickableTimelines={pickableTimelines}
+      pickableBoards={pickableBoards}
       readOnly={!mayEdit}
       initialInk={inkForViewer(getInk(board.id), user?.id ?? null)}
       access={{
