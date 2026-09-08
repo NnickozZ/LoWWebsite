@@ -266,9 +266,11 @@ export async function saveTypeAction(_prev: AdminState, formData: FormData): Pro
         icon: String(formData.get('icon') ?? ''),
         colour: String(formData.get('colour') ?? ''),
         border: String(formData.get('border') ?? ''),
-        // §24: a checkbox is absent from the body when it is off, so the empty
-        // string is the "no" — not a missing value.
-        caseOnly: Boolean(String(formData.get('caseOnly') ?? '')),
+        // §24/§49: a checkbox is absent from the body when it is off, so the
+        // empty string is the "no" — not a missing value. What it says now is
+        // the soort's habit ("standaard het dossier voor de naam"), not where
+        // the soort may be made: nothing gates that any more.
+        prefixDefault: Boolean(String(formData.get('prefixDefault') ?? '')),
         fields,
         blocks,
         pageText,

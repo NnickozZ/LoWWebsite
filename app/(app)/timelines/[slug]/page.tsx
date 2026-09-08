@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { inArray } from 'drizzle-orm';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
@@ -8,7 +8,7 @@ import { TimelineCanvas } from '@/components/timelines/TimelineCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { sideOf } from '@/lib/keeper/kinds';
-import { keeperRef } from '@/lib/keeper/side';
+import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
@@ -40,6 +40,14 @@ export default async function TimelinePage({
   const query = await searchParams;
   const timeline = getTimelineBySlug(slug, user);
   if (!timeline) notFound();
+
+  /*
+   * §50: the page decides where you stand. The query rides along — `?place=`
+   * is a gebeurtenis waiting to be made, and losing it would drop the thing
+   * the person came here to do.
+   */
+  const detour = sideDetour(user, isKeeperSide('timeline', timeline.id), `/timelines/${timeline.slug}${queryTail(query)}`);
+  if (detour) redirect(detour);
 
   const words = getWords();
   const events = listEvents(timeline.id, user);

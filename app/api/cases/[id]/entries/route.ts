@@ -9,6 +9,7 @@ import {
   removeEntryFromCase,
   setCaseEntryNote,
 } from '@/lib/cases/service';
+import { OTHER_SIDE, sameSide } from '@/lib/keeper/side';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,17 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!body.entryId) return json({ error: 'Geen artikel opgegeven.' }, { status: 400 });
     if (body.cropOnly) {
       return json({ error: 'Een dossier heeft geen eigen uitsnede meer; snij het artikel bij.' }, { status: 400 });
+    }
+
+    /*
+     * §50: the two ends of a filing must stand on the same side of the archive.
+     * The picker stopped offering the other side this round, but a picker is a
+     * courtesy — this is the rule. A note on a filing that already exists is
+     * left alone: only the *new* reference is refused, nothing stored is
+     * migrated or stripped.
+     */
+    if (!body.noteOnly && !sameSide('case', id, 'entry', body.entryId)) {
+      return json({ error: OTHER_SIDE }, { status: 400 });
     }
 
     if (body.noteOnly) setCaseEntryNote(id, body.entryId, body.note ?? '', user);

@@ -1,11 +1,11 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { boardKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { sideOf } from '@/lib/keeper/kinds';
-import { keeperRef } from '@/lib/keeper/side';
+import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
@@ -32,6 +32,13 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const board = getBoard(id, user);
   if (!board) notFound();
 
+  /*
+   * §50: the page decides where you stand. A prikbord has no query of its own
+   * to carry, so the address is just the wall.
+   */
+  const detour = sideDetour(user, isKeeperSide('board', board.id), `/b/${board.id}`);
+  if (detour) redirect(detour);
+
   // §17: may this viewer touch the wall, and may they turn its dials.
   const grant = user ? grantFor('board', board.id, user.id) : null;
   const mayEdit = canEdit(board, user, grant);
@@ -49,11 +56,13 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   // Both lists are already filtered for this viewer, and both are small enough
   // to hand over whole — a landkaart or a dossier is a thing you have a dozen
   // of, not a thousand.
-  // §46: `bothSides` on all three — these are pickers, and a card is pinned on
-  // a wall from either side of the archive.
-  const pickableMaps = listMaps(user, { bothSides: true }).map((map) => ({ id: map.id, name: map.name }));
-  const pickableCases = listCases(user, { bothSides: true }).map((item) => ({ id: item.id, name: item.name }));
-  const pickableTimelines = listTimelines(user, { bothSides: true }).map((item) => ({ id: item.id, name: item.name }));
+  // §50 (reverses §46's `bothSides` on all three): sided. After the wissel
+  // above the browser always stands on this wall's own side, so "the viewer's
+  // side" and "this prikbord's side" are one question — and a card pointing
+  // across the border is refused on the server anyway (`sameSide`).
+  const pickableMaps = listMaps(user).map((map) => ({ id: map.id, name: map.name }));
+  const pickableCases = listCases(user).map((item) => ({ id: item.id, name: item.name }));
+  const pickableTimelines = listTimelines(user).map((item) => ({ id: item.id, name: item.name }));
 
   // What this case already holds. Two things need it: the prompt that offers
   // to file a pinned entry, and the tray of everything in the case that is not

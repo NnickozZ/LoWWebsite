@@ -83,7 +83,7 @@ test('a landkaart fills the screen', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Landkaart ophangen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Landkaart ophangen' });
   await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer: await picture() });
-  await sheet.getByLabel('Naam').click();
+  await sheet.getByLabel('Naam', { exact: true }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type(`Volle kaart ${stamp}`);
   await sheet.getByLabel('Omschrijving').click();
@@ -117,7 +117,7 @@ test('a tijdlijn fills the screen', async ({ page }, info) => {
   await page.goto('/timelines');
   await page.getByRole('button', { name: /Nieuwe tijdlijn|Maak nieuwe tijdlijn/ }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Nieuwe tijdlijn' });
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByLabel('Dagen').check();
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');

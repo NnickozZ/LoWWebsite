@@ -23,6 +23,12 @@ import { useUi } from '@/components/ui/UiProvider';
  *   - this hand may not file anything here (`canEdit`, §17);
  *   - it has just been made *in* this dossier and was filed by the sheet that
  *     made it (the sheet says so with `filed`).
+ *
+ * §49: that third silence is now the whole of the "new artikel" case — a thing
+ * made in a dossier is always filed there, so `filed` always comes back true
+ * and there is nothing left to offer. The offer that remains is the one this
+ * hook was written for: a name typed in a dossier's text that was *already* an
+ * artikel somewhere else in the archive.
  */
 export function useMentionFiling(): (entry: { id: string; name: string }, filed?: boolean) => void {
   const ui = useUi();

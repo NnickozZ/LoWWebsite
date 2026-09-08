@@ -30,20 +30,14 @@ export type NewEntryPrefill = {
   typeSlug?: string;
   /**
    * §24: the dossier this is being made in, when it is. Set by the dossier's
-   * own add-box (and by a prikbord that hangs off one). Without it the sheet
-   * does not offer the soorten that only exist inside a dossier, and the server
-   * refuses one anyway.
+   * own add-box, by the `+`, the FAB and `n` on a dossier's page, and by the
+   * `@` in a dossier's own writing.
+   *
+   * §49: and it is not a question any more. Whatever road it came in by, an
+   * artikel made inside a dossier is filed in that dossier — the only thing the
+   * sheet still asks is whether the dossier's name goes in front of its own.
    */
   caseId?: string;
-  /**
-   * §48: the dossier is where this is being made, but filing it there is a
-   * question rather than a fact. Set by the `@` in a dossier's own writing —
-   * naming somebody in the werktheorie is not always putting them on a shelf.
-   * The dossier's own add-box and the `+` in the menu leave it off: those are
-   * the roads that mean "put this in here", and the tickbox is simply already
-   * ticked.
-   */
-  askToFile?: boolean;
   /** When set, the sheet hands the entry back instead of navigating to it. */
   onCreated?: (entry: CreatedEntry) => void;
 };
@@ -76,16 +70,15 @@ export function NewEntrySheet({
   onCreated: (entry: CreatedEntry) => void;
 }) {
   /**
-   * §24: which soorten this sheet may offer. Opened from a dossier, all of
-   * them; opened from anywhere else, only the ones that live in the wiki on
-   * their own. A voorwerp with no investigation behind it is a row nobody can
-   * explain, so it is not offered rather than offered and then refused.
+   * §49: every soort, everywhere. §24 kept Clues and Voorwerpen out of this
+   * list unless the sheet was opened in a dossier — a courtesy in front of a
+   * refusal on the server — and both are gone. A clue made in the wiki is an
+   * ordinary artikel with nothing in front of its name; if it was meant to
+   * belong to an investigation, the wiki says so with the "zonder dossier" chip
+   * until somebody files it.
    */
   const inCase = Boolean(prefill.caseId);
-  const types = useMemo(
-    () => (inCase ? allTypes : allTypes.filter((type) => !type.caseOnly)),
-    [allTypes, inCase],
-  );
+  const types = allTypes;
 
   const initialType = useMemo(() => {
     if (prefill.typeSlug && types.some((t) => t.slug === prefill.typeSlug)) return prefill.typeSlug;
@@ -114,24 +107,23 @@ export function NewEntrySheet({
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   /*
-   * §48: two questions this sheet never asked before.
+   * §49: the dossier is not a question any more — made in it is filed in it,
+   * and `caseId` always goes with the request. What the tickbox asks instead is
+   * whether the dossier's name is printed in front of this artikel's, which is
+   * the only thing §24 ever really did with it.
    *
-   * The first is the dossier: made *in* it and *filed* in it are one fact
-   * (§24's `originCaseId` follows the shelves), so the tickbox decides whether
-   * `caseId` is sent at all. A soort that exists only inside a dossier has no
-   * choice — there is no such thing as an unfiled voorwerp — so for those it is
-   * ticked and switched off, with the reason written under it.
+   * `null` means "nobody has touched it", so the answer follows the soort's own
+   * habit and keeps following it while the person tries another chip — a Clue
+   * arrives ticked, a persoon does not. One click anywhere in the box makes it
+   * theirs and the chips stop moving it.
    *
-   * The second is the side. Everything made here is born where the hand is
-   * standing (§48), and a Keeper may say otherwise — except inside a dossier
-   * that is the Keeper's own, where the answer is not theirs to give: a wall,
-   * a wire or a clue in a Keeper's dossier that the table can read is the leak
-   * this round was opened to close.
+   * §48, unchanged: the side. Everything made here is born where the hand is
+   * standing, and a Keeper may say otherwise — except inside a dossier that is
+   * the Keeper's own, where the answer is not theirs to give.
    */
-  const [file, setFile] = useState(!prefill.askToFile);
   const chosen = types.find((type) => type.slug === typeSlug);
-  const mustFile = Boolean(chosen?.caseOnly);
-  const filing = inCase && (mustFile || file);
+  const [prefixChoice, setPrefixChoice] = useState<boolean | null>(null);
+  const prefix = prefixChoice ?? Boolean(chosen?.prefixDefault);
   const sideLocked = Boolean(here?.keeperOnly);
   const [keeperSide, setKeeperSide] = useState(sideLocked || ui.side === 'keeper');
 
@@ -193,10 +185,12 @@ export function NewEntrySheet({
           typeSlug,
           name: name.trim(),
           shortDescription: description,
-          // §48: only when it is actually being filed there. The two are one
-          // fact, and an artikel wearing a dossier's name it is not in would
-          // be the wrong kind of half-truth.
-          caseId: filing ? prefill.caseId : undefined,
+          // §49: made here is filed here. Always, by every road in.
+          caseId: prefill.caseId,
+          // §49: and whether that dossier's name is printed in front of this
+          // one's. Only asked where there is a dossier to print — outside one
+          // the soort's own habit decides, on the server.
+          casePrefix: inCase ? prefix : undefined,
           // §48: which side it is born on. Ignored by the server for anyone
           // who is not a Keeper, and overruled by a Keeper-only dossier.
           keeperOnly: ui.isKeeper ? sideLocked || keeperSide : undefined,
@@ -318,21 +312,23 @@ export function NewEntrySheet({
         <MentionPopover forRef={descriptionRef} />
       </div>
 
+      {/* §49: the one question left about the dossier. Not *whether* it goes in
+          there — that is settled by being here — but whether every list in the
+          archive prints the dossier in front of its name. */}
       {inCase && (
         <label className="field row" style={{ gap: '0.5rem', alignItems: 'flex-start' }}>
           <input
             type="checkbox"
-            checked={filing}
-            disabled={mustFile}
-            onChange={(event) => setFile(event.target.checked)}
+            checked={prefix}
+            onChange={(event) => setPrefixChoice(event.target.checked)}
           />
           <span>
-            {`Opbergen in ${here?.name ?? `dit ${words.case}`}`}
-            {mustFile && (
-              <span className="tiny muted" style={{ display: 'block' }}>
-                {`${chosen?.label ?? 'Dit'} bestaat alleen binnen een ${words.case}.`}
-              </span>
-            )}
+            {here?.name
+              ? `Zet "${here.name}:" voor de naam`
+              : `Zet dit ${words.case} voor de naam`}
+            <span className="tiny muted" style={{ display: 'block' }}>
+              {`Alleen hoe het in lijsten heet. Het komt hoe dan ook in ${here?.name ?? `dit ${words.case}`} te liggen.`}
+            </span>
           </span>
         </label>
       )}

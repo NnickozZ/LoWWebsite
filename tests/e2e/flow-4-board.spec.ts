@@ -179,7 +179,7 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   // §22: opening a card lands on the artikel's reading face, where the name is
   // a heading. The name *box* is on the other one.
   await editArticle(page);
-  await expect(page.getByLabel('Naam')).toHaveValue(/Sister Clasina/);
+  await expect(page.getByLabel('Naam', { exact: true })).toHaveValue(/Sister Clasina/);
 });
 
 /**

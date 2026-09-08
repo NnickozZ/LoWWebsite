@@ -14,7 +14,7 @@ import { becomeInvestigator, editCase, inviteCode, signIn } from './helpers';
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();

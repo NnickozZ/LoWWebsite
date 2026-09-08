@@ -10,6 +10,7 @@ import {
   viewerCanEditTimeline,
   type NewEvent,
 } from '@/lib/timelines/service';
+import { OTHER_SIDE, sameSide } from '@/lib/keeper/side';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       body.kind === 'note'
         ? { kind: 'note', name: String((body as { name?: unknown }).name ?? ''), text, at, precision }
         : { kind: 'entry', entryId: String((body as { entryId?: unknown }).entryId ?? ''), text, at, precision };
+    /*
+     * §50: a gebeurtenis that points at an artikel points at it from this
+     * tijdlijn's own side of the archive. A note points at nothing, so it is
+     * never asked.
+     */
+    if (input.kind !== 'note' && !sameSide('timeline', id, 'entry', input.entryId)) {
+      return json({ error: OTHER_SIDE }, { status: 400 });
+    }
     return json({ event: addEvent(id, input, user) });
   } catch (err) {
     return apiError(err);

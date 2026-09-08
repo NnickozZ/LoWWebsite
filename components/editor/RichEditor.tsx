@@ -124,9 +124,10 @@ export function RichEditor({
         ui.openNewEntry({
           name,
           caseId: here?.id,
-          // §48: made from the writing, not from the add-box — so the filing
-          // is a question in the sheet rather than something that happened.
-          askToFile: Boolean(here),
+          // §49: made from the dossier's own writing is made *in* the dossier,
+          // and therefore filed in it — the sheet has no question about that
+          // left to ask. What it does ask is whether the dossier's name goes in
+          // front of the new artikel's.
           onCreated: (entry) => {
             settled = true;
             resolve({

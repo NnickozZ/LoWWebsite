@@ -111,6 +111,14 @@ export const WORD_GROUPS: WordGroup[] = [
         fallback: 'Keeperkant',
         hint: 'Zowel het stempel op zo’n pagina als de naam van de lijst in het menu.',
       },
+      // §50: de andere kant heeft ook een naam nodig — het bericht dat je van
+      // kant wisselt noemt ze allebei, en niets in de code mag zo'n woord
+      // hardcoderen.
+      {
+        key: 'playerSide',
+        what: 'De kant van het archief die de spelers zien',
+        fallback: 'spelerskant',
+      },
       {
         key: 'keeperVersion',
         what: 'De knop naar de Keeperversie van deze pagina',

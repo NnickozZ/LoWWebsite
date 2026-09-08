@@ -9,9 +9,11 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const user = await requireUser();
-    // §46: `bothSides`, because this list is a picker — "In het dossier"
-    // offers every dossier the reader may open, on either side of the archive.
-    return json({ cases: listCases(user, { bothSides: true }) });
+    // §50 (reverses §46's `bothSides` here): sided. Since the wissel, the
+    // browser always stands on the side of the page that is asking, so a
+    // picker offering "this side" offers exactly what may be attached — and a
+    // reference across the border is refused on the server anyway (`sameSide`).
+    return json({ cases: listCases(user) });
   } catch (err) {
     return apiError(err);
   }

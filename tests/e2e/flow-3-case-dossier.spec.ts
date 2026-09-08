@@ -19,7 +19,7 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   await page.getByRole('button', { name: 'Dossier openen' }).click();
 
   const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await sheet.getByLabel('Naam').fill(caseName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(caseName);
   await sheet.getByLabel('Samenvatting').fill('Which ledger is the real one, and who reads it?');
   await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
 
@@ -46,7 +46,7 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
   await page.locator('.suggest-item').filter({ hasText: 'aanmaken' }).first().click();
 
   const entrySheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await expect(entrySheet.getByLabel('Naam')).toHaveValue(newEntryName);
+  await expect(entrySheet.getByLabel('Naam', { exact: true })).toHaveValue(newEntryName);
   await entrySheet.getByRole('button', { name: 'Aanmaken' }).click();
   await expect(entrySheet).toBeHidden();
 
@@ -85,7 +85,7 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
 
   await outsider.goto('/signup');
   await outsider.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await outsider.getByLabel('Naam').fill(outsiderName);
+  await outsider.getByLabel('Naam', { exact: true }).fill(outsiderName);
   await outsider.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await outsider.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await outsider.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -130,7 +130,7 @@ test('a new artikel can be made from the dossier overview', async ({ page, brows
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const openSheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await openSheet.getByLabel('Naam').fill(caseName);
+  await openSheet.getByLabel('Naam', { exact: true }).fill(caseName);
   await openSheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
   const caseUrl = new URL(page.url()).pathname;
@@ -155,7 +155,7 @@ test('a new artikel can be made from the dossier overview', async ({ page, brows
   await makeButton.click();
   const entrySheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(entrySheet).toBeVisible();
-  await entrySheet.getByLabel('Naam').fill(entryName);
+  await entrySheet.getByLabel('Naam', { exact: true }).fill(entryName);
   await entrySheet.getByRole('button', { name: 'Aanmaken' }).click();
 
   // …and, with no `onCreated` to keep it here, it lands on the new artikel —

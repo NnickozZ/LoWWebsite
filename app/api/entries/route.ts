@@ -27,6 +27,11 @@ export async function POST(request: Request) {
       /** §24: the dossier this is being made in, when it is. */
       caseId?: string;
       /**
+       * §49: does it wear that dossier's name in front of its own? The sheet's
+       * tickbox; absent means "whatever this soort's habit is" (`prefixDefault`).
+       */
+      casePrefix?: boolean;
+      /**
        * §48: which side it is born on. Only a Keeper is heard; and a soort
        * made inside a Keeper-only dossier is the Keeper's whatever this says.
        */
@@ -40,12 +45,12 @@ export async function POST(request: Request) {
     if (!type) return json({ error: 'Onbekende soort artikel.' }, { status: 400 });
 
     /*
-     * §24: a soort that only exists inside a dossier needs one, and needs one
-     * this person may actually write in. Checked here and not only in the sheet:
-     * the sheet leaves those soorten out, which is a courtesy, and this is the
-     * rule. `originCaseId` is the dossier it was *made in* — it is also filed
-     * there straight away, which is what the dossier's own add-box would have
-     * done a moment later anyway.
+     * §24/§49: a dossier is no longer required by any soort — it is required to
+     * be one this person may actually write in. `originCaseId` is the dossier it
+     * was *made in*, and since §49 that is not a question the sheet asks: made
+     * in a dossier is filed in it, full stop. What the sheet does ask is whether
+     * the dossier's name goes in front of the artikel's, which is `casePrefix`
+     * and is only about the printing.
      */
     let originCaseId: string | null = null;
     if (body.caseId) {
@@ -58,10 +63,6 @@ export async function POST(request: Request) {
       }
       originCaseId = parent.id;
     }
-    if (type.caseOnly && !originCaseId) {
-      return json({ error: `${type.label} maak je in een dossier.` }, { status: 400 });
-    }
-
     const entry = createEntry({
       typeSlug,
       name: body.name,
@@ -71,6 +72,8 @@ export async function POST(request: Request) {
       // §18b: made *as* somebody — recorded on the artikel's first revision.
       characterId: user.characterId,
       originCaseId,
+      // §49: the tickbox, or the soort's own habit when the caller says nothing.
+      casePrefix: typeof body.casePrefix === 'boolean' ? body.casePrefix : undefined,
     });
 
     /*
@@ -89,9 +92,9 @@ export async function POST(request: Request) {
     /*
      * §48: `filed` is what the sheet tells the text it came from — an artikel
      * that is already on the dossier's shelves must not then be *asked* about.
-     * A dossier reaches this route only when the person meant it to be filed
-     * there: the sheet leaves `caseId` out when the box is unticked, so "made
-     * in it" and "filed in it" stay the same fact (§24).
+     * §49: and it is now always true when there was a dossier at all, because
+     * "made in it" *is* "filed in it" — the sheet has no tickbox for that any
+     * more, only for whether the dossier's name is printed.
      */
     return json({
       entry: { ...entry, visibility: keeperOnly ? 'keeper' : entry.visibility },

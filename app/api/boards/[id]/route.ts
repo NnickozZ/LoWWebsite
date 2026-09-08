@@ -8,6 +8,7 @@ import { resolveBoardCases, resolveBoardEntries, resolveBoardMaps, resolveBoardT
 import { publishChange } from '@/lib/boards/live';
 import { deletedAtOfCase } from '@/lib/cases/service';
 import { cardRef, type BoardPatch, type BoardState } from '@/lib/boards/merge';
+import { OTHER_SIDE, sameSide } from '@/lib/keeper/side';
 import type { Viewer } from '@/lib/entries/visibility';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +69,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
     const { id } = await ctx.params;
-    if (!getBoard(id, user)) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
+    const before = getBoard(id, user);
+    if (!before) return json({ error: 'Prikbord niet gevonden.' }, { status: 404 });
     // §17: a board without edit rights is a wall to look at. No proposal
     // queue here — there is nothing sensible to propose about a card's x and y.
     if (!viewerCanEdit('board', id, user)) {
@@ -76,6 +78,26 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     }
 
     const patch = (await request.json()) as BoardPatch & { clientId?: string };
+    /*
+     * §50: a card standing for a record may not reach across the border. Only
+     * cards whose reference is *new* to this wall are asked: an autosave sends
+     * everything the browser knows, so checking them all would refuse every
+     * save of a wall that has held a crossing card since before this round.
+     * Nothing stored is migrated or stripped — only the new reference is
+     * refused, and the wall's own side is what it is measured against.
+     */
+    if (patch.cards?.length) {
+      const known = new Set(
+        before.state.cards.map(cardRef).filter(Boolean).map((ref) => `${ref!.kind}:${ref!.id}`),
+      );
+      for (const card of patch.cards) {
+        const ref = cardRef(card);
+        if (!ref || known.has(`${ref.kind}:${ref.id}`)) continue;
+        if (!sameSide('board', id, ref.kind, ref.id)) {
+          return json({ error: OTHER_SIDE }, { status: 400 });
+        }
+      }
+    }
     const state = saveBoard(id, patch, user);
 
     // Everyone else on the wall is told after the merge is written, so a client

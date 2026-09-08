@@ -27,7 +27,7 @@ async function openNewEntry(page: Page) {
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -93,13 +93,13 @@ test('wiki: "van mij" is the account, and a player sees only what they may', asy
   const other = await otherCtx.newPage();
   await signUpAs(other, `Schrijver ${stamp}`);
   const sheet = await openNewEntry(other);
-  await sheet.getByLabel('Naam').fill(`Van de speler ${stamp}`);
+  await sheet.getByLabel('Naam', { exact: true }).fill(`Van de speler ${stamp}`);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await other.waitForURL('**/e/**');
 
   await signIn(page, 'Keeper', 'abbeytower34');
   const mine = await openNewEntry(page);
-  await mine.getByLabel('Naam').fill(`Van de Keeper ${stamp}`);
+  await mine.getByLabel('Naam', { exact: true }).fill(`Van de Keeper ${stamp}`);
   await mine.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
 

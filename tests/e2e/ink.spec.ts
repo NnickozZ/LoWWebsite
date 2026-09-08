@@ -296,7 +296,7 @@ test('a landkaart takes ink under its spelden and keeps it', async ({ page }) =>
   await page.getByRole('button', { name: 'Landkaart ophangen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Landkaart ophangen' });
   await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer });
-  await sheet.getByLabel('Naam').click();
+  await sheet.getByLabel('Naam', { exact: true }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type(`Inktkaart ${Date.now().toString(36)}`);
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
@@ -335,7 +335,7 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
   await page.goto('/timelines');
   await page.getByRole('button', { name: /Nieuwe tijdlijn|Maak nieuwe tijdlijn/ }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Nieuwe tijdlijn' });
-  await sheet.getByLabel('Naam').fill(`Inktlijn ${Date.now().toString(36)}`);
+  await sheet.getByLabel('Naam', { exact: true }).fill(`Inktlijn ${Date.now().toString(36)}`);
   await sheet.getByLabel('Dagen').check();
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');
@@ -398,7 +398,7 @@ test('a gum on a tijdlijn stays over what it took away when the axis is zoomed',
   await page.goto('/timelines');
   await page.getByRole('button', { name: /Nieuwe tijdlijn|Maak nieuwe tijdlijn/ }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Nieuwe tijdlijn' });
-  await sheet.getByLabel('Naam').fill(`Gumlijn ${Date.now().toString(36)}`);
+  await sheet.getByLabel('Naam', { exact: true }).fill(`Gumlijn ${Date.now().toString(36)}`);
   await sheet.getByLabel('Dagen').check();
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');

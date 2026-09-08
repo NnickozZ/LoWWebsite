@@ -219,13 +219,21 @@ export function EntryView({
    * for this viewer on the server (null when there is none, or when it is one
    * they may not be told about); `pinned` is whether a person chose it rather
    * than it following the filing on its own; `offer` is whether the question
-   * means anything for this soort at all — a persoon in the wiki gets no
-   * dossier line, a clue does.
+   * means anything here at all — an artikel in no dossier, that is not asking
+   * for one, gets no line.
+   *
+   * §49: `prefix` is the tickbox — does every list print that dossier in front
+   * of this artikel's name — and `cases` are the dossiers it is filed in, each
+   * with whether this hand may take it out of that one. The list is here rather
+   * than reused from the "In: …" chips because those are a reader's chips and
+   * these carry a right per row.
    */
   origin: {
     case: OriginCaseLite | null;
     pinned: boolean;
+    prefix: boolean;
     offer: boolean;
+    cases: OriginCaseLite[];
   };
   /**
    * §20: the shared text, handed over in the page. `state` is the Yjs document
@@ -806,7 +814,8 @@ export function EntryView({
             entryId={entry.id}
             origin={origin.case}
             pinned={origin.pinned}
-            cases={cases.map((item) => ({ id: item.id, slug: item.slug, name: item.name }))}
+            prefix={origin.prefix}
+            cases={origin.cases}
             canEdit={access.canEdit}
             reading={reading}
           />

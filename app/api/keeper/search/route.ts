@@ -35,7 +35,9 @@ export async function GET(request: Request) {
     const needle = q.toLowerCase();
 
     const candidates: { kind: KeeperKind; id: string }[] = [];
-    for (const entry of suggestEntries(keeper, q, { limit: PER_KIND })) {
+    // §50: `bothSides` — `suggestEntries` is sided everywhere else now; this
+    // one picker is the §44 bridge and keeps offering the whole archive.
+    for (const entry of suggestEntries(keeper, q, { limit: PER_KIND, bothSides: true })) {
       candidates.push({ kind: 'entry', id: entry.id });
     }
     const named = <T extends { id: string; name: string }>(rows: T[]) =>

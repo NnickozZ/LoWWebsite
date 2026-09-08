@@ -29,7 +29,7 @@ const KEEPER = ['Keeper', 'abbeytower34'] as const;
 async function newCase(page: Page, name: string): Promise<string> {
   await page.getByRole('button', { name: 'Dossier openen' }).first().click();
   const sheet = page.getByRole('dialog');
-  await fillWhenReady(sheet.getByLabel('Naam'), name);
+  await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
   await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**', { timeout: 20_000 });
   return page.url();
@@ -51,7 +51,7 @@ test.describe('§48 geboren op een kant', () => {
     const sheet = page.getByRole('dialog');
     await expect(sheet.getByTestId('side-choice')).toBeVisible();
     await expect(sheet.getByTestId('side-choice').locator('input')).toBeChecked();
-    await fillWhenReady(sheet.getByLabel('Naam'), `Keeperzaak ${stamp}`);
+    await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), `Keeperzaak ${stamp}`);
     await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
     await page.waitForURL('**/c/**', { timeout: 20_000 });
 
@@ -99,7 +99,7 @@ test.describe('§48 @ in een beschrijving', () => {
 
     await newEntryButton(page).click();
     const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-    await fillWhenReady(sheet.getByLabel('Naam'), `De duiker ${stamp}`);
+    await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), `De duiker ${stamp}`);
     await sheet.getByRole('button', { name: 'Aanmaken' }).click();
     await page.waitForURL('**/e/**', { timeout: 20_000 });
     await expect(page.locator('#entry-name')).toHaveValue(`De duiker ${stamp}`);
@@ -139,8 +139,7 @@ test.describe('§48 in een dossier', () => {
     await expect(page.locator('#case-name')).toHaveValue(`Zaak ${stamp}`);
 
     /*
-     * §24 + §48: a Voorwerp exists only inside a dossier, so the sheet offers
-     * it only when it knows it is in one. Until this round the `+` in the menu
+     * §48: the `+` in the menu knows it is in a dossier. Until round 25 it
      * never did — the only road was the box under the tabs.
      */
     await newEntryButton(page).click();
@@ -148,12 +147,15 @@ test.describe('§48 in een dossier', () => {
     await expect(sheet.getByRole('radio', { name: 'Voorwerpen', exact: true })).toBeVisible({
       timeout: 20_000,
     });
-    // And it says where it is going, in a box that cannot be unticked for a
-    // soort that has nowhere else to live.
+    /*
+     * §49: made here is filed here — there is no tickbox for that any more. The
+     * tickbox asks about the *name*, and it starts ticked for a Voorwerp
+     * because that is the soort's habit.
+     */
     await sheet.getByRole('radio', { name: 'Voorwerpen', exact: true }).click();
-    const filing = sheet.getByRole('checkbox', { name: new RegExp(`Opbergen in Zaak ${stamp}`) });
-    await expect(filing).toBeChecked();
-    await expect(filing).toBeDisabled();
+    const prefix = sheet.getByRole('checkbox', { name: new RegExp(`Zet "Zaak ${stamp}:"`) });
+    await expect(prefix).toBeChecked();
+    await expect(prefix).toBeEnabled();
     await sheet.getByRole('button', { name: 'Sluiten' }).click();
 
     /*

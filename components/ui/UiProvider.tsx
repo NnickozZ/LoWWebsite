@@ -45,11 +45,11 @@ export type EntryTypeLite = {
   /** §11: what this soort's own "Nieuw" button says, if it was given one. */
   newButton?: string;
   /**
-   * §24: this soort is only made inside a dossier. The "Nieuw artikel" sheet
-   * leaves it out unless it was opened from one, and the wiki's own new button
-   * is gone for it — a voorwerp or a clue is found during an investigation.
+   * §49: this soort's habit. A new artikel of it, made inside a dossier, starts
+   * with "dossier voor de naam" already ticked — which is all that is left of
+   * §24's "alleen in een dossier": every soort is offered everywhere now.
    */
-  caseOnly?: boolean;
+  prefixDefault?: boolean;
 };
 
 type Toast = {

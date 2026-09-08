@@ -33,7 +33,7 @@ async function openCaseSection(page: Page, label: string, isPhone: boolean) {
 async function newTimeline(page: Page, name: string, scaleLabel = 'Dagen') {
   await page.getByRole('button', { name: /Nieuwe tijdlijn|Maak nieuwe tijdlijn/ }).first().click();
   const sheet = page.getByRole('dialog', { name: 'Nieuwe tijdlijn' });
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('radio', { name: scaleLabel, exact: true }).check();
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');
@@ -201,7 +201,7 @@ test('a private tijdlijn is nobody else\'s, and the bin gives one back', async (
   await page.goto('/timelines');
   await page.getByRole('button', { name: 'Nieuwe tijdlijn' }).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuwe tijdlijn' });
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Privé tijdlijn' }).click();
   await page.waitForURL('**/timelines/**');
   const url = page.url();

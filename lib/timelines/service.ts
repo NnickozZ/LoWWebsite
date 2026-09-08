@@ -231,13 +231,14 @@ export function listTimelines(viewer: Viewer, options: TimelineListOptions = {})
 /** The tijdlijnen inside a dossier that this viewer may open. */
 export function listTimelinesForCase(caseId: string, viewer: Viewer): TimelineSummary[] {
   /*
-   * §46: `bothSides` on purpose. This is not a browsable list but one dossier's
-   * own contents, read from that dossier's page — and a page is reached from
-   * either side. A player-facing tijdlijn inside a dossier the Keeper has taken
-   * to their own side must still be on it, exactly as `listBoardsForCase` (which
-   * never went through `listBoards`) has always shown its prikborden.
+   * §46 opted this out of the side filter, because a dossier's page is reached
+   * from either side. §50 removed that reason: the dossier's page now turns the
+   * reader over to its own side before it renders, so reading this dossier's
+   * tijdlijnen "from the side the reader stands on" is reading them from the
+   * dossier's own side. §48 already keeps the two in step — a dossier taken to
+   * the Keeper's side takes its tijdlijnen with it.
    */
-  return listTimelines(viewer, { where: caseId, bothSides: true });
+  return listTimelines(viewer, { where: caseId });
 }
 
 function asScale(value: unknown): Scale {

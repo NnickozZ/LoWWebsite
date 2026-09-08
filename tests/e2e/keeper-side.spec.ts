@@ -37,7 +37,7 @@ async function newArticle(page: Page, name: string): Promise<string> {
   await newEntryButton(page).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: 'Locaties', exact: true }).click();
-  await fillWhenReady(sheet.getByLabel('Naam'), name);
+  await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   // §6: standing on an artikel already satisfies `**/e/**`, so wait for the
   // address to *change* rather than for the shape of it.

@@ -199,8 +199,13 @@ export function MentionPopover({
   /*
    * §48: make it, then write it into the box. The sheet is the only door
    * (§18b), so the rights check and the onderzoeker question come with it; the
-   * dossier is handed in as the place it is being made, and `askToFile` makes
-   * the filing a tickbox rather than something that silently happened.
+   * dossier is handed in as the place it is being made.
+   *
+   * §49: and that now means filed there, full stop — a name typed into a
+   * dossier's own writing that turns into a new artikel belongs to that
+   * investigation. The sheet's tickbox asks about the *name*, not the filing;
+   * the round-25 offer below (`linkedRef`) is still there for a name that was
+   * already an artikel, which is the case it was written for.
    */
   const typed = open?.query.trim() ?? '';
   const start = open?.start ?? 0;
@@ -211,7 +216,6 @@ export function MentionPopover({
     ui.openNewEntry({
       name,
       caseId: here?.id,
-      askToFile: Boolean(here),
       onCreated: (entry) => {
         const caret = Math.max(start, Math.min(el.value.length, el.selectionStart ?? el.value.length));
         replaceRange(el, start, caret, `[[${entry.name}]] `);

@@ -19,9 +19,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    // §46: `bothSides`, because this list is a picker — "Op het prikbord"
-    // offers every wall the reader may open, on either side of the archive.
-    const boards = listBoards(user, { bothSides: true });
+    // §50 (reverses §46's `bothSides` here): sided. Since the wissel, the
+    // browser always stands on the side of the page that is asking, so a
+    // picker offering "this side" offers exactly what may be attached — and a
+    // reference across the border is refused on the server anyway (`sameSide`).
+    const boards = listBoards(user);
 
     const forEntry = new URL(request.url).searchParams.get('forEntry');
     if (!forEntry) return json({ boards });

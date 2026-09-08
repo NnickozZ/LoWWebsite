@@ -23,7 +23,7 @@ test('a case crops a cover for itself without touching the entry', async ({ page
   await page.goto('/wiki/character');
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await sheet.getByLabel('Naam').fill(entryName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(entryName);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
 
@@ -37,7 +37,7 @@ test('a case crops a cover for itself without touching the entry', async ({ page
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const caseSheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await caseSheet.getByLabel('Naam').fill(caseName);
+  await caseSheet.getByLabel('Naam', { exact: true }).fill(caseName);
   await caseSheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
   const caseUrl = new URL(page.url()).pathname;
@@ -103,7 +103,7 @@ test('a case file can carry a picture of its own', async ({ page }, testInfo) =>
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await sheet.getByLabel('Naam').fill(caseName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(caseName);
   await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
 

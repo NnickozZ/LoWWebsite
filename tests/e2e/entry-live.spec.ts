@@ -13,7 +13,7 @@ import { becomeInvestigator, editArticle, inviteCode, signIn } from './helpers';
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -38,7 +38,7 @@ async function newEntry(page: Page, name: string): Promise<string> {
     await page.keyboard.press('n');
     await page.waitForTimeout(400);
   }
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   return new URL(page.url()).pathname;
@@ -97,9 +97,9 @@ test('what one person types, the other sees as it is typed — and it is saved',
 
   // The rest of the record follows too: a rename on one screen lands on the
   // other without touching what is being typed there.
-  await page.getByLabel('Naam').fill(`Logboek ${stamp} (herzien)`);
-  await page.getByLabel('Naam').blur();
-  await expect(other.getByLabel('Naam')).toHaveValue(`Logboek ${stamp} (herzien)`, { timeout: 10_000 });
+  await page.getByLabel('Naam', { exact: true }).fill(`Logboek ${stamp} (herzien)`);
+  await page.getByLabel('Naam', { exact: true }).blur();
+  await expect(other.getByLabel('Naam', { exact: true })).toHaveValue(`Logboek ${stamp} (herzien)`, { timeout: 10_000 });
 
   await otherCtx.close();
 });

@@ -5,7 +5,9 @@ import { useUi } from '@/components/ui/UiProvider';
 /**
  * §24: "Zonder dossier".
  *
- * A `case_only` artikel that has ended up in no dossier at all prints its plain
+ * §49: an artikel whose own tickbox says it wears a dossier's name (it used to
+ * be its soort that said so) and that has ended up in no dossier at all prints
+ * its plain
  * name — `entryDisplayName` already does that when there is no origin — and the
  * plain name is *silent* about it: a clue called "De brief" reads exactly like a
  * clue that never needed a dossier. So the archive says so, once, in grey,

@@ -33,7 +33,7 @@ test('a player may not use the probe', async ({ page }, testInfo) => {
   await page.goto('/signup');
   const { inviteCode } = await import('./helpers');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(`Peiler ${Date.now().toString(36)}`);
+  await page.getByLabel('Naam', { exact: true }).fill(`Peiler ${Date.now().toString(36)}`);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();

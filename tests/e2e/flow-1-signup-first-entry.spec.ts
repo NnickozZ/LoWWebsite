@@ -21,7 +21,7 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
   await expect(sheet).toBeVisible();
 
   await sheet.getByRole('radio', { name: 'Personen' }).click();
-  await sheet.getByLabel('Naam').fill(entryName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(entryName);
   await sheet
     .getByLabel('Korte beschrijving')
     .fill('Met on the Vlissingen quay at dusk; watchful, two ledgers, salt-stained coat.');
@@ -35,7 +35,7 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
 
   await page.waitForURL('**/e/**');
-  await expect(page.getByLabel('Naam')).toHaveValue(entryName);
+  await expect(page.getByLabel('Naam', { exact: true })).toHaveValue(entryName);
   await expect(page.getByLabel('Korte beschrijving')).toHaveValue(/Vlissingen quay/);
   // The page is already valid and published — "Meer info" is there to fill,
   // open: a card beside the text on a wide screen, unfolded under the

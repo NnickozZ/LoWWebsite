@@ -74,8 +74,15 @@ const ENTRY_COLUMNS = {
   tags: schema.entries.tags,
   visibility: schema.entries.visibility,
   isLocked: schema.entries.isLocked,
-  /** §24: part of an `EntrySummary`, so a card can ask `isAdrift` of it. */
-  typeCaseOnly: schema.entryTypes.caseOnly,
+  /*
+   * §24/§49: both halves of the origin, so a card on a dossier's shelf is the
+   * same `EntrySummary` as one in the wiki rather than one with two fields
+   * missing and a cast over the gap. `originCaseName` stays absent here on
+   * purpose — inside a dossier, printing that dossier's own name in front of
+   * every card is noise, not information.
+   */
+  originCaseId: schema.entries.originCaseId,
+  casePrefix: schema.entries.casePrefix,
   updatedAt: schema.entries.updatedAt,
 } as const;
 

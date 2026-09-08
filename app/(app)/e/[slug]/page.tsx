@@ -2,11 +2,12 @@ import type { ReactNode } from 'react';
 import { entryFieldsRoomKey, entryKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { EntryView } from '@/components/entry/EntryView';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { sideOf } from '@/lib/keeper/kinds';
+import { queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { PreferredCases } from '@/components/entry/PreferredCases';
 import { caseIdsInFields } from '@/lib/entries/caseFields';
@@ -61,6 +62,16 @@ export default async function EntryPage({
   const entry = getEntryBySlug(slug, user);
   if (!entry) notFound();
 
+  /*
+   * §50: the page decides where you stand. A Keeper who arrives on an artikel
+   * from the other side is turned over *before* anything renders, through the
+   * one writer of the side cookie — so the shell, the palette and every picker
+   * below are built for the side this artikel is actually on. The query rides
+   * along, because `?new=1` and `?rev=` are the address, not decoration.
+   */
+  const detour = sideDetour(user, entry.visibility === 'keeper', `/e/${entry.slug}${queryTail(query)}`);
+  if (detour) redirect(detour);
+
   // §17: what this viewer may do here. The dials themselves only travel to the
   // owner or a Keeper; everyone else gets the one bit they need — may I edit.
   const grant = user ? grantFor('entry', entry.id, user.id) : null;
@@ -113,7 +124,21 @@ export default async function EntryPage({
   const origin = {
     case: originRef ? { id: originRef.id, slug: originRef.slug, name: originRef.name } : null,
     pinned: Boolean(entry.originPinned),
-    offer: Boolean(entry.typeCaseOnly) || Boolean(entry.originCaseId),
+    /*
+     * §49: the tickbox, and the shelves it can point at. `offer` is what makes
+     * the eyebrow appear at all: an artikel with a dossier, or one that could
+     * have one, or one already wearing the name of a dossier it has lost.
+     * `canEdit` is per dossier (§17) — taking an artikel off a shelf is editing
+     * *that* dossier, not this artikel, and the API says so too.
+     */
+    prefix: Boolean(entry.casePrefix),
+    offer: Boolean(entry.originCaseId) || Boolean(entry.casePrefix) || cases.length > 0,
+    cases: cases.map((item) => ({
+      id: item.id,
+      slug: item.slug,
+      name: item.name,
+      canEdit: viewerCanEdit('case', item.id, user),
+    })),
   };
 
   // §11: what this soort's page is made of, and the words it uses.
@@ -159,8 +184,14 @@ export default async function EntryPage({
   const entryPins = listPinsForEntry(entry.id, user);
   const onMaps = entryPins.map((pin) => ({ pinId: pin.pinId, mapSlug: pin.mapSlug, mapName: pin.mapName }));
   const pinnedMapIds = new Set(entryPins.map((pin) => pin.mapId));
-  // §46: `bothSides` — a picker on a record's own page, not a list.
-  const mapsToPlace = listMaps(user, { bothSides: true })
+  /*
+   * §50 (reverses §46's `bothSides` here): a picker offers this side only.
+   * Since the wissel above, the browser's side is always the side of the page
+   * you are standing on — so "the viewer's side" and "this artikel's side" are
+   * one and the same question, and a sided list is exactly the landkaarten this
+   * artikel may be pinned to.
+   */
+  const mapsToPlace = listMaps(user)
     .filter((map) => !pinnedMapIds.has(map.id))
     .map((map) => ({ slug: map.slug, name: map.name }));
   // §23: and the landkaarten that are a drawing *of* this artikel.
@@ -174,8 +205,8 @@ export default async function EntryPage({
     when: formatWhen(row.at, row.precision),
   }));
   const onTimelineIds = new Set(entryEvents.map((row) => row.timelineId));
-  // §46: `bothSides` — a picker on a record's own page, not a list.
-  const timelinesToPlace = listTimelines(user, { bothSides: true })
+  // §50: sided, for the same reason as the landkaarten above.
+  const timelinesToPlace = listTimelines(user)
     .filter((timeline) => !onTimelineIds.has(timeline.id) && viewerCanEdit('timeline', timeline.id, user))
     .map((timeline) => ({ slug: timeline.slug, name: timeline.name }));
   // §21: the dossiers this artikel's own fields point at. Only ids are stored;

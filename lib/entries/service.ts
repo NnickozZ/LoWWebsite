@@ -30,8 +30,10 @@ export type EntryTypeRow = {
   blocks: PageBlock[];
   pageText: TypeText;
   sortOrder: number;
-  /** §24: this soort is only made inside a dossier. */
+  /** §24, kept and unread: this soort used to be made only inside a dossier. */
   caseOnly: boolean;
+  /** §49: whether a new artikel of this soort starts with the dossier prefix on. */
+  prefixDefault: boolean;
 };
 
 export type EntrySummary = {
@@ -54,17 +56,23 @@ export type EntrySummary = {
   /** §24: the dossier this artikel was made in, if it was made in one. */
   originCaseId: string | null;
   /**
-   * §24: does this artikel's soort only exist inside a dossier? Carried on the
-   * summary because a list has to be able to ask "is this one adrift?"
-   * (`isAdrift`) without a second query per row — a persoon with no dossier is
-   * ordinary, a clue with none is a loose end.
+   * §49: does this artikel wear that dossier's name in front of its own? One
+   * tickbox per artikel, carried on the summary because a list has to be able
+   * to ask "is this one adrift?" (`isAdrift`) without a second query per row —
+   * an artikel told to wear a dossier and filed in none is a loose end.
    */
-  typeCaseOnly: boolean;
+  casePrefix: boolean;
+  /**
+   * §24, deprecated by §49 and optional for that reason: the soort's old
+   * "alleen in een dossier" flag. `lib/search/service.ts` still selects it;
+   * nothing reads it any more.
+   */
+  typeCaseOnly?: boolean;
   /**
    * The name of that dossier, for this viewer — filled in by `nameTheirCases`,
    * absent otherwise. Never read straight off the row: a dossier's name is not
    * public, so it is resolved behind `visibleCaseCondition` like every other
-   * read of one.
+   * read of one. §49: and only for an artikel whose prefix is actually on.
    */
   originCaseName?: string | null;
   createdBy: string | null;
@@ -90,7 +98,8 @@ export const SUMMARY_COLUMNS = {
   isLocked: schema.entries.isLocked,
   viewMode: schema.entries.viewMode,
   originCaseId: schema.entries.originCaseId,
-  typeCaseOnly: schema.entryTypes.caseOnly,
+  // §49: the tickbox, not the soort's old flag.
+  casePrefix: schema.entries.casePrefix,
   createdBy: schema.entries.createdBy,
   createdAt: schema.entries.createdAt,
   updatedAt: schema.entries.updatedAt,
@@ -266,20 +275,27 @@ export type CreateEntryInput = {
   /** §18b: the onderzoeker it is being made as. */
   characterId?: string | null;
   /**
-   * §24: the dossier this is being made in. Required for a `caseOnly` soort —
-   * a voorwerp or a clue is found *during* an investigation, and one with no
-   * investigation behind it is a row nobody can explain. The caller checks that
-   * this person may write in that dossier; this only checks that there is one.
+   * §24: the dossier this is being made in, when it is being made in one. The
+   * caller checks that this person may write in that dossier.
+   *
+   * §49: no soort *needs* one any more. Made in a dossier it is filed there and
+   * that is the end of it; made in the wiki it simply has no origin, and an
+   * artikel whose prefix is on with no dossier to print is the loose end
+   * `isAdrift` has always described.
    */
   originCaseId?: string | null;
+  /**
+   * §49: does it wear the dossier's name in front of its own? Absent means "the
+   * soort's own habit" (`prefixDefault`), which is what the sheet's tickbox
+   * starts on — so a Clue made in a dossier still reads "Zaak Vlissingen: de
+   * brief" and a persoon still does not.
+   */
+  casePrefix?: boolean;
 };
 
 export function createEntry(input: CreateEntryInput): EntrySummary {
   const type = getEntryType(input.typeSlug);
   if (!type) throw new Error(`Onbekende soort artikel: ${input.typeSlug}`);
-  if (type.caseOnly && !input.originCaseId) {
-    throw new Error(`${type.label} maak je in een dossier.`);
-  }
 
   const name = input.name.trim();
   if (!name) throw new Error('Een artikel heeft een naam nodig.');
@@ -312,6 +328,8 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
       fields,
       tags: normaliseTags(input.tags ?? []),
       originCaseId: input.originCaseId ?? null,
+      // §49: the artikel's own answer, or the soort's habit when nobody said.
+      casePrefix: input.casePrefix ?? Boolean(type.prefixDefault),
       createdBy: input.createdBy,
       updatedBy: input.createdBy,
     })
@@ -495,12 +513,40 @@ export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): Entr
  * `entryDisplayName` then prints the plain name — the label on a clue must not
  * give away an investigation nobody told them about.
  */
-export function nameTheirCases<T extends { originCaseId: string | null }>(
-  rows: T[],
-  viewer: Viewer,
-): (T & { originCaseName: string | null })[] {
-  const ids = [...new Set(rows.flatMap((row) => (row.originCaseId ? [row.originCaseId] : [])))];
-  if (!ids.length) return rows.map((row) => ({ ...row, originCaseName: null }));
+export function nameTheirCases<
+  T extends { id: string; originCaseId: string | null; casePrefix?: boolean | null },
+>(rows: T[], viewer: Viewer): (T & { originCaseName: string | null; casePrefix: boolean })[] {
+  /*
+   * §49: this is the one place that decides *whether* an artikel wears a
+   * dossier's name. Filling in the name is what makes a list print the prefix
+   * (`entryDisplayName` prints what it is given), so an artikel with the
+   * tickbox off is handed no name at all — exactly like one whose dossier this
+   * reader may not open. One rule, one query, and every list, search result and
+   * autocomplete in the archive follows it without knowing it exists.
+   *
+   * A row that arrives without the column (a caller whose own SELECT predates
+   * this round) is looked up rather than guessed at: silently treating an
+   * unknown as "no prefix" would drop the dossier off half the archive.
+   */
+  const missing = rows.filter((row) => row.casePrefix === undefined || row.casePrefix === null);
+  const looked = new Map<string, boolean>();
+  if (missing.length) {
+    for (const row of db
+      .select({ id: schema.entries.id, casePrefix: schema.entries.casePrefix })
+      .from(schema.entries)
+      .where(inArray(schema.entries.id, [...new Set(missing.map((row) => row.id))]))
+      .all()) {
+      looked.set(row.id, Boolean(row.casePrefix));
+    }
+  }
+  const prefixed = (row: T) => row.casePrefix ?? looked.get(row.id) ?? false;
+
+  const ids = [
+    ...new Set(rows.flatMap((row) => (prefixed(row) && row.originCaseId ? [row.originCaseId] : []))),
+  ];
+  if (!ids.length) {
+    return rows.map((row) => ({ ...row, casePrefix: prefixed(row), originCaseName: null }));
+  }
 
   const names = new Map(
     db
@@ -513,7 +559,8 @@ export function nameTheirCases<T extends { originCaseId: string | null }>(
 
   return rows.map((row) => ({
     ...row,
-    originCaseName: (row.originCaseId && names.get(row.originCaseId)) || null,
+    casePrefix: prefixed(row),
+    originCaseName: (prefixed(row) && row.originCaseId && names.get(row.originCaseId)) || null,
   }));
 }
 
@@ -577,7 +624,17 @@ export function getBacklinks(entryId: string, viewer: Viewer): EntrySummary[] {
     .from(schema.entryLinks)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.entryLinks.fromEntryId))
     .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
-    .where(and(eq(schema.entryLinks.toEntryId, entryId), visibleEntryCondition(viewer)))
+    .where(
+      and(
+        eq(schema.entryLinks.toEntryId, entryId),
+        visibleEntryCondition(viewer),
+        // §50: the last read that crossed the border. "Verwijst hierheen" named
+        // an artikel from the other side to a Keeper — no leak (§9 still stood
+        // in front of it), but the two sides are apart now, and since the
+        // wissel the browser always stands on the side of the page it is on.
+        sideCondition('entry', viewer),
+      ),
+    )
     .orderBy(desc(schema.entries.updatedAt))
     .all() as EntrySummary[];
 }
@@ -1079,7 +1136,7 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
         isLocked: row.isLocked,
         viewMode: row.viewMode,
         originCaseId: row.originCaseId,
-        typeCaseOnly: row.typeCaseOnly,
+        casePrefix: row.casePrefix,
         createdBy: row.createdBy,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

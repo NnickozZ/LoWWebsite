@@ -20,7 +20,7 @@ async function openCase(page: Page, name: string) {
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
   return new URL(page.url()).pathname;
@@ -76,7 +76,7 @@ test('a landkaart lands in the bin instead of vanishing', async ({ page }, info)
   await sheet
     .getByLabel('Afbeelding')
     .setInputFiles({ name: 'weg.png', mimeType: 'image/png', buffer: await picture() });
-  await sheet.getByLabel('Naam').click();
+  await sheet.getByLabel('Naam', { exact: true }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type(mapName);
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
@@ -114,24 +114,23 @@ test('een clue wordt in een dossier gemaakt, en staat in de wiki onder het dossi
 
   await signIn(page, ...KEEPER);
 
-  // Nowhere else: the "Nieuw artikel" sheet does not offer it at all.
+  // §49: everywhere, in fact — the sheet offers every soort now, in the wiki
+  // as well as in a dossier. What is left of §24 is the *name*, below.
   await page.goto('/wiki');
   await newEntryButton(page).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet.getByRole('radio', { name: 'Relieken' })).toBeVisible();
-  await expect(sheet.getByRole('radio', { name: 'Clues' })).toHaveCount(0);
-  await expect(sheet.getByRole('radio', { name: 'Voorwerpen' })).toHaveCount(0);
+  await expect(sheet.getByRole('radio', { name: 'Clues', exact: true })).toBeVisible();
+  await expect(sheet.getByRole('radio', { name: 'Voorwerpen', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
 
-  // And the wiki's own page for them says where the door is.
+  // And the wiki's own page for them has its own button back.
   await page.goto('/wiki/clue');
   await expect(page.getByRole('heading', { name: 'Clues' })).toBeVisible();
-  // The shell's own "Nieuw artikel" button is a different thing and stays; it
-  // is this soort's button that is gone.
-  await expect(page.locator('main').getByRole('button', { name: /^Nieuw/ })).toHaveCount(0);
-  await expect(page.getByText(/maak je in een dossier/)).toBeVisible();
+  await expect(page.locator('main').getByRole('button', { name: /^Nieuw/ })).toHaveCount(1);
 
-  // In a dossier it is offered, and what comes out is filed there.
+  // In a dossier it is offered too, and what comes out is filed there — and
+  // wears the dossier's name, because that is this soort's habit (§49).
   await openCase(page, caseName);
   await page.getByPlaceholder('Voeg iets toe aan dit dossier…').fill(clueName);
   await page.locator('.suggest-item').filter({ hasText: 'aanmaken' }).first().click();

@@ -199,9 +199,13 @@ describe('a list is read from one side', () => {
     expect(deps.searchEntries(OP_SPELERSKANT, 'complot').names).toEqual([]);
     expect(names(deps.searchEntries(OP_SPELERSKANT, 'veerman').names)).toEqual(['De veerman']);
     expect(deps.searchEntries(OP_KEEPERKANT, 'veerman').names).toEqual([]);
-    // The @ / [[ autocomplete keeps offering everything this Keeper may see:
-    // a mention, a speld or a touwtje is made across the two sides on purpose.
-    expect(names(deps.suggestEntries(OP_SPELERSKANT, 'complot'))).toEqual(['Het complot']);
+    // §50 reversed the second half of this: the @ / [[ autocomplete is sided
+    // too now, and only the touwtje picker opts out. Pinned in full in
+    // `two-sides.test.ts`.
+    expect(deps.suggestEntries(OP_SPELERSKANT, 'complot')).toEqual([]);
+    expect(names(deps.suggestEntries(OP_SPELERSKANT, 'complot', { bothSides: true }))).toEqual([
+      'Het complot',
+    ]);
   });
 });
 

@@ -27,7 +27,7 @@ async function picture(): Promise<Buffer> {
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -44,7 +44,7 @@ test('shots', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Landkaart ophangen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Landkaart ophangen' });
   await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer: await picture() });
-  await sheet.getByLabel('Naam').fill(`Het eiland ${stamp}`);
+  await sheet.getByLabel('Naam', { exact: true }).fill(`Het eiland ${stamp}`);
   await sheet.getByLabel('Omschrijving').fill('De kaart van de landmeter, 1911.');
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
   await page.waitForURL('**/maps/**');
@@ -153,7 +153,7 @@ test('shots', async ({ page }, info) => {
     await page.waitForTimeout(400);
   }
   if (!(await ns.isVisible())) await page.locator('.fab').click();
-  await ns.getByLabel('Naam').fill('Onderzoeker Van Dijk');
+  await ns.getByLabel('Naam', { exact: true }).fill('Onderzoeker Van Dijk');
   await ns.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   await page.waitForTimeout(800);

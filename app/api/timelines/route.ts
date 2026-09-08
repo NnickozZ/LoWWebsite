@@ -12,9 +12,11 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const user = await requireUser();
-    // §46: `bothSides`, because this list feeds pickers — a tijdlijn is
-    // chosen from either side of the archive.
-    return json({ timelines: listTimelines(user, { bothSides: true }) });
+    // §50 (reverses §46's `bothSides` here): sided. Since the wissel, the
+    // browser always stands on the side of the page that is asking, so a
+    // picker offering "this side" offers exactly what may be attached — and a
+    // reference across the border is refused on the server anyway (`sameSide`).
+    return json({ timelines: listTimelines(user) });
   } catch (err) {
     return apiError(err);
   }

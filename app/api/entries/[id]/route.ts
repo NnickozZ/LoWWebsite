@@ -4,7 +4,7 @@ import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { displayNameOf } from '@/lib/characters';
-import { setEntryOrigin } from '@/lib/entries/origin';
+import { setCasePrefix, setEntryOrigin } from '@/lib/entries/origin';
 import { setEntryReveals } from '@/lib/entries/secrets';
 import { getEntryFieldsForViewer, softDeleteEntry, updateEntry, type EntryPatch } from '@/lib/entries/service';
 
@@ -35,6 +35,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       originCaseId?: string | null;
       /** False hands it back to "volgt vanzelf" and reconciles at once. */
       originPinned?: boolean;
+      /** §49: whether that dossier's name is printed in front of this one's. */
+      casePrefix?: boolean;
     };
 
     /*
@@ -44,17 +46,28 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
      * quietly becoming a proposal: "dit komt uit dossier X" is not a sentence
      * for a review queue.
      */
-    if (patch.originPinned !== undefined || patch.originCaseId !== undefined) {
+    if (
+      patch.originPinned !== undefined ||
+      patch.originCaseId !== undefined ||
+      patch.casePrefix !== undefined
+    ) {
       if (!viewerCanEdit('entry', id, user)) {
         return json({ error: 'Je mag dit artikel niet bewerken.' }, { status: 403 });
       }
-      setEntryOrigin(
-        id,
-        { caseId: patch.originCaseId ?? null, pinned: patch.originPinned !== false },
-        user,
-      );
+      if (patch.originPinned !== undefined || patch.originCaseId !== undefined) {
+        setEntryOrigin(
+          id,
+          { caseId: patch.originCaseId ?? null, pinned: patch.originPinned !== false },
+          user,
+        );
+      }
+      // §49: the tickbox in front of the name. The same small act, under the
+      // same gate — and on purpose *after* the origin, so ticking it and
+      // choosing a dossier in one go lands in that order.
+      if (patch.casePrefix !== undefined) setCasePrefix(id, Boolean(patch.casePrefix), user);
       delete patch.originCaseId;
       delete patch.originPinned;
+      delete patch.casePrefix;
     }
 
     // §9: who an entry is revealed to is a Keeper's list, not a field on the

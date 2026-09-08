@@ -331,7 +331,7 @@ test.describe('board strings and borders', () => {
     await page.goto('/cases');
     await page.getByRole('button', { name: 'Dossier openen' }).click();
     const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-    await sheet.getByLabel('Naam').fill(caseName);
+    await sheet.getByLabel('Naam', { exact: true }).fill(caseName);
     await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
     await page.waitForURL('**/c/**');
     const caseUrl = new URL(page.url()).pathname;
@@ -403,7 +403,7 @@ test.describe('the case tray on a board', () => {
     await page.goto('/cases');
     await page.getByRole('button', { name: 'Dossier openen' }).click();
     const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-    await sheet.getByLabel('Naam').fill(caseName);
+    await sheet.getByLabel('Naam', { exact: true }).fill(caseName);
     await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
     await page.waitForURL('**/c/**');
 

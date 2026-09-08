@@ -46,7 +46,7 @@ test('an artikel sets three crops once, and every list draws the one for its sha
   await page.goto('/wiki/character');
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await sheet.getByLabel('Naam').fill(entryName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(entryName);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   const entrySlug = new URL(page.url()).pathname.split('/e/')[1];
@@ -97,7 +97,7 @@ test('an artikel sets three crops once, and every list draws the one for its sha
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const caseSheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await caseSheet.getByLabel('Naam').fill(caseName);
+  await caseSheet.getByLabel('Naam', { exact: true }).fill(caseName);
   await caseSheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
 
@@ -183,7 +183,7 @@ test('a dossier has the same three crops, and the Case Files grid draws the staa
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await sheet.getByLabel('Naam').fill(caseName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(caseName);
   await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
 

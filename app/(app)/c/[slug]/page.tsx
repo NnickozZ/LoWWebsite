@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { caseFieldsRoomKey, caseKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import { asc } from 'drizzle-orm';
@@ -6,7 +6,7 @@ import { CaseDossier, type CaseGroup } from '@/components/cases/CaseDossier';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { sideOf } from '@/lib/keeper/kinds';
-import { keeperRef } from '@/lib/keeper/side';
+import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
@@ -44,6 +44,9 @@ const TAB_ORDER = (soorten: { slug: string; caseOnly: boolean }[]) => [
   'location',
   'object',
   'abnormality',
+  // §51: Families keeps a tab of its own rather than joining Personen — a
+  // familie is a thing you look up, like a factie, not a person on the list.
+  'family',
 ];
 
 export default async function CasePage({
@@ -60,6 +63,14 @@ export default async function CasePage({
 
   const record = getCaseBySlug(slug, user);
   if (!record) notFound();
+
+  /*
+   * §50: the page decides where you stand — a Keeper who opens a dossier from
+   * the other side is turned over on the server, before the shell, the palette
+   * and every picker below are built.
+   */
+  const detour = sideDetour(user, isKeeperSide('case', record.id), `/c/${record.slug}${queryTail(query)}`);
+  if (detour) redirect(detour);
 
   // §17
   const grant = user ? grantFor('case', record.id, user.id) : null;
@@ -87,10 +98,14 @@ export default async function CasePage({
   const boards = listBoardsForCase(record.id, user);
   /*
    * §47: the walls that hang in no dossier at all, for the picker that brings
-   * one in here. A picker, so `bothSides` (§46) — a Keeper files a wall from
-   * either side of the archive — and only for a hand that may write here.
+   * one in here. Only for a hand that may write here.
+   *
+   * §50 (reverses §46's `bothSides`): sided. After the wissel above the browser
+   * always stands on this dossier's own side, so "the viewer's side" and "this
+   * dossier's side" are one question — and a wall from the other side may not
+   * be filed here anyway (`sameSide` refuses it on the server).
    */
-  const looseBoards = mayEdit ? listBoards(user, { where: 'loose', sort: 'recent', bothSides: true }) : [];
+  const looseBoards = mayEdit ? listBoards(user, { where: 'loose', sort: 'recent' }) : [];
   // §32: the dossier's tijdlijnen, behind the same two rules as its prikborden.
   const timelines = listTimelinesForCase(record.id, user);
   const words = getWords();

@@ -670,10 +670,11 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
   const timelineIds = idsOf('timeline');
   if (timelineIds.length && viewer) {
     const found = new Map(
-      // §46: `bothSides`, because this is a lookup by id on a record's own
-      // page, not a list — "Genoemd in" names the tijdlijn that mentions this
-      // thing whichever side of the archive that tijdlijn lives on.
-      listTimelines(viewer, { bothSides: true })
+      // §50 (reverses §46's `bothSides` here): sided. "Genoemd in" on an
+      // artikel's page is read from that artikel's own side, because the page
+      // has already put the reader there — and a tijdlijn on the other side
+      // naming this thing is exactly the crossing this round closes.
+      listTimelines(viewer)
         .filter((timeline) => timelineIds.includes(timeline.id))
         .map((timeline) => [timeline.id, timeline] as const),
     );

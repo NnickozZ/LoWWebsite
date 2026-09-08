@@ -31,10 +31,18 @@ const SUMMARY_COLUMNS = {
  * Every entry the viewer may see. Capped, but far above a campaign's size.
  *
  * §46: `sided` says whether this read is a *list* — Zoeken, which shows the
- * side the reader is standing on — or a picker. `suggestEntries` feeds the @ /
- * [[ autocomplete and the "did you mean" row, and those keep offering
- * everything the Keeper may see: a rope, a mention or a speld is made across
- * the two sides on purpose.
+ * side the reader is standing on — or a picker.
+ *
+ * §50 reverses what §46 said next. It read: "`suggestEntries` feeds the @ / [[
+ * autocomplete and the 'did you mean' row, and those keep offering everything
+ * the Keeper may see: a rope, a mention or a speld is made across the two sides
+ * on purpose." That is no longer true, and it was the widest hole in the wall
+ * between the two sides — the autocomplete under every text box, every picker
+ * and every new-artikel sheet offered the Keeper's own artikelen while the
+ * Keeper stood on the players' side, and naming one there wrote a reference
+ * across the border. The two sides are separate now; `suggestEntries` is sided
+ * by default and the only caller that opts out is the touwtje picker
+ * (`/api/keeper/search`), which is the one bridge §44 keeps open.
  */
 function visibleEntries(viewer: Viewer, typeSlug?: string, sided = false): EntrySummary[] {
   return db
@@ -185,11 +193,22 @@ export type Suggestion = EntrySummary & { inPreferredCase?: boolean };
 export function suggestEntries(
   viewer: Viewer,
   query: string,
-  options: { limit?: number; typeSlugs?: string[]; preferCaseIds?: string[] } = {},
+  options: {
+    limit?: number;
+    typeSlugs?: string[];
+    preferCaseIds?: string[];
+    /**
+     * §50: the one escape hatch, for the touwtje picker and nothing else. A
+     * rope is tied *across* the two sides by definition (§44), so that picker
+     * must go on offering both; every other caller gets this side only.
+     */
+    bothSides?: boolean;
+  } = {},
 ): Suggestion[] {
   const q = query.trim();
   if (!q) return [];
-  let candidates = visibleEntries(viewer);
+  // §50: sided unless the caller is the bridge. See the note on `visibleEntries`.
+  let candidates = visibleEntries(viewer, undefined, !options.bothSides);
   if (options.typeSlugs?.length) {
     const allowed = new Set(options.typeSlugs);
     candidates = candidates.filter((e) => allowed.has(e.typeSlug));

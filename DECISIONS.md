@@ -3329,3 +3329,117 @@ browser beslist, de houder overrulet, een speler krijgt nooit een kant, en
 verbergen reist wél naar binnen en onthullen niet. Eén nieuwe browserspec,
 `tests/e2e/round-25.spec.ts`, drie gevallen op beide viewports.
 `tsc --noEmit` stil, `npm run build` schoon.
+
+## Ronde 26 — 8 September 2026: het dossier voor de naam, de twee kanten los, en families (§49, §50, §51)
+
+Drie dingen naast elkaar. Twee ervan draaien een eerdere beslissing terug, en
+dat staat hieronder met zoveel woorden.
+
+### Het dossierprefix verhuist van de soort naar het artikel (§49)
+
+§24 stelde één vraag aan de *soort* — "wordt dit alleen in een dossier
+gemaakt?" — en gebruikte het antwoord voor twee dingen: waar je zo'n ding mocht
+maken, en of elke lijst de naam van het dossier voor de naam van het artikel
+zette. Het tweede antwoord klopte voor al het andere niet: een persoon die in
+een dossier lag kreeg ook een herkomst en heette daardoor overal "Zaak
+Vlissingen: Jan".
+
+**Dit draait §24 terug**, en wel de poort: de weigering in `createEntry` en in
+`POST /api/entries`, het filter in `NewEntrySheet`, en de ontbrekende knop op
+`/wiki/<soort>`. Elke soort is weer overal te maken. `entry_types.case_only`
+blijft in de database staan — dit archief laat nooit een kolom vallen — maar is
+geen regel meer; wat ervoor in de plaats komt is `entries.case_prefix` (één
+vinkje per artikel) met `entry_types.prefix_default` als niet meer dan de
+gewoonte van de soort bij het maken.
+
+Het draait ook één zin van §48 terug: het vinkje "Opbergen in {dossiernaam}" in
+de maak-sheet is weg. Het feit dat §48 vastlegde blijft — gemaakt in een
+dossier en opgeborgen in een dossier zijn hetzelfde — maar nu zonder uitweg:
+wat je in een dossier maakt ligt daar, en het enige vinkje dat er nog staat
+gaat over de naam.
+
+Eén beslispunt dat een andere kant op had gekund: het prefix wordt bepaald in
+`nameTheirCases`, niet in `entryDisplayName`. `lib/search/service.ts` en
+`/api/suggest` selecteren `case_prefix` niet, dus in `entryDisplayName` zou het
+prefix stilletjes uit Zoeken en de autocomplete verdwijnen. Nu vult één plek
+`originCaseName` alleen voor een artikel met het vinkje aan, en print alles
+eronder wat het krijgt.
+
+De migratie draagt een trigger (`entry_types_prefix_default_from_case_only`)
+omdat migraties op een verse database vóór `seedBaseline` draaien en de seed nog
+`case_only` zet; zonder trigger zouden Clues en Voorwerpen in een nieuw archief
+geboren worden zonder de gewoonte die ze sinds ronde 7 hebben.
+
+Loskoppelen is echt loskoppelen: `DELETE /api/cases/{id}/entries?entryId=…`,
+dus een bewerking van dát dossier (§17), alleen waar de hand het mag, en een
+403 komt als zin op het scherm. Het vinkje uitzetten haalt niets uit een
+dossier — dat was de valkuil die dit expres niet heeft.
+
+**Bewust gelaten:** de volgorde van de tabbladen in een dossier
+(`TAB_ORDER`) en de tweedeling in `CaseTabsButton` lezen nog op `case_only`.
+Dat is cosmetica geworden: het zegt niet meer wat er mag, alleen nog wat
+vooraan staat.
+
+### De twee kanten staan los (§50)
+
+**Dit draait twee zinnen van §46 terug.** De eerste: `bothSides` als uitweg voor
+de autocomplete en de kiezers. Die stond er omdat een kiezer een opzoeking is en
+geen lijst — maar de suggestielijst onder élk tekstvak was daarmee de breedste
+opening in de muur tussen de twee kanten. `suggestEntries` is nu standaard aan
+één kant; `bothSides` heeft nog precies één gebruiker,
+`/api/keeper/search`, de touwtjeskiezer.
+
+De tweede: "voeg geen redirect toe om een pagina bij de cookie te laten passen".
+Achteraf omklappen wás de bug. `SideSync` zette de cookie goed ná het renderen,
+met een `router.refresh()`, dus er was één frame waarin de schil en de pagina
+aan verschillende kanten stonden en elke kiezer op het scherm voor de andere
+kant gebouwd was. De wissel staat nu op de server, vóór het renderen, in
+`sideDetour()`, en loopt via `/api/keeper/flip` — de enige schrijver van die
+cookie. Hij kan niet rondgaan; dat is een unittest, geen belofte.
+
+Twee beslissingen van Nick, gevraagd en gegeven: **touwtjes en tweelingen
+blijven** de ene brug over de grens, en **de wissel werkt in beide richtingen**
+— een Keeperpagina neemt je mee naar de Keeperkant, een spelerspagina weer
+terug.
+
+De weigering staat op de server en niet in de kiezer: een kiezer is een
+beleefdheid, de regel hoort op de weg die elke koppeling aflegt. Op het prikbord
+worden alleen kaarten getoetst waarvan de verwijzing nieuw is voor die muur —
+een autosave stuurt alles wat de browser weet, dus alles toetsen zou elke opslag
+weigeren van een muur die al vóór deze ronde een kaartje van de overkant droeg.
+
+**Bewust niet gedaan:** niets migreren. Een verwijzing die de grens al overstak
+blijft renderen; alleen nieuwe worden geweigerd.
+
+### Families, en waarom de soortenbeheerder er een knop bij kreeg (§51)
+
+Een familie is een soort, geen factie met een achternaam: een factie heeft een
+gezindheid en een leider, een familie een bloedlijn, een thuisbasis en een
+wapenspreuk. Leden neemt drie soorten (personen, onderzoekers én
+abnormaliteiten — een bloedlijn blijft niet altijd menselijk), en dat kon zonder
+nieuwe bedrading, want `ofType` was al een lijst. `character` staat vooraan
+omdat de "'X' aanmaken"-regel van de kiezer de eerste slug pakt.
+
+Daarom kreeg de soortenbeheerder er eindelijk een chiprij bij: tot deze ronde
+kon een Keeper wél de *soort* van een veld kiezen maar niet waarop het mag
+mikken — dat stond alleen in de seed. Dat is de helft van deze ronde die een
+eigen regel verdient (§51); Families zelf is er het uitgewerkte voorbeeld van.
+
+Geen migratie: `INSERT OR IGNORE` zet de soort in een vers én een bestaand
+archief, en de andere kant van de band (het veld Familie op persoon,
+onderzoeker en abnormaliteit) wordt één keer aangeplakt achter de marker
+`seed:round-26-families`, nooit overschreven. Families krijgt een eigen tab in
+een dossier: je zoekt een familie op, zoals een factie, je leest hem niet af van
+de lijst met personen.
+
+**Bekende beperking, ouder dan deze ronde:** een `entry_link`-waarde bewaart de
+naam zoals die was toen je hem koos.
+
+### Waar ronde 26 eindigt
+
+822 unittests in 57 bestanden (ronde 25: 791 in 54) — `case-prefix.test.ts`,
+`two-sides.test.ts` en `families.test.ts` erbij; `case-only-types.test.ts`
+blijft staan en pint nu vast wat er van §24 over is. `tsc --noEmit` stil.
+Geen nieuwe browserspec: de drie dingen zijn met unittests vastgelegd, en dat
+is een gat dat een volgende ronde mag dichten.
+

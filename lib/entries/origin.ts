@@ -174,3 +174,36 @@ export function setEntryOrigin(entryId: string, choice: OriginChoice, viewer: Vi
     .where(eq(schema.entries.id, entryId))
     .run();
 }
+
+/**
+ * §49: the tickbox — does this artikel wear its dossier's name in front of its
+ * own?
+ *
+ * It lives here, beside `setEntryOrigin`, because it is the same fact from the
+ * other side: the origin says *which* dossier, this says *whether to print it*.
+ * Keeping both in this module means nothing else in the archive has to know
+ * that the prefix is a column at all.
+ *
+ * §10: writing it is editing the artikel, so `viewerCanEdit` decides and the
+ * API answers 403 rather than turning it into a proposal — "dit hoort bij zaak
+ * X" is not a sentence for a review queue. Turning it *off* changes nothing but
+ * the printing: the artikel stays in every dossier it was in, and the origin
+ * goes on following the filing, so ticking it again a week later says the same
+ * thing it said today.
+ */
+export function setCasePrefix(entryId: string, on: boolean, viewer: Viewer): void {
+  if (!viewerCanEdit('entry', entryId, viewer)) {
+    throw new Error('Je mag dit artikel niet bewerken.');
+  }
+  const entry = db
+    .select({ id: schema.entries.id })
+    .from(schema.entries)
+    .where(eq(schema.entries.id, entryId))
+    .get();
+  if (!entry) throw new Error('Artikel niet gevonden');
+
+  db.update(schema.entries)
+    .set({ casePrefix: on })
+    .where(eq(schema.entries.id, entryId))
+    .run();
+}

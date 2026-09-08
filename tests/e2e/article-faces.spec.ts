@@ -22,7 +22,7 @@ import { editArticle, imageMenu, inviteCode, signIn } from './helpers';
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -43,7 +43,7 @@ async function newEntry(page: Page, name: string): Promise<string> {
     await page.keyboard.press('n');
     await page.waitForTimeout(400);
   }
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   return new URL(page.url()).pathname;

@@ -5,7 +5,7 @@ import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { logAudit } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
-import { kindHref, type KeeperKind, type KeeperRef, type Side } from './kinds';
+import { kindHref, sideOf, type KeeperKind, type KeeperRef, type Side } from './kinds';
 
 /**
  * §44: which things are the Keeper's own, and how anything is read at all.
@@ -331,4 +331,82 @@ function hideWhatHangsIn(caseId: string, keeperId: string) {
     writeSide('timeline', row.id, true);
     logAudit({ actorId: keeperId, action: 'keeper.side_taken', targetType: 'timeline', targetId: row.id });
   }
+}
+
+/* ------------------------------------------- §50: the two sides, closed off */
+
+/**
+ * §50: the page you land on decides where you stand.
+ *
+ * §46 said the palette follows the page and told the *cookie* to catch up
+ * afterwards, from the browser (`SideSync`). That worked and looked wrong: the
+ * shell re-rendered a beat after the page, so for one frame the masthead, the
+ * toggle and the colours belonged to the side you had just left. Worse, the
+ * browser then stood on one side while every picker, suggestion and list on
+ * screen had been built for the other — which is where the "gekke UI bugs"
+ * came from.
+ *
+ * So the catching-up moves to the server and happens *before* anything is
+ * drawn: a Keeper whose cookie disagrees with the record they have opened is
+ * redirected through `/api/keeper/flip`, the one writer of that cookie, and
+ * comes back to this very address with the whole site already turned over.
+ *
+ * Both directions, by design: a Keeper artikel takes you to the Keeperkant and
+ * a player-facing one takes you back. Only a Keeper is ever moved — a player's
+ * side is forced to 'player' by `getSessionUser` and every record they can
+ * reach is player-facing, so the answer for them is always null.
+ *
+ * It cannot loop: the flip writes the cookie to exactly the side this record is
+ * on, so the render after the redirect asks the same question and gets null.
+ */
+export function sideDetour(viewer: Viewer, recordKeeperOnly: boolean, here: string): string | null {
+  if (!viewer?.isKeeper) return null;
+  const standing: Side = viewer.side ?? 'player';
+  const record = sideOf(recordKeeperOnly);
+  if (standing === record) return null;
+  return `/api/keeper/flip?side=${record}&to=${encodeURIComponent(here)}&gewisseld=1`;
+}
+
+/**
+ * §50: a page's own query string back as `?a=b`, or '' when there is none.
+ *
+ * The detour goes out through a redirect and comes back to the same address, so
+ * whatever the address carried has to survive the round trip — `?new=1` puts an
+ * artikel on its editing face and `?rev=` is which version you are reading.
+ * `gewisseld` is dropped: the flip puts its own back on.
+ */
+export function queryTail(query: Record<string, string | string[] | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (key === 'gewisseld' || value == null) continue;
+    for (const one of Array.isArray(value) ? value : [value]) params.append(key, one);
+  }
+  const text = params.toString();
+  return text ? `?${text}` : '';
+}
+
+/** §50: what the server says when a reference would cross the border. */
+export const OTHER_SIDE = 'Dat staat aan de andere kant van het archief.';
+
+/**
+ * §50: refuse the write, not only the offer.
+ *
+ * The pickers stopped offering the other side this round, but a picker is a
+ * courtesy — the rule belongs here, on the road every attachment takes. Two
+ * records may only be tied to one another (an artikel filed in a dossier, a
+ * card on a wall, a speld on a landkaart, a gebeurtenis on a tijdlijn) when
+ * they stand on the same side of the archive.
+ *
+ * The one deliberate exception is the §44 bridge — touwtjes and tweelingen —
+ * which exists precisely to cross this border, and which never comes through
+ * here.
+ *
+ * Built on `isKeeperSide`, so the two spellings of "the Keeper's own" stay
+ * written down in exactly one place (§44). A record that is not there answers
+ * `false` for both, which reads as "same side": the caller has already looked
+ * it up and will fail on its own ground, and this must not turn a 404 into a
+ * confusing 400.
+ */
+export function sameSide(a: KeeperKind, aId: string, b: KeeperKind, bId: string): boolean {
+  return isKeeperSide(a, aId) === isKeeperSide(b, bId);
 }

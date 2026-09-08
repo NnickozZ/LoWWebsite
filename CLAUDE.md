@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 54 files, 791 tests as of round 25 (round 24: 53 / 784)
+npx vitest run         # 57 files, 822 tests as of round 26 (round 25: 54 / 791)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -145,16 +145,18 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§4[0-9]" app components lib` before
-  choosing a number — the latest is §48 / rule 48 (round 25: born on a side,
-  `@` everywhere; §47 is round 24's four small repairs, §46 de spiegel is
-  round 23, §44 de Keeperkant and §45 de vier kleurschema's round 22).
+  choosing a number — the latest is §51 / rule 51 (round 26: §49 the dossier in
+  front of the name, §50 the two sides apart, §51 a koppelingsveld aimed at
+  several soorten; §48 is round 25's born-on-a-side, §47 round 24's four small
+  repairs, §46 de spiegel round 23, §44 de Keeperkant and §45 de vier
+  kleurschema's round 22).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0021_keeper_side`, so the next is `0022_`. Never edit an existing
+  `0022_case_prefix`, so the next is `0023_`. Never edit an existing
   block, and that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
@@ -423,15 +425,19 @@ freely there.
   `PreferredCases` — that is a ranking over every dossier an artikel is in — and
   nothing but `CaseDossier` may set it, or the `+` will file things into a
   dossier nobody is looking at. What hangs off it: the sheet is opened *in* the
-  dossier (the only road to a `caseOnly` soort, §24), and every name that lands
+  dossier, so what it makes is filed there (§49 — every soort, no exception,
+  and §24's gate is gone), and every name that lands
   in the dossier's own writing is offered a place on its shelves
   (`useMentionFiling` → `offerToFileEntry`, `reason: 'text'`). That offer is
   silent three ways — already filed, may not file (§17), or the sheet filed it —
   and asks once per artikel per visit.
-- **"Made in a dossier" and "filed in that dossier" are one fact** (§48). §24's
-  `originCaseId` follows `case_entries`, so the new-artikel sheet decides the
-  filing by *sending `caseId` or not*; there is no third state, and there must
-  never be an artikel printing a dossier's name it is not in.
+- **"Made in a dossier" and "filed in that dossier" are one fact** (§48, and
+  since §49 without an exception). `originCaseId` follows `case_entries`, and
+  something made in a dossier is filed there — no tickbox turns that off. What
+  a dossier's name in front of an artikel depends on is `entries.case_prefix`,
+  the artikel's own, decided in `nameTheirCases` and nowhere else (§49, rule
+  49); `entry_types.case_only` is no longer a gate and no longer read except by
+  a migration trigger and the order of a dossier's tabs.
 - **A list filters by side; a lookup never does** (§46, round 23). The archive
   is read from one side at a time: `sideCondition(kind, viewer)` in
   `lib/keeper/side.ts` is AND-ed **after** the visibility rule — never instead
@@ -453,9 +459,11 @@ freely there.
   **page**, not the browser: `lib/theme/schemes.ts` emits
   `:has([data-side='keeper']):not(:has([data-side='player']))`, the layout
   writes the browser's side and a record page writes its own, and the page
-  wins. That one selector is the whole of "the site turns over with you"; do
-  not add a redirect to make a page match the cookie — `SideSync` in
-  `KeeperStamp` moves the cookie to the page instead.
+  wins. That one selector is the whole of "the site turns over with you".
+  **§50 (round 26) changed the second half of this**: the opt-out is gone
+  everywhere but `/api/keeper/search`, and the cookie is now corrected by a
+  redirect through `/api/keeper/flip` *before* the page renders (`sideDetour`,
+  `queryTail`) instead of afterwards by `SideSync`, which no longer exists.
 - **The four palettes in `app/globals.css` are generated — never hand-edit
   them** (§45, round 22). Everything between `/* §45 SCHEMES START */` and
   `/* §45 SCHEMES END */` is character for character what

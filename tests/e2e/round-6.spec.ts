@@ -23,7 +23,7 @@ async function openCase(page: Page, name: string) {
   await page.goto('/cases');
   await page.getByRole('button', { name: 'Dossier openen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Dossier openen' });
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Openen', exact: true }).click();
   await page.waitForURL('**/c/**');
   return new URL(page.url()).pathname;
@@ -188,7 +188,7 @@ test('"Betrokken dossiers" links to a real dossier', async ({ page }, info) => {
   await newEntryButton(page).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: 'Sessierapporten' }).click();
-  await sheet.getByLabel('Naam').fill(entryName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(entryName);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   await editArticle(page);
@@ -235,7 +235,7 @@ test('a landkaart is the map of a place, and goes on a wall as a card', async ({
   await sheet
     .getByLabel('Afbeelding')
     .setInputFiles({ name: 'plattegrond.png', mimeType: 'image/png', buffer: picture });
-  await sheet.getByLabel('Naam').click();
+  await sheet.getByLabel('Naam', { exact: true }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type(mapName);
   await sheet.getByRole('button', { name: 'Ophangen' }).click();

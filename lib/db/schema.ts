@@ -158,13 +158,23 @@ export const entryTypes = sqliteTable(
     pageText: text('page_text', { mode: 'json' }).$type<TypeText>().notNull().default({}),
     sortOrder: integer('sort_order').notNull().default(0),
     /**
-     * §24: this soort is only made inside a dossier. A voorwerp or a clue is
-     * found during an investigation, so the "Nieuw artikel" sheet does not
-     * offer it and the wiki's own new button is gone; the dossier's add-box is
-     * the only door. What comes out is an artikel like any other, and lands in
-     * the wiki like any other — under the dossier's name (`originCaseId`).
+     * §24, and no longer read: this soort was only made inside a dossier.
+     *
+     * §49 took the gate away — every soort is makeable everywhere again — and
+     * what is left of the idea is `prefixDefault` below. The column stays
+     * because this repo never drops one and an old backup still restores; the
+     * only thing that still asks it is the trigger in `0022_case_prefix`, which
+     * gives a freshly seeded soort its default.
      */
     caseOnly: integer('case_only', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §49: what a *new* artikel of this soort starts with — does it wear the
+     * dossier it is made in in front of its name? Clues and Voorwerpen do,
+     * because that is what they were; everything else does not. A default and
+     * nothing more: the tickbox on the artikel's own page decides afterwards,
+     * and changing this never touches an artikel that already exists.
+     */
+    prefixDefault: integer('prefix_default', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [uniqueIndex('entry_types_slug_idx').on(t.slug)],
 );
@@ -252,6 +262,16 @@ export const entries = sqliteTable(
      * chose that dossier on purpose and nothing may move it but them.
      */
     originPinned: integer('origin_pinned', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §49: does this artikel wear that dossier's name in front of its own?
+     *
+     * §24 asked the soort; the wiki then printed "Zaak Vlissingen: Jan" over a
+     * persoon somebody had filed, which nobody meant. So the prefix is a fact
+     * about the artikel: one tickbox on its page, beside the dossier it points
+     * at. Off is silence, not a lie — the artikel stays exactly where it is
+     * filed, the list simply prints its plain name.
+     */
+    casePrefix: integer('case_prefix', { mode: 'boolean' }).notNull().default(false),
     createdBy: text('created_by'),
     updatedBy: text('updated_by'),
     createdAt: integer('created_at').notNull().default(now),

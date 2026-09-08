@@ -26,11 +26,16 @@ export async function GET(request: Request) {
     const othersPrivate = params.get('others') === '1';
     const focus = params.get('focus');
     /*
-     * §46: the whole web is a list and is read from the side the Keeper is
-     * standing on; a *focus* web is about one record, and its ties cross the
-     * two sides on purpose — so that one is built out of both.
+     * §46 said a *focus* web was built out of both sides, because its ties
+     * cross the border on purpose. §50 closes that: the two sides are separate,
+     * and a focus web read from the players' side that quietly drew the
+     * Keeper's own records around a knot was the border being crossed in the
+     * one place a reader looks hardest. The whole web and a focus web are both
+     * read from the side the reader is standing on now — and since a record
+     * page turns that side over to match itself, the focus you walked in from
+     * is always on the side you are reading.
      */
-    const graph = buildWebGraph(user, { notes: showNotes, othersPrivate, bothSides: Boolean(focus) });
+    const graph = buildWebGraph(user, { notes: showNotes, othersPrivate });
 
     if (!focus) return json(graph);
 

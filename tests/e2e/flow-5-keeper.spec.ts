@@ -21,7 +21,7 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   const player = await playerContext.newPage();
   await player.goto('/signup');
   await player.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await player.getByLabel('Naam').fill(playerName);
+  await player.getByLabel('Naam', { exact: true }).fill(playerName);
   await player.getByLabel('Wachtwoord', { exact: true }).fill('duikerklok');
   await player.getByLabel('Wachtwoord nogmaals').fill('duikerklok');
   await player.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -45,7 +45,7 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   await page.goto('/wiki/location');
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await sheet.getByLabel('Naam').fill(entryName);
+  await sheet.getByLabel('Naam', { exact: true }).fill(entryName);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   const entryUrl = new URL(page.url()).pathname;
@@ -97,7 +97,7 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   const outsider = await outsiderContext.newPage();
   await outsider.goto('/signup');
   await outsider.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await outsider.getByLabel('Naam').fill(`Buitenstaander ${stamp}`);
+  await outsider.getByLabel('Naam', { exact: true }).fill(`Buitenstaander ${stamp}`);
   await outsider.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await outsider.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await outsider.getByRole('button', { name: 'Account aanmaken' }).click();

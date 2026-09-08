@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { mapKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { MapCanvas } from '@/components/maps/MapCanvas';
@@ -9,7 +9,7 @@ import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { sideOf } from '@/lib/keeper/kinds';
-import { keeperRef } from '@/lib/keeper/side';
+import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canManageAccess } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
@@ -37,6 +37,13 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
   const map = getMapBySlug(slug, user);
   if (!map) notFound();
 
+  /*
+   * §50: the page decides where you stand. A Keeper who walks onto a landkaart
+   * from the other side is turned over on the server, before anything renders.
+   */
+  const detour = sideDetour(user, isKeeperSide('map', map.id), `/maps/${map.slug}`);
+  if (detour) redirect(detour);
+
   const words = getWords();
   const pins = listPins(map.id, user);
 
@@ -47,8 +54,11 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
    * the list is short, the filtering is a fuzzy match in the sheet, and a
    * second search road would be a second set of rules about who may see what.
    */
-  // §46: `bothSides` — a picker on a record's own page, not a list.
-  const pickableMaps = listMaps(user, { bothSides: true })
+  // §50 (reverses §46's `bothSides` here): sided. Since the wissel above the
+  // browser stands on this landkaart's own side, so "the viewer's side" and
+  // "this landkaart's side" are the same question — and a speld across the
+  // border is refused on the server anyway (`sameSide`).
+  const pickableMaps = listMaps(user)
     .filter((other) => other.id !== map.id)
     .map((other) => ({ id: other.id, name: other.name }));
 

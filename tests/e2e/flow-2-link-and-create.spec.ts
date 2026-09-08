@@ -29,8 +29,8 @@ test('link and create in one motion', async ({ page }, testInfo) => {
 
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByLabel('Naam')).toHaveValue(typed);
-  await sheet.getByLabel('Naam').fill(target);
+  await expect(sheet.getByLabel('Naam', { exact: true })).toHaveValue(typed);
+  await sheet.getByLabel('Naam', { exact: true }).fill(target);
   await sheet.getByRole('radio', { name: 'Personen' }).click();
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
 
@@ -49,7 +49,7 @@ test('link and create in one motion', async ({ page }, testInfo) => {
   // §22: a chip is a plain link, so it lands on the reading face like any other.
   await expect(page.getByRole('heading', { name: target })).toBeVisible();
   await editArticle(page);
-  await expect(page.getByLabel('Naam')).toHaveValue(target);
+  await expect(page.getByLabel('Naam', { exact: true })).toHaveValue(target);
 
   const mentioned = page.locator('details.section', {
     has: page.locator('summary', { hasText: 'Genoemd in' }),

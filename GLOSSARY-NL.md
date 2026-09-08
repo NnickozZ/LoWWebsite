@@ -414,7 +414,7 @@ Sessieverslagen. Field labels and select options are in lib/db/seed.mjs.
 | **Automatisch** | in dat blad | De tabbladen volgen wat er in het dossier ligt — de stand waarin elk dossier begint. |
 | **Wat een onderzoek oplevert** | in dat blad | De soorten die alleen in een dossier gemaakt worden (voorwerp, aanwijzing), vooraan aangeboden. |
 | **Uit dit dossier** | mapje naast een suggestie | Dit artikel ligt al in het dossier waarin je schrijft; daarom staat het bovenaan. |
-| **Zonder dossier** | grijs chipje naast een naam | Een voorwerp of aanwijzing die in geen enkel dossier meer ligt. Beheer → Soorten artikelen houdt de lijst bij. |
+| **Zonder dossier** | grijs chipje naast een naam | Een artikel dat het dossier voor zijn naam zou dragen en in geen enkel dossier meer ligt. Sinds §49 hangt dat aan het vinkje van het artikel zelf, niet meer aan zijn soort. Beheer → Soorten artikelen houdt de lijst bij. |
 | **Uit: …** | boven de titel van een artikel | Het dossier waar dit artikel vandaan komt. Volgt vanzelf mee; een Keeper kan hem vastzetten. |
 | **Volgt vanzelf** | in dat menu | De herkomst volgt de dossiers waar het artikel in ligt, in plaats van vast te staan. |
 | **Adres (slug)** | Beheer → Soorten artikelen | Het stukje van de URL van een soort (`/wiki/relieken`). Hernoemen verplaatst alles in het archief mee; oude links van buiten breken. |
@@ -847,8 +847,71 @@ waar ze staan — teruggeven doe je zelf, met de knop, per ding.
 
 | Op het scherm | Waar | Betekenis |
 |---|---|---|
-| **{Nieuw artikel} in dit {dossier}** | de grote knop in het menu, zolang je in een {dossier} bent (op een telefoon: de `+` rechtsonder) | De sheet gaat open *in* dit {dossier}, dus hij biedt ook de soorten aan die alleen binnen een {dossier} bestaan. Dezelfde `n`-toets doet hetzelfde. |
-| **Opbergen in {dossiernaam}** | een vinkje in de sheet die een {artikel} maakt, als die vanuit een {dossier} geopend is | Zet dit nieuwe {artikel} meteen op een plank van dit {dossier}. Kwam je hier via de zoekbalk of de `+` van het {dossier} zelf, dan staat hij al aan; kwam je hier door `@` in de tekst te typen, dan mag je kiezen. |
-| **{Soort} bestaat alleen binnen een {dossier}.** | onder datzelfde vinkje | Waarom je het niet uit kunt zetten voor een {voorwerp} of een clue. |
+| **{Nieuw artikel} in dit {dossier}** | de grote knop in het menu, zolang je in een {dossier} bent (op een telefoon: de `+` rechtsonder) | De sheet gaat open *in* dit {dossier}, dus wat je maakt ligt er meteen in (sinds §49 zonder uitzondering, en voor elke soort). Dezelfde `n`-toets doet hetzelfde. |
+| ~~**Opbergen in {dossiernaam}**~~ | *weg sinds §49* | Stond in de sheet die een {artikel} maakt. Er valt niets meer te kiezen: wat je in een {dossier} maakt, ligt in dat {dossier}. Het vinkje dat op die plek staat gaat nu over de naam — zie ronde 26. |
+| ~~**{Soort} bestaat alleen binnen een {dossier}.**~~ | *weg sinds §49* | Geen enkele soort bestaat nog alleen binnen een {dossier}. |
 | **{Naam} zit nog niet in {dossiernaam}** | een sheet, nadat je een naam in de tekst van een {dossier} hebt gezet | De vraag of dit {artikel} ook op een plank van dit {dossier} hoort. Komt niet als het er al in staat, en komt één keer per {artikel} per bezoek. |
 | **Alleen noemen** | de nee-knop van die sheet | Laat het bij de vermelding in de tekst. |
+
+## Ronde 26 — het {dossier} voor de naam, de twee kanten, en Families (§49, §50, §51)
+
+Eén nieuw hernoembaar woord ({spelerskant}), één nieuwe soort met zijn velden,
+en verder zinnetjes op bestaande woorden.
+
+### Het {dossier} voor de naam (§49)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Zet "{dossiernaam}:" voor de naam** | een vinkje in de sheet die een {artikel} maakt, als die vanuit een {dossier} geopend is — op de plek waar tot ronde 25 *Opbergen in…* stond | Alleen hoe dit ding in lijsten heet. Het staat al aan of uit naar de gewoonte van de soort. |
+| **Alleen hoe het in lijsten heet. Het komt hoe dan ook in {dossiernaam} te liggen.** | het zinnetje onder dat vinkje | Zegt dat het vinkje niets met opbergen te maken heeft: wat je hier maakt, ligt hier. |
+| **{Dossier} voor de naam** | een vinkje op de pagina van het {artikel} zelf, in de regel die zegt waar het vandaan komt | Zet de naam van dat {dossier} voor de naam van dit {artikel}, overal waar het archief het opsomt — de wiki, Zoeken, de namenlijst. De naam zelf verandert niet. |
+| **Uit dit {dossier} halen** | naast elk {dossier} in het keuzelijstje van diezelfde regel, alleen als je dat {dossier} mag bewerken | Haalt dit {artikel} echt van de plank. Het uitzetten van het vinkje hierboven doet dat níét. |
+| **Uit {dossiernaam} gehaald.** | melding daarna | Het is eruit; waar het vandaan komt wordt opnieuw bepaald. |
+| **Uit dit {dossier} halen lukte niet.** | melding daarna | Meestal: deze hand mag in dat {dossier} niets veranderen. |
+| **Standaard het {dossier} voor de naam** / **Standaard geen {dossier} voor de naam** | Beheer → Soorten, een chipje bij de soort | Alleen waar een nieuw {artikel} van deze soort mee begínt. Elk {artikel} zet het daarna op zijn eigen pagina aan of uit. |
+
+En wat er zonder tekst veranderde: **elke soort is weer overal te maken.** De
+groene knop op een soortpagina in de wiki is terug voor allemaal, en de sheet
+laat niets meer weg.
+
+### Van kant wisselen (§50)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **{spelerskant}** | nieuw woord van de {Keeper} (`playerSide`, standaard *spelerskant*), naast {Keeperkant} | De kant van het archief die de {spelers} zien. Niet te verwarren met *{Naar de spelerskant}* op de knop — dat is waar de knop héén gaat. |
+| **Je staat nu aan de {Keeperkant}.** / **Je staat nu aan de {spelerskant}.** | een melding, meteen nadat je een pagina van de andere kant opent | De wissel: het archief is met je meegedraaid. Je hoeft niets te doen; het zegt alleen wat er gebeurd is. |
+| **Dat staat aan de andere kant van het archief.** | een melding als een koppeling geweigerd wordt | Je probeert twee dingen aan elkaar te hangen die niet aan dezelfde kant staan — een {artikel} in een {dossier}, een kaartje op een {prikbord}, een {speld} op een {landkaart}, een gebeurtenis op een {tijdlijn}. Zet er eerst één over met de knop. |
+
+Twee dingen zonder tekst op het scherm:
+
+- **De namenlijst onder een tekstvak toont alleen jouw kant.** Sinds deze ronde
+  ook de suggesties: typ je `@` aan de {spelerskant}, dan staan de dingen van de
+  {Keeper} er niet meer tussen. Hetzelfde geldt voor elk keuzelijstje op een
+  pagina, voor "Genoemd in" en voor "Verwijst hierheen".
+- **Een {touwtje} en een {tweeling} zijn de uitzondering**, met opzet: die brug
+  bestaat juist om de twee kanten te verbinden, en het zoekvak ervan
+  (*Zoek iets om een touwtje aan vast te maken*) laat allebei de kanten zien.
+  Wat er vóór deze ronde al
+  dwars stond blijft staan; alleen nieuwe koppelingen worden geweigerd.
+
+### Families (§51)
+
+Een nieuwe soort, met zijn velden. Alles hernoembaar door de {Keeper} in
+Beheer → Soorten, zoals bij elke soort.
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Families** | de wiki, het menu van de soorten, en een eigen tabblad in een {dossier} | Een bloedlijn als ding op zichzelf — geen factie met een achternaam. |
+| **Leden** | veld op een familie, en de zelfvullende lijst eronder | Wie er bij de familie hoort. Neemt personen, onderzoekers én abnormaliteiten. De lijst eronder vult zichzelf met iedereen wiens veld *Familie* hierheen wijst, dus je hoeft de band maar aan één kant in te vullen. |
+| **Familie** | veld op een persoon, een onderzoeker en een abnormaliteit | De andere kant van diezelfde band. |
+| **Hoofd van de familie** | veld op een familie | Eén naam: wie het zegt. |
+| **Thuisbasis** | veld op een familie | De plek waar de familie vandaan komt. |
+| **Status** | veld op een familie | Keuze uit: *bloeiend* · *tanend* · *vervallen* · *uitgestorven*. |
+| **Gesticht in** | veld op een familie | Een datum. |
+| **Wapenspreuk** | veld op een familie | Eén regel tekst. |
+
+En de knop die daarvoor nodig was, en die voor élk koppelingsveld geldt:
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Alleen deze soorten mogen erin (leeg = alles)** | Beheer → Soorten, een rij chipjes onder een veld van het type *Koppeling* of *Koppelingen* | Waar dit vak op mag mikken. Meer dan één mag: *Leden* staat op drie soorten tegelijk. Laat je alles uit staan, dan mag alles erin. De eerste die je aanzet telt extra: de regel **‘…’ aanmaken** in het keuzelijstje maakt een {artikel} van díé soort. |

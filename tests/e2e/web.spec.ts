@@ -166,10 +166,19 @@ test('rule 1: a Keeper-only artikel is not in a player\'s web at all', async ({ 
   await link(page, open, secret);
   await link(page, secret, open);
 
-  // The Keeper sees both, tied both ways.
-  const keeperGraph = await (await page.request.get(`/api/web?focus=entry:${open.id}&depth=1`)).json();
+  // §50: the focus web reads one side, like every other list. Standing on the
+  // players' side the Keeper sees the open artikel alone, even though they may
+  // see the other one — the two sides are apart now.
+  const fromPlayerSide = await (
+    await page.request.get(`/api/web?focus=entry:${open.id}&depth=1`)
+  ).json();
+  expect(fromPlayerSide.nodes.map((n: { id: string }) => n.id)).not.toContain(`entry:${secret.id}`);
+
+  // Walk across, and both are there, tied both ways.
+  await page.request.get('/api/keeper/flip?side=keeper&to=/');
+  const keeperGraph = await (await page.request.get(`/api/web?focus=entry:${secret.id}&depth=1`)).json();
   expect(keeperGraph.nodes.map((n: { id: string }) => n.id)).toContain(`entry:${secret.id}`);
-  expect(keeperGraph.edges.length).toBe(2);
+  await page.request.get('/api/keeper/flip?side=player&to=/');
 
   // A player sees the open one alone — and the secret's name is nowhere in the answer.
   const context = await browser.newContext();

@@ -67,7 +67,8 @@ export function TypeEditor({
     fields: FieldDef[];
     blocks: PageBlock[];
     pageText: TypeText;
-    caseOnly: boolean;
+    /** §49: whether a new artikel of this soort starts with the prefix ticked. */
+    prefixDefault: boolean;
     entryCount: number;
     /** §38: values still stored under a key this soort no longer has. */
     orphans: { key: string; count: number }[];
@@ -86,7 +87,7 @@ export function TypeEditor({
   const [pageText, setPageText] = useState<TypeText>(type.pageText);
   const [icon, setIcon] = useState(type.icon);
   const [colour, setColour] = useState(type.colour);
-  const [caseOnly, setCaseOnly] = useState(type.caseOnly);
+  const [prefixDefault, setPrefixDefault] = useState(type.prefixDefault);
 
   /*
    * §11: a rename of the *address* is not an ordinary save. It moves every
@@ -262,28 +263,33 @@ export function TypeEditor({
         </div>
 
         {/*
-          §24: some soorten only exist inside an investigation. A voorwerp or a
-          clue is *found*, so it is made in a dossier; the "Nieuw artikel" sheet
-          leaves it out and the wiki's own new button goes away. What is already
-          made stays exactly where it is, and still shows up in the wiki.
+          §49: this used to say *where* a soort could be made ("alleen in een
+          dossier"), which was two rules in one tick: a gate on the maker, and a
+          dossier printed in front of every name. The gate is gone — every soort
+          is makeable everywhere again — and what is left is the habit: what the
+          tickbox in the "nieuw artikel"-venster starts on. Each artikel decides
+          for itself afterwards, on its own page, so changing this never touches
+          anything that already exists.
         */}
         <div>
-          <span className="label">Waar wordt dit gemaakt</span>
-          <input type="hidden" name="caseOnly" value={caseOnly ? '1' : ''} />
+          <span className="label">Naam in de wiki</span>
+          <input type="hidden" name="prefixDefault" value={prefixDefault ? '1' : ''} />
           <div className="row-wrap">
             <button
               type="button"
-              aria-pressed={caseOnly}
-              className={`chip chip-selectable${caseOnly ? ' chip-active' : ''}`}
-              onClick={() => setCaseOnly((was) => !was)}
+              aria-pressed={prefixDefault}
+              className={`chip chip-selectable${prefixDefault ? ' chip-active' : ''}`}
+              onClick={() => setPrefixDefault((was) => !was)}
             >
-              <Icon name={caseOnly ? 'folder' : 'file'} size={13} />
-              {caseOnly ? `Alleen in een ${words.case}` : 'Overal in het archief'}
+              <Icon name={prefixDefault ? 'folder' : 'file'} size={13} />
+              {prefixDefault
+                ? `Standaard het ${words.case} voor de naam`
+                : `Standaard geen ${words.case} voor de naam`}
             </button>
             <span className="tiny muted" style={{ flex: '1 1 14rem' }}>
-              {caseOnly
-                ? `Deze soort staat niet in het "${words.newEntry}"-venster en heeft geen eigen knop in de wiki. In de wiki komen ze te staan als "${capitalise(words.case)}: naam".`
-                : `Overal aan te maken: via "${words.newEntry}", via de wiki, en in een ${words.case}.`}
+              {prefixDefault
+                ? `Maak je er een in een ${words.case}, dan staat het vinkje "${capitalise(words.case)} voor de naam" al aan: in de wiki komen ze te staan als "${capitalise(words.case)}: naam". Elk artikel kan dat op zijn eigen pagina aan- en uitzetten.`
+                : `Maak je er een in een ${words.case}, dan staat het vinkje "${capitalise(words.case)} voor de naam" uit: in de wiki heten ze gewoon hoe ze heten. Elk artikel kan dat op zijn eigen pagina alsnog aanzetten.`}
             </span>
           </div>
         </div>
@@ -354,6 +360,38 @@ export function TypeEditor({
                     }
                     style={{ flex: '1 1 8rem', minHeight: 38 }}
                   />
+                )}
+                {/* §51: a koppelingsveld may be aimed at a handful of soorten
+                    at once — "Leden" takes personen, onderzoekers én
+                    abnormaliteiten. Same control as the page builder's list
+                    block, because it is the same question. */}
+                {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
+                  <div style={{ flex: '1 1 100%', order: 1 }}>
+                    <span className="tiny muted">Alleen deze soorten mogen erin (leeg = alles)</span>
+                    <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
+                      {types.map((option) => {
+                        const on = field.ofType?.includes(option.slug) ?? false;
+                        return (
+                          <button
+                            key={option.slug}
+                            type="button"
+                            className={`chip chip-selectable${on ? ' chip-active' : ''}`}
+                            aria-pressed={on}
+                            onClick={() => {
+                              const current = field.ofType ?? [];
+                              patchField(index, {
+                                ofType: on
+                                  ? current.filter((slug) => slug !== option.slug)
+                                  : [...current, option.slug],
+                              });
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
                 <button
                   type="button"

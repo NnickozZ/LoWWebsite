@@ -26,8 +26,10 @@ export type TypeRow = {
   /** This soort's own wording for the few shared sentences that read badly. */
   pageText: TypeText;
   sortOrder: number;
-  /** §24: this soort is only made inside a dossier. */
+  /** §24, kept and unread: this soort used to be made only inside a dossier. */
   caseOnly: boolean;
+  /** §49: a new artikel of this soort starts with the dossier prefix ticked. */
+  prefixDefault: boolean;
   /** How many entries are filed under it — a type in use should not vanish quietly. */
   entryCount: number;
   /**
@@ -72,6 +74,7 @@ export function listTypesForAdmin(): TypeRow[] {
       pageText: cleanTypeText(type.pageText),
       sortOrder: type.sortOrder,
       caseOnly: Boolean(type.caseOnly),
+      prefixDefault: Boolean(type.prefixDefault),
       entryCount: counts.get(type.id) ?? 0,
       // Both sources of the whitelist, or every hand-filled list on the page
       // would be reported as an orphan of itself.
@@ -146,7 +149,11 @@ export type TypePatch = Partial<{
   blocks: unknown;
   pageText: unknown;
   sortOrder: number;
-  caseOnly: boolean;
+  /**
+   * §49: the soort's habit, not a rule. `caseOnly` is deliberately not patchable
+   * any more — it gated where a soort could be made, and nothing gates that.
+   */
+  prefixDefault: boolean;
 }>;
 
 export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
@@ -177,7 +184,7 @@ export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
   if (patch.blocks !== undefined) values.blocks = cleanBlocks(patch.blocks);
   if (patch.pageText !== undefined) values.pageText = cleanTypeText(patch.pageText);
   if (patch.sortOrder !== undefined) values.sortOrder = patch.sortOrder;
-  if (patch.caseOnly !== undefined) values.caseOnly = patch.caseOnly;
+  if (patch.prefixDefault !== undefined) values.prefixDefault = patch.prefixDefault;
   if (!Object.keys(values).length) return;
 
   db.update(schema.entryTypes).set(values).where(eq(schema.entryTypes.id, id)).run();
@@ -395,8 +402,8 @@ export function createType(
 }
 
 /**
- * §24: the loose ends. Every artikel of a `case_only` soort that is in no
- * dossier at all.
+ * §24: the loose ends. §49: every artikel that has been told to wear a
+ * dossier's name in front of its own and is in no dossier at all.
  *
  * A clue is *found*, during an investigation, so one with no investigation
  * behind it is a row nobody can explain — it happens anyway: the last dossier
@@ -423,7 +430,7 @@ export function listAdriftEntries(limit = 200): AdriftEntry[] {
     .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
     .where(
       and(
-        eq(schema.entryTypes.caseOnly, true),
+        eq(schema.entries.casePrefix, true),
         isNull(schema.entries.originCaseId),
         isNull(schema.entries.deletedAt),
       ),

@@ -19,7 +19,7 @@ export function newEntryButton(page: Page) {
 
 export async function signIn(page: Page, username: string, password: string) {
   await page.goto('/login');
-  await page.getByLabel('Naam').fill(username);
+  await page.getByLabel('Naam', { exact: true }).fill(username);
   await page.getByLabel('Wachtwoord').fill(password);
   await page.getByRole('button', { name: 'Inloggen' }).click();
   await page.waitForURL('**/');
@@ -28,7 +28,7 @@ export async function signIn(page: Page, username: string, password: string) {
 export async function signUp(page: Page, username: string, password: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(username);
+  await page.getByLabel('Naam', { exact: true }).fill(username);
   await page.getByLabel('Wachtwoord', { exact: true }).fill(password);
   await page.getByLabel('Wachtwoord nogmaals').fill(password);
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -111,7 +111,7 @@ export async function becomeInvestigator(page: Page, character: string): Promise
   await page.goto('/');
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await pressUntil(page, () => newEntryButton(page).click({ timeout: 5000 }), sheet);
-  await sheet.getByLabel('Naam').fill(character);
+  await sheet.getByLabel('Naam', { exact: true }).fill(character);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   const path = new URL(page.url()).pathname;

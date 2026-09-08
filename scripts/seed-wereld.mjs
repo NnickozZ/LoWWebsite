@@ -341,6 +341,7 @@ const SOORTEN = [
   { slug: 'character', label: 'Personen', pot: DATA.PERSONEN, zinnen: 'character' },
   { slug: 'investigator', label: 'Onderzoekers', pot: DATA.ONDERZOEKERS, zinnen: 'investigator' },
   { slug: 'faction', label: 'Facties', pot: DATA.FACTIES, zinnen: 'faction' },
+  { slug: 'family', label: 'Families', pot: DATA.FAMILIES, zinnen: 'family' },
   { slug: 'object', label: 'Relieken', pot: DATA.RELIEKEN, zinnen: 'object' },
   { slug: 'item', label: 'Voorwerpen', pot: DATA.VOORWERPEN, zinnen: 'item' },
   { slug: 'clue', label: 'Clues', pot: DATA.CLUES, zinnen: 'clue' },
@@ -530,6 +531,7 @@ for (const row of alle) {
   const clues = van('clue');
   const abnormaal = van('abnormality');
   const relieken = van('object');
+  const families = van('family');
 
   const velden = row.velden;
 
@@ -537,6 +539,9 @@ for (const row of alle) {
     case 'character': {
       if (facties.length && chance(0.7)) velden.faction = ref(omDeBeurt('lid-van', facties));
       if (locaties.length) velden.last_seen_at = ref(omDeBeurt('gezien-bij', locaties));
+      // §51: de andere kant van Families → Leden. Niet iedereen heeft een
+      // familie in het archief, dus lang niet elke persoon krijgt er een.
+      if (families.length && chance(0.6)) velden.familie = ref(omDeBeurt('familie', families));
       break;
     }
     case 'investigator': {
@@ -548,6 +553,15 @@ for (const row of alle) {
         'Rustig, tot iemand over de tweede begrafenis begint.',
         'Telt hardop. Merkt het zelf niet.',
       ]);
+      break;
+    }
+    case 'family': {
+      // §51: de ledenbox neemt personen, onderzoekers én abnormaliteiten.
+      const leden = some([...personen, ...onderzoekers, ...abnormaal], 2 + Math.floor(random() * 4));
+      if (leden.length) velden.leden = leden.map(ref);
+      const hoofden = [...personen, ...onderzoekers];
+      if (hoofden.length) velden.hoofd = ref(omDeBeurt('familiehoofd', hoofden));
+      if (locaties.length) velden.thuisbasis = ref(omDeBeurt('thuisbasis', locaties));
       break;
     }
     case 'faction': {

@@ -35,7 +35,7 @@ const PASSWORD = 'onderzeeboot';
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill(PASSWORD);
   await page.getByLabel('Wachtwoord nogmaals').fill(PASSWORD);
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -50,7 +50,7 @@ async function newEntry(page: Page, name: string): Promise<string> {
     await page.keyboard.press('n');
     await page.waitForTimeout(400);
   }
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   const from = new URL(page.url()).pathname;
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   // A bare "any artikel address" glob is already true the second time round:
@@ -354,7 +354,7 @@ test('the question comes before the nieuw-artikel sheet, not on top of it', asyn
   // to ask and the sheet comes straight up.
   await clickUntil(writer, newEntryButton(writer), newSheet);
   await expect(askSheet(writer)).toHaveCount(0);
-  await newSheet.getByLabel('Naam').fill(`Aantekening ${stamp}`);
+  await newSheet.getByLabel('Naam', { exact: true }).fill(`Aantekening ${stamp}`);
   await newSheet.getByRole('button', { name: 'Aanmaken' }).click();
   await writer.waitForURL('**/e/**');
 

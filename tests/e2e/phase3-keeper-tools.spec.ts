@@ -11,7 +11,7 @@ async function newEntry(page: Page, typeSlug: string, name: string) {
   await page.goto(`/wiki/${typeSlug}`);
   await page.getByRole('button', { name: 'Nieuw', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await sheet.getByLabel('Naam').fill(name);
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   return new URL(page.url()).pathname;
@@ -40,7 +40,7 @@ async function unfoldInfobox(page: Page) {
 async function signUpPlayer(page: Page, name: string, password = 'duikerklok') {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill(password);
   await page.getByLabel('Wachtwoord nogmaals').fill(password);
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -171,7 +171,7 @@ test('the trash gives an entry back', async ({ page }, testInfo) => {
   // §22: back from the prullenbak on the reading face; the name box is on the
   // other one.
   await editArticle(page);
-  await expect(page.getByLabel('Naam')).toHaveValue(entryName);
+  await expect(page.getByLabel('Naam', { exact: true })).toHaveValue(entryName);
 });
 
 test('the Keeper can add a type, give it a field, and use it', async ({ page }, testInfo) => {
@@ -203,7 +203,7 @@ test('the Keeper can add a type, give it a field, and use it', async ({ page }, 
   await page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first().click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: typeName }).click();
-  await sheet.getByLabel('Naam').fill(`De Zeearend ${stamp}`);
+  await sheet.getByLabel('Naam', { exact: true }).fill(`De Zeearend ${stamp}`);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   await expect(page.getByLabel('Tonnage')).toBeVisible();
@@ -252,7 +252,7 @@ test('a Getal, a Ja/nee and a Meerkeuze, from the type editor to the reading fac
   await page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first().click();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: typeName }).click();
-  await sheet.getByLabel('Naam').fill(`De Vrachtboot ${stamp}`);
+  await sheet.getByLabel('Naam', { exact: true }).fill(`De Vrachtboot ${stamp}`);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   const url = new URL(page.url()).pathname;

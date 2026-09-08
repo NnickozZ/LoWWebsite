@@ -173,9 +173,12 @@ describe('a clue that gets moved about', () => {
     deps.removeEntryFromCase('c-drie', clue, KEEPER.id);
     expect(originOf(clue)).toBeNull();
 
-    // Which is exactly what the grey chip in every list is drawn from.
+    // Which is exactly what the grey chip in every list is drawn from. §49: the
+    // question is the artikel's own tickbox now, not its soort's old flag — a
+    // Clue is made with it on, and it has just lost the last dossier it had to
+    // put in front of its name.
     const summary = deps.getEntrySummaryById(clue)!;
-    expect(summary.typeCaseOnly).toBe(true);
+    expect(summary.casePrefix).toBe(true);
     expect(isAdrift(summary)).toBe(true);
   });
 });

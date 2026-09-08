@@ -14,6 +14,14 @@
  * clues.
  *
  * Pure and dependency-free, because both the server and the browser print it.
+ *
+ * §49: *which* artikelen get the prefix is no longer this file's question, and
+ * no longer the soort's. It is `entries.case_prefix`, one tickbox per artikel,
+ * and it is asked in exactly one place — `nameTheirCases` only fills in
+ * `originCaseName` for an artikel that wears it. Everything downstream prints
+ * what it was given, which is why this function did not have to change: an
+ * artikel with the tickbox off arrives here with no dossier name at all, the
+ * same way one whose dossier this reader may not open does.
  */
 export function entryDisplayName(
   name: string,
@@ -39,13 +47,16 @@ export function hasCasePrefix(originCaseName?: string | null): boolean {
  * so they can be filed again rather than quietly lost.
  *
  * Asked of the id, never of the name: a reader who may not open the dossier is
- * given no name (§1) and that is not the same fact at all. The soort's own
- * `case_only` is what makes the question meaningful — a persoon with no dossier
- * is just a persoon.
+ * given no name (§1) and that is not the same fact at all.
+ *
+ * §49: what makes the question meaningful is the artikel's own `casePrefix` —
+ * it has been told to wear a dossier's name and has no dossier to wear. The
+ * soort's `case_only` used to answer this and no longer does: a persoon filed
+ * nowhere is just a persoon, and so is a clue whose tickbox is off.
  */
 export function isAdrift(entry: {
-  typeCaseOnly?: boolean | null;
+  casePrefix?: boolean | null;
   originCaseId?: string | null;
 }): boolean {
-  return Boolean(entry.typeCaseOnly) && !entry.originCaseId;
+  return Boolean(entry.casePrefix) && !entry.originCaseId;
 }

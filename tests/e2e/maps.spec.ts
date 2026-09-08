@@ -12,7 +12,7 @@ import { becomeInvestigator, fillWhenReady, inviteCode, signIn } from './helpers
 async function signUpAs(page: Page, name: string) {
   await page.goto('/signup');
   await page.getByLabel('Uitnodigingscode').fill(inviteCode());
-  await page.getByLabel('Naam').fill(name);
+  await page.getByLabel('Naam', { exact: true }).fill(name);
   await page.getByLabel('Wachtwoord', { exact: true }).fill('onderzeeboot');
   await page.getByLabel('Wachtwoord nogmaals').fill('onderzeeboot');
   await page.getByRole('button', { name: 'Account aanmaken' }).click();
@@ -73,11 +73,11 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer: await picture() });
   // Typing keeps the field: every keystroke used to hand focus back to the
   // button that opened the sheet (5 Sep 2026).
-  await sheet.getByLabel('Naam').click();
+  await sheet.getByLabel('Naam', { exact: true }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type(mapName);
-  await expect(sheet.getByLabel('Naam')).toBeFocused();
-  await expect(sheet.getByLabel('Naam')).toHaveValue(mapName);
+  await expect(sheet.getByLabel('Naam', { exact: true })).toBeFocused();
+  await expect(sheet.getByLabel('Naam', { exact: true })).toHaveValue(mapName);
   await sheet.getByLabel('Omschrijving').click();
   await page.keyboard.type('De kaart van de landmeter.');
   await expect(sheet.getByLabel('Omschrijving')).toBeFocused();
@@ -181,10 +181,10 @@ async function hangMap(page: Page, name: string): Promise<string> {
   await page.getByRole('button', { name: 'Landkaart ophangen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Landkaart ophangen' });
   await sheet.getByLabel('Afbeelding').setInputFiles({ name: 'eiland.png', mimeType: 'image/png', buffer: await picture() });
-  await sheet.getByLabel('Naam').click();
+  await sheet.getByLabel('Naam', { exact: true }).click();
   await page.keyboard.press('Control+a');
   await page.keyboard.type(name);
-  await expect(sheet.getByLabel('Naam')).toHaveValue(name);
+  await expect(sheet.getByLabel('Naam', { exact: true })).toHaveValue(name);
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
   await page.waitForURL('**/maps/**');
   await expect(page.getByRole('heading', { name })).toBeVisible();

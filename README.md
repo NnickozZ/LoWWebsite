@@ -814,7 +814,9 @@ Forty-six rules worth knowing before changing anything:
     the archive makes now soft-deletes into the bin, is restorable, and can be
     destroyed from there. Anything new that can be *made* needs all three.
 
-22. **A soort can be one that only exists inside a dossier.** §24.
+22. **A soort can be one that only exists inside a dossier.** §24. *Reversed by
+    §49: every soort is makeable everywhere again, and `case_only` is no longer
+    a gate. What is below is history.*
     `entry_types.case_only` — a voorwerp or a clue is *found*, during an
     investigation, so the "Nieuw artikel" sheet leaves it out and the wiki's own
     new button is gone for it. The sheet hiding it is a courtesy; `/api/entries`
@@ -1829,7 +1831,9 @@ Forty-six rules worth knowing before changing anything:
     `listTimelines(viewer, { where: caseId })` — a lookup in a list's clothes),
     and a **focus** web, whose ties cross the two sides on purpose
     (`bothSides: Boolean(focus)` in `app/api/web/route.ts`). Every call site
-    says so in a `§46` comment; a new one without a reason is a bug.
+    says so in a `§46` comment; a new one without a reason is a bug. *§50 took
+    that opt-out away from all of them but one: only `/api/keeper/search`, the
+    touwtjeskiezer, still passes `bothSides`.*
 
     Two traps. `containerViewer` in `lib/web/service.ts` strips `isKeeper`, so
     `sideCondition` answers `1 = 1` for it — read the side off the *real*
@@ -1854,6 +1858,9 @@ Forty-six rules worth knowing before changing anything:
     `POST /api/keeper/flip`, one `router.refresh()`, only when the page and the
     browser actually disagree. No redirect, no flash, and no permission: the
     attribute is paint, and the cookie grants nothing the toggle does not.
+    *§50 reverses that last sentence: the cookie is corrected on the server, by
+    a redirect, before anything renders (`sideDetour`), and `SideSync` is gone.
+    The palette still follows the page.*
 
     **One toggle, outside the menu, and the key `k`.** `SideToggle` is a small
     round button fixed to the top-right of the viewport on a desk and on a
@@ -2001,7 +2008,9 @@ Forty-six rules worth knowing before changing anything:
     `UiProvider` is the dossier page saying "this screen is me", which is what
     lets the `+` in the menu, the FAB and the `n` key open the sheet *inside*
     the dossier — and that is the only way a Voorwerp or a Clue (§24's
-    `caseOnly`) can be made at all. It is not `PreferredCases`: that is a
+    `caseOnly`) can be made at all. *§49: that last clause is history — every
+    soort is makeable everywhere now; what the `+` still decides is that what
+    it makes is filed in this dossier.* It is not `PreferredCases`: that is a
     ranking and a list of every dossier an artikel is in; this is the one
     dossier you are standing in, set by one component and nothing else.
 
@@ -2015,3 +2024,120 @@ Forty-six rules worth knowing before changing anything:
     new-artikel sheet's tickbox decides whether `caseId` is sent at all, so
     §24's `originCaseId` never names a dossier the artikel is not in. For a
     soort that exists only inside a dossier the box is ticked and switched off.
+    *§49 keeps the fact and removes the tickbox: something made in a dossier is
+    filed there, always, and the only tickbox left in that sheet is about the
+    name.*
+
+49. **Het dossier voor de naam is een keuze van het artikel, niet van zijn
+    soort.** §49. §24 asked one question of the *soort* — "wordt dit alleen in
+    een dossier gemaakt?" (`entry_types.case_only`) — and used the one answer
+    for two things: a gate on where the thing could be made, and a dossier
+    printed in front of its name in every lijst. The two come apart.
+
+    **The tickbox is on the artikel.** `entries.case_prefix`, one per artikel,
+    on its own page beside the dossier it points at (`origin_case_id`,
+    unchanged, still §24's living reference). `entry_types.prefix_default` is
+    only what a *new* artikel of that soort starts with — Clues and Voorwerpen
+    ticked, everything else not — and a soort decides nothing after the moment
+    of making. Migration `0022_case_prefix` backfills the tickbox onto every
+    artikel of a `case_only` soort, so nothing that read "Zaak X: naam" this
+    morning stops reading that way this afternoon.
+
+    **The gate is gone.** Every soort is makeable everywhere again: the wiki's
+    own new button is back on `/wiki/<soort>`, the sheet leaves nothing out,
+    and `/api/entries` no longer refuses an artikel without a dossier.
+    `entry_types.case_only` stays in the database (this repo never drops a
+    column) and is no longer a rule. Three things still read it, all of them
+    cosmetic: the trigger `entry_types_prefix_default_from_case_only` in
+    `0022_case_prefix`, which hands a freshly seeded soort its default because
+    the seed runs after the migrations; and the two places that put a dossier's
+    tabs in order (`TAB_ORDER` in `app/(app)/c/[slug]/page.tsx` and the two
+    groups in `CaseTabsButton`). It is not patchable in Beheer.
+
+    **Made in a dossier is filed in that dossier.** Via the `+`, the FAB, `n`,
+    the dossier's own add-box or an `@` in its own text — there is no tickbox
+    that turns it off any more, because "gemaakt in" and "opgeborgen in" are one
+    fact (§48).
+
+    **`nameTheirCases` is the only thing that decides whether the dossier comes
+    before the name.** It fills `originCaseName` only for an artikel wearing the
+    tickbox, and `entryDisplayName` prints what it is given — so Zoeken, the
+    autocomplete and every lijst follow the rule without knowing it exists. It
+    is decided *there* and not in `entryDisplayName` because `lib/search/service.ts`
+    and `/api/suggest` do not select `case_prefix`, and the prefix would
+    silently vanish from both.
+
+    **Unticking it changes nothing about the filing.** Only "Uit dit dossier
+    halen" does: `DELETE /api/cases/{id}/entries?entryId=…`, an edit of that
+    dossier (§17) and refused with a sentence on screen where the hand may not,
+    which really removes the `case_entries` row and lets `reconcileOrigin`
+    decide the origin again. An artikel wearing the tickbox with no dossier
+    left is `isAdrift` — the grey chip beside its name, and Beheer's list of
+    loose ends.
+
+50. **De twee kanten staan los, en de pagina bepaalt waar je staat.** §50.
+    §46 made the archive readable from one side at a time. This closes it: the
+    browser is put on the right side *before* the page is drawn, and a
+    reference across the border is refused.
+
+    **De wissel.** A Keeper who opens a record standing on the other side than
+    their browser is turned over on the server, before rendering, through
+    `/api/keeper/flip` — the one writer of the side cookie. Both directions: a
+    Keeper artikel takes you over, a player-facing one takes you back. The
+    decision is `sideDetour()` in `lib/keeper/side.ts` and nowhere else; the
+    five record pages (`/e`, `/c`, `/b`, `/maps`, `/timelines`) call it and
+    redirect. It cannot loop, because the flip writes the cookie to exactly the
+    side of the record you are opening. `queryTail()` carries the page's own
+    query (`?new=1`, `?rev=`) across the round trip and drops `gewisseld`;
+    `gewisseld=1` rides back for the toast, and `KeeperStamp` takes it off the
+    address afterwards. This replaces §46's `SideSync`, which flipped the
+    cookie *after* the render with a `router.refresh()` — one frame in which the
+    masthead, the toggle and the colours belonged to the side you had just left,
+    and every picker on screen was built for it.
+
+    **De scheiding.** `suggestEntries` is sided by default now, which reverses
+    §46's decision to leave the autocomplete open — the suggestion list under
+    every text box was the widest opening in the wall. `bothSides` survives with
+    exactly one user: `/api/keeper/search`, the touwtjeskiezer. The picker APIs
+    (`/api/cases`, `/api/boards`, `/api/maps`, `/api/timelines`), the pickers on
+    the record pages, `listTimelinesForCase`, "Genoemd in", `getBacklinks` and
+    the focus web all read one side. That is allowed *because* of the wissel:
+    "the side the reader stands on" and "the side this record is on" have become
+    the same question.
+
+    **De weigering.** `sameSide(kindA, idA, kindB, idB)`, built on
+    `isKeeperSide` so §44's two spellings of "the Keeper's own" stay in one
+    place, refuses an artikel filed in a dossier, a card on a prikbord, a speld
+    on a landkaart and a gebeurtenis on a tijdlijn when the two ends are not on
+    the same side: 400, `Dat staat aan de andere kant van het archief.` Four
+    routes carry it — `POST /api/cases/[id]/entries`, `PATCH /api/boards/[id]`,
+    `POST /api/maps/[id]/pins`, `POST /api/timelines/[id]/events`. The rule is
+    on the server, not in the picker: a picker is a courtesy. On a prikbord only
+    cards whose reference is *new* to that wall are asked, because an autosave
+    posts everything the browser knows. Touwtjes and tweelingen never come past
+    here — that bridge (§44) exists precisely to cross this border. Nothing is
+    migrated: a reference that crossed before this round keeps rendering, and
+    only new ones are refused.
+
+51. **Een koppelingsbox mag op meer dan één soort mikken, en de Keeper stelt
+    dat zelf in.** §51. `FieldDef.ofType` is a *list* of slugs and is read as a
+    set everywhere from the picker to the search service. The order in it is not
+    decoration: `EntryPicker`'s "'X' aanmaken" row makes an artikel of the
+    **first** slug. Until this round only a seed could write that list; Beheer →
+    Soorten now has a chip row under every `entry_link` / `entry_links` field —
+    "Alleen deze soorten mogen erin (leeg = alles)" — the same control the page
+    builder's `links` block already had, because it is the same question.
+
+    **Families is the worked example.** A new soort (`family`, sort_order 75)
+    whose veld **Leden** takes Personen, Onderzoekers *and* Abnormaliteiten,
+    with `character` first. The band is written from either end and only once:
+    the Leden box on the familie, the veld **Familie** on a persoon,
+    onderzoeker or abnormaliteit, and a self-filling `derived` list over
+    `familie` on the familie's page, the way Facties has one over `faction`.
+    Both ends give "Genoemd in" and a thread in the web for free, because they
+    are real fields. There is no migration: `INSERT OR IGNORE` puts the soort
+    into a fresh archive and an existing one alike, and the reverse veld is
+    added once behind the marker `seed:round-26-families`, never overwritten.
+    A familie is an ordinary soort — makeable everywhere, no dossier in front
+    of its name — with a tab of its own in a dossier.
+

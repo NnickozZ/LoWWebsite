@@ -114,6 +114,23 @@ export const FACTIES = [
   ['De Provinciale Zeeuwse Courant', 'Verschijnt nog dagelijks, op half formaat, met een witte kolom op pagina twee.', { alignment: 'menselijk' }],
 ];
 
+/* ------------------------------------------------------------- families */
+
+export const FAMILIES = [
+  ['De familie Boone', 'Havenvolk sinds mensenheugenis. Wie in Vlissingen iets van de kade af wil hebben, gaat langs een Boone.', { status: 'bloeiend', wapenspreuk: 'Wij tellen de lading twee keer' }],
+  ['De familie Wisse', 'Boeren op de kreekrug bij Nieuwland. Sinds april één zoon te veel aan tafel en één te weinig aan het werk.', { status: 'tanend', wapenspreuk: 'Het land houdt ons' }],
+  ['De familie Traas', 'Middelburgse ambtenarenfamilie. Drie generaties op de provincie, en alle drie met een la die niet opengaat.', { status: 'bloeiend', wapenspreuk: 'In stilte gediend' }],
+  ['De familie Minnaar', 'Berucht van Ritthem tot de Kaloot. Rooie Hendrik is de vierde op rij die het eiland op brengt wat er niet op hoort.', { status: 'bloeiend', wapenspreuk: 'Wat het water brengt is van ons' }],
+  ['Het geslacht Van Gilse', 'Regentenfamilie uit Veere, geslonken tot een naam op drie gevelstenen en één vermiste geoloog.', { status: 'vervallen', wapenspreuk: 'Boven het tij' }],
+  ['De familie Goedbloed', 'Baakmeesters van het Sloe, vader op zoon, sinds de tonnen er liggen. De laatste is in mei niet teruggevaren.', { status: 'tanend', wapenspreuk: 'Wij houden het licht' }],
+  ['De familie Neerhoff', 'Predikantenfamilie. Vier dominees in honderd jaar, en de vierde preekt sinds de Drift uit een ander boek.', { status: 'bloeiend', wapenspreuk: 'Het woord blijft' }],
+  ['Het huis Ossewaarde', 'Landmeters en dijkgraven van Zuid-Beveland. De metingen van 1898 kloppen nog; die van dit jaar niet.', { status: 'bloeiend', wapenspreuk: 'Gemeten en vastgelegd' }],
+  ['De familie Sturm', 'Van oorsprong Vlaams, aangespoeld in 1809 en nooit meer weggegaan. Dienen wie er dient.', { status: 'tanend', wapenspreuk: 'Waar men ons zet' }],
+  ['Het geslacht Kloosterman', 'Uitgestorven in de mannelijke lijn, zegt het register. In het gasthuis loopt een Kloosterman nachtdienst.', { status: 'uitgestorven', wapenspreuk: 'Wij waken' }],
+  ['De familie De Kok', 'Vissers uit Arnemuiden. Elf begrafenissen sinds februari, en negen daarvan zonder lichaam.', { status: 'tanend', wapenspreuk: 'De zee geeft terug' }],
+  ['Het huis Van Ostade', 'Utrechts geslacht met een tak op Walcheren die niemand op het eiland ooit heeft gezien.', { status: 'bloeiend', wapenspreuk: 'Wat men vertelt bewaren wij' }],
+];
+
 /* ------------------------------------------------------------- relieken */
 
 export const RELIEKEN = [
@@ -325,6 +342,15 @@ export const ZINNEN = {
     { t: 'Kent %A van vroeger, van voor de Drift, toen dat nog iets betekende.', a: 'investigator' },
     { t: 'Was aanwezig bij %A en heeft het verslag ervan geschreven.', a: 'session' },
   ],
+  family: [
+    { t: 'Woont sinds mensenheugenis in %A, en is daar niet weg te denken.', a: 'location' },
+    { t: 'Het hoofd van de familie is %A, of dat wordt althans op straat gezegd.', a: 'character' },
+    { t: 'De naam staat op drie gevelstenen en in geen enkel kerkregister van na de Drift.' },
+    { t: 'Ligt sinds de Drift overhoop met %A, en niemand wil nog uitleggen waarover.', a: 'faction' },
+    { t: 'Wat er in %A gebeurde wordt binnen de familie niet besproken.', a: 'event' },
+    { t: 'Volgens %A loopt er iets in de bloedlijn dat er niet in hoort.', a: 'lore' },
+    { t: 'Er is in maart een %A op zolder gevonden die volgens de erfgenamen nooit van hen is geweest.', a: 'object' },
+  ],
   faction: [
     { t: 'Vergadert waar %A het zegt, en niet waar het in de notulen staat.', a: 'character' },
     { t: 'Sinds de Drift meer macht dan bevoegdheid, en dat verschil wordt kleiner.' },
@@ -399,6 +425,7 @@ export const OPENINGEN = {
   location: ['Een plek waar men liever overdag komt.', 'De kaart klopt hier niet meer.', 'Niet groot, wel belangrijk geworden.'],
   character: ['Wie hier iets wil, moet geduld hebben.', 'Op het eiland algemeen bekend.', 'Weinig woorden, en die tellen.'],
   investigator: ['Aangesteld in het eerste onderzoek.', 'Doet dit werk erbij, en steeds minder erbij.', 'Eén van de weinigen die aantekeningen bijhoudt.'],
+  family: ['Een naam die op het eiland iets betekent.', 'Ouder dan het dorp waar ze wonen.', 'Van de familie is nog een handvol over.'],
   faction: ['Geen vereniging, wel een verband.', 'Bestaat officieel niet in deze vorm.', 'Ouder dan de meeste papieren erover.'],
   object: ['Uit de klei, uit het water, of uit een kelder.', 'Geregistreerd, gefotografeerd, en daarna opgeborgen.', 'Niemand weet waar het vandaan komt.'],
   item: ['Aangetroffen tijdens het onderzoek.', 'In het dossier gebleven.', 'Klein, en daarom bijna gemist.'],
@@ -414,6 +441,7 @@ export const TAGS = {
   location: ['walcheren', 'kust', 'polder', 'middelburg', 'dijk', 'water'],
   character: ['getuige', 'walcheren', 'haven', 'kerk', 'duits', 'onbetrouwbaar'],
   investigator: ['onderzoeker', 'ploeg', 'eerste-onderzoek'],
+  family: ['familie', 'geslacht', 'walcheren', 'bloedlijn', 'erfenis'],
   faction: ['groep', 'smokkel', 'kerk', 'overheid', 'duits'],
   object: ['reliek', 'brons', 'document', 'opgebaggerd'],
   item: ['vondst', 'bewijs', 'dossier'],

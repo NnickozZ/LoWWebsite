@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { typePagePlace } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
@@ -52,17 +51,11 @@ export default async function BrowseTypePage({
           <h1 style={{ margin: 0 }}>{type.label}</h1>
         </div>
         <div className="spacer" />
-        {/* §24: a soort that only exists inside a dossier has no "new" button
-            here. It is not hidden from the wiki — everything made lands here —
-            but it is made in an investigation, so that is where the door is. */}
-        {type.caseOnly ? (
-          <p className="tiny muted" style={{ margin: 0, maxWidth: '22rem', textAlign: 'right' }}>
-            {type.label} maak je in een {words.case}, bij het onderzoek waar ze vandaan komen.{' '}
-            <Link href="/cases">Naar de {words.casePlural}</Link>
-          </p>
-        ) : (
-          <NewOfTypeButton typeSlug={type.slug} />
-        )}
+        {/* §49: every soort has its own button again. §24 took this one away
+            from a soort that "only exists inside a dossier"; a clue made here
+            simply has no dossier in front of its name — and says so, with the
+            same grey chip the wiki has always used for a loose end. */}
+        <NewOfTypeButton typeSlug={type.slug} />
       </div>
 
       <TypeTabs

@@ -27,8 +27,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     colour: t.colour,
     // §11: what this soort's own "Nieuw" button says, if the Keeper gave it one.
     newButton: cleanTypeText(t.pageText).newButton,
-    // §24: made in a dossier and nowhere else.
-    caseOnly: t.caseOnly,
+    // §49: does a new one of these start with the dossier in front of its name?
+    prefixDefault: t.prefixDefault,
   }));
 
   // §11: the Keeper's words, resolved once here so every client component in
