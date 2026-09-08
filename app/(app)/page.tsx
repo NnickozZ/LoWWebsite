@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { Thumb } from '@/components/Cover';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
@@ -85,7 +86,8 @@ export default async function HomePage() {
             {VERBS[item.verb] ?? 'wijzigde'} <strong>{item.entry!.name}</strong>
           </span>
           <span className="tiny muted clamp-2" style={{ display: 'block' }}>
-            {item.entry!.shortDescription}
+            {/* §48: flat chips — the whole row is a link. */}
+            <MentionText text={item.entry!.shortDescription} flat />
           </span>
           <span className="tiny muted" style={{ display: 'block' }}>
             {relativeTime(item.createdAt)}
@@ -179,7 +181,8 @@ export default async function HomePage() {
                     </span>
                     {item.summary && (
                       <span className="tiny muted clamp-2" style={{ display: 'block' }}>
-                        {item.summary}
+                        {/* §48: flat chips — the whole row is a link. */}
+                        <MentionText text={item.summary} flat />
                       </span>
                     )}
                   </span>

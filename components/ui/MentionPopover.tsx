@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/components/Icon';
+import { useMentionFiling } from '@/components/cases/useMentionFiling';
+import { useUi } from './UiProvider';
 
 /**
  * §27, round 18: `@` in a plain text box.
@@ -36,10 +38,20 @@ function triggerBefore(value: string, caret: number): { start: number; query: st
   return { start, query: m[3] };
 }
 
+/**
+ * §48: a box is a `<textarea>` or an `<input>`. The one-line boxes — a
+ * dossier's samenvatting, an artikel's korte beschrijving in the sheet that
+ * makes it — are inputs, and they are exactly where somebody reaches for a
+ * name. Everything below works on both; only the prototype whose value setter
+ * is borrowed differs.
+ */
+export type MentionBox = HTMLTextAreaElement | HTMLInputElement;
+
 /** Puts `text` in place of [from, to) and fires the event the box's owner listens to. */
-function replaceRange(el: HTMLTextAreaElement, from: number, to: number, text: string) {
+function replaceRange(el: MentionBox, from: number, to: number, text: string) {
   const next = el.value.slice(0, from) + text + el.value.slice(to);
-  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+  const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   if (setter) setter.call(el, next);
   else el.value = next;
   const caret = from + text.length;
@@ -52,10 +64,10 @@ export function MentionPopover({
   element,
   disabled,
 }: {
-  /** The box, through a ref that does not change (a plain textarea a component owns). */
-  forRef?: RefObject<HTMLTextAreaElement | null>;
+  /** The box, through a ref that does not change (a plain box a component owns). */
+  forRef?: RefObject<MentionBox | null>;
   /** Or the box as state — for a box that is swapped under the ref, like a `LiveField` when its room arrives. */
-  element?: HTMLTextAreaElement | null;
+  element?: MentionBox | null;
   disabled?: boolean;
 }) {
   const target = element ?? forRef?.current ?? null;
@@ -69,6 +81,25 @@ export function MentionPopover({
   itemsRef.current = items;
   const activeRef = useRef(active);
   activeRef.current = active;
+
+  /*
+   * §48: the row the rich editor has had since §6 — "'Jan' aanmaken" — in the
+   * plain boxes too. A name that is not in the archive yet is the commonest
+   * reason to be typing `@` at all, and until round 25 the only answer here was
+   * to leave the box, make the artikel and come back.
+   *
+   * Two things ride along, both from `useUi()` and both null outside a dossier:
+   * the sheet is opened *in* the dossier this screen is (§24: that is the only
+   * way a voorwerp or an aanwijzing can be made), and whatever lands in the
+   * text — made or picked — is offered a place on its shelves (§48).
+   */
+  const ui = useUi();
+  const offerFiling = useMentionFiling();
+  const here = ui.caseHere;
+  // Read from the element's own handlers, which outlive this render.
+  const createRef = useRef<(name: string) => void>(() => {});
+  const linkedRef = useRef(offerFiling);
+  linkedRef.current = offerFiling;
 
   useEffect(() => {
     const el = target;
@@ -92,24 +123,36 @@ export function MentionPopover({
       replaceRange(el, state.start, caret, `[[${item.name}]] `);
       setOpen(null);
       el.focus();
+      // §48: named in a dossier's own writing — should it be in the dossier?
+      linkedRef.current({ id: item.id, name: item.name });
     };
-    const onKey = (event: KeyboardEvent) => {
+    // A union of two element types makes `addEventListener`'s overloads
+    // ambiguous, so the listener takes the base `Event` and narrows itself.
+    const onKey = (plain: Event) => {
+      const event = plain as KeyboardEvent;
       if (!openRef.current) return;
       const list = itemsRef.current;
+      // §48: the create row is the last one, and it is there whenever
+      // something has been typed — even before any suggestion has arrived.
+      const canCreate = Boolean(openRef.current.query.trim());
+      const total = list.length + (canCreate ? 1 : 0);
+      if (!total) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
         close();
-      } else if (event.key === 'ArrowDown' && list.length) {
+      } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-        setActive((activeRef.current + 1) % list.length);
-      } else if (event.key === 'ArrowUp' && list.length) {
+        setActive((activeRef.current + 1) % total);
+      } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        setActive((activeRef.current - 1 + list.length) % list.length);
-      } else if ((event.key === 'Enter' || event.key === 'Tab') && list.length) {
+        setActive((activeRef.current - 1 + total) % total);
+      } else if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault();
         event.stopPropagation();
-        pick(list[activeRef.current] ?? list[0]);
+        const index = Math.min(activeRef.current, total - 1);
+        if (index < list.length) pick(list[index]);
+        else createRef.current(openRef.current.query.trim());
       }
     };
     const onBlur = () => {
@@ -121,7 +164,7 @@ export function MentionPopover({
     el.addEventListener('keyup', look);
     el.addEventListener('keydown', onKey, true);
     el.addEventListener('blur', onBlur);
-    (el as HTMLTextAreaElement & { __mentionPick?: (item: Suggestion) => void }).__mentionPick = pick;
+    (el as MentionBox & { __mentionPick?: (item: Suggestion) => void }).__mentionPick = pick;
     return () => {
       el.removeEventListener('input', look);
       el.removeEventListener('click', look);
@@ -153,8 +196,34 @@ export function MentionPopover({
     };
   }, [open?.query, open?.start, open]);
 
-  if (!open || !items.length) return null;
-  const pick = (item: Suggestion) => (target as (HTMLTextAreaElement & { __mentionPick?: (item: Suggestion) => void }) | null)?.__mentionPick?.(item);
+  /*
+   * §48: make it, then write it into the box. The sheet is the only door
+   * (§18b), so the rights check and the onderzoeker question come with it; the
+   * dossier is handed in as the place it is being made, and `askToFile` makes
+   * the filing a tickbox rather than something that silently happened.
+   */
+  const typed = open?.query.trim() ?? '';
+  const start = open?.start ?? 0;
+  const create = (name: string) => {
+    const el = target;
+    if (!el || !name) return;
+    setOpen(null);
+    ui.openNewEntry({
+      name,
+      caseId: here?.id,
+      askToFile: Boolean(here),
+      onCreated: (entry) => {
+        const caret = Math.max(start, Math.min(el.value.length, el.selectionStart ?? el.value.length));
+        replaceRange(el, start, caret, `[[${entry.name}]] `);
+        el.focus();
+        linkedRef.current({ id: entry.id, name: entry.name }, entry.filed);
+      },
+    });
+  };
+  createRef.current = create;
+
+  if (!open || (!items.length && !typed)) return null;
+  const pick = (item: Suggestion) => (target as (MentionBox & { __mentionPick?: (item: Suggestion) => void }) | null)?.__mentionPick?.(item);
   // In a portal: a `position: fixed` box inside a transformed ancestor (a
   // prikbord's canvas, a sheet sliding in) is fixed to that ancestor, not to
   // the screen, and lands under whatever is drawn over it.
@@ -193,11 +262,32 @@ export function MentionPopover({
           </button>
         </li>
       ))}
+      {typed && (
+        <li>
+          <button
+            type="button"
+            className="suggest-item"
+            role="option"
+            aria-selected={active === items.length}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              create(typed);
+            }}
+            onMouseDown={(event) => event.preventDefault()}
+            onMouseEnter={() => setActive(items.length)}
+          >
+            <Icon name="plus" size={14} style={{ color: 'var(--stamp-red)' }} />
+            <span>
+              &lsquo;<strong>{typed}</strong>&rsquo; aanmaken
+            </span>
+          </button>
+        </li>
+      )}
     </ul>,
     document.body,
   );
 }
-
 /* ------------------------------------------------------------- reading */
 
 /**
@@ -302,12 +392,28 @@ export function useMentionSpans(text: string, settle = 0): Span[] | null {
   return spans;
 }
 
-/** The chip itself, in both its states. */
-export function MentionChip({ span }: { span: Span }) {
+/**
+ * The chip itself, in both its states — and, since §48, in two shapes.
+ *
+ * `flat` draws the chip as a `<span>` instead of an `<a>`. That is for the one
+ * place a link cannot go: inside another link. A card in the wiki, a row in the
+ * feed and a hit in Zoeken are each one big `<a>` to the thing they describe,
+ * and an `<a>` inside an `<a>` is invalid HTML — React says so in the console,
+ * and `no-console-warnings.spec.ts` fails on it. The chip still *looks* like a
+ * chip there, and the card it sits in is what the reader clicks.
+ */
+export function MentionChip({ span, flat }: { span: Span; flat?: boolean }) {
   const style = span.colour ? ({ ['--chip-colour' as string]: span.colour } as React.CSSProperties) : undefined;
   if (!span.slug || !span.entryId) {
     return (
       <span className="entry-chip entry-chip-missing" title="Geen artikel met deze naam">
+        {span.name}
+      </span>
+    );
+  }
+  if (flat) {
+    return (
+      <span className="entry-chip" data-entry-slug={span.slug} style={style}>
         {span.name}
       </span>
     );
@@ -331,7 +437,7 @@ export function MentionChip({ span }: { span: Span }) {
  * gebeurtenis prints what was typed into it. Until the answer arrives the
  * brackets are already off, so the text never flashes its punctuation.
  */
-export function MentionText({ text }: { text: string }) {
+export function MentionText({ text, flat }: { text: string; flat?: boolean }) {
   const spans = useMentionSpans(text);
   if (!spans) return <>{text.replace(/\[\[([^\]\n]{1,120})\]\]/g, (_, name: string) => name.trim())}</>;
   if (!spans.length) return <>{text}</>;
@@ -339,7 +445,7 @@ export function MentionText({ text }: { text: string }) {
   let at = 0;
   spans.forEach((span, i) => {
     if (span.start > at) out.push(<span key={`t${i}`}>{text.slice(at, span.start)}</span>);
-    out.push(<MentionChip key={`c${i}`} span={span} />);
+    out.push(<MentionChip key={`c${i}`} span={span} flat={flat} />);
     at = span.end;
   });
   if (at < text.length) out.push(<span key="tail">{text.slice(at)}</span>);

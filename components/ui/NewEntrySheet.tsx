@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { useMayStartEntry } from '@/components/you/AuthorProvider';
+import { MentionPopover } from './MentionPopover';
+import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
 import { capitalise } from '@/lib/words';
@@ -18,6 +20,8 @@ export type CreatedEntry = {
   typeIcon: string;
   typeColour: string;
   shortDescription: string;
+  /** §48: whether the sheet has already put it in the dossier it was made in. */
+  filed?: boolean;
 };
 
 export type NewEntryPrefill = {
@@ -31,6 +35,15 @@ export type NewEntryPrefill = {
    * refuses one anyway.
    */
   caseId?: string;
+  /**
+   * §48: the dossier is where this is being made, but filing it there is a
+   * question rather than a fact. Set by the `@` in a dossier's own writing —
+   * naming somebody in the werktheorie is not always putting them on a shelf.
+   * The dossier's own add-box and the `+` in the menu leave it off: those are
+   * the roads that mean "put this in here", and the tickbox is simply already
+   * ticked.
+   */
+  askToFile?: boolean;
   /** When set, the sheet hands the entry back instead of navigating to it. */
   onCreated?: (entry: CreatedEntry) => void;
 };
@@ -83,7 +96,14 @@ export function NewEntrySheet({
     return types[0]?.slug ?? 'character';
   }, [prefill.typeSlug, types]);
 
-  const words = useUi().words;
+  const ui = useUi();
+  const words = ui.words;
+  /*
+   * §48: the dossier this screen is, when the sheet was opened from one. Its
+   * name (so the tickbox can say where the thing is going) and its side (so a
+   * voorwerp made in the Keeper's dossier cannot be born on the players' side).
+   */
+  const here = ui.caseHere && ui.caseHere.id === prefill.caseId ? ui.caseHere : null;
   const [typeSlug, setTypeSlug] = useState(initialType);
   const [name, setName] = useState(prefill.name ?? '');
   const [description, setDescription] = useState(prefill.shortDescription ?? '');
@@ -91,6 +111,29 @@ export function NewEntrySheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  /*
+   * §48: two questions this sheet never asked before.
+   *
+   * The first is the dossier: made *in* it and *filed* in it are one fact
+   * (§24's `originCaseId` follows the shelves), so the tickbox decides whether
+   * `caseId` is sent at all. A soort that exists only inside a dossier has no
+   * choice — there is no such thing as an unfiled voorwerp — so for those it is
+   * ticked and switched off, with the reason written under it.
+   *
+   * The second is the side. Everything made here is born where the hand is
+   * standing (§48), and a Keeper may say otherwise — except inside a dossier
+   * that is the Keeper's own, where the answer is not theirs to give: a wall,
+   * a wire or a clue in a Keeper's dossier that the table can read is the leak
+   * this round was opened to close.
+   */
+  const [file, setFile] = useState(!prefill.askToFile);
+  const chosen = types.find((type) => type.slug === typeSlug);
+  const mustFile = Boolean(chosen?.caseOnly);
+  const filing = inCase && (mustFile || file);
+  const sideLocked = Boolean(here?.keeperOnly);
+  const [keeperSide, setKeeperSide] = useState(sideLocked || ui.side === 'keeper');
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -150,7 +193,13 @@ export function NewEntrySheet({
           typeSlug,
           name: name.trim(),
           shortDescription: description,
-          caseId: prefill.caseId,
+          // §48: only when it is actually being filed there. The two are one
+          // fact, and an artikel wearing a dossier's name it is not in would
+          // be the wrong kind of half-truth.
+          caseId: filing ? prefill.caseId : undefined,
+          // §48: which side it is born on. Ignored by the server for anyone
+          // who is not a Keeper, and overruled by a Keeper-only dossier.
+          keeperOnly: ui.isKeeper ? sideLocked || keeperSide : undefined,
         }),
       });
       const data = await response.json();
@@ -160,7 +209,7 @@ export function NewEntrySheet({
         return;
       }
       window.localStorage.setItem(LAST_TYPE_KEY, typeSlug);
-      onCreated(data.entry as CreatedEntry);
+      onCreated({ ...(data.entry as CreatedEntry), filed: Boolean(data.filed) });
     } catch {
       setError('Geen verbinding met het archief.');
       setBusy(false);
@@ -256,13 +305,46 @@ export function NewEntrySheet({
         </label>
         <textarea
           id="new-entry-description"
+          ref={descriptionRef}
           className="textarea"
           value={description}
           placeholder={DESCRIPTION_PLACEHOLDER}
           onChange={(event) => setDescription(event.target.value)}
           rows={4}
         />
+        {/* §48: `@` here too. Every plain box in the archive offers names now,
+            and the first description somebody writes is exactly where they
+            reach for one. */}
+        <MentionPopover forRef={descriptionRef} />
       </div>
+
+      {inCase && (
+        <label className="field row" style={{ gap: '0.5rem', alignItems: 'flex-start' }}>
+          <input
+            type="checkbox"
+            checked={filing}
+            disabled={mustFile}
+            onChange={(event) => setFile(event.target.checked)}
+          />
+          <span>
+            {`Opbergen in ${here?.name ?? `dit ${words.case}`}`}
+            {mustFile && (
+              <span className="tiny muted" style={{ display: 'block' }}>
+                {`${chosen?.label ?? 'Dit'} bestaat alleen binnen een ${words.case}.`}
+              </span>
+            )}
+          </span>
+        </label>
+      )}
+
+      <SideChoice
+        show={ui.isKeeper}
+        keeper={sideLocked || keeperSide}
+        locked={sideLocked}
+        lockedWhy={`${here?.name ?? `Dit ${words.case}`} is van de ${words.keeper}.`}
+        onChange={setKeeperSide}
+        words={words}
+      />
 
       {error && (
         <p className="error-note" role="alert">

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { SCALES, SCALE_HINTS, SCALE_LABELS, type Scale } from '@/lib/timelines/time';
@@ -26,6 +27,11 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
   const [scale, setScale] = useState<Scale>('day');
   const [busy, setBusy] = useState<'public' | 'private' | null>(null);
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  // §48: which side it is born on — see `NewBoardButton` for why a dossier of
+  // the Keeper's takes the choice away.
+  const here = ui.caseHere && ui.caseHere.id === caseId ? ui.caseHere : null;
+  const sideLocked = Boolean(here?.keeperOnly);
+  const [keeperSide, setKeeperSide] = useState(sideLocked || ui.side === 'keeper');
 
   async function create(isPrivate: boolean) {
     setBusy(isPrivate ? 'private' : 'public');
@@ -38,6 +44,8 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
           caseId,
           scale,
           isPrivate,
+          // §48: ignored for anyone who is not a Keeper.
+          keeperOnly: ui.isKeeper ? sideLocked || keeperSide : undefined,
         }),
       });
       if (!response.ok) {
@@ -120,6 +128,14 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
             <p className="tiny muted" style={{ margin: 0 }}>
               De maat is later te veranderen in de instellingen van de {words.timeline}.
             </p>
+            <SideChoice
+              show={ui.isKeeper}
+              keeper={sideLocked || keeperSide}
+              locked={sideLocked}
+              lockedWhy={`${here?.name ?? `Dit ${words.case}`} is van de ${words.keeper}.`}
+              onChange={setKeeperSide}
+              words={words}
+            />
             <div className="row-wrap" style={{ gap: '0.4rem' }}>
               <button
                 type="button"

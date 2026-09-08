@@ -71,6 +71,8 @@ function Nav({
   const pathname = usePathname();
   const ui = useUi();
   const words = ui.words;
+  // §48: the dossier this screen is, when it is one.
+  const here = ui.caseHere;
 
   return (
     <>
@@ -120,10 +122,10 @@ function Nav({
           type="button"
           className="btn btn-primary"
           style={{ width: '100%', marginTop: '1rem' }}
-          onClick={() => ui.openNewEntry()}
+          onClick={() => ui.openNewEntry(here ? { caseId: here.id } : undefined)}
         >
           <Icon name="plus" size={18} />
-          {words.newEntry}
+          {here ? `${words.newEntry} in dit ${words.case}` : words.newEntry}
         </button>
         <p className="tiny muted" style={{ marginTop: '0.6rem', paddingLeft: '0.6rem' }}>
           Druk overal op <kbd>n</kbd>
@@ -144,7 +146,14 @@ function Nav({
         ))}
       </nav>
 
-      <button type="button" className="fab" aria-label={words.newEntry} onClick={() => ui.openNewEntry()}>
+      {/* §48: inside a dossier the `+` makes something *in* it — which is the
+          only way a voorwerp or an aanwijzing can be made at all (§24). */}
+      <button
+        type="button"
+        className="fab"
+        aria-label={here ? `${words.newEntry} in dit ${words.case}` : words.newEntry}
+        onClick={() => ui.openNewEntry(here ? { caseId: here.id } : undefined)}
+      >
         +
       </button>
     </>
@@ -178,7 +187,16 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <UiProvider types={types} words={words} uploadLimit={uploadLimit}>
+    <UiProvider
+      types={types}
+      words={words}
+      uploadLimit={uploadLimit}
+      /* §48: what is made here is born on the side this browser stands on, and
+         the sheets have to be able to say so. A Keeper looking through a
+         player's eyes is a player here as everywhere else. */
+      isKeeper={Boolean(me.isRealKeeper && !me.asPlayer)}
+      side={me.side === 'keeper' ? 'keeper' : 'player'}
+    >
       {/* §21: one live line per tab, for every page inside the shell. */}
       <LiveProvider>
         <div className="shell">

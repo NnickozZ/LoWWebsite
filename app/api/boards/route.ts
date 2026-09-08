@@ -3,6 +3,7 @@ import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { createBoard, listBoards } from '@/lib/boards/service';
+import { keeperOnlyForNew, placeNewOnSide } from '@/lib/keeper/side';
 import { caseIdsHoldingEntry, getCaseById, getCaseBySlug } from '@/lib/cases/service';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,8 @@ export async function POST(request: Request) {
       caseId?: string;
       /** §17: "Privé prikbord" — both dials private from the first second. */
       isPrivate?: boolean;
+      /** §48: which side it is born on; a wall in a Keeper's dossier is his anyway. */
+      keeperOnly?: boolean;
     };
 
     let name = body.name?.trim() ?? '';
@@ -74,6 +77,15 @@ export async function POST(request: Request) {
       characterId: user.characterId,
       isPrivate: body.isPrivate === true,
     });
+    // §48: born on the side the hand is standing on — and always the
+    // Keeper's when the dossier it is hung in is.
+    const keeperOnly = keeperOnlyForNew(
+      user,
+      body.caseId ? { kind: 'case', id: body.caseId } : null,
+      body.keeperOnly,
+    );
+    placeNewOnSide('board', board.id, keeperOnly, user.id);
+
     return json({ board });
   } catch (err) {
     return apiError(err);

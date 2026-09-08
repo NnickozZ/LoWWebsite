@@ -3222,3 +3222,110 @@ the bottom of the screen — two existing board specs (`flow-4-board` and
 the known debt in CLAUDE.md §8; this round routed around it rather than
 rewriting the board's shell, because the dossier's Prikbord tab carries both
 halves of the control anyway.
+
+## Round 25 — 7 September 2026: geboren op een kant, en `@` overal (§48)
+
+Nick, in four lines: `@`-referenties in de beschrijvingen van artikelen "en
+descripties anywhere"; voorwerpen en clues aanmaken met `@` of de `+` terwijl je
+in een dossier zit, niet alleen via de pagina's ervoor en de grote groene knop;
+gevraagd worden of een artikel dat je in de tekst van een dossier noemt ook in
+dat dossier moet, "tenzij die er al in staat"; en de reden dit alles nu is:
+*"als ik een prikbord maak van een dossier terwijl ik in keeper mode zit, is het
+nogsteeds publiek. Zoek meer lekken en fix ze."*
+
+### Het lek, en hoe diep het zat
+
+Niet één knop. **Elke** maakroute in het archief zette de kant op de
+spelerskant: `cases`, `boards`, `maps` en `timelines` schrijven `keeper_only`
+nooit (kolomdefault 0) en `createEntry` schrijft `visibility` nooit (default
+`'all'`). §44 gaf de vijf soorten een Keeperkant en §46 gaf de browser een kant,
+maar geboorte kende geen van beide: de schakelaar op de *afgemaakte* pagina was
+de enige weg erheen. Een Keeper die op zijn eigen kant stond, in zijn eigen
+dossier, maakte dus een prikbord dat de hele tafel kon lezen — en het enige wat
+dat had kunnen verraden, het palet, veranderde niet, want de pagina waarop hij
+stond veranderde niet.
+
+**De regel die het sluit** (rule 48): twee feiten beslissen, en het feit dat
+*verbergt* wint altijd. De **houder** eerst — wat in een Keeper-only dossier
+gemaakt wordt is van de Keeper, punt, want de naam van dat dossier reist met een
+prikbord mee in iedere lijst die het toont (`BOARD_COLUMNS.caseName`) — en
+anders de **kant waarop deze browser staat**. `bornSide()`,
+`keeperOnlyForNew()` en `placeNewOnSide()` staan in `lib/keeper/side.ts`, want
+dat is sinds §44 het enige bestand dat mag weten dat "van de Keeper" twee
+spellingen heeft.
+
+**Twee lekken erbij, gevonden bij het rondkijken.** Een prikbord dat je *later*
+in een Keeper-dossier hangt (§47's `setBoardCase`) droeg de naam van dat dossier
+naar de spelerskant; het gaat nu mee naar de Keeperkant. En een dossier dat de
+Keeper naar zijn eigen kant haalt liet zijn prikborden en tijdlijnen achter, met
+diezelfde naam eraan; die gaan nu mee. Allebei één kant op: uit het dossier
+halen, of het dossier teruggeven aan de tafel, laat ze staan waar ze staan.
+Onthullen is iemand die op een knop drukt, nooit een neveneffect — dezelfde
+regel waarom `setKeeperSide` sinds §44 beide toestanden logt.
+
+**Wat níét is aangeraakt.** Artikelen gaan niet mee met een dossier dat omslaat:
+een artikel ligt in meerdere dossiers tegelijk en §9's dial erop is van hemzelf.
+`entry_sections` staat al op `'keeper'` by default. `/api/assets/[id]` serveert
+nog steeds elke asset aan elk ingelogd account — dat stond al in de lijst van
+§44's ronde en is een ronde op zich.
+
+### De schakelaar, niet het stempel
+
+Nick koos "erven **plus** een zichtbare schakelaar". Stil erven zou het lek
+sluiten en de verrassing houden; altijd vragen zou vijf sheets een vraag geven
+die in negen van de tien gevallen al beantwoord is door waar je staat.
+`SideChoice` is dus één regel in elke maak-sheet, alleen voor een echte Keeper
+(afwezig voor de rest, niet verborgen — §44's gewoonte), aangevinkt waar het
+archief hem zou aanvinken, met een zin eronder die zegt wat dat betekent. Waar
+de houder al beslist heeft staat hij aan én uit, met de reden erbij: een
+Keeper-dossier is geen mening.
+
+### `@` overal, en waarom dat dezelfde vorm heeft
+
+Een beschrijving is tekst, en tekst in dit archief kent `[[Naam]]` sinds §6.
+`MentionPopover` kende alleen `<textarea>`; de eenregelige vakken — een
+samenvatting, een Tekst-veld in de infobox — zijn `<input>`s, dus die kan hij nu
+ook. En hij kreeg de rij die de rijke editor sinds §6 heeft: "'Jan' aanmaken".
+Dat is wat punt 1 en punt 2 hetzelfde maakt: een naam die er nog niet is
+aanmaken *uit het vak waarin je hem typt*, en in een dossier is dat precies de
+weg naar een voorwerp of een clue.
+
+**Lezen:** dezelfde chips, ook in kaartjes en lijsten. Daar `flat`, als `<span>`
+in plaats van `<a>` — een kaartje is zelf al één grote link, en een anchor in
+een anchor is ongeldige HTML waar React over klaagt en
+`no-console-warnings.spec.ts` op valt.
+
+### "Het dossier waar ik in sta"
+
+De `+` in het menu en de FAB staan in de *shell*, boven de pagina, dus een
+context die de dossierpagina zet bereikt ze niet. `useIAmTheCase` zet het daarom
+in `UiProvider`: de dossierpagina meldt zich aan bij het opengaan en trekt het
+weer in bij het verdwijnen. Bewust **niet** `PreferredCases`: dat is een
+*rangschikking* over alle dossiers waarin een artikel ligt, en dit is er precies
+één — het scherm zelf.
+
+### De vraag, en waarom hij een sheet is en geen toast
+
+`offerToFileEntry` bestond al, voor het prikbord (§31): "hij hangt op de muur —
+moet hij ook in het dossier?" Dezelfde vraag, andere aanleiding, dus dezelfde
+sheet met een `reason: 'text'`. Hij zwijgt in drie gevallen: het dossier heeft
+het artikel al (Nicks "tenzij die er al in staat"), deze hand mag hier niets
+opbergen (§17), of de sheet die het zojuist maakte heeft het al opgeborgen.
+Eenmaal per artikel per bezoek: een "nee" die terugkomt zodra je dezelfde naam
+nog eens typt zou de ergere bug zijn.
+
+**Gemaakt in een dossier en opgeborgen in een dossier blijven één feit.** Dat
+was de keuze die het geheel eenvoudig hield: §24's `originCaseId` volgt de
+planken, dus als het vinkje uit staat wordt `caseId` helemaal niet meegestuurd,
+en er bestaat nooit een artikel dat de naam van een dossier draagt waar het niet
+in ligt. Voor een soort die alleen binnen een dossier bestaat staat het vinkje
+aan en uit, met de reden eronder.
+
+### Waar ronde 25 eindigt
+
+791 unittests in 54 bestanden (ronde 24: 784 in 53) — `born-on-a-side.test.ts`
+pint de vier zinnen vast die stilletjes onwaar kunnen worden: de kant van de
+browser beslist, de houder overrulet, een speler krijgt nooit een kant, en
+verbergen reist wél naar binnen en onthullen niet. Eén nieuwe browserspec,
+`tests/e2e/round-25.spec.ts`, drie gevallen op beide viewports.
+`tsc --noEmit` stil, `npm run build` schoon.

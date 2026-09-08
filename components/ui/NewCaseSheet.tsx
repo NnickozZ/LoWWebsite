@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useMayType } from '@/components/you/AuthorProvider';
+import { MentionPopover } from './MentionPopover';
+import { SideChoice } from '@/components/keeper/SideChoice';
+import { useUi } from './UiProvider';
 import { Sheet } from './Sheet';
 
 export type CreatedCase = {
@@ -35,6 +38,11 @@ export function NewCaseSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const summaryRef = useRef<HTMLInputElement>(null);
+  // §48: a dossier hangs in nothing, so its side is simply the side the hand
+  // is standing on — and a Keeper may say otherwise before it is opened.
+  const ui = useUi();
+  const [keeperSide, setKeeperSide] = useState(ui.side === 'keeper');
 
   /*
    * §18b: opening this sheet is an act of writing, so the question comes
@@ -56,7 +64,12 @@ export function NewCaseSheet({
       const response = await fetch('/api/cases', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), summary }),
+        body: JSON.stringify({
+          name: name.trim(),
+          summary,
+          // §48: ignored by the server for anyone who is not a Keeper.
+          keeperOnly: ui.isKeeper ? keeperSide : undefined,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -110,6 +123,7 @@ export function NewCaseSheet({
         </label>
         <input
           id="new-case-summary"
+          ref={summaryRef}
           className="input"
           value={summary}
           placeholder="Eén regel: wat wordt er onderzocht?"
@@ -121,7 +135,13 @@ export function NewCaseSheet({
             }
           }}
         />
+        {/* §48: `@` in the one line a dossier opens with, like everywhere else.
+            The popover swallows Enter while it is open, so the key above still
+            belongs to the sheet the moment there is no list. */}
+        <MentionPopover forRef={summaryRef} />
       </div>
+
+      <SideChoice show={ui.isKeeper} keeper={keeperSide} onChange={setKeeperSide} words={ui.words} />
 
       {error && (
         <p className="error-note" role="alert">

@@ -210,6 +210,9 @@ export default async function CasePage({
         notes: record.notes,
         coverAssetId: record.coverAssetId,
         coverCrop: record.coverCrop,
+        // §48: whether this dossier is the Keeper's own — what is made in it
+        // is born on the same side, and the sheets say so before they save.
+        keeperOnly: Boolean(keeperRef('case', record.id, user)?.keeperOnly),
       }}
       groups={groups}
       soorten={soorten}

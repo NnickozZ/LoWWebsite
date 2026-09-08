@@ -815,3 +815,40 @@ op het scherm, en één ding dat er eindelijk *wel* staat.
   {punaise} loopt, was daar eerder helemaal niet te zien; nu is de {punaise}
   een knoop zoals een {notitie} dat is — onder hetzelfde knopje *Notities* in
   de legenda. Zonder label heet hij gewoon *Punaise*.
+
+## Ronde 25 — geboren op een kant, en `@` overal (§48)
+
+Geen nieuwe woorden voor de {Keeper} om te hernoemen — alles hieronder leunt op
+woorden die er al zijn ({Keeperkant}, {dossier}, {artikel}). Wel een handvol
+nieuwe zinnetjes, en één regel die voortaan in élke maak-sheet staat.
+
+### De kant waarop iets geboren wordt (§48)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **Alleen op de {Keeperkant}** | één regel met een vinkje, onderin elke sheet die iets maakt — een {artikel}, een {dossier}, een {prikbord}, een {tijdlijn}, een {landkaart} | Dit nieuwe ding komt op jouw eigen kant van het archief te staan. Alleen zichtbaar voor een {Keeper}; een speler ziet deze regel niet, ook niet uitgegrijsd. Hij staat al aan als je zelf op de {Keeperkant} staat. |
+| **De tafel ziet dit niet.** | het zinnetje eronder, als het vinkje aan staat | Wat het aanvinken betekent, in gewone woorden. |
+| **Iedereen die het archief mag lezen ziet dit.** | hetzelfde zinnetje, als het vinkje uit staat | Idem, andersom. |
+| **{Dossiernaam} is van de {Keeper}.** | hetzelfde zinnetje, als het vinkje aan staat én vastzit | Je maakt dit ín een {dossier} dat van de {Keeper} is. Dan is er niets te kiezen: de naam van dat {dossier} reist met dit ding mee naar elke lijst waarin het staat, dus het blijft aan deze kant. |
+
+En wat er daarnaast gebeurt zonder dat er iets op het scherm staat: haal je een
+{dossier} naar de {Keeperkant}, dan gaan de {prikborden} en {tijdlijnen} die
+erin hangen mee. Geef je het {dossier} terug aan de tafel, dan blijven ze staan
+waar ze staan — teruggeven doe je zelf, met de knop, per ding.
+
+### `@` in elk plat vak (§48)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| *(lijstje met namen)* | zodra je `@` of `[[` typt in de korte beschrijving van een {artikel}, de samenvatting van een {dossier}, een Tekst- of Lange-tekst-veld van de infobox, de vakjes in de maak-sheets en de omschrijving van een {landkaart} | Dezelfde namenlijst die de grote tekst al had. Kiezen zet `[[Naam]]` in het vak; lezend is dat een klikbaar plaatje van de naam. |
+| **‘…’ aanmaken** | de laatste rij van dat lijstje | De naam die je typte bestaat nog niet: maak hem hier, zonder het vak te verlaten. In een {dossier} maakt hij hem meteen ín dat {dossier} — en dat is de enige manier waarop een {voorwerp} of een clue gemaakt kan worden. |
+
+### In een {dossier} staan (§48)
+
+| Op het scherm | Waar | Betekenis |
+|---|---|---|
+| **{Nieuw artikel} in dit {dossier}** | de grote knop in het menu, zolang je in een {dossier} bent (op een telefoon: de `+` rechtsonder) | De sheet gaat open *in* dit {dossier}, dus hij biedt ook de soorten aan die alleen binnen een {dossier} bestaan. Dezelfde `n`-toets doet hetzelfde. |
+| **Opbergen in {dossiernaam}** | een vinkje in de sheet die een {artikel} maakt, als die vanuit een {dossier} geopend is | Zet dit nieuwe {artikel} meteen op een plank van dit {dossier}. Kwam je hier via de zoekbalk of de `+` van het {dossier} zelf, dan staat hij al aan; kwam je hier door `@` in de tekst te typen, dan mag je kiezen. |
+| **{Soort} bestaat alleen binnen een {dossier}.** | onder datzelfde vinkje | Waarom je het niet uit kunt zetten voor een {voorwerp} of een clue. |
+| **{Naam} zit nog niet in {dossiernaam}** | een sheet, nadat je een naam in de tekst van een {dossier} hebt gezet | De vraag of dit {artikel} ook op een plank van dit {dossier} hoort. Komt niet als het er al in staat, en komt één keer per {artikel} per bezoek. |
+| **Alleen noemen** | de nee-knop van die sheet | Laat het bij de vermelding in de tekst. |

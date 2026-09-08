@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 53 files, 784 tests as of round 24 (round 23: 53 / 782)
+npx vitest run         # 54 files, 791 tests as of round 25 (round 24: 53 / 784)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -145,9 +145,9 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§4[0-9]" app components lib` before
-  choosing a number — the latest is §47 / rule 47 (round 24's four small
-  repairs; §46 de spiegel is round 23, §44 de Keeperkant and §45 de vier
-  kleurschema's round 22).
+  choosing a number — the latest is §48 / rule 48 (round 25: born on a side,
+  `@` everywhere; §47 is round 24's four small repairs, §46 de spiegel is
+  round 23, §44 de Keeperkant and §45 de vier kleurschema's round 22).
 - **`DECISIONS.md` records why, per round.** If you reverse an entry there, say
   so explicitly in the new entry rather than quietly contradicting it.
 - **All user-facing copy is Dutch** and comes from `GLOSSARY-NL.md`. Words the
@@ -391,6 +391,47 @@ freely there.
   `notesTarget()` before asking for the `keeper:{kind}:{id}:notes` room —
   asking with its own id when the notes live next door gets null admission, on
   purpose.
+- **A new thing is born on the side it was made on** (§48, round 25).
+  `keeper_only` defaults to 0 and `entries.visibility` to `'all'`, so until this
+  round *every* maker put its record on the players' side whatever face the
+  archive was wearing. `bornSide()` / `keeperOnlyForNew()` / `placeNewOnSide()`
+  in `lib/keeper/side.ts` are the only place that decides it, and the five POST
+  routes (`/api/entries`, `/api/cases`, `/api/boards`, `/api/maps`,
+  `/api/timelines`) are the only callers. Two facts, and the **hiding** one
+  always wins: the container (anything inside a Keeper-only dossier is the
+  Keeper's — a wall carries `caseName` into every list) and otherwise
+  `viewer.side`. A Keeper may overrule the second with the sheet's `keeperOnly`;
+  nobody may overrule the first, and nobody who is not a Keeper is heard at all.
+  **Hiding travels inwards, revealing never does**: `setBoardCase` into a
+  Keeper-only dossier takes the wall along, `setKeeperSide('case', …, true)`
+  takes its prikborden and tijdlijnen along, and neither has a mirror image. If
+  a sixth kind of thing gets a maker, it gets these three lines on the day it is
+  built — this is §40's rule about dials, one layer up.
+- **A description is text, so it has an `@` and it has chips** (§48, round 25).
+  `MentionPopover` handles an `<input>` as well as a `<textarea>` (the one-line
+  boxes are inputs) and carries its own "'Jan' aanmaken" row. `LiveField` takes
+  `mentions` on both shapes now. Reading, a description prints `MentionText` —
+  and **`flat` inside anything that is already a link** (a card, a feed row, a
+  search hit), because an `<a>` in an `<a>` is invalid HTML and
+  `no-console-warnings.spec.ts` fails on it. A new plain box gets `mentions` on
+  the way in and `MentionText` on the way out, or the same text will be chips on
+  one screen and brackets on the next.
+- **`useIAmTheCase` is "this screen is a dossier", and only the dossier says it**
+  (§48, round 25). It lives in `UiProvider` because the `+`, the FAB and the `n`
+  key are in the *shell*, above the page, where a context set by the page cannot
+  reach; the dossier registers on mount and clears on unmount. It is not
+  `PreferredCases` — that is a ranking over every dossier an artikel is in — and
+  nothing but `CaseDossier` may set it, or the `+` will file things into a
+  dossier nobody is looking at. What hangs off it: the sheet is opened *in* the
+  dossier (the only road to a `caseOnly` soort, §24), and every name that lands
+  in the dossier's own writing is offered a place on its shelves
+  (`useMentionFiling` → `offerToFileEntry`, `reason: 'text'`). That offer is
+  silent three ways — already filed, may not file (§17), or the sheet filed it —
+  and asks once per artikel per visit.
+- **"Made in a dossier" and "filed in that dossier" are one fact** (§48). §24's
+  `originCaseId` follows `case_entries`, so the new-artikel sheet decides the
+  filing by *sending `caseId` or not*; there is no third state, and there must
+  never be an artikel printing a dossier's name it is not in.
 - **A list filters by side; a lookup never does** (§46, round 23). The archive
   is read from one side at a time: `sideCondition(kind, viewer)` in
   `lib/keeper/side.ts` is AND-ed **after** the visibility rule — never instead
@@ -537,6 +578,23 @@ in a worktree at `1d67f5c`, round 22's base. It is pre-existing red, not
 anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
+
+Round 25 (§48) leaves three, all named on purpose:
+
+- **A dossier handed back to the table does not hand its walls back.** Hiding
+  travels inwards and revealing never does, so a Keeper who takes a dossier over
+  and changes their mind has to hand each prikbord and tijdlijn back by hand.
+  Deliberate; the alternative is a write that reveals things nobody pressed a
+  button for.
+- **Artikelen do not travel with a dossier's side at all**, in either
+  direction — an artikel lies in several dossiers and §9's dial on it is its
+  own. So an artikel made in a dossier *before* that dossier went over is still
+  on the players' side, and the dossier's name in front of it is hidden only
+  because `nameTheirCases` already gates it.
+- **The filing offer asks once per artikel per visit**, in memory
+  (`alsoHeld` in `CaseDossier`). A reload asks again about something the person
+  said no to. A "no" that outlived the page would be a row in the database, and
+  that is a bigger idea than this was.
 
 Round 24 (§47) leaves two, both named on purpose:
 

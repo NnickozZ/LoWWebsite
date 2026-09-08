@@ -5,6 +5,7 @@ import { apiError, json } from '@/lib/api';
 import { getCaseById, getCaseBySlug } from '@/lib/cases/service';
 import { isAnchorUnit, isScale } from '@/lib/timelines/time';
 import { createTimeline, listTimelines } from '@/lib/timelines/service';
+import { keeperOnlyForNew, placeNewOnSide } from '@/lib/keeper/side';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
       description?: string;
       /** §17: "Privé tijdlijn" — both dials private from the first second. */
       isPrivate?: boolean;
+      /** §48: which side it is born on; one in a Keeper's dossier is his anyway. */
+      keeperOnly?: boolean;
       /** §35: a tijdlijn that is *of* one day, said at the moment it is made. */
       anchorAt?: unknown;
       anchorUnit?: unknown;
@@ -62,6 +65,14 @@ export async function POST(request: Request) {
       },
       user,
     );
+    // §48: born on the side the hand is standing on.
+    const keeperOnly = keeperOnlyForNew(
+      user,
+      body.caseId ? { kind: 'case', id: body.caseId } : null,
+      body.keeperOnly,
+    );
+    placeNewOnSide('timeline', timeline.id, keeperOnly, user.id);
+
     return json({ timeline });
   } catch (err) {
     return apiError(err);

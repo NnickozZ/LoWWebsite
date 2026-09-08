@@ -31,6 +31,13 @@ export type FilingOffer = {
   caseName: string | null;
   entryId: string;
   entryName: string;
+  /**
+   * §48: what just happened, which decides the words. 'board' is the original:
+   * a kaart has landed on the wall. 'text' is round 25's: a name has been typed
+   * into the dossier's own writing, which is the other moment where naming
+   * something and filing it are nearly, but not quite, the same act.
+   */
+  reason?: 'board' | 'text';
 };
 
 /**
@@ -44,16 +51,22 @@ export async function offerToFileEntry(ui: FilingUi, offer: FilingOffer): Promis
   const words = ui.words;
   const dossier = offer.caseName ?? `dit ${words.case}`;
 
+  const text = offer.reason === 'text';
   const yes = await ui.confirm({
     title: `${offer.entryName} zit nog niet in ${dossier}`,
-    message: (
+    message: text ? (
+      <>
+        Je noemt {offer.entryName} in de tekst van {dossier}. Wil je {offer.entryName} ook bij de{' '}
+        {words.entryPlural} van {dossier} zetten?
+      </>
+    ) : (
       <>
         De {words.card} hangt nu op het {words.board}. Wil je {offer.entryName} ook bij de{' '}
         {words.entryPlural} van {dossier} zetten?
       </>
     ),
     confirmLabel: `Toevoegen aan ${words.case}`,
-    cancelLabel: 'Alleen prikken',
+    cancelLabel: text ? 'Alleen noemen' : 'Alleen prikken',
   });
   if (!yes) return false;
 

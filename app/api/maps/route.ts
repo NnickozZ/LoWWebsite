@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { MAP_EDGE, storeImage, tooLargeMessage, uploadLimitFor } from '@/lib/assets';
 import { createMap, listMaps } from '@/lib/maps/service';
+import { keeperOnlyForNew, placeNewOnSide } from '@/lib/keeper/side';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -38,6 +39,12 @@ export async function POST(request: Request) {
       { name: name || file.name.replace(/\.[a-z0-9]+$/i, ''), assetId: asset.id, width: asset.width, height: asset.height, description },
       user,
     );
+    // §48: a landkaart hangs on no dossier, so its side is the one the Keeper
+    // is standing on — or the one the form asked for.
+    const wish = form.get('keeperOnly');
+    const keeperOnly = keeperOnlyForNew(user, null, wish == null ? undefined : String(wish) === 'true');
+    placeNewOnSide('map', map.id, keeperOnly, user.id);
+
     return json({ map });
   } catch (err) {
     return apiError(err);

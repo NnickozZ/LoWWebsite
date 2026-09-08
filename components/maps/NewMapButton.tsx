@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { SideChoice } from '@/components/keeper/SideChoice';
+import { MentionPopover } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { fitUpload } from '@/components/shrinkImage';
@@ -39,6 +41,10 @@ export function NewMapButton() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  // §48: a landkaart hangs in no dossier, so the only question is which side
+  // of the archive the Keeper is standing on when they hang it.
+  const [keeperSide, setKeeperSide] = useState(ui.side === 'keeper');
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   /**
@@ -83,6 +89,8 @@ export function NewMapButton() {
       form.set('file', fitted.file);
       form.set('name', name.trim() || file.name.replace(/\.[a-z0-9]+$/i, ''));
       form.set('description', description);
+      // §48: which side it is born on. A form, so it travels as a word.
+      if (ui.isKeeper) form.set('keeperOnly', keeperSide ? 'true' : 'false');
       // The answer is read for what it is: the archive's JSON, or the web
       // server's refusal (a 413 for a body over its own ceiling).
       const result = await uploadForm<{ map?: { slug: string } }>('/api/maps', form);
@@ -156,13 +164,18 @@ export function NewMapButton() {
               </label>
               <textarea
                 id="new-map-description"
+                ref={descriptionRef}
                 className="input"
                 rows={2}
                 value={description}
                 placeholder="Wat staat erop, en uit welk jaar"
                 onChange={(event) => setDescription(event.target.value)}
               />
+              {/* §48: `@` here as well — an omschrijving is a description like
+                  any other, and this one names places for a living. */}
+              <MentionPopover forRef={descriptionRef} />
             </div>
+            <SideChoice show={ui.isKeeper} keeper={keeperSide} onChange={setKeeperSide} words={words} />
             {error && <p className="error-note">{error}</p>}
             <div className="row-wrap">
               <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void submit()}>

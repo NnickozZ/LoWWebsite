@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { createContext, useCallback, useContext, useState, type ComponentType, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
-import { MentionPopover } from '@/components/ui/MentionPopover';
+import { MentionPopover, type MentionBox } from '@/components/ui/MentionPopover';
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
@@ -93,7 +93,12 @@ type Common = {
   /** Every change, from this keyboard or another. `live` says whether the room saves it. */
   onValue: (next: string, meta: { live: boolean }) => void;
   onBlur?: () => void;
-  /** Round 18, textareas: offer artikel names on `@` and `[[` (see `MentionPopover`). */
+  /**
+   * Round 18, textareas: offer artikel names on `@` and `[[` (see
+   * `MentionPopover`). §48, round 25: one-line boxes too — a dossier's
+   * samenvatting and an infobox Tekst are `<input>`s, and they are exactly
+   * where somebody reaches for a name.
+   */
   mentions?: boolean;
 };
 
@@ -109,12 +114,12 @@ export function LiveField(props: FieldProps) {
   // keystroke, so the bound room and the plain box both hear it.
   // As state, not a ref: the box is swapped for the room's bound one when
   // the room arrives (`next/dynamic`), and the popover must follow it.
-  const [mentionEl, setMentionEl] = useState<HTMLTextAreaElement | null>(null);
+  const [mentionEl, setMentionEl] = useState<MentionBox | null>(null);
   const withRef =
-    mentions && plain.as === 'textarea'
+    mentions
       ? ({
           ...plain,
-          ref: (el: HTMLTextAreaElement | null) => {
+          ref: (el: MentionBox | null) => {
             setMentionEl((current) => (current === el ? current : el));
             const outer = plain.ref;
             if (typeof outer === 'function') outer(el);
@@ -123,7 +128,7 @@ export function LiveField(props: FieldProps) {
         } as FieldProps)
       : plain;
   const field = <LiveFieldInner {...withRef} fields={fields} />;
-  if (!mentions || plain.as !== 'textarea') return field;
+  if (!mentions) return field;
   return (
     <>
       {field}

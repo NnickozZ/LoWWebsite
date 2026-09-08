@@ -206,6 +206,20 @@ export function isKeeperSide(kind: KeeperKind, id: string): boolean {
 export function setKeeperSide(kind: KeeperKind, id: string, on: boolean, keeperId: string) {
   const before = isKeeperSide(kind, id);
   if (before === on) return;
+  writeSide(kind, id, on);
+  logAudit({
+    actorId: keeperId,
+    action: on ? 'keeper.side_taken' : 'keeper.side_given',
+    targetType: kind,
+    targetId: id,
+  });
+  // §48: taking a dossier to the Keeper's side takes what hangs in it along.
+  // Only this direction: giving one back never reveals a wall by itself.
+  if (kind === 'case' && on) hideWhatHangsIn(id, keeperId);
+}
+
+/** The write itself, in the two spellings §44 knows. Nothing else may say them. */
+function writeSide(kind: KeeperKind, id: string, on: boolean) {
   switch (kind) {
     case 'entry':
       db.update(schema.entries)
@@ -226,10 +240,95 @@ export function setKeeperSide(kind: KeeperKind, id: string, on: boolean, keeperI
       db.update(schema.timelines).set({ keeperOnly: on }).where(eq(schema.timelines.id, id)).run();
       break;
   }
-  logAudit({
-    actorId: keeperId,
-    action: on ? 'keeper.side_taken' : 'keeper.side_given',
-    targetType: kind,
-    targetId: id,
-  });
+}
+
+/* ------------------------------------------------- §48: born on a side */
+
+/**
+ * §48: a new thing is born on the side it was made on.
+ *
+ * Until round 25 every record was born on the players' side, whatever face the
+ * archive was wearing when the button was pressed: `keeper_only` defaults to 0
+ * and an artikel's `visibility` to 'all', and only the switch on the finished
+ * page ever changed them. So a Keeper standing on their own side, in their own
+ * dossier, made a prikbord the whole table could read — and nothing on the
+ * screen said so. That is the leak this closes.
+ *
+ * Two facts decide it, and the hiding one always wins:
+ *
+ *   1. **the container.** Something made inside a Keeper-only dossier is the
+ *      Keeper's, full stop — a wall filed there carries that dossier's *name*
+ *      in every list that shows it, so a player-side wall in a Keeper-side
+ *      dossier is a leak by itself.
+ *   2. **the side the browser stands on** (§46), for everything with no
+ *      container to ask.
+ *
+ * A Keeper may still say otherwise for (2) — the switch in the sheet that made
+ * it — but never for (1). Nobody who is not a Keeper is ever given a side:
+ * `viewer.side` is already forced to 'player' for them by `getSessionUser`, and
+ * this asks `isKeeper` again rather than trusting that twice.
+ */
+export function bornSide(viewer: Viewer, inside?: { kind: KeeperKind; id: string } | null): Side {
+  if (!viewer?.isKeeper) return 'player';
+  if (inside && isKeeperSide(inside.kind, inside.id)) return 'keeper';
+  return viewer.side === 'keeper' ? 'keeper' : 'player';
+}
+
+/**
+ * §48: the side a thing being made now lands on — the wish of the hand that is
+ * making it, where there is room for a wish. The container's answer is not a
+ * wish, it is the rule (see `bornSide`).
+ */
+export function keeperOnlyForNew(
+  viewer: Viewer,
+  inside?: { kind: KeeperKind; id: string } | null,
+  wish?: boolean,
+): boolean {
+  if (!viewer?.isKeeper) return false;
+  if (inside && isKeeperSide(inside.kind, inside.id)) return true;
+  if (typeof wish === 'boolean') return wish;
+  return viewer.side === 'keeper';
+}
+
+/**
+ * §48: put a record that has just been made on the Keeper's side, if that is
+ * where it was born. Separate from `setKeeperSide` because this is not a move
+ * — nothing was ever on the other side — so it is audited as a birth and can
+ * never be the one write that *reveals* something.
+ */
+export function placeNewOnSide(
+  kind: KeeperKind,
+  id: string,
+  keeperOnly: boolean,
+  keeperId: string | null,
+): void {
+  if (!keeperOnly) return;
+  writeSide(kind, id, true);
+  logAudit({ actorId: keeperId, action: 'keeper.born_keeper', targetType: kind, targetId: id });
+}
+
+/**
+ * §48: everything hanging in a dossier that has just gone to the Keeper's side
+ * goes with it. Prikborden and tijdlijnen only: those two carry the dossier's
+ * name into lists that a player reads, and both already know how to be
+ * Keeper-only. Artikelen are not moved — an artikel is filed in several
+ * dossiers at once, and §9's dial on it is its own.
+ */
+function hideWhatHangsIn(caseId: string, keeperId: string) {
+  for (const row of db
+    .select({ id: schema.boards.id })
+    .from(schema.boards)
+    .where(and(eq(schema.boards.caseId, caseId), eq(schema.boards.keeperOnly, false)))
+    .all()) {
+    writeSide('board', row.id, true);
+    logAudit({ actorId: keeperId, action: 'keeper.side_taken', targetType: 'board', targetId: row.id });
+  }
+  for (const row of db
+    .select({ id: schema.timelines.id })
+    .from(schema.timelines)
+    .where(and(eq(schema.timelines.caseId, caseId), eq(schema.timelines.keeperOnly, false)))
+    .all()) {
+    writeSide('timeline', row.id, true);
+    logAudit({ actorId: keeperId, action: 'keeper.side_taken', targetType: 'timeline', targetId: row.id });
+  }
 }

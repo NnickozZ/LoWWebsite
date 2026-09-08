@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { SideChoice } from '@/components/keeper/SideChoice';
 import { useUi } from '@/components/ui/UiProvider';
 
 /**
@@ -18,6 +19,16 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
   const ui = useUi();
   const router = useRouter();
   const [busy, setBusy] = useState<'public' | 'private' | null>(null);
+  /*
+   * §48: and a third question, for a Keeper: which side of the archive the
+   * wall is hung on. It is not the same question as openbaar-of-privé — that
+   * one is about which *players* may look, this one about whether the table
+   * knows the wall exists at all. Inside a Keeper-only dossier there is no
+   * choice: the wall carries the dossier's name into every list that shows it.
+   */
+  const here = ui.caseHere && ui.caseHere.id === caseId ? ui.caseHere : null;
+  const sideLocked = Boolean(here?.keeperOnly);
+  const [keeperSide, setKeeperSide] = useState(sideLocked || ui.side === 'keeper');
 
   async function create(isPrivate: boolean) {
     setBusy(isPrivate ? 'private' : 'public');
@@ -29,6 +40,8 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
           name: isPrivate ? `Privé ${ui.words.board}` : `Nieuw ${ui.words.board}`,
           caseId,
           isPrivate,
+          // §48: ignored for anyone who is not a Keeper.
+          keeperOnly: ui.isKeeper ? sideLocked || keeperSide : undefined,
         }),
       });
       if (!response.ok) {
@@ -50,6 +63,14 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
 
   return (
     <span className="row-wrap" style={{ gap: '0.4rem' }}>
+      <SideChoice
+        show={ui.isKeeper}
+        keeper={sideLocked || keeperSide}
+        locked={sideLocked}
+        lockedWhy={`${here?.name ?? `Dit ${ui.words.case}`} is van de ${ui.words.keeper}.`}
+        onChange={setKeeperSide}
+        words={ui.words}
+      />
       <button
         type="button"
         className="btn btn-primary btn-small"

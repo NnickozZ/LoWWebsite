@@ -17,6 +17,7 @@ import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/ed
 import { LiveField, LiveFields } from '@/components/live/LiveFields';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { entryKey } from '@/lib/live/keys';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsWide } from '@/components/useIsPhone';
 
@@ -820,7 +821,13 @@ export function EntryView({
         {reading ? (
           <>
             <h1 className="entry-title">{name}</h1>
-            {shortDescription.trim() && <p className="entry-lead">{shortDescription}</p>}
+            {/* §48: the korte beschrijving is text like any other — an `@` in
+                it is a chip, and the box that writes it offers the names. */}
+            {shortDescription.trim() && (
+              <p className="entry-lead">
+                <MentionText text={shortDescription} />
+              </p>
+            )}
           </>
         ) : (
           <>
@@ -844,6 +851,7 @@ export function EntryView({
             </label>
             <LiveField
               as="textarea"
+              mentions
               field="shortDescription"
               id="entry-lead"
               ref={leadRef}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { assetUrl, coverClass, coverStyle } from './Cover';
 import { Icon } from './Icon';
+import { MentionText } from './ui/MentionPopover';
 import type { CoverCrops } from '@/lib/images/shapes';
 
 type Preview = {
@@ -152,7 +153,8 @@ export function EntryPreview() {
           {data.typeLabel}
         </p>
         <p className="tiny clamp-2" style={{ margin: 0 }}>
-          {data.shortDescription}
+          {/* §48: flat chips — this card floats over a link and is not one. */}
+          <MentionText text={data.shortDescription} flat />
         </p>
       </div>
     </div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Thumb } from './Cover';
 import { Icon } from './Icon';
+import { MentionText } from './ui/MentionPopover';
 import { useUi } from './ui/UiProvider';
 import type { EntrySummary } from '@/lib/entries/service';
 import { entryDisplayName, isAdrift } from '@/lib/entries/caseName';
@@ -38,7 +39,8 @@ function ResultRow({ entry }: { entry: EntrySummary }) {
           </>
         )}
         <span className="tiny muted clamp-2" style={{ display: 'block' }}>
-          {entry.shortDescription}
+          {/* §48: flat chips — the hit is a link. */}
+          <MentionText text={entry.shortDescription} flat />
         </span>
       </span>
     </Link>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { LivePage } from '@/components/live/LivePage';
 import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { NewCaseButton } from '@/components/cases/NewCaseButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { getWords } from '@/lib/admin/words';
@@ -114,7 +115,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
                 <p className="card-name">{item.name}</p>
                 {item.summary && (
                   <p className="tiny muted clamp-2" style={{ margin: 0 }}>
-                    {item.summary}
+                    {/* §48: flat chips — the card is a link. */}
+                    <MentionText text={item.summary} flat />
                   </p>
                 )}
                 <p

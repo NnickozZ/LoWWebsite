@@ -59,6 +59,39 @@ type Toast = {
   onAction?: () => void;
 };
 
+/**
+ * §48, round 25: the dossier this screen *is*.
+ *
+ * Not `PreferredCases`, which is a ranking and a list — an artikel can be in
+ * six dossiers and that context names all of them. This is the one dossier you
+ * are standing in, set by the dossier's own page and by nothing else, and it is
+ * what three things ask:
+ *
+ *   - the `+` in the menu and the `n` key, so a voorwerp or an aanwijzing can
+ *     be made from anywhere on the page and not only from the box halfway down
+ *     it (§24 lets those soorten exist only inside a dossier, so without this
+ *     the sheet does not even offer them);
+ *   - the `@` in every box on the page, for the same reason;
+ *   - and the question afterwards — "shall I put it in the file as well?".
+ *
+ * It lives in the provider rather than in a context of its own because the two
+ * buttons that need it are in the *shell*, above the page, where a context set
+ * by the page cannot reach. The dossier registers itself on mount and takes it
+ * back on unmount.
+ */
+export type CaseHere = {
+  id: string;
+  name: string;
+  /** §17: may this hand file anything in it at all? */
+  canEdit: boolean;
+  /** §44: is this dossier the Keeper's own? Then so is everything made in it. */
+  keeperOnly: boolean;
+  /** Whether the dossier already holds this artikel — asked before the offer. */
+  holds: (entryId: string) => boolean;
+  /** Remember, without a round trip, that it holds it now. */
+  remember: (entryId: string) => void;
+};
+
 type UiValue = {
   types: EntryTypeLite[];
   /**
@@ -80,6 +113,17 @@ type UiValue = {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   openNewEntry: (prefill?: NewEntryPrefill) => void;
   openNewCase: (prefill?: NewCasePrefill) => void;
+  /**
+   * §48: whether this browser is a Keeper's, and which side of the archive it
+   * is standing on. Every sheet that makes something reads it, because what is
+   * made here is born on that side and the sheet has to say so.
+   */
+  isKeeper: boolean;
+  side: 'keeper' | 'player';
+  /** §48: the dossier this screen is, or null. */
+  caseHere: CaseHere | null;
+  /** Set by the dossier's page on mount; called with null on unmount. */
+  setCaseHere: (value: CaseHere | null) => void;
 };
 
 const UiContext = createContext<UiValue | null>(null);
@@ -90,16 +134,54 @@ export function useUi(): UiValue {
   return value;
 }
 
+/** §48: the dossier this screen is, or null outside one. */
+export function useCaseHere(): CaseHere | null {
+  return useUi().caseHere;
+}
+
+/**
+ * §48: the dossier's own page says "this is me" — for the whole time it is on
+ * screen and not a second longer. `value` may be rebuilt on every render; only
+ * its fields are compared, and the two functions are read through a ref so a
+ * fresh closure does not re-register anything.
+ */
+export function useIAmTheCase(value: Omit<CaseHere, 'holds' | 'remember'> & {
+  holds: (entryId: string) => boolean;
+  remember: (entryId: string) => void;
+}) {
+  const { setCaseHere } = useUi();
+  const latest = useRef(value);
+  latest.current = value;
+  const { id, name, canEdit, keeperOnly } = value;
+  useEffect(() => {
+    setCaseHere({
+      id,
+      name,
+      canEdit,
+      keeperOnly,
+      holds: (entryId) => latest.current.holds(entryId),
+      remember: (entryId) => latest.current.remember(entryId),
+    });
+    return () => setCaseHere(null);
+  }, [id, name, canEdit, keeperOnly, setCaseHere]);
+}
+
 export function UiProvider({
   types,
   words = DEFAULT_WORDS,
   uploadLimit = PLAYER_UPLOAD_BYTES,
+  isKeeper = false,
+  side = 'player',
   children,
 }: {
   types: EntryTypeLite[];
   words?: Words;
   /** Defaults to a player's ceiling — the smaller of the two is the safe one. */
   uploadLimit?: number;
+  /** §48: a real Keeper, not looking through a player's eyes. Defaults to no. */
+  isKeeper?: boolean;
+  /** §46/§48: the side this browser stands on. */
+  side?: 'keeper' | 'player';
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -107,6 +189,8 @@ export function UiProvider({
   const [entryPrefill, setEntryPrefill] = useState<NewEntryPrefill | null>(null);
   const [casePrefill, setCasePrefill] = useState<NewCasePrefill | null>(null);
   const [question, setQuestion] = useState<{ options: ConfirmOptions; settle: (yes: boolean) => void } | null>(null);
+  // §48: the dossier the screen is. A plain state, written by one component.
+  const [caseHere, setCaseHere] = useState<CaseHere | null>(null);
   const nextId = useRef(1);
 
   const confirm = useCallback((options: ConfirmOptions) => {
@@ -201,6 +285,8 @@ export function UiProvider({
   // opener through a ref rather than closing over the one that existed then.
   const openNewEntryRef = useRef(openNewEntry);
   openNewEntryRef.current = openNewEntry;
+  const caseHereRef = useRef(caseHere);
+  caseHereRef.current = caseHere;
 
   // §6: `n` opens a new entry, `/` goes to search, and §46's `k` turns the
   // archive over — one guard for all three.
@@ -221,7 +307,8 @@ export function UiProvider({
       if (event.key === 'n') {
         event.preventDefault();
         // §18b: the shortcut goes the same way the button does.
-        openNewEntryRef.current();
+        // §48: and, in a dossier, it goes in *there* — same as the `+`.
+        openNewEntryRef.current(caseHereRef.current ? { caseId: caseHereRef.current.id } : undefined);
       } else if (event.key === 'k') {
         /*
          * §46: `k` turns the archive over. The work is the toggle's — it is
@@ -275,8 +362,20 @@ export function UiProvider({
   );
 
   const value = useMemo<UiValue>(
-    () => ({ types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase }),
-    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase],
+    () => ({
+      types,
+      words,
+      uploadLimit,
+      toast,
+      confirm,
+      openNewEntry,
+      openNewCase,
+      isKeeper,
+      side,
+      caseHere,
+      setCaseHere,
+    }),
+    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase, isKeeper, side, caseHere],
   );
 
   return (

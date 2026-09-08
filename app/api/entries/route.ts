@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { addEntryToCase, getCaseById, getCaseBySlug } from '@/lib/cases/service';
 import { createEntry, getEntryType } from '@/lib/entries/service';
+import { keeperOnlyForNew, placeNewOnSide } from '@/lib/keeper/side';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
       tags?: string[];
       /** §24: the dossier this is being made in, when it is. */
       caseId?: string;
+      /**
+       * §48: which side it is born on. Only a Keeper is heard; and a soort
+       * made inside a Keeper-only dossier is the Keeper's whatever this says.
+       */
+      keeperOnly?: boolean;
     };
 
     if (!body.name?.trim()) return json({ error: 'Geef het artikel eerst een naam.' }, { status: 400 });
@@ -67,9 +73,30 @@ export async function POST(request: Request) {
       originCaseId,
     });
 
+    /*
+     * §48: born on the side the hand is standing on. Written straight after
+     * the insert, in the same request, so nothing can read the row in between.
+     */
+    const keeperOnly = keeperOnlyForNew(
+      user,
+      originCaseId ? { kind: 'case', id: originCaseId } : null,
+      body.keeperOnly,
+    );
+    placeNewOnSide('entry', entry.id, keeperOnly, user.id);
+
     if (originCaseId) addEntryToCase(originCaseId, entry.id, user);
 
-    return json({ entry });
+    /*
+     * §48: `filed` is what the sheet tells the text it came from — an artikel
+     * that is already on the dossier's shelves must not then be *asked* about.
+     * A dossier reaches this route only when the person meant it to be filed
+     * there: the sheet leaves `caseId` out when the box is unticked, so "made
+     * in it" and "filed in it" stay the same fact (§24).
+     */
+    return json({
+      entry: { ...entry, visibility: keeperOnly ? 'keeper' : entry.visibility },
+      filed: Boolean(originCaseId),
+    });
   } catch (err) {
     return apiError(err);
   }

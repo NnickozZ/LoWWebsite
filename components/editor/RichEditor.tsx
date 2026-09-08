@@ -14,6 +14,7 @@ import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { usePreferredCases } from '@/components/entry/PreferredCases';
 import { documentExtensions } from '@/lib/editor/extensions';
+import { useMentionFiling } from '@/components/cases/useMentionFiling';
 import { makeEntrySuggestion, type SuggestionEntry, type SuggestionRenderState } from './entrySuggestion';
 import { SuggestionPopup } from './SuggestionPopup';
 import type { LiveUser } from './useLiveDoc';
@@ -100,6 +101,21 @@ export function RichEditor({
   const lastEmitted = useRef('');
   const ready = useRef(false);
 
+  /*
+   * §48: the dossier this text belongs to, when the text *is* a dossier's.
+   * Two things hang off it: the sheet the `@` opens is opened inside that
+   * dossier — which is the only way a voorwerp or an aanwijzing can be made at
+   * all (§24) — and every name that lands in the text is offered a place on its
+   * shelves. `caseHere` is null everywhere but a dossier's own page, so an
+   * artikel's body, a kaart's text and a gebeurtenis behave exactly as before.
+   */
+  const here = ui.caseHere;
+  // Through a ref: the two Suggestion plugins are built once, when the editor
+  // is created, exactly as `preferCases` above is and for the same reason.
+  const offerFiling = useMentionFiling();
+  const offerFilingRef = useRef(offerFiling);
+  offerFilingRef.current = offerFiling;
+
   /** Opens the New entry sheet and resolves with the created entry. */
   const requestCreate = useCallback(
     (name: string) =>
@@ -107,6 +123,10 @@ export function RichEditor({
         let settled = false;
         ui.openNewEntry({
           name,
+          caseId: here?.id,
+          // §48: made from the writing, not from the add-box — so the filing
+          // is a question in the sheet rather than something that happened.
+          askToFile: Boolean(here),
           onCreated: (entry) => {
             settled = true;
             resolve({
@@ -118,6 +138,9 @@ export function RichEditor({
               typeLabel: entry.typeLabel,
               typeIcon: entry.typeIcon,
               typeColour: entry.typeColour,
+              // §48: whether the sheet already put it in the dossier, so the
+              // question is not asked a second time.
+              filed: entry.filed,
             });
           },
         });
@@ -134,7 +157,7 @@ export function RichEditor({
           }
         }, 400);
       }),
-    [ui],
+    [ui, here],
   );
 
   const suggestionExtension = useMemo(
@@ -146,6 +169,10 @@ export function RichEditor({
             update: setSuggestState,
             requestCreate,
             preferCaseIds: () => preferCasesRef.current,
+            // §48: whatever ends up in the text — picked or just made — is
+            // offered a place in the dossier this text belongs to.
+            onLinked: (entry: { id: string; name: string }, filed?: boolean) =>
+              offerFilingRef.current(entry, filed),
           };
           // Each Suggestion instance needs its own plugin key, or ProseMirror
           // refuses the second one ("different instances of a keyed plugin").

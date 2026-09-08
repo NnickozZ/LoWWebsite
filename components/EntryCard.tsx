@@ -5,6 +5,7 @@ import { AdriftChip } from './entry/AdriftChip';
 import { borderClass } from './borders';
 import { Cover } from './Cover';
 import { Icon } from './Icon';
+import { MentionText } from './ui/MentionPopover';
 
 export function EntryCard({
   entry,
@@ -44,7 +45,9 @@ export function EntryCard({
         </p>
         {entry.shortDescription && (
           <p className="tiny muted clamp-2" style={{ margin: 0 }}>
-            {entry.shortDescription}
+            {/* §48: the beschrijving reads like every other text in the
+                archive. Flat chips: this whole card is one link already. */}
+            <MentionText text={entry.shortDescription} flat />
           </p>
         )}
         {note && (

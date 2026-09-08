@@ -74,6 +74,12 @@ const AUDIT_LABELS: Record<string, string> = {
   'site.words_changed': 'woorden van het archief gewijzigd',
   'site.schemes_changed': 'kleuren van het archief gewijzigd',
   'archive.exported': 'archief gedownload',
+  // §44 and §48: which side of the archive something is on. The first two are
+  // a move, the third is a birth — a thing made on the Keeper's side was never
+  // anywhere else, which is why it is not logged as a reveal in reverse.
+  'keeper.side_taken': 'naar de Keeperkant gehaald',
+  'keeper.side_given': 'aan de spelers gegeven',
+  'keeper.born_keeper': 'op de Keeperkant aangemaakt',
 };
 
 const TRASH_KINDS: Record<string, string> = {

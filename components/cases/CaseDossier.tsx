@@ -25,7 +25,8 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
   ssr: false,
   loading: () => <div className="editor-body" aria-busy="true" />,
 });
-import { useUi } from '@/components/ui/UiProvider';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { useIAmTheCase, useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
@@ -62,6 +63,8 @@ export type CaseDossierData = {
   notes: unknown;
   coverAssetId: string | null;
   coverCrop: CoverCrops | null;
+  /** §44/§48: this dossier is the Keeper's own — so is anything made in it. */
+  keeperOnly: boolean;
 };
 
 /** §17: the owner's dials and what this viewer may do with them. */
@@ -265,6 +268,30 @@ export function CaseDossier({
   );
 
   const allTypeSlugs = useMemo(() => groups.flatMap((group) => group.typeSlugs), [groups]);
+
+  /*
+   * §48: "this screen is a dossier".
+   *
+   * Three things above and below this component ask it: the `+` in the menu and
+   * the `n` key (which is how a voorwerp or an aanwijzing can be made from
+   * anywhere on the page, and not only from the box under the tabs — §24 says
+   * those soorten exist only inside a dossier), the `@` in every box on the
+   * page, and the question that follows a name typed into the dossier's own
+   * text. `held` is what the page already knows: every artikel on every shelf.
+   */
+  const held = useMemo(
+    () => new Set(groups.flatMap((group) => group.entries.map((entry) => entry.id))),
+    [groups],
+  );
+  const alsoHeld = useRef<Set<string>>(new Set());
+  useIAmTheCase({
+    id: data.id,
+    name: data.name,
+    canEdit: mayEdit,
+    keeperOnly: data.keeperOnly,
+    holds: (entryId) => held.has(entryId) || alsoHeld.current.has(entryId),
+    remember: (entryId) => alsoHeld.current.add(entryId),
+  });
 
   /* ------------------------------------------------------------- sections */
 
@@ -643,7 +670,13 @@ export function CaseDossier({
         {reading ? (
           <>
             <h1 className="entry-title">{name || 'Naamloos dossier'}</h1>
-            {summary.trim() && <p className="entry-lead">{summary}</p>}
+            {/* §48: the samenvatting reads like every other text in the
+                archive — a name in it is a chip you can walk through. */}
+            {summary.trim() && (
+              <p className="entry-lead">
+                <MentionText text={summary} />
+              </p>
+            )}
           </>
         ) : (
           <>
@@ -670,6 +703,7 @@ export function CaseDossier({
               instead of clipping on a phone. */}
             <LiveField
               as="textarea"
+              mentions
               field="summary"
               id="case-summary"
               ref={summaryRef}

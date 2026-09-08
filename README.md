@@ -1946,3 +1946,72 @@ Forty-six rules worth knowing before changing anything:
     "Losmaken" beside each one it holds. Both dossiers are touched so their
     "laatst gewijzigd" is honest, and the move is written to the log as
     `board.filed` / `board.unfiled`.
+
+48. **Alles wordt geboren op de kant waar je staat — en `@` werkt overal.**
+    §48. Round 25: one leak, and the two conveniences that turned out to be
+    the same shape.
+
+    **A new thing is born on the side it was made on.** `keeper_only` defaulted
+    to 0 and an artikel's `visibility` to `'all'`, and nothing but the switch on
+    a finished page ever changed them — so a Keeper standing on their own side,
+    inside their own dossier, made a prikbord the whole table could read, and
+    nothing on the screen said so. Two facts decide it now, and the *hiding* one
+    always wins: the **container** (anything made inside a Keeper-only dossier
+    is the Keeper's, full stop — a wall carries that dossier's `caseName` into
+    every list that shows it, so a players' wall in a Keeper's dossier is a leak
+    by itself), and otherwise the **side this browser stands on** (§46).
+    `bornSide()`, `keeperOnlyForNew()` and `placeNewOnSide()` in
+    `lib/keeper/side.ts` are the whole of it, and they are the only place
+    outside §44's own two spellings that may say what "the Keeper's own" means.
+    Nobody who is not a Keeper is ever given a side, whatever the request asks
+    for. A Keeper *may* say otherwise before saving — see the switch below —
+    but never inside a Keeper-only dossier.
+
+    **Hiding travels inwards; revealing never does.** Filing a wall into a
+    Keeper-only dossier (§47's `setBoardCase`) takes the wall to the Keeper's
+    side with it, and taking a whole dossier to the Keeper's side takes its
+    prikborden and tijdlijnen along. Neither move has a mirror image: taking
+    the wall back out, or handing the dossier back to the table, leaves them
+    where they are. Revealing something is a person pressing a button, never a
+    side effect — the same rule `setKeeperSide` has audited both states for
+    since §44.
+
+    **The switch that says so.** Every sheet that makes something now carries
+    one line for a Keeper — `SideChoice`, "Alleen op de {Keeperkant}" — ticked
+    where the archive would tick it, with a sentence under it saying what that
+    means. Rendered for nobody else: absent, not hidden (§44's habit), and
+    switched off with the reason written out where the container has already
+    decided. The five roads it sits on are the artikel-, dossier-, prikbord-,
+    tijdlijn- and landkaart-sheets; each posts `keeperOnly`, which the server
+    ignores for anyone who is not a Keeper.
+
+    **`@` in every plain box, and chips wherever a description is printed.**
+    §27's popover reached three boxes (a kaart, a gebeurtenis, a speld). It now
+    reaches an artikel's korte beschrijving, a dossier's samenvatting, the Tekst
+    and Lange tekst rows of an infobox, the boxes in the sheets that make an
+    artikel, a dossier and a landkaart — and it handles an `<input>` as well as
+    a `<textarea>`, which is what the one-line boxes are. It also grew the row
+    the rich editor has had since §6: **"'Jan' aanmaken"**, so a name the
+    archive does not hold yet is made without leaving the box. Reading, those
+    descriptions print chips like every other text, in lists and cards too —
+    `flat`, as a `<span>`, because a card is already one big `<a>` and an
+    anchor inside an anchor is invalid HTML.
+
+    **In a dossier, the `+` makes something in it.** `useIAmTheCase` in
+    `UiProvider` is the dossier page saying "this screen is me", which is what
+    lets the `+` in the menu, the FAB and the `n` key open the sheet *inside*
+    the dossier — and that is the only way a Voorwerp or a Clue (§24's
+    `caseOnly`) can be made at all. It is not `PreferredCases`: that is a
+    ranking and a list of every dossier an artikel is in; this is the one
+    dossier you are standing in, set by one component and nothing else.
+
+    **And the question after it.** A name typed into a dossier's *own* writing —
+    the notities, the samenvatting, any plain box on that page — is offered a
+    place on its shelves, in the same sheet the prikbord has asked with since
+    §31 (`offerToFileEntry`, `reason: 'text'`). It asks once per artikel per
+    visit, and it stays silent when the dossier already holds it, when the hand
+    may not file anything there (§17), and when the sheet that just made it has
+    already filed it. Made in a dossier and filed in it stay **one fact**: the
+    new-artikel sheet's tickbox decides whether `caseId` is sent at all, so
+    §24's `originCaseId` never names a dossier the artikel is not in. For a
+    soort that exists only inside a dossier the box is ticked and switched off.

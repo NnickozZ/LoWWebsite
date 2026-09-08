@@ -4,9 +4,9 @@ import type { Author } from '@/lib/auth/author';
 import { db, schema } from '@/lib/db';
 import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
-import { sideCondition } from '@/lib/keeper/side';
 import { recomputeBoardMentions } from '@/lib/entries/mentions';
 import { logActivity } from '@/lib/entries/service';
+import { isKeeperSide, setKeeperSide, sideCondition } from '@/lib/keeper/side';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
@@ -312,6 +312,17 @@ export function setBoardCase(boardId: string, caseId: string | null, by: Author)
     boardId,
     caseId: caseId ?? was,
   });
+  /*
+   * §48: a wall filed in a Keeper-only dossier is the Keeper's too. Its
+   * dossier's *name* travels with it into every list that shows it
+   * (`BOARD_COLUMNS.caseName`), so a players' wall in a Keeper's dossier tells
+   * the table there is an investigation nobody told them about. Only this
+   * direction: taking the wall back out again leaves it where it is, because
+   * nothing in here may be the write that reveals something.
+   */
+  if (caseId && isKeeperSide('case', caseId) && !isKeeperSide('board', boardId)) {
+    setKeeperSide('board', boardId, true, by.id);
+  }
 }
 
 /** §43, round 18: whether this wall counts in the web and under "Genoemd in". */

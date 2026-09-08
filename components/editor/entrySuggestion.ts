@@ -12,6 +12,8 @@ export type SuggestionEntry = {
   typeColour: string;
   /** §31: this one is already in the dossier being written in. A flag, not a name. */
   inCase?: boolean;
+  /** §48: it was just made, and the sheet that made it already filed it. */
+  filed?: boolean;
 };
 
 export type SuggestionItem =
@@ -38,6 +40,12 @@ type Host = {
    * and the dossiers an artikel is in can change under it.
    */
   preferCaseIds: () => string[];
+  /**
+   * §48: a name has landed in the text — picked from the list or made on the
+   * spot. In a dossier's own writing this is what offers it a place on the
+   * dossier's shelves; everywhere else the host hands in a no-op.
+   */
+  onLinked: (entry: { id: string; name: string }, filed?: boolean) => void;
 };
 
 function insertEntry(editor: Editor, range: Range, entry: SuggestionEntry) {
@@ -113,6 +121,7 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
         if (item.kind === 'entry') {
           insertEntry(editor, range, item.entry);
           host.update(null);
+          host.onLinked(item.entry);
           return;
         }
 
@@ -139,6 +148,7 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
               { type: 'text', text: ' ' },
             ])
             .run();
+          host.onLinked(created, created.filed);
         }
       };
 

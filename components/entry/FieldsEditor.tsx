@@ -114,6 +114,7 @@ function StringField({
   placeholder,
   describedBy,
   multiline = false,
+  mentions = false,
   onChange,
 }: {
   id: string;
@@ -125,6 +126,8 @@ function StringField({
   /** §38: the id of a quiet line under the box, for the date hint. */
   describedBy?: string;
   multiline?: boolean;
+  /** §48: offer artikel names on `@`. On the free-text kinds, not on a date. */
+  mentions?: boolean;
   onChange: (patch: Values, meta?: { live: boolean }) => void;
 }) {
   const room = useLiveFields();
@@ -149,7 +152,11 @@ function StringField({
       if (!shared && draft !== value) onChange({ [fieldKey]: draft });
     },
   };
-  return multiline ? <LiveField as="textarea" {...common} /> : <LiveField {...common} />;
+  return multiline ? (
+    <LiveField as="textarea" mentions={mentions} {...common} />
+  ) : (
+    <LiveField mentions={mentions} {...common} />
+  );
 }
 
 /**
@@ -461,12 +468,16 @@ export function FieldsEditor({
               </label>
             )}
 
+            {/* §48: `@` in the infobox's own words. The reading face has
+                printed chips in these two kinds since round 21; this is the
+                offer that makes one without typing the name from memory. */}
             {field.kind === 'text' && (
               <StringField
                 id={`field-${field.key}`}
                 fieldKey={field.key}
                 className="input"
                 readOnly={readOnly}
+                mentions
                 value={typeof value === 'string' ? value : ''}
                 onChange={onChange}
               />
@@ -479,6 +490,7 @@ export function FieldsEditor({
                 className="textarea"
                 readOnly={readOnly}
                 multiline
+                mentions
                 value={typeof value === 'string' ? value : ''}
                 onChange={onChange}
               />

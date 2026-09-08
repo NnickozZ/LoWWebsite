@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { borderClass } from '@/components/borders';
 import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CaseEntry } from '@/lib/cases/service';
 
@@ -124,7 +125,8 @@ export function CaseEntryCard({
           <p className="card-name">{entry.name}</p>
           {entry.shortDescription && (
             <p className="tiny muted clamp-2" style={{ margin: 0 }}>
-              {entry.shortDescription}
+              {/* §48: flat chips — the card body is a link. */}
+              <MentionText text={entry.shortDescription} flat />
             </p>
           )}
         </Link>
