@@ -116,13 +116,14 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
       <div className="page-canvas">
         <LivePage place={mapKey(map.id)} watch={['entries']} pointers={false} />
         <header className="canvas-head">
-          {/* §44/§45/§46: which side this landkaart is on — the word, the
-              colours, and the browser's side, so a link followed across turns
-              the site over with you. */}
+          {/* §44/§45/§46: which side this landkaart is on — the word and the
+              colours. §57: and where the toggle goes from here, with the list
+              kept apart from the tweeling so a flip that lands on it can say
+              why. */}
           <KeeperStamp
             side={sideOf(Boolean(user?.isKeeper && keeperRef('map', map.id, user)?.keeperOnly))}
-            browserSide={user?.isKeeper ? user.side : undefined}
-            flipTo={twinOf('map', map.id, user)?.href ?? '/maps'}
+            flipTo={twinOf('map', map.id, user)?.href}
+            flipList="/maps"
           />
           <p className="eyebrow">
             <Link href="/maps" style={{ color: 'inherit' }}>

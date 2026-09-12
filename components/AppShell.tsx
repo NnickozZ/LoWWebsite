@@ -12,6 +12,7 @@ import { UiProvider, useUi, type EntryTypeLite } from '@/components/ui/UiProvide
 import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
 import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
 import { AsPlayerBanner, AsPlayerLink } from '@/components/keeper/AsPlayer';
+import { SideSwitched } from '@/components/keeper/SideSwitched';
 import { SideToggle } from '@/components/keeper/SideToggle';
 import type { Words } from '@/lib/words';
 
@@ -208,8 +209,23 @@ export function AppShell({
            * carries the button or the address behind it.
            */}
           {me.isRealKeeper && !me.asPlayer && (
-            <SideToggle side={me.side === 'keeper' ? 'keeper' : 'player'} words={words} />
+            <>
+              <SideToggle side={me.side === 'keeper' ? 'keeper' : 'player'} words={words} />
+              {/*
+               * §50/§57: and the word for a wissel that has just happened. It
+               * stands here, in the shell, rather than in `KeeperStamp`: a flip
+               * from something with no tweeling lands on a **list**, no list
+               * renders a stamp, and so the one landing that most needs saying
+               * out loud was the one that never said anything. One mount, under
+               * every page, reading the side off the shell that has just been
+               * rendered on it.
+               */}
+            </>
           )}
+          {/* Outside the Keeper's own block on purpose: taking the flags off
+              the address is not a Keeper's privilege, and hanging it inside
+              made the cleaning depend on who was looking. */}
+          <SideSwitched side={me.side === 'keeper' ? 'keeper' : 'player'} />
           <main className="main">
             <LiveStrip />
             {/*

@@ -93,13 +93,14 @@ export default async function TimelinePage({
       <div className="page-canvas">
         <LivePage place={timelineKey(timeline.id)} watch={['entries']} />
         <header className="canvas-head">
-          {/* §44/§45/§46: which side this tijdlijn is on — the word, the
-              colours, and the browser's side, so a link followed across turns
-              the site over with you. */}
+          {/* §44/§45/§46: which side this tijdlijn is on — the word and the
+              colours. §57: and where the toggle goes from here, with the list
+              kept apart from the tweeling so a flip that lands on it can say
+              why. */}
           <KeeperStamp
             side={sideOf(Boolean(user?.isKeeper && keeperRef('timeline', timeline.id, user)?.keeperOnly))}
-            browserSide={user?.isKeeper ? user.side : undefined}
-            flipTo={twinOf('timeline', timeline.id, user)?.href ?? '/timelines'}
+            flipTo={twinOf('timeline', timeline.id, user)?.href}
+            flipList="/timelines"
           />
           <p className="eyebrow">
             <Link href="/timelines" style={{ color: 'inherit' }}>

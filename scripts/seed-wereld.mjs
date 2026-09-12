@@ -347,8 +347,15 @@ const SOORTEN = [
   { slug: 'clue', label: 'Clues', pot: DATA.CLUES, zinnen: 'clue' },
   { slug: 'abnormality', label: 'Abnormaliteiten', pot: DATA.ABNORMALITEITEN, zinnen: 'abnormality' },
   { slug: 'event', label: 'Gebeurtenissen', pot: DATA.GEBEURTENISSEN, zinnen: 'event' },
-  { slug: 'lore', label: 'Overlevering en folklore', pot: DATA.OVERLEVERING, zinnen: 'lore' },
+  // §58: `lore` heet sinds ronde 28 `werken`; `typeFor` valt terug op het label
+  // als een Keeper het adres zelf al verzet had.
+  { slug: 'werken', label: 'Geschriften & Kunstwerken', pot: DATA.WERKEN, zinnen: 'werken' },
   { slug: 'language', label: 'Talen', pot: DATA.TALEN, zinnen: 'language' },
+  // §58: het pantheon.
+  { slug: 'kosmische-goden', label: 'Kosmische Goden', pot: DATA.KOSMISCHE_GODEN, zinnen: 'kosmische_goden' },
+  { slug: 'aardse-goden', label: 'Aardse Goden', pot: DATA.AARDSE_GODEN, zinnen: 'aardse_goden' },
+  { slug: 'eldritch-entiteiten', label: 'Eldritch Entiteiten', pot: DATA.ELDRITCH, zinnen: 'eldritch' },
+  { slug: 'bovennatuurlijke-wezens', label: 'Bovennatuurlijke wezens', pot: DATA.BOVENNATUURLIJK, zinnen: 'bovennatuurlijk' },
   { slug: 'session', label: 'Sessierapporten', pot: DATA.SESSIES, zinnen: 'session' },
 ];
 
@@ -534,6 +541,15 @@ for (const row of alle) {
   const relieken = van('object');
   const families = van('family');
   const talen = van('language');
+  /* §58: de vier machten samen, plus de abnormaliteiten — precies de `ofType`
+     van Vereert en Dienaar van, dus de lijsten kloppen met de velden. */
+  const pantheon = [
+    ...van('kosmische-goden'),
+    ...van('aardse-goden'),
+    ...van('eldritch-entiteiten'),
+    ...van('bovennatuurlijke-wezens'),
+  ];
+  const machten = [...pantheon, ...abnormaal];
 
   const velden = row.velden;
 
@@ -546,6 +562,23 @@ for (const row of alle) {
     if (gekozen.length) velden.talen = gekozen.map(ref);
   };
 
+  /* §58: wat dit ding vereert. Lang niet alles vereert iets — een archief
+     waarin iedereen een god heeft is een archief waarin niemand er een heeft. */
+  const vereert = (kans, hoeveel = 1) => {
+    if (!machten.length || !chance(kans)) return;
+    const gekozen = some(machten, hoeveel);
+    if (gekozen.length) velden.vereert = gekozen.map(ref);
+  };
+
+  /* §58: en wiens dienaar het is. Eén veld, van onderen naar boven ingevuld;
+     de "Dienaren"-lijst op de pagina van de meester vult zichzelf ermee. */
+  const dientOnder = (kans, kandidaten) => {
+    const pot = kandidaten.filter((r) => r.id !== row.id);
+    if (!pot.length || !chance(kans)) return;
+    const gekozen = some(pot, 1);
+    if (gekozen.length) velden.dienaar_van = gekozen.map(ref);
+  };
+
   switch (row.soort) {
     case 'character': {
       if (facties.length && chance(0.7)) velden.faction = ref(omDeBeurt('lid-van', facties));
@@ -554,6 +587,7 @@ for (const row of alle) {
       // familie in het archief, dus lang niet elke persoon krijgt er een.
       if (families.length && chance(0.6)) velden.familie = ref(omDeBeurt('familie', families));
       spreektTalen(0.55);
+      vereert(0.25);
       break;
     }
     case 'investigator': {
@@ -566,6 +600,7 @@ for (const row of alle) {
         'Telt hardop. Merkt het zelf niet.',
       ]);
       spreektTalen(0.7, 1 + Math.floor(random() * 3));
+      vereert(0.15);
       break;
     }
     case 'family': {
@@ -581,6 +616,8 @@ for (const row of alle) {
       if (personen.length) velden.leader = ref(omDeBeurt('leider', personen));
       if (locaties.length) velden.base = ref(omDeBeurt('basis', locaties));
       spreektTalen(0.4);
+      /* Cults zitten bij de facties, dus hier wordt het meest vereerd. */
+      vereert(0.55, 1 + Math.floor(random() * 2));
       break;
     }
     case 'object': {
@@ -607,10 +644,36 @@ for (const row of alle) {
     case 'abnormality': {
       if (locaties.length) velden.first_sighting = ref(omDeBeurt('eerste-waarneming', locaties));
       spreektTalen(0.3);
+      dientOnder(0.45, pantheon);
       break;
     }
-    case 'lore': {
+    case 'werken': {
       spreektTalen(0.6);
+      const makers = [...personen, ...onderzoekers, ...facties];
+      if (makers.length && chance(0.6)) velden.maker = ref(omDeBeurt('maker', makers));
+      if (locaties.length && chance(0.7)) velden.bevindt_zich = ref(omDeBeurt('bevindt-zich', locaties));
+      /* Wat het toont of beweert mag alles zijn — dat is het veld ook. */
+      const toont = some([...machten, ...locaties, ...personen], 1 + Math.floor(random() * 2));
+      if (toont.length) velden.toont = toont.map(ref);
+      break;
+    }
+    /* §58: de vier machten delen hun kern, dus ze delen hier ook hun bedrading. */
+    case 'kosmische-goden':
+    case 'aardse-goden':
+    case 'eldritch-entiteiten':
+    case 'bovennatuurlijke-wezens': {
+      spreektTalen(0.5);
+      const vereerders = some([...facties, ...personen, ...onderzoekers], 1 + Math.floor(random() * 3));
+      if (vereerders.length) velden.vereerd_door = vereerders.map(ref);
+      /* Een kosmische god dient niemand; de rest kan dat wel. */
+      if (row.soort !== 'kosmische-goden') dientOnder(0.4, van('kosmische-goden'));
+      if (row.soort === 'aardse-goden' && locaties.length) {
+        velden.standplaats = [ref(omDeBeurt('standplaats', locaties))];
+      }
+      if (row.soort === 'bovennatuurlijke-wezens' && locaties.length) {
+        const gebied = some(locaties, 1 + Math.floor(random() * 2));
+        if (gebied.length) velden.leefgebied = gebied.map(ref);
+      }
       break;
     }
     case 'language': {

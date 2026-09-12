@@ -511,14 +511,16 @@ export default async function EntryPage({
     <>
       <LivePage place={entryKey(entry.id)} watch={['cases', 'maps', 'types']} />
       {/* §44/§45/§46: which side this artikel is on — for every reader, not
-          only a Keeper. The stamp says it in a word, the marker paints the
-          page in that side's colours, and `browserSide` lets a Keeper who
-          walked across a touwtje take the whole site with them. A player's
-          browser never moves, so it is not given one. */}
+          only a Keeper. The stamp says it in a word and the marker paints the
+          page in that side's colours. §57: the marker also carries where the
+          toggle goes from here — the tweeling when there is one, and otherwise
+          the wiki, said as a fallback rather than as an address so the landing
+          can explain itself. Who is told about a wissel is the shell's
+          business now (`SideSwitched`), not this page's. */}
       <KeeperStamp
         side={sideOf(entry.visibility === 'keeper')}
-        browserSide={user?.isKeeper ? user.side : undefined}
-        flipTo={twinOf('entry', entry.id, user)?.href ?? '/wiki'}
+        flipTo={twinOf('entry', entry.id, user)?.href}
+        flipList="/wiki"
       />
       {/*
         §31: the dossiers this artikel is filed in — already behind

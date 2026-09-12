@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
-import { MentionPopover, MentionRow, MentionText } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import {
@@ -482,8 +482,10 @@ export function BoardCardView({
           />
           {/* Round 18: `@` offers a name; `[[Naam]]` is what lands in the text. */}
           <MentionPopover forRef={textRef} />
-          {/* §54: a chip cannot live inside a box you are typing in, so it
-              stands under it — the eighth and last plain box to get one. */}
+          {/* §56: it can, after all — an overlay that mirrors the box's own
+              characters puts the chip over the name where it stands. */}
+          <MentionOverlay forRef={textRef} value={draft} />
+          {/* §54: and the same chips on a row under it. */}
           <MentionRow text={draft} />
           </>
         ) : (

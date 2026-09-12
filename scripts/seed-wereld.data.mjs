@@ -263,27 +263,94 @@ export const GEBEURTENISSEN = [
   ['Het vertrek van Van Gilse', 'De hoogleraar gaat aan boord in Vlissingen. De boot komt aan, hij niet.', 1934, 5, 2, 'day'],
 ];
 
-/* -------------------------------------------------------- overlevering */
+/* ------------------------------------------------------------- pantheon */
+/* §58: de vier machten van ronde 28. Het derde element is de infobox; wie   */
+/* wat vereert en wie wiens dienaar is wordt in seed-wereld.mjs bedraad,     */
+/* want dat zijn koppelingen en die moeten naar echte rijen wijzen.          */
 
-export const OVERLEVERING = [
-  ['Het lied van de zeven polders', 'Een telrijmpje dat zeven polders opsomt. Er zijn er zes, en de zevende wordt altijd het laatst gezongen.'],
-  ['Sint Odulphus en de zeven golven', 'De heilige die de zee zeven keer terugstuurde en de zevende keer meeging.'],
-  ['Waarom men op Walcheren geen visgraat verbrandt', 'Omdat het rookt naar de kant waar het vandaan kwam, zeggen ze, en omdat het antwoordt.'],
-  ['De vrouw van het Zwarte Wiel', 'Ze staat tot haar knieën in het water en vraagt de tijd. Wie hem geeft, raakt hem kwijt.'],
-  ['Het verbod van de kerkeraad, 1699', 'Wat er verboden werd staat er niet bij. Dat het niet is ingetrokken wel.'],
-  ['De naamloze zondag', 'Eén zondag per maand telt niet mee. Wie hem uitrekent moet het aan niemand vertellen.'],
-  ['Wat men zegt over de Oosterschelde', 'Dat het water er warm is omdat er iets in ademt, en dat men dat niet hardop zegt.'],
-  ['De drie kloppen', 'Op de deur, na middernacht. De eerste is de wind, de tweede is de wind, de derde moet je niet openen.'],
-  ['Het zoutgebed', 'Vier regels, gemompeld boven een handvol zout, tegen wat er van zee komt.'],
-  ['De ommegang van Veere', 'Vroeger met kaarsen om de kerk. Sinds april loopt men de andere kant op.'],
-  ['De legende van de Zeeland IV', 'Een boot die driemaal is vergaan en driemaal is aangelegd, telkens met een andere bemanning.'],
-  ['Het gebruik van de omgekeerde schoen', 'Eén schoen omgekeerd voor de drempel, zodat wat binnenkomt niet weet waar het vandaan kwam.'],
-  ['Wat de vissers de diepe vriend noemen', 'Niet een naam maar een omschrijving, en zelfs die zeggen ze liever niet twee keer achter elkaar.'],
-  ['De rijmpjes van Ritthem', 'Kinderversjes die overal hetzelfde zijn, behalve de laatste regel, die daar over een figuur op de dijk gaat.'],
-  ['De regel van de elf graden', 'Kijk nooit recht naar wat naast je staat, zeggen de oude vissers, want dan staat het voor je.'],
-  ['Het verhaal van de zeven kerven', 'De peilstok van Nieuwland heeft er zes gehad, tot iemand er in maart een zevende in sneed.'],
-  ['De ballade van de baakmeesteres', 'Achttien tonnen, zeventien lichten, en een vrouw die telt tot ze niet meer terugkomt.'],
-  ['Waarom Veere zijn klokken ’s nachts vastzet', 'Sinds 1682, en niemand die het nog uitlegt aan wie het vraagt.'],
+export const KOSMISCHE_GODEN = [
+  ['Die Onder Het Zout Slaapt', 'Geen naam maar een omschrijving, en zelfs die staat nergens voluit. Sinds februari draait er iets mee met het getij dat niet het getij is.', { titels: 'De Slaper, Het Warme Water', domein: 'Diepte, slaap, en wat er onder de polder ligt', toestand: 'half wakker', verblijf: 'Onder de Verdronken Polder, voor zover men iets onder kan noemen' }],
+  ['De Elf Graden', 'Wat het kompas op de abdijtoren sinds de Drift aanwijst. De vissers noemen het geen god en gedragen zich alsof het er een is.', { titels: 'De Verdraaiing, Het Ware Noorden', domein: 'Richting, afwijking, de kaart die niet meer klopt', toestand: 'ontwaakt', verblijf: 'Overal waar een naald hangt' }],
+  ['De Zevende Polder', 'In het telrijmpje staat er een die er niet is. Wie hem uitrekent komt op een plek uit en niet op een naam.', { titels: 'De Zevende, Wat Er Bijgeteld Wordt', domein: 'Land dat er niet is, en het tellen zelf', toestand: 'sluimerend', verblijf: 'Tussen de zesde polder en de zee' }],
+  ['De Hand Die De Tonnen Verzet', 'Zeventien lichten waar er achttien tonnen liggen. Ieder jaar één, en niemand die het ziet gebeuren.', { titels: 'De Baakmeester, De Achttiende Ton', domein: 'Vaarwater, tellen, wie er niet terugkomt', toestand: 'ontwaakt', verblijf: 'Het Sloe, bij laag water' }],
+  ['De Kroniek Die Zichzelf Schrijft', 'Iets dat opschrijft wat er gebeurt, een blad voor het gebeurt. Drie mensen op het eiland beweren erin te hebben gelezen.', { titels: 'De Schrijver, Het Volgende Blad', domein: 'Wat vastligt voordat het gebeurd is', toestand: 'sluimerend', verblijf: 'Onbekend; men zoekt in de abdijkelders' }],
+  ['Het Vergeten Getal', 'Een uur dat in geen enkele kloklijst geteld is. Wie het terugrekent raakt het kwijt terwijl hij het opschrijft.', { titels: 'Het Ontbrekende Uur', domein: 'Tijd die niet meegeteld wordt', toestand: 'onbekend', verblijf: 'Tussen tien over drie en tien over drie' }],
+  ['De Moeder Van De Nevel', 'Ouder dan de Witte Wieven, en volgens de folkloristen datgene waar zij een verhaal van geworden is.', { titels: 'De Grijze Vrouw, De Eerste Mist', domein: 'Nevel, verdwalen, de weg terug', toestand: 'half wakker', verblijf: 'De binnenpolders, bij windstilte' }],
+  ['Die Wegging En Nog Kijkt', 'Volgens Middelnederlandse kronieken in 1287 vertrokken. Volgens de kronieken van dit jaar niet ver genoeg.', { titels: 'De Vertrokkene', domein: 'Afstand, en wat er over de schouder meekomt', toestand: 'vertrokken', verblijf: 'Voorbij de Wielingen' }],
+];
+
+export const AARDSE_GODEN = [
+  ['De Heer Van De Dijk', 'Waar de zeewering het houdt, houdt hij hem. Wie er een schop in zet zonder een woord te zeggen krijgt het te merken.', { titels: 'De Dijkgraaf, De Oude Van De Wering', domein: 'De zeewering en wie erop werkt', offer: 'Een handvol zout in de eerste kruiwagen van de dag' }],
+  ['Vrouwe Van Het Zwarte Wiel', 'Staat tot haar knieën in warm water en vraagt de tijd. De folklore noemt haar een spook; de folklore heeft ongelijk.', { titels: 'De Vragende, De Natte Vrouw', domein: 'Wielen, stilstaand water, geleende tijd', offer: 'Een uur, hardop weggegeven' }],
+  ['De Zeven Kerven', 'Wat er in de peilstok van Nieuwland woont. Zes kerven was afspraak; sinds de zevende is het geen afspraak meer.', { titels: 'De Meter, De Diepte Zelf', domein: 'Peil, hoogwater, wat er nog bij kan', offer: 'Een kerf per jaar, en niet meer dan één' }],
+  ['De Baak Van Arnemuiden', 'De vloot vaart niet meer uit en het gilde vergadert nog elke week. Waarvoor is een vraag met een antwoord.', { titels: 'De Gildeheer', domein: 'De vloot, de vangst, de terugkeer', offer: 'De eerste vis, over de verkeerde schouder' }],
+  ['De Ommeganger', 'Loopt met de processie mee om de Grote Kerk. Sinds april loopt de processie de andere kant op, en hij ook.', { titels: 'De Meeloper, De Achtste In De Rij', domein: 'Processies, drempels, de rondgang', offer: 'Een kaars die je zelf niet aansteekt' }],
+  ['Moeder Kreekrug', 'Het pad over de zandrug ligt er vier eeuwen. Sinds februari ligt het er niet helemaal, en zij is wat er in het gat woont.', { titels: 'De Rug, Het Oude Pad', domein: 'De kreekrug en wat eronder ligt', offer: 'Brood, begraven waar het pad ophoudt' }],
+  ['De Wachter Van Rammekens', 'Ouder dan het fort, ouder dan het water eromheen. De marechaussee laat niemand voorbij de tweede poort en weet zelf niet precies waarom.', { titels: 'De Tweede Poort', domein: 'Grenzen, wachtposten, wat er niet door mag', offer: 'Een naam, hardop opgegeven bij de eerste poort' }],
+  ['De Zoutvrouw Van Domburg', 'De strandhuisjes staan keurig op een rij en er branden lampen in. Zij zet ze aan.', { titels: 'De Lampenaansteekster', domein: 'Strand, kust bij nacht, wie er blijft slapen', offer: 'Een lamp, de hele nacht laten branden' }],
+];
+
+export const ELDRITCH = [
+  ['Het Dat Antwoordt Op Kloppen', 'In het verzegelde vat, en volgens twee getuigen ook buiten het vat. Het klopt terug in het aantal dat je erin geeft.', { titels: 'De Klopper', domein: 'Ritme, antwoord, wat er in een vat past', verschijning: 'Niet gezien; alleen gehoord, van binnenuit', gevaar: 'te mijden' }],
+  ['De Diepe Vriend', 'Wat de vissers onder de kiel meenden te horen. Niet een naam maar een omschrijving, en zelfs die zeggen ze liever niet tweemaal.', { titels: 'De Vriend, Wat Er Meevaart', domein: 'Onder de kiel, en het gesprek dat daar gevoerd wordt', verschijning: 'Een schaduw zo lang als de boot, en een tel te laat', gevaar: 'verstandverbijsterend' }],
+  ['De Tweede Gestalte Op De Dijk', 'Op de plaat die tweemaal ontwikkelde. Op de eerste afdruk stond hij er niet.', { titels: 'De Meegefotografeerde', domein: 'Beeltenissen, en wat er tussen twee afdrukken bijkomt', verschijning: 'Menselijk van vorm, op de verkeerde schaal', gevaar: 'te mijden' }],
+  ['Aklo, Dat Gelezen Wordt', 'De taal is het wezen, zeggen de drie boeken die haar noemen. Twee lezers komen zelden op dezelfde zin uit omdat er twee zinnen zijn.', { titels: 'De Tekens Zelf', domein: 'Schrift dat leest wie het leest', verschijning: 'Inkt, die per lezer verschilt', gevaar: 'verstandverbijsterend' }],
+  ['Het In Het Sloe Dat Bij Hoog Water Niet Drijft', 'Bij laag water staat het er. Bij hoog water is het er ook, en het staat er nog steeds.', { titels: 'De Staander', domein: 'Het Sloe, en wat er niet mee opkomt', verschijning: 'Een paal, tot je hem van dichtbij ziet', gevaar: 'dodelijk' }],
+  ['De Scheur Van Binnenuit', 'Vier meter net, van de binnenkant open. Wat erdoorheen ging is niet in de vangst gevonden.', { titels: 'Wat Naar Buiten Ging', domein: 'Netten, vallen, alles wat dicht hoort te zijn', verschijning: 'Onbekend; alleen de opening die het achterlaat', gevaar: 'dodelijk' }],
+  ['De Spiegelinhoud Van De Zoutspiegel', 'Wat erin staat is een tel te laat. Na een half uur kijken is het twee tellen, en het kijkt terug.', { titels: 'De Late', domein: 'Spiegels, vertraging, het eigen gezicht', verschijning: 'Jouzelf, en steeds minder', gevaar: 'verstandverbijsterend' }],
+  ['Die Elf Graden Naast Je Staat', 'De oude regel van de vissers: kijk nooit recht naar wat naast je staat, want dan staat het voor je.', { titels: 'De Zijdelingse', domein: 'De ooghoek, en wat daar mag blijven', verschijning: 'Alleen in het randgezicht, nooit recht vooruit', gevaar: 'onbekend' }],
+];
+
+export const BOVENNATUURLIJK = [
+  ['De Witte Wieven van de binnenpolders', 'Mistvrouwen, ouder dan de Drift en sindsdien aanzienlijk werkzamer. Ze leiden je van de dijkweg af, en de dijkweg is er dan nog.', { titels: 'De Wieven, De Grijze Dames', aard: 'spook' }],
+  ['Het Verdronken Kind', 'Tweemaal begraven, warm aan de hand. Wie hem de eerste keer heeft opgeëist is niet komen opdagen.', { titels: 'De Jongen Van De Kade', aard: 'spook' }],
+  ['De Man Van De Seisweg', 'Huurt een kamer, slaapt niet, ademt niet, en betaalt vooruit. Mevrouw Sanderse zegt er niets over.', { titels: 'De Gast Op Vier-Hoog', aard: 'gedaanteverwisselaar' }],
+  ['De Kleine Van De Abdijkelder', 'Ruimt op, verzet dingen een halve slag, en houdt de kelder droger dan hij hoort te zijn.', { titels: 'Het Kelderkind', aard: 'huisgeest' }],
+  ['Wat Er In De Klei Tekent', 'Kerft tekens in natte klei die niet opdrogen. Niemand heeft het ooit bezig gezien en iedereen weet hoe laat het komt.', { titels: 'De Tekenaar', aard: 'onbekend' }],
+  ['De Zeemeid Van De Kaloot', 'Spoelt aan, gaat weer weg, en laat een spoor van fossiel gruis achter dat er de dag ervoor niet lag.', { titels: 'De Aangespoelde', aard: 'zeewezen' }],
+  ['De Zwarte Hond Van Ritthem', 'Loopt de laatste elf kinderen naar school en terug. De onderwijzeres houdt bij op welke dagen hij er niet is.', { titels: 'De Begeleider', aard: 'duivels' }],
+  ['De Nachtzuster Die Er Niet Werkt', 'Achttien bedden, veertien zusters, en een vijftiende op de nachtlijst die niet in het register staat.', { titels: 'De Vijftiende', aard: 'spook' }],
+  ['De Stem Op Lijn Vier', 'Een lijn die nergens meer heen loopt en waarop nog steeds gesproken wordt. De telefoniste antwoordt niet meer.', { titels: 'Lijn Vier', aard: 'onbekend' }],
+];
+
+/* ------------------------------------------- geschriften & kunstwerken */
+/* §58: dezelfde pot als de oude OVERLEVERING, en er is bij gekomen wat er   */
+/* sinds ronde 28 in past: het schilderij, het grimoire, het toneelstuk, het */
+/* boek. `soort_werk` is de sleutel die zegt wat het is.                     */
+
+export const WERKEN = [
+  ['Het lied van de zeven polders', 'Een telrijmpje dat zeven polders opsomt. Er zijn er zes, en de zevende wordt altijd het laatst gezongen.', { soort_werk: 'overlevering' }],
+  ['Sint Odulphus en de zeven golven', 'De heilige die de zee zeven keer terugstuurde en de zevende keer meeging.', { soort_werk: 'overlevering' }],
+  ['Waarom men op Walcheren geen visgraat verbrandt', 'Omdat het rookt naar de kant waar het vandaan kwam, zeggen ze, en omdat het antwoordt.', { soort_werk: 'overlevering' }],
+  ['De vrouw van het Zwarte Wiel', 'Ze staat tot haar knieën in het water en vraagt de tijd. Wie hem geeft, raakt hem kwijt.', { soort_werk: 'overlevering' }],
+  ['Het verbod van de kerkeraad, 1699', 'Wat er verboden werd staat er niet bij. Dat het niet is ingetrokken wel.', { soort_werk: 'overlevering' }],
+  ['De naamloze zondag', 'Eén zondag per maand telt niet mee. Wie hem uitrekent moet het aan niemand vertellen.', { soort_werk: 'overlevering' }],
+  ['Wat men zegt over de Oosterschelde', 'Dat het water er warm is omdat er iets in ademt, en dat men dat niet hardop zegt.', { soort_werk: 'overlevering' }],
+  ['De drie kloppen', 'Op de deur, na middernacht. De eerste is de wind, de tweede is de wind, de derde moet je niet openen.', { soort_werk: 'overlevering' }],
+  ['Het zoutgebed', 'Vier regels, gemompeld boven een handvol zout, tegen wat er van zee komt.', { soort_werk: 'overlevering' }],
+  ['De ommegang van Veere', 'Vroeger met kaarsen om de kerk. Sinds april loopt men de andere kant op.', { soort_werk: 'overlevering' }],
+  ['De legende van de Zeeland IV', 'Een boot die driemaal is vergaan en driemaal is aangelegd, telkens met een andere bemanning.', { soort_werk: 'overlevering' }],
+  ['Het gebruik van de omgekeerde schoen', 'Eén schoen omgekeerd voor de drempel, zodat wat binnenkomt niet weet waar het vandaan kwam.', { soort_werk: 'overlevering' }],
+  ['Wat de vissers de diepe vriend noemen', 'Niet een naam maar een omschrijving, en zelfs die zeggen ze liever niet twee keer achter elkaar.', { soort_werk: 'overlevering' }],
+  ['De rijmpjes van Ritthem', 'Kinderversjes die overal hetzelfde zijn, behalve de laatste regel, die daar over een figuur op de dijk gaat.', { soort_werk: 'overlevering' }],
+  ['De regel van de elf graden', 'Kijk nooit recht naar wat naast je staat, zeggen de oude vissers, want dan staat het voor je.', { soort_werk: 'overlevering' }],
+  ['Het verhaal van de zeven kerven', 'De peilstok van Nieuwland heeft er zes gehad, tot iemand er in maart een zevende in sneed.', { soort_werk: 'overlevering' }],
+  ['De ballade van de baakmeesteres', 'Achttien tonnen, zeventien lichten, en een vrouw die telt tot ze niet meer terugkomt.', { soort_werk: 'overlevering' }],
+  ['Waarom Veere zijn klokken ’s nachts vastzet', 'Sinds 1682, en niemand die het nog uitlegt aan wie het vraagt.', { soort_werk: 'overlevering' }],
+  ['Het Zoutgetij van Westkapelle', 'Doek, 1871. Een dijk bij avond, en op de tweede rij golven een gestalte die er in de eerste opname van 1903 niet op stond.', { soort_werk: 'schilderij' }],
+  ['De Verdronken Bruiloft', 'Een olieverf van een naamloze meester. Zeventien gasten aan tafel; wie telt komt op achttien uit en telt liever niet opnieuw.', { soort_werk: 'schilderij' }],
+  ['Portret van een dominee, 1699', 'De kerkeraad liet het overschilderen. Sinds april komt de onderste laag er doorheen.', { soort_werk: 'schilderij' }],
+  ['Het Nachtboek van Sint Odulphus', 'Perkament, drie handen, en een katern dat door geen van de drie geschreven is.', { soort_werk: 'grimoire' }],
+  ['Liber Maris Profundi', 'Achttiende-eeuws afschrift van iets ouders. Vier hoofdstukken, en het vierde staat in geen enkele inhoudsopgave.', { soort_werk: 'grimoire' }],
+  ['De rekeningen van het Genootschap, 1769', 'Een boekhouding, en verder niets — tot je bij de post kijkt die elk jaar terugkomt en nergens heen gaat.', { soort_werk: 'handschrift' }],
+  ['Het spel van de zeven polders', 'Een toneelstuk voor het Middelburgse gilde, zes bedrijven lang. Het zevende bedrijf is nooit gedrukt en wordt wel gespeeld.', { soort_werk: 'toneelstuk' }],
+  ['De ommegang, een spel in drie handelingen', 'Sinds april in Veere opgevoerd, achterstevoren, en het publiek komt.', { soort_werk: 'toneelstuk' }],
+  ['Zeeuwsche Sagen en Vertellingen, deel II', 'Uitgegeven te Middelburg, 1911. Deel I bestaat niet en heeft nooit bestaan.', { soort_werk: 'boek' }],
+  ['Verhandeling over het Holle Tij', 'Een geologische studie van R. van Gilse, gedrukt in vijftig exemplaren, waarvan er drie over zijn.', { soort_werk: 'boek' }],
+  ['De Stille Vrouw, kalksteen', 'Levensgroot, gezicht weggesleten, en op elke tekening ervan staat het gezicht er wél op.', { soort_werk: 'beeld' }],
+  ['Prent van de Drift', 'Houtsnede, gedrukt binnen een week na februari. De kustlijn erop klopt met die van mei.', { soort_werk: 'tekening of prent' }],
+  ['Het zoutgebed, op perkament', 'Vier regels, in drie talen naast elkaar, en de derde kolom is door niemand thuisgebracht.', { soort_werk: 'handschrift' }],
+  ['De ballade van de baakmeesteres, gedrukte versie', 'Achttien coupletten in de bundel, zeventien als men het zingt.', { soort_werk: 'lied of gedicht' }],
 ];
 
 /* ------------------------------------------------------ sessierapporten */
@@ -337,7 +404,7 @@ export const ZINNEN = {
     { t: 'Er wordt hier niet gevaren na zonsondergang, en dat was voor februari al zo.' },
     { t: 'Van hieruit is %A een uur lopen over de dijk, of twintig minuten als het droogvalt.', a: 'location' },
     { t: 'Sinds %A komt men hier alleen nog overdag.', a: 'event' },
-    { t: 'Wat men hier over %A vertelt, vertelt men nergens anders zo.', a: 'lore' },
+    { t: 'Wat men hier over %A vertelt, vertelt men nergens anders zo.', a: 'werken' },
   ],
   character: [
     { t: 'Te vinden in %A, meestal, en anders bij %B.', a: 'location', b: 'faction' },
@@ -364,14 +431,14 @@ export const ZINNEN = {
     { t: 'De naam staat op drie gevelstenen en in geen enkel kerkregister van na de Drift.' },
     { t: 'Ligt sinds de Drift overhoop met %A, en niemand wil nog uitleggen waarover.', a: 'faction' },
     { t: 'Wat er in %A gebeurde wordt binnen de familie niet besproken.', a: 'event' },
-    { t: 'Volgens %A loopt er iets in de bloedlijn dat er niet in hoort.', a: 'lore' },
+    { t: 'Volgens %A loopt er iets in de bloedlijn dat er niet in hoort.', a: 'werken' },
     { t: 'Er is in maart een %A op zolder gevonden die volgens de erfgenamen nooit van hen is geweest.', a: 'object' },
   ],
   language: [
     { t: 'Wordt op %A nog dagelijks gesproken, al wordt er weinig in opgeschreven.', a: 'location' },
     { t: '%A geldt als de laatste op het eiland die het vlot leest.', a: 'character' },
     { t: 'Staat op %A, in tekens die volgens de eerste opname korter waren.', a: 'object' },
-    { t: 'Wie %A wil begrijpen moet hier eerst doorheen.', a: 'lore' },
+    { t: 'Wie %A wil begrijpen moet hier eerst doorheen.', a: 'werken' },
     { t: '%A gebruikt het onderling, en niet in het openbaar.', a: 'faction' },
     { t: 'Sinds %A is het aantal mensen dat het kan lezen met drie afgenomen.', a: 'event' },
     { t: 'Wat %A voortbrengt lijkt erop, en is het volgens de kenners net niet.', a: 'abnormality' },
@@ -391,7 +458,7 @@ export const ZINNEN = {
     { t: 'Gevonden door %A, en pas een week later gemeld.', a: ['character', 'investigator'] },
     { t: 'Weegt meer dan het materiaal toelaat. Dat is nagemeten.' },
     { t: 'Reageert op het getij, wat voor een voorwerp van brons geen normale eigenschap is.' },
-    { t: 'Wordt in %A genoemd, eeuwen voordat het werd opgegraven.', a: 'lore' },
+    { t: 'Wordt in %A genoemd, eeuwen voordat het werd opgegraven.', a: 'werken' },
     { t: 'Sinds %A staat het onder toezicht van de marechaussee.', a: 'event' },
   ],
   item: [
@@ -416,7 +483,7 @@ export const ZINNEN = {
     { t: '%A heeft er een verklaring voor die niemand overneemt.', a: ['character', 'investigator'] },
     { t: 'Verschijnt niet als er meer dan drie mensen kijken.' },
     { t: 'Wie het meemaakt en erover praat, maakt het de tweede keer alleen mee.' },
-    { t: 'In %A staat het beschreven zoals het zich nu gedraagt.', a: 'lore' },
+    { t: 'In %A staat het beschreven zoals het zich nu gedraagt.', a: 'werken' },
     { t: 'Sinds %A vaker gezien dan in de tien jaar ervoor.', a: 'event' },
   ],
   event: [
@@ -427,13 +494,45 @@ export const ZINNEN = {
     { t: '%A was erbij en heeft er daarna twee weken niets over gezegd.', a: 'character' },
     { t: 'Sindsdien is %A niet meer waargenomen zoals daarvoor.', a: 'abnormality' },
   ],
-  lore: [
+  werken: [
     { t: 'Opgetekend te %A, waar men het nog voorzegt aan kinderen.', a: 'location' },
     { t: 'Ouder dan de Drift, en sindsdien beter bruikbaar dan de meeste rapporten.' },
     { t: 'Men zegt dat %A het nog kent zoals het hoort, met de laatste regel erbij.', a: 'character' },
     { t: 'De kerkeraad heeft dit ooit verboden. Dat maakte het bekender.' },
     { t: 'Er zijn drie lezingen. In alle drie loopt het slecht af voor wie telt.' },
     { t: 'Wie %A heeft gezien, hoort dit verhaal anders.', a: 'abnormality' },
+  ],
+  kosmische_goden: [
+    { t: '%A noemt het bij naam, en dat is de enige plek waar die naam voluit staat.', a: 'werken' },
+    { t: 'De verering loopt via %A, al zal daar niemand het woord verering gebruiken.', a: 'faction' },
+    { t: 'Sinds %A wordt het vaker aangeroepen dan in de tien jaar ervoor.', a: 'event' },
+    { t: 'Wat men bij %A voor een verschijnsel hield is volgens de kenners hiervan een uitloper.', a: 'abnormality' },
+    { t: 'Er is geen enkel bewijs dat het bestaat, en drie rapporten die daar niet vanuit gaan.' },
+    { t: '%A beweert het gezien te hebben, en heeft daarna twee weken niet gesproken.', a: ['character', 'investigator'] },
+  ],
+  aardse_goden: [
+    { t: 'Hoort bij %A en gaat daar niet vandaan.', a: 'location' },
+    { t: 'Men offert er nog, al noemt %A het onderhoud.', a: 'faction' },
+    { t: '%A doet het elke week, en zegt van niet.', a: 'character' },
+    { t: 'In %A staat beschreven wat er misgaat als men het overslaat.', a: 'werken' },
+    { t: 'Ouder dan het dorp, ouder dan de kerk, en jonger dan de dijk.' },
+    { t: 'Sinds %A wordt het gebruik niet meer in het openbaar gedaan.', a: 'event' },
+  ],
+  eldritch: [
+    { t: 'Voor het eerst opgemerkt bij %A, en daarna op vier plekken tegelijk.', a: 'location' },
+    { t: 'In %A staat het beschreven zoals het zich nu gedraagt, wat het ergste is aan dat boek.', a: 'werken' },
+    { t: '%A heeft ernaar gekeken en houdt vol dat het niet keek.', a: 'investigator' },
+    { t: 'Wat %A doet lijkt erop, en is het volgens de kenners net niet.', a: 'abnormality' },
+    { t: 'Er is geen categorie waar het in past, en dat is op zichzelf de meest bruikbare inlichting.' },
+    { t: '%A heeft er een naam voor die verder niemand overneemt.', a: 'character' },
+  ],
+  bovennatuurlijk: [
+    { t: 'Wordt gezien rond %A, meestal na middernacht en altijd door twee mensen tegelijk.', a: 'location' },
+    { t: 'In %A staat het als kinderrijm, met de laatste regel eraf.', a: 'werken' },
+    { t: '%A heeft het gemeld en is er sindsdien over gaan zwijgen.', a: 'character' },
+    { t: 'Doet niemand kwaad, tot iemand het bij naam noemt.' },
+    { t: 'Loopt de weg van %A af en niet verder.', a: 'location' },
+    { t: '%A houdt bij op welke dagen het er níet is, en dat is de bruikbare lijst.', a: 'investigator' },
   ],
   session: [
     { t: 'Aanwezig: de gebruikelijke ploeg, met %A als gastrol.', a: 'character' },
@@ -457,7 +556,11 @@ export const OPENINGEN = {
   clue: ['Feitelijk, controleerbaar, en onverklaard.', 'Twee keer nagegaan.', 'Het staat er, en het klopt niet.'],
   abnormality: ['Meermalen waargenomen, nooit verklaard.', 'Volgt een regelmaat die niemand kan benoemen.', 'Begint klein en houdt niet op.'],
   event: ['Wat er die dag gebeurde is grotendeels bekend.', 'De feiten zijn eenvoudig; de volgorde niet.', 'Één avond, en drie versies.'],
-  lore: ['Zo vertelt men het op Walcheren.', 'Opgetekend uit de mond van ouderen.', 'Een oud verhaal, met een nieuwe bruikbaarheid.'],
+  werken: ['Zo vertelt men het op Walcheren.', 'Opgetekend uit de mond van ouderen.', 'Bewaard gebleven, en daarom bruikbaar.'],
+  kosmische_goden: ['Geen naam die men voluit uitspreekt.', 'Ouder dan het eiland waar het op gemerkt wordt.', 'Meer een richting dan een gestalte.'],
+  aardse_goden: ['Hoort bij een plek en gaat daar niet vandaan.', 'Men noemt het gebruik, geen verering.', 'Zo oud als de dijk, en even praktisch.'],
+  eldritch: ['Past in geen enkele categorie, en dat is het punt.', 'Meermalen vastgesteld, nooit beschreven.', 'Er is geen woord voor, en er zijn drie rapporten.'],
+  bovennatuurlijk: ['Op het eiland algemeen bekend en zelden gemeld.', 'Iedereen kent iemand die het gezien heeft.', 'Klein, plaatselijk en volhardend.'],
   language: ['Meer gelezen dan gesproken.', 'Op het eiland kent men er woorden van.', 'Wie het kan, zegt van niet.'],
   session: ['Verslag van de avond.', 'Kort verslag, want er is weinig van gekomen.', 'Uitgebreid verslag; het liep anders.'],
 };
@@ -474,7 +577,11 @@ export const TAGS = {
   clue: ['meting', 'getuigenis', 'water', 'onverklaard'],
   abnormality: ['onverklaard', 'water', 'folklore', 'nacht'],
   event: ['1934', 'tijdlijn', 'getuigen'],
-  lore: ['folklore', 'overlevering', 'kerk', 'vissers'],
+  werken: ['folklore', 'overlevering', 'geschrift', 'kunst', 'kerk'],
+  kosmische_goden: ['god', 'kosmisch', 'verering', 'onverklaard'],
+  aardse_goden: ['god', 'aards', 'gebruik', 'offer', 'walcheren'],
+  eldritch: ['eldritch', 'onverklaard', 'water', 'gevaarlijk'],
+  bovennatuurlijk: ['wezen', 'folklore', 'nacht', 'spook'],
   language: ['taal', 'schrift', 'vertaling', 'walcheren', 'onleesbaar'],
   session: ['sessie', 'verslag'],
 };

@@ -29,7 +29,8 @@ const dir = mkdtempSync(join(tmpdir(), 'zcf-talen-'));
 process.env.DATA_DIR = dir;
 
 /** Every soort that got the veld, and the order the derived block expects. */
-const SPREKERS = ['character', 'investigator', 'object', 'abnormality', 'faction', 'lore'];
+// §58: `lore` heet sinds ronde 28 `werken` — Geschriften & Kunstwerken.
+const SPREKERS = ['character', 'investigator', 'object', 'abnormality', 'faction', 'werken'];
 
 type Deps = {
   sqlite: typeof import('@/lib/db').sqlite;

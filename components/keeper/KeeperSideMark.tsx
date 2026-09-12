@@ -16,14 +16,39 @@ import type { Side } from '@/lib/keeper/kinds';
  * together — Keeper-coloured when something says keeper and nothing says
  * player — which is the whole of "the site turns over with you".
  *
- * `flipTo` is where the toggle should go from *this* page — the twin, when
- * there is one, else the list this kind of thing lives in on the other side.
- * The toggle (`SideToggle`) reads it off the DOM; nothing else does.
+ * `flipTo` is where the toggle should go from *this* page: the tweeling, when
+ * there is one. `flipList` is the list this kind of thing lives in, for when
+ * there is not. The toggle (`SideToggle`) reads them off the DOM; nothing else
+ * does.
+ *
+ * §57: the two used to be one prop — every page wrote `twinOf(…)?.href ?? '/wiki'`
+ * — and the toggle could not tell the tweeling from the fallback. It still
+ * goes to the same place either way; the difference is only what the landing
+ * says, and a page that arrives on a list without a word about why is the
+ * whole of what read as broken. So the fallback keeps its own attribute:
+ * `data-flip-to` is where to go, `data-flip-none` says it is the list.
  *
  * Rendered only by a page that has already established, on the server, which
  * side the record is on. It is a paint instruction, never a permission:
  * nothing anywhere reads this attribute to decide what to show.
  */
-export function KeeperSideMark({ side = 'keeper', flipTo }: { side?: Side; flipTo?: string }) {
-  return <div data-side={side} data-flip-to={flipTo} hidden aria-hidden="true" />;
+export function KeeperSideMark({
+  side = 'keeper',
+  flipTo,
+  flipList,
+}: {
+  side?: Side;
+  flipTo?: string;
+  flipList?: string;
+}) {
+  return (
+    <div
+      data-side={side}
+      data-flip-to={flipTo || flipList}
+      /* §57: present exactly when the address above is the fallback list. */
+      data-flip-none={!flipTo && flipList ? '1' : undefined}
+      hidden
+      aria-hidden="true"
+    />
+  );
 }

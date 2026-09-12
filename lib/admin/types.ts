@@ -225,6 +225,14 @@ let renaming = false;
  * inside the database can reach a link in somebody's notes.
  *
  * Returns the new id, which is what the rest of the save must write to.
+ *
+ * §58: there is a **second** copy of this cascade, in `lib/db/seed.mjs`
+ * (`renameSeededType`). Round 28 moved `lore` to `werken` in the seed because
+ * Nick asked for the rename rather than doing it by hand in this editor, and
+ * the seed is plain JS without the drizzle layer, so it cannot call in here.
+ * The two must stay in step: a new thing that points at a soort by slug is a
+ * step in *both* functions, or a Keeper's rename and the seed's will move
+ * different halves of the archive.
  */
 export function renameTypeSlug(typeId: string, wanted: string, keeperId: string): string {
   const next = slugify(wanted);

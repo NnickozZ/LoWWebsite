@@ -6,7 +6,7 @@ import { AccessEditor } from '@/components/access/AccessEditor';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
-import { MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
@@ -437,6 +437,8 @@ export function NewEventSheet({
               onChange={(event) => setText(event.target.value)}
             />
             <MentionPopover forRef={newTextRef} />
+            {/* §56: a chip over the name in the box itself. */}
+            <MentionOverlay forRef={newTextRef} value={text} />
             <MentionRow text={text} />
           </div>
           <p style={{ margin: 0 }}>

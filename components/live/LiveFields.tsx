@@ -133,6 +133,20 @@ export function LiveField(props: FieldProps) {
     <>
       {field}
       <MentionPopover element={mentionEl} disabled={plain.readOnly} />
+      {/* §56: no `MentionOverlay` here, and that is a decision, not an
+          oversight. A box in a `LiveFields` room is handed over from a plain
+          element to the room's bound one (§7), and anything mounted beside it
+          shifts that moment: the still-empty room won, and what had just been
+          typed was gone — no error, no failed save, nothing on screen. Moving
+          the mirror's portal to the body (where it belongs) fixed the worst of
+          it, but the rooms stayed marginal: saves that used to land in two
+          seconds were still timing out at fifteen under load. A chip in the
+          box is a decoration; the writing is the archive. So the live boxes —
+          de korte beschrijving, de samenvatting, Tekst en Lange tekst — keep
+          their clickable chips *under* the box (`MentionRow`, §54), and the
+          overlay is used only where there is no room to race: the sheets, een
+          kaartje op de muur, een speld, een gebeurtenis. Making it safe here
+          means making that handover safe first. */}
     </>
   );
 }

@@ -988,3 +988,22 @@ Beheer → Soorten, zoals bij elke soort.
 | **Verwant aan** | veld op een taal | Wijst naar andere Talen. |
 | **Talen** | veld op een persoon, een onderzoeker, een reliek, een abnormaliteit, een factie en een overlevering | Welke talen dit ding spreekt, draagt of waarin het geschreven staat. |
 | **Sprekers en geschriften** | een zelfvullende lijst op de pagina van een taal | Alles waarvan het veld *Talen* deze taal noemt — wie haar spreekt, en waar zij geschreven staat. Je vult de band dus maar aan één kant in. |
+
+## Ronde 28 — een chipje ín het vak, de zij-knop, en het pantheon (§56, §57, §58)
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **chipje in het vak** | in de maak-sheets, op een kaartje op de muur, bij een speld en bij een gebeurtenis | Een naam die je noemt wordt meteen een klikbaar chipje, terwijl je typt — niet pas als je op *lezen* klikt (§56). |
+| **Verwijst naar** | onder elk plat vak waar je `@` of `[[` kunt typen | De rij klikbare chips onder het vak (§54). In de vakken die live gedeeld worden — de korte beschrijving, de samenvatting, Tekst en Lange tekst — is dit de plek waar de chips staan; daar kan er geen spiegel over het vak, zie §56. |
+| **Er is geen {spelersversie} van deze pagina — je staat nu aan de {spelerskant}.** | de melding na een omslag | Wat de zij-knop zegt als de pagina waar je stond geen tweeling heeft: je bent wél omgeslagen, maar je landt op de lijst en niet op een andere gedaante van diezelfde pagina (§57). Zonder tweeling-geval is de melding gewoon *Je staat nu aan de {Keeperkant}.* |
+| **Geschriften & Kunstwerken** | soort (`werken`, voorheen `lore`) | Schilderijen, tekeningen, beelden, boeken, handschriften, grimoires, toneelstukken, liederen en overleveringen. Het oude adres `/wiki/lore` werkt niet meer. |
+| **Soort werk** | veld op een geschrift of kunstwerk | Keuze uit: *schilderij* · *tekening of prent* · *beeld* · *boek* · *handschrift* · *grimoire* · *toneelstuk* · *lied of gedicht* · *overlevering* · *anders*. |
+| **Toont of beweert** | veld op een geschrift of kunstwerk | Waar het werk over gaat. Mag naar álles wijzen: een schilderij toont een plek, een grimoire beweert iets over een god. |
+| **Kosmische Goden** | soort | De groten die niet van hier zijn. Eigen velden: **Toestand** (*sluimerend* · *half wakker* · *ontwaakt* · *vertrokken* · *onbekend*) en **Verblijfplaats**. |
+| **Aardse Goden** | soort | Wat aan een plek vastzit — dat is het verschil met de rest. Eigen velden: **Standplaats** (→ Locaties) en **Wat men offert**. |
+| **Eldritch Entiteiten** | soort | Eigen velden: **Verschijningsvorm** en **Gevaar** (*te mijden* · *dodelijk* · *verstandverbijsterend* · *onbekend*). |
+| **Bovennatuurlijke wezens** | soort | Eigen velden: **Aard** (*spook* · *gedaanteverwisselaar* · *huisgeest* · *zeewezen* · *duivels* · *onbekend*) en **Leefgebied** (→ Locaties). |
+| **Titels en bijnamen · Domein · Vereerd door · Tekens en voortekenen · Talen · Dienaar van** | velden op alle vier de pantheon-soorten | De gedeelde kern. **Vereerd door** wijst naar Facties, Personen en Onderzoekers — facties vooraan, want een cult is een factie. |
+| **Dienaar van** | veld op de vier pantheon-soorten én op een abnormaliteit | Wie deze dient. Je vult de band aan één kant in: aan de kant van de meester verschijnt vanzelf de lijst **Dienaren**. |
+| **Dienaren** | een zelfvullende lijst op de pagina van een god of entiteit | Alles waarvan het veld *Dienaar van* deze noemt. |
+| **Vereert** | veld op een persoon, een onderzoeker en een factie | De andere kant van *Vereerd door*. |

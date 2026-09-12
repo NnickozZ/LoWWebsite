@@ -300,7 +300,7 @@ const SEED = [
   // -- Lore -----------------------------------------------------------------
   {
     key: 'the-drift',
-    type: 'lore',
+    type: 'werken',
     name: 'The Drift',
     short:
       'On the night of 9 February 1934 the province of Zeeland was, by every instrument available, somewhere else.',

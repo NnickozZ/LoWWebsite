@@ -2276,6 +2276,9 @@ Forty-six rules worth knowing before changing anything:
     than made an automatic tail of `LiveField`, because the speld and
     gebeurtenis sheets already render their own and would have printed two.
 
+    *Round 28: this was not what was asked for.* The row under the box stays,
+    but the chip is now drawn **in** the box as well — see §56.
+
 55. **Talen zijn een soort, en de andere kant ervan is een veld.** §55. Soort
     `language`, label **Talen**, `sort_order` 95 — beside Overlevering en
     folklore, because a taal is a thing out of the world you look up. Its
@@ -2304,3 +2307,135 @@ Forty-six rules worth knowing before changing anything:
     skipped for a soort that already has a `talen` key or is already at twenty
     velden.
 
+
+56. **En een chipje ín het vak, want dat is wat gevraagd werd.** §56. §54 put
+    the chips *under* the box and Nick came back with three words: *"nogsteeds
+    het geval"*. He is right — the ask was to click the name where he wrote it.
+    A `<textarea>` still holds characters and nothing else, so the answer is
+    not to put an element inside it but to lay one exactly over it:
+    `MentionOverlay` (in `components/ui/MentionPopover.tsx`) mirrors the box in
+    a `.mention-mirror` that copies the box's own computed typography and box
+    metrics — the twenty-odd properties in `MIRROR_PROPS`, read off the live
+    element, because a class would drift the day somebody restyles one field —
+    prints the same text, wraps each mention in a chip, and is
+    `pointer-events: none` **except on the chips**. The box above it keeps the
+    caret and the selection and goes `color: transparent`.
+
+    **The chip is the whole `[[Naam]]` run, brackets included.** That is the
+    rule the whole thing hangs on: the mirror must contain the *same
+    characters* as the box or every glyph after a mention shifts and the caret
+    stops sitting under the text. Style the brackets down, never drop them.
+    `mirrorSegments(text, spans)` is pure and covers the string byte for byte —
+    `tests/unit/mention-mirror.test.ts` asserts exactly that, on adjacent
+    mentions, a mention at index 0, an unresolved run, an unmatched `[[`, a
+    newline inside a run and astral characters.
+
+    It rides on the same `mentions` prop that already wires `MentionPopover`,
+    so a box that offers `@` gets it and nothing else does — including the
+    `LiveField`s bound to a `Y.Text`, which keep storing a plain string and
+    never learn that anything is drawn over them.
+
+    **The portal goes to `document.body`, never to the box's own
+    `offsetParent`.** Hanging it in the parent looked neater — `offsetLeft` and
+    `offsetTop` are layout pixels, so a prikbord's zoom needed no dividing out
+    — but that parent is a container React is itself reconciling, and a node
+    dropped into it corrupted the bookkeeping: the next update to the box (§7's
+    handover, swapping the plain box for the room's bound one) went wrong, the
+    still-empty room won, and **what had just been typed was gone** — no error,
+    no failed save, nothing on screen to say so. `MentionPopover` directly above
+    it had already learnt this and says so in its own comment. Measure with
+    `getBoundingClientRect`, sit `fixed`, and re-measure on any scroll between
+    the box and the body (capture, because those do not bubble). The
+    `ResizeObserver` watches **the box only**: the body changes no layout the
+    mirror cares about, and on a phone it grows with the page, which was twenty
+    computed properties re-read per frame.
+
+    **And it hangs on the plain boxes only** — the three maak-sheets, a kaartje
+    op de muur, een speld, een gebeurtenis. Not on a box inside a `LiveFields`
+    room. Moving the portal to the body fixed the outright loss, but the rooms
+    stayed marginal: saves that land in two seconds were still timing out at
+    fifteen under load, because a mirror beside a box still shifts the handover
+    that swaps that box for the room's own. A chip in the box is a decoration
+    and the writing is the archive, so the live boxes — de korte beschrijving,
+    de samenvatting, Tekst en Lange tekst — keep their clickable chips **under**
+    them (`MentionRow`, §54), and making the overlay safe there means making
+    that handover safe first. That is the honest state of it, written down
+    rather than discovered again.
+
+    Two more things the mirror needs, both learnt the hard way: it re-measures
+    a few times over the first half second after it mounts (a sheet slides in,
+    and nothing fires scroll, resize or input while it does), and it sits at
+    `z-index: 60` beside `.mention-pop`, because a chip behind the sheet the
+    box is in is a chip nobody can click.
+
+57. **Er is één weg waarlangs het archief omslaat.** §57. §46's toggle wrote
+    the cookie with a `POST` and then did a client-side `router.push`, and that
+    is the bug Nick found: `/e/het-complot` and `/wiki` hang under the same
+    `app/(app)/layout.tsx`, so Next re-renders the page segment and **reuses
+    the layout's RSC output from the client router cache** — and the layout is
+    the one thing that knows which side this browser stands on. Flip on a
+    Keeper page with no tweeling, land on `/wiki`, and the archive was on the
+    players' side while the shell still said Keeper: the button's own
+    `data-side-now`, the shield under the masthead, the palette (`[data-side]`
+    on the shell's wrapper is the only one on a list page) — and, the one that
+    is not cosmetic, `UiProvider`'s `side`, which is §48's *born on a side*.
+    Something made from that stale shell was made **keeper-only while the
+    cookie said player**, and Nick's standing rule is that nothing is ever born
+    keeper-only unless the hand that made it was standing on the Keeper side.
+
+    So the toggle now takes the road §50 already built for the other direction:
+    `GET /api/keeper/flip?side=…&to=…`, a 303 and a document load, after which
+    the layout, the palette, the masthead, the button and `UiProvider` are all
+    on the new side by construction. No ordering to get right, no cache to
+    out-think, and one writer of that cookie for every crossing there is —
+    `sideDetour()`, `/keeper` and this button. The cost is the view transition,
+    which a document navigation cannot wrap; that is the price and it was paid
+    knowingly.
+
+    **A flip is never refused.** The side is a face the whole archive wears,
+    not a place, so a record with no tweeling still turns the archive over and
+    lands on that side's list — it just has to *say so*, because arriving
+    somewhere you did not ask for is what reads as broken. `KeeperSideMark`
+    therefore distinguishes the two: `data-flip-to` is the tweeling,
+    `data-flip-twinless` says the href is the fallback list. `planFlip`,
+    `flipRoad`, `readLanding`, `hereFrom` and `switchedMessage` in
+    `components/keeper/flipRoad.ts` are pure and unit-tested; `SideSwitched`
+    is mounted **once in `AppShell`**, so any page that lands with `gewisseld=1`
+    announces it, rather than five list pages each having to remember to.
+
+58. **Het pantheon, en Overlevering werd Geschriften & Kunstwerken.** §58.
+    Four soorten between Abnormaliteiten (60) and Facties (70) — *wat je
+    vereert komt na wat je ziet en voor wie zich eromheen verzamelt* —
+    sharing one border (`frame`, so a wall full of cork reads them as one kind
+    of thing) and one core, `PANTHEON_KERN`: **Titels en bijnamen**, **Domein**,
+    **Vereerd door** (→ Facties, Personen, Onderzoekers — *facties first,
+    because a cult is a factie and the picker makes the first slug in the row*),
+    **Tekens en voortekenen**, **Talen** and **Dienaar van**. On top of that,
+    each soort keeps one or two of its own: Kosmische Goden a **Toestand** and
+    a **Verblijfplaats**, Aardse Goden a **Standplaats** (→ Locaties, because
+    an earthly god is stuck to a place — that is the whole difference) and
+    **Wat men offert**, Eldritch Entiteiten a **Verschijningsvorm** and a
+    **Gevaar**, Bovennatuurlijke wezens an **Aard** and a **Leefgebied**.
+
+    **The hierarchy is one field, not two.** Whoever serves names their master
+    — that is the end where the number stays small — and *Dienaren* is a
+    `derived` list on the master's page. `Dienaar van` also sits on
+    Abnormaliteiten, because an abnormaliteit is as often a servant as a
+    phenomenon. The other end of *Vereerd door* is a **Vereert** veld on
+    Personen, Onderzoekers and Facties, stuck on once behind
+    `seed:round-28-pantheon`.
+
+    **`lore` → `werken`, label Geschriften & Kunstwerken**, so a schilderij, a
+    grimoire, a toneelstuk and a boek all have a home: **Soort werk**
+    (`select`, ten of them, with *overlevering* still among them so nothing
+    that is already filed loses its name), **Maker**, **Gemaakt in**,
+    **Bevindt zich in**, the **Talen** veld §55 gave it, and **Toont of
+    beweert** — deliberately without `ofType`, because a schilderij shows a
+    place and a grimoire claims something about a god. The slug moves too, so
+    `/wiki/lore` links from outside break; the same trade was made for Relieken
+    in round 8 and it was made again on purpose. It goes through the same
+    cascade the Keeper's own rename uses, behind `seed:round-28-werken`, and
+    `VOORHEEN = { werken: 'lore' }` is the bridge that stops the seed putting an
+    empty second copy beside a soort a Keeper had already moved themselves —
+    the skip-marker is written under the *old* slug, and without that line
+    there was no `lore` left in `ENTRY_TYPES` for it to match.

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { fitUpload } from '@/components/shrinkImage';
@@ -174,6 +174,8 @@ export function NewMapButton() {
               {/* §48: `@` here as well — an omschrijving is a description like
                   any other, and this one names places for a living. */}
               <MentionPopover forRef={descriptionRef} />
+              {/* §56: a chip over the name in the box itself. */}
+              <MentionOverlay forRef={descriptionRef} value={description} />
               {/* §54: and the chips under it, clickable while you write. */}
               <MentionRow text={description} />
             </div>

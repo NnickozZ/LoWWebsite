@@ -47,6 +47,13 @@ const TAB_ORDER = (soorten: { slug: string; caseOnly: boolean }[]) => [
   // §51: Families keeps a tab of its own rather than joining Personen — a
   // familie is a thing you look up, like a factie, not a person on the list.
   'family',
+  // §58: and the five soorten of round 28 — Geschriften & Kunstwerken, and the
+  // four machten — deliberately get **no** row here. This list is what an
+  // investigation *gathers*: the people it met, the places it went, the
+  // relieken it carried out and the abnormaliteiten it could not explain. A
+  // grimoire and a god are world knowledge you look up in the wiki, the way
+  // Talen was left off in §55. A dossier that does want one pins it itself
+  // (§7's Tabbladen sheet), which is the road for exactly this.
 ];
 
 export default async function CasePage({
@@ -207,13 +214,13 @@ export default async function CasePage({
   return (
     <>
       <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'timelines', 'users']} />
-      {/* §44/§45/§46: which side this dossier is on — the word, the colours,
-          and the browser's side, so following a link across turns the site
-          over with you. */}
+      {/* §44/§45/§46: which side this dossier is on — the word and the
+          colours. §57: and where the toggle goes from here, with the list kept
+          apart from the tweeling so a flip that lands on it can say why. */}
       <KeeperStamp
         side={sideOf(Boolean(user?.isKeeper && keeperRef('case', record.id, user)?.keeperOnly))}
-        browserSide={user?.isKeeper ? user.side : undefined}
-        flipTo={twinOf('case', record.id, user)?.href ?? '/cases'}
+        flipTo={twinOf('case', record.id, user)?.href}
+        flipList="/cases"
       />
       <CaseDossier
       data={{

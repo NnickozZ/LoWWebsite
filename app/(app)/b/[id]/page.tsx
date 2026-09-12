@@ -79,13 +79,13 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
-      {/* §44/§45/§46: which side this prikbord is on — the word, the colours,
-          and the browser's side, so a link followed across turns the site
-          over with you. */}
+      {/* §44/§45/§46: which side this prikbord is on — the word and the
+          colours. §57: and where the toggle goes from here, with the list kept
+          apart from the tweeling so a flip that lands on it can say why. */}
       <KeeperStamp
         side={sideOf(Boolean(user?.isKeeper && keeperRef('board', board.id, user)?.keeperOnly))}
-        browserSide={user?.isKeeper ? user.side : undefined}
-        flipTo={twinOf('board', board.id, user)?.href ?? '/boards'}
+        flipTo={twinOf('board', board.id, user)?.href}
+        flipList="/boards"
       />
       <BoardCanvas
       boardId={board.id}

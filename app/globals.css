@@ -1074,6 +1074,65 @@ a.card:hover {
   overflow: auto;
 }
 
+/* §56: a chip *inside* the box being typed in.
+   `.mention-mirror` is laid exactly over a textarea or an input and prints the
+   same characters it holds — the typography and the box metrics are copied off
+   the box itself in `MentionOverlay`, so nothing that decides where a letter
+   lands may be set here. The mirror does not take the pointer; only its chips
+   do, and a chip may not change a single advance width, so it wears a
+   background, a colour and a shadow and *never* a padding, a border, a weight
+   or a size. Round 21's `.entry-chip` cannot be used here for exactly that
+   reason: its padding and its dot would shift the caret off its letter. */
+.mention-mirror {
+  display: flex;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--ink);
+  background: transparent;
+  border-style: solid;
+  border-color: transparent;
+  /* §56: the mirror is portalled to the body, so it has to clear whatever the
+     box is inside — a sheet slides in over the page, and a chip behind it is a
+     chip nobody can click. Same rung as `.mention-pop`, which is portalled for
+     the same reason and lands beside it. It takes no pointer of its own, and
+     it covers exactly the box's own rectangle, so being high costs nothing. */
+  z-index: 60;
+}
+/* The text sits in one child so the outer box may be a flex container: an
+   `<input>` centres its single line in its content box and a `<div>` would
+   top-align it, so the mirror of a one-line box centres its child. */
+.mention-mirror > .mention-mirror-text {
+  width: 100%;
+  min-width: 0;
+}
+.mention-live {
+  border-radius: 3px;
+  background: var(--paper-dark);
+  box-shadow:
+    0 0 0 1px var(--rule),
+    inset 2px 0 0 var(--chip-colour, var(--ink-muted));
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.mention-live-missing {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+.mention-live-punct {
+  opacity: 0.45;
+}
+/* The box keeps its caret and its selection; the mirror draws its letters. */
+.mention-lit {
+  color: transparent;
+  caret-color: var(--ink);
+  -webkit-text-fill-color: transparent;
+}
+
 /* ------------------------------------------------------------------ prose */
 .prose {
   font-size: 1.02rem;

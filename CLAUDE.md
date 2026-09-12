@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 61 files, 852 tests as of round 27 (round 26: 57 / 822)
+npx vitest run         # 64 files, 895 tests as of round 28 (round 27: 61 / 852)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -145,7 +145,9 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§5[0-9]" app components lib` before
-  choosing a number — the latest is §55 / rule 55 (round 27: §52 het prikbord,
+  choosing a number — the latest is §58 / rule 58 (round 28: §56 een chipje
+  *in* het vak, §57 één weg waarlangs het archief omslaat, §58 het pantheon en
+  Geschriften & Kunstwerken; round 27: §52 het prikbord,
   §53 een tweeling linken, §54 een chipje onder het vak, §55 Talen; round 26:
   §49 the dossier in front of the name, §50 the two sides apart, §51 a
   koppelingsveld aimed at several soorten; §48 is round 25's born-on-a-side,
@@ -157,9 +159,9 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0022_case_prefix`, so the next is `0023_` (round 27 added none: a new soort
-  and a reverse veld arrive through the seed's `INSERT OR IGNORE` and a marker,
-  §55). Never edit an existing
+  `0022_case_prefix`, so the next is `0023_` (rounds 27 and 28 added none: a
+  new soort, a reverse veld and even a **slug rename** arrive through the
+  seed's `INSERT OR IGNORE` and a marker — §55, §58). Never edit an existing
   block, and that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
@@ -422,12 +424,15 @@ freely there.
   and **`flat` inside anything that is already a link** (a card, a feed row, a
   search hit), because an `<a>` in an `<a>` is invalid HTML and
   `no-console-warnings.spec.ts` fails on it. A new plain box gets `mentions` on
-  the way in, `MentionText` on the way out **and a `MentionRow` under it while
-  it is typed** (§54, round 27) — or the same text will be chips on one screen
-  and brackets on the next. `MentionRow` lives in `MentionPopover.tsx`, renders
-  nothing when no name resolves, and belongs at the call site: the speld and
-  gebeurtenis sheets draw their own, and an automatic one in `LiveField` would
-  print two.
+  the way in, `MentionText` on the way out, **a `MentionOverlay` over it and a
+  `MentionRow` under it while it is typed** (§54 round 27, §56 round 28) — or
+  the same text will be chips on one screen and brackets on the next. Both live
+  in `MentionPopover.tsx` and render nothing when no name resolves.
+  `MentionOverlay` mirrors the box's *computed* typography (`MIRROR_PROPS`), and
+  **its chip is the whole `[[Naam]]` run, brackets included** — drop the
+  brackets and every glyph after a mention shifts out from under the caret.
+  `MentionRow` belongs at the call site: the speld and gebeurtenis sheets draw
+  their own, and an automatic one in `LiveField` would print two.
 - **`useIAmTheCase` is "this screen is a dossier", and only the dossier says it**
   (§48, round 25). It lives in `UiProvider` because the `+`, the FAB and the `n`
   key are in the *shell*, above the page, where a context set by the page cannot
@@ -474,6 +479,13 @@ freely there.
   everywhere but `/api/keeper/search`, and the cookie is now corrected by a
   redirect through `/api/keeper/flip` *before* the page renders (`sideDetour`,
   `queryTail`) instead of afterwards by `SideSync`, which no longer exists.
+  **§57 (round 28) finished it**: the toggle no longer POSTs-and-pushes either.
+  Every crossing there is — `sideDetour`, `/keeper`, and the button — goes
+  through `GET /api/keeper/flip`, because a client-side `push` reuses the
+  shared layout's RSC output and the layout is the one thing that knows which
+  side the browser stands on. A stale shell is not cosmetic: `UiProvider`'s
+  `side` is §48's born-on-a-side, so it made things keeper-only while the
+  cookie said player. Do not reintroduce a client-side navigation here.
 - **The four palettes in `app/globals.css` are generated — never hand-edit
   them** (§45, round 22). Everything between `/* §45 SCHEMES START */` and
   `/* §45 SCHEMES END */` is character for character what

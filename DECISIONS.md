@@ -3630,3 +3630,153 @@ migratie: de laatste blijft `0022_case_prefix`.
 - **De naam in een `entry_link`-waarde blijft de naam van toen** (ouder dan
   deze ronde; §52 heeft hem alleen op de kurk opgelost).
 
+
+## Ronde 28 — 12 September 2026: een chipje ín het vak, één weg om om te slaan, en het pantheon (§56, §57, §58)
+
+### Het chipje moest ín het vak (§56)
+
+Ronde 27 zette de chips *onder* het vak en legde uitvoerig uit waarom ze er
+niet ín konden. Nicks antwoord was drie woorden: *"nogsteeds het geval"*. Hij
+had gelijk, en de uitleg was geen antwoord op de vraag: hij wil de naam
+aanklikken waar hij hem geschreven heeft.
+
+De redenering van §54 klopte wel — een `<textarea>` bevat letters en verder
+niets, en de vier vakken die het meest tellen zijn `LiveField`s die een `Y.Text`
+diffen, dus er kan geen echt element in staan en er mag geen contenteditable
+voor in de plaats komen. Wat er niet stond is dat je er wél een *overheen* kunt
+leggen. Dat is nu `MentionOverlay`: een spiegel met dezelfde tekst, die zijn
+typografie en doosmaten van het element zélf afleest (`getComputedStyle`, niet
+een gedeelde class — een class drijft weg zodra iemand één veld anders opmaakt),
+met `pointer-events: none` behalve op de chips. Het vak eronder houdt de cursor
+en de selectie en wordt doorzichtig van letterkleur.
+
+**De ene regel waar alles aan hangt: de chip is de hele `[[Naam]]`, haakjes
+inbegrepen.** Laat je de haakjes weg, dan schuift elke letter erna op en zit de
+cursor niet meer onder de tekst. Dat is precies de "opruiming" waar een
+volgende agent aan zal beginnen, dus het staat in de code, in de regel en hier.
+`mirrorSegments` is puur en dekt de string letter voor letter; de unittest
+schiet erop met aangrenzende vermeldingen, een vermelding op positie 0, een
+onopgelost stuk, een ongepaarde `[[`, een regeleinde middenin en tekens buiten
+het basisvlak.
+
+De rij eronder blijft staan. Ze doet iets anders: het chipje in de tekst is de
+klik, de rij is het bewijs dat de naam een artikel gevonden heeft.
+
+**En het duurste uur van deze ronde zat in waar de spiegel hangt.** Hij hing
+eerst in de `offsetParent` van het vak — netjes gedacht, want dan zijn het
+layoutpixels en hoef je de zoom van een prikbord er niet uit te delen. Maar dat
+is een container die React zelf aan het bijhouden is, en een knoop die je daar
+tussen zet maakt die boekhouding stuk: de eerstvolgende wijziging aan het vak —
+§7's overdracht, waarbij het platte vak wordt ingeruild voor dat van de kamer —
+liep mis, de nog lege kamer won, en **wat er net getypt was, was weg**. Geen
+foutmelding, geen mislukte opslag, niets op het scherm dat het zei. Precies wat
+een versiering nooit mag kosten.
+
+`MentionPopover`, tien regels erboven, had dat al geleerd en schrijft het ook op.
+De spiegel gaat nu net als hij naar `document.body`, meet met
+`getBoundingClientRect` en staat `fixed`. Twee dingen die daarbij horen: hij
+hermeet bij elke scroll tussen het vak en de body (in de capture-fase, want die
+bubbelen niet), en de `ResizeObserver` kijkt **alleen naar het vak** — de body
+observeren was op een telefoon een hermeting van twintig berekende eigenschappen
+per frame, en dát was waarom de telefoon nog omviel toen de desktop al groen was.
+
+**En daarna is hij alsnog uit de live-vakken gehaald.** De verhuizing naar de
+body haalde het regelrechte verlies weg, maar de kamers bleven op het randje:
+opslagen die normaal in twee seconden landen liepen onder belasting nog steeds in
+vijftien seconden dood, omdat een spiegel naast een vak die overdracht nu eenmaal
+verschuift. Vier pogingen lang verplaatste elke reparatie de storing in plaats van
+hem weg te nemen, en dat is het moment om te stoppen: een chipje ín het vak is een
+versiering, de tekst is het archief. De spiegel hangt nu alleen boven de platte
+vakken — de drie maak-sheets, een kaartje op de muur, een speld, een gebeurtenis —
+en de live-vakken houden hun klikbare chips eronder (§54). Het is niet wat Nick
+precies vroeg voor de korte beschrijving, en dat staat er met zoveel woorden bij:
+wie het daar ook wil, moet eerst die overdracht veilig maken, niet de spiegel.
+
+Het is twee keer misgegaan voordat het gevonden was, allebei de keren omdat het
+timing is en alleen onder belasting bijt. De les die het waard is om op te
+schrijven: **een portal hoort in de body, nooit in een stuk DOM dat React aan het
+bijhouden is** — en als iets een opslag lijkt die niet komt, kijk dan eerst naar
+wie er nog meer in dezelfde ouder zit.
+
+### Eén weg waarlangs het archief omslaat (§57)
+
+Nick: *"Als ik switch van een keeper pagina naar een speler pagina, maar de
+speler pagina bestaat niet, dan switch ik naar het voorblad van de wiki. Maar de
+knop rechtsboven denkt dat ik nogsteeds in de keeper side zit."*
+
+Niet de cookie, niet de terugvaladressen, niet de flip-route. Een verouderd
+laag-segment. `/e/<slug>` en `/wiki` hangen onder dezelfde `app/(app)/layout.tsx`,
+en `router.push` hergebruikt de RSC-uitvoer van die laag uit de clientcache —
+terwijl juist die laag weet aan welke kant deze browser staat. `export const
+dynamic = 'force-dynamic'` gaat over servercaching en niet hierover.
+
+**Het was niet alleen cosmetisch.** `UiProvider`'s `side` komt uit diezelfde
+prop, en dat is §48's *geboren op een kant*: iets dat vanaf die verouderde schil
+gemaakt werd, werd **keeper-only gemaakt terwijl de cookie speler zei**. Nick is
+daar in dezelfde ronde uitgesproken over geweest — *"Ik wil niet dat standaard
+artikelen keeper only zijn, nooit"* — dus dit was een lek van de verkeerde soort
+en niet een schoonheidsfoutje.
+
+Gekozen weg: de toggle stuurt de browser door `GET /api/keeper/flip`, de 303 die
+§50 al gebouwd had voor de andere richting. Een documentlading, dus schil, palet,
+masthead, knop en `UiProvider` komen allemaal aan de goede kant terug — er is
+geen volgorde om goed te krijgen en geen cache om te slim af te zijn. `push` +
+`refresh` was de kleinere ingreep en is afgewezen: dat is twee renders waarvan de
+volgorde niet vastligt, en de fout die we repareren was er al eens één van.
+De prijs is de view transition, die een documentlading niet kan omvatten. Bewust
+betaald.
+
+**Een omslag wordt nooit geweigerd.** De kant is een gezicht dat het hele archief
+draagt, geen plek; de knop laten afhangen van het ding waar je toevallig op staat
+maakt `k` onvoorspelbaar. Dus: wel omslaan, wel op de lijst landen, en het
+zéggen — want ergens aankomen waar je niet om gevraagd hebt is wat als kapot
+leest. `KeeperSideMark` zegt daarom of het adres de tweeling is
+(`data-flip-to`) of de terugval (`data-flip-twinless`), en `SideSwitched` hangt
+**één keer in `AppShell`** in plaats van in vijf lijstpagina's die het allemaal
+moeten onthouden.
+
+### Het pantheon, en Overlevering werd Geschriften & Kunstwerken (§58)
+
+Vier soorten, één familie. Ze delen een rand en een kern (`PANTHEON_KERN`), en
+staan tussen Abnormaliteiten en Facties in: wat je vereert komt na wat je ziet en
+voor wie zich eromheen verzamelt.
+
+**De hiërarchie is één veld, niet twee.** Wie dient noemt zijn meester — dat is
+de kant waar het aantal klein blijft — en *Dienaren* is een zelfvullende lijst op
+de pagina van de meester. Dezelfde vorm als Families' *Leden* en de *Sprekers* van
+een taal, en om dezelfde reden: niemand tikt een band twee keer in. `Dienaar van`
+staat ook op Abnormaliteiten, want een abnormaliteit is even vaak een dienaar als
+een verschijnsel.
+
+**Facties staan vooraan in `Vereerd door`.** Nick: *"Facties linken met creatures
+zou ook nice zijn aangezien we cults bij facties plaatsen."* De kiezer maakt bij
+"'X' aanmaken" een artikel van de *eerste* slug in de rij, dus die volgorde is een
+beslissing en geen alfabet.
+
+**Geen enkele van de vijf wordt keeper-only geboren.** Uitgesproken gevraagd, en
+het is een assertie in `round-28-soorten.test.ts` — niet omdat iemand het van plan
+was, maar omdat dit precies het soort regel is dat een volgende ronde per ongeluk
+omzeilt.
+
+**`lore` → `werken`.** Het adres verhuist mee, dus `/wiki/lore`-links van buiten
+breken. Dezelfde ruil als bij Relieken in ronde 8, opnieuw en bewust gemaakt, en
+opnieuw zonder redirecttabel. De hernoeming loopt door dezelfde cascade als die
+van de Keeper zelf, niet door een kale `UPDATE`.
+
+Eén valkuil die het bijna misging: de seed slaat een soort over zodra de Keeper
+hem zélf verhuisd heeft, en onthoudt dat onder de **oude** slug
+(`seed:type-renamed:<oud>`). Toen `lore` `werken` werd stond er geen `lore` meer
+in `ENTRY_TYPES` om over te slaan — en dan zet `INSERT OR IGNORE` alsnog een lege
+tweede "Geschriften & Kunstwerken" naast de volle rij die de Keeper al ergens heen
+gebracht had. `VOORHEEN = { werken: 'lore' }` is de brug tussen de twee namen. Een
+volgende hernoeming van een geseede soort hoort daar ook in.
+
+### Waar ronde 28 eindigt
+
+- **De niet-ronde knopen in het web** staan er nog: een landkaart-ruit houdt ~58%
+  van de vierkante uitsnede over, een tijdlijn-pil een middenband. Het vraagt om
+  een bounding box per soort knoop, en dus om een beslissing van Nick. Sinds
+  ronde 27 onveranderd.
+- **De view transition op de zij-knop** is weg, in ruil voor een schil die klopt.
+  Als iemand hem terug wil: dat kan alleen als de laag zelf kan hertekenen zonder
+  documentlading, en dat is een andere ronde.

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { useMayStartEntry } from '@/components/you/AuthorProvider';
-import { MentionPopover, MentionRow } from './MentionPopover';
+import { MentionOverlay, MentionPopover, MentionRow } from './MentionPopover';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
@@ -310,9 +310,10 @@ export function NewEntrySheet({
             and the first description somebody writes is exactly where they
             reach for one. */}
         <MentionPopover forRef={descriptionRef} />
-        {/* §54: and the chips of what was typed, under the box — a textarea
-            holds characters, so this is the only place a name in it can be
-            clicked while it is being written. */}
+        {/* §56: the names in the box are chips *in* the box, on an overlay
+            that mirrors its characters — and, since §54, on a row under it as
+            well, which is where a chip goes on reading it back. */}
+        <MentionOverlay forRef={descriptionRef} value={description} />
         <MentionRow text={description} />
       </div>
 
