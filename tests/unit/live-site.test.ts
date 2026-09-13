@@ -353,6 +353,125 @@ describe('a fields room', () => {
   });
 });
 
+/**
+ * §60: one socket per browser, and a `changed` that knows whose write it was.
+ *
+ * These are the two halves of "one line per tab, and a line that never gives
+ * up": the hub has to be able to carry a tab that has no socket of its own, and
+ * it has to be able to leave the author of a write out of the telling.
+ */
+describe('a line that carries another', () => {
+  it('tags a carried tab’s frames and drops them with the leader', () => {
+    const leader = tab('t-leader', 'bram');
+    const follower = hub.carry({ leader: leader.connection, clientId: 't-follower', userId: 'bram', name: 'Bram' });
+    expect(follower).not.toBeNull();
+    expect(hub.carriedCount(leader.connection.id)).toBe(1);
+
+    hub.setWatches(follower!, ['entries']);
+    hub.setPlace(follower!, 'page:/wiki');
+    hub.setPlace(leader.connection, 'page:/wiki');
+    // Two tabs, two people: a carried tab gives up its socket and nothing else.
+    expect(hub.peopleAt('page:/wiki').map((p) => p.clientId).sort()).toEqual(['t-follower', 't-leader']);
+
+    leader.clear();
+    changes.touch('entries');
+    flush();
+    const wrapped = leader.of('via');
+    expect(wrapped).toHaveLength(1);
+    expect(wrapped[0].data).toMatchObject({ to: 't-follower', e: 'changed' });
+
+    hub.disconnect(leader.connection.id);
+    expect(hub.peopleAt('page:/wiki')).toEqual([]);
+    expect(hub.connection(follower!.id, 't-follower', 'bram')).toBeNull();
+  });
+
+  it('never lends a socket to another account', () => {
+    const leader = tab('t-lend', 'bram');
+    expect(hub.carry({ leader: leader.connection, clientId: 't-thief', userId: 'aagje', name: 'Aagje' })).toBeNull();
+    hub.disconnect(leader.connection.id);
+  });
+});
+
+describe('a changed that names its author', () => {
+  it('reaches everyone but the tab that wrote it', () => {
+    const anneke = tab('t-by-a', 'bram');
+    const bram = tab('t-by-b', 'aagje');
+    hub.setWatches(anneke.connection, ['entries']);
+    hub.setWatches(bram.connection, ['entries']);
+    anneke.clear();
+    bram.clear();
+
+    hub.publishChanged(['entries'], { by: 't-by-a' });
+
+    expect(anneke.of('changed')).toHaveLength(0);
+    expect(bram.of('changed')).toHaveLength(1);
+    expect((bram.of('changed')[0].data as { by: string }).by).toBe('t-by-a');
+
+    hub.disconnect(anneke.connection.id);
+    hub.disconnect(bram.connection.id);
+  });
+
+  it('an alias is the same tab', () => {
+    const anneke = tab('t-alias', 'bram');
+    const bram = tab('t-alias-other', 'aagje');
+    hub.setAlias(anneke.connection, 'board-tab');
+    hub.setWatches(anneke.connection, ['boards']);
+    hub.setWatches(bram.connection, ['boards']);
+    anneke.clear();
+    bram.clear();
+
+    hub.publishChanged(['boards'], { by: 'board-tab' });
+
+    expect(anneke.of('changed')).toHaveLength(0);
+    // And what everyone else hears is the name the pointer frames use.
+    expect((bram.of('changed')[0].data as { by: string }).by).toBe('t-alias');
+
+    hub.disconnect(anneke.connection.id);
+    hub.disconnect(bram.connection.id);
+  });
+
+  it('and never somebody else’s name', () => {
+    /*
+     * §60: an alias is a *suppression* — the hub keeps a `changed` away from the
+     * tab whose write it was. A client that aliased itself to another tab's
+     * clientId stole that suppression: the victim heard about its own board save
+     * and snapped the card it had just dropped back to where it started, and the
+     * thief's own wall stopped updating. Refused two ways.
+     */
+    const owner = tab('t-own-alias', 'bram');
+    const thief = tab('t-thief', 'aagje');
+    const bystander = tab('t-bystander', 'bram');
+
+    expect(hub.setAlias(owner.connection, 'board-of-bram')).toBe(true);
+    // Held by another tab: refused, and the owner keeps it.
+    expect(hub.setAlias(thief.connection, 'board-of-bram')).toBe(false);
+    expect(thief.connection.alias).toBe(null);
+    expect(hub.resolveClientId('board-of-bram')).toBe('t-own-alias');
+    // A live tab's own clientId is not up for grabs either, alias index or no.
+    expect(hub.setAlias(thief.connection, 't-bystander')).toBe(false);
+    expect(hub.resolveClientId('t-bystander')).toBe('t-bystander');
+    // And the suppression still belongs to the tab that earned it.
+    hub.setWatches(owner.connection, ['boards']);
+    hub.setWatches(thief.connection, ['boards']);
+    owner.clear();
+    thief.clear();
+    hub.publishChanged(['boards'], { by: 'board-of-bram' });
+    expect(owner.of('changed')).toHaveLength(0);
+    expect(thief.of('changed')).toHaveLength(1);
+
+    // A name nobody holds is still taken, and a tab may still drop its own.
+    expect(hub.setAlias(thief.connection, 'board-of-aagje')).toBe(true);
+    expect(hub.setAlias(thief.connection, null)).toBe(true);
+    expect(hub.resolveClientId('board-of-aagje')).toBe('board-of-aagje');
+
+    hub.disconnect(owner.connection.id);
+    hub.disconnect(thief.connection.id);
+    hub.disconnect(bystander.connection.id);
+    // Gone with its line: the next tab of that wall may claim it again.
+    expect(hub.resolveClientId('board-of-bram')).toBe('board-of-bram');
+  });
+});
+
 describe('rooms on the line', () => {
   it('a room’s frames come down the connection wrapped, and leaving a line leaves its rooms', () => {
     const t = tab('t-room', 'bram');

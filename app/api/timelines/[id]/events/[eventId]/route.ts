@@ -4,10 +4,11 @@ import { apiError, json } from '@/lib/api';
 import { isScale } from '@/lib/timelines/time';
 import {
   convertEventToEntry,
+  eventAccess,
+  EVENT_GONE,
   removeEvent,
   TIMELINE_NOT_YOURS,
   updateEvent,
-  viewerCanEditEvent,
   type EventPatch,
 } from '@/lib/timelines/service';
 
@@ -19,8 +20,19 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     const user = await requireUser();
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
-    const { eventId } = await ctx.params;
-    if (!viewerCanEditEvent(eventId, user)) return json({ error: TIMELINE_NOT_YOURS }, { status: 403 });
+    const { id, eventId } = await ctx.params;
+    /*
+     * §62: gone is not forbidden. Somebody else may have taken this
+     * gebeurtenis off the axis while this sheet was open, and
+     * `viewerCanEditEvent` answers false either way — which said "Je mag deze
+     * tijdlijn niet bewerken." to a person who may edit it perfectly well.
+     *
+     * The tijdlijn is asked *first* (`eventAccess`), or the 404 beside the 403
+     * would be a way of asking the archive which ids exist.
+     */
+    const access = eventAccess(id, eventId, user);
+    if (access === 'gone') return json({ error: EVENT_GONE }, { status: 404 });
+    if (access !== 'ok') return json({ error: TIMELINE_NOT_YOURS }, { status: 403 });
     const body = (await request.json()) as {
       at?: unknown;
       precision?: unknown;
@@ -55,8 +67,13 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     const user = await requireUser();
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
-    const { eventId } = await ctx.params;
-    if (!viewerCanEditEvent(eventId, user)) return json({ error: TIMELINE_NOT_YOURS }, { status: 403 });
+    const { id, eventId } = await ctx.params;
+    // §62: gone is not forbidden — and a second Weghalen is not an error worth
+    // a red line either, it is the same answer as the first. The tijdlijn is
+    // asked first, so "gone" is only ever said to a hand that is already inside.
+    const access = eventAccess(id, eventId, user);
+    if (access === 'gone') return json({ error: EVENT_GONE }, { status: 404 });
+    if (access !== 'ok') return json({ error: TIMELINE_NOT_YOURS }, { status: 403 });
     removeEvent(eventId, user);
     return json({ ok: true });
   } catch (err) {

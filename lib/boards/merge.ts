@@ -637,6 +637,15 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
  * Reads whatever is in the column, drops anything expired, and keeps the most
  * recent `TOMBSTONE_LIMIT`. Pruning happens on the way in rather than on a
  * timer: every merge passes through here, so the list cannot outlive its use.
+ *
+ * §61: "most recent" has to mean something when six hundred cards are deleted
+ * in one gesture, because every one of them is stamped with the same `now`.
+ * A stable sort on the timestamp alone then keeps whichever half the object
+ * happened to list first — the *older* half — and the newest hundred lost their
+ * tombstones the moment they were written, which is a deletion that undoes
+ * itself on the next save. Insertion order is the tiebreak: a merge appends the
+ * ids it has just buried after the ones the wall already knew, so the later an
+ * id arrived, the later it is in the object.
  */
 function normaliseTombstones(input: unknown, now = Date.now()): Tombstones {
   const out: Tombstones = { cards: {}, strings: {} };
@@ -656,8 +665,10 @@ function normaliseTombstones(input: unknown, now = Date.now()): Tombstones {
           Number.isFinite(at) &&
           now - at < TOMBSTONE_TTL_MS,
       )
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, TOMBSTONE_LIMIT);
+      .map((entry, order) => ({ entry, order }))
+      .sort((a, b) => b.entry[1] - a.entry[1] || b.order - a.order)
+      .slice(0, TOMBSTONE_LIMIT)
+      .map((item) => item.entry);
     out[key] = Object.fromEntries(entries);
   }
   return out;
@@ -668,6 +679,12 @@ function normaliseTombstones(input: unknown, now = Date.now()): Tombstones {
  * someone else added them a second ago — survive; incoming positions and text
  * win for cards it does know; deletions are applied explicitly rather than
  * inferred from absence, so a stale client cannot wipe the board.
+ *
+ * §61: which is exactly why a patch may now be *partial*. Since this round a
+ * client sends only the cards and strings its own hand changed (`lib/boards/dirty.ts`),
+ * and `viewport` only when it moved one. Nothing here had to change for that —
+ * absence has never been deletion, a tombstone is — but it is load-bearing now
+ * rather than merely true, so do not "tidy" this into a replace.
  */
 export function mergeBoardState(stored: unknown, patch: BoardPatch, now = Date.now()): BoardState {
   const base = normaliseState(stored);

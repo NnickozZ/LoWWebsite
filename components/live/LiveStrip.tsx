@@ -1,15 +1,21 @@
 'use client';
 
-import { useLive } from './LiveProvider';
+import { useLiveBase } from './LiveProvider';
 
 /**
  * §21: the shell's own strip — who else is on this page, and whether the line
  * is up. The same coloured initials a board bar shows, in the same ink per
  * person, sitting in the top corner of every page. A page with a strip of its
  * own (a prikbord) turns this one off through `LivePage presence={false}`.
+ *
+ * §60: it reads the *base* value, so a hand moving on the page does not
+ * re-render it — and it knows a fourth word. `idle` is a tab that gave its
+ * socket back because nobody was looking at it: nobody is shown and the dot
+ * goes quiet, but it does not say "geen verbinding", because nothing is wrong
+ * and the first glance brings the line straight back.
  */
 export function LiveStrip() {
-  const live = useLive();
+  const live = useLiveBase();
   if (live.stripHidden) return null;
   const others = live.people;
   const status = live.status;
@@ -20,7 +26,12 @@ export function LiveStrip() {
         : 'Live: wat iemand verandert zie je meteen'
       : status === 'offline'
         ? 'Geen verbinding — wijzigingen van anderen komen zodra de lijn terug is'
-        : 'Verbinden…';
+        : status === 'idle'
+          ? 'Even stil — deze tab is op de achtergrond; de lijn komt terug zodra je kijkt'
+          : 'Verbinden…';
+  // Nothing is written beside the dot when the tab is merely resting: the word
+  // there is for a line that is *wrong*, and an idle one is not.
+  const word = status === 'live' ? 'live' : status === 'offline' ? 'geen verbinding' : status === 'idle' ? '' : 'verbinden…';
 
   return (
     <div className={`live-strip live-strip-${status}`} data-testid="live-strip" title={title}>
@@ -36,7 +47,7 @@ export function LiveStrip() {
       )}
       <span className={`live-dot live-dot-${status}`}>
         <span className="live-dot-mark" aria-hidden="true" />
-        <span className="live-strip-word">{status === 'live' ? 'live' : status === 'offline' ? 'geen verbinding' : 'verbinden…'}</span>
+        <span className="live-strip-word">{word}</span>
       </span>
     </div>
   );

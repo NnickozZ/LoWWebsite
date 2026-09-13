@@ -204,6 +204,157 @@ export function createBoard(input: {
 }
 
 const REVISION_EVERY_SECONDS = 60;
+/**
+ * §61: and never twice within this, whoever's hand it is. The minute above is
+ * per hand and is read off the *newest* revision in the table, so two people
+ * working at once wrote a full snapshot of the whole wall on every single
+ * 300 ms autosave — each save saw a revision by the other hand and started one
+ * of its own. Ten seconds is still a fine-grained history and about a fortieth
+ * of the writing.
+ */
+const REVISION_MIN_SECONDS = 10;
+/**
+ * §61: how often the artikelen a wall names are counted again.
+ *
+ * `recomputeBoardMentions` walks every entry name in the archive
+ * (`entryNameIndex()`) and rewrites this wall's rows. That is a sensible thing
+ * to do when somebody finishes typing a notitie and a preposterous one to do
+ * three times a second while a card is dragged across the cork. It runs at once
+ * on the first save — nothing waits for its "Genoemd in" — and at most once per
+ * board per this long after that, always with the newest document.
+ */
+const MENTIONS_EVERY_MS = 3_000;
+
+/**
+ * The two pieces of work above, held back. Module state, per board, and flushed
+ * before the process goes — registered by hand on the shared shutdown list the
+ * way `lib/live/docs.ts` registers `persistAll`, so nothing half-written is
+ * left behind by a deploy.
+ */
+type PendingMentions = { timer: ReturnType<typeof setTimeout>; state: BoardState };
+type PendingRevision = {
+  timer: ReturnType<typeof setTimeout>;
+  state: BoardState;
+  userId: string;
+  characterId: string | null;
+  caseId: string | null;
+};
+const globalForBoardWrites = globalThis as unknown as {
+  __zcfBoardWrites?: {
+    mentions: Map<string, PendingMentions>;
+    mentionsAt: Map<string, number>;
+    revisions: Map<string, PendingRevision>;
+    revisionsAt: Map<string, number>;
+    installed: boolean;
+  };
+  __zcfShutdownHooks?: (() => void)[];
+};
+const writes = (globalForBoardWrites.__zcfBoardWrites ??= {
+  mentions: new Map(),
+  mentionsAt: new Map(),
+  revisions: new Map(),
+  revisionsAt: new Map(),
+  installed: false,
+});
+if (!writes.installed) {
+  writes.installed = true;
+  (globalForBoardWrites.__zcfShutdownHooks ??= []).push(() => flushBoardWrites());
+}
+
+/**
+ * §61: the two clocks above are the only things here that nothing ever took out
+ * again.
+ *
+ * `mentionsAt` is one entry per prikbord and `revisionsAt` one per prikbord ×
+ * account × onderzoeker, and both are written on every save and read once. A
+ * long-lived process therefore grew one entry per wall anybody had ever touched
+ * and kept them for the life of the server. Ten minutes is far past both windows
+ * (three seconds and ten), so an entry older than that decides nothing: dropping
+ * it is exactly the same as keeping it, minus the memory.
+ */
+const WRITE_CLOCK_TTL_MS = 10 * 60_000;
+
+/** Test seam: how many entries the two clocks are holding. Never called by the app. */
+export function writeClockCount(): { mentions: number; revisions: number } {
+  return { mentions: writes.mentionsAt.size, revisions: writes.revisionsAt.size };
+}
+
+export function pruneWriteClocks(now = Date.now()) {
+  for (const [key, at] of [...writes.mentionsAt]) {
+    if (now - at >= WRITE_CLOCK_TTL_MS) writes.mentionsAt.delete(key);
+  }
+  // This one is in whole seconds — `writeRevision` compares it with `nowSeconds`.
+  const cutoff = Math.floor((now - WRITE_CLOCK_TTL_MS) / 1000);
+  for (const [key, at] of [...writes.revisionsAt]) {
+    if (at <= cutoff) writes.revisionsAt.delete(key);
+  }
+}
+
+function runMentions(boardId: string, state: BoardState) {
+  writes.mentionsAt.set(boardId, Date.now());
+  recomputeBoardMentions(boardId, state);
+}
+
+/** §61: at once the first time, and at most once per `MENTIONS_EVERY_MS` after. */
+function noteMentions(boardId: string, state: BoardState) {
+  const pending = writes.mentions.get(boardId);
+  if (pending) {
+    // Something is already queued; it will run with the newest document.
+    pending.state = state;
+    return;
+  }
+  const waited = Date.now() - (writes.mentionsAt.get(boardId) ?? 0);
+  if (waited >= MENTIONS_EVERY_MS) {
+    runMentions(boardId, state);
+    return;
+  }
+  const entry: PendingMentions = {
+    state,
+    timer: setTimeout(() => {
+      const queued = writes.mentions.get(boardId);
+      writes.mentions.delete(boardId);
+      if (queued) runMentions(boardId, queued.state);
+    }, MENTIONS_EVERY_MS - waited),
+  };
+  writes.mentions.set(boardId, entry);
+}
+
+function writeRevision(
+  boardId: string,
+  snapshot: BoardState,
+  userId: string,
+  characterId: string | null,
+  caseId: string | null,
+) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  writes.revisionsAt.set(`${boardId}|${userId}|${characterId ?? ''}`, nowSeconds);
+  db.insert(schema.boardRevisions)
+    .values({ id: newId(), boardId, snapshot, editedBy: userId, characterId })
+    .run();
+  logActivity({ actorId: userId, characterId, verb: 'board.changed', boardId, caseId });
+  if (caseId) {
+    db.update(schema.cases).set({ updatedAt: nowSeconds }).where(eq(schema.cases.id, caseId)).run();
+  }
+}
+
+/**
+ * Everything held back, written now. Called on shutdown, and by the tests that
+ * want to look at the rows without waiting three seconds for them.
+ */
+export function flushBoardWrites() {
+  // §61: the two clocks are swept here and on every save — see `pruneWriteClocks`.
+  pruneWriteClocks();
+  for (const [boardId, pending] of [...writes.mentions]) {
+    clearTimeout(pending.timer);
+    writes.mentions.delete(boardId);
+    runMentions(boardId, pending.state);
+  }
+  for (const [boardId, pending] of [...writes.revisions]) {
+    clearTimeout(pending.timer);
+    writes.revisions.delete(boardId);
+    writeRevision(boardId, pending.state, pending.userId, pending.characterId, pending.caseId);
+  }
+}
 
 /**
  * §8: merge server-side and hand the merged document back so the client can
@@ -219,6 +370,8 @@ export function saveBoard(
 
   const merged = mergeBoardState(row.state, patch);
   const nowSeconds = Math.floor(Date.now() / 1000);
+  // §61: and the clocks of every wall nobody has touched for ten minutes go.
+  pruneWriteClocks();
 
   db.update(schema.boards)
     .set({ state: merged, updatedAt: nowSeconds })
@@ -227,8 +380,10 @@ export function saveBoard(
 
   // §27: the artikelen this wall now names — the entry cards outright, and the
   // notitie cards that write one down. The merged document, never the patch:
-  // the patch is one client's half of the wall.
-  recomputeBoardMentions(boardId, merged);
+  // the patch is one client's half of the wall. §61: at once the first time and
+  // held back to once every few seconds after that, always with the newest
+  // document, because this walks every name in the archive.
+  noteMentions(boardId, merged);
 
   const characterId = user.characterId ?? null;
   const latest = db
@@ -249,22 +404,48 @@ export function saveBoard(
   // that is not theirs.
   const sameHand =
     latest && latest.editedBy === user.id && (latest.characterId ?? null) === characterId;
-  if (!latest || !sameHand || nowSeconds - latest.createdAt >= REVISION_EVERY_SECONDS) {
-    db.insert(schema.boardRevisions)
-      .values({ id: newId(), boardId, snapshot: merged, editedBy: user.id, characterId })
-      .run();
-    logActivity({
-      actorId: user.id,
-      characterId,
-      verb: 'board.changed',
-      boardId,
-      caseId: row.caseId ?? null,
-    });
-    if (row.caseId) {
-      db.update(schema.cases)
-        .set({ updatedAt: nowSeconds })
-        .where(eq(schema.cases.id, row.caseId))
-        .run();
+  const wanted = !latest || !sameHand || nowSeconds - latest.createdAt >= REVISION_EVERY_SECONDS;
+  /*
+   * §61: …but a hand does not get to write a full snapshot of the wall every
+   * 300 ms just because somebody else is working beside it. The rule above says
+   * yes to every save of an alternating pair; this says "not again within ten
+   * seconds", and what it refuses it *queues* — so the last state of a burst
+   * always reaches `board_revisions`, ten seconds behind rather than never.
+   */
+  const restless =
+    Boolean(latest) &&
+    nowSeconds - (writes.revisionsAt.get(`${boardId}|${user.id}|${characterId ?? ''}`) ?? 0) <
+      REVISION_MIN_SECONDS;
+
+  if (wanted && !restless) {
+    const queued = writes.revisions.get(boardId);
+    if (queued) {
+      clearTimeout(queued.timer);
+      writes.revisions.delete(boardId);
+    }
+    writeRevision(boardId, merged, user.id, characterId, row.caseId ?? null);
+  } else if (wanted) {
+    const queued = writes.revisions.get(boardId);
+    if (queued) {
+      // Already armed: it will fire with the newest document and the newest hand.
+      queued.state = merged;
+      queued.userId = user.id;
+      queued.characterId = characterId;
+      queued.caseId = row.caseId ?? null;
+    } else {
+      writes.revisions.set(boardId, {
+        state: merged,
+        userId: user.id,
+        characterId,
+        caseId: row.caseId ?? null,
+        timer: setTimeout(() => {
+          const pending = writes.revisions.get(boardId);
+          writes.revisions.delete(boardId);
+          if (pending) {
+            writeRevision(boardId, pending.state, pending.userId, pending.characterId, pending.caseId);
+          }
+        }, REVISION_MIN_SECONDS * 1000),
+      });
     }
   }
 

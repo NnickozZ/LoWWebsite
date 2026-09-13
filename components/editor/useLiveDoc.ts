@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { yXmlFragmentToProsemirrorJSON } from 'y-prosemirror';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
-import { useLive, type RoomHandle } from '@/components/live/LiveProvider';
+import { useLiveBase, type RoomHandle } from '@/components/live/LiveProvider';
 
 /** The shared text as plain ProseMirror JSON — for a proposal, or a copy. */
 export function liveBodyJSON(doc: Y.Doc): unknown {
@@ -69,7 +69,10 @@ export function useLiveDoc({
   initialState?: string | null;
   enabled?: boolean;
 }) {
-  const live = useLive();
+  // §60: the base context, not the merged one. A room of shared text does not
+  // draw anybody's hand, and hanging off the value that carries the pointers
+  // re-ran every bound editor on the page twelve times a second per hand.
+  const live = useLiveBase();
   const clientId = live.clientId;
   const handleRef = useRef<RoomHandle | null>(null);
 
@@ -103,6 +106,8 @@ export function useLiveDoc({
   const awarenessPending = useRef<Set<number>>(new Set());
   const lastAwarenessPost = useRef(0);
   const retryDelay = useRef(500);
+  /** §60: how many times in a row this room has said no. One is not an answer. */
+  const refusals = useRef(0);
 
   /**
    * Up the site line, to this room. `down` is a line that is not there (the
@@ -135,17 +140,41 @@ export function useLiveDoc({
     }
     if (result === 'ok') {
       retryDelay.current = 500;
+      refusals.current = 0;
       return;
     }
     if (result === 'refused') {
+      /*
+       * §60: the first refusal is a question, not a verdict.
+       *
+       * "Refused" is what the server says both when a dial was turned (this
+       * person may look and no longer type) *and* when it has never heard of
+       * the room — a line reaped under a typing tab, a restart. The second is
+       * transient, and putting the editor permanently read-only for it left
+       * people staring at their own text with no way back but a reload. So the
+       * batch is kept and tried once more; only a refusal from a line that is
+       * demonstrably up, twice, is taken as the answer.
+       */
+      refusals.current += 1;
+      if (refusals.current < 2) {
+        pendingUpdates.current.unshift(merged);
+        updateTimer.current = setTimeout(() => void flushUpdates(), retryDelay.current);
+        retryDelay.current = Math.min(15_000, retryDelay.current * 2);
+        return;
+      }
       // The server will not take this tab's keystrokes: the editor is put to
       // read-only and the batch is dropped rather than retried for ever.
       setCanEdit(false);
       setSave('idle');
       return;
     }
-    // Put it back at the front and try again later: nothing typed is lost,
-    // and Yjs will merge it whenever it finally arrives.
+    /*
+     * Put it back at the front and try again later: nothing typed is lost, and
+     * Yjs will merge it whenever it finally arrives. §60: after enough tries
+     * the retry stops hammering one batch and asks for the room again instead —
+     * a `sync` carries the whole difference in one go, which is both smaller
+     * and the thing that actually gets a stuck tab moving.
+     */
     pendingUpdates.current.unshift(merged);
     updateTimer.current = setTimeout(() => void flushUpdates(), retryDelay.current);
     retryDelay.current = Math.min(15_000, retryDelay.current * 2);
@@ -228,9 +257,21 @@ export function useLiveDoc({
           if (data.awareness) applyAwarenessUpdate(awareness, fromBase64(data.awareness), 'remote');
           setCanEdit(data.canEdit);
           setSynced(true);
-          // Whatever this tab did while the line was down — or before it was
-          // ever up — goes over now, as the difference against what the server
-          // has. Yjs makes that exact and idempotent.
+          /*
+           * Whatever this tab did while the line was down — or before it was
+           * ever up — goes over now, as the difference against what the server
+           * has. Yjs makes that exact and idempotent.
+           *
+           * §60: and it *replaces* whatever was queued. Every pending update
+           * came out of this document, so the document already holds all of it
+           * and the difference covers the lot — which is how a batch that could
+           * not be sent (an oversized paste, a refusal from a line that had
+           * been reaped) stops being retried for ever and becomes one `sync`
+           * instead. This is the road out of the loop.
+           */
+          pendingUpdates.current = [];
+          refusals.current = 0;
+          retryDelay.current = 500;
           const diff = Y.encodeStateAsUpdate(doc, fromBase64(data.sv));
           if (diff.byteLength > 2) {
             pendingUpdates.current.push(diff);
@@ -283,10 +324,42 @@ export function useLiveDoc({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [awareness, doc, enabled, flushUpdates, live.joinRoom, room, user.colour, user.name]);
 
-  // The word for the line is the site line's word: one connection, one truth.
+  /*
+   * The word for the line is the site line's word: one connection, one truth.
+   *
+   * §60: with one exception. `idle` is a tab whose socket was given back
+   * because nobody has looked at it for three quarters of a minute — nothing
+   * is wrong and nothing is lost, so the editor says "verbinden…" rather than
+   * painting "geen verbinding" over a page in the background.
+   */
   useEffect(() => {
-    setStatus(live.status);
+    setStatus(live.status === 'idle' ? 'connecting' : live.status);
   }, [live.status]);
+
+  /**
+   * §60: a refusal is not for ever.
+   *
+   * `refused` means the server would not take this tab's keystrokes, and the
+   * editor goes read-only on it — which is right when a dial was turned, and
+   * quite wrong when the line had merely been reaped under a typing tab and the
+   * room was gone with it. So a refusal that arrives while the line is not up
+   * is retried once the line is back: the room is joined again (the effect
+   * below re-runs on `live.status`), and only a second refusal from a line that
+   * is demonstrably working puts the editor down for good.
+   */
+  useEffect(() => {
+    if (live.status !== 'live') return;
+    if (!refusals.current) return;
+    refusals.current = 0;
+    setCanEdit(null);
+    const handle = handleRef.current;
+    if (!handle) return;
+    // Ask the room again from scratch: `sync` answers with the truth about
+    // whether this tab may type, and carries whatever it typed meanwhile.
+    if (pendingUpdates.current.length && !updateTimer.current) {
+      updateTimer.current = setTimeout(() => void flushUpdates(), 0);
+    }
+  }, [live.status, flushUpdates]);
 
   // The awareness keeps a timer, so it has to be destroyed when the page goes
   // — but a moment late. React's development mode mounts, unmounts and mounts

@@ -16,8 +16,11 @@ import {
   formatWhen,
   parseDutchDate,
   partsToSeconds,
+  clusterTags,
   placeTags,
+  placeWindows,
   secondsToParts,
+  sideOfId,
   ticksBetween,
   UNIT_SECONDS,
 } from '@/lib/timelines/time';
@@ -149,37 +152,147 @@ describe('ruling the axis', () => {
 });
 
 describe('where the tags go', () => {
-  it('alternates up, down, up, down in time order', () => {
-    const spots = placeTags([
-      { id: 'a', x: 100, width: 60 },
-      { id: 'c', x: 500, width: 60 },
-      { id: 'b', x: 300, width: 60 },
-      { id: 'd', x: 700, width: 60 },
-    ]);
-    expect(spots.get('a')?.side).toBe('up');
-    expect(spots.get('b')?.side).toBe('down');
-    expect(spots.get('c')?.side).toBe('up');
-    expect(spots.get('d')?.side).toBe('down');
-    expect([...spots.values()].every((s) => s.lane === 0)).toBe(true);
+  /**
+   * §62: a tag's side is a hash of its id, never its index. Round 29 changed
+   * this: `index % 2` was pretty and unshareable — one gebeurtenis set in the
+   * middle by somebody else flipped every later tag across the axis on your
+   * screen while you were reading it.
+   */
+  it('gives a gebeurtenis the same side wherever it stands in the list', () => {
+    const items = [
+      { id: 'aap', x: 100, width: 60 },
+      { id: 'noot', x: 300, width: 60 },
+      { id: 'mies', x: 500, width: 60 },
+    ];
+    const before = placeTags(items);
+    const after = placeTags([...items].reverse());
+    for (const item of items) expect(after.get(item.id)?.side).toBe(before.get(item.id)?.side);
+    // And the same answer in another tab, with another list, for ever.
+    expect(sideOfId('aap')).toBe(before.get('aap')?.side);
+  });
+
+  it('changes nobody else\'s side when one is set in the middle', () => {
+    const items = Array.from({ length: 9 }, (_, i) => ({ id: `e${i}`, x: i * 200, width: 60 }));
+    const before = placeTags(items);
+    const after = placeTags([...items, { id: 'ingevoegd', x: 810, width: 60 }]);
+    for (const item of items) expect(after.get(item.id)?.side).toBe(before.get(item.id)?.side);
+  });
+
+  it('still spreads roughly half up and half down', () => {
+    const ids = Array.from({ length: 400 }, (_, i) => `id-${i}-${i * 7919}`);
+    const up = ids.filter((id) => sideOfId(id) === 'up').length;
+    expect(up).toBeGreaterThan(140);
+    expect(up).toBeLessThan(260);
   });
 
   it('steps out a lane when two on one side would overlap', () => {
-    const spots = placeTags([
+    // Four ids picked so that two land on each side (the hash decides).
+    const items = [
       { id: 'a', x: 100, width: 120 },
       { id: 'b', x: 110, width: 120 },
       { id: 'c', x: 120, width: 120 },
       { id: 'd', x: 130, width: 120 },
-    ]);
-    expect(spots.get('a')).toEqual({ side: 'up', lane: 0 });
-    expect(spots.get('b')).toEqual({ side: 'down', lane: 0 });
-    expect(spots.get('c')).toEqual({ side: 'up', lane: 1 });
-    expect(spots.get('d')).toEqual({ side: 'down', lane: 1 });
+    ];
+    const spots = placeTags(items, 3);
+    for (const side of ['up', 'down'] as const) {
+      const lanes = items.filter((item) => spots.get(item.id)!.side === side).map((item) => spots.get(item.id)!.lane);
+      // Everything on one side that overlaps gets a lane of its own, in order.
+      expect(new Set(lanes).size).toBe(lanes.length);
+    }
+    expect([...spots.values()].every((spot) => !spot.hidden)).toBe(true);
   });
 
-  it('never goes past the last lane', () => {
-    const items = Array.from({ length: 12 }, (_, i) => ({ id: String(i), x: 100 + i, width: 150 }));
+  it('hides a tag that finds no lane, and never goes past the last one', () => {
+    const items = Array.from({ length: 24 }, (_, i) => ({ id: `p${i}`, x: 100 + i, width: 150 }));
     const spots = placeTags(items, 3);
     expect(Math.max(...[...spots.values()].map((s) => s.lane))).toBe(2);
+    expect([...spots.values()].some((s) => s.hidden)).toBe(true);
+    // Everything that did get a lane is inside the stage's three.
+    for (const spot of spots.values()) expect(spot.lane).toBeLessThan(3);
+  });
+});
+
+/** §62: the piles a crowded axis makes, and the chips that stand for them. */
+describe('the cluster chips', () => {
+  it('gathers the tags with no lane into one chip per pile', () => {
+    const items = [
+      ...Array.from({ length: 20 }, (_, i) => ({ id: `left${i}`, x: 100 + i, width: 150 })),
+      ...Array.from({ length: 20 }, (_, i) => ({ id: `right${i}`, x: 900 + i, width: 150 })),
+    ];
+    const spots = placeTags(items, 3);
+    const clusters = clusterTags(items, spots);
+    expect(clusters.length).toBe(2);
+    expect(clusters[0].x).toBeLessThan(clusters[1].x);
+    for (const cluster of clusters) {
+      expect(cluster.ids.length).toBeGreaterThan(0);
+      for (const id of cluster.ids) expect(spots.get(id)?.hidden).toBe(true);
+    }
+    // Every hidden tag is in exactly one chip, and nothing else is.
+    const counted = clusters.flatMap((cluster) => cluster.ids);
+    const hidden = items.filter((item) => spots.get(item.id)?.hidden).map((item) => item.id);
+    expect(counted.sort()).toEqual(hidden.sort());
+  });
+
+  it('makes no chip at all when every tag found a lane', () => {
+    const items = Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, x: i * 400, width: 80 }));
+    const spots = placeTags(items, 3);
+    expect(clusterTags(items, spots)).toEqual([]);
+  });
+});
+
+/** §62: and the same greedy idea for the folded-out windows. */
+describe('where the windows go', () => {
+  const boxes = (n: number, height = 120) =>
+    Array.from({ length: n }, (_, i) => ({ id: `w${i}`, side: 'up' as const, left: 10 * i, width: 250, height }));
+
+  it('never lets two windows on one side overlap', () => {
+    const items = boxes(6);
+    const spots = placeWindows(items);
+    for (const a of items) {
+      for (const b of items) {
+        if (a.id === b.id) continue;
+        const sa = spots.get(a.id)!;
+        const sb = spots.get(b.id)!;
+        const apart =
+          a.left + a.width <= b.left ||
+          b.left + b.width <= a.left ||
+          sa.offset + a.height <= sb.offset ||
+          sb.offset + b.height <= sa.offset;
+        expect(apart).toBe(true);
+      }
+    }
+  });
+
+  it('puts windows that do not overlap in the same lane, at no offset', () => {
+    const items = [
+      { id: 'a', side: 'up' as const, left: 0, width: 250, height: 100 },
+      { id: 'b', side: 'up' as const, left: 400, width: 250, height: 100 },
+    ];
+    const spots = placeWindows(items);
+    expect(spots.get('a')).toEqual({ lane: 0, offset: 0 });
+    expect(spots.get('b')).toEqual({ lane: 0, offset: 0 });
+  });
+
+  it('keeps the two sides apart', () => {
+    const items = [
+      { id: 'up', side: 'up' as const, left: 0, width: 250, height: 100 },
+      { id: 'down', side: 'down' as const, left: 10, width: 250, height: 100 },
+    ];
+    const spots = placeWindows(items);
+    expect(spots.get('up')?.lane).toBe(0);
+    expect(spots.get('down')?.lane).toBe(0);
+  });
+
+  it('measures a lane by its tallest window, so a short one leaves no hole', () => {
+    const items = [
+      { id: 'a', side: 'up' as const, left: 0, width: 250, height: 60 },
+      { id: 'b', side: 'up' as const, left: 10, width: 250, height: 300 },
+      { id: 'c', side: 'up' as const, left: 20, width: 250, height: 60 },
+    ];
+    const spots = placeWindows(items, { gap: 8 });
+    expect(spots.get('a')?.offset).toBe(0);
+    expect(spots.get('b')?.offset).toBe(68);
+    expect(spots.get('c')?.offset).toBe(68 + 300 + 8);
   });
 });
 

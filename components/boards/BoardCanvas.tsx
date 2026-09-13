@@ -41,6 +41,8 @@ import {
   type StringStyle,
   type Viewport,
 } from '@/lib/boards/merge';
+import { changedIds, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
+import { freeSpotNear as findFreeSpot } from '@/lib/boards/place';
 import type {
   BoardBoardFacts,
   BoardCaseFacts,
@@ -201,6 +203,36 @@ export function BoardCanvas({
 
   const [cards, setCards] = useState<BoardCard[]>(initialState.cards);
   const [strings, setStrings] = useState<BoardString[]>(initialState.strings);
+  /**
+   * §61: the document as it is *now*, not as it was when this render began.
+   *
+   * Every callback on this wall that builds the next board used to read `cards`
+   * out of its closure. That is the render's copy, and half the work here
+   * crosses an `await` or a sheet before it writes: an upload, "'X' aanmaken",
+   * a pull that landed while the file dialog was open. The next document was
+   * then built on a snapshot from before all of it — reverting whatever had
+   * arrived in between, on this screen *and*, a moment later, on everybody
+   * else's, because that revert was posted.
+   *
+   * So there are two of everything: state, which is what the wall is drawn
+   * from, and a ref, which is what the next document is built from. The ref is
+   * written at the same instant as the state, by hand, in every place that
+   * writes — `commit`, `applyRemote`, undo, and the two pointer paths. Read it
+   * for a snapshot; never write one without the other.
+   */
+  const cardsRef = useRef(cards);
+  const stringsRef = useRef(strings);
+  /** The one place both halves are written, so they cannot drift apart. */
+  const putBoard = useCallback((next: { cards?: BoardCard[]; strings?: BoardString[] }) => {
+    if (next.cards) {
+      cardsRef.current = next.cards;
+      setCards(next.cards);
+    }
+    if (next.strings) {
+      stringsRef.current = next.strings;
+      setStrings(next.strings);
+    }
+  }, []);
   const [entries, setEntries] = useState<Record<string, BoardEntryFacts>>(initialEntries);
   const [maps, setMaps] = useState<Record<string, BoardMapFacts>>(initialMaps);
   const [caseFacts, setCaseFacts] = useState<Record<string, BoardCaseFacts>>(initialCases);
@@ -315,7 +347,15 @@ export function BoardCanvas({
   if (!clientIdRef.current) clientIdRef.current = `t_${Math.random().toString(36).slice(2, 12)}`;
   const clientId = clientIdRef.current;
 
-  const busy = Boolean(drag.current || resize.current || drawing || marquee);
+  /**
+   * §61: a hand on the wall, as *state* rather than as a read of two refs
+   * during render. The refs are written by a pointer handler, which does not
+   * schedule a render, so "busy" could lag a frame behind the hand it describes
+   * — and `busy` is what defers the merge (§8). A frame late is exactly long
+   * enough for a pull to land on the first millimetre of a drag.
+   */
+  const [handOn, setHandOn] = useState(false);
+  const busy = handOn || Boolean(drawing || marquee);
 
   /**
    * Applying someone else's version of the board. Shared with the save path,
@@ -323,24 +363,109 @@ export function BoardCanvas({
    * Bram moved something" want exactly the same thing done with them.
    */
   const applyRemote = useCallback((state: BoardState, refs: BoardRefs) => {
-    setCards(state.cards);
-    setStrings(state.strings);
+    /*
+     * §61: an incoming document is the archive's version of this wall, and the
+     * archive is behind by whatever this hand has done and not yet saved. Two
+     * examples from the wall, both of which used to end with the revert being
+     * posted to everyone else a moment later:
+     *
+     *  - a string's end is pulled onto another card while the save that made
+     *    that string is still in flight. The merge that comes back still ties
+     *    it to the speld, and the next save posts *that* — with the speld's
+     *    deletion — so the string dies on every screen;
+     *  - a pull that was already on its way lands a millisecond after a card is
+     *    dragged, and puts the card back where it started.
+     *
+     * So what is still outstanding stays local, and everything else is taken as
+     * it comes. `sync.pending()` is that list.
+     */
+    const held = syncRef.current?.pending();
+    let nextCards = state.cards;
+    let nextStrings = state.strings;
+    if (held && !held.all) {
+      const mineCards = new Map(cardsRef.current.map((card) => [card.id, card]));
+      const mineStrings = new Map(stringsRef.current.map((line) => [line.id, line]));
+      const seenCards = new Set(state.cards.map((card) => card.id));
+      const seenStrings = new Set(state.strings.map((line) => line.id));
+      nextCards = state.cards
+        // Taken off the wall here, and the archive has not been told yet.
+        .filter((card) => !held.deletedCards.has(card.id))
+        .map((card) => (held.cards.has(card.id) ? mineCards.get(card.id) ?? card : card));
+      for (const card of cardsRef.current) {
+        /*
+         * Made here and not in the document yet — a card, or a speld a string
+         * was tied to, that the archive has simply not heard of. §61: *not*
+         * heard of. A card the archive knows to be gone carries a tombstone
+         * (`state.deleted`), and pushing that one back left a ghost of somebody
+         * else's deletion standing on this screen until something unrelated
+         * moved — and posted it back to them on the next save.
+         */
+        if (seenCards.has(card.id)) continue;
+        if (
+          shouldReadd(card.id, {
+            dirty: held.cards,
+            deletedHere: held.deletedCards,
+            restoredHere: held.restoredCards,
+            tombstones: state.deleted?.cards,
+          })
+        ) {
+          nextCards.push(card);
+        }
+      }
+      nextStrings = state.strings
+        .filter((line) => !held.deletedStrings.has(line.id))
+        .map((line) => (held.strings.has(line.id) ? mineStrings.get(line.id) ?? line : line));
+      for (const line of stringsRef.current) {
+        if (seenStrings.has(line.id)) continue;
+        if (
+          shouldReadd(line.id, {
+            dirty: held.strings,
+            deletedHere: held.deletedStrings,
+            restoredHere: held.restoredStrings,
+            tombstones: state.deleted?.strings,
+          })
+        ) {
+          nextStrings.push(line);
+        }
+      }
+      // A string is only a string while both its ends are on the wall.
+      const alive = new Set(nextCards.map((card) => card.id));
+      nextStrings = nextStrings.filter(
+        (line) =>
+          (!isCardEnd(line.from) || alive.has(line.from.card)) &&
+          (!isCardEnd(line.to) || alive.has(line.to.card)),
+      );
+    }
+    // Through the refs as well, or the next local change would be built on
+    // the document from before this merge and post it straight back.
+    cardsRef.current = nextCards;
+    stringsRef.current = nextStrings;
+    setCards(nextCards);
+    setStrings(nextStrings);
     setEntries((current) => ({ ...current, ...refs.entries }));
     setMaps((current) => ({ ...current, ...refs.maps }));
     setCaseFacts((current) => ({ ...current, ...refs.cases }));
     setTimelineFacts((current) => ({ ...current, ...(refs.timelines ?? {}) }));
     setBoardFacts((current) => ({ ...current, ...(refs.boards ?? {}) }));
     // A card someone else deleted must not stay selected here: the inspector
-    // would be editing something that no longer exists.
-    const alive = new Set(state.cards.map((card) => card.id));
+    // would be editing something that no longer exists. §61: measured against
+    // the wall as it ends up, which is the document plus whatever this hand
+    // has not saved yet.
+    const standing = new Set(nextCards.map((card) => card.id));
     setSelected((current) => {
-      const next = new Set([...current].filter((id) => alive.has(id)));
+      const next = new Set([...current].filter((id) => standing.has(id)));
       return next.size === current.size ? current : next;
     });
     setSelectedStringId((current) =>
-      current && state.strings.some((line) => line.id === current) ? current : null,
+      current && nextStrings.some((line) => line.id === current) ? current : null,
     );
   }, []);
+
+  /**
+   * §61: the save, reachable from `applyRemote` above, which is defined first.
+   * Written during render, like every other "the latest one" ref here.
+   */
+  const syncRef = useRef<ReturnType<typeof useBoardSync> | null>(null);
 
   const sync = useBoardSync({
     boardId,
@@ -350,7 +475,32 @@ export function BoardCanvas({
     viewport,
     paused: busy,
     onMerged: applyRemote,
+    /*
+     * §61: the save reads the wall through the refs, not through this render's
+     * `cards`. A save scheduled from a callback whose render has not landed yet
+     * — an upload that finished, a sheet that answered — would otherwise post
+     * the document from before it and clear the ids it never carried.
+     */
+    snapshot: useCallback(() => ({ cards: cardsRef.current, strings: stringsRef.current }), []),
+    /*
+     * §61: the archive refused these cards by name (§50 — their reference is on
+     * the other side). They come off the wall; keeping them meant posting the
+     * same refusal for ever, and nothing else on this wall was ever saved
+     * again. The strings tied to them go with them, as they do for any card.
+     */
+    onRefusedCards: useCallback(
+      (ids: string[]) => {
+        putBoard(dropCards(cardsRef.current, stringsRef.current, ids));
+        setSelected((current) => {
+          const next = new Set([...current].filter((id) => !ids.includes(id)));
+          return next.size === current.size ? current : next;
+        });
+      },
+      [putBoard],
+    ),
+    onNotice: useCallback((message: string) => ui.toast(message), [ui]),
   });
+  syncRef.current = sync;
 
   /**
    * The other half: what everybody else is doing. `dirty` covers the save that
@@ -401,40 +551,69 @@ export function BoardCanvas({
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
-  const pushUndo = useCallback(() => {
-    undoStack.current.push({ cards, strings });
+  const pushUndo = useCallback((snapshot: Snapshot) => {
+    undoStack.current.push(snapshot);
     if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
-  }, [cards, strings]);
+  }, []);
 
+  /**
+   * §61: **`commit` takes an updater.** The next board is built from `prev` —
+   * the document as it is at this instant — and never from a `cards` captured
+   * when the render that made this callback ran. Everything that writes to the
+   * wall goes through here, so this one rule is what keeps a pull, a drag, a
+   * paste and an upload that finished thirty seconds late from overwriting one
+   * another.
+   *
+   * It also derives what changed and hands the ids to the save (§61's dirty
+   * set), so a save asserts this hand's cards and leaves everybody else's
+   * alone.
+   */
   const commit = useCallback(
-    (next: Partial<Snapshot>, options: { undo?: boolean } = {}) => {
+    (make: (prev: Snapshot) => Partial<Snapshot>, options: { undo?: boolean } = {}) => {
       if (readOnly) return;
-      if (options.undo !== false) pushUndo();
-      if (next.cards) setCards(next.cards);
-      if (next.strings) setStrings(next.strings);
-      sync.markDirty();
+      const prev: Snapshot = { cards: cardsRef.current, strings: stringsRef.current };
+      const next = make(prev);
+      if (options.undo !== false) pushUndo(prev);
+      const nextCards = next.cards ?? prev.cards;
+      const nextStrings = next.strings ?? prev.strings;
+      putBoard(next);
+      sync.markDirty({
+        cards: changedIds(prev.cards, nextCards),
+        strings: changedIds(prev.strings, nextStrings),
+      });
     },
-    [pushUndo, sync, readOnly],
+    [pushUndo, putBoard, sync, readOnly],
   );
 
   const undo = useCallback(() => {
     if (readOnly) return;
     const previous = undoStack.current.pop();
     if (!previous) return;
-    // Anything undo brings back must not still be queued for deletion, and the
-    // server has to be told to lift the tombstone it wrote when the deletion
-    // was first saved — otherwise the card reappears here and is swept away
-    // again on the next save.
+    const current: Snapshot = { cards: cardsRef.current, strings: stringsRef.current };
+    /*
+     * Anything undo brings back must not still be queued for deletion, and the
+     * server has to be told to lift the tombstone it wrote when the deletion
+     * was first saved — otherwise the card reappears here and is swept away
+     * again on the next save.
+     *
+     * §61: *anything undo brings back*, and nothing else. Asserting every id in
+     * the snapshot lifted the tombstones of cards other people had deleted
+     * while this step sat on the stack — their deletion undone by a stranger's
+     * Ctrl+Z — and the queue of this client's own pending deletions was thrown
+     * away whole along with it.
+     */
     sync.noteRestored(
-      previous.cards.map((card) => card.id),
-      previous.strings.map((line) => line.id),
+      restoredIds(previous.cards, current.cards),
+      restoredIds(previous.strings, current.strings),
     );
-    setCards(previous.cards);
-    setStrings(previous.strings);
+    putBoard(previous);
     setSelected(new Set());
     setSelectedStringId(null);
-    if (!readOnly) sync.markDirty();
-  }, [sync]);
+    sync.markDirty({
+      cards: changedIds(current.cards, previous.cards),
+      strings: changedIds(current.strings, previous.strings),
+    });
+  }, [putBoard, readOnly, sync]);
 
   /* ------------------------------------------------------------ geometry */
 
@@ -533,22 +712,15 @@ export function BoardCanvas({
    * §8 puts a new card at the viewport centre. Dropping every card on the exact
    * same spot buries the last one and its pin, so it steps outward on a grid,
    * preferring somewhere still on screen.
+   *
+   * §61: the search itself now lives in `lib/boards/place.ts`, where it is pure
+   * and measured (a wall of three hundred cards used to cost hundreds of
+   * thousands of allocations per new card, on the main thread). What is left
+   * here is the two things only the browser knows: where the view is, and how
+   * tall a card actually paints.
    */
   const freeSpotNear = useCallback(
     (cx: number, cy: number, size: { width: number; height: number }) => {
-      const stepX = size.width + 28;
-      const stepY = size.height + 28;
-      const clear = (x: number, y: number) =>
-        !cards.some((card) => {
-          const other = cardBox(card);
-          return (
-            x < other.x + other.width &&
-            x + size.width > other.x &&
-            y < other.y + other.height &&
-            y + size.height > other.y
-          );
-        });
-
       const rect = viewportRef.current?.getBoundingClientRect();
       const view = rect
         ? {
@@ -558,108 +730,27 @@ export function BoardCanvas({
             bottom: (rect.height - viewport.y) / viewport.zoom,
           }
         : null;
-      const onScreen = (x: number, y: number) =>
-        !view ||
-        (x >= view.left &&
-          y >= view.top &&
-          x + size.width <= view.right &&
-          y + size.height <= view.bottom);
-
-      const originX = Math.round(cx - size.width / 2);
-      const originY = Math.round(cy - size.height / 2);
-      if (clear(originX, originY)) return { x: originX, y: originY };
-
-      let fallback: { x: number; y: number } | null = null;
-      for (let ring = 1; ring <= 12; ring++) {
-        for (let dx = -ring; dx <= ring; dx++) {
-          for (let dy = -ring; dy <= ring; dy++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-            const x = originX + dx * stepX;
-            const y = originY + dy * stepY;
-            if (!clear(x, y)) continue;
-            if (onScreen(x, y)) return { x, y };
-            fallback ??= { x, y };
-          }
-        }
-      }
-
-      /*
-       * Nothing free *and* in sight. On a phone that is the ordinary case
-       * rather than the exception: the view is about two cards wide and two
-       * tall, and the search steps a whole card at a time, so the third card
-       * added to a wall has nowhere clear left on the screen at all.
-       *
-       * The old answer was to take the first clear spot anywhere, which put
-       * the card outside the view — you press "Nieuwe notitie" on a phone and
-       * nothing appears, because it was laid down above the top edge. A wall is
-       * perfectly happy with two bits of paper overlapping; a card you cannot
-       * see is no card at all. So a spot in sight wins over a spot that is
-       * clear, and the overlap is offset the way a desk stacks paper: a little
-       * down and to the right each time, still inside the view.
-       */
       /*
        * How tall a card really is. `CARD_SIZE` is the nominal card the document
-       * reasons in — the room `freeSpotNear` reserves, the box `cardAt` hit-tests
-       * — but the paper itself grows to fit what is written on it, so a framed
+       * reasons in — the room the search reserves, the box `cardAt` hit-tests —
+       * but the paper itself grows to fit what is written on it, so a framed
        * card is nearer 290 px than 250. Placement is the one job where guessing
        * short is the dangerous way round: it is what put a card half a card's
        * height below the bottom edge, near enough to look right and far enough
        * that the browser scrolled the whole cork to reach it. So ask the wall.
        */
       const measured = viewportRef.current?.querySelector('.board-card') as HTMLElement | null;
-      const paper = Math.max(size.height, measured ? measured.offsetHeight : 0);
-
-      /*
-       * Nothing free *and* in sight, which on a phone is the ordinary case
-       * rather than the exception: the view is about two cards wide and two
-       * tall and the ring search steps a whole card at a time, so the third
-       * card added to a wall has nowhere clear left on the screen at all.
-       *
-       * The old answer was the first clear spot *anywhere*, which laid the card
-       * down outside the view — you press "Nieuwe notitie" on a phone and
-       * nothing appears, because it went above the top edge. A wall is happy
-       * with two bits of paper overlapping; a card you cannot see is not a card
-       * at all. So a spot in sight beats a spot that is clear, and among the
-       * spots in sight the one that covers the least of what is already there
-       * wins — which keeps the middle of every earlier card reachable, and is
-       * what a person does with paper anyway: lay it in the gap.
-       */
-      const cascaded = view
-        ? (() => {
-            const margin = 12;
-            const minX = view.left + margin;
-            const minY = view.top + margin;
-            const maxX = Math.max(minX, view.right - size.width - margin);
-            const maxY = Math.max(minY, view.bottom - paper - margin);
-
-            const overlap = (x: number, y: number) =>
-              cards.reduce((total, card) => {
-                const other = cardBox(card);
-                const w = Math.min(x + size.width, other.x + other.width) - Math.max(x, other.x);
-                const h = Math.min(y + paper, other.y + other.height) - Math.max(y, other.y);
-                return total + (w > 0 && h > 0 ? w * h : 0);
-              }, 0);
-
-            const step = 24;
-            let best = { x: Math.round(minX), y: Math.round(minY), score: Infinity, near: Infinity };
-            for (let x = minX; x <= maxX + 0.5; x += step) {
-              for (let y = minY; y <= maxY + 0.5; y += step) {
-                const score = overlap(x, y);
-                // Ties go to the spot nearest where the person was looking.
-                const near = (x - originX) ** 2 + (y - originY) ** 2;
-                if (score < best.score || (score === best.score && near < best.near)) {
-                  best = { x: Math.round(x), y: Math.round(y), score, near };
-                }
-                if (score === 0 && near === 0) break;
-              }
-            }
-            return { x: best.x, y: best.y };
-          })()
-        : null;
-
-      return cascaded ?? fallback ?? { x: originX, y: originY };
+      return findFreeSpot({
+        cx,
+        cy,
+        size,
+        // §61: the document as it is now, not as it was at render.
+        cards: cardsRef.current,
+        view,
+        paper: measured ? measured.offsetHeight : 0,
+      });
     },
-    [cards, viewport],
+    [viewport],
   );
 
   type NewCard = Pick<BoardCard, 'id' | 'kind' | 'name' | 'text'> & Partial<BoardCard>;
@@ -692,28 +783,30 @@ export function BoardCanvas({
         // A pin stands straight; only paper gets the slight tilt.
         rotation: card.kind === 'pin' ? 0 : placementRotation(),
       };
-      commit({ cards: [...cards, placed] });
+      // §61: appended to whatever the wall holds *now* — this is the call that
+      // came back from an upload or a sheet and would otherwise revert it.
+      commit((prev) => ({ cards: [...prev.cards, placed] }));
       return placed;
     },
-    [cards, centreOfView, commit, freeSpotNear],
+    [centreOfView, commit, freeSpotNear],
   );
 
   const patchCard = useCallback(
     (cardId: string, patch: Partial<BoardCard>) => {
-      commit({
-        cards: cards.map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
-      });
+      commit((prev) => ({
+        cards: prev.cards.map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
+      }));
     },
-    [cards, commit],
+    [commit],
   );
 
   const patchString = useCallback(
     (stringId: string, patch: Partial<BoardString>) => {
-      commit({
-        strings: strings.map((line) => (line.id === stringId ? { ...line, ...patch } : line)),
-      });
+      commit((prev) => ({
+        strings: prev.strings.map((line) => (line.id === stringId ? { ...line, ...patch } : line)),
+      }));
     },
-    [strings, commit],
+    [commit],
   );
 
   const removeCards = useCallback(
@@ -726,16 +819,18 @@ export function BoardCanvas({
         (isCardEnd(line.from) && doomed.has(line.from.card)) ||
         (isCardEnd(line.to) && doomed.has(line.to.card));
 
-      const removedCards = cards.filter((card) => doomed.has(card.id));
-      const removedStrings = strings.filter(touches);
+      // §61: what is on the wall now, not at render — a deletion must not take
+      // a card someone else added in the meantime down with it.
+      const removedCards = cardsRef.current.filter((card) => doomed.has(card.id));
+      const removedStrings = stringsRef.current.filter(touches);
 
       for (const card of removedCards) sync.noteDeletedCard(card.id);
       for (const line of removedStrings) sync.noteDeletedString(line.id);
 
-      commit({
-        cards: cards.filter((card) => !doomed.has(card.id)),
-        strings: strings.filter((line) => !touches(line)),
-      });
+      commit((prev) => ({
+        cards: prev.cards.filter((card) => !doomed.has(card.id)),
+        strings: prev.strings.filter((line) => !touches(line)),
+      }));
       setSelected(new Set());
 
       ui.toast(
@@ -743,19 +838,19 @@ export function BoardCanvas({
         { label: 'Ongedaan maken', onAction: () => undo() },
       );
     },
-    [cards, strings, commit, sync, ui, undo],
+    [commit, sync, ui, undo],
   );
 
   const removeString = useCallback(
     (stringId: string) => {
-      const line = strings.find((item) => item.id === stringId);
+      const line = stringsRef.current.find((item) => item.id === stringId);
       if (!line) return;
       sync.noteDeletedString(stringId);
-      commit({ strings: strings.filter((item) => item.id !== stringId) });
+      commit((prev) => ({ strings: prev.strings.filter((item) => item.id !== stringId) }));
       setSelectedStringId(null);
       ui.toast('Draad verwijderd.', { label: 'Ongedaan maken', onAction: () => undo() });
     },
-    [strings, commit, sync, ui, undo],
+    [commit, sync, ui, undo],
   );
 
   /* ------------------------------------------------------- filing prompt */
@@ -956,7 +1051,7 @@ export function BoardCanvas({
     const chosen = new Set(additive || alreadySelected ? selected : []);
     chosen.add(cardId);
     const origin = new Map<string, { x: number; y: number }>();
-    for (const card of cards)
+    for (const card of cardsRef.current)
       if (chosen.has(card.id)) origin.set(card.id, { x: card.x, y: card.y });
 
     dragMoved.current = false;
@@ -966,8 +1061,10 @@ export function BoardCanvas({
       startX: event.clientX,
       startY: event.clientY,
       origin,
-      before: { cards, strings },
+      before: { cards: cardsRef.current, strings: stringsRef.current },
     };
+    // §61: a hand is on the wall from this instant, not from the next render.
+    setHandOn(true);
   }
 
   /**
@@ -992,9 +1089,10 @@ export function BoardCanvas({
       centre,
       distance: Math.max(8, Math.hypot(point.x - centre.x, point.y - centre.y)),
       from: card.scale,
-      before: { cards, strings },
+      before: { cards: cardsRef.current, strings: stringsRef.current },
       moved: false,
     };
+    setHandOn(true);
   }
 
   function onPinPointerDown(event: React.PointerEvent, cardId: string) {
@@ -1020,7 +1118,7 @@ export function BoardCanvas({
     // Same as the pin head: a grip is only ever dragged.
     event.preventDefault();
     const point = toBoard(event.clientX, event.clientY);
-    pushUndo();
+    pushUndo({ cards: cardsRef.current, strings: stringsRef.current });
     setDrawing({
       anchor: end === 'from' ? line.to : line.from,
       x: point.x,
@@ -1114,13 +1212,15 @@ export function BoardCanvas({
       const scale = Math.round(next * 100) / 100;
       if (!state.moved) {
         state.moved = true;
-        undoStack.current.push(state.before);
-        if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
+        pushUndo(state.before);
       }
-      sync.touch();
-      setCards((current) =>
-        current.map((card) => (card.id === state.id ? { ...card, scale } : card)),
-      );
+      // §61: one card is growing, and the save should say only that.
+      sync.touch({ cards: [state.id] });
+      putBoard({
+        cards: cardsRef.current.map((card) =>
+          card.id === state.id ? { ...card, scale } : card,
+        ),
+      });
       return;
     }
 
@@ -1129,21 +1229,22 @@ export function BoardCanvas({
       const dy = (event.clientY - drag.current.startY) / viewport.zoom;
       if (!dragMoved.current && Math.abs(dx) + Math.abs(dy) > 4) {
         dragMoved.current = true;
-        undoStack.current.push(drag.current.before);
-        if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
+        pushUndo(drag.current.before);
       }
-      sync.touch();
       const origin = drag.current.origin;
       const moving: Record<string, { x: number; y: number }> = {};
       for (const [id, from] of origin) moving[id] = { x: Math.round(from.x + dx), y: Math.round(from.y + dy) };
+      // §61: these cards, and no others — a drag of one card must not assert
+      // where the other thirty-nine are.
+      sync.touch({ cards: Object.keys(moving) });
       // Everyone else sees the cards travel with the hand, not just land.
       if (dragMoved.current && live.state === 'live') live.reportPointer({ moving });
-      setCards((current) =>
-        current.map((card) => {
+      putBoard({
+        cards: cardsRef.current.map((card) => {
           const at = moving[card.id];
           return at ? { ...card, x: at.x, y: at.y } : card;
         }),
-      );
+      });
       return;
     }
 
@@ -1185,33 +1286,38 @@ export function BoardCanvas({
   function onPointerUp(event: React.PointerEvent) {
     if (resize.current) {
       const changed = resize.current.moved;
+      const id = resize.current.id;
       resize.current = null;
+      setHandOn(false);
       // The live pointer channel carries positions and nothing else, so a size
       // reaches everybody else on the drop rather than while the hand moves —
       // the same way a border or a colour change does.
       if (!readOnly) {
-        if (changed) void sync.saveNow();
-        else sync.markDirty();
+        if (changed) void sync.saveNow({ cards: [id] });
+        else sync.markDirty({ cards: [id] });
       }
       return;
     }
 
     if (drag.current) {
       const moved = dragMoved.current;
+      const ids = [...drag.current.origin.keys()];
       drag.current = null;
+      setHandOn(false);
       // The drop is the one save everyone else is waiting on: they have been
       // watching this card travel, and its final place should not lag behind
       // the hand by a debounce.
       if (!readOnly) {
-        if (moved) sync.saveNow();
-        else sync.markDirty();
+        if (moved) sync.saveNow({ cards: ids });
+        else sync.markDirty({ cards: ids });
       }
       return;
     }
 
     if (pan.current) {
       pan.current = null;
-      if (!readOnly) sync.markDirty();
+      // §61: a pan moves the shared viewport and not one card on the wall.
+      if (!readOnly) sync.markDirty({ viewport: true });
       return;
     }
 
@@ -1225,11 +1331,14 @@ export function BoardCanvas({
       // yet gets a place on the wall, and the pin can be moved and labelled.
       const fresh = hit ? null : pinAt(point.x, point.y);
       const end: Endpoint = { card: hit ? hit.id : fresh!.id };
-      let nextCards = fresh ? [...cards, fresh] : cards;
+      // §61: the wall as it is now. A string let go after a pull landed used to
+      // be tied on top of the document from before that pull.
+      const held = { cards: cardsRef.current, strings: stringsRef.current };
+      let nextCards = fresh ? [...held.cards, fresh] : held.cards;
 
       // One string between any two things. Landing on a pair that is already
       // joined selects the string that joins them rather than adding a twin.
-      const twin = strings.find(
+      const twin = held.strings.find(
         (item) =>
           item.id !== drawing.editing?.id && sameEnds(item, { from: drawing.anchor, to: end }),
       );
@@ -1245,8 +1354,8 @@ export function BoardCanvas({
       if (!endpointsEqual(end, drawing.anchor)) {
         if (drawing.editing) {
           const { id, end: which } = drawing.editing;
-          const line = strings.find((item) => item.id === id);
-          const nextStrings = strings.map((item) =>
+          const line = held.strings.find((item) => item.id === id);
+          const nextStrings = held.strings.map((item) =>
             item.id === id ? { ...item, [which]: end } : item,
           );
           // Pulling the string off a bare, unlabelled pin that nothing else is
@@ -1266,7 +1375,7 @@ export function BoardCanvas({
             }
           }
           // This gesture already pushed its undo entry when the grip was taken.
-          commit({ cards: nextCards, strings: nextStrings }, { undo: false });
+          commit(() => ({ cards: nextCards, strings: nextStrings }), { undo: false });
           setSelectedStringId(id);
         } else {
           const line: BoardString = {
@@ -1278,7 +1387,7 @@ export function BoardCanvas({
             width: DEFAULT_STRING_WIDTH,
             style: DEFAULT_STRING_STYLE,
           };
-          commit({ cards: nextCards, strings: [...strings, line] });
+          commit(() => ({ cards: nextCards, strings: [...held.strings, line] }));
           // Select it, so the inspector is right there to label and colour it.
           setSelectedStringId(line.id);
           /*
@@ -1317,7 +1426,7 @@ export function BoardCanvas({
       const maxX = Math.max(marquee.x0, marquee.x1);
       const minY = Math.min(marquee.y0, marquee.y1);
       const maxY = Math.max(marquee.y0, marquee.y1);
-      const hit = cards
+      const hit = cardsRef.current
         .filter((card) => {
           const box = cardBox(card);
           return (
@@ -1352,9 +1461,10 @@ export function BoardCanvas({
           y: atY - ((atY - current.y) / current.zoom) * nextZoom,
         };
       });
-      if (!readOnly) sync.markDirty();
+      // §61: the viewport is the only shared thing a zoom touches.
+      if (!readOnly) sync.markDirty({ viewport: true });
     },
-    [sync],
+    [readOnly, sync],
   );
 
   /*
@@ -1397,7 +1507,7 @@ export function BoardCanvas({
      */
     if (!event.ctrlKey && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
       setViewport((current) => ({ ...current, x: current.x - event.deltaX }));
-      if (!readOnly) sync.markDirty();
+      if (!readOnly) sync.markDirty({ viewport: true });
       return;
     }
     const rect = viewportRef.current?.getBoundingClientRect();
@@ -1425,8 +1535,8 @@ export function BoardCanvas({
 
   function fitAll() {
     const rect = viewportRef.current?.getBoundingClientRect();
-    if (!rect || !cards.length) return;
-    const bounds = boardBounds(cards);
+    if (!rect || !cardsRef.current.length) return;
+    const bounds = boardBounds(cardsRef.current);
     const zoom = clamp(
       Math.min((rect.width - 80) / bounds.width, (rect.height - 80) / bounds.height),
       MIN_ZOOM,
@@ -1437,7 +1547,7 @@ export function BoardCanvas({
       x: rect.width / 2 - (bounds.x + bounds.width / 2) * zoom,
       y: rect.height / 2 - (bounds.y + bounds.height / 2) * zoom,
     });
-    if (!readOnly) sync.markDirty();
+    if (!readOnly) sync.markDirty({ viewport: true });
   }
 
   /* ---------------------------------------------------------- keyboard */
@@ -1497,17 +1607,25 @@ export function BoardCanvas({
   useEffect(() => {
     const finish = () => {
       if (drag.current) {
+        const ids = [...drag.current.origin.keys()];
         drag.current = null;
-        if (!readOnly) sync.markDirty();
+        setHandOn(false);
+        if (!readOnly) sync.markDirty({ cards: ids });
       }
       if (resize.current) {
+        const id = resize.current.id;
         resize.current = null;
-        if (!readOnly) sync.markDirty();
+        setHandOn(false);
+        if (!readOnly) sync.markDirty({ cards: [id] });
       }
       if (pan.current) {
         pan.current = null;
-        if (!readOnly) sync.markDirty();
+        if (!readOnly) sync.markDirty({ viewport: true });
       }
+      // §61: whatever happened, the hand is off the wall now. A `busy` that
+      // stuck on would defer every merge for the life of the page — the exact
+      // shape of "op een bepaald moment update het niet meer".
+      setHandOn(false);
     };
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', finish);
@@ -1622,10 +1740,10 @@ export function BoardCanvas({
           ? current
           : { ...current, [map.id]: { id: map.id, slug: '', name: map.name, assetId: null, missing: false } },
       );
-      putCard({ id: newCardId(), kind: 'map', mapId: map.id, name: map.name, text: '' }, where);
+      const placed = putCard({ id: newCardId(), kind: 'map', mapId: map.id, name: map.name, text: '' }, where);
       // The slug and the picture come back with the next pull; until then the
-      // card shows its name, which is what was just typed.
-      void sync.saveNow();
+      // card shows its name, which is what was just typed. §61: one card.
+      void sync.saveNow({ cards: [placed] });
     },
     [putCard, sync],
   );
@@ -1648,8 +1766,8 @@ export function BoardCanvas({
               },
             },
       );
-      putCard({ id: newCardId(), kind: 'case', caseId: item.id, name: item.name, text: '' }, where);
-      void sync.saveNow();
+      const placed = putCard({ id: newCardId(), kind: 'case', caseId: item.id, name: item.name, text: '' }, where);
+      void sync.saveNow({ cards: [placed] });
     },
     [putCard, sync],
   );
@@ -1660,11 +1778,11 @@ export function BoardCanvas({
       setTimelineFacts((current) =>
         current[item.id] ? current : { ...current, [item.id]: { id: item.id, slug: '', name: item.name, scale: 'day', missing: false } },
       );
-      putCard(
+      const placed = putCard(
         { id: newCardId(), kind: 'timeline', timelineId: item.id, name: item.name, text: '', showImage: false },
         where,
       );
-      void sync.saveNow();
+      void sync.saveNow({ cards: [placed] });
     },
     [putCard, sync],
   );
@@ -1682,11 +1800,11 @@ export function BoardCanvas({
           ? current
           : { ...current, [item.id]: { id: item.id, name: item.name, caseName: null, missing: false } },
       );
-      putCard(
+      const placed = putCard(
         { id: newCardId(), kind: 'board', boardId: item.id, name: item.name, text: '', showImage: false },
         where,
       );
-      void sync.saveNow();
+      void sync.saveNow({ cards: [placed] });
     },
     [putCard, sync],
   );
@@ -1720,8 +1838,17 @@ export function BoardCanvas({
               missing: false,
             },
           }));
-          // A freshly written artikel has no cover, so its frame starts shut.
-          putCard(
+          /*
+           * A freshly written artikel has no cover, so its frame starts shut.
+           *
+           * §61: this runs when the sheet answers, which may be a minute after
+           * it was opened — a pull, a drag and three of somebody else's cards
+           * later. It lands on the wall as it is at *that* moment, because
+           * `putCard` goes through `commit`'s updater; it used to be built from
+           * the `cards` this callback closed over and quietly posted the wall
+           * back to how it looked before the sheet.
+           */
+          const placed = putCard(
             {
               id: newCardId(),
               kind: 'entry',
@@ -1732,7 +1859,7 @@ export function BoardCanvas({
             },
             where,
           );
-          void sync.saveNow();
+          void sync.saveNow({ cards: [placed] });
         },
       });
     },
@@ -1984,7 +2111,8 @@ export function BoardCanvas({
           </span>
         )}
 
-        <span className="save-state">{syncLabel(sync.state)}</span>
+        {/* §61: the archive's own reason when it gave one, not a guess. */}
+        <span className="save-state">{syncLabel(sync.state, sync.error)}</span>
 
         <span className="board-zoom" role="group" aria-label="Zoomen">
           <button type="button" onClick={() => zoomAround(1 / 1.25)} aria-label="Uitzoomen">
@@ -2118,7 +2246,7 @@ export function BoardCanvas({
         onTouchMove={onTouchMove}
         onTouchEnd={() => {
           pinch.current = null;
-          if (!readOnly) sync.markDirty();
+          if (!readOnly) sync.markDirty({ viewport: true });
         }}
         onDragOver={(event) => {
           // Only say yes to a card from our own tray; a file dropped here is

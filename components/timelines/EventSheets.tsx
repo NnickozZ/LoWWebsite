@@ -538,6 +538,35 @@ function EditEventBody({
   );
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  /**
+   * §62: two people in one blad.
+   *
+   * A box nobody has touched follows the archive. Somebody else drags this
+   * gebeurtenis along the axis while you have its blad open, and the date in
+   * front of you becomes the date it is now — with no "Moment opslaan" button
+   * appearing, because nothing here is unsaved. A box you *have* typed in
+   * keeps what you typed, whatever anybody else does, and one grey line above
+   * the button says that the other version moved. No dialog, nothing to
+   * answer: the two versions are both real and yours is the one in your hands.
+   */
+  const [dateTouched, setDateTouched] = useState(false);
+  const seeded = useRef(`${event.at}:${event.precision}`);
+  const [dateElsewhere, setDateElsewhere] = useState(false);
+  useEffect(() => {
+    const now = `${event.at}:${event.precision}`;
+    if (seeded.current === now) return;
+    seeded.current = now;
+    if (dateTouched) {
+      setDateElsewhere(true);
+      return;
+    }
+    setDraft(withAnchor(draftFromMoment(event.at, event.precision, timeline.scale), anchor, timeline.scale));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.at, event.precision, dateTouched]);
+  const touchDate = (next: DateDraft) => {
+    setDateTouched(true);
+    setDraft(withAnchor(next, anchor, timeline.scale));
+  };
   const dirtyWords = !shared && (name !== event.name || text !== event.text);
   const when = readDraft(draft, timeline.scale);
   const dateChanged = Boolean(when && (when.at !== event.at || when.precision !== event.precision));
@@ -649,25 +678,32 @@ function EditEventBody({
         <p className="label" style={{ margin: '0 0 0.3rem' }}>
           Wanneer
         </p>
-        <DateFields
-          draft={draft}
-          onChange={(next) => setDraft(withAnchor(next, anchor, timeline.scale))}
-          scale={timeline.scale}
-          idPrefix="event"
-          anchor={anchor}
-        />
+        <DateFields draft={draft} onChange={touchDate} scale={timeline.scale} idPrefix="event" anchor={anchor} />
         {dateChanged && when && (
-          <p style={{ margin: '0.4rem 0 0' }}>
-            <button
-              type="button"
-              className="btn btn-small btn-primary"
-              disabled={busy || !mayType}
-              onClick={() => void onSave({ at: when.at, precision: when.precision })}
-              data-testid="event-date-save"
-            >
-              Moment opslaan
-            </button>
-          </p>
+          <>
+            {dateElsewhere && (
+              <p className="tiny muted timeline-elsewhere" style={{ margin: '0.4rem 0 0' }} data-testid="event-date-elsewhere">
+                Iemand anders heeft dit ondertussen veranderd.
+              </p>
+            )}
+            <p style={{ margin: '0.4rem 0 0' }}>
+              {/* §62: a save that failed leaves its toast and its button. It
+                  used to be disabled while `busy`, which on a page where
+                  somebody else's drop also set `busy` meant the one button you
+                  wanted was the one you could not press; `aria-busy` says the
+                  same thing without taking the retry away. */}
+              <button
+                type="button"
+                className="btn btn-small btn-primary"
+                disabled={!mayType}
+                aria-busy={busy}
+                onClick={() => void onSave({ at: when.at, precision: when.precision })}
+                data-testid="event-date-save"
+              >
+                Moment opslaan
+              </button>
+            </p>
+          </>
         )}
       </div>
 
@@ -789,6 +825,61 @@ export function TimelineSettingsSheet({
   const [description, setDescription] = useState(timeline.description);
   const [scale, setScale] = useState<Scale>(timeline.scale);
   const scaleChanged = scale !== timeline.scale;
+  /**
+   * §62: the same rule as the gebeurtenis's blad, one storey up. A field this
+   * person has not touched follows what the archive says — somebody else
+   * renaming the tijdlijn while these settings are open changes the box in
+   * front of you — and a field they have touched keeps their version, with one
+   * line to say the other one moved.
+   */
+  const [touched, setTouched] = useState<Record<'name' | 'description' | 'scale' | 'anchor', boolean>>({
+    name: false,
+    description: false,
+    scale: false,
+    anchor: false,
+  });
+  const touch = (key: 'name' | 'description' | 'scale' | 'anchor') =>
+    setTouched((current) => (current[key] ? current : { ...current, [key]: true }));
+  const [elsewhere, setElsewhere] = useState(false);
+  const seen = useRef({
+    name: timeline.name,
+    description: timeline.description,
+    scale: timeline.scale,
+    anchorAt: timeline.anchorAt,
+    anchorUnit: timeline.anchorUnit,
+  });
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = {
+      name: timeline.name,
+      description: timeline.description,
+      scale: timeline.scale,
+      anchorAt: timeline.anchorAt,
+      anchorUnit: timeline.anchorUnit,
+    };
+    let kept = false;
+    if (timeline.name !== before.name) {
+      if (touched.name) kept = true;
+      else setName(timeline.name);
+    }
+    if (timeline.description !== before.description) {
+      if (touched.description) kept = true;
+      else setDescription(timeline.description);
+    }
+    if (timeline.scale !== before.scale) {
+      if (touched.scale) kept = true;
+      else setScale(timeline.scale);
+    }
+    if (timeline.anchorAt !== before.anchorAt || timeline.anchorUnit !== before.anchorUnit) {
+      if (touched.anchor) kept = true;
+      else {
+        setAnchorUnit(timeline.anchorUnit ?? '');
+        setAnchorDraft(draftFromMoment(timeline.anchorAt, timeline.anchorUnit, timeline.anchorUnit ?? 'day'));
+      }
+    }
+    if (kept) setElsewhere(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline.name, timeline.description, timeline.scale, timeline.anchorAt, timeline.anchorUnit]);
   const current = useMemo(() => SCALE_LABELS[timeline.scale], [timeline.scale]);
 
   /*
@@ -825,7 +916,15 @@ export function TimelineSettingsSheet({
         <label className="label" htmlFor="timeline-name">
           Naam
         </label>
-        <input id="timeline-name" className="input" value={name} onChange={(event) => setName(event.target.value)} />
+        <input
+          id="timeline-name"
+          className="input"
+          value={name}
+          onChange={(event) => {
+            touch('name');
+            setName(event.target.value);
+          }}
+        />
       </div>
       <div>
         <label className="label" htmlFor="timeline-description">
@@ -836,7 +935,10 @@ export function TimelineSettingsSheet({
           className="input"
           rows={2}
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          onChange={(event) => {
+            touch('description');
+            setDescription(event.target.value);
+          }}
         />
       </div>
       <fieldset className="timeline-scale-picker">
@@ -852,7 +954,10 @@ export function TimelineSettingsSheet({
               name="timeline-scale"
               value={option}
               checked={scale === option}
-              onChange={() => setScale(option)}
+              onChange={() => {
+                touch('scale');
+                setScale(option);
+              }}
               aria-label={SCALE_LABELS[option]}
               aria-describedby={`timeline-scale-${option}-hint`}
             />
@@ -882,7 +987,10 @@ export function TimelineSettingsSheet({
                 name="timeline-anchor-unit"
                 value=""
                 checked={anchorUnit === ''}
-                onChange={() => setAnchorUnit('')}
+                onChange={() => {
+                  touch('anchor');
+                  setAnchorUnit('');
+                }}
               />
               <span>
                 <strong>Geen vast moment</strong>
@@ -895,7 +1003,10 @@ export function TimelineSettingsSheet({
                   name="timeline-anchor-unit"
                   value={unit}
                   checked={anchorUnit === unit}
-                  onChange={() => setAnchorUnit(unit)}
+                  onChange={() => {
+                    touch('anchor');
+                    setAnchorUnit(unit);
+                  }}
                 />
                 <span>
                   <strong>{ANCHOR_UNIT_LABELS[unit]}</strong>
@@ -905,7 +1016,15 @@ export function TimelineSettingsSheet({
           </div>
           {anchorUnit && (
             <div style={{ marginTop: '0.4rem' }}>
-              <DateFields draft={anchorDraft} onChange={setAnchorDraft} scale={anchorUnit} idPrefix="timeline-anchor" />
+              <DateFields
+                draft={anchorDraft}
+                onChange={(next) => {
+                  touch('anchor');
+                  setAnchorDraft(next);
+                }}
+                scale={anchorUnit}
+                idPrefix="timeline-anchor"
+              />
             </div>
           )}
           <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
@@ -916,11 +1035,19 @@ export function TimelineSettingsSheet({
         </fieldset>
       )}
 
+      {/* §62: somebody else changed this tijdlijn while these boxes were open,
+          and something in front of you is yours rather than theirs. */}
+      {elsewhere && (
+        <p className="tiny muted timeline-elsewhere" style={{ margin: 0 }} data-testid="timeline-settings-elsewhere">
+          Iemand anders heeft dit ondertussen veranderd.
+        </p>
+      )}
       <p style={{ margin: 0 }}>
         <button
           type="button"
           className="btn btn-primary btn-small"
-          disabled={!dirty || busy || !mayType || !name.trim() || !anchorReady}
+          aria-busy={busy}
+          disabled={!dirty || !mayType || !name.trim() || !anchorReady}
           onClick={() =>
             void onSave({
               name: name.trim(),

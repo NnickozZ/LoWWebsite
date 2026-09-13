@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 64 files, 895 tests as of round 28 (round 27: 61 / 852)
+npx vitest run         # 69 files, 982 tests as of round 29 (round 28: 64 / 895)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -144,8 +144,11 @@ freely there.
 
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
-  markers to match. Check `grep -rn "§5[0-9]" app components lib` before
-  choosing a number — the latest is §58 / rule 58 (round 28: §56 een chipje
+  markers to match. Check `grep -rn "§[56][0-9]" app components lib` before
+  choosing a number — the latest is §62 / rule 62 (round 29: §59 de refresh-hold
+  — niets landt terwijl er een hand op de pagina ligt, §60 één lijn per tab en
+  een lijn die nooit opgeeft, §61 een muur die nooit opgeeft, §62 een tijdlijn
+  met z'n tweeën; round 28: §56 een chipje
   *in* het vak, §57 één weg waarlangs het archief omslaat, §58 het pantheon en
   Geschriften & Kunstwerken; round 27: §52 het prikbord,
   §53 een tweeling linken, §54 een chipje onder het vak, §55 Talen; round 26:
@@ -502,6 +505,58 @@ freely there.
   one of them — the web's sixteen `--web-<kind>` properties now alias its six
   `--web-line-*`, so a new `WebEdgeKind` picks one of the six rather than
   bringing a colour.
+- **Nothing lands while a hand is on the page** (§59, round 29). Anything
+  mid-gesture — a drag, an open sheet with half-typed fields, an ink stroke, an
+  upload — calls `useHoldRefresh(busy)` from `components/live/refreshHold.ts`,
+  and while any hold is taken `LivePage` remembers that a watched key moved and
+  does not `router.refresh()`. One refresh fires when the last hold is
+  released: a hold delays a signal, it never drops one. The registry is
+  **module-level on purpose** — the holder is a child of the page and
+  `LivePage` is its sibling, so a context cannot reach. The tijdlijn is its one
+  taker today and the prikbord still has round 8's own version inside
+  `useBoardLive`; a new canvas takes a hold rather than inventing a third way
+  to wait. And in `LivePage`
+  itself: a remote change inside `OWN_WRITE_MUTE_MS` of one's own write is
+  *deferred past the window*, never dropped, and a `reason: 'resync'` replay is
+  never muted at all.
+- **One line per tab, and only `LiveProvider` opens it** (§60, round 29).
+  Nothing anywhere else in the app may construct an `EventSource`. A browser
+  allows about six connections per origin and a stream holds one for ever, so a
+  second line per feature is a tab that cannot navigate — which is exactly what
+  the prikbord's own line cost, and why `/api/boards/[id]/live` is gone.
+  Anything that needs to hear about a change watches a key (`useLiveChanges` /
+  `LivePage watch`); anything that needs to be *seen* stands at a place
+  (`LivePage place`) and gets the roster and the hands for free. And there is
+  now less than one line per tab: the tabs of a browser elect a leader and the
+  rest ride its socket, so a follower's `EventSource` would not merely be
+  wasteful, it would be a second person on the strip. Two hooks, not one:
+  `useLive()` re-renders on every pointer frame and is for things that draw
+  hands; `useLiveBase()` is for everything else and holds its identity still
+  while a hand moves. **And never hang an effect cleanup that reports "my hand
+  left" on `useLive()`'s value** — it is a new object per frame, so the cleanup
+  ran per frame and wiped every outgoing frame (the timeline's carried tag
+  never travelled); depend on `live.reportPointer`, the stable function.
+- **`commit` takes an updater; never build the next board document from
+  `cards` captured at render** (§61, round 29).
+  `components/boards/BoardCanvas.tsx` keeps `cardsRef`/`stringsRef` beside its
+  state and writes both through `putBoard`, because half the work on that wall
+  crosses an `await` or a sheet before it writes — an upload, "'X' aanmaken", a
+  pull that landed while the file dialog was open. `commit((prev) => …)` reads
+  the refs, derives which ids changed, and hands them to the save, which sends
+  only those (`lib/boards/dirty.ts`) — absence is never a deletion, a tombstone
+  is. A merge coming back is likewise applied *around* whatever is still
+  unsaved (`sync.pending()`), so the archive's copy never silently undoes a
+  change it has not confirmed.
+- **A tag's side on a tijdlijn is a hash of its id, never its index** (§62,
+  round 29). `sideOfId` in `lib/timelines/time.ts` decides it and `placeTags`
+  asks; `index % 2` was pretty and unshareable — one gebeurtenis set in the
+  middle flipped every later tag on everybody else's screen while they were
+  reading it. The same file owns the lanes for the tags *and* for the
+  folded-out windows (`placeWindows`), both pure and both in
+  `tests/unit/timeline-time.test.ts`; put geometry there, not in the component.
+  And a `live` write of a gebeurtenis's words (the field room's 1.5 s save)
+  must never touch `timelines.updatedAt` — that column is what every other
+  screen watches through `timeline:{id}`.
 
 ---
 
@@ -588,6 +643,17 @@ no shell on that machine, so the loop is:
    not empty, put the exact `git rm` line **at the top of the closing message**,
    not in a commit message and not in the round note, where it will be missed.
    Round 13 buried two deletions and cost the user a broken VPS build.
+   **Round 29 deleted two files** and the delivery has to say so:
+
+   ```bash
+   git rm "app/api/boards/[id]/live/route.ts" "app/api/live/[room]/route.ts"
+   ```
+
+   The first one is the textbook case §7 warns about: it imports
+   `subscribe`, `setPresence`, `readPointerFrame` and five other names that
+   `lib/boards/live.ts` no longer exports, so a copy left on disk fails
+   `npm run build`. The second is dead either way, but leaving it would serve a
+   second live line that §60 exists to remove.
 5. **Do not push.** The git proxy has no credential for this repo, and their
    working tree holds the same files uncommitted — a push would make their next
    `pull` fight their own tree. They commit locally.
@@ -597,7 +663,7 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23 and 24
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25 and 29
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
@@ -608,6 +674,31 @@ in a worktree at `1d67f5c`, round 22's base. It is pre-existing red, not
 anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
+
+Round 29 (§59–§62) leaves six, all named on purpose:
+
+- **The leader tab (`ONE_LINE_PER_BROWSER`) is on.** It is the riskiest thing
+  in the round. If it ever misbehaves in the field, that one constant in
+  `components/live/LiveProvider.tsx` is the off switch and the fallback is a
+  line per tab — which is where the archive was before round 29, not a broken
+  state. `hasOneLineSupport()` already takes that road by itself where Web
+  Locks or `BroadcastChannel` are missing.
+- **HTTP/2 on the VPS is Nick's to enable**, and until it is, the leader tab is
+  the only thing keeping a browser under the six-socket cap. The nginx block is
+  in `README.md`'s deploy section (§60).
+- **`placeWindows` lane heights are a global max per side per lane**, not per
+  horizontal run, so one tall window pushes every lane-1 window out by its
+  height even where there is room. Cosmetic; the fix is a per-run maximum and
+  it is a rewrite of the second loop.
+- **`board-live.spec.ts:150` sits at ~44 s of a 45 s cap under `E2E_DEV=1`**,
+  inside `becomeInvestigator`'s dev compile. It passes with
+  `--timeout=120000`. Pre-existing, not round 29's damage — but it is the first
+  thing that will look like it.
+- **Undo of an *add* on a prikbord does not delete server-side.** Deliberate:
+  one person's Ctrl+Z must not remove a card another person hung up meanwhile.
+  See `DECISIONS.md` round 29.
+- **The tijdlijn's own name and description have no live field room.**
+  Deliberately deferred in round 29's Q3; the gebeurtenissen have theirs.
 
 Round 25 (§48) leaves three, all named on purpose:
 
@@ -760,9 +851,16 @@ items. All three are decided, not open questions — build them as written:
   in and no board is migrated.
 - **Making a gebeurtenis from a board card** (~4 h), reusing the `?place=` road
   that already exists on a tijdlijn rather than inventing a second one.
-- **The tijdlijn's image tools should match the prikbord's** (~5 h; ~8 h if
-  cropping is wanted too). Today Ctrl+V does nothing on the axis itself, there
-  is no full-size view, a new gebeurtenis cannot be given a picture as it is
-  made, and pasting into a text field swallows the image. Nick's decision on
-  the first of those: **pasting on the bare axis opens a new gebeurtenis at
-  that moment, carrying the picture.**
+- **The tijdlijn's image tools should match the prikbord's** — ~~built in round
+  14, except the cropping~~. Nick's decision was that **pasting on the bare axis
+  opens a new gebeurtenis at that moment, carrying the picture**, and that is
+  what `pasteImage` in `components/timelines/TimelineCanvas.tsx` does
+  (`tests/e2e/timelines.spec.ts`, "een geplakte afbeelding wordt een losse
+  gebeurtenis met die afbeelding"). It guards itself against a paste meant for
+  typing (`pasteIsForTyping`), against an open blad, against the full-size
+  picture and against the potlood. The full-size view is there too (`lightbox`,
+  the prikbord's own overlay and class), and a brand-new gebeurtenis gets its
+  picture through that same paste road. **What is actually outstanding is
+  cropping on a tijdlijn** (~3 h) and a picture chooser inside the
+  nieuwe-gebeurtenis sheet itself — today a picture is attached from the blad
+  of a gebeurtenis that already exists, or by pasting.

@@ -3780,3 +3780,175 @@ volgende hernoeming van een geseede soort hoort daar ook in.
 - **De view transition op de zij-knop** is weg, in ruil voor een schil die klopt.
   Als iemand hem terug wil: dat kan alleen als de laag zelf kan hertekenen zonder
   documentlading, en dat is een andere ronde.
+
+
+## Ronde 29 — 12/13 September 2026: de co-op pass (§59, §60, §61, §62)
+
+Deze ronde heeft geen nieuwe functie. De samenwerklaag hield zijn UX precies
+zoals hij was en raakte zijn manieren van stukgaan kwijt: een tab die niet meer
+kon navigeren, een muur die *Opgeslagen* zei terwijl er niets werd opgeslagen,
+een tijdlijn die onder je handen omsprong. Vier regels, en één ervan
+(§59) is een oude prikbordregel die eindelijk van de hele site is.
+
+### Niets landt terwijl er een hand op de pagina ligt (§59)
+
+Ronde 8 gaf het prikbord één regel over binnenkomend werk — *nooit toepassen
+terwijl iemand sleept* — en elke pagina die daarna gebouwd is moest hem opnieuw
+verzinnen of het zonder doen. `components/live/refreshHold.ts` is die regel voor
+de hele site: wie bezig is neemt een *hold*, en zolang er één ligt onthoudt
+`LivePage` dat er iets veranderde en ververst niet. Zodra de laatste hold
+losgelaten wordt, ververst hij één keer.
+
+Twee dingen die daarbij horen en die allebei een gemelde klacht waren. Een
+wijziging van iemand anders die binnen `OWN_WRITE_MUTE_MS` van je eigen
+schrijfactie valt wordt nu **uitgesteld tot voorbij dat venster, niet
+weggegooid** — hem wegdempen liet een scherm staan tot er toevallig iets anders
+gebeurde, en dat is precies wat leest als "op een bepaald moment update het niet
+meer". En de herhaling na een herverbinding (`reason: 'resync'`) wordt nooit
+gedempt: dat is niet je eigen echo, dat is alles wat je gemist hebt.
+
+Het register staat met opzet op moduleniveau. Degene die de hold neemt is een
+kind van de pagina en `LivePage` is zijn *buurman*, dus een context zou nooit
+aankomen. Eén tab, één pagina, één register.
+
+### Het prikbord heeft geen eigen hub meer (§60)
+
+De beslissing die het opschrijven waard is: **een prikbord heeft geen eigen lijn
+en geen eigen hub meer.** De abonnees, de presence, de roster, het uitwaaieren
+van de pointerframes en het opruimen op TTL in `lib/boards/live.ts` zijn weg, en
+een muur is nu een *plek* op de site-lijn, zoals een dossier of een landkaart.
+
+Dit draait niets van ronde 8 terug. De drie regels daar — een wijziging is een
+signaal en nooit het document; nooit toepassen terwijl er een hand op de muur
+ligt; één pull tegelijk, de laatste wint — staan allemaal nog in `useBoardLive`,
+en `tests/unit/board-live.test.ts` toetst nog steeds dat er een signaal over de
+draad gaat, nu tegen de site-hub. Wat veranderde is alleen *door welke pijp* het
+gaat, en de reden is rekenkunde: twee sockets per open muur, uit zes per
+oorsprong. Een browser geeft er ongeveer zes, een open stream houdt er één voor
+altijd vast, en wie het archief in een paar tabs open had kon niet meer van tab
+wisselen tot elk venster van de site dicht was.
+
+Daar hangen twee kleinere beslissingen aan. Het `changed`-frame draagt nu `by`
+en de hub slaat de tab over die daarin genoemd wordt — dat is ronde 8's "vertel
+het de schrijver nooit", één laag lager. En omdat het canvas zijn eigen tab-id
+munt vóórdat de lijn bestaat, mag een lijn ook op een `alias` luisteren: zonder
+dat hoort de schrijver zijn eigen opslag terug en boekt iedereen de `by` onder
+een naam die in geen enkel pointerframe voorkomt, en dat is een kaartje dat een
+rondje lang terugspringt.
+
+Het derde stuk, de leiderstab, staat bewust achter één constante
+(`ONE_LINE_PER_BROWSER`): het is het risicovolste van de ronde, en (a) en (b)
+alleen al halveren het ergste geval. Zonder Web Locks of `BroadcastChannel`
+valt het vanzelf terug op een lijn per tab.
+
+De lijn hield ook op met opgeven. Wat daarvan een beslissing is en geen
+reparatie: een backoff die **nooit 0 teruggeeft**. De 409-weg zette de teller op
+nul, dus een server achter twee processen gaf elke tab een hete lus — zo neemt
+één verkeerde instelling het hele archief mee. En `keepalive` wordt alleen nog
+aan een klein afscheid besteed: het quotum is 64 KiB per oorsprong, en een
+Tiptap-plak eroverheen werd geweigerd en dan eeuwig opnieuw gestuurd. Elk getal
+dat hierbij hoort staat in `lib/live/wire.ts`, puur en getoetst, zodat
+`LiveProvider.tsx` er zelf geen meer heeft.
+
+Twee bestanden zijn weg: `app/api/boards/[id]/live/route.ts` en
+`app/api/live/[room]/route.ts` — de tweede was al dood sinds de kamers op de
+site-lijn gingen rijden.
+
+### De muur stuurt alleen wat deze hand aanraakte (§61)
+
+De client stuurde tot deze ronde zijn hele kaartenlijst mee met elke autosave.
+De merge doet een upsert per id, dus die lijst is een bewering over *elke* kaart
+op de muur — ook de veertig die deze persoon nooit aanraakte. Een scherm
+waarvan het bijwerken is uitgesteld (een hand op een kaart stelt de merge uit,
+met opzet, §8) postte daarmee een document van vóór andermans sleep, en
+last-writer-wins draaide dat stilletjes terug.
+
+Vandaar de dirty set: wat deze hand veranderde gaat mee, de rest niet, en het
+gedeelde beeldvenster alleen als deze hand het verschoof. Serverkant hoefde er
+niets voor te veranderen — afwezigheid was daar nooit een verwijdering, dat is
+een grafsteen — maar dat is nu dragend en geen toevalligheid meer. (Het narrowt
+ook §50's zin "een autosave stuurt alles wat de browser weet": dat is niet meer
+waar, en de zijkant-toets daar blijft precies zo werken, want die toetst alleen
+verwijzingen die nieuw zijn voor die muur.)
+
+Daarnaast: opslaan is niet langer eenmalig. Een POST die nooit antwoordde hield
+het slot voor de rest van de tab vast terwijl de strip *Opgeslagen* zei, en één
+geweigerde kaart vergiftigde elke latere opslag. Nu: tien seconden en afbreken,
+backoff met ruis (1, 2, 4, 8, 15 s), en de weigering leest het antwoord en
+handelt ernaar — een geweigerde kaart (§50) gaat van de muur met de zin die het
+archief zelf stuurde en de rest wordt gewoon bewaard.
+
+Ten slotte deed de server per opslag van 300 ms een volledige
+mentions-hertelling over het hele archief en een volledige revisie-snapshot
+zodra een tweede hand meewerkte; beide zijn afgeremd (3 s en 10 s) zonder dat de
+laatste stand ooit ongeteld of ongesnapshot blijft.
+
+Onderweg gevonden en het opschrijven waard: **de draad die verdween.** Een
+opslag onderweg plus een tweede gebaar op diezelfde draad → de merge
+overschreef de lokale kopie → de volgende patch postte de verouderde draad
+samen met de verwijdering van de speld waar hij aan hing, en de draad was overal
+weg. De remedie is dezelfde regel één laag hoger: een binnenkomend document
+wordt *om* alles heen toegepast wat nog niet opgeslagen is (`sync.pending()`).
+
+**Bewust zo gelaten:** het ongedaan maken van een *toevoeging* verwijdert niets
+op de server. De Ctrl+Z van de één mag geen kaart weghalen die de ander
+ondertussen heeft opgehangen.
+
+### De tijdlijn met z'n tweeën (§62)
+
+Vier vragen aan Nick, vier antwoorden.
+
+**Q1, elkaars hand op de as.** De hand van de ander wordt *op de as* getekend,
+in de coördinaten van de as, met een klein tijdlabel onder de naam in de maat
+van de tijdlijn zelf — dezelfde pijl die het prikbord en de landkaart gebruiken.
+Afgewezen: de generieke handen van `LivePage` aan laten staan (een fractie van
+de hoofdkolom zegt niets tegen iemand die op een andere zoom staat), en een hand
+alleen tekenen tijdens het slepen. Een vinger meldt niets.
+
+**Q2, "Alles tonen".** Vensters blijven vensters en krijgen banen zodat ze
+elkaar niet overlappen; een klik brengt er één naar voren; een klik op de kale
+as sluit het laatst geopende, een tweede klik het volgende, en de knop in de
+balk sluit ze nog steeds allemaal. Afgewezen: een lijstweergave onder de as, en
+"één klik ruimt de hele stapel op" houden.
+
+**Q3, twee mensen in één blad.** Een vakje dat niemand heeft aangeraakt volgt
+het archief; een vakje dat iemand heeft aangeraakt houdt hun versie en één
+grijze regel zegt dat de ander iets verzette. Afgewezen: een dialoog die vraagt
+wiens versie wint, een verzetting van de ander *Moment opslaan* laten oproepen,
+en (voorlopig) een live veldkamer voor de naam en de beschrijving van de
+tijdlijn zelf. Een gebeurtenis die onder een open blad wordt weggehaald houdt
+zijn kop en ruilt zijn inhoud voor *Deze {gebeurtenis} is weggehaald.* +
+*Sluiten*.
+
+**Q4, telefoon.** Een lange druk op de kale as is de dubbelklik van de
+telefoon. Afgewezen: een zwevende "+ hier"-knop en een dubbeltik.
+
+Twee dingen die geen vraag waren maar wel een beslissing. De kant van een tag is
+een **hash van zijn eigen id** en niet zijn plaats in de lijst: `index % 2` was
+mooi en ondeelbaar — één gebeurtenis er middenin zetten klapte bij iedereen elke
+latere tag naar de andere kant van de as, terwijl ze zaten te lezen. En typen in
+een gebeurtenis is **geen wijziging aan de tijdlijn**: een `live`-schrijving die
+alleen de woorden raakte laat `timelines.updatedAt` met rust, want dat is de
+kolom waar elk ander scherm via `timeline:{id}` naar kijkt, en hem aanraken per
+1,5 seconde typen liet iedereen zijn pan, zijn zoom en zijn open vensters
+kwijtraken.
+
+De 404 in plaats van de 403 op een weggehaalde gebeurtenis komt **na** de poort
+van de tijdlijn zelf (`eventAccess`: tijdlijn → bestaat → gebeurtenis), zodat
+iemand die de tijdlijn niet mag zien hetzelfde antwoord krijgt voor een id dat
+bestaat en een id dat niet bestaat. Regel 44's "weg, of niet voor jou" geldt ook
+hier.
+
+### Waar ronde 29 eindigt
+
+- **De leiderstab staat aan.** Als hij zich in het veld misdraagt is
+  `ONE_LINE_PER_BROWSER` de uitknop en is de terugval een lijn per tab.
+- **HTTP/2 op de VPS is van Nick.** Tot dat aanstaat is de leiderstab wat een
+  browser onder de zes-socketgrens houdt; de nginx-regels staan in `README.md`.
+- **`placeWindows` rekent lanehoogtes als een maximum per kant per baan**, niet
+  per horizontale reeks: één hoog venster duwt elk venster in baan 1 zijn hoogte
+  opzij. Cosmetisch.
+- **Ongedaan maken van een toevoeging op een prikbord verwijdert niets op de
+  server** — met opzet, zie hierboven.
+- **De tijdlijn heeft nog geen live veldkamer voor zijn eigen naam en
+  beschrijving.** Bewust uitgesteld (Q3).

@@ -92,12 +92,22 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       const known = new Set(
         before.state.cards.map(cardRef).filter(Boolean).map((ref) => `${ref!.kind}:${ref!.id}`),
       );
+      /*
+       * §61: the refusal names the cards. It used to be a bare sentence, so the
+       * browser could only keep the card, post it again, and be refused again —
+       * one crossing card and nothing on that wall ever saved again. With
+       * `code` and `cardIds` the client can take those cards off the wall, say
+       * the archive's own sentence, and save everything else. Every offending
+       * card is named, not just the first one found.
+       */
+      const refused: string[] = [];
       for (const card of patch.cards) {
         const ref = cardRef(card);
         if (!ref || known.has(`${ref.kind}:${ref.id}`)) continue;
-        if (!sameSide('board', id, ref.kind, ref.id)) {
-          return json({ error: OTHER_SIDE }, { status: 400 });
-        }
+        if (!sameSide('board', id, ref.kind, ref.id)) refused.push(card.id);
+      }
+      if (refused.length) {
+        return json({ error: OTHER_SIDE, code: 'OTHER_SIDE', cardIds: refused }, { status: 400 });
       }
     }
     const state = saveBoard(id, patch, user);

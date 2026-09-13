@@ -104,16 +104,24 @@ export function useAutosave<Patch extends Record<string, unknown>>(options: {
   );
 
   // Don't lose the last keystrokes when the tab is closed or backgrounded.
+  //
+  // §60: both listeners come off again. The `visibilitychange` one used to be
+  // added anonymously and never removed, so every artikel or dossier ever
+  // opened in a tab left a live closure on `document` holding this hook's
+  // refs — a leak that grew with every navigation and kept flushing patches
+  // for components that were long gone.
   useEffect(() => {
     const onHide = () => {
       if (Object.keys(pendingPatch.current).length) void flush();
     };
-    window.addEventListener('pagehide', onHide);
-    document.addEventListener('visibilitychange', () => {
+    const onVisibility = () => {
       if (document.visibilityState === 'hidden') onHide();
-    });
+    };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [flush]);
 

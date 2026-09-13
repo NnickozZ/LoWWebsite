@@ -21,6 +21,9 @@ process.env.DATA_DIR = dir;
 type Deps = {
   sqlite: typeof import('@/lib/db').sqlite;
   resolveBoardBoards: typeof import('@/lib/boards/service').resolveBoardBoards;
+  saveBoard: typeof import('@/lib/boards/service').saveBoard;
+  pruneWriteClocks: typeof import('@/lib/boards/service').pruneWriteClocks;
+  writeClockCount: typeof import('@/lib/boards/service').writeClockCount;
 };
 let deps: Deps;
 
@@ -32,7 +35,13 @@ const NEL = { id: 'nel', isKeeper: false };
 beforeAll(async () => {
   const dbModule = await import('@/lib/db');
   const boards = await import('@/lib/boards/service');
-  deps = { sqlite: dbModule.sqlite, resolveBoardBoards: boards.resolveBoardBoards };
+  deps = {
+    sqlite: dbModule.sqlite,
+    resolveBoardBoards: boards.resolveBoardBoards,
+    saveBoard: boards.saveBoard,
+    pruneWriteClocks: boards.pruneWriteClocks,
+    writeClockCount: boards.writeClockCount,
+  };
   const run = (sql: string, ...args: unknown[]) => deps.sqlite.prepare(sql).run(...args);
 
   for (const [id, name, keeper] of [
@@ -100,5 +109,29 @@ describe('§52: resolving the walls a wall points at', () => {
   it('asks nothing when there is nothing to ask about', () => {
     expect(deps.resolveBoardBoards([], NEL).size).toBe(0);
     expect(deps.resolveBoardBoards(['nergens'], KEEPER).size).toBe(0);
+  });
+});
+
+describe('§61: the two clocks a save keeps', () => {
+  it('are swept, so a long-lived process does not keep one entry per wall for ever', () => {
+    /*
+     * `mentionsAt` is one entry per prikbord and `revisionsAt` one per prikbord
+     * x account x onderzoeker, both written on every save and read once. Nothing
+     * ever took one out again, so a server that had been up for a month held one
+     * for every wall anybody had ever touched. Ten minutes is far past both
+     * windows (three seconds and ten), so an old entry decides nothing.
+     */
+    deps.saveBoard('b-open', { cards: [], strings: [] }, { id: 'bram', characterId: null });
+    const held = deps.writeClockCount();
+    expect(held.mentions).toBeGreaterThan(0);
+    expect(held.revisions).toBeGreaterThan(0);
+
+    // Nothing is thrown away while it could still matter.
+    deps.pruneWriteClocks(Date.now());
+    expect(deps.writeClockCount()).toEqual(held);
+
+    // Eleven minutes on, both are empty.
+    deps.pruneWriteClocks(Date.now() + 11 * 60_000);
+    expect(deps.writeClockCount()).toEqual({ mentions: 0, revisions: 0 });
   });
 });

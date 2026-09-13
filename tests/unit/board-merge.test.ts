@@ -199,6 +199,69 @@ describe('a deletion is remembered, so a stale client cannot undo it', () => {
     expect(kept).not.toContain(`c_${TOMBSTONE_LIMIT + 40}`);
   });
 
+  /**
+   * §61: six hundred cards deleted in one gesture all carry the same `now`, so
+   * the timestamp cannot order them and a stable sort kept whichever half the
+   * object listed first — the *older* half. The newest hundred lost their
+   * tombstones the moment they were written, which is a deletion that undoes
+   * itself on the next save.
+   */
+  it('keeps the newest ids when a single patch buries more than it may remember', () => {
+    const now = Date.now();
+    const ids = Array.from({ length: TOMBSTONE_LIMIT + 100 }, (_, i) => `c_${i}`);
+    const merged = mergeBoardState(
+      { cards: ids.map((id) => card(id)), strings: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      { deletedCardIds: ids },
+      now,
+    );
+    const kept = Object.keys(merged.deleted!.cards);
+    expect(kept.length).toBe(TOMBSTONE_LIMIT);
+    // The last id buried is remembered; the first, which nothing will send
+    // again in this gesture, is the one that falls off.
+    expect(kept).toContain(`c_${TOMBSTONE_LIMIT + 99}`);
+    expect(kept).not.toContain('c_0');
+    // And every card is off the wall either way.
+    expect(merged.cards).toHaveLength(0);
+  });
+
+  /**
+   * §61: a client sends only what its own hand changed. Absence has never been
+   * deletion here, but it is load-bearing now rather than merely true.
+   */
+  describe('a partial patch', () => {
+    const wall: BoardState = {
+      cards: [card('a', { x: 10 }), card('b', { x: 20 }), card('c', { x: 30 })],
+      strings: [line('s1', 'a', 'b', { label: 'first' })],
+      viewport: { x: 5, y: 5, zoom: 1 },
+    };
+
+    it('moves the one card it names and leaves the rest exactly as they were', () => {
+      const merged = mergeBoardState(wall, { cards: [card('b', { x: 200 })] });
+      expect(merged.cards.map((c) => c.id).sort()).toEqual(['a', 'b', 'c']);
+      expect(merged.cards.find((c) => c.id === 'b')!.x).toBe(200);
+      expect(merged.cards.find((c) => c.id === 'a')!.x).toBe(10);
+      expect(merged.cards.find((c) => c.id === 'c')!.x).toBe(30);
+    });
+
+    it('keeps the strings it did not send', () => {
+      const merged = mergeBoardState(wall, { cards: [card('a', { x: 11 })] });
+      expect(merged.strings.map((s) => s.id)).toEqual(['s1']);
+      expect(merged.strings[0].label).toBe('first');
+    });
+
+    it('leaves the shared viewport alone when this hand did not move it', () => {
+      const merged = mergeBoardState(wall, { cards: [card('a', { x: 11 })] });
+      expect(merged.viewport).toEqual({ x: 5, y: 5, zoom: 1 });
+      const panned = mergeBoardState(wall, { viewport: { x: 90, y: 0, zoom: 2 } });
+      expect(panned.viewport).toEqual({ x: 90, y: 0, zoom: 2 });
+    });
+
+    it('still buries what it explicitly deletes, and nothing else', () => {
+      const merged = mergeBoardState(wall, { cards: [], deletedCardIds: ['c'] });
+      expect(merged.cards.map((c) => c.id).sort()).toEqual(['a', 'b']);
+    });
+  });
+
   it('opens a board saved before any of this existed', () => {
     const old = { cards: [card('a')], strings: [], viewport: { x: 0, y: 0, zoom: 1 } };
     const merged = mergeBoardState(old, { cards: [card('a', { x: 12 })] });

@@ -154,6 +154,31 @@ server {
 
 Apache calls the same thing `LimitRequestBody 26214400`.
 
+**And the live line wants four more lines of that same block** (§60, round 29):
+
+```nginx
+server {
+    server_name site.landoverwater.nl;
+    client_max_body_size 25m;       # uploads: 2 MB for players, 20 MB for the Keeper
+    http2 on;                       # §60: many tabs, one socket each is not enough
+    location / {
+        proxy_http_version 1.1;     # HTTP/1.0 to the app would close the stream
+        proxy_buffering off;        # or nginx holds every frame until the response ends
+        proxy_read_timeout 300s;    # a live line is idle for minutes at a time, on purpose
+        # ...
+    }
+}
+```
+
+`http2 on` is the one that matters most: over HTTP/1.1 a browser opens about
+six connections per origin, and round 29 went to some trouble to make a browser
+need only one — HTTP/2 multiplexes, so the ceiling stops being a ceiling at
+all. `proxy_buffering off` is why the app also sends `X-Accel-Buffering: no` on
+the stream; belt and braces, because a buffered SSE response is delivered when
+the response ends, and a stream never ends. `proxy_read_timeout` has to outlast
+the 20 s heartbeat comfortably, or nginx cuts a perfectly healthy line every
+minute and every open tab reconnects. Caddy needs none of this.
+
 Then `sudo nginx -t && sudo systemctl reload nginx`.
 
 ### Without Docker (Node + pm2)
@@ -407,10 +432,17 @@ app/
                      Keeper's (§18c, rule 42), so the wardrobe has no ✕ on it;
                      the choice of which face a page opens on is gone
                      altogether (rule 18: everybody lands on lezen)
+  timelines.css      §62: the tijdlijn's own stylesheet — the axis, the lanes,
+                     the folded-out windows, the "+n" chips and the hand on
+                     the axis. Imported by the one page that is a tijdlijn
   api/               entries, cases, boards, maps, timelines, characters,
                      access, assets, search, suggest, admin, ink (§33: the
                      tekenlaag of a prikbord, landkaart or tijdlijn), web
-                     (§43: this viewer's graph, whole or around a focus)
+                     (§43: this viewer's graph, whole or around a focus),
+                     and `live/site` — **the one stream in the whole app**
+                     (§60). `api/boards/[id]/live` and `api/live/[room]` were
+                     deleted in round 29; a wall and a room of shared text are
+                     both places on the site line now
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
@@ -445,6 +477,13 @@ components/
                      brushes with the potlood and the gummen with the gum),
                      and the hook that owns the strokes, the frames and the
                      saves (useInk)
+  live/              §16/§60: LiveProvider (the one `EventSource` in the app,
+                     the leader tab and the followers that ride its socket),
+                     LivePage (a page's place, its watched keys and its
+                     `router.refresh()`), LiveStrip (who is here, and the dot),
+                     LiveFields/LiveFieldsRoom (§17's shared fields), and
+                     refreshHold.ts — §59: while any hand on the page holds,
+                     nothing lands
   access/            the two dials (kijken, bewerken) and their checkboxes
   you/               the character switcher and the wardrobe, and §18b's
                      AuthorProvider — the question this window answers once
@@ -486,8 +525,14 @@ lib/
                      (resolveCaseRefs), and tabs.ts — which soorten a dossier
                      has shelves for, and in what order
   boards/            the board service, the pure merge rule, the resolvers for
-                     what a card stands for, and the live hub (presence,
-                     change signals, pointer frames)
+                     what a card stands for, and — since §60 — a `live.ts` of
+                     two functions that forward to the site hub, the wall's own
+                     hub (presence, roster, pointer fan-out, TTL reaping) being
+                     gone. Three pure files beside it (§61): dirty.ts (what
+                     *this hand* changed, and the patch built from it),
+                     retry.ts (the schedule a failed save follows and the four
+                     flavours of failure it reads) and place.ts (`freeSpotNear`
+                     — where a new card lands when the spot is taken)
   maps/              maps, pins, the artikel a map is a map *of*, and
                      visibility.ts (§40: a landkaart's own view rule, written
                      the way `lib/cases/visibility.ts` writes a dossier's)
@@ -500,7 +545,14 @@ lib/
                      inkSpace.ts (§33, also pure: where a streek lives on an
                      axis and how wide it is, in both stroke formats)
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
-                     the gates, schema.ts the ProseMirror schema on the server)
+                     the gates, schema.ts the ProseMirror schema on the server);
+                     hub.ts, changes.ts, keys.ts and gate.ts for the one site
+                     line; and, since §60, wire.ts (pure: the backoff, the
+                     keepalive rule, the batch split, the hidden-tab timer and
+                     the backpressure policy — every number the provider used
+                     to keep itself) and colour.ts (the ink a person is drawn
+                     in, moved out of `lib/boards/live.ts` so the two files do
+                     not import each other)
   keeper/            §44/§46: de Keeperkant — kinds.ts (pure: the five kinds,
                      where each lives, and the two `Side`s), side.ts (the one
                      read, `keeperRef`; the only place the two spellings of
@@ -556,7 +608,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Forty-six rules worth knowing before changing anything:
+Sixty-two rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -576,7 +628,10 @@ Forty-six rules worth knowing before changing anything:
    is the specification.
 3. **What travels down a board's live line is a signal, never the document.**
    `lib/boards/live.ts` broadcasts "the board moved"; each client then GETs its
-   own copy. That extra round trip is not an oversight — board cards are
+   own copy. (Since §60 that is a `changed` on `board:{id}` down the **site**
+   line — a wall has no line and no hub of its own any more, and
+   `lib/boards/live.ts` is two functions forwarding to `lib/live/hub.ts`. The
+   rule is untouched; only the pipe changed.) That extra round trip is not an oversight — board cards are
    resolved per viewer, so one merged state fanned out to every listener would
    hand a player the name of a Keeper-only fiche, and rule 1 would have a second
    place it could be broken. Presence (who is at the wall, what they are
@@ -804,9 +859,14 @@ Forty-six rules worth knowing before changing anything:
     over the live line, are fanned out directly, and are never stored and
     never merged — the save that follows the gesture is what makes it true.
     Everything in a frame is drawn straight into a style attribute on somebody
-    else's screen, so `readPointerFrame` in `lib/boards/live.ts` is the one
+    else's screen, so there is exactly one
     place that reads one off the wire, and it keeps a frame to finite numbers,
-    forty carried cards and a box of exactly four coordinates.
+    forty carried cards and a box of exactly four coordinates. (Since §60 that
+    place is `pointerFrame` in `app/api/live/site/route.ts`, where every hand
+    in the archive now arrives — a prikbord's, a landkaart's and, since §62, a
+    tijdlijn's; `readPointerFrame` in `lib/boards/live.ts` went with the
+    board's own hub. Same three checks, same `s` of exactly four finite
+    numbers.)
 
 21. **The bin has a bottom, and it is the only thing in the archive with
     nothing behind it.** §11. Everything soft-deletes first, so
@@ -1024,10 +1084,12 @@ Forty-six rules worth knowing before changing anything:
     (rule 2's tombstones), so a stale screen cannot put it back. The Keeper's
     switch is a column; off means 403 for every stroke and undo and the
     strokes stay where they are; only a Keeper flips it or wipes, and both go
-    to the audit log. The layer has its own table, its own key (`ink:{id}`,
-    gated like the thing it hangs on) and its own line — never the board
-    hub, never a column on `boards`/`maps`/`timelines`, so a stroke a second
-    does not re-render every page that watches those. Frames of a stroke in
+    to the audit log. The layer has its own table and its own key (`ink:{id}`,
+    gated like the thing it hangs on) — never a column on
+    `boards`/`maps`/`timelines`, so a stroke a second
+    does not re-render every page that watches those. (Since §60 "its own
+    line" means its own *key*, not its own socket: there is one line per tab
+    and the board hub it was written against is gone.) Frames of a stroke in
     progress ride the site line like pointer frames: sight, never state
     (rule 20). Coordinates are the place's own — board units on a prikbord,
     picture pixels on a landkaart, and on a tijdlijn **seconds on both axes**:
@@ -2346,9 +2408,15 @@ Forty-six rules worth knowing before changing anything:
     it had already learnt this and says so in its own comment. Measure with
     `getBoundingClientRect`, sit `fixed`, and re-measure on any scroll between
     the box and the body (capture, because those do not bubble). The
-    `ResizeObserver` watches **the box only**: the body changes no layout the
+    `ResizeObserver` watches **the box and the field it stands in, never the
+    body**: the body changes no layout the
     mirror cares about, and on a phone it grows with the page, which was twenty
-    computed properties re-read per frame.
+    computed properties re-read per frame. (The field was added in round 29.
+    `MentionRow`'s chips arrive a beat after a name resolves, the field grows,
+    and a sheet centred on the screen moves the box half that growth upward —
+    13.7 px in the case that found it — and none of that fires scroll, resize
+    or input, so the mirror sat where the box used to be. One parent element,
+    not the body: this is not the noise the sentence above is about.)
 
     **And it hangs on the plain boxes only** — the three maak-sheets, a kaartje
     op de muur, een speld, een gebeurtenis. Not on a box inside a `LiveFields`
@@ -2439,3 +2507,191 @@ Forty-six rules worth knowing before changing anything:
     empty second copy beside a soort a Keeper had already moved themselves —
     the skip-marker is written under the *old* slug, and without that line
     there was no `lore` left in `ENTRY_TYPES` for it to match.
+
+59. **Niets landt terwijl er een hand op de pagina ligt.** §59. Round 8 gave
+    the prikbord one rule about pulls — *never apply while somebody is
+    dragging* — and every page built since has had to invent it again or do
+    without. `components/live/refreshHold.ts` is that rule for the whole site:
+    `useHoldRefresh(busy)` takes a **hold**, and while any component on the
+    page holds one, `LivePage` remembers that a watched key moved and does not
+    `router.refresh()`. The moment the last hold is released, one refresh
+    fires. A hold never drops a signal, it only delays it — the thing that was
+    owed is still owed, and there is exactly one of it however many keys moved
+    while the hand was down.
+
+    The registry is **module-level, deliberately**. The holder is a canvas or a
+    sheet rendered by the server page, and `LivePage` is its *sibling*, so a
+    context set by one could never reach the other; one tab has one page, so
+    one tab has one registry. `isRefreshHeld()` and `onRefreshHoldChange()` are
+    the whole surface, plus `takeRefreshHold`/`releaseRefreshHold` for the rare
+    caller that is not a component.
+
+    Today the tijdlijn is its one taker (`TimelineCanvas`, one
+    `useHoldRefresh(busy)` over the whole page) and the prikbord still has
+    round 8's own version inside `useBoardLive`. That is not a gap to leave
+    open for ever — a landkaart, a dossier and the artikel page all want it —
+    but a new canvas takes a hold rather than inventing a third way to wait.
+
+    Two more things in `LivePage` belong to this rule. A remote change that
+    lands inside `OWN_WRITE_MUTE_MS` of one's own write is **deferred past the
+    window, not dropped** — muting it outright left a screen stale until some
+    unrelated change happened along, which is the bug that reads as "it stopped
+    updating". And the replay after a reconnection (`reason: 'resync'`) is
+    never muted at all: it is not one's own echo, it is everything that was
+    missed while the line was away.
+
+60. **Eén lijn per tab, en een lijn die nooit opgeeft.** §60. A browser opens
+    about six connections to one host over HTTP/1.1, and an open stream holds
+    one of them for ever — so before round 29 a player with the archive in a
+    few tabs could not switch tab until every window of the site was closed.
+    Three things fixed it, in that order.
+
+    **The prikbord gave up its own line.** A wall is a *place* on the site line
+    (`board:{id}`, set by the page's `LivePage`), so the roster, what everyone
+    is holding and the hands come for free, and "the wall moved" is a `changed`
+    on the wall's own key. `/api/boards/[id]/live` is gone and
+    `lib/boards/live.ts` is two functions forwarding to the site hub. **A tab
+    nobody is looking at gives its socket back** after 45 s (`HIDDEN_CLOSE_MS`)
+    — status `idle`, a quiet dot and no word beside it, never "geen
+    verbinding", because nothing is wrong and `hello` replays the watch list
+    and fires a `changed` for every key on the way back. **And the tabs elect a
+    leader**: one holds `navigator.locks.request('low-live-leader')` and the
+    one `EventSource`, and relays every frame over
+    `BroadcastChannel('low-live')`. The others keep their own client id, watch
+    list, place and name and post all of it themselves, quoting the leader's
+    connection (`carriedBy`), so the hub still sees one person per tab and
+    eight tabs cost one socket. When the leader closes, the lock releases and
+    the next tab opens a line and everybody says everything again.
+    `ONE_LINE_PER_BROWSER` in `LiveProvider.tsx` switches that third one off in
+    one place, and without Web Locks or `BroadcastChannel` it falls back to a
+    line per tab by itself.
+
+    The election has four details that are each a bug that happened. The tab's
+    own user id travels on the `BroadcastChannel` `line` message, so a follower
+    ignores a leader from another login. Two 409s in a row make a follower
+    `steal` the lock, because a leader that the server has forgotten is worse
+    than no leader. A leader broadcasts `{t:'who'}` and the followers answer
+    `seen`, so a fresh leader knows who is visible and never rests while any
+    tab in the browser is being looked at. And `pagehide` drops leadership
+    while `pageshow` re-elects, because a page in the bfcache is not a page
+    holding a socket. An `alias` already held by another connection is refused,
+    silently — claiming somebody else's name is not an error worth telling the
+    claimant about.
+
+    **And the line stopped giving up.** Backoff has a floor of 500 ms, a
+    ceiling of 30 s and ±25 % of jitter, and **no road that returns 0** — a 409
+    used to reset the counter, which is a hot loop against a server behind two
+    processes, which is how one misconfiguration takes the whole archive with
+    it. A failed POST no longer paints the whole tab dead, and any later 2xx
+    says `live` again. `keepalive` is spent only on a small goodbye, never on
+    keystrokes: the quota is 64 KiB per origin, and a Tiptap paste used to
+    reject and then retry the same body for ever. An oversized batch is split,
+    and a `sync` **replaces** the queue with one state-vector diff rather than
+    looping — the document holds everything the queue held, so the difference
+    covers the lot. A `refused` is tried twice before the editor goes
+    read-only, because a reaped line says the same word as a turned dial.
+
+    Server-side, no frame is written to a client that has stopped reading. The
+    stream is built with `CountQueuingStrategy({ highWaterMark: 64 })` — with
+    no strategy at all the mark is **one**, so `desiredSize` went to 0 whenever
+    two frames were written in one tick and every pointer, ink and presence
+    frame after the first was thrown away — and "behind" means sixty-four
+    unread frames. Sight (a hand, a pen, a roster) is dropped then; a
+    `changed`, `hello`, `sync`, `update` or `saved` is a fact and is always
+    written. A `via` frame is judged on the frame *inside* it, or the one
+    socket carrying eight tabs — by definition the busiest there is — would
+    never drop anything. The saturation clock is reset by every write that
+    leaves room, the heartbeat included, so the 15 s close means *continuously*
+    behind; one sleeping laptop used to grow a buffer until pm2 restarted the
+    server for everybody.
+
+    `lib/live/wire.ts` holds every one of those decisions, pure and unit-tested
+    (`tests/unit/live-wire.test.ts`), which is why `LiveProvider.tsx` has no
+    numbers of its own. The wire: `changed` → `{ keys, at, by? }`, never sent
+    to the tab named by `by`; `pointer` → `{ place, c, x, y, m (≤ 40), s }`;
+    `via` → `{ to, e, d }`; the POST body gains `carriedBy`, `as`, `alias` and
+    `cursor.s`; the channel speaks `ask`, `line`, `frame`, `down`, `rest`,
+    `seen` and `who`.
+
+61. **Een muur die nooit opgeeft.** §61. Het prikbord slaat op wat *deze hand*
+    heeft aangeraakt, en niets anders: elke `commit` noteert de ids die hij
+    verandert, en de POST draagt alleen die kaarten en draden mee, plus de
+    expliciete verwijderingen en herstellen. Afwezigheid is nooit een
+    verwijdering — dat is een grafsteen — dus een deelpatch is een geldige
+    patch, en een scherm dat even niet mocht bijwerken kan de kaart die iemand
+    anders verschoof niet meer terugzetten. Een opslag die niet antwoordt wordt
+    na tien seconden afgebroken en opnieuw geprobeerd (1, 2, 4, 8, 15 seconden,
+    met ruis); een kaart die het archief weigert (§50) gaat van de muur met de
+    zin die het archief zelf stuurde, waarna de rest gewoon bewaard wordt; een
+    reden die niet met wachten overgaat zegt dat, en probeert het opnieuw zodra
+    iemand iets doet. En een binnenkomend document overschrijft nooit werk dat
+    deze hand nog niet heeft kunnen opslaan (`sync.pending()`).
+
+    `lib/boards/dirty.ts`, `lib/boards/retry.ts` en `lib/boards/place.ts` zijn
+    puur; de muur zelf doet er niets aan geometrie of bookkeeping bovenop. The
+    wire is `POST /api/boards/{id}` with
+    `{ clientId, cards: [only the cards this hand changed], strings: [same],
+    viewport?: only when this hand moved it, deletedCardIds, deletedStringIds,
+    restoredCardIds, restoredStringIds }`, and a refusal is
+    `400 { error, code: 'OTHER_SIDE', cardIds }`.
+
+    Four smaller things travel with the rule. `freeSpotNear` moved into
+    `place.ts`: the boxes are measured once, at most 40 × 40 candidates are
+    weighed nearest-first and the cascade leaves early — a punaise on a
+    300-card wall no longer freezes the tab. Tombstone overflow keeps the
+    newest `TOMBSTONE_LIMIT` (500) by insertion order. `recomputeBoardMentions`
+    runs at most once per board per 3 s and a revision snapshot at most once
+    per hand per 10 s, both flushed on shutdown, so the last state is never
+    left uncounted or unsnapshotted. And three guards found in review: an id
+    that is in the incoming tombstones or in this hand's own deletions is never
+    pushed back locally (`shouldReadd`), an id the archive cannot find is
+    dropped after two tries (`UNFINDABLE_TRIES`), and the write clocks are
+    pruned after ten minutes.
+
+62. **Een tijdlijn is van twee handen tegelijk, en niets landt terwijl er één
+    op de as ligt.** §62. A tag's side is a **hash of its own id**
+    (`sideOfId` in `lib/timelines/time.ts`), never its place in the list: one
+    gebeurtenis set in the middle used to flip every later tag across the axis
+    on everybody else's screen while they were reading it. Ids are random, so
+    the look is still about half up and half down — just not in turns.
+
+    The canvas reports its own hand and draws everybody else's **in the axis's
+    own coordinates** (`pointers={false}` on the page, because a fraction of
+    the main column means nothing to somebody standing at another zoom): `x` is
+    an absolute moment in seconds, `y` a fraction of the stage's height, and
+    `m` is `{ [gebeurtenis]: [moment, 0] }` while a tag is carried, so the
+    other screen sees it *travel* and not jump when it lands — sticky until the
+    pull, the landkaart's rule for a carried speld. A frame is sight, never
+    state (rule 20).
+
+    While a hand is on the axis — a tag held, a streek being drawn, a picture
+    going up, a blad open — the page takes §59's hold and nothing lands. The
+    *list* is the finer question and only a drag or a stroke stops it, because
+    a blad re-seeds the boxes nobody has touched and keeps the ones they have,
+    with one grey line above the button (**"Iemand anders heeft dit ondertussen
+    veranderd."**) and never a dialog. A gebeurtenis taken away under an open
+    blad says so (**"Deze {gebeurtenis} is weggehaald."** + *Sluiten*) instead
+    of vanishing, and the PATCH and DELETE routes answer 404 **"Deze
+    gebeurtenis bestaat niet meer."** rather than the misleading 403 — **but
+    only after the tijdlijn's own gate** (`eventAccess` in
+    `lib/timelines/service.ts`: tijdlijn → exists → event), so somebody who may
+    not see the tijdlijn gets the same answer for an id that exists and one
+    that does not (rule 44's "gone, or not for you").
+
+    **Typing in a gebeurtenis is not a change to the tijdlijn.** A `live` write
+    that touched only the words leaves `timelines.updatedAt` alone and defers
+    the mention index three seconds, so the other viewer hears `event:{id}` and
+    pulls the list cheaply instead of re-rendering the whole page about once a
+    second and losing their pan, their zoom and their open windows to it.
+
+    Windows get lanes too (`placeWindows`, pure and tested), reckoned from one
+    baseline per side so a window hanging off a far tag cannot lie across one
+    hanging off a near one; a window with no headroom above opens downward
+    instead of being clamped onto the ceiling; a click on the bare axis shuts
+    the one opened **last**. Where a tag finds no lane at all the mark stays on
+    the axis and a **"+n"** chip stands for the pile and zooms to its span. A
+    phone has no double-click, so it has a **long press** (500 ms, no more than
+    8 px of travel): **"Houd de as ingedrukt om hier een {gebeurtenis} te
+    zetten"**, in the line under the axis and in the empty state. Keyboard: the
+    stage is focusable; arrows pan (Shift faster), `+` and `−` zoom, `0` shows
+    everything, Esc closes the last window.

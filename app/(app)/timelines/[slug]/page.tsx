@@ -1,5 +1,11 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+/*
+ * §62: the tijdlijn's own stylesheet, brought in by the one page that is a
+ * tijdlijn rather than pasted into `app/globals.css` — which is where every
+ * round collides. Next hoists it into the page's own CSS chunk.
+ */
+import '@/app/timelines.css';
 import { inArray } from 'drizzle-orm';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
@@ -91,7 +97,12 @@ export default async function TimelinePage({
        * dials and the tekenlaag's switch are all in the Instellingen sheet.
        */}
       <div className="page-canvas">
-        <LivePage place={timelineKey(timeline.id)} watch={['entries']} />
+        {/* §62: the canvas draws its own hands, in the axis's own coordinates
+            — a fraction of the main column means nothing to somebody standing
+            at another zoom. `watch={['entries']}` stays: §59's hold is what
+            makes it harmless, because nothing lands while a hand is on the
+            axis. */}
+        <LivePage place={timelineKey(timeline.id)} watch={['entries']} pointers={false} />
         <header className="canvas-head">
           {/* §44/§45/§46: which side this tijdlijn is on — the word and the
               colours. §57: and where the toggle goes from here, with the list

@@ -120,24 +120,41 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await add2.getByTestId('new-event-submit').click();
 
   await expect(page.getByTestId('timeline-event')).toHaveCount(2);
-  // The new one is open, the earlier one was closed by the add.
+  /*
+   * §62 (round 29): the new one joins the windows that were already open —
+   * it used to replace them, which shut what somebody was reading in order to
+   * show one tag.
+   */
   const open = page.getByTestId('timeline-popout');
-  await expect(open).toHaveCount(1);
-  await expect(open).toContainText('Westkapelle Lighthouse');
-  await expect(open).toContainText('februari 1931');
-  await expect(open.getByTestId('timeline-read-more')).toBeVisible();
+  await expect(open).toHaveCount(2);
+  const fresh = open.filter({ hasText: 'Westkapelle Lighthouse' });
+  await expect(fresh).toHaveCount(1);
+  await expect(fresh).toContainText('februari 1931');
+  await expect(fresh.getByTestId('timeline-read-more')).toBeVisible();
 
-  // Alles tonen / inklappen.
-  await page.getByTestId('timeline-toggle-all').click();
-  await expect(page.getByTestId('timeline-popout')).toHaveCount(2);
+  // Alles tonen / inklappen. Both are open already, so the button says so.
   await expect(page.getByTestId('timeline-toggle-all')).toHaveText(/inklappen/);
   await page.getByTestId('timeline-toggle-all').click();
   await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
+  await page.getByTestId('timeline-toggle-all').click();
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(2);
+  await page.getByTestId('timeline-toggle-all').click();
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
 
-  // Up, down: the first in time is above the axis, the second below.
+  /*
+   * §62: each tag hangs above or below the axis by a hash of its own id, not
+   * by its place in the list — so which side a given gebeurtenis is on is not
+   * predictable here, and that is the point: it is the *same* side on every
+   * screen and it does not move when somebody sets one in the middle.
+   * `tests/unit/timeline-time.test.ts` is where that is pinned down.
+   */
   const events = page.getByTestId('timeline-event');
-  await expect(events.nth(0)).toHaveClass(/timeline-event-up/);
-  await expect(events.nth(1)).toHaveClass(/timeline-event-down/);
+  await expect(events.nth(0)).toHaveClass(/timeline-event-(up|down)/);
+  await expect(events.nth(1)).toHaveClass(/timeline-event-(up|down)/);
+  const sides = await events.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-side')));
+  await page.reload();
+  await expect(page.getByTestId('timeline-event')).toHaveCount(2);
+  expect(await events.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-side')))).toEqual(sides);
   await expect(events.nth(0)).toHaveClass(/timeline-event-entry/);
 
   // Clicking a tag folds its window out; "Lees verder" goes to the artikel.

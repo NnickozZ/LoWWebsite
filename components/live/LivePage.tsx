@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { OWN_WRITE_MUTE_MS, useLive } from './LiveProvider';
+import { OWN_WRITE_MUTE_MS, useLiveBase, useLivePointers } from './LiveProvider';
+import { isRefreshHeld, onRefreshHoldChange } from './refreshHold';
 
 /**
  * §21: what makes a page live. Every page under `app/(app)` renders one of
@@ -48,7 +49,9 @@ export function LivePage({
   /** Re-render from the server when a watched key moves. */
   refresh?: boolean;
 }) {
-  const live = useLive();
+  // §60: the base value. The hands are read by `<LiveCursors>` below, which is
+  // the only thing on the page that should re-render when one moves.
+  const live = useLiveBase();
   const router = useRouter();
   const { setPlace, watch: watchKeys, onChanged, setStripHidden, reportPointer, ownWriteAt } = live;
 
@@ -65,27 +68,59 @@ export function LivePage({
   const keys = [...new Set([place, ...watch])].join('\n');
   const lastRefresh = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // §59: a signal that arrived while a hand was on the page. Remembered, not
+  // dropped; fired the moment the last hold is released.
+  const owed = useRef(false);
   useEffect(() => {
     const list = keys.split('\n');
     const unwatch = watchKeys(list);
     if (!refresh) return unwatch;
-    const off = onChanged((changed) => {
-      if (!changed.some((key) => list.includes(key))) return;
-      // One's own echo: this tab just wrote, and has (or will have) refreshed
-      // itself. Refreshing again here can cancel the navigation that follows
-      // a create, and re-renders nothing new.
-      if (Date.now() - ownWriteAt() < OWN_WRITE_MUTE_MS) return;
+
+    const fire = () => {
+      refreshTimer.current = null;
+      if (isRefreshHeld()) {
+        owed.current = true;
+        return;
+      }
+      owed.current = false;
+      lastRefresh.current = Date.now();
+      router.refresh();
+    };
+    const schedule = (atLeast = 0) => {
       if (refreshTimer.current) return;
-      const wait = Math.max(0, REFRESH_MIN_MS - (Date.now() - lastRefresh.current));
-      refreshTimer.current = setTimeout(() => {
-        refreshTimer.current = null;
-        lastRefresh.current = Date.now();
-        router.refresh();
-      }, wait);
+      const wait = Math.max(atLeast, REFRESH_MIN_MS - (Date.now() - lastRefresh.current));
+      refreshTimer.current = setTimeout(fire, wait);
+    };
+
+    const off = onChanged((changed, info) => {
+      if (!changed.some((key) => list.includes(key))) return;
+      /*
+       * §60: the replay that follows a reconnection is never muted.
+       *
+       * The line was down; whatever moved while it was down is stale on this
+       * screen right now, and the own-write mute has nothing to say about it —
+       * it is about one's *own* echo. Holding a resync behind it left a tab
+       * that had been asleep showing the archive as it was before the gap.
+       */
+      if (info?.reason === 'resync') {
+        schedule(0);
+        return;
+      }
+      // One's own echo: this tab just wrote, and has (or will have) refreshed
+      // itself. Refreshing *now* can cancel the navigation that follows a
+      // create — but someone else's change inside that window is real, so it
+      // is deferred past the window rather than dropped (a dropped signal was
+      // a screen that stayed stale until the next unrelated change).
+      const sinceOwn = Date.now() - ownWriteAt();
+      schedule(sinceOwn < OWN_WRITE_MUTE_MS ? OWN_WRITE_MUTE_MS - sinceOwn : 0);
+    });
+    const offHold = onRefreshHoldChange(() => {
+      if (!isRefreshHeld() && owed.current) schedule();
     });
     return () => {
       unwatch();
       off();
+      offHold();
       if (refreshTimer.current) {
         clearTimeout(refreshTimer.current);
         refreshTimer.current = null;
@@ -123,33 +158,48 @@ export function LivePage({
     };
   }, [pointers, reportPointer]);
 
-  // The layer is portalled onto `main` itself, so its coordinates are the
-  // main column's whatever wrapper the page put around this component.
+  if (!pointers) return null;
+  return <LiveCursors />;
+}
+
+/**
+ * §60: the hands, on their own.
+ *
+ * Split out of `LivePage` because it is the one thing that has to re-render
+ * when a frame arrives — and `LivePage` holds the watch list, the refresh timer
+ * and the place, none of which have any business being rebuilt twelve times a
+ * second. The layer is portalled onto `main` itself, so its coordinates are the
+ * main column's whatever wrapper the page put around this component.
+ */
+function LiveCursors() {
+  const hands = useLivePointers();
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   useEffect(() => {
     setMainEl(document.querySelector<HTMLElement>('main.main'));
   }, []);
 
-  if (!pointers || !live.pointers.length || !mainEl) return null;
+  if (!hands.length || !mainEl) return null;
 
   return createPortal(
     <div className="live-cursors" aria-hidden="true">
-      {live.pointers.map((pointer) => (
-        <div
-          key={pointer.clientId}
-          className="board-cursor live-cursor"
-          style={{
-            left: `${Math.min(1, Math.max(0, pointer.x ?? 0)) * 100}%`,
-            top: pointer.y ?? 0,
-            ['--cursor-colour' as string]: pointer.colour,
-          }}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" className="board-cursor-arrow">
-            <path d="M4 3l7.5 17 2.3-7.2L21 10.5z" />
-          </svg>
-          <span className="board-cursor-name">{pointer.name}</span>
-        </div>
-      ))}
+      {hands.map((pointer) =>
+        pointer.x === null || pointer.y === null ? null : (
+          <div
+            key={pointer.clientId}
+            className="board-cursor live-cursor"
+            style={{
+              left: `${Math.min(1, Math.max(0, pointer.x)) * 100}%`,
+              top: pointer.y,
+              ['--cursor-colour' as string]: pointer.colour,
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" className="board-cursor-arrow">
+              <path d="M4 3l7.5 17 2.3-7.2L21 10.5z" />
+            </svg>
+            <span className="board-cursor-name">{pointer.name}</span>
+          </div>
+        ),
+      )}
     </div>,
     mainEl,
   );

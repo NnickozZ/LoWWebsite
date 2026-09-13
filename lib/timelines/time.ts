@@ -606,28 +606,131 @@ export function fitView(
 
 export type Side = 'up' | 'down';
 
+export type Spot = { side: Side; lane: number; hidden: boolean };
+/** A pile of tags that found no lane, and the chip that stands for them. */
+export type Cluster = { x: number; ids: string[] };
+
 /**
- * Where each event's tag goes: alternating above and below the axis in time
- * order (Nick: "up, down, up, down"), and, when two tags on the same side
- * would still sit on top of each other, the next lane out. Returns, per event
- * id, the side and the lane (0 nearest the axis). Pure geometry, so the
- * canvas and its test agree on it.
+ * §62: which side of the axis a tag hangs on is a property of the *gebeurtenis*,
+ * not of its place in the list.
+ *
+ * It used to be `index % 2` — up, down, up, down in time order — which is a
+ * lovely thing to look at and a cruel thing to share. One gebeurtenis set in
+ * the middle by somebody else renumbered every later tag, so every tag after
+ * it jumped across the axis on your screen while you were reading it. A hash
+ * of the id is stable: the same gebeurtenis is on the same side for everybody,
+ * for ever, and a new one lands wherever its own id says. Ids are random, so
+ * the look is still about half up and half down — just not in turns.
+ *
+ * FNV-1a, 32 bits, the cheapest stable hash there is.
  */
-export function placeTags(
-  items: { id: string; x: number; width: number }[],
-  lanes = 3,
-): Map<string, { side: Side; lane: number }> {
-  const out = new Map<string, { side: Side; lane: number }>();
-  const sorted = [...items].sort((a, b) => a.x - b.x);
+export function sideOfId(id: string): Side {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) & 1) === 0 ? 'up' : 'down';
+}
+
+/** The gap kept between two tags in one lane, in pixels. */
+const TAG_GAP = 8;
+
+/**
+ * Where each event's tag goes: its own side (`sideOfId`), and, when two tags
+ * on that side would sit on top of each other, the next lane out (0 nearest
+ * the axis). A tag that finds no free lane within `lanes` is `hidden`: the
+ * canvas draws its mark on the axis and nothing else, and the pile it belongs
+ * to gets a chip (`clusterTags`). Pure geometry, so the canvas and its test
+ * agree on it.
+ */
+export function placeTags(items: { id: string; x: number; width: number }[], lanes = 3): Map<string, Spot> {
+  const out = new Map<string, Spot>();
+  const sorted = [...items].sort((a, b) => a.x - b.x || (a.id < b.id ? -1 : 1));
   const rightEdge: Record<Side, number[]> = { up: [], down: [] };
-  sorted.forEach((item, index) => {
-    const side: Side = index % 2 === 0 ? 'up' : 'down';
+  for (const item of sorted) {
+    const side = sideOfId(item.id);
     const edges = rightEdge[side];
     const left = item.x - item.width / 2;
     let lane = 0;
-    while (lane < lanes - 1 && edges[lane] !== undefined && edges[lane] > left) lane++;
-    edges[lane] = Math.max(edges[lane] ?? -Infinity, item.x + item.width / 2 + 8);
-    out.set(item.id, { side, lane });
-  });
+    while (lane < lanes && edges[lane] !== undefined && edges[lane] > left) lane++;
+    if (lane >= lanes) {
+      // §62: no room left on this side. The mark stays on the axis; the tag
+      // does not, or the last lane would pile up into an unreadable smear.
+      out.set(item.id, { side, lane: lanes - 1, hidden: true });
+      continue;
+    }
+    edges[lane] = Math.max(edges[lane] ?? -Infinity, item.x + item.width / 2 + TAG_GAP);
+    out.set(item.id, { side, lane, hidden: false });
+  }
+  return out;
+}
+
+/**
+ * §62: the "+n" chips. Every tag `placeTags` had to hide is gathered with the
+ * hidden ones beside it — within `gap` pixels — into one pile, drawn as a chip
+ * on the axis at the middle of the pile. Clicking it zooms to that span, which
+ * is why the chip hands back the ids rather than a count: the canvas knows
+ * their moments, this file only knows their pixels.
+ */
+export function clusterTags(
+  items: { id: string; x: number; width: number }[],
+  spots: Map<string, Spot>,
+  gap = 40,
+): Cluster[] {
+  const hidden = items
+    .filter((item) => spots.get(item.id)?.hidden)
+    .sort((a, b) => a.x - b.x || (a.id < b.id ? -1 : 1));
+  const out: Cluster[] = [];
+  let run: { id: string; x: number }[] = [];
+  const close = () => {
+    if (!run.length) return;
+    out.push({ x: run.reduce((sum, item) => sum + item.x, 0) / run.length, ids: run.map((item) => item.id) });
+    run = [];
+  };
+  for (const item of hidden) {
+    if (run.length && item.x - run[run.length - 1].x > gap) close();
+    run.push({ id: item.id, x: item.x });
+  }
+  close();
+  return out;
+}
+
+/**
+ * §62: and the same greedy idea one storey up, for the folded-out windows.
+ *
+ * "Alles tonen" used to open forty windows in one place and let them lie on
+ * top of each other. A window keeps its x (it belongs over its tag) and steps
+ * *away from the axis* instead: lanes assigned by horizontal extent on each
+ * side, and a lane's offset is everything the lanes nearer the axis needed —
+ * so a short window does not leave a hole and a tall one does not overlap the
+ * next. Heights are measured by the browser and handed in; a window that has
+ * not been measured yet counts as `fallback` tall.
+ */
+export function placeWindows(
+  items: { id: string; side: Side; left: number; width: number; height: number }[],
+  options: { gap?: number; fallback?: number } = {},
+): Map<string, { lane: number; offset: number }> {
+  const gap = options.gap ?? 8;
+  const fallback = options.fallback ?? 160;
+  const out = new Map<string, { lane: number; offset: number }>();
+  const sorted = [...items].sort((a, b) => a.left - b.left || (a.id < b.id ? -1 : 1));
+  const rightEdge: Record<Side, number[]> = { up: [], down: [] };
+  const laneHeight: Record<Side, number[]> = { up: [], down: [] };
+  const placed: { id: string; side: Side; lane: number }[] = [];
+  for (const item of sorted) {
+    const edges = rightEdge[item.side];
+    let lane = 0;
+    while (edges[lane] !== undefined && edges[lane] > item.left) lane++;
+    edges[lane] = item.left + item.width + gap;
+    const height = item.height > 0 ? item.height : fallback;
+    laneHeight[item.side][lane] = Math.max(laneHeight[item.side][lane] ?? 0, height);
+    placed.push({ id: item.id, side: item.side, lane });
+  }
+  for (const item of placed) {
+    let offset = 0;
+    for (let lane = 0; lane < item.lane; lane++) offset += (laneHeight[item.side][lane] ?? fallback) + gap;
+    out.set(item.id, { lane: item.lane, offset });
+  }
   return out;
 }

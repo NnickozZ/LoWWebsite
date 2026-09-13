@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardState } from '@/lib/boards/merge';
 import type { BoardRefs } from '@/lib/boards/service';
+import { useLiveBase, useLivePointers } from '@/components/live/LiveProvider';
+import { boardKey } from '@/lib/live/keys';
 
 export type Person = {
   clientId: string;
@@ -32,18 +34,8 @@ export type Marquee = {
 
 /** How often to fall back on asking, when the open line will not stay open. */
 const POLL_MS = 4000;
-/** Presence is chatty while dragging; this is the floor between posts. */
-const PRESENCE_THROTTLE_MS = 180;
-/** Say "still here" this often even when nothing changes, under the server's TTL. */
-const HEARTBEAT_MS = 12_000;
-/**
- * The floor between pointer frames. Sixteen a second is enough for a hand to
- * look like a hand once the other side eases between frames, and keeps four
- * people dragging at once under seventy small requests a second.
- */
-const POINTER_THROTTLE_MS = 60;
-/** A pointer that has not moved for this long is taken off the wall. */
-const CURSOR_TTL_MS = 8000;
+/** A pull that has not answered in this long is abandoned and tried again. */
+const PULL_TIMEOUT_MS = 10_000;
 /** A carried card with no frame behind it for this long is put back down. */
 const CARRIED_TTL_MS = 20_000;
 /**
@@ -52,14 +44,28 @@ const CARRIED_TTL_MS = 20_000;
  * hanging on the cork is worse than none.
  */
 const MARQUEE_TTL_MS = 4000;
+/** How many carried cards one frame may claim. A hand is not a forklift. */
+const POINTER_CARD_LIMIT = 40;
 
 /**
- * §8, live: the other half of `useBoardSync`.
+ * §8, live → §60, one line: the other half of `useBoardSync`.
  *
  * `useBoardSync` pushes what this client did. This one listens for what
  * everybody else did, and says who is standing at the wall. They are separate
  * hooks because they fail separately: the line going down must not stop saving,
  * and a failed save must not take presence with it.
+ *
+ * **The wall no longer has a line of its own.** Until this round it opened a
+ * second `EventSource` to `/api/boards/[id]/live`, on top of the site line the
+ * shell already holds — two sockets per open prikbord, of the six a browser
+ * will open to one host, which is how a few tabs wedged every navigation in the
+ * archive (§60). Everything it needed was already on the site line: the wall is
+ * a *place* (`board:{id}`, set by the page's `LivePage`), so the roster, what
+ * everyone is holding and the pointer fan-out come for free, and `changed` on
+ * the wall's own key is the signal. Nothing about the board's contents travels
+ * either way — cards are resolved per viewer (README rule 1), so the wire
+ * carries the fact that something happened and each client asks for its own
+ * version of it.
  *
  * Three rules keep it from fighting the pointer, and they are the whole design:
  *
@@ -71,7 +77,8 @@ const MARQUEE_TTL_MS = 4000;
  *     A dirty client is about to save anyway, and the save returns the merge.
  *  3. **One pull at a time, latest wins.** Four people moving cards produce a
  *     stream of signals; they collapse into one request in flight and one more
- *     queued behind it.
+ *     queued behind it — and since §60 that request has a ten-second leash, so
+ *     a pull that never answers can no longer leave the latch closed for ever.
  */
 export function useBoardLive({
   boardId,
@@ -94,21 +101,20 @@ export function useBoardLive({
   onRemote: (state: BoardState, refs: BoardRefs) => void;
   onRename: (name: string) => void;
 }) {
-  const [people, setPeople] = useState<Person[]>([]);
-  const [state, setState] = useState<LiveState>('connecting');
-  /** Other people's pointers, keyed by tab. */
-  const [cursors, setCursors] = useState<Map<string, { x: number; y: number; at: number }>>(new Map());
-  /** Cards other people are carrying, keyed by card. */
+  const live = useLiveBase();
+  const hands = useLivePointers();
+  const { setAlias, setHolding, onChanged, watch, reportPointer: reportSiteFrame, status } = live;
+
+  /**
+   * Cards other people are carrying, keyed by card. Derived from the pointer
+   * frames, but *not* purely: a card stays where the hand put it until this
+   * tab's own pull lands (see `settling`), so a drop does not snap back for the
+   * length of one round trip.
+   */
   const [carried, setCarried] = useState<Map<string, Carried>>(new Map());
-  /** Selection boxes other people are dragging open, keyed by tab. */
-  const [boxes, setBoxes] = useState<Map<string, { box: [number, number, number, number]; at: number }>>(
-    new Map(),
-  );
   /**
    * Tabs whose save has been announced but not yet pulled. Their carried
-   * positions stay on screen until the pull lands — otherwise a dropped card
-   * would snap back to where it started for the length of one round trip and
-   * then jump to where it was put.
+   * positions stay on screen until the pull lands.
    */
   const settling = useRef<Set<string>>(new Set());
 
@@ -125,6 +131,9 @@ export function useBoardLive({
   const pullAgain = useRef(false);
   /** A change arrived while the user was busy; apply it when they stop. */
   const owed = useRef(false);
+  /** §60: how long to wait before trying a pull that timed out again. */
+  const pullBackoff = useRef(0);
+  const pullRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pull = useCallback(async () => {
     if (!quietRef.current) {
@@ -136,8 +145,20 @@ export function useBoardLive({
       return;
     }
     pulling.current = true;
+    /*
+     * §60: every pull has a leash.
+     *
+     * The latch that keeps one request in flight had no timeout and no abort,
+     * so a fetch that never answered — a sleeping laptop, a proxy holding the
+     * socket — left `pulling` closed for the life of the page and every later
+     * signal quietly filed under `pullAgain`, which nothing would ever run. The
+     * wall then looked live and was frozen.
+     */
+    const abort = new AbortController();
+    const leash = setTimeout(() => abort.abort(), PULL_TIMEOUT_MS);
+    let timedOut = false;
     try {
-      const response = await fetch(`/api/boards/${boardId}`, { cache: 'no-store' });
+      const response = await fetch(`/api/boards/${boardId}`, { cache: 'no-store', signal: abort.signal });
       // A board that has been deleted, or hidden from this viewer since the page
       // loaded, answers 404. Leave what is on screen alone rather than blanking
       // it: the next signal or poll will try again, and if it really is gone the
@@ -159,6 +180,7 @@ export function useBoardLive({
         return;
       }
       owed.current = false;
+      pullBackoff.current = 0;
       onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {}, boards: data.boards ?? {} });
       onRenameRef.current(data.name);
       // Whatever those tabs were carrying is now where the document says.
@@ -170,16 +192,34 @@ export function useBoardLive({
           return next.size === current.size ? current : next;
         });
       }
-    } catch {
-      /* the next signal, or the next poll, will try again */
+    } catch (err) {
+      timedOut = (err as { name?: string } | null)?.name === 'AbortError';
     } finally {
+      clearTimeout(leash);
       pulling.current = false;
       if (pullAgain.current) {
         pullAgain.current = false;
         void pull();
+      } else if (timedOut) {
+        // Try again, and back off, but never give up: this is the only road by
+        // which a wall that missed a signal catches up.
+        pullBackoff.current = Math.min(30_000, pullBackoff.current ? pullBackoff.current * 2 : 1000);
+        if (pullRetry.current) clearTimeout(pullRetry.current);
+        pullRetry.current = setTimeout(() => {
+          pullRetry.current = null;
+          void pull();
+        }, pullBackoff.current);
       }
     }
   }, [boardId]);
+
+  useEffect(
+    () => () => {
+      if (pullRetry.current) clearTimeout(pullRetry.current);
+      pullRetry.current = null;
+    },
+    [],
+  );
 
   /** Whatever was owed while the user was busy lands as soon as they are not. */
   useEffect(() => {
@@ -188,217 +228,83 @@ export function useBoardLive({
 
   /* ------------------------------------------------------------- the line */
 
+  /*
+   * §60: the wall answers to this tab's own id as well.
+   *
+   * `clientId` here is the canvas's — minted before the site line exists and
+   * quoted in every save (`publishChange(boardId, {by})`). Telling the hub that
+   * it is this line means two things: the author is not told about their own
+   * save, and the `by` everybody else receives is the same client id their
+   * pointer frames carry, which is what makes `settling` line up with
+   * `carried`.
+   */
   useEffect(() => {
-    let source: EventSource | null = null;
-    let poll: ReturnType<typeof setInterval> | null = null;
-    let retry: ReturnType<typeof setTimeout> | null = null;
-    let failures = 0;
-    let stopped = false;
+    setAlias(clientId);
+    return () => setAlias(null);
+  }, [clientId, setAlias]);
 
-    /**
-     * If the line will not stay up — an old proxy that buffers, a browser with
-     * EventSource disabled — the board still catches up, just every few seconds
-     * instead of at once. Degrading rather than dying is the point.
-     */
-    const startPolling = () => {
-      if (poll || stopped) return;
-      setState('polling');
-      // Presence only arrives over the open line, so with it down we are no
-      // longer being told when anyone leaves or puts a card down. Showing
-      // nobody is honest; leaving the last roster frozen on screen is not.
-      setPeople([]);
-      poll = setInterval(() => void pull(), POLL_MS);
-    };
+  /** The wall's own key, watched for as long as it is open. */
+  useEffect(() => watch([boardKey(boardId)]), [boardId, watch]);
 
-    const open = () => {
-      if (stopped) return;
-      source = new EventSource(
-        `/api/boards/${boardId}/live?c=${encodeURIComponent(clientId)}`,
-      );
+  useEffect(() => {
+    const key = boardKey(boardId);
+    return onChanged((keys, info) => {
+      if (!keys.includes(key)) return;
+      // Rule 2 of live-boards: never on one's own save. The hub already skips
+      // it, and this is the belt to that pair of braces — the ORM's own signal
+      // for the same write carries no `by` at all.
+      if (info?.by && info.by === clientId) return;
+      if (info?.by) settling.current.add(info.by);
+      void pull();
+    });
+  }, [boardId, clientId, onChanged, pull]);
 
-      source.onopen = () => {
-        failures = 0;
-        if (poll) {
-          clearInterval(poll);
-          poll = null;
-        }
-        setState('live');
-        // Whatever happened while the line was down is caught up on now.
-        void pull();
-      };
+  /**
+   * The line as the wall reads it. `idle` is a tab nobody is looking at — the
+   * socket is resting, not broken, so it says "connecting" and does not poll:
+   * there is nobody at the screen for a poll to be for.
+   */
+  const state: LiveState = status === 'live' ? 'live' : status === 'offline' ? 'polling' : 'connecting';
 
-      source.addEventListener('change', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data) as { by?: string | null };
-          if (data.by) settling.current.add(data.by);
-        } catch {
-          /* the pull is what matters */
-        }
-        void pull();
-      });
+  /**
+   * If the line will not stay up — an old proxy that buffers, a browser with
+   * EventSource disabled — the board still catches up, just every few seconds
+   * instead of at once. Degrading rather than dying is the point.
+   */
+  useEffect(() => {
+    if (state !== 'polling') return;
+    const poll = setInterval(() => void pull(), POLL_MS);
+    return () => clearInterval(poll);
+  }, [state, pull]);
 
-      source.addEventListener('presence', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data) as { people: Person[] };
-          const roster = data.people ?? [];
-          setPeople(roster);
-          // A tab that left takes its pointer and whatever it was carrying with it.
-          const here = new Set(roster.map((person) => person.clientId));
-          setCursors((current) => {
-            const next = new Map([...current].filter(([id]) => here.has(id)));
-            return next.size === current.size ? current : next;
-          });
-          setCarried((current) => {
-            const next = new Map([...current].filter(([, item]) => here.has(item.by)));
-            return next.size === current.size ? current : next;
-          });
-          setBoxes((current) => {
-            const next = new Map([...current].filter(([id]) => here.has(id)));
-            return next.size === current.size ? current : next;
-          });
-        } catch {
-          /* a malformed frame is not worth tearing the line down for */
-        }
-      });
-
-      source.addEventListener('pointer', (event) => {
-        try {
-          const frame = JSON.parse((event as MessageEvent).data) as {
-            c: string;
-            x: number | null;
-            y: number | null;
-            m: Record<string, [number, number]>;
-            s?: [number, number, number, number] | null;
-          };
-          if (!frame.c || frame.c === clientId) return;
-          setBoxes((current) => {
-            const next = new Map(current);
-            if (frame.s) next.set(frame.c, { box: frame.s, at: Date.now() });
-            else if (!next.delete(frame.c)) return current;
-            return next;
-          });
-          setCursors((current) => {
-            const next = new Map(current);
-            if (frame.x === null || frame.y === null) next.delete(frame.c);
-            else next.set(frame.c, { x: frame.x, y: frame.y, at: Date.now() });
-            return next;
-          });
-          setCarried((current) => {
-            // This tab's frame replaces everything this tab was carrying.
-            const next = new Map([...current].filter(([, item]) => item.by !== frame.c));
-            const at = Date.now();
-            for (const [cardId, [x, y]] of Object.entries(frame.m ?? {})) {
-              next.set(cardId, { x, y, by: frame.c, at });
-            }
-            if (next.size === current.size && [...next].every(([id, item]) => {
-              const before = current.get(id);
-              return before && before.x === item.x && before.y === item.y && before.by === item.by;
-            })) {
-              return current;
-            }
-            return next;
-          });
-        } catch {
-          /* a malformed frame is not worth tearing the line down for */
-        }
-      });
-
-      source.onerror = () => {
-        source?.close();
-        source = null;
-        failures += 1;
-        // EventSource reconnects on its own, but only for a clean drop; this
-        // covers the rest, and backs off so a server that is down is not hit
-        // four times a second by every open board.
-        if (failures >= 2) startPolling();
-        if (stopped) return;
-        retry = setTimeout(open, Math.min(30_000, 1000 * 2 ** Math.min(failures, 5)));
-      };
-    };
-
-    open();
-
-    return () => {
-      stopped = true;
-      source?.close();
-      if (poll) clearInterval(poll);
-      if (retry) clearTimeout(retry);
-    };
-  }, [boardId, clientId, pull]);
+  /** Whatever happened while the line was down is caught up on the moment it is back. */
+  useEffect(() => {
+    if (status === 'live') void pull();
+  }, [status, pull]);
 
   /* ---------------------------------------------------------- our own hand */
 
   const holdingKey = holding.join(',');
-  const lastPost = useRef(0);
-  const postTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const postPresence = useCallback(
-    (body: Record<string, unknown>) => {
-      void fetch(`/api/boards/${boardId}/live`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ clientId, ...body }),
-        keepalive: true,
-      }).catch(() => undefined);
-    },
-    [boardId, clientId],
-  );
-
   useEffect(() => {
-    const ids = holdingKey ? holdingKey.split(',') : [];
-    const since = Date.now() - lastPost.current;
-
-    const send = () => {
-      lastPost.current = Date.now();
-      postPresence({ holding: ids });
-    };
-
-    if (postTimer.current) clearTimeout(postTimer.current);
-    if (since >= PRESENCE_THROTTLE_MS) send();
-    else postTimer.current = setTimeout(send, PRESENCE_THROTTLE_MS - since);
-
-    return () => {
-      if (postTimer.current) clearTimeout(postTimer.current);
-    };
-  }, [holdingKey, postPresence]);
+    setHolding(holdingKey ? holdingKey.split(',') : []);
+  }, [holdingKey, setHolding]);
 
   /* ------------------------------------------------------- pointer frames */
 
-  const frame = useRef<{
-    cursor?: { x: number; y: number } | null;
-    moving?: Record<string, { x: number; y: number }>;
-    selection?: [number, number, number, number] | null;
-  }>({});
-  const lastFrame = useRef(0);
-  const frameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const sendFrame = useCallback(() => {
-    frameTimer.current = null;
-    const pending = frame.current;
-    if (
-      pending.cursor === undefined &&
-      pending.moving === undefined &&
-      pending.selection === undefined
-    ) {
-      return;
-    }
-    frame.current = {};
-    lastFrame.current = Date.now();
-    void fetch(`/api/boards/${boardId}/live`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId, ...pending }),
-      keepalive: true,
-    }).catch(() => undefined);
-  }, [boardId, clientId]);
-
   /**
-   * "My pointer is here; the cards I am dragging are here." Coalesced: frames
-   * arriving faster than the floor collapse into the newest one, and the last
-   * one always goes out, so a drag never ends a frame short of where the hand
-   * stopped. `cursor: null` takes the pointer off everyone else's wall;
-   * `moving: {}` says the hand is empty.
+   * "My pointer is here; the cards I am dragging are here." The site line does
+   * the coalescing and the throttling now (§60, 80 ms, and nothing at all when
+   * this tab is alone at the wall), so this only has to remember the parts of
+   * a frame the caller did not mention: a move says where the cards are without
+   * repeating where the cursor is.
    */
+  const frame = useRef<{ x: number | null; y: number | null; m: Record<string, [number, number]>; s: [number, number, number, number] | null }>({
+    x: null,
+    y: null,
+    m: {},
+    s: null,
+  });
+
   const reportPointer = useCallback(
     (next: {
       cursor?: { x: number; y: number } | null;
@@ -406,69 +312,55 @@ export function useBoardLive({
       /** `[x0, y0, x1, y1]` while a box is being dragged; null when it closes. */
       selection?: [number, number, number, number] | null;
     }) => {
-      if (next.cursor !== undefined) frame.current.cursor = next.cursor;
-      if (next.moving !== undefined) frame.current.moving = next.moving;
-      if (next.selection !== undefined) frame.current.selection = next.selection;
-      if (frameTimer.current) return;
-      const wait = Math.max(0, POINTER_THROTTLE_MS - (Date.now() - lastFrame.current));
-      frameTimer.current = setTimeout(sendFrame, wait);
+      const current = frame.current;
+      if (next.cursor !== undefined) {
+        current.x = next.cursor ? Math.round(next.cursor.x) : null;
+        current.y = next.cursor ? Math.round(next.cursor.y) : null;
+      }
+      if (next.moving !== undefined) {
+        const m: Record<string, [number, number]> = {};
+        for (const [id, at] of Object.entries(next.moving).slice(0, POINTER_CARD_LIMIT)) {
+          if (Number.isFinite(at.x) && Number.isFinite(at.y)) m[id] = [Math.round(at.x), Math.round(at.y)];
+        }
+        current.m = m;
+      }
+      if (next.selection !== undefined) {
+        current.s = next.selection
+          ? [
+              Math.round(next.selection[0]),
+              Math.round(next.selection[1]),
+              Math.round(next.selection[2]),
+              Math.round(next.selection[3]),
+            ]
+          : null;
+      }
+      reportSiteFrame({ x: current.x, y: current.y, m: current.m, s: current.s });
     },
-    [sendFrame],
+    [reportSiteFrame],
   );
 
+  /*
+   * §60: the hand let go.
+   *
+   * A frame is now a *state* rather than a telegram — the site line coalesces
+   * and the fields it does not mention keep their last value — so something has
+   * to say when the cards are no longer in the air. `paused` is exactly that:
+   * it is true for the length of a drag, a resize, a string or a marquee, and
+   * the moment it falls the hand is empty. (The watcher does not act on the
+   * emptying until its own pull has landed; see `settling`.)
+   */
   useEffect(() => {
-    return () => {
-      if (frameTimer.current) clearTimeout(frameTimer.current);
-    };
-  }, []);
-
-  // A hand that stopped moving is still a hand; one that has not moved for a
-  // while has probably left without saying so (a tab in the background, a
-  // laptop lid). Take it off the wall rather than leave it pointing at nothing.
-  useEffect(() => {
-    const prune = setInterval(() => {
-      const cutoff = Date.now() - CURSOR_TTL_MS;
-      setCursors((current) => {
-        const next = new Map([...current].filter(([, item]) => item.at >= cutoff));
-        return next.size === current.size ? current : next;
-      });
-      // A card left "carried" with no frame and no save behind it — the tab
-      // that held it lost its connection mid-drag — goes back to where the
-      // document has it.
-      const stale = Date.now() - CARRIED_TTL_MS;
-      setCarried((current) => {
-        const next = new Map([...current].filter(([, item]) => item.at >= stale));
-        return next.size === current.size ? current : next;
-      });
-      const dropped = Date.now() - MARQUEE_TTL_MS;
-      setBoxes((current) => {
-        const next = new Map([...current].filter(([, item]) => item.at >= dropped));
-        return next.size === current.size ? current : next;
-      });
-    }, 2000);
-    return () => clearInterval(prune);
-  }, []);
-
-  useEffect(() => {
-    const beat = setInterval(() => postPresence({ holding: undefined }), HEARTBEAT_MS);
-    // A closing tab should vanish from the wall at once rather than after the
-    // server's thirty-second reap; `keepalive` is what lets the request outlive
-    // the page.
-    const onHide = () => postPresence({ leaving: true });
-    window.addEventListener('pagehide', onHide);
-    return () => {
-      clearInterval(beat);
-      window.removeEventListener('pagehide', onHide);
-      postPresence({ leaving: true });
-    };
-  }, [postPresence]);
+    if (paused) return;
+    frame.current.m = {};
+    frame.current.s = null;
+  }, [paused]);
 
   /* ------------------------------------------------------- what to render */
 
-  /** Everyone but us, and which card each of them has a hand on. */
-  const others = useMemo(
-    () => people.filter((person) => person.clientId !== clientId),
-    [people, clientId],
+  /** Everyone but us. The site line's roster already leaves this tab out. */
+  const others = useMemo<Person[]>(
+    () => live.people.filter((person) => person.clientId !== clientId),
+    [live.people, clientId],
   );
 
   /**
@@ -490,14 +382,14 @@ export function useBoardLive({
    */
   const marquees = useMemo<Marquee[]>(() => {
     const out: Marquee[] = [];
-    for (const [id, item] of boxes) {
-      const person = people.find((p) => p.clientId === id);
-      if (!person || id === clientId) continue;
-      const [x0, y0, x1, y1] = item.box;
+    const fresh = Date.now() - MARQUEE_TTL_MS;
+    for (const hand of hands) {
+      if (!hand.s || hand.at < fresh || hand.clientId === clientId) continue;
+      const [x0, y0, x1, y1] = hand.s;
       out.push({
-        clientId: id,
-        name: person.name,
-        colour: person.colour,
+        clientId: hand.clientId,
+        name: hand.name,
+        colour: hand.colour,
         x: Math.min(x0, x1),
         y: Math.min(y0, y1),
         width: Math.abs(x1 - x0),
@@ -505,18 +397,87 @@ export function useBoardLive({
       });
     }
     return out;
-  }, [boxes, people, clientId]);
+  }, [hands, clientId]);
 
   /** Other people's pointers, with the name and ink of whoever is behind each. */
   const pointers = useMemo<Cursor[]>(() => {
     const out: Cursor[] = [];
-    for (const [id, item] of cursors) {
-      const person = people.find((p) => p.clientId === id);
-      if (!person || id === clientId) continue;
-      out.push({ clientId: id, name: person.name, colour: person.colour, x: item.x, y: item.y, at: item.at });
+    for (const hand of hands) {
+      if (hand.x === null || hand.y === null || hand.clientId === clientId) continue;
+      out.push({ clientId: hand.clientId, name: hand.name, colour: hand.colour, x: hand.x, y: hand.y, at: hand.at });
     }
     return out;
-  }, [cursors, people, clientId]);
+  }, [hands, clientId]);
+
+  /*
+   * The cards other people have in the air.
+   *
+   * Kept in state rather than derived straight from the frames, because a card
+   * has to *stay* where the hand put it after the hand stopped sending frames —
+   * from the drop until this tab's own pull lands (`settling`). A frame from a
+   * tab replaces everything that tab was carrying; a tab that leaves the wall
+   * takes what it held with it.
+   */
+  useEffect(() => {
+    if (!hands.length) return;
+    setCarried((current) => {
+      const next = new Map(current);
+      const at = Date.now();
+      let changed = false;
+      for (const hand of hands) {
+        if (hand.clientId === clientId) continue;
+        /*
+         * A hand that has let go stops naming its cards — but its save may
+         * still be on its way here. Until this tab's own pull has landed
+         * (`settling`), the cards stay exactly where the hand put them: taking
+         * them off now would drop each one back to where the document still has
+         * it and then jump it forward again a round trip later, which is the
+         * snap-back §8 went to some trouble to be rid of.
+         */
+        const landing = settling.current.has(hand.clientId);
+        for (const [id, item] of [...next]) {
+          if (item.by !== hand.clientId) continue;
+          if (!hand.m[id] && !landing) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        for (const [cardId, [x, y]] of Object.entries(hand.m)) {
+          const before = next.get(cardId);
+          if (before && before.x === x && before.y === y && before.by === hand.clientId) continue;
+          next.set(cardId, { x, y, by: hand.clientId, at });
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [hands, clientId]);
+
+  /** A tab that left the wall takes its pointer and whatever it was carrying with it. */
+  const hereKey = others.map((person) => person.clientId).join(',');
+  useEffect(() => {
+    const here = new Set(hereKey ? hereKey.split(',') : []);
+    setCarried((current) => {
+      const next = new Map([...current].filter(([, item]) => here.has(item.by)));
+      return next.size === current.size ? current : next;
+    });
+  }, [hereKey]);
+
+  /**
+   * A card left "carried" with no frame and no save behind it — the tab that
+   * held it lost its connection mid-drag — goes back to where the document has
+   * it.
+   */
+  useEffect(() => {
+    const prune = setInterval(() => {
+      const stale = Date.now() - CARRIED_TTL_MS;
+      setCarried((current) => {
+        const next = new Map([...current].filter(([, item]) => item.at >= stale));
+        return next.size === current.size ? current : next;
+      });
+    }, 2000);
+    return () => clearInterval(prune);
+  }, []);
 
   return { others, heldByOthers, pointers, marquees, carried, reportPointer, state, pull };
 }

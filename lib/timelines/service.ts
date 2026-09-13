@@ -619,8 +619,9 @@ export function addEvent(timelineId: string, input: NewEvent, actor: Actor): Tim
     logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.event_added', caseId: timeline.caseId, meta: { timelineId, eventId: id, name } });
   }
   db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, timelineId)).run();
-  // §27: what this tijdlijn's gebeurtenissen name.
-  recomputeTimelineMentions(timelineId);
+  // §27: what this tijdlijn's gebeurtenissen name (§62: and anything a live
+  // write still owed is written with it).
+  flushMentions(timelineId);
   return getEvent(id, actor)!;
 }
 
@@ -665,6 +666,85 @@ export type EventPatch = {
   showImage?: boolean;
 };
 
+/**
+ * §62: the index, put off a little, for the one write that repeats.
+ *
+ * Every 1.5 s of typing in a gebeurtenis's own words is a `live` write
+ * (`lib/live/rooms.ts`), and every one of them used to delete and rewrite the
+ * whole tijdlijn's `entry_mentions`. That is a write per keystroke-batch, for
+ * a "Genoemd in" block nobody is watching while somebody types. So a live
+ * write asks for the index in three seconds' time instead, and the next one
+ * inside that window does not ask again. The flush on shutdown is the same
+ * promise the live rooms' own `persistAll` makes: nothing is owed at the end.
+ *
+ * A plain (non-live) write is never deferred — a rename that arrives through
+ * the API is a thing somebody pressed a button for.
+ */
+const MENTIONS_DEBOUNCE_MS = 3000;
+const mentionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function flushMentions(timelineId: string) {
+  const timer = mentionTimers.get(timelineId);
+  if (timer) clearTimeout(timer);
+  mentionTimers.delete(timelineId);
+  try {
+    recomputeTimelineMentions(timelineId);
+  } catch {
+    /* a tijdlijn that has gone in the meantime owes nothing */
+  }
+}
+
+function laterMentions(timelineId: string) {
+  if (mentionTimers.has(timelineId)) return;
+  const timer = setTimeout(() => flushMentions(timelineId), MENTIONS_DEBOUNCE_MS);
+  // Never hold the process open for an index.
+  timer.unref?.();
+  mentionTimers.set(timelineId, timer);
+}
+
+/** Everything still owed, written now. Registered once, on the server only. */
+export function flushPendingTimelineMentions() {
+  for (const timelineId of [...mentionTimers.keys()]) flushMentions(timelineId);
+}
+
+const globalForShutdown = globalThis as unknown as { __zcfShutdownHooks?: (() => void)[]; __zcfTimelineFlush?: boolean };
+if (typeof window === 'undefined' && !globalForShutdown.__zcfTimelineFlush) {
+  globalForShutdown.__zcfTimelineFlush = true;
+  (globalForShutdown.__zcfShutdownHooks ??= []).push(() => flushPendingTimelineMentions());
+}
+
+/** Is the row still there at all? `viewerCanEditEvent` cannot tell gone from forbidden. */
+export function eventExists(eventId: string): boolean {
+  return Boolean(
+    db.select({ id: schema.timelineEvents.id }).from(schema.timelineEvents).where(eq(schema.timelineEvents.id, eventId)).get(),
+  );
+}
+
+/** §62: what a route says about a gebeurtenis whose row is gone. */
+export const EVENT_GONE = 'Deze gebeurtenis bestaat niet meer.';
+
+/**
+ * §62: gone, or not for you — and never a way to tell which.
+ *
+ * `eventExists` is a bare select with no viewer in it, so asking it *first* let
+ * anybody sort every id in the archive into "there is such a gebeurtenis" (403)
+ * and "there is not" (404) — including the ones on a Keeper-only tijdlijn they
+ * may not know exists. The order below is the cure and it is the only order
+ * that is safe: the **tijdlijn** in the address decides first (§17, §46's
+ * lookup), because a hand that may not edit that tijdlijn is told exactly the
+ * same thing for an id that exists and one that never did; only a hand that is
+ * already inside may learn that a gebeurtenis has been taken off the axis while
+ * its blad was open, which is what §62's 404 is for.
+ */
+export type EventAccess = 'ok' | 'gone' | 'forbidden';
+export function eventAccess(timelineId: string, eventId: string, actor: Actor): EventAccess {
+  if (!viewerCanEditTimeline(timelineId, actor)) return 'forbidden';
+  if (!eventExists(eventId)) return 'gone';
+  // A real id, but on another tijdlijn — judged on that tijdlijn, not this one.
+  if (!viewerCanEditEvent(eventId, actor)) return 'forbidden';
+  return 'ok';
+}
+
 export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, options: { live?: boolean } = {}): TimelineEvent {
   const event = ownEvent(eventId, actor);
   const timeline = getTimelineById(event.timelineId, actor)!;
@@ -705,7 +785,23 @@ export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, op
   if (typeof patch.showImage === 'boolean') values.showImage = patch.showImage;
 
   db.update(schema.timelineEvents).set(values).where(eq(schema.timelineEvents.id, eventId)).run();
-  db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, event.timelineId)).run();
+  /*
+   * §62: typing is not a change to the tijdlijn.
+   *
+   * `updatedAt` on the row above is what every other screen watches through
+   * `timeline:{id}` (`lib/live/changes.ts` keys a bare `timeline_events`
+   * UPDATE to `event:{id}` and the `timelines` collection, and nothing else) —
+   * so touching it once per 1.5 s of somebody's typing made every other viewer
+   * pull the list and re-render the page about once a second, losing their
+   * pan, their zoom and their open windows to it. A `live` write that only
+   * changed the words leaves the tijdlijn's own row alone: the other screens
+   * still hear `event:{id}` and pull the list cheaply, which is exactly enough
+   * to redraw a renamed tag.
+   */
+  const onlyWords = values.at === undefined && values.precision === undefined && values.assetId === undefined && values.showImage === undefined;
+  if (!options.live || !onlyWords) {
+    db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, event.timelineId)).run();
+  }
   // §21: a note's name and text are shared fields; a plain write brings the room into line.
   if (!options.live && (values.name !== undefined || values.text !== undefined)) {
     const fields: Record<string, string> = {};
@@ -713,8 +809,13 @@ export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, op
     if (typeof values.text === 'string') fields.text = values.text;
     resetFieldsInRoom(eventFieldsRoomKey(eventId), fields);
   }
-  // §27: a renamed or rewritten gebeurtenis says something else about the artikelen.
-  if (values.name !== undefined || values.text !== undefined) recomputeTimelineMentions(event.timelineId);
+  // §27: a renamed or rewritten gebeurtenis says something else about the
+  // artikelen — §62: at once when a button was pressed, in a moment when it is
+  // the live room saving what is being typed.
+  if (values.name !== undefined || values.text !== undefined) {
+    if (options.live) laterMentions(event.timelineId);
+    else flushMentions(event.timelineId);
+  }
   /*
    * §35: moving an artikel gebeurtenis moves the artikel. The date in its
    * infobox is rewritten to the moment it was dropped on — through
@@ -755,7 +856,7 @@ export function convertEventToEntry(eventId: string, entryId: string, actor: Act
   db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, event.timelineId)).run();
   // §21: somebody may still have the note's sheet open; the row is the truth.
   resetFieldsInRoom(eventFieldsRoomKey(eventId), { name: '' });
-  recomputeTimelineMentions(event.timelineId);
+  flushMentions(event.timelineId);
   logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.event_added', entryId: entry.id, meta: { timelineId: event.timelineId, eventId, from: 'note' } });
   return getEvent(eventId, actor)!;
 }
@@ -764,7 +865,7 @@ export function removeEvent(eventId: string, actor: Actor) {
   const event = ownEvent(eventId, actor);
   db.delete(schema.timelineEvents).where(eq(schema.timelineEvents.id, eventId)).run();
   db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, event.timelineId)).run();
-  recomputeTimelineMentions(event.timelineId);
+  flushMentions(event.timelineId);
 }
 
 /**

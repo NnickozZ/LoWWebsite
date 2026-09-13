@@ -55,7 +55,9 @@ describe('every page inside the shell is live', () => {
 
   it('the shell mounts the provider and the strip once', () => {
     const shell = readFileSync(join(ROOT, 'components', 'AppShell.tsx'), 'utf8');
-    expect(shell).toMatch(/<LiveProvider>/);
+    // §60: with the account it belongs to — a follower tab compares it against
+    // the `line` a leader offers, so a stale leader of another login is ignored.
+    expect(shell).toMatch(/<LiveProvider userId=\{me\.id\}>/);
     expect(shell).toMatch(/<LiveStrip \/>/);
   });
 

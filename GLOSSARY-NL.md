@@ -1007,3 +1007,20 @@ Beheer → Soorten, zoals bij elke soort.
 | **Dienaar van** | veld op de vier pantheon-soorten én op een abnormaliteit | Wie deze dient. Je vult de band aan één kant in: aan de kant van de meester verschijnt vanzelf de lijst **Dienaren**. |
 | **Dienaren** | een zelfvullende lijst op de pagina van een god of entiteit | Alles waarvan het veld *Dienaar van* deze noemt. |
 | **Vereert** | veld op een persoon, een onderzoeker en een factie | De andere kant van *Vereerd door*. |
+
+## Ronde 29 — de co-op pass (§59–§62)
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Iemand anders heeft dit ondertussen veranderd.** | het blad van een {gebeurtenis} en het blad Instellingen van een tijdlijn, boven de knop | Eén grijze regel, geen dialoog. Alleen bij een vakje dat jij zelf hebt aangepast; wat je niet aanraakte volgt vanzelf het archief (§62). |
+| **Deze {gebeurtenis} is weggehaald.** | het blad van een gebeurtenis die iemand anders van de as haalde | Het blad houdt de naam die het had en zegt wat er gebeurd is, in plaats van te verdwijnen. Eén knop: *Sluiten* (§62). |
+| **Deze gebeurtenis bestaat niet meer.** | melding van de server, bij opslaan of weghalen | Het antwoord op iets wat er niet meer is — en niet meer het misleidende "mag niet" (§62). |
+| **De maat van deze tijdlijn is veranderd.** | melding | Iemand anders zette de maat of het vaste moment om; je eigen beeld blijft staan waar het stond (§62). |
+| **Houd de as ingedrukt om hier een {gebeurtenis} te zetten** | de regel onder de as én de lege as, alleen op een telefoon | De telefoon heeft geen dubbelklik, dus een lange druk (een halve seconde) doet hetzelfde. Op een computer staat er nog steeds *Dubbelklik op de as* (§62). |
+| **+n** | een chipje op de as | Zoveel {gebeurtenissen} passen hier niet naast elkaar. Klikken zoomt in op precies dat stukje as (§62). |
+| *(toetsen op de as)* | de as zelf is aan te tikken met Tab | Pijltjes schuiven (met Shift sneller), **+** en **−** zoomen, **0** toont alles, **Esc** sluit het laatst geopende venster (§62). |
+| **Even stil — deze tab is op de achtergrond; de lijn komt terug zodra je kijkt** | de tooltip van het bolletje op de live-strip | Een tab waar niemand naar kijkt geeft na vijfenveertig seconden zijn lijn terug; hij komt vanzelf terug met alles wat je gemist hebt. Er staat géén woord naast het bolletje: *geen verbinding* is voor een lijn die stuk is, en deze is dat niet (§60). |
+| **Niet opgeslagen — controleer je verbinding** | de opslagstrip van een prikbord | Het enige geval waarin de verbinding de schuld krijgt: er antwoordde helemaal niets. Het prikbord probeert het vanzelf opnieuw (§61). |
+| **Niet opgeslagen — het archief antwoordde niet.** | de opslagstrip van een prikbord | Het archief antwoordde wél, maar slecht. Wordt vanzelf opnieuw geprobeerd (§61). |
+| **Niet opgeslagen — die kaart mocht hier niet hangen.** | de opslagstrip van een prikbord | Eén of meer kaarten zijn geweigerd (meestal §50: *Dat staat aan de andere kant van het archief.*). Die gaan van de muur, de rest wordt gewoon bewaard (§61). |
+| **Niet opgeslagen — het archief nam dit niet aan.** · **Niet opgeslagen — log eerst in.** | de opslagstrip van een prikbord | Een reden die niet met wachten overgaat. Het staat er met de zin van het archief zelf erachter als het er een gaf (§61). |

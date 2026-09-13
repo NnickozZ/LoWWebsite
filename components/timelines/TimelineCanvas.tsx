@@ -6,7 +6,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { MentionText } from '@/components/ui/MentionPopover';
-import { useLiveChanges } from '@/components/live/LiveProvider';
+import { OWN_WRITE_MUTE_MS, useLive, useLiveChanges } from '@/components/live/LiveProvider';
+import { useHoldRefresh } from '@/components/live/refreshHold';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
@@ -15,7 +16,7 @@ import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import type { AccessSettings } from '@/lib/access';
-import { timelineKey } from '@/lib/live/keys';
+import { eventKey, timelineKey } from '@/lib/live/keys';
 import type { TimelineEvent, TimelineSummary } from '@/lib/timelines/service';
 import { InkCanvas, type Project } from '@/components/ink/InkCanvas';
 import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
@@ -27,12 +28,14 @@ import {
   applyAnchor,
   clampPrecision,
   clampToAnchor,
+  clusterTags,
   fitView,
   formatWhen,
   maxPxPerSecond,
   MIN_PX_PER_SECOND,
   parseDutchDate,
   placeTags,
+  placeWindows,
   snapTo,
   ticksBetween,
   type AnchorUnit,
@@ -88,14 +91,29 @@ const LANE_0 = 46;
 const LANE_STEP = 34;
 const TAG_H = 24;
 const POPOUT_W = 250;
+/** How far above the stage a folded-out window may climb: the toolbar's margin. */
+const POPOUT_HEADROOM = 8;
+/**
+ * §62: how far a tag may be off the glass before it is not drawn at all. A tag
+ * a hand is carrying is exempt from it: culling the element under the pointer
+ * takes the capture with it, and the drag ends where nobody let go.
+ */
+const CULL_PX = 400;
+/** §62: a long press on the axis, on a phone, is a double-click on the axis. */
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP = 8;
 
 type View = { origin: number; pxPerSecond: number };
 
 type Placed = {
   event: TimelineEvent;
+  /** The moment it is drawn at — this hand's, someone else's, or the archive's. */
+  at: number;
   x: number;
   side: Side;
   lane: number;
+  /** §62: no room for a tag here; the mark stays and a chip counts it. */
+  hidden: boolean;
 };
 
 function tagWidth(name: string): number {
@@ -133,6 +151,13 @@ export function TimelineCanvas({
   const ui = useUi();
   const words = ui.words;
   const router = useRouter();
+  /**
+   * §62: the tijdlijn with two people on it. The page passes `pointers={false}`
+   * to `LivePage`, so this canvas is the one that reports a hand and the one
+   * that draws everybody else's — in the axis's own coordinates, because a
+   * fraction of the window means nothing to somebody standing at another zoom.
+   */
+  const live = useLive();
   /*
    * §18b: every gebeurtenis on this axis is signed. Without an onderzoeker to
    * sign with there is nothing to add, move or open a blad for — the same
@@ -144,6 +169,12 @@ export function TimelineCanvas({
   const isPhone = useIsPhone();
 
   const [events, setEvents] = useState<TimelineEvent[]>(initialEvents);
+  /**
+   * The tag this hand is carrying, readable from anything rendered above the
+   * drag handlers (the cull, the placing, the hold on the refresh). The state
+   * beside it, `draggingId`, is only for the class that makes it look picked up.
+   */
+  const draggingIdRef = useRef<string | null>(null);
   /**
    * The archive's own list, taken as it comes — from the page's props, or from
    * a pull — with one exception: a tag a hand is carrying right now stays
@@ -272,7 +303,16 @@ export function TimelineCanvas({
     moveView((current) => current);
   }, [span, width, moveView]);
 
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(focusEventId ? [focusEventId] : []));
+  /**
+   * §62: which windows are folded out, *in the order they were opened*. It was
+   * a Set, which knows neither who is on top nor who was last — so a click on
+   * the bare axis shut all of them at once, and "alles tonen" laid forty of
+   * them on top of each other in no particular order. The last id in this list
+   * is the one in front, the one Escape closes, and the one a click on bare
+   * axis closes. Still this tab's alone: never state, never live (§32).
+   */
+  const [open, setOpen] = useState<string[]>(() => (focusEventId ? [focusEventId] : []));
+  const isOpen = useCallback((id: string) => open.includes(id), [open]);
   /*
    * §35: `?place=` no longer opens the date form on sight. The moment is
    * looked for first — in the artikel's own infobox, or in the tijdlijn's
@@ -285,7 +325,14 @@ export function TimelineCanvas({
     | { mode: 'edit'; eventId: string }
     | { mode: 'settings' }
   >(null);
-  const [busy, setBusy] = useState(false);
+  /**
+   * §62: `saving` is a write a sheet is waiting for. It used to be one `busy`
+   * for every write on the page, so dropping a tag somewhere else on the axis
+   * greyed out the buttons of an open blad for the length of a round trip.
+   * A drag's own PATCH passes `quiet`, and only the buttons that belong to it
+   * (the tag itself) show it.
+   */
+  const [saving, setSaving] = useState(false);
   /**
    * A picture on the axis, looked at properly. A folded-out window is 250 px
    * wide, which is a thumbnail — and the commonest thing anybody pastes onto a
@@ -298,20 +345,140 @@ export function TimelineCanvas({
 
   /* ----------------------------------------------------------------- live */
 
+  /**
+   * §62: the pull, with the prikbord's three rules on it (`useBoardLive`).
+   *
+   *  1. **Not while a hand is busy.** A drag of a tag or a stroke of ink is the
+   *     newer truth; a list that lands in the middle of one is *remembered*
+   *     (`owed`) and applied the moment the hand is still. An open blad is
+   *     deliberately *not* in that list: the list under it may keep moving,
+   *     because the blad re-seeds the fields nobody has touched (Q3) and keeps
+   *     the ones they have.
+   *  2. **One at a time, latest wins.** Two people moving tags produce a
+   *     signal each; a second pull queues behind the first rather than racing.
+   *  3. **Never for ever.** Ten seconds and the request is abandoned; the next
+   *     signal, or the next quiet moment, tries again.
+   */
+  const pulling = useRef(false);
+  const pullAgain = useRef(false);
+  const owed = useRef(false);
+  /** True while this hand is on something that a landing list would yank away. */
+  const handOn = useRef(false);
+
   const pull = useCallback(async () => {
+    if (handOn.current) {
+      owed.current = true;
+      return;
+    }
+    if (pulling.current) {
+      pullAgain.current = true;
+      return;
+    }
+    pulling.current = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
     try {
-      const response = await fetch(`/api/timelines/${timeline.id}/events`, { cache: 'no-store' });
+      const response = await fetch(`/api/timelines/${timeline.id}/events`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) return;
       const data = (await response.json()) as { events?: TimelineEvent[] };
       if (!Array.isArray(data.events)) return;
+      // The hand may have picked something up between the ask and the answer.
+      if (handOn.current) {
+        owed.current = true;
+        return;
+      }
+      owed.current = false;
       // §35: a pull that lands while a hand is carrying a tag must not put it
       // back; `takeEvents` is the one place that rule lives.
       takeEvents(data.events);
     } catch {
       /* the next signal tries again */
+    } finally {
+      clearTimeout(timer);
+      pulling.current = false;
+      if (pullAgain.current) {
+        pullAgain.current = false;
+        void pull();
+      }
     }
   }, [timeline.id, takeEvents]);
-  useLiveChanges([timelineKey(timeline.id)], () => void pull());
+
+  /*
+   * §62: the tijdlijn's own key, and one per gebeurtenis.
+   *
+   * `timeline:{id}` moves when a gebeurtenis is added, moved or taken off.
+   * `event:{id}` moves when its words change — which is once per 1.5 s while
+   * somebody types, and is why the service no longer touches the tijdlijn's
+   * `updatedAt` for a live write (§62 in `lib/timelines/service.ts`). The page
+   * does not watch the event keys, so a renamed tag reaches this screen
+   * through this cheap pull and never through a whole `router.refresh()`.
+   */
+  const eventKeys = useMemo(
+    () => [timelineKey(timeline.id), ...events.map((e) => eventKey(e.id))].join('\n'),
+    [timeline.id, events],
+  );
+  useLiveChanges(useMemo(() => eventKeys.split('\n'), [eventKeys]), () => void pull());
+
+  /**
+   * §62: this tab's hand, in the axis's own coordinates.
+   *
+   *   x  is a *moment* in seconds — the same number a gebeurtenis is stored
+   *      with — so the arrow is over the same year on a screen at another zoom;
+   *   y  is a fraction of the stage's height, because the stage is as tall as
+   *      the window it is in and nothing on it is measured from the top;
+   *   m  is `{ [eventId]: [moment, 0] }` while a tag is being carried — the
+   *      wire wants a pair of numbers per id (it was written for a prikbord),
+   *      and a moment is one number, so the second is always 0 and unread.
+   *
+   * A frame is sight, never state: nothing here is stored (rule 20).
+   */
+  const [handDown, setHandDown] = useState(false);
+  const reportHand = useCallback(
+    (point: { clientX: number; clientY: number } | null, moving?: { id: string; at: number }) => {
+      const el = stageRef.current;
+      const current = viewRef.current;
+      if (!point || !el || !current) {
+        live.reportPointer(null);
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const x = point.clientX - rect.left;
+      const y = point.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+        live.reportPointer(null);
+        return;
+      }
+      live.reportPointer({
+        x: current.origin + x / current.pxPerSecond,
+        y: rect.height > 0 ? y / rect.height : 0,
+        m: moving ? { [moving.id]: [moving.at, 0] } : {},
+      });
+    },
+    // §60: the stable callback, not the whole live value — see the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [live.reportPointer],
+  );
+  /*
+   * §60: the dependency is the *callback*, never the whole `live` value.
+   *
+   * `useLive()` re-renders — and hands back a new object — every time somebody
+   * else's hand moves, because that is what it is for. Hanging this effect on
+   * it meant the cleanup ran on every incoming frame, and the cleanup says "my
+   * hand has left the axis": measured mid-drag, nine of twelve frames this tab
+   * put on the wire were that lie and only three carried the tag. Worse, the
+   * other tab did the same, so each one's frames kept cancelling the other's.
+   * `reportPointer` is stable for the life of the provider, so this now runs
+   * once, on unmount, which is what it was always meant to mean.
+   */
+  const reportLivePointer = live.reportPointer;
+  useEffect(() => {
+    const onLeave = () => reportLivePointer(null);
+    window.addEventListener('blur', onLeave);
+    return () => {
+      window.removeEventListener('blur', onLeave);
+      reportLivePointer(null);
+    };
+  }, [reportLivePointer]);
 
   /* ------------------------------------------------------------- geometry */
 
@@ -386,15 +553,92 @@ export function TimelineCanvas({
     return () => window.removeEventListener('keydown', onKey);
   }, [inkTool, ink]);
 
+  /**
+   * §62: where somebody else's hand has a tag right now, in seconds.
+   *
+   * A moment sticks after their hand lets go, until the list is pulled again —
+   * the landkaart's rule for a carried speld, for the same reason: without it
+   * the tag snaps back to where it started for the length of one round trip
+   * and then jumps to where it was put.
+   */
+  const [carried, setCarried] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    setCarried((current) => {
+      let changed = false;
+      const next = new Map(current);
+      for (const pointer of live.pointers) {
+        for (const [id, moment] of Object.entries(pointer.m)) {
+          if (next.get(id) !== moment[0]) {
+            next.set(id, moment[0]);
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [live.pointers]);
+  // What the archive last said is what a carried tag falls back to.
+  useEffect(() => {
+    setCarried((current) => {
+      if (!current.size) return current;
+      const next = new Map(current);
+      let changed = false;
+      for (const event of events) {
+        if (next.get(event.id) === event.at) {
+          next.delete(event.id);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [events]);
+
+  /** The moment a gebeurtenis is *drawn* at: this hand's, then theirs, then the row's. */
+  const shownAt = useCallback(
+    (event: TimelineEvent) => (draggingIdRef.current === event.id ? event.at : (carried.get(event.id) ?? event.at)),
+    [carried],
+  );
+
   const placed = useMemo<Placed[]>(() => {
     if (!view) return [];
-    const items = events.map((event) => ({ id: event.id, x: xOf(event.at), width: tagWidth(event.name) }));
+    const ats = new Map(events.map((event) => [event.id, shownAt(event)]));
+    const items = events.map((event) => ({ id: event.id, x: xOf(ats.get(event.id)!), width: tagWidth(event.name) }));
     const spots = placeTags(items, lanes);
     return events.map((event) => {
-      const spot = spots.get(event.id) ?? { side: 'up' as Side, lane: 0 };
-      return { event, x: xOf(event.at), side: spot.side, lane: spot.lane };
+      const spot = spots.get(event.id) ?? { side: 'up' as Side, lane: 0, hidden: false };
+      const at = ats.get(event.id)!;
+      return { event, at, x: xOf(at), side: spot.side, lane: spot.lane, hidden: spot.hidden };
     });
-  }, [events, view, xOf, lanes]);
+  }, [events, view, xOf, lanes, shownAt]);
+
+  /**
+   * §62: the piles. A tag that found no lane is drawn as a bare mark, and the
+   * chip at the middle of its pile says how many there are; clicking it takes
+   * the view to that span, which is the one thing that actually helps.
+   */
+  const clusters = useMemo(() => {
+    if (!view) return [];
+    const items = placed.map(({ event, x }) => ({ id: event.id, x, width: tagWidth(event.name) }));
+    const spots = new Map(placed.map(({ event, side, lane, hidden }) => [event.id, { side, lane, hidden }]));
+    const at = new Map(placed.map(({ event, at: moment }) => [event.id, moment]));
+    return clusterTags(items, spots).map((cluster) => ({
+      ...cluster,
+      from: Math.min(...cluster.ids.map((id) => at.get(id)!)),
+      to: Math.max(...cluster.ids.map((id) => at.get(id)!)),
+    }));
+  }, [placed, view]);
+
+  const zoomToSpan = useCallback(
+    (from: number, to: number) => {
+      moveView((current) => {
+        if (!current || !width) return current;
+        const seconds = Math.max(to - from, 1) * 1.6;
+        const pxPerSecond = Math.min(maxPxPerSecond(timeline.scale), Math.max(MIN_PX_PER_SECOND, width / seconds));
+        return { origin: (from + to) / 2 - width / 2 / pxPerSecond, pxPerSecond };
+      });
+    },
+    [moveView, width, timeline.scale],
+  );
 
   const ticks = useMemo(() => {
     if (!view || !width) return [];
@@ -468,6 +712,11 @@ export function TimelineCanvas({
   };
   const eventDrag = useRef<EventDrag | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  /** One place says "this hand has a tag", so nothing can forget half of it. */
+  const holdTag = useCallback((id: string | null) => {
+    draggingIdRef.current = id;
+    setDraggingId(id);
+  }, []);
 
   const moveOne = useCallback(
     (id: string, at: number) =>
@@ -484,9 +733,15 @@ export function TimelineCanvas({
     const drag = eventDrag.current;
     if (!drag) return;
     eventDrag.current = null;
-    setDraggingId(null);
+    holdTag(null);
+    handOn.current = false;
+    setHandDown(false);
+    reportHand(null);
     if (drag.moved) moveOne(drag.id, drag.startAt);
-  }, [moveOne]);
+    // §62: whatever landed while the hand was down lands now.
+    if (owed.current) void pull();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moveOne, holdTag]);
 
   function onEventPointerDown(event: React.PointerEvent, item: TimelineEvent) {
     if (event.button !== 0 || !view) return;
@@ -507,6 +762,9 @@ export function TimelineCanvas({
       unit: item.precision,
       moved: false,
     };
+    // §62: a hand is on the wall. Nothing lands until it comes off.
+    handOn.current = true;
+    setHandDown(true);
   }
 
   function onEventPointerMove(event: React.PointerEvent) {
@@ -516,26 +774,39 @@ export function TimelineCanvas({
     if (!drag.moved && Math.abs(dx) <= 3) return;
     if (!drag.moved) {
       drag.moved = true;
-      setDraggingId(drag.id);
+      holdTag(drag.id);
     }
-    moveOne(drag.id, onAxis(drag.startAt + dx / view.pxPerSecond, drag.unit));
+    const at = onAxis(drag.startAt + dx / view.pxPerSecond, drag.unit);
+    moveOne(drag.id, at);
+    // §62: the other screen sees the tag travel, not jump when it lands.
+    reportHand({ clientX: event.clientX, clientY: event.clientY }, { id: drag.id, at });
   }
 
   function onEventPointerUp(event: React.PointerEvent) {
     const drag = eventDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     eventDrag.current = null;
-    setDraggingId(null);
+    holdTag(null);
+    handOn.current = false;
+    setHandDown(false);
     // Not a drag at all: the press was a click, and a click folds the window
     // out — exactly what it did before there was any dragging.
     if (!drag.moved) {
       toggle(drag.id);
+      if (owed.current) void pull();
       return;
     }
     const dropped = events.find((e) => e.id === drag.id);
-    if (!dropped || dropped.at === drag.startAt) return;
-    void patchEvent(drag.id, { at: dropped.at }).then((ok) => {
+    if (!dropped || dropped.at === drag.startAt) {
+      if (owed.current) void pull();
+      return;
+    }
+    // The carry is kept on the other screens until their pull lands (`m`), so
+    // the frame goes out once more with the moment it was dropped on.
+    reportHand({ clientX: event.clientX, clientY: event.clientY }, { id: drag.id, at: dropped.at });
+    void patchEvent(drag.id, { at: dropped.at }, { quiet: true }).then((ok) => {
       if (!ok) moveOne(drag.id, drag.startAt);
+      if (owed.current) void pull();
     });
   }
 
@@ -578,6 +849,9 @@ export function TimelineCanvas({
     }
     gesture.current = g;
     setGrabbing(true);
+    // §62: a phone's way of saying "a gebeurtenis here".
+    if (g.pointers.size === 1) startLongPress(event);
+    else cancelLongPress();
   }
 
   function onPointerMove(event: React.PointerEvent) {
@@ -589,6 +863,20 @@ export function TimelineCanvas({
     if (el && view) {
       pointerAt.current = view.origin + (event.clientX - el.getBoundingClientRect().left) / view.pxPerSecond;
     }
+    /*
+     * §62: this tab's own hand on the axis, for everybody else's screen. Not
+     * while a tag is being carried — that move is reported by the tag's own
+     * handler, with the moment it is being carried to in `m`, and this one
+     * bubbles *after* it and would throw the carry away.
+     *
+     * A finger reports nothing: a touch screen has no hovering hand, and a
+     * drawn arrow that only appears while somebody is pressing is a lie.
+     */
+    if (event.pointerType !== 'touch' && !eventDrag.current) {
+      reportHand({ clientX: event.clientX, clientY: event.clientY });
+    }
+    const press = longPress.current;
+    if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_SLOP) cancelLongPress();
     const g = gesture.current;
     if (!g || !el || !g.pointers.has(event.pointerId)) return;
     const rect = el.getBoundingClientRect();
@@ -610,12 +898,16 @@ export function TimelineCanvas({
   }
 
   function onPointerUp(event: React.PointerEvent) {
+    cancelLongPress();
     const g = gesture.current;
     if (!g) return;
     g.pointers.delete(event.pointerId);
     if (g.pointers.size === 0) {
       // A click on bare stage (no drag) closes the folded-out windows.
-      if (!g.moved) setExpanded(new Set());
+      // §62: a click on bare axis shuts the window that was opened last, not
+      // every window at once — "alles tonen" then a stray click used to undo
+      // the lot. The button in the toolbar is still there for all of them.
+      if (!g.moved) setOpen((current) => current.slice(0, -1));
       gesture.current = null;
       setGrabbing(false);
     } else {
@@ -641,6 +933,81 @@ export function TimelineCanvas({
     setSheet({ mode: 'add', at: moment, entry: null });
   }
 
+  /**
+   * §62: a phone has no double-click, so it has a long press.
+   *
+   * Half a second on the bare axis with the finger still (less than 8 px of
+   * travel) opens the same sheet with the same moment filled in. Anything that
+   * is a gesture cancels it: a second finger, a pan, a press that began on a
+   * tag or a window, the potlood.
+   */
+  const longPress = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const cancelLongPress = useCallback(() => {
+    if (!longPress.current) return;
+    clearTimeout(longPress.current.timer);
+    longPress.current = null;
+  }, []);
+
+  function startLongPress(event: React.PointerEvent) {
+    cancelLongPress();
+    if (!canEdit || !view || inkActive || event.pointerType === 'mouse') return;
+    const el = stageRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const stageX = event.clientX - rect.left;
+    const timer = setTimeout(() => {
+      longPress.current = null;
+      const current = viewRef.current;
+      if (!current) return;
+      // The gesture turned into a pan or a pinch after all.
+      if (gesture.current?.moved || (gesture.current?.pointers.size ?? 0) > 1) return;
+      setSheet({ mode: 'add', at: onAxis(current.origin + stageX / current.pxPerSecond, timeline.scale), entry: null });
+    }, LONG_PRESS_MS);
+    longPress.current = { timer, x: event.clientX, y: event.clientY };
+  }
+
+  /**
+   * §62: the axis under a keyboard. The arrows walk along it, `+` and `-`
+   * measure it, `0` is "alles in beeld", and Escape shuts the window that was
+   * opened last — the potlood's own Escape (and its Ctrl+Z) still answer
+   * first, because with the pencil out the stage belongs to the tekenlaag.
+   */
+  function onStageKey(event: React.KeyboardEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target && target !== event.currentTarget && target.closest('.timeline-event, .timeline-popout, .ink-toolbar')) return;
+    const step = event.shiftKey ? 240 : 60;
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowRight': {
+        event.preventDefault();
+        const by = event.key === 'ArrowLeft' ? -step : step;
+        moveView((current) => (current ? { ...current, origin: current.origin + by / current.pxPerSecond } : current));
+        return;
+      }
+      case '+':
+      case '=':
+        event.preventDefault();
+        zoomAt(1.6, width / 2);
+        return;
+      case '-':
+      case '_':
+        event.preventDefault();
+        zoomAt(1 / 1.6, width / 2);
+        return;
+      case '0':
+        event.preventDefault();
+        fit(events, width);
+        return;
+      case 'Escape':
+        if (inkActive) return;
+        if (!open.length) return;
+        event.preventDefault();
+        setOpen((current) => current.slice(0, -1));
+        return;
+      default:
+    }
+  }
+
   /* -------------------------------------------------------------- writes */
 
   /**
@@ -651,7 +1018,7 @@ export function TimelineCanvas({
    */
   const createEvent = useCallback(
     async (input: NewEventInput): Promise<TimelineEvent | null> => {
-      setBusy(true);
+      setSaving(true);
       try {
         const response = await fetch(`/api/timelines/${timeline.id}/events`, {
           method: 'POST',
@@ -665,7 +1032,9 @@ export function TimelineCanvas({
         }
         const created = data.event;
         setEvents((current) => [...current.filter((e) => e.id !== created.id), created].sort((a, b) => a.at - b.at));
-        setExpanded(new Set([created.id]));
+        // §62: a new gebeurtenis joins the windows that are already open; it
+        // used to replace them, which shut everybody's reading to show one tag.
+        setOpen((current) => [...current.filter((id) => id !== created.id), created.id]);
         setSheet(null);
         // If it landed out of view, bring it in.
         moveView((current) => {
@@ -681,7 +1050,7 @@ export function TimelineCanvas({
         ui.toast('Geen verbinding.');
         return null;
       } finally {
-        setBusy(false);
+        setSaving(false);
       }
     },
     [timeline.id, timeline.slug, ui, words.event, width, placing, router, refreshArchive, moveView],
@@ -740,8 +1109,13 @@ export function TimelineCanvas({
   }, [placing, canEdit, view, width]);
 
   const patchEvent = useCallback(
-    async (eventId: string, patch: EventPatchInput & { entryId?: string }): Promise<boolean> => {
-      setBusy(true);
+    async (
+      eventId: string,
+      patch: EventPatchInput & { entryId?: string },
+      /** §62: a drop is not a save a blad is waiting for — it greys nothing out. */
+      options: { quiet?: boolean } = {},
+    ): Promise<boolean> => {
+      if (!options.quiet) setSaving(true);
       try {
         const response = await fetch(`/api/timelines/${timeline.id}/events/${eventId}`, {
           method: 'PATCH',
@@ -751,6 +1125,9 @@ export function TimelineCanvas({
         const data = (await response.json()) as { event?: TimelineEvent; error?: string };
         if (!response.ok || !data.event) {
           ui.toast(data.error ?? 'Opslaan is niet gelukt.');
+          // §62: gone is gone. The row is off the axis here too, and the blad
+          // over it says so rather than keeping a button nobody can press.
+          if (response.status === 404) setEvents((current) => current.filter((e) => e.id !== eventId));
           return false;
         }
         const saved = data.event;
@@ -761,7 +1138,7 @@ export function TimelineCanvas({
         ui.toast('Geen verbinding.');
         return false;
       } finally {
-        setBusy(false);
+        if (!options.quiet) setSaving(false);
       }
     },
     [timeline.id, ui, refreshArchive],
@@ -806,6 +1183,25 @@ export function TimelineCanvas({
    * gebeurtenis its picture and make a second one.
    */
   const [uploading, setUploading] = useState(false);
+
+  /**
+   * §59/§62: nothing lands while a hand is on the axis.
+   *
+   * A hand on a tag, a stroke of ink, a picture on its way up, or a blad open
+   * over the stage: while any of those is true this page holds the coalesced
+   * `router.refresh()` that `LivePage` fires, and it is fired the moment the
+   * last of them lets go. The *list* is a finer question and lives in `pull`:
+   * a drag or a stroke stops it, an open blad does not — the blad re-seeds the
+   * fields nobody touched and keeps the ones they did (§62, `EventSheets`).
+   */
+  const [inkDrawing, setInkDrawing] = useState(false);
+  const busy = handDown || draggingId !== null || inkDrawing || uploading || sheet !== null;
+  useHoldRefresh(busy);
+  // The list's own gate, kept in a ref so `pull` never changes identity.
+  handOn.current = handDown || draggingId !== null || inkDrawing;
+  useEffect(() => {
+    if (!busy && owed.current) void pull();
+  }, [busy, pull]);
 
   const pasteImage = useCallback(
     (paste: ClipboardEvent) => {
@@ -882,7 +1278,7 @@ export function TimelineCanvas({
         danger: true,
       });
       if (!yes) return;
-      setBusy(true);
+      setSaving(true);
       try {
         const response = await fetch(`/api/timelines/${timeline.id}/events/${event.id}`, { method: 'DELETE' });
         if (!response.ok) {
@@ -896,7 +1292,7 @@ export function TimelineCanvas({
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
-        setBusy(false);
+        setSaving(false);
       }
     },
     [timeline.id, ui, words.entry, words.event, words.timeline, refreshArchive],
@@ -928,7 +1324,7 @@ export function TimelineCanvas({
       anchorAt?: number | null;
       anchorUnit?: AnchorUnit | null;
     }): Promise<boolean> => {
-      setBusy(true);
+      setSaving(true);
       try {
         const response = await fetch(`/api/timelines/${timeline.id}`, {
           method: 'PATCH',
@@ -947,7 +1343,7 @@ export function TimelineCanvas({
         ui.toast('Geen verbinding.');
         return false;
       } finally {
-        setBusy(false);
+        setSaving(false);
       }
     },
     [timeline.id, ui, router],
@@ -961,8 +1357,21 @@ export function TimelineCanvas({
     if (lastScale.current === now) return;
     lastScale.current = now;
     void pull();
-    // §35: a tijdlijn that has just been given a day opens on that day.
-    if (width) fit(events, width);
+    if (!width) return;
+    /*
+     * §62: whose measure is this? A tijdlijn re-measured *here* opens on its
+     * new day — §35's rule, and the thing the person who pressed Opslaan
+     * expects. A tijdlijn re-measured by somebody else must not throw away
+     * where this reader was standing: the view is only re-fenced (an anchor is
+     * a fence as well as a day, so a view outside it is pulled back in), and a
+     * line says what happened.
+     */
+    if (Date.now() - live.ownWriteAt() < OWN_WRITE_MUTE_MS) {
+      fit(events, width);
+      return;
+    }
+    moveView((current) => current);
+    ui.toast('De maat van deze tijdlijn is veranderd.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline.scale, anchorAt, anchorUnit]);
 
@@ -974,7 +1383,7 @@ export function TimelineCanvas({
       danger: true,
     });
     if (!yes) return;
-    setBusy(true);
+    setSaving(true);
     try {
       const response = await fetch(`/api/timelines/${timeline.id}`, { method: 'DELETE' });
       if (!response.ok) {
@@ -986,22 +1395,100 @@ export function TimelineCanvas({
     } catch {
       ui.toast('Geen verbinding.');
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   }, [ui, timeline, words.timeline, words.keeper, router]);
 
   /* -------------------------------------------------------------- render */
 
   const toggle = (id: string) =>
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+    setOpen((current) => (current.includes(id) ? current.filter((other) => other !== id) : [...current, id]));
+  /** §62: clicking a window puts it in front — the last id in the list is the top one. */
+  const raise = (id: string) => setOpen((current) => (current[current.length - 1] === id ? current : [...current.filter((other) => other !== id), id]));
+  const allOpen = events.length > 0 && events.every((e) => open.includes(e.id));
+
+  /**
+   * §62: "Alles tonen" used to put every window in one pile. They keep their
+   * x — a window belongs over its tag — and step away from the axis instead,
+   * in lanes assigned by what they overlap (`placeWindows`, pure and tested).
+   * A window's height is what the browser made of it, so the lane behind a
+   * short one does not leave a hole; until it has been measured it counts as
+   * an average window tall.
+   */
+  const [windowHeights, setWindowHeights] = useState<Record<string, number>>({});
+  const setWindowHeight = useCallback((id: string, height: number) => {
+    setWindowHeights((current) => (current[id] === height ? current : { ...current, [id]: height }));
+  }, []);
+  const openWindows = useMemo(() => {
+    const wanted = placed.filter(({ event }) => open.includes(event.id));
+    /*
+     * §62: one baseline per side, not one per tag.
+     *
+     * A window's vertical extent is reckoned from the axis — its tag's reach
+     * plus its own height — so that a lane is a lane for every window in it,
+     * whatever lane its *tag* is in. Stacking each window from its own tag
+     * instead let a window hanging off a far tag lie across one hanging off a
+     * near one, which is the overlap the lanes exist to stop.
+     */
+    const baseUp = axisY - TAG_H / 2 - 6;
+    const baseDown = axisY + TAG_H / 2 + 6;
+    const boxes = wanted.map(({ event, x, side, lane }) => {
+      const reach = LANE_0 + lane * LANE_STEP;
+      const height = windowHeights[event.id] ?? 0;
+      return {
+        id: event.id,
+        side,
+        left: Math.max(4, Math.min(Math.max(4, width - POPOUT_W - 4), x - POPOUT_W / 2)),
+        width: POPOUT_W,
+        reach,
+        height,
+        /** What it takes up measured from the axis: the stem and the paper. */
+        extent: reach + (height || 160),
+      };
     });
-  const allOpen = events.length > 0 && events.every((e) => expanded.has(e.id));
+    const lay = (list: typeof boxes) =>
+      placeWindows(list.map((box) => ({ id: box.id, side: box.side, left: box.left, width: box.width, height: box.extent })));
+    let spots = lay(boxes);
+    /*
+     * §62: above the axis there is a ceiling, and below it there is not. A
+     * window that would have to climb past the top of the page to keep its
+     * lane opens *downward* instead and takes its place in the lanes there.
+     */
+    let flipped = false;
+    const adjusted = boxes.map((box) => {
+      if (box.side !== 'up') return box;
+      const offset = spots.get(box.id)?.offset ?? 0;
+      if (baseUp - offset - box.extent >= -POPOUT_HEADROOM) return box;
+      flipped = true;
+      return { ...box, side: 'down' as Side };
+    });
+    if (flipped) spots = lay(adjusted);
+    return adjusted.map((box, index) => {
+      const offset = spots.get(box.id)?.offset ?? 0;
+      const height = box.height || 160;
+      return {
+        event: wanted[index].event,
+        side: box.side,
+        left: box.left,
+        top: box.side === 'up' ? baseUp - offset - box.reach - height : baseDown + offset + box.reach,
+        // The order they were opened in is the order they stack in.
+        z: open.indexOf(box.id) + 1,
+        /** Nothing is shown at a guessed height; the first paint measures it. */
+        ready: windowHeights[box.id] !== undefined,
+      };
+    });
+  }, [placed, open, width, windowHeights, axisY]);
 
   const editing = sheet?.mode === 'edit' ? (events.find((e) => e.id === sheet.eventId) ?? null) : null;
+  /**
+   * §62: a gebeurtenis taken off the axis while its blad was open. The last
+   * thing this tab knew about it is kept, so the sheet keeps its heading and
+   * its shape and swaps its body for one line — a blad that vanishes mid-
+   * sentence reads as a bug, and one that stays and lies is worse.
+   */
+  const lastEditing = useRef<TimelineEvent | null>(null);
+  if (editing) lastEditing.current = editing;
+  const editingGone = sheet?.mode === 'edit' && !editing && lastEditing.current?.id === sheet.eventId;
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   return (
@@ -1017,7 +1504,7 @@ export function TimelineCanvas({
           <button
             type="button"
             className="btn btn-small"
-            onClick={() => setExpanded(allOpen ? new Set() : new Set(events.map((e) => e.id)))}
+            onClick={() => setOpen(allOpen ? [] : events.map((e) => e.id))}
             data-testid="timeline-toggle-all"
           >
             <Icon name={allOpen ? 'close' : 'eye'} size={14} />
@@ -1050,7 +1537,15 @@ export function TimelineCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onPointerLeave={() => reportHand(null)}
         onDoubleClick={onDoubleClick}
+        onKeyDown={onStageKey}
+        /* §62: the axis is a thing you can stand on with a keyboard: the
+           arrows walk along it, + and - measure it, 0 shows everything, and
+           Escape shuts the window that was opened last. */
+        tabIndex={0}
+        role="group"
+        aria-label={`${cap(words.timeline)} ${timeline.name} — pijltjes schuiven, + en - zoomen, 0 toont alles`}
         data-testid="timeline-stage"
       >
         {/* §33: the tekenlaag, under the axis and the gebeurtenissen. */}
@@ -1075,46 +1570,51 @@ export function TimelineCanvas({
           </div>
         ))}
 
-        {placed.map(({ event, x, side, lane }) => {
-          if (x < -400 || x > width + 400) return null;
-          const open = expanded.has(event.id);
+        {placed.map(({ event, at, x, side, lane, hidden }) => {
+          // §62: a tag a hand is carrying is never culled — unmounting the
+          // element under the pointer takes the capture, the move and the drop
+          // with it, and leaves the drag stuck half-done.
+          const dragging = draggingId === event.id;
+          if ((x < -CULL_PX || x > width + CULL_PX) && !dragging) return null;
+          const shown = isOpen(event.id);
           const colour = event.kind === 'entry' ? (event.entry?.typeColour ?? 'var(--ink-muted)') : NOTE_COLOUR;
           const reach = LANE_0 + lane * LANE_STEP;
-          const dragging = draggingId === event.id;
+          const when = formatWhen(at, event.precision);
           return (
             <div
               key={event.id}
-              className={`timeline-event timeline-event-${side} timeline-event-${event.kind}${open ? ' timeline-event-open' : ''}${dragging ? ' timeline-event-dragging' : ''}`}
+              className={`timeline-event timeline-event-${side} timeline-event-${event.kind}${shown ? ' timeline-event-open' : ''}${dragging ? ' timeline-event-dragging' : ''}${hidden ? ' timeline-event-packed' : ''}${carried.has(event.id) && !dragging ? ' timeline-event-carried' : ''}`}
               style={{ left: x, top: axisY, ['--event-colour' as string]: colour, ['--reach' as string]: `${reach}px` }}
               data-testid="timeline-event"
               data-event-id={event.id}
+              data-side={side}
               onPointerDown={(pointer) => onEventPointerDown(pointer, event)}
               onPointerMove={onEventPointerMove}
               onPointerUp={onEventPointerUp}
               onPointerCancel={() => abortEventDrag()}
+              onLostPointerCapture={() => abortEventDrag()}
             >
               <span className="timeline-stem" />
               {/*
                * §35: the press is the drag and the click both, so neither
                * button answers a pointer any more — `onEventPointerUp` folds
-               * the window out when the hand did not move. A keyboard's own
-               * click (`detail === 0`) still has to be answered here.
+               * the window out when the hand did not move.
+               *
+               * §62: and the mark is not a second tab stop. It was a button
+               * with the same name as the tag beside it, so every gebeurtenis
+               * cost two presses of Tab to walk past; the tag carries the name
+               * now and the mark is decoration the mouse can still hit.
                */}
-              <button
-                type="button"
-                className="timeline-marker"
-                aria-label={`${event.name}, ${formatWhen(event.at, event.precision)}`}
-                aria-expanded={open}
-                onClick={(click) => click.detail === 0 && toggle(event.id)}
-              >
+              <span className="timeline-marker" aria-hidden="true">
                 {event.kind === 'entry' && <Icon name={event.entry?.typeIcon ?? 'file'} size={12} />}
-              </button>
+              </span>
               <button
                 type="button"
                 className="timeline-tag"
                 onClick={(click) => click.detail === 0 && toggle(event.id)}
-                aria-expanded={open}
-                title={formatWhen(event.at, event.precision)}
+                aria-expanded={shown}
+                aria-label={`${event.name}, ${when}`}
+                title={when}
               >
                 {event.name}
               </button>
@@ -1122,15 +1622,67 @@ export function TimelineCanvas({
           );
         })}
 
+        {/* §62: a pile that found no room, and the way into it. */}
+        {clusters.map((cluster) => (
+          <button
+            key={`cluster-${cluster.ids[0]}`}
+            type="button"
+            className="timeline-cluster"
+            style={{ left: cluster.x, top: axisY }}
+            title={`${cluster.ids.length} ${words.eventPlural} hier — klik om in te zoomen`}
+            aria-label={`${cluster.ids.length} ${words.eventPlural} hier, klik om in te zoomen`}
+            data-testid="timeline-cluster"
+            onPointerDown={(pointer) => pointer.stopPropagation()}
+            onClick={() => zoomToSpan(cluster.from, cluster.to)}
+          >
+            +{cluster.ids.length}
+          </button>
+        ))}
+
+        {/*
+         * §21/§62: everybody else's hand, on the axis. The arrow is the
+         * prikbord's and the landkaart's (`.board-cursor`); under the name
+         * hangs the moment they are over, in this tijdlijn's own measure.
+         */}
+        {view &&
+          live.pointers.map((pointer) =>
+            pointer.x === null || pointer.y === null ? null : (
+              <div
+                key={pointer.clientId}
+                className="board-cursor timeline-cursor"
+                aria-hidden="true"
+                style={{ left: xOf(pointer.x), top: pointer.y * stageH, ['--cursor-colour' as string]: pointer.colour }}
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" className="board-cursor-arrow">
+                  <path d="M4 3l7.5 17 2.3-7.2L21 10.5z" />
+                </svg>
+                <span className="board-cursor-name">
+                  {pointer.name}
+                  <span className="timeline-cursor-when">{formatWhen(Math.round(pointer.x), timeline.scale)}</span>
+                </span>
+              </div>
+            ),
+          )}
+
         {inkActive && (
           <InkCapture
             tool={inkTool.tool}
             toContent={inkToContent}
             widthScale={inkWidthNow}
-            onBegin={ink.begin}
+            /* §62: a stroke is a hand on the axis — nothing lands under it. */
+            onBegin={(...args) => {
+              setInkDrawing(true);
+              return ink.begin(...args);
+            }}
             onExtend={ink.extend}
-            onEnd={ink.end}
-            onAbort={ink.abort}
+            onEnd={(...args) => {
+              setInkDrawing(false);
+              return ink.end(...args);
+            }}
+            onAbort={(...args) => {
+              setInkDrawing(false);
+              return ink.abort(...args);
+            }}
             stopPropagation
           />
         )}
@@ -1140,7 +1692,7 @@ export function TimelineCanvas({
             tool={inkTool.tool}
             onActive={(next) => {
               inkTool.setActive(next);
-              if (next) setExpanded(new Set());
+              if (next) setOpen([]);
             }}
             onTool={inkTool.setTool}
             canUndo={ink.canUndo}
@@ -1152,7 +1704,12 @@ export function TimelineCanvas({
         {!events.length && !inkActive && (
           <p className="timeline-empty small muted">
             {canEdit
-              ? `Nog geen ${words.eventPlural}. Dubbelklik op de as, of gebruik '${cap(words.event)} toevoegen'.`
+              ? /* §62: a phone has no double-click. The gesture that puts a
+                   gebeurtenis on the axis there is a long press, and the empty
+                   stage says so in the same words as the line under it. */
+                `Nog geen ${words.eventPlural}. ${
+                  isPhone ? `Houd de as ingedrukt om hier een ${words.event} te zetten` : 'Dubbelklik op de as'
+                }, of gebruik '${cap(words.event)} toevoegen'.`
               : `Nog geen ${words.eventPlural} op deze ${words.timeline}.`}
           </p>
         )}
@@ -1160,30 +1717,31 @@ export function TimelineCanvas({
 
       {/* The folded-out windows live outside the clipped stage, so one near
           the top can open upward past the edge instead of being cut off. */}
-      <div className="timeline-popouts" aria-live="polite">
-        {placed
-          .filter(({ event }) => expanded.has(event.id))
-          .map(({ event, x, side, lane }) => {
-            const reach = LANE_0 + lane * LANE_STEP;
-            const left = Math.max(4, Math.min(width - POPOUT_W - 4, x - POPOUT_W / 2));
-            return (
-              <Popout
-                key={event.id}
-                event={event}
-                side={side}
-                left={left}
-                tagTop={axisY - reach - TAG_H / 2}
-                tagBottom={axisY + reach + TAG_H / 2}
-                canEdit={canEdit}
-                setBy={event.createdBy ? (peopleNames[event.createdBy] ?? null) : null}
-                onClose={() => toggle(event.id)}
-                onEdit={() => setSheet({ mode: 'edit', eventId: event.id })}
-                onShowImage={() => void patchEvent(event.id, { showImage: true })}
-                onHideImage={() => void patchEvent(event.id, { showImage: false })}
-                onViewFull={(assetId) => setLightbox({ assetId, name: event.name })}
-              />
-            );
-          })}
+      {/* §62: no `aria-live` here. A layer that announces itself shouted every
+          window's whole contents at a screen reader whenever anybody on the
+          tijdlijn opened one; each window is a `role="dialog"` with a name,
+          which is what a reader actually needs. */}
+      <div className="timeline-popouts">
+        {openWindows.map(({ event, side, left, top, z, ready }) => (
+          <Popout
+            key={event.id}
+            event={event}
+            side={side}
+            left={left}
+            top={top}
+            z={z}
+            ready={ready}
+            canEdit={canEdit}
+            setBy={event.createdBy ? (peopleNames[event.createdBy] ?? null) : null}
+            onHeight={(height) => setWindowHeight(event.id, height)}
+            onRaise={() => raise(event.id)}
+            onClose={() => toggle(event.id)}
+            onEdit={() => setSheet({ mode: 'edit', eventId: event.id })}
+            onShowImage={() => void patchEvent(event.id, { showImage: true })}
+            onHideImage={() => void patchEvent(event.id, { showImage: false })}
+            onViewFull={(assetId) => setLightbox({ assetId, name: event.name })}
+          />
+        ))}
       </div>
       </div>
 
@@ -1195,8 +1753,14 @@ export function TimelineCanvas({
         {' · '}sleep om te schuiven, Ctrl+scroll of knijp om te zoomen
         {canEdit && (
           <>
-            {' '}· sleep een {words.event} om hem te verzetten · dubbelklik op de as voor een {words.event} op dat
-            moment
+            {' '}· sleep een {words.event} om hem te verzetten ·{' '}
+            {/* §62: the gesture that puts a gebeurtenis down is not the same
+                one on a phone, so neither is the sentence. */}
+            {isPhone ? (
+              <>Houd de as ingedrukt om hier een {words.event} te zetten</>
+            ) : (
+              <>dubbelklik op de as voor een {words.event} op dat moment</>
+            )}
             {/* Nobody finds a paste that is not written down — the same
                 sentence the prikbord carries, in the same tiny grey line. */}
             {!isPhone && <> · plak een afbeelding voor een losse {words.event} met die afbeelding erop</>}
@@ -1207,7 +1771,33 @@ export function TimelineCanvas({
 
       {sheet?.mode === 'add' && (
         <Sheet onClose={() => setSheet(null)} labelledBy="new-event-title">
-          <NewEventSheet timeline={timeline} busy={busy} initialAt={sheet.at} preselected={sheet.entry} onSubmit={addEvent} />
+          <NewEventSheet timeline={timeline} busy={saving} initialAt={sheet.at} preselected={sheet.entry} onSubmit={addEvent} />
+        </Sheet>
+      )}
+
+      {/*
+        §62: the gebeurtenis under this blad has been taken off the axis by
+        somebody else. The blad keeps its heading — the name it had is the last
+        thing this tab knew, and a window that empties itself reads worse than
+        one that says what happened — and everything under it is one line and a
+        way out.
+      */}
+      {editingGone && lastEditing.current && (
+        <Sheet onClose={() => setSheet(null)} labelledBy="event-title">
+          <div className="stack">
+            <h2 id="event-title" style={{ margin: 0 }}>
+              {lastEditing.current.name}
+            </h2>
+            <p className="small" data-testid="event-gone">
+              Deze {words.event} is weggehaald.
+            </p>
+            <p style={{ margin: 0 }}>
+              <button type="button" className="btn btn-small" onClick={() => setSheet(null)}>
+                <Icon name="close" size={14} />
+                Sluiten
+              </button>
+            </p>
+          </div>
         </Sheet>
       )}
 
@@ -1216,7 +1806,7 @@ export function TimelineCanvas({
           <EditEventSheet
             timeline={timeline}
             event={editing}
-            busy={busy}
+            busy={saving}
             liveUser={liveUser}
             setBy={editing.createdBy ? (peopleNames[editing.createdBy] ?? null) : null}
             onSave={(patch) => patchEvent(editing.id, patch)}
@@ -1230,7 +1820,7 @@ export function TimelineCanvas({
         <Sheet onClose={() => setSheet(null)} labelledBy="timeline-settings-title">
           <TimelineSettingsSheet
             timeline={timeline}
-            busy={busy}
+            busy={saving}
             canManage={access.canManage}
             isKeeper={isKeeper}
             viewerId={viewerId}
@@ -1291,10 +1881,13 @@ function Popout({
   event,
   side,
   left,
-  tagTop,
-  tagBottom,
+  top,
+  z,
+  ready,
   canEdit,
   setBy,
+  onHeight,
+  onRaise,
   onClose,
   onEdit,
   onShowImage,
@@ -1304,10 +1897,16 @@ function Popout({
   event: TimelineEvent;
   side: Side;
   left: number;
-  tagTop: number;
-  tagBottom: number;
+  /** §62: where it goes, lane and all — the page works it out (`openWindows`). */
+  top: number;
+  /** §62: the order it was opened in — the last one opened is in front. */
+  z: number;
+  /** §62: the page has this window's real height; before that it is not shown. */
+  ready: boolean;
   canEdit: boolean;
   setBy: string | null;
+  onHeight: (height: number) => void;
+  onRaise: () => void;
   onClose: () => void;
   onEdit: () => void;
   onShowImage: () => void;
@@ -1315,20 +1914,23 @@ function Popout({
   onViewFull: (assetId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | null>(null);
+  const onHeightRef = useRef(onHeight);
+  onHeightRef.current = onHeight;
+  /*
+   * §62: the window measures itself and tells the page, which is the only
+   * place that knows every window's height and lane and can therefore put them
+   * in lanes that do not lie on top of each other. Nothing is drawn at a
+   * guessed height: `ready` is the page saying it has the real one.
+   */
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => setHeight(el.offsetHeight);
+    const measure = () => onHeightRef.current(el.offsetHeight);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-
-  // How far above the stage a window may climb: the toolbar's margin, no more.
-  const HEADROOM = 8;
-  const top = side === 'up' ? Math.max(-HEADROOM, tagTop - 6 - (height ?? 0)) : tagBottom + 6;
   const image = event.kind === 'entry' ? (event.entry?.coverAssetId ?? null) : event.assetId;
   // Round 19: an artikel's picture comes with its liggend crop; a gebeurtenis's
   // own picture has none and is drawn centred.
@@ -1340,10 +1942,12 @@ function Popout({
     <div
       ref={ref}
       className={`timeline-popout timeline-popout-${side} timeline-popout-${event.kind}`}
-      style={{ left, top, width: POPOUT_W, visibility: height === null ? 'hidden' : undefined, ['--event-colour' as string]: colour }}
+      style={{ left, top, width: POPOUT_W, zIndex: z, visibility: ready ? undefined : 'hidden', ['--event-colour' as string]: colour }}
       role="dialog"
       aria-label={event.name}
       data-testid="timeline-popout"
+      data-event-id={event.id}
+      onPointerDown={onRaise}
     >
       <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
         <Icon name="close" size={14} />

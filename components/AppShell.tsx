@@ -198,8 +198,13 @@ export function AppShell({
       isKeeper={Boolean(me.isRealKeeper && !me.asPlayer)}
       side={me.side === 'keeper' ? 'keeper' : 'player'}
     >
-      {/* §21: one live line per tab, for every page inside the shell. */}
-      <LiveProvider>
+      {/* §21: one live line per tab, for every page inside the shell.
+          §60: with the account it belongs to. The tabs of one browser share a
+          leader, and a leader whose account has changed under it (a logout and
+          a login in one profile) must be recognisable as somebody else's — the
+          follower compares this with the id on the `line` it is offered. It is
+          this window's own user id and no secret to it. */}
+      <LiveProvider userId={me.id}>
         <div className="shell">
           <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} />
           {/*

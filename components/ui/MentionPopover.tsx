@@ -758,6 +758,13 @@ export function MentionOverlay({
     // re-measure of twenty computed properties.
     const observer = new ResizeObserver(soon);
     observer.observe(el);
+    // §56, round 29: and the field the box stands in. The chip row under the
+    // box (§54) arrives a beat after a name resolves, the field grows, and a
+    // sheet centred on the screen moves the box half that growth upward —
+    // none of which fires scroll, resize or input, and it lands after the
+    // settle timers have run. The field is one element, so this is not the
+    // body-observing noise the comment above is about.
+    if (el.parentElement) observer.observe(el.parentElement);
     // The box's own letters are not drawn — the mirror draws them — but the
     // caret and the selection still belong to the box.
     el.classList.add('mention-lit');
