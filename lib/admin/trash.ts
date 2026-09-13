@@ -28,7 +28,7 @@ import { forgetStoredState } from '@/lib/live/docs';
 
 export type TrashItem = {
   id: string;
-  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline';
+  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
   name: string;
   /** Where it would come back to, for the link after restoring. */
   href: string;
@@ -112,6 +112,22 @@ export function listTrash(limit = 200): TrashItem[] {
     .limit(limit)
     .all();
 
+  // §66: a stamboom goes the same road as a tijdlijn.
+  const familyTrees = db
+    .select({
+      id: schema.familyTrees.id,
+      name: schema.familyTrees.name,
+      slug: schema.familyTrees.slug,
+      detail: schema.cases.name,
+      deletedAt: schema.familyTrees.deletedAt,
+    })
+    .from(schema.familyTrees)
+    .leftJoin(schema.cases, eq(schema.cases.id, schema.familyTrees.caseId))
+    .where(isNotNull(schema.familyTrees.deletedAt))
+    .orderBy(desc(schema.familyTrees.deletedAt))
+    .limit(limit)
+    .all();
+
   return [
     ...entries.map((row) => ({
       id: row.id,
@@ -153,6 +169,14 @@ export function listTrash(limit = 200): TrashItem[] {
       detail: row.detail ?? '',
       deletedAt: row.deletedAt ?? 0,
     })),
+    ...familyTrees.map((row) => ({
+      id: row.id,
+      kind: 'family_tree' as const,
+      name: row.name,
+      href: `/stambomen/${row.slug}`,
+      detail: row.detail ?? '',
+      deletedAt: row.deletedAt ?? 0,
+    })),
   ].sort((a, b) => b.deletedAt - a.deletedAt);
 }
 
@@ -175,6 +199,12 @@ export function restoreFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     // never deleted with the tijdlijn, only hidden with it.
     db.update(schema.timelines).set({ deletedAt: null }).where(eq(schema.timelines.id, id)).run();
     logActivity({ actorId: keeperId, verb: 'timeline.restored', meta: { timelineId: id } });
+  } else if (kind === 'family_tree') {
+    // §66: back on the shelf with everyone still standing in it — the members
+    // and the losse kaartjes live in the tree's own state, which was never
+    // touched, and the kinship lines live on the artikelen.
+    db.update(schema.familyTrees).set({ deletedAt: null }).where(eq(schema.familyTrees.id, id)).run();
+    logActivity({ actorId: keeperId, verb: 'family_tree.restored', meta: { familyTreeId: id } });
   } else {
     // §19: back on the wall, with every speld still where it was — pins are
     // never deleted with the map, only hidden with it.
@@ -319,6 +349,27 @@ export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffe
     ].filter((effect) => count(effect.count) > 0);
   }
 
+  if (kind === 'family_tree') {
+    /**
+     * §66: what actually goes is the row, its rights, its Keeper notes and
+     * touwtjes, its tekenlaag and its "Genoemd in" rows — none of which a
+     * Keeper needs counted. What is worth saying is what *stays*: everyone
+     * standing in it. Kinship is a fact about the artikelen, so destroying the
+     * window it was read through changes nothing about the people in it. The
+     * losse kaartjes are the one thing that exists nowhere else, and they live
+     * in the tree's own state, so they are counted here.
+     */
+    const state = db
+      .select({ state: schema.familyTrees.state })
+      .from(schema.familyTrees)
+      .where(eq(schema.familyTrees.id, id))
+      .get()?.state;
+    const loose = Array.isArray(state?.loose) ? state.loose.length : 0;
+    return [{ label: 'losse kaartjes erin (die bestaan nergens anders)', count: loose }].filter(
+      (effect) => count(effect.count) > 0,
+    );
+  }
+
   if (kind === 'timeline') {
     return [
       {
@@ -379,6 +430,10 @@ function roomsOf(kind: TrashItem['kind'], id: string): string[] {
       .all()
       .map((row) => `event:${row.id}:fields`);
   }
+  // §66: a stamboom has no field rooms of its own — a los kaartje's words live
+  // in the state blob, and a member's words live on its artikel. The one shared
+  // text it owns is the Keeper's notes about it (§44).
+  if (kind === 'family_tree') return [`keeper:family_tree:${id}:notes`];
   return [];
 }
 
@@ -501,6 +556,38 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
       .where(and(eq(schema.accessGrants.targetType, 'timeline'), eq(schema.accessGrants.targetId, id)))
       .run();
     db.delete(schema.timelines).where(eq(schema.timelines.id, id)).run();
+  } else if (kind === 'family_tree') {
+    /**
+     * §66: everything that only existed because this tree did, and nothing
+     * else. The people in it are artikelen and stay; the kinship between them
+     * is fields on those artikelen and stays. What goes is the window: its
+     * rights, its Keeper notes, its touwtjes and tweeling (§44), its tekenlaag
+     * (§33) and the "Genoemd in" rows that pointed back at it (§27) — that
+     * last one especially, because a mention row that names a tree which no
+     * longer exists prints an empty line on an artikel's page.
+     */
+    db.delete(schema.accessGrants)
+      .where(and(eq(schema.accessGrants.targetType, 'family_tree'), eq(schema.accessGrants.targetId, id)))
+      .run();
+    db.delete(schema.keeperNotes)
+      .where(and(eq(schema.keeperNotes.kind, 'family_tree'), eq(schema.keeperNotes.targetId, id)))
+      .run();
+    db.delete(schema.counterparts)
+      .where(
+        or(
+          and(eq(schema.counterparts.keeperKind, 'family_tree'), eq(schema.counterparts.keeperId, id)),
+          and(eq(schema.counterparts.playerKind, 'family_tree'), eq(schema.counterparts.playerId, id)),
+        ),
+      )
+      .run();
+    db.delete(schema.inkLayers).where(eq(schema.inkLayers.targetId, id)).run();
+    db.delete(schema.entryMentions)
+      .where(and(eq(schema.entryMentions.fromKind, 'family_tree'), eq(schema.entryMentions.fromId, id)))
+      .run();
+    db.delete(schema.activity)
+      .where(sql`json_extract(${schema.activity.meta}, '$.familyTreeId') = ${id}`)
+      .run();
+    db.delete(schema.familyTrees).where(eq(schema.familyTrees.id, id)).run();
   } else {
     // §19: the spelden go with the map — they are places *on* it and mean
     // nothing without it. The artikelen those spelden pointed at do not.

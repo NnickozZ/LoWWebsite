@@ -9,6 +9,7 @@ import { AccessEditor, accessLabel, type AccessSettings } from '@/components/acc
 import { capitalise } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { NewTimelineButton } from '@/components/timelines/NewTimelineButton';
+import { NewFamilyTreeButton } from '@/components/families/NewFamilyTreeButton';
 import { SCALE_LABELS, type Scale } from '@/lib/timelines/time';
 import { Cover } from '@/components/Cover';
 import { CoverEditor } from '@/components/entry/CoverEditor';
@@ -78,6 +79,8 @@ export type CaseAccess = {
 export type BoardLite = { id: string; name: string; updatedAt: number };
 /** §32 */
 export type TimelineLite = { id: string; slug: string; name: string; updatedAt: number; scale: Scale };
+/** §66 — `memberCount` is this viewer's count, never the tree's own length. */
+export type FamilyTreeLite = { id: string; slug: string; name: string; updatedAt: number; memberCount: number };
 /** An account, and (§18) the character it is wearing, if any. */
 export type UserLite = { id: string; username: string; character?: string | null };
 
@@ -108,6 +111,8 @@ export function CaseDossier({
   boards,
   looseBoards,
   timelines,
+  familyTrees,
+  looseFamilyTrees,
   activity,
   lastSeenAt,
   isKeeper,
@@ -132,6 +137,10 @@ export function CaseDossier({
   looseBoards: BoardLite[];
   /** §32: the dossier's tijdlijnen, already filtered for this viewer. */
   timelines: TimelineLite[];
+  /** §66: and its stambomen. */
+  familyTrees: FamilyTreeLite[];
+  /** §66: the stambomen that hang in no dossier, for the picker that brings one in. */
+  looseFamilyTrees: FamilyTreeLite[];
   activity: CaseActivityItem[];
   lastSeenAt: number | null;
   isKeeper: boolean;
@@ -248,6 +257,8 @@ export function CaseDossier({
       ...groups.map((group) => ({ key: group.key, label: group.label, icon: group.icon })),
       { key: 'board', label: 'Prikbord', icon: 'board' },
       { key: 'timeline', label: 'Tijdlijn', icon: 'timeline' },
+      // §66: de stamboom, after the tijdlijn and before the log.
+      { key: 'family_tree', label: 'Stamboom', icon: 'tree' },
       { key: 'activity', label: 'Activiteit', icon: 'clock' },
     ];
   }, [groups]);
@@ -537,6 +548,101 @@ export function CaseDossier({
     </div>
   );
 
+  /*
+   * §66: move a stamboom into this dossier, or out of it — `moveBoard`'s twin,
+   * and the same two rights: this hand must be allowed to edit the tree as well
+   * as this dossier, which the API checks.
+   */
+  const [movingTree, setMovingTree] = useState<string | null>(null);
+  const moveFamilyTree = useCallback(
+    async (treeId: string, into: string | null) => {
+      setMovingTree(treeId);
+      const response = await fetch(`/api/family-trees/${treeId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ caseId: into }),
+      }).catch(() => null);
+      setMovingTree(null);
+      if (!response?.ok) {
+        ui.toast(`Die ${ui.words.familyTree} verplaatsen is niet gelukt.`);
+        return;
+      }
+      router.refresh();
+    },
+    [router, ui],
+  );
+
+  const familyTreeSection = (
+    <div>
+      {!locked && (
+        <div className="row-wrap" style={{ marginBottom: '0.9rem' }}>
+          <NewFamilyTreeButton caseId={data.id} caseKeeperOnly={data.keeperOnly} />
+          {looseFamilyTrees.length > 0 && (
+            <select
+              className="select"
+              aria-label={`Bestaande ${ui.words.familyTree} in dit ${ui.words.case} hangen`}
+              data-testid="case-family-tree-attach"
+              value=""
+              disabled={movingTree !== null}
+              onChange={(event) => event.target.value && void moveFamilyTree(event.target.value, data.id)}
+            >
+              <option value="">Bestaande {ui.words.familyTree} hierheen halen…</option>
+              {looseFamilyTrees.map((tree) => (
+                <option key={tree.id} value={tree.id}>
+                  {tree.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+      {familyTrees.length ? (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {familyTrees.map((tree) => (
+            <li
+              key={tree.id}
+              style={{ borderBottom: '1px solid var(--rule)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Link
+                href={`/stambomen/${tree.slug}`}
+                className="row"
+                style={{ color: 'inherit', textDecoration: 'none', padding: '0.7rem 0', flex: 1 }}
+              >
+                <Icon name="tree" size={18} style={{ color: 'var(--ink-muted)' }} />
+                <span style={{ flex: 1 }}>{tree.name}</span>
+                <span className="tiny muted">
+                  {tree.memberCount} {tree.memberCount === 1 ? 'persoon' : 'personen'}
+                </span>
+                <span className="tiny muted">{relativeTime(tree.updatedAt)}</span>
+                <Icon name="chevron" size={16} />
+              </Link>
+              {/* §66: and the way back out. The tree itself is left alone —
+                  only the drawer it is filed in changes. */}
+              {!locked && (
+                <button
+                  type="button"
+                  className="btn btn-small btn-ghost"
+                  disabled={movingTree === tree.id}
+                  onClick={() => void moveFamilyTree(tree.id, null)}
+                >
+                  Losmaken
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="empty">
+          <p style={{ margin: 0 }}>Nog geen stamboom.</p>
+          <p className="small" style={{ margin: '0.4rem 0 0' }}>
+            Wie familie van wie is staat op de {ui.words.entryPlural} zelf. Een stamboom tekent wat daar staat — en
+            houdt losse kaartjes bij voor wie nog geen {ui.words.entry} heeft.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
   const activitySection = (
     <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
       {activity.map((item, index) => {
@@ -579,6 +685,7 @@ export function CaseDossier({
     if (key === 'overview') return overview;
     if (key === 'board') return boardSection;
     if (key === 'timeline') return timelineSection;
+    if (key === 'family_tree') return familyTreeSection;
     if (key === 'activity') return activitySection;
     const group = groups.find((g) => g.key === key);
     return group ? groupSection(group) : null;
@@ -956,6 +1063,19 @@ function verbText(verb: string): string {
       return 'zette op de tijdlijn:';
     case 'timeline.deleted':
       return 'verwijderde tijdlijn';
+    /* §66: de stamboom. Same shape as the prikbord's five. */
+    case 'family_tree.created':
+      return 'maakte stamboom';
+    case 'family_tree.changed':
+      return 'werkte aan stamboom';
+    case 'family_tree.deleted':
+      return 'verwijderde stamboom';
+    case 'family_tree.filed':
+      return 'hing stamboom';
+    case 'family_tree.unfiled':
+      return 'haalde stamboom';
+    case 'family_tree.promoted':
+      return 'maakte een artikel van een los kaartje:';
     default:
       return 'wijzigde';
   }
@@ -970,10 +1090,13 @@ function verbTail(verb: string): string {
       return ' uit het dossier';
     case 'board.created':
     case 'timeline.created':
+    case 'family_tree.created':
       return ' aan';
     case 'board.filed':
+    case 'family_tree.filed':
       return ' in dit dossier';
     case 'board.unfiled':
+    case 'family_tree.unfiled':
       return ' uit dit dossier';
     default:
       return '';

@@ -90,6 +90,11 @@ beforeAll(async () => {
     `INSERT INTO timelines (id, name, slug, created_by, view_mode, case_id, keeper_only)
      VALUES ('t-in-omslag', 'De nacht', 't-in-omslag', 'keeper-1', 'all', 'c-omslag', 0)`,
   );
+  // §66: and a stamboom in the same dossier — the third loop in `hideWhatHangsIn`.
+  run(
+    `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, case_id, keeper_only)
+     VALUES ('f-in-omslag', 'Den Hollander', 'f-in-omslag', '{"v":1,"members":[],"loose":[],"ties":[],"deleted":{"members":{},"loose":{},"ties":{}}}', 'keeper-1', 'all', 'c-omslag', 0)`,
+  );
 });
 
 describe('§48 — which side a new thing is born on', () => {
@@ -142,18 +147,36 @@ describe('§48 — hiding travels, revealing does not', () => {
     expect(deps.isKeeperSide('board', board.id)).toBe(true);
   });
 
-  it('takes a dossier\'s walls and tijdlijnen with it, and does not give them back', () => {
+  it('takes a dossier\'s walls, tijdlijnen and stambomen with it, and does not give them back', () => {
     const board = deps.createBoard({ name: 'Muur van het omslagdossier', caseId: 'c-omslag', createdBy: 'keeper-1' });
     expect(deps.isKeeperSide('board', board.id)).toBe(false);
+
+    expect(deps.isKeeperSide('family_tree', 'f-in-omslag')).toBe(false);
 
     deps.setKeeperSide('case', 'c-omslag', true, 'keeper-1');
     expect(deps.isKeeperSide('board', board.id)).toBe(true);
     expect(deps.isKeeperSide('timeline', 't-in-omslag')).toBe(true);
+    expect(deps.isKeeperSide('family_tree', 'f-in-omslag')).toBe(true);
 
     deps.setKeeperSide('case', 'c-omslag', false, 'keeper-1');
     expect(deps.isKeeperSide('case', 'c-omslag')).toBe(false);
     // Deliberate: only a person pressing the button reveals a wall.
     expect(deps.isKeeperSide('board', board.id)).toBe(true);
     expect(deps.isKeeperSide('timeline', 't-in-omslag')).toBe(true);
+    expect(deps.isKeeperSide('family_tree', 'f-in-omslag')).toBe(true);
+  });
+
+  // §66: a stamboom is born on a side like everything else. Written against
+  // `placeNewOnSide` rather than a maker because `lib/families/service.ts`
+  // does not exist yet; the POST route will call exactly this pair.
+  it('a new stamboom lands on the side it was made on', () => {
+    const run = (sql: string, ...args: unknown[]) => deps.sqlite.prepare(sql).run(...args);
+    run(
+      `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode)
+       VALUES ('f-nieuw', 'Pas gemaakt', 'f-nieuw', '{}', 'keeper-1', 'all')`,
+    );
+    expect(deps.keeperOnlyForNew(KEEPER_THERE, { kind: 'case', id: 'c-dicht' })).toBe(true);
+    deps.placeNewOnSide('family_tree', 'f-nieuw', deps.keeperOnlyForNew(KEEPER_HERE), 'keeper-1');
+    expect(deps.isKeeperSide('family_tree', 'f-nieuw')).toBe(true);
   });
 });

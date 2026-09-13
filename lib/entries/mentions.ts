@@ -6,6 +6,7 @@ import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { cardRef, normaliseState, type BoardCard } from '@/lib/boards/merge';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { extractEntryLinks } from './doc';
+import { sideCondition } from '@/lib/keeper/side';
 import { listTimelines } from '@/lib/timelines/service';
 import { canSeeSection, visibleEntryCondition, type Viewer } from './visibility';
 
@@ -41,7 +42,7 @@ import { canSeeSection, visibleEntryCondition, type Viewer } from './visibility'
  *    as loudly as a named one. Rule 1, on a table rule 1 had not reached yet.
  */
 
-export type MentionKind = 'case' | 'board' | 'map' | 'timeline' | 'field' | 'section';
+export type MentionKind = 'case' | 'board' | 'map' | 'timeline' | 'family_tree' | 'field' | 'section';
 
 /** One thing a source says: which artikel, and what to print after the source. */
 export type MentionTarget = { toEntryId: string; detail?: string };
@@ -484,6 +485,43 @@ export function recomputeTimelineMentions(timelineId: string): void {
   recomputeMentions('timeline', timelineId, targets);
 }
 
+/**
+ * §66: a stamboom names every artikel that stands in it.
+ *
+ * Only the members: a stamboom writes nothing of its own about a person, so
+ * there is no card text, no note and no scribble to read — `detail` is always
+ * empty and the heading alone says where the mention is. The losse kaartjes
+ * are not artikelen and cannot be mentioned; the *lijnen* between members are
+ * fields on those artikelen and are already counted by
+ * `recomputeFieldMentions`, so counting them again here would print the same
+ * fact twice under two headings.
+ *
+ * The state is read straight off the row rather than through
+ * `normaliseTreeState`, because that lives in `lib/families/merge.ts`, which a
+ * future round may take in a direction this file must not follow: all this
+ * needs of the blob is a member's id and whether it has been tombstoned.
+ */
+export function recomputeFamilyTreeMentions(treeId: string): void {
+  const raw = db
+    .select({ state: schema.familyTrees.state })
+    .from(schema.familyTrees)
+    .where(eq(schema.familyTrees.id, treeId))
+    .get()?.state as
+    | { members?: unknown; deleted?: { members?: Record<string, unknown> } }
+    | undefined;
+
+  const gone = raw?.deleted?.members ?? {};
+  const members = Array.isArray(raw?.members) ? raw.members : [];
+  const targets: MentionTarget[] = [];
+  for (const member of members) {
+    const id = (member as { id?: unknown })?.id;
+    if (typeof id !== 'string' || !id) continue;
+    if (Object.prototype.hasOwnProperty.call(gone, id)) continue;
+    targets.push({ toEntryId: id, detail: '' });
+  }
+  recomputeMentions('family_tree', treeId, targets);
+}
+
 /* ------------------------------------------------------------ the refill */
 
 /**
@@ -494,7 +532,14 @@ export function recomputeTimelineMentions(timelineId: string): void {
  * Cheap enough to be unremarkable: a campaign wiki is a few hundred rows, and
  * every source is read once.
  */
-export function rebuildAllMentions(): { cases: number; entries: number; boards: number; maps: number; timelines: number } {
+export function rebuildAllMentions(): {
+  cases: number;
+  entries: number;
+  boards: number;
+  maps: number;
+  timelines: number;
+  familyTrees: number;
+} {
   const cases = db.select({ id: schema.cases.id }).from(schema.cases).all();
   for (const row of cases) recomputeCaseMentions(row.id);
 
@@ -513,7 +558,18 @@ export function rebuildAllMentions(): { cases: number; entries: number; boards: 
   const timelines = db.select({ id: schema.timelines.id }).from(schema.timelines).all();
   for (const row of timelines) recomputeTimelineMentions(row.id);
 
-  return { cases: cases.length, entries: entries.length, boards: boards.length, maps: maps.length, timelines: timelines.length };
+  // §66
+  const familyTrees = db.select({ id: schema.familyTrees.id }).from(schema.familyTrees).all();
+  for (const row of familyTrees) recomputeFamilyTreeMentions(row.id);
+
+  return {
+    cases: cases.length,
+    entries: entries.length,
+    boards: boards.length,
+    maps: maps.length,
+    timelines: timelines.length,
+    familyTrees: familyTrees.length,
+  };
 }
 
 /**
@@ -686,6 +742,63 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
     }
   }
 
+  /*
+   * §66: stambomen. The board's rule, not the tijdlijn's, because a stamboom
+   * has an `in_web` column and a tijdlijn does not — and round 18's rule is
+   * that a thing kept out of the web is kept out of here too. So: its own two
+   * dials (which carry `keeper_only` since §44), the bin, `in_web`, its
+   * dossier's rule in a second pass, and — §50 — the side the reader stands
+   * on, which `listTimelines` gives the branch above for free and which is
+   * spelled out here because `lib/families/service.ts` does not exist yet.
+   */
+  const treeIds = idsOf('family_tree');
+  if (treeIds.length && viewer) {
+    const trees = db
+      .select({
+        id: schema.familyTrees.id,
+        name: schema.familyTrees.name,
+        slug: schema.familyTrees.slug,
+        caseId: schema.familyTrees.caseId,
+      })
+      .from(schema.familyTrees)
+      .where(
+        and(
+          inArray(schema.familyTrees.id, treeIds),
+          isNull(schema.familyTrees.deletedAt),
+          eq(schema.familyTrees.inWeb, true),
+          viewableCondition('family_tree', viewer),
+          sideCondition('family_tree', viewer),
+        ),
+      )
+      .all();
+    const parentIds = [...new Set(trees.flatMap((row) => (row.caseId ? [row.caseId] : [])))];
+    const openParents = new Set(
+      parentIds.length
+        ? db
+            .select({ id: schema.cases.id })
+            .from(schema.cases)
+            .where(and(inArray(schema.cases.id, parentIds), visibleCaseCondition(viewer)))
+            .all()
+            .map((row) => row.id)
+        : [],
+    );
+    const found = new Map(
+      trees.filter((row) => !row.caseId || openParents.has(row.caseId)).map((row) => [row.id, row] as const),
+    );
+    for (const row of rows) {
+      const source = row.kind === 'family_tree' ? found.get(row.fromId) : undefined;
+      if (source) {
+        out.push({
+          kind: 'family_tree',
+          id: source.id,
+          href: `/stambomen/${source.slug}`,
+          name: source.name,
+          detail: row.detail,
+        });
+      }
+    }
+  }
+
   /* Artikelen — an infobox field, or one of the artikel's sections. */
   const entryIds = [...new Set([...idsOf('field'), ...idsOf('section')])];
   if (entryIds.length) {
@@ -792,6 +905,8 @@ export const MENTION_GROUPS: {
   { key: 'board', kinds: ['board'], word: 'mentionedOnBoards', icon: 'board' },
   { key: 'map', kinds: ['map'], word: 'mentionedOnMaps', icon: 'map' },
   { key: 'timeline', kinds: ['timeline'], word: 'mentionedOnTimelines', icon: 'timeline' },
+  // §66
+  { key: 'family_tree', kinds: ['family_tree'], word: 'mentionedOnFamilyTrees', icon: 'tree' },
 ];
 
 /**

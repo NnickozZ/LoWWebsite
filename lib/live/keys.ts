@@ -10,9 +10,10 @@
  *   entry:{id}      one artikel · case:{id} one dossier · board:{id} one
  *                   prikbord · map:{id} one landkaart · pin:{id} one speld ·
  *                   timeline:{id} one tijdlijn · event:{id} one gebeurtenis ·
- *                   ink:{id} the tekenlaag on a prikbord, landkaart or tijdlijn
- *   entries, cases, boards, maps, timelines, types, words, site, users,
- *   characters, feed
+ *                   family_tree:{id} one stamboom (§66) · ink:{id} the
+ *                   tekenlaag on a prikbord, landkaart, tijdlijn or stamboom
+ *   entries, cases, boards, maps, timelines, family_trees, types, words, site,
+ *   users, characters, feed
  *                   "something in this collection changed" — a list page's key
  *   admin           Keeper-only: trash, proposals, audit
  *   page:/wiki      a fixed page as a *place* to stand, when it is about no
@@ -25,9 +26,9 @@
 
 export const ID = '[A-Za-z0-9_-]{1,64}';
 
-const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event|ink):(${ID})$`);
+const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event|family_tree|ink):(${ID})$`);
 const ROOM_KEY = new RegExp(
-  `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields|keeper:(?:entry|case|board|map|timeline):${ID}:notes)$`,
+  `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields|keeper:(?:entry|case|board|map|timeline|family_tree):${ID}:notes)$`,
 );
 
 /** Keys any signed-in person may watch: a list moved, nothing about which row. */
@@ -37,6 +38,8 @@ export const COLLECTION_KEYS = [
   'boards',
   'maps',
   'timelines',
+  // §66
+  'family_trees',
   'types',
   'words',
   'site',
@@ -50,7 +53,19 @@ export type CollectionKey = (typeof COLLECTION_KEYS)[number];
 export const KEEPER_KEYS = ['admin'] as const;
 
 /** The fixed pages a person can stand on that are about no record. */
-export const PAGE_PLACES = ['/', '/cases', '/wiki', '/boards', '/maps', '/timelines', '/search', '/you', '/admin'] as const;
+export const PAGE_PLACES = [
+  '/',
+  '/cases',
+  '/wiki',
+  '/boards',
+  '/maps',
+  '/timelines',
+  // §66
+  '/stambomen',
+  '/search',
+  '/you',
+  '/admin',
+] as const;
 
 export const entryKey = (id: string) => `entry:${id}`;
 export const caseKey = (id: string) => `case:${id}`;
@@ -59,6 +74,8 @@ export const mapKey = (id: string) => `map:${id}`;
 export const pinKey = (id: string) => `pin:${id}`;
 export const timelineKey = (id: string) => `timeline:${id}`;
 export const eventKey = (id: string) => `event:${id}`;
+/** §66: one stamboom. */
+export const familyTreeKey = (id: string) => `family_tree:${id}`;
 /**
  * §44: the Keeper's notes about one thing, as shared text. Keeper-only at the
  * gate (`lib/live/rooms.ts`), and always addressed by the *pair's* side — two
@@ -67,13 +84,23 @@ export const eventKey = (id: string) => `event:${id}`;
  */
 export const keeperNotesRoomKey = (kind: string, id: string) => `keeper:${kind}:${id}:notes`;
 
-/** §33: the tekenlaag on the thing with this id (a prikbord, landkaart or tijdlijn). */
+/** §33: the tekenlaag on the thing with this id (a prikbord, landkaart, tijdlijn or stamboom). */
 export const inkKey = (id: string) => `ink:${id}`;
 /** A wiki soort's list page, as a place. */
 export const typePagePlace = (slug: string) => `page:/wiki/${slug}`;
 export const pagePlace = (path: string) => `page:${path}`;
 
-export type RecordKind = 'entry' | 'case' | 'board' | 'map' | 'pin' | 'timeline' | 'event' | 'ink';
+export type RecordKind =
+  | 'entry'
+  | 'case'
+  | 'board'
+  | 'map'
+  | 'pin'
+  | 'timeline'
+  | 'event'
+  // §66
+  | 'family_tree'
+  | 'ink';
 
 export function parseRecordKey(key: string): { kind: RecordKind; id: string } | null {
   const match = RECORD_KEY.exec(key);

@@ -140,6 +140,13 @@ beforeAll(async () => {
     `INSERT INTO boards (id, name, state, created_by, view_mode, edit_mode, keeper_only)
      VALUES ('b-van-bram', 'Bram’s muur', '{"cards":[],"strings":[]}', 'bram', 'all', 'all', 1)`,
   );
+  // §66: the same shape for the sixth kind. `loadAccessRow` has to *select*
+  // `keeper_only` for it, or the predicates beside the SQL read `undefined`
+  // and wave a Keeper-only stamboom past on its owner's dial.
+  run(
+    `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, edit_mode, keeper_only)
+     VALUES ('f-van-bram', 'Bram’s stamboom', 'f-van-bram', '{}', 'bram', 'all', 'all', 1)`,
+  );
 
   /*
    * 4 — an artikel Bram opened and the Keeper has since hidden, with a
@@ -214,6 +221,16 @@ describe('the rechten row carries the Keeper’s side with it', () => {
   it('and viewerCanEdit refuses it too', () => {
     expect(deps.viewerCanEdit('board', 'b-van-bram', BRAM)).toBe(false);
     expect(deps.viewerCanEdit('board', 'b-van-bram', KEEPER)).toBe(true);
+  });
+
+  it('§66: and it does the same for a stamboom, the sixth kind', () => {
+    const row = deps.loadAccessRow('family_tree', 'f-van-bram');
+    expect(row?.keeperOnly).toBe(true);
+    expect(row?.createdBy).toBe('bram');
+    expect(deps.canView(row!, BRAM)).toBe(false);
+    expect(deps.canView(row!, KEEPER)).toBe(true);
+    expect(deps.viewerCanEdit('family_tree', 'f-van-bram', BRAM)).toBe(false);
+    expect(deps.viewerCanEdit('family_tree', 'f-van-bram', KEEPER)).toBe(true);
   });
 
   it('an artikel has no such column and reads back exactly as before', () => {

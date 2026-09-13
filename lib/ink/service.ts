@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import { viewableCondition } from '@/lib/access';
 import { getBoard } from '@/lib/boards/service';
 import { db, schema } from '@/lib/db';
 import type { Author } from '@/lib/auth/author';
@@ -48,13 +49,41 @@ export function inkTarget(kind: InkKind, id: string, viewer: Viewer): InkTarget 
     const map = getMapById(id, viewer);
     return map ? { kind, id: map.id, name: map.name, caseId: null } : undefined;
   }
+  /**
+   * §66: a stamboom, asked the same question as a prikbord — its own two
+   * dials (which carry `keeper_only` inside them since §44) and the bin.
+   *
+   * Spelled out here rather than asked of `getFamilyTreeById`, because
+   * `lib/families/service.ts` does not exist yet; when it does, this branch
+   * becomes the same one line the three above are.
+   */
+  if (kind === 'family_tree') {
+    const tree = db
+      .select({ id: schema.familyTrees.id, name: schema.familyTrees.name, caseId: schema.familyTrees.caseId })
+      .from(schema.familyTrees)
+      .where(
+        and(
+          eq(schema.familyTrees.id, id),
+          isNull(schema.familyTrees.deletedAt),
+          viewableCondition('family_tree', viewer),
+        ),
+      )
+      .get();
+    return tree ? { kind, id: tree.id, name: tree.name, caseId: tree.caseId } : undefined;
+  }
   const timeline = getTimelineById(id, viewer);
   return timeline ? { kind, id: timeline.id, name: timeline.name, caseId: timeline.caseId } : undefined;
 }
 
-/** Any of the three, by id alone — for the live gate, which only has the key. */
+/** Any of the four, by id alone — for the live gate, which only has the key. */
 export function inkTargetById(id: string, viewer: Viewer): InkTarget | undefined {
-  return inkTarget('board', id, viewer) ?? inkTarget('map', id, viewer) ?? inkTarget('timeline', id, viewer);
+  return (
+    inkTarget('board', id, viewer) ??
+    inkTarget('map', id, viewer) ??
+    inkTarget('timeline', id, viewer) ??
+    // §66
+    inkTarget('family_tree', id, viewer)
+  );
 }
 
 function readRow(id: string) {

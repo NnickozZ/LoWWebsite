@@ -42,11 +42,13 @@ export function BoardPicker({
   pickableCases,
   pickableTimelines,
   pickableBoards,
+  pickableFamilyTrees,
   onPickEntry,
   onPickMap,
   onPickCase,
   onPickTimeline,
   onPickBoard,
+  onPickFamilyTree,
   onCreateNote,
   onCreateEntry,
   onCancel,
@@ -75,11 +77,14 @@ export function BoardPicker({
   pickableCases: PickableItem[];
   pickableTimelines: PickableItem[];
   pickableBoards: PickableItem[];
+  /** §66: the stambomen this viewer may hang up. */
+  pickableFamilyTrees: PickableItem[];
   onPickEntry: (entry: SuggestedEntry) => void;
   onPickMap: (item: PickableItem) => void;
   onPickCase: (item: PickableItem) => void;
   onPickTimeline: (item: PickableItem) => void;
   onPickBoard: (item: PickableItem) => void;
+  onPickFamilyTree: (item: PickableItem) => void;
   onCreateNote: (name: string) => void;
   onCreateEntry: (name: string) => void;
   /** Escape, or a click on nothing. Only the floating one has one. */
@@ -119,18 +124,21 @@ export function BoardPicker({
   }, [search]);
 
   /**
-   * Landkaarten, dossiers, tijdlijnen and (§52) other prikborden matching what
-   * is typed, and not already up. Matched here rather than asked for: you have
-   * a dozen landkaarten, not a thousand.
+   * Landkaarten, dossiers, tijdlijnen, (§52) other prikborden and (§66)
+   * stambomen matching what is typed, and not already up. Matched here rather
+   * than asked for: you have a dozen landkaarten, not a thousand.
    */
   const otherMatches = useMemo(() => {
     const typed = search.trim();
-    if (!typed) return { maps: [], cases: [], timelines: [], boards: [] };
+    if (!typed) return { maps: [], cases: [], timelines: [], boards: [], familyTrees: [] };
     const onWall = {
       map: new Set(cards.filter((card) => card.kind === 'map').map((card) => card.mapId)),
       case: new Set(cards.filter((card) => card.kind === 'case').map((card) => card.caseId)),
       timeline: new Set(cards.filter((card) => card.kind === 'timeline').map((card) => card.timelineId)),
       board: new Set(cards.filter((card) => card.kind === 'board').map((card) => card.boardId)),
+      family_tree: new Set(
+        cards.filter((card) => card.kind === 'family_tree').map((card) => card.familyTreeId),
+      ),
     };
     const pick = <T extends PickableItem>(list: T[], up: Set<unknown>) =>
       list
@@ -145,8 +153,17 @@ export function BoardPicker({
       cases: pick(pickableCases, onWall.case),
       timelines: pick(pickableTimelines, onWall.timeline),
       boards: pick(pickableBoards, onWall.board),
+      familyTrees: pick(pickableFamilyTrees, onWall.family_tree),
     };
-  }, [search, cards, pickableMaps, pickableCases, pickableTimelines, pickableBoards]);
+  }, [
+    search,
+    cards,
+    pickableMaps,
+    pickableCases,
+    pickableTimelines,
+    pickableBoards,
+    pickableFamilyTrees,
+  ]);
 
   const typed = search.trim();
 
@@ -221,7 +238,7 @@ export function BoardPicker({
         placeholder={
           holding
             ? `Zoek wat er aan de ${ui.words.string} komt…`
-            : `Zoek een ${ui.words.entry}, landkaart, ${ui.words.case}, ${ui.words.board} of ${ui.words.timeline}…`
+            : `Zoek een ${ui.words.entry}, landkaart, ${ui.words.case}, ${ui.words.board}, ${ui.words.timeline} of ${ui.words.familyTree}…`
         }
         aria-describedby={holding ? `board-search-holding${variant}` : undefined}
         onChange={(event) => setSearch(event.target.value)}
@@ -267,6 +284,17 @@ export function BoardPicker({
           {otherMatches.boards.map((item) =>
             row(`board-${item.id}`, 'board', 'var(--ink-muted)', item.name, capitalise(ui.words.board), () =>
               onPickBoard(item),
+            ),
+          )}
+          {/* §66: and the stambomen. */}
+          {otherMatches.familyTrees.map((item) =>
+            row(
+              `family_tree-${item.id}`,
+              'tree',
+              'var(--ink-muted)',
+              item.name,
+              capitalise(ui.words.familyTree),
+              () => onPickFamilyTree(item),
             ),
           )}
 

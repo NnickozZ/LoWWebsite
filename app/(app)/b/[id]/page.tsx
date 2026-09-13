@@ -15,6 +15,7 @@ import {
   resolveBoardBoards,
   resolveBoardCases,
   resolveBoardEntries,
+  resolveBoardFamilyTrees,
   resolveBoardMaps,
   resolveBoardTimelines,
 } from '@/lib/boards/service';
@@ -22,6 +23,7 @@ import { cardRef } from '@/lib/boards/merge';
 import { listCaseEntries, listCases } from '@/lib/cases/service';
 import { listMaps } from '@/lib/maps/service';
 import { listTimelines } from '@/lib/timelines/service';
+import { listFamilyTrees } from '@/lib/families/service';
 import { inkForViewer } from '@/lib/ink/merge';
 import { getInk } from '@/lib/ink/service';
 
@@ -48,7 +50,15 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
 
   // Everything the wall points at, grouped by what kind of thing it is. Each
   // list is resolved behind its own visibility rule below.
-  const refs = { entry: [] as string[], map: [] as string[], case: [] as string[], timeline: [] as string[], board: [] as string[] };
+  const refs = {
+    entry: [] as string[],
+    map: [] as string[],
+    case: [] as string[],
+    timeline: [] as string[],
+    board: [] as string[],
+    // §66: the stambomen this wall points at.
+    family_tree: [] as string[],
+  };
   for (const card of board.state.cards) {
     const ref = cardRef(card);
     if (ref) refs[ref.kind].push(ref.id);
@@ -70,6 +80,9 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const pickableBoards = listBoards(user)
     .filter((item) => item.id !== board.id)
     .map((item) => ({ id: item.id, name: item.name }));
+  // §66: the stambomen. Same rule as the tijdlijnen above — sided, already
+  // filtered for this viewer, and small enough to hand over whole.
+  const pickableFamilyTrees = listFamilyTrees(user).map((item) => ({ id: item.id, name: item.name }));
 
   // What this case already holds. Two things need it: the prompt that offers
   // to file a pinned entry, and the tray of everything in the case that is not
@@ -111,10 +124,12 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       initialCases={Object.fromEntries(resolveBoardCases(refs.case, user))}
       initialTimelines={Object.fromEntries(resolveBoardTimelines(refs.timeline, user))}
       initialBoards={Object.fromEntries(resolveBoardBoards(refs.board, user))}
+      initialFamilyTrees={Object.fromEntries(resolveBoardFamilyTrees(refs.family_tree, user))}
       pickableMaps={pickableMaps}
       pickableCases={pickableCases}
       pickableTimelines={pickableTimelines}
       pickableBoards={pickableBoards}
+      pickableFamilyTrees={pickableFamilyTrees}
       readOnly={!mayEdit}
       initialInk={inkForViewer(getInk(board.id), user?.id ?? null)}
       access={{

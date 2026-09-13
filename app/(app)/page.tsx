@@ -14,6 +14,7 @@ import { db, schema } from '@/lib/db';
 import { countEntriesPerCase, listCases } from '@/lib/cases/service';
 import { browseEntries, countEntriesPerType, recentActivity } from '@/lib/entries/service';
 import { defaultIntro, introParagraphs } from '@/lib/intro';
+import { listFamilyTrees } from '@/lib/families/service';
 import { listMaps } from '@/lib/maps/service';
 import { capitalise } from '@/lib/words';
 
@@ -54,11 +55,15 @@ export default async function HomePage() {
   const caseCount = listCases(user).length;
   const boardCount = listBoards(user).length;
   const mapCount = listMaps(user).length;
+  // §66: and the stambomen, beside the walls and the landkaarten. On a phone
+  // this line is the way in — the tab bar was full at eight.
+  const familyTreeCount = listFamilyTrees(user).length;
   const numbers = [
     [entryCount, words.entry, words.entryPlural],
     [caseCount, words.case, words.casePlural],
     [boardCount, words.board, words.boardPlural],
     [mapCount, words.map, words.mapPlural],
+    [familyTreeCount, words.familyTree, words.familyTreePlural],
   ] as const;
 
   const intro = introParagraphs(settings?.intro?.trim() ? settings.intro : defaultIntro(words));

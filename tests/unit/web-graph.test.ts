@@ -117,6 +117,22 @@ beforeAll(async () => {
     JSON.stringify([{ key: 'zaak', label: 'Hoort bij', kind: 'case_link' }]),
   );
 
+  /*
+   * §66: a soort with kinship in its infobox — three koppelingsvelden that
+   * carry a `role` and one that does not, because the whole of the yield rule
+   * is that only the ones with a role turn into a `lineage` line and only
+   * *their* `field` line goes away.
+   */
+  run(
+    `INSERT INTO entry_types (id, slug, label, fields, blocks, sort_order) VALUES ('geslacht', 'geslacht', 'Geslacht', ?, '[]', 901)`,
+    JSON.stringify([
+      { key: 'ouders', label: 'Ouders', kind: 'entry_links', role: 'parent' },
+      { key: 'kinderen', label: 'Kinderen', kind: 'entry_links', role: 'child' },
+      { key: 'partner', label: 'Partner', kind: 'entry_link', role: 'partner' },
+      { key: 'vriend', label: 'Vriend', kind: 'entry_link' },
+    ]),
+  );
+
   const entry = (id: string, typeId: string, name: string, over: { visibility?: string; fields?: unknown } = {}) =>
     run(
       `INSERT INTO entries (id, type_id, name, slug, fields, tags, created_by, visibility) VALUES (?, ?, ?, ?, ?, '[]', 'keeper-1', ?)`,
@@ -136,6 +152,16 @@ beforeAll(async () => {
   entry('e-inv', 'investigator', 'Onderzoeker Van Dijk', { fields: { player: { id: 'bram', username: 'Bram' } } });
   entry('e-proef', 'proef', 'Proefstuk', { fields: { zaak: 'c-open' } });
   entry('e-geheim', 'location', 'De geheime kelder', { visibility: 'keeper' });
+
+  // §66: three generations of one geslacht, and a daughter nobody may see.
+  entry('e-vader', 'geslacht', 'Willem de Oude', {
+    fields: { kinderen: [{ id: 'e-dochter', name: 'Neeltje' }] },
+  });
+  entry('e-moeder', 'geslacht', 'Grietje Blaas', { fields: { partner: { id: 'e-vader', name: 'Willem de Oude' } } });
+  entry('e-zoon', 'geslacht', 'Klaas de Jonge', {
+    fields: { ouders: [{ id: 'e-vader', name: 'Willem de Oude' }], vriend: { id: 'e-jan', name: 'Jan Vermeer' } },
+  });
+  entry('e-dochter', 'geslacht', 'Neeltje de Stille', { visibility: 'keeper' });
 
   // Bram wears Jan; a second fiche too, to show every karakter a member holds counts.
   run(`INSERT INTO user_characters (user_id, entry_id, sort_order) VALUES ('bram', 'e-jan', 0)`);
@@ -251,6 +277,51 @@ beforeAll(async () => {
       strings: [{ id: 'st-uit', from: { card: 'card-plek-uit' }, to: { card: 'card-toren-uit' }, label: 'heeft gezien' }],
       viewport: { x: 0, y: 0, zoom: 1 },
     }),
+  );
+
+  /*
+   * §66: stambomen. The open one hangs in the open dossier and holds two
+   * artikelen, one Keeper-only artikel, and a los kaartje with a lijn to each
+   * — the lijnen that touch a los kaartje are the only ones a tree stores.
+   * Then one its manager keeps out of the web, and one on the Keeper's side.
+   */
+  const treeState = (over: Record<string, unknown>) =>
+    JSON.stringify({ v: 1, members: [], loose: [], ties: [], deleted: { members: {}, loose: {}, ties: {} }, ...over });
+  const member = (id: string) => ({ id, updatedAt: 1 });
+  run(
+    `INSERT INTO family_trees (id, name, slug, description, case_id, state, created_by, view_mode) VALUES ('ft-huis', 'Het geslacht De Oude', 'geslacht-de-oude', 'Vier generaties.', 'c-open', ?, 'bram', 'all')`,
+    treeState({
+      members: [member('e-vader'), member('e-moeder'), member('e-zoon'), member('e-geheim')],
+      loose: [{ id: 'l-moeder', name: 'Onbekende moeder', text: 'Niemand weet wie.', frame: 'unknown', updatedAt: 1 }],
+      ties: [
+        {
+          id: 'ti-1',
+          from: { kind: 'loose', id: 'l-moeder' },
+          to: { kind: 'entry', id: 'e-zoon' },
+          role: 'parent',
+          label: 'Moeder',
+          updatedAt: 1,
+        },
+        // A tie whose entry end is Keeper-only: gone for a player, with the
+        // artikel it names.
+        {
+          id: 'ti-2',
+          from: { kind: 'entry', id: 'e-geheim' },
+          to: { kind: 'loose', id: 'l-moeder' },
+          role: 'kin',
+          label: '',
+          updatedAt: 1,
+        },
+      ],
+    }),
+  );
+  run(
+    `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, in_web) VALUES ('ft-uit', 'Een vermoeden', 'een-vermoeden', ?, 'bram', 'all', 0)`,
+    treeState({ members: [member('e-jan')], loose: [{ id: 'l-uit', name: 'Iemand', frame: 'unknown', updatedAt: 1 }] }),
+  );
+  run(
+    `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, keeper_only) VALUES ('ft-keeper', 'Wat de Keeper weet', 'wat-de-keeper-weet', ?, 'keeper-1', 'all', 1)`,
+    treeState({ members: [member('e-jan')] }),
   );
 
   // The panel's short description: one of each kind that has one, padded to
@@ -421,6 +492,59 @@ describe('the Keeper sees every kind of tie', () => {
   it('has no notities unless asked', () => {
     expect(graph.nodes.some((node) => node.kind === 'note')).toBe(false);
   });
+
+  /* ------------------------------------------------------------ §66 stambomen */
+
+  it('a stamboom is a knot, hung in its dossier, with everybody who stands in it', () => {
+    expect(graph.nodes.find((node) => node.id === 'family_tree:ft-huis')).toMatchObject({
+      kind: 'family_tree',
+      refId: 'ft-huis',
+      name: 'Het geslacht De Oude',
+      href: '/stambomen/geslacht-de-oude',
+      subtitle: 'Zaak Vlissingen',
+      summary: 'Vier generaties.',
+    });
+    expect(hasEdge(graph, 'inCase', 'case:c-open', 'family_tree:ft-huis')).toBe(true);
+    for (const id of ['e-vader', 'e-moeder', 'e-zoon', 'e-geheim']) {
+      expect(hasEdge(graph, 'inTree', `entry:${id}`, 'family_tree:ft-huis'), id).toBe(true);
+    }
+  });
+
+  it('a stamboom kept out of the web is not in it at all', () => {
+    expect(graph.nodes.some((node) => node.id === 'family_tree:ft-uit')).toBe(false);
+    expect(touching(graph, 'family_tree:ft-uit')).toEqual([]);
+    expect(JSON.stringify(graph)).not.toContain('Een vermoeden');
+  });
+
+  it('kinship is read off the role fields, parent → child whichever end wrote it', () => {
+    // "Ouders" on the child and "Kinderen" on the parent both run downwards.
+    expect(hasEdge(graph, 'lineage', 'entry:e-vader', 'entry:e-zoon', 'Ouders')).toBe(true);
+    expect(hasEdge(graph, 'lineage', 'entry:e-vader', 'entry:e-dochter', 'Kinderen')).toBe(true);
+    // A partner line keeps the direction the artikel that said it wrote it in.
+    expect(hasEdge(graph, 'lineage', 'entry:e-moeder', 'entry:e-vader', 'Partner')).toBe(true);
+  });
+
+  /*
+   * §66: the yield. A role field is a koppelingsveld like any other, so
+   * `entry_mentions` writes it down and the web would draw the same two people
+   * twice — once "in de infobox: Ouders" and once as kinship. The infobox line
+   * goes; the one on a field with *no* role stays, which is the whole of the
+   * rule ("the same word between the same two knots", not "the same pair").
+   */
+  it('an infobox line yields to the kinship line read off the same field', () => {
+    expect(hasEdge(graph, 'field', 'entry:e-zoon', 'entry:e-vader', 'Ouders')).toBe(false);
+    expect(hasEdge(graph, 'field', 'entry:e-vader', 'entry:e-dochter', 'Kinderen')).toBe(false);
+    expect(hasEdge(graph, 'field', 'entry:e-moeder', 'entry:e-vader', 'Partner')).toBe(false);
+    // A koppelingsveld without a role is not kinship and keeps its line.
+    expect(hasEdge(graph, 'field', 'entry:e-zoon', 'entry:e-jan', 'Vriend')).toBe(true);
+    // And exactly one line joins the two, not two.
+    const between = graph.edges.filter(
+      (edge) =>
+        (edge.from === 'entry:e-vader' && edge.to === 'entry:e-zoon') ||
+        (edge.from === 'entry:e-zoon' && edge.to === 'entry:e-vader'),
+    );
+    expect(between.map((edge) => edge.kind)).toEqual(['lineage']);
+  });
 });
 
 describe('rule 1: what a player may not open is absent', () => {
@@ -467,6 +591,30 @@ describe('rule 1: what a player may not open is absent', () => {
     expect(hasEdge(graph, 'investigator', 'entry:e-jan', 'case:c-open')).toBe(true);
     expect(hasEdge(graph, 'filed', 'case:c-open', 'entry:e-toren')).toBe(true);
     expect(edgesOf(graph, 'thread').map((edge) => edge.detail)).toEqual(['zag']);
+  });
+
+  /*
+   * §66, and rule 1 once more: a kinship line to an artikel this reader may
+   * not open is *absent*. "Willem has a daughter you may not see" is itself a
+   * secret, so there is no faint knot and no stub of a line.
+   */
+  it('a kinship line to an artikel a player may not open is absent', () => {
+    expect(graph.nodes.some((node) => node.id === 'entry:e-dochter')).toBe(false);
+    expect(touching(graph, 'entry:e-dochter')).toEqual([]);
+    expect(edgesOf(graph, 'lineage').some((edge) => edge.detail === 'Kinderen')).toBe(false);
+    expect(JSON.stringify(graph)).not.toContain('Neeltje');
+    // The ones he may see are all still drawn.
+    expect(hasEdge(graph, 'lineage', 'entry:e-vader', 'entry:e-zoon', 'Ouders')).toBe(true);
+    expect(hasEdge(graph, 'lineage', 'entry:e-moeder', 'entry:e-vader', 'Partner')).toBe(true);
+  });
+
+  it("a stamboom on the Keeper's side is not a knot for a player, and the members it holds are not tied to it", () => {
+    expect(graph.nodes.some((node) => node.id === 'family_tree:ft-keeper')).toBe(false);
+    expect(touching(graph, 'family_tree:ft-keeper')).toEqual([]);
+    expect(JSON.stringify(graph)).not.toContain('Wat de Keeper weet');
+    // The open stamboom is still his, minus the Keeper-only member.
+    expect(hasEdge(graph, 'inTree', 'entry:e-zoon', 'family_tree:ft-huis')).toBe(true);
+    expect(edgesOf(graph, 'inTree').some((edge) => edge.from === 'entry:e-geheim')).toBe(false);
   });
 
   it('the owner of the private things sees them', () => {
@@ -531,6 +679,50 @@ describe('notities, when asked for', () => {
     assertClosed(his);
     expect(his.nodes.some((node) => node.kind === 'note' && node.href === '/b/b-prive')).toBe(false);
     expect(his.nodes.some((node) => node.id === 'note:card-note')).toBe(true);
+  });
+
+  /*
+   * §66: a los kaartje in a stamboom is the same thing a punaise is — a name
+   * with no artikel behind it, on the web only because a lijn runs through it
+   * — so it is a `note` knot and rides this same switch. Its refId carries the
+   * tree, because a loose id is unique inside one tree and nowhere else.
+   */
+  it('a los kaartje in a stamboom is a notitie, in the tree, with its lijnen', () => {
+    const loose = graph.nodes.find((node) => node.id === 'note:tree:ft-huis:l-moeder');
+    expect(loose).toMatchObject({
+      kind: 'note',
+      refId: 'tree:ft-huis:l-moeder',
+      name: 'Onbekende moeder',
+      href: '/stambomen/geslacht-de-oude',
+      subtitle: 'Het geslacht De Oude',
+      summary: 'Niemand weet wie.',
+    });
+    expect(hasEdge(graph, 'inTree', 'note:tree:ft-huis:l-moeder', 'family_tree:ft-huis')).toBe(true);
+    // The tree's own lijn, with the word that was typed on it …
+    expect(hasEdge(graph, 'lineage', 'note:tree:ft-huis:l-moeder', 'entry:e-zoon', 'Moeder')).toBe(true);
+    // … and one with no word, which takes its role's Dutch word instead.
+    expect(hasEdge(graph, 'lineage', 'entry:e-geheim', 'note:tree:ft-huis:l-moeder', 'Verwant')).toBe(true);
+  });
+
+  it('a los kaartje in a stamboom kept out of the web is not a knot either', () => {
+    expect(graph.nodes.some((node) => node.id === 'note:tree:ft-uit:l-uit')).toBe(false);
+    expect(JSON.stringify(graph)).not.toContain('l-uit');
+  });
+
+  it("without the switch there is no los kaartje, and the tree's own lijnen go with it", () => {
+    const plain = deps.buildWebGraph(KEEPER, { othersPrivate: true });
+    expect(plain.nodes.some((node) => node.refId.startsWith('tree:'))).toBe(false);
+    expect(edgesOf(plain, 'lineage').some((edge) => edge.detail === 'Moeder' || edge.detail === 'Verwant')).toBe(false);
+    // The kinship read off the fields is not a los kaartje's and stays.
+    expect(hasEdge(plain, 'lineage', 'entry:e-vader', 'entry:e-zoon', 'Ouders')).toBe(true);
+  });
+
+  it("a los kaartje's lijn to an artikel a player may not open is absent", () => {
+    const his = deps.buildWebGraph(BRAM, { notes: true });
+    assertClosed(his);
+    expect(his.nodes.some((node) => node.id === 'note:tree:ft-huis:l-moeder')).toBe(true);
+    expect(hasEdge(his, 'lineage', 'note:tree:ft-huis:l-moeder', 'entry:e-zoon', 'Moeder')).toBe(true);
+    expect(edgesOf(his, 'lineage').some((edge) => edge.detail === 'Verwant')).toBe(false);
   });
 });
 

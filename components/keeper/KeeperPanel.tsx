@@ -35,7 +35,7 @@ export type KeeperPanelProps = {
 };
 
 /**
- * §44: the Keeper's corner of a page — the same one on all five kinds.
+ * §44: the Keeper's corner of a page — the same one on all six kinds (§66).
  *
  * It holds four things, in the order a Keeper needs them: the way across to
  * the other face, whether this page is theirs at all, what it is roped to, and

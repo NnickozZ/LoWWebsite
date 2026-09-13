@@ -54,7 +54,9 @@ test('no console errors or warnings while walking the archive', async ({ page })
     await page.waitForTimeout(300);
   }
 
-  for (const path of ['/', '/wiki', '/cases', '/boards', '/maps', '/timelines', '/search?q=e', '/you']) {
+  // §66: `/stambomen` walks with the other shelves; one tree page is opened
+  // below, after there is certain to be one to open.
+  for (const path of ['/', '/wiki', '/cases', '/boards', '/maps', '/timelines', '/stambomen', '/search?q=e', '/you']) {
     await page.goto(path);
     await page.waitForTimeout(300);
   }
@@ -114,6 +116,39 @@ test('no console errors or warnings while walking the archive', async ({ page })
     await page.waitForTimeout(300);
     await page.keyboard.press('Escape');
   }
+
+  /*
+   * §66: a stamboom with somebody in it, its handles, its picker and its loose
+   * sheet. Made here rather than looked for: the demo fixture seeds no tree, so
+   * a `if (there is one)` guard would quietly walk nothing at all.
+   */
+  await page.goto('/stambomen');
+  await page.getByRole('button', { name: 'Nieuwe stamboom' }).click();
+  const treeSheet = page.getByRole('dialog', { name: /Nieuwe stamboom/ });
+  await treeSheet.getByLabel('Naam', { exact: true }).fill('Schone console');
+  await treeSheet.getByRole('button', { name: 'Openbare stamboom' }).click();
+  await page.waitForURL('**/stambomen/**');
+  await page.waitForTimeout(300);
+  await page.locator('#tree-add-person').fill('Jacob');
+  const suggestion = page
+    .locator('.tree-tools .suggest-item')
+    .filter({ hasText: 'Jacob den Hollander' })
+    .filter({ hasNotText: 'aanmaken' })
+    .first();
+  await suggestion.waitFor({ state: 'visible', timeout: 15_000 });
+  await suggestion.click();
+  const card = page.locator('[data-testid="tree-node"]').first();
+  await card.waitFor({ state: 'visible', timeout: 15_000 });
+  await card.click({ position: { x: 6, y: 6 } });
+  await page.getByTestId('tree-handle-child').click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.getByTestId('tree-add-loose').click();
+  await page.waitForTimeout(300);
+  await page.locator('[data-frame="unknown"] .tree-node-edit').first().click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
 
   expect(complaints, `browser console was not clean:\n${complaints.join('\n')}`).toEqual([]);
 });

@@ -15,7 +15,8 @@ import { activeCharacterNames } from '@/lib/characters';
 
 export const dynamic = 'force-dynamic';
 
-const TARGETS: AccessTargetType[] = ['entry', 'case', 'board', 'timeline', 'map'];
+// §66: a stamboom wears the same two dials as the other three containers.
+const TARGETS: AccessTargetType[] = ['entry', 'case', 'board', 'timeline', 'map', 'family_tree'];
 
 function parseTarget(url: URL): { target: AccessTargetType; id: string } {
   const target = url.searchParams.get('target') ?? '';

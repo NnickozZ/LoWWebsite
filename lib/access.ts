@@ -69,6 +69,8 @@ const TABLES = {
    * or take one down; the dial writes that rule down instead of loosening it.
    */
   map: schema.maps,
+  // §66: and a stamboom, the fourth container, born with its dials (§40).
+  family_tree: schema.familyTrees,
 } as const;
 
 /**

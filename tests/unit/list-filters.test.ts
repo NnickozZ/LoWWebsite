@@ -21,6 +21,7 @@ type Deps = {
   countEntriesPerType: typeof import('@/lib/entries/service').countEntriesPerType;
   listCases: typeof import('@/lib/cases/service').listCases;
   listBoards: typeof import('@/lib/boards/service').listBoards;
+  listFamilyTrees: typeof import('@/lib/families/service').listFamilyTrees;
   listMaps: typeof import('@/lib/maps/service').listMaps;
   listPins: typeof import('@/lib/maps/service').listPins;
 };
@@ -35,6 +36,7 @@ beforeAll(async () => {
   const entries = await import('@/lib/entries/service');
   const cases = await import('@/lib/cases/service');
   const boards = await import('@/lib/boards/service');
+  const families = await import('@/lib/families/service');
   const maps = await import('@/lib/maps/service');
   deps = {
     sqlite: dbModule.sqlite,
@@ -42,6 +44,7 @@ beforeAll(async () => {
     countEntriesPerType: entries.countEntriesPerType,
     listCases: cases.listCases,
     listBoards: boards.listBoards,
+    listFamilyTrees: families.listFamilyTrees,
     listMaps: maps.listMaps,
     listPins: maps.listPins,
   };
@@ -123,6 +126,17 @@ beforeAll(async () => {
   board('b-los', 'Los bord', 'bram', null);
   board('b-zaak', 'Zaakbord', 'aagje', 'c-open');
   board('b-prive', 'Privé bord', 'bram', null, 'private');
+
+  // §66: de stambomen read the same bar as the prikborden.
+  const tree = (id: string, name: string, by: string, caseId: string | null, viewMode = 'all') =>
+    sqlite
+      .prepare(
+        `INSERT INTO family_trees (id, name, slug, case_id, state, created_by, view_mode) VALUES (?, ?, ?, ?, '{}', ?, ?)`,
+      )
+      .run(id, name, id, caseId, by, viewMode);
+  tree('f-los', 'Losse stamboom', 'bram', null);
+  tree('f-zaak', 'Zaakstamboom', 'aagje', 'c-open');
+  tree('f-prive', 'Privé stamboom', 'bram', null, 'private');
 });
 
 afterAll(() => {
@@ -228,6 +242,24 @@ describe('listBoards', () => {
     expect(names(deps.listBoards(BRAM, { mine: 'bram', sort: 'name' }))).toEqual(['Los bord', 'Privé bord']);
     expect(names(deps.listBoards(AAGJE, { privateOnly: true }))).toEqual([]);
     expect(names(deps.listBoards(BRAM, { privateOnly: true }))).toEqual(['Privé bord']);
+  });
+});
+
+describe('listFamilyTrees', () => {
+  it('loose or filed, mine, private — and the member count is per viewer', () => {
+    expect(names(deps.listFamilyTrees(KEEPER, { where: 'loose', sort: 'name' }))).toEqual([
+      'Losse stamboom',
+      'Privé stamboom',
+    ]);
+    expect(names(deps.listFamilyTrees(KEEPER, { where: 'case' }))).toEqual(['Zaakstamboom']);
+    expect(names(deps.listFamilyTrees(BRAM, { mine: 'bram', sort: 'name' }))).toEqual([
+      'Losse stamboom',
+      'Privé stamboom',
+    ]);
+    expect(names(deps.listFamilyTrees(AAGJE, { privateOnly: true }))).toEqual([]);
+    expect(names(deps.listFamilyTrees(BRAM, { privateOnly: true }))).toEqual(['Privé stamboom']);
+    // An empty blob is a tree with nobody in it, not a crash.
+    expect(deps.listFamilyTrees(KEEPER).every((row) => row.memberCount === 0)).toBe(true);
   });
 });
 

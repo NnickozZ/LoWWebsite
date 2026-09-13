@@ -15,7 +15,7 @@ import {
  * §44: the box that ties a touwtje.
  *
  * The same shape as `CaseAddSearch` and `EntryPicker` — type, wait 160 ms,
- * fetch, pick a row — with two differences. It searches all five kinds at once
+ * fetch, pick a row — with two differences. It searches all six kinds at once
  * (`/api/keeper/search`, which puts every candidate through `keeperRef`), and
  * it has **no "… aanmaken" row**: a rope is tied between two things that
  * already exist, and there is nothing here for a stray Enter to create.

@@ -6,15 +6,16 @@ import { beforeAll, describe, expect, it } from 'vitest';
 /**
  * §44: de Keeperkant — the rules that must hold in SQL, not in a component.
  *
- * Five kinds now have a Keeper side, tied to their player-facing face, sharing
- * one set of notes. Three of those sentences are the kind that quietly stop
- * being true, so they are pinned here against a real SQLite file:
+ * Six kinds now have a Keeper side (§66 added the stamboom), tied to their
+ * player-facing face, sharing one set of notes. Three of those sentences are
+ * the kind that quietly stop being true, so they are pinned here against a
+ * real SQLite file:
  *
- *   - a keeper-only record of *any* of the five kinds is invisible to a
+ *   - a keeper-only record of *any* of the six kinds is invisible to a
  *     player through `keeperRef`, which is the only road anything in the
  *     Keeperkant is read by. Two spellings, one rule: an artikel is the
- *     Keeper's when `visibility = 'keeper'` (§9), the other four when
- *     `keeper_only = 1` (0021);
+ *     Keeper's when `visibility = 'keeper'` (§9), the other five when
+ *     `keeper_only = 1` (0021, 0023);
  *   - a tie is not a permission. `tiesFor` drops any end the viewer may not
  *     see, so a rope can never be the thing that names a hidden page;
  *   - a twin is one thing with two faces and *one* text. Typing on either
@@ -90,7 +91,7 @@ beforeAll(async () => {
   entry('e-open', 'De vuurtoren');
   entry('e-dicht', 'Wat er werkelijk gebeurde', 'keeper');
 
-  // The other four kinds, twice each: one the table may see, one the Keeper's.
+  // The other five kinds, twice each: one the table may see, one the Keeper's.
   const kase = (id: string, name: string, keeperOnly = 0) =>
     run(
       `INSERT INTO cases (id, name, slug, created_by, keeper_only) VALUES (?, ?, ?, 'keeper-1', ?)`,
@@ -135,6 +136,19 @@ beforeAll(async () => {
     );
   timeline('t-open', 'De nacht zelf');
   timeline('t-dicht', 'De nacht zelf — Keeper', 1);
+
+  // §66
+  const tree = (id: string, name: string, keeperOnly = 0) =>
+    run(
+      `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, keeper_only)
+       VALUES (?, ?, ?, '{"v":1,"members":[],"loose":[],"ties":[],"deleted":{"members":{},"loose":{},"ties":{}}}', 'keeper-1', 'all', ?)`,
+      id,
+      name,
+      id,
+      keeperOnly,
+    );
+  tree('f-open', 'Het geslacht Den Hollander');
+  tree('f-dicht', 'Het geslacht Den Hollander — Keeper', 1);
 });
 
 const KEEPER_ONLY: [string, string][] = [
@@ -143,6 +157,7 @@ const KEEPER_ONLY: [string, string][] = [
   ['board', 'b-dicht'],
   ['map', 'm-dicht'],
   ['timeline', 't-dicht'],
+  ['family_tree', 'f-dicht'],
 ];
 const OPEN: [string, string][] = [
   ['entry', 'e-open'],
@@ -150,6 +165,7 @@ const OPEN: [string, string][] = [
   ['board', 'b-open'],
   ['map', 'm-open'],
   ['timeline', 't-open'],
+  ['family_tree', 'f-open'],
 ];
 
 describe('keeperRef is the one read, and it is the visibility rule', () => {
@@ -167,12 +183,16 @@ describe('keeperRef is the one read, and it is the visibility rule', () => {
   it('a ref carries the address its kind lives at', () => {
     expect(deps.keeperRef('board', 'b-open', KEEPER)?.href).toBe('/b/b-open');
     expect(deps.keeperRef('map', 'm-open', KEEPER)?.href).toBe('/maps/m-open');
+    // §66
+    expect(deps.keeperRef('family_tree', 'f-open', KEEPER)?.href).toBe('/stambomen/f-open');
   });
 
   it('isKeeperSide reads both spellings of the same idea', () => {
     expect(deps.isKeeperSide('entry', 'e-dicht')).toBe(true);
     expect(deps.isKeeperSide('entry', 'e-open')).toBe(false);
     expect(deps.isKeeperSide('timeline', 't-dicht')).toBe(true);
+    expect(deps.isKeeperSide('family_tree', 'f-dicht')).toBe(true);
+    expect(deps.isKeeperSide('family_tree', 'f-open')).toBe(false);
   });
 
   it('setKeeperSide moves a thing across and back', () => {
@@ -180,6 +200,11 @@ describe('keeperRef is the one read, and it is the visibility rule', () => {
     expect(deps.keeperRef('board', 'b-open', BRAM)).toBeNull();
     deps.setKeeperSide('board', 'b-open', false, KEEPER.id);
     expect(deps.keeperRef('board', 'b-open', BRAM)?.id).toBe('b-open');
+    // §66: the sixth kind takes the same road.
+    deps.setKeeperSide('family_tree', 'f-open', true, KEEPER.id);
+    expect(deps.keeperRef('family_tree', 'f-open', BRAM)).toBeNull();
+    deps.setKeeperSide('family_tree', 'f-open', false, KEEPER.id);
+    expect(deps.keeperRef('family_tree', 'f-open', BRAM)?.id).toBe('f-open');
   });
 });
 
@@ -253,6 +278,24 @@ describe('a twin is one thing with two faces', () => {
     expect(deps.readKeeperNotes('case', twinId, KEEPER)).toBe('De dader is de veerman.');
     deps.writeKeeperNotes('case', twinId, 'Nee: de veerman dekt iemand.', KEEPER);
     expect(deps.readKeeperNotes('case', 'c-open', KEEPER)).toBe('Nee: de veerman dekt iemand.');
+  });
+
+  it('§66: makes the Keeper’s face of a stamboom too, with a slug of its own', () => {
+    const made = deps.createTwin('family_tree', 'f-open', KEEPER);
+    expect(made.kind).toBe('family_tree');
+    expect(made.keeperOnly).toBe(true);
+    expect(made.name).toBe('Het geslacht Den Hollander');
+    // The slug is unique, so the two faces are two addresses.
+    expect(made.slug).not.toBe('f-open');
+    expect(made.href).toBe(`/stambomen/${made.slug}`);
+    expect(deps.twinOf('family_tree', 'f-open', KEEPER)?.id).toBe(made.id);
+    expect(deps.keeperRef('family_tree', made.id, BRAM)).toBeNull();
+    // The new face starts as a bare frame: kinship lives on the artikelen, so
+    // there is nothing of the other tree's own to copy across.
+    const state = deps.sqlite
+      .prepare('SELECT state FROM family_trees WHERE id = ?')
+      .get(made.id) as { state: string };
+    expect(JSON.parse(state.state).members).toEqual([]);
   });
 
   it('and never by anybody but a Keeper', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampDepth, collapseMentions, degrees, filterGraph, focusSlice } from '@/lib/web/slice';
+import { clampDepth, collapseMentions, degrees, filterGraph, focusSlice, yieldToLineage } from '@/lib/web/slice';
 import type { WebEdge, WebGraph, WebNode } from '@/lib/web/types';
 
 /**
@@ -224,6 +224,29 @@ describe('filterGraph', () => {
     // With nothing hidden, an isolated knot is still there: the global view never drops it.
     expect(ids(filterGraph(typed))).toContain('entry:los');
   });
+
+  /*
+   * §66: the legend's "Wat" block gained a row, and `hiddenNode` is generic
+   * over `WebNodeKind` — so a stamboom hides exactly as a prikbord does, and
+   * the two ties that only touch it go with it. A kinship line between two
+   * artikelen is *not* one of those: it is a fact about them, not about the
+   * tree, so it survives the tree being ticked off.
+   */
+  it('hides stambomen the same way, and keeps the kinship between two artikelen', () => {
+    const withTree: WebGraph = {
+      nodes: [...graph.nodes, node('family_tree:t')],
+      edges: [
+        ...graph.edges,
+        edge('inTree', 'entry:a', 'family_tree:t'),
+        edge('inTree', 'entry:b', 'family_tree:t'),
+        edge('lineage', 'entry:a', 'entry:b', { detail: 'Ouders' }),
+      ],
+    };
+    const filtered = filterGraph(withTree, { hiddenNodeKinds: new Set(['family_tree']) });
+    expect(ids(filtered)).not.toContain('family_tree:t');
+    expect(filtered.edges.some((e) => e.kind === 'inTree')).toBe(false);
+    expect(filtered.edges.some((e) => e.kind === 'lineage')).toBe(true);
+  });
 });
 
 describe('degrees', () => {
@@ -265,5 +288,48 @@ describe('collapseMentions (round 18)', () => {
   it('never touches a non-text edge', () => {
     const edges = [e('f1', 'filed', 'case:c', 'entry:a'), e('l1', 'caseLink', 'entry:a', 'case:c'), e('m1', 'mention', 'entry:a', 'entry:d')];
     expect(collapseMentions(edges)).toEqual(edges);
+  });
+});
+
+describe('yieldToLineage (§66)', () => {
+  const e = (id: string, kind: WebEdge['kind'], from: string, to: string, detail = ''): WebEdge => ({
+    id,
+    kind,
+    from,
+    to,
+    detail,
+  });
+
+  it('drops the infobox line the kinship line was read off, either way round', () => {
+    // "Ouders" on the child is a `field` line a → b; the kinship it becomes
+    // runs parent → child, b → a. Same two knots, same word: one line.
+    const edges = [
+      e('f1', 'field', 'entry:a', 'entry:b', 'Ouders'),
+      e('l1', 'lineage', 'entry:b', 'entry:a', 'Ouders'),
+    ];
+    expect(yieldToLineage(edges).map((x) => x.id)).toEqual(['l1']);
+  });
+
+  it('keeps an infobox line whose field carries no role, between the same two', () => {
+    const edges = [
+      e('f1', 'field', 'entry:a', 'entry:b', 'Ouders'),
+      e('f2', 'field', 'entry:a', 'entry:b', 'Werkgever'),
+      e('l1', 'lineage', 'entry:b', 'entry:a', 'Ouders'),
+    ];
+    expect(yieldToLineage(edges).map((x) => x.id)).toEqual(['f2', 'l1']);
+  });
+
+  it('touches nothing when there is no kinship in the web at all', () => {
+    const edges = [e('f1', 'field', 'entry:a', 'entry:b', 'Ouders'), e('m1', 'mention', 'entry:a', 'entry:b')];
+    expect(yieldToLineage(edges)).toEqual(edges);
+  });
+
+  it('never drops anything but a field line', () => {
+    const edges = [
+      e('t1', 'thread', 'entry:a', 'entry:b', 'Ouders'),
+      e('i1', 'inTree', 'entry:a', 'family_tree:t', 'Ouders'),
+      e('l1', 'lineage', 'entry:b', 'entry:a', 'Ouders'),
+    ];
+    expect(yieldToLineage(edges)).toEqual(edges);
   });
 });

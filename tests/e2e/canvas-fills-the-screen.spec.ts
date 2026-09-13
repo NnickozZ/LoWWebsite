@@ -45,11 +45,13 @@ async function frame(page: Page) {
  * and not the window, because on a desktop the sidenav has 220 px of it; on a
  * phone the two are the same thing.
  */
-async function expectFillsTheScreen(page: Page, selector: string) {
+async function expectFillsTheScreen(page: Page, selector: string, floor = 0.62) {
   const { viewport, main, tabs, sideways } = await frame(page);
   const box = (await page.locator(selector).boundingBox())!;
 
-  expect(box.height).toBeGreaterThan(viewport.height * 0.62);
+  expect(box.height, `${selector} is ${Math.round(box.height)} of ${viewport.height}`).toBeGreaterThan(
+    viewport.height * floor,
+  );
   expect(box.width).toBeGreaterThan(main.width - 40);
   expect(box.width).toBeLessThanOrEqual(main.width);
   // A thin margin, not none: half the page's gutter on either side.
@@ -133,4 +135,53 @@ test('a tijdlijn fills the screen', async ({ page }, info) => {
   expect(Math.abs(axis.y - (stage.y + stage.height / 2))).toBeLessThan(4);
 
   await expectStandsUpSideways(page, '.timeline-stage');
+});
+
+/**
+ * §66: and a stamboom, which is the fourth thing on the §34 shell.
+ *
+ * Measured empty on purpose: an empty tree is the hardest case for a stage that
+ * is `flex: 1`, because there is nothing inside it to hold it open — a floor
+ * that came from the cards rather than from the shell would pass with a tree
+ * full of people and fail with the one somebody has only just made.
+ */
+test('een stamboom vult het scherm', async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const name = `Volle stamboom ${stamp}`;
+
+  await signIn(page, ...KEEPER);
+  await page.goto('/stambomen');
+  await page.getByRole('button', { name: /Nieuwe stamboom|Maak nieuwe stamboom/ }).first().click();
+  const sheet = page.getByRole('dialog', { name: /Nieuwe stamboom/ });
+  await sheet.getByLabel('Naam', { exact: true }).fill(name);
+  await sheet.getByRole('button', { name: /Openbare stamboom|Stamboom aanmaken/ }).click();
+  await page.waitForURL('**/stambomen/**');
+  await expect(page.getByTestId('tree-stage')).toBeVisible();
+  // The stage is measured by a ResizeObserver; give it the frame.
+  await page.waitForTimeout(500);
+
+  /*
+   * §34/§66: the same 62 % as the landkaart and the tijdlijn, on a desk and on
+   * a telephone both.
+   *
+   * It was 0.55 for a phone for one round, and the reason was two rows of
+   * screen the stamboom was spending on itself: the name of the tree and the
+   * dossier it hangs in were printed in the §34 head *and again* in a bar of
+   * the canvas's own, and four buttons carrying their full names wrapped onto
+   * two more rows under them. Both are gone — the heading *is* the name box
+   * (`TreeTitle`), and below 600 px every toolbar button keeps its icon, its
+   * `aria-label` and its `title` and drops only the letters — so the floor is
+   * back where the other canvases stand.
+   *
+   * Measured after the repair: **614 px of 844 on a phone (73 %)** and 747 of
+   * 900 on a desk (83 %). The floor is the shared 62 % rather than either of
+   * those, because it is there to catch a *regression* in the shell, not to
+   * pin the furniture of one page to the pixel.
+   *
+   * (The earlier number was 346 px, before the Keeper's tekenlaag switch was
+   * moved below the fold — a third of a screen that only Keepers were losing.)
+   */
+  await expectFillsTheScreen(page, '.tree-stage');
+  await expectStandsUpSideways(page, '.tree-stage');
 });

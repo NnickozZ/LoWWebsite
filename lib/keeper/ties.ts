@@ -6,6 +6,7 @@ import { createEntry, logAudit } from '@/lib/entries/service';
 import type { Viewer } from '@/lib/entries/visibility';
 import { newId } from '@/lib/ids';
 import { createMap } from '@/lib/maps/service';
+import { uniqueSlug } from '@/lib/slug';
 import { createTimeline } from '@/lib/timelines/service';
 import { isKeeperKind, type KeeperKind, type KeeperRef } from './kinds';
 import { mergeNotesIntoTwin, moveNotesToTwin } from './notes';
@@ -373,6 +374,42 @@ function makeOfKind(kind: KeeperKind, sourceId: string, name: string, keeper: { 
         },
         { id: keeper.id, isKeeper: true },
       ).id;
+    }
+    /**
+     * §66: the Keeper's own stamboom beside the table's. The row is written
+     * here rather than through a maker because `lib/families/service.ts` does
+     * not exist yet — `createFamilyTree(…)` is the intended caller the moment
+     * it does, and this block becomes one line, exactly like the four above.
+     * Only the tree's *own* state is empty: kinship lives on the artikelen, so
+     * the twin starts as a bare frame the Keeper fills with the people they
+     * mean.
+     */
+    case 'family_tree': {
+      const row = db
+        .select({ caseId: schema.familyTrees.caseId })
+        .from(schema.familyTrees)
+        .where(eq(schema.familyTrees.id, sourceId))
+        .get();
+      const id = newId();
+      db.insert(schema.familyTrees)
+        .values({
+          id,
+          name,
+          slug: uniqueSlug(name, (candidate) =>
+            Boolean(
+              db
+                .select({ id: schema.familyTrees.id })
+                .from(schema.familyTrees)
+                .where(eq(schema.familyTrees.slug, candidate))
+                .get(),
+            ),
+          ),
+          caseId: row?.caseId ?? null,
+          state: { v: 1, members: [], loose: [], ties: [], deleted: { members: {}, loose: {}, ties: {} } },
+          createdBy: keeper.id,
+        })
+        .run();
+      return id;
     }
   }
 }

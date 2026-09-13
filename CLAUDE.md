@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 69 files, 982 tests as of round 29 (round 28: 64 / 895)
+npx vitest run         # 80 files, 1250 tests as of round 31 (round 29: 69 / 982)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -126,8 +126,9 @@ you set these up front. Put them in every sub-agent prompt.
 3. **Name the collision hotspots** in the prompt so agents route around them.
    The usual ones: `app/globals.css`, `components/boards/BoardCanvas.tsx`,
    `components/timelines/TimelineCanvas.tsx`, `components/maps/MapCanvas.tsx`,
-   `components/ui/UiProvider.tsx`, `lib/db/schema.ts`, `lib/db/migrations.mjs`,
-   `lib/entries/service.ts`, `tests/e2e/helpers.ts`.
+   `components/families/FamilyTreeCanvas.tsx`, `components/ui/UiProvider.tsx`,
+   `lib/db/schema.ts`, `lib/db/migrations.mjs`, `lib/entries/service.ts`,
+   `lib/families/service.ts`, `tests/e2e/helpers.ts`.
 4. **Two agents may share a file; two agents may not share a section of it.** If
    two features both rework the timeline, that is *one* agent, not two.
 5. **Give each agent the verify commands and make it run them.** An agent that
@@ -144,8 +145,9 @@ freely there.
 
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
-  markers to match. Check `grep -rn "§[56][0-9]" app components lib` before
-  choosing a number — the latest is §65 / rule 65 (round 30: §63 de voordeur die
+  markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
+  choosing a number — the latest is §66 / rule 66 (round 31: §66 de stamboom —
+  een venster op de verwantschap die op de artikelen staat; round 30: §63 de voordeur die
   niet weggooit wat je typte en een tweede deur die je kunt zien, §64 een punaise
   aan een draad die vasthoudt tot er iets op komt, §65 een geschiedenis die zegt
   wát er veranderd is; round 29: §59 de refresh-hold
@@ -165,9 +167,11 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0022_case_prefix`, so the next is `0023_` (rounds 27 and 28 added none: a
+  `0023_family_trees`, so the next is `0024_` (rounds 27 and 28 added none: a
   new soort, a reverse veld and even a **slug rename** arrive through the
-  seed's `INSERT OR IGNORE` and a marker — §55, §58). Never edit an existing
+  seed's `INSERT OR IGNORE` and a marker — §55, §58; round 31 added a *table*
+  but not a column, because its seven new **fields** came through the same
+  marker road, `seed:round-31-stamboom`). Never edit an existing
   block, and that includes the `--` comments inside its SQL string.
 - **Board state is one JSON blob** (`boards.state`), normalised on every read.
   New fields on a card or a string get a default in `normalise*` — that is the
@@ -184,7 +188,9 @@ freely there.
   silence. This has bitten twice.
 - **Widths mean different things in different places, on purpose.** A board
   string is measured in board units and grows with the zoom. So does ink (§33)
-  on a **prikbord** (board units) and on a **landkaart** (picture pixels):
+  on a **prikbord** (board units), on a **stamboom** (world units, §66 — the
+  same `screenWidth / zoom` the wall uses, so the two need no second reading)
+  and on a **landkaart** (picture pixels):
   `useInk` stores `screenWidth / widthScale`, so a brush is as thick as it
   looked at the zoom you drew it and thicker or thinner at any other. On a
   **tijdlijn** ink is measured in *seconds* since round 12 — x an absolute
@@ -295,7 +301,16 @@ freely there.
   tested; put geometry there, not in the component. A new kind of tie is a
   `WebEdgeKind` in `types.ts`, a row in `kinds.ts`, a `--web-<kind>` in
   `globals.css`, and an edge in `service.ts` — all four, or the legend and the
-  canvas disagree about its colour.
+  canvas disagree about its colour. A new kind of **knot** is five: the
+  `WebNodeKind` union and `parseWebNodeId`'s allow-list in `types.ts` (both, and
+  the string may not contain a `:` — `family_tree` was the first with an
+  underscore), `NODE_KINDS` in `kinds.ts`, `THING_KINDS` in `WebView.tsx` so the
+  legend's *Wat* can switch it off, and `knotPath` in `WebCanvas.tsx` so it has
+  a shape. And a line may **yield to another at build time**: `collapseMentions`
+  drops a text line where a stronger one runs, and since §66 `yieldToLineage`
+  drops a `field` line where a `lineage` line joins the same pair with the same
+  word — both in `slice.ts`, both called once in `buildWebGraph`, because the
+  count, the panel and the drawing must look at the same set.
 - **The web's simulation has three floors that are not forces** (round 17,
   `lib/web/force.ts`): a spring is divided by the smaller degree of its ends
   (`ForceLink.strength`), two knots may not come closer than `r + pad` each
@@ -398,8 +413,11 @@ freely there.
   24). Two rights: the hand may edit the wall, **and** may see the dossier
   (§17 puts a filed wall behind the dossier's view dial too). That second one
   is a lookup by id — `loadAccessRow` + `canSeeCase`, no side condition (§46).
-  `PATCH /api/boards/[id]` with `caseId: null` takes it out again. The same
-  gap is still open for landkaarten and tijdlijnen; see DECISIONS round 24.
+  `PATCH /api/boards/[id]` with `caseId: null` takes it out again. **A
+  stamboom has the same road since §66** (`setFamilyTreeCase`, the same two
+  rights, `PATCH /api/family-trees/[id]`), so round 24's "only prikborden" is
+  now "prikborden and stambomen" — the gap is one kind smaller and still open
+  for **tijdlijnen and landkaarten**; see DECISIONS rounds 24 and 31.
 - **A text line yields, at build time.** `collapseMentions` runs in
   `buildWebGraph`, not in the browser: the count, the panel and the drawing
   must agree. Adding a kind that should also yield means adding it to
@@ -589,6 +607,106 @@ freely there.
   And a `live` write of a gebeurtenis's words (the field room's 1.5 s save)
   must never touch `timelines.updatedAt` — that column is what every other
   screen watches through `timeline:{id}`.
+- **A new kind of container is about twenty places, and they are enumerated in
+  a test** (§66, round 31). A stamboom is the sixth kind, and the round's first
+  wave was nothing but the *spine*: the migration, `lib/db/schema.ts`,
+  `KEEPER_KINDS`/`KIND_WORD`/`KIND_ICON`/`kindHref`, `sideCondition` +
+  `keeperRef` + `setKeeperSide` + `hideWhatHangsIn`, `viewableCondition` and
+  `canManageAccess`, `lib/live/keys.ts` (record key, collection key, page
+  place) and `canWatch`, `lib/ink/types.ts` + `inkTarget`, `lib/admin/trash.ts`
+  (list, restore, destroy, notes rooms), `lib/entries/mentions.ts` (both
+  halves), `lib/words.ts`, and the nav. `tests/unit/family-tree-spine.test.ts`
+  asks every one of them against a real SQLite file, because a kind with a
+  table but no `sideCondition`, or a `keeperRef` but no live key, half exists —
+  and every half fails *silently*. Write that test first when a seventh kind
+  arrives; copy it, do not rediscover the list. The **phone's tab bar is full**,
+  so a seventh kind is `desktopOnly` in `NAV` like `/stambomen` and `/web`.
+- **A stamboom is a window, and `writeRelation` is the reason** (§66). Kinship
+  lives on the artikel, in a koppelingsveld carrying a `role`, so the canvas's
+  `+` handle writes a **field**: `POST /api/family-trees/[id]/relations` →
+  `writeRelation` → `updateEntry` with the field's *whole* array (§5's
+  `mergeKeys` rule — a list inside `fields` replaces, so a delta would never
+  remove the last ref). That road is what makes the §38 gate, the mirror,
+  `recomputeFieldMentions`, the revision and the **voorstel** all apply, and the
+  right asked is the *artikel's*, not the tree's. `mergeTreeState` refuses to
+  store a tie between two artikelen at all, on the server and in the browser:
+  two places holding one fact is two places that can disagree. Never add a
+  second road.
+- **The mirror is inside `updateEntry`, and it is a direct `db.update`** (§66).
+  `mirrorPlan` (`lib/families/mirror.ts`) is pure and says what the other page
+  should hold; `applyMirror` in `lib/entries/service.ts` carries it out — after
+  the §38 gate and only on a real write, so a voorstel mirrors when it is
+  approved. It must never call `updateEntry` again: that ping-pongs between two
+  rows and files a proposal nobody made. It bumps the target's `updatedAt` and
+  `recomputeFieldMentions` and deliberately writes **no** revision, feed row or
+  `updatedBy`, and never touches a row in the trash. `kin` is not mirrored.
+  `restoreRevision` mirrors too, or an undone "Kinderen: B" leaves "Ouders: A"
+  standing for ever.
+- **A stamboom's layout is never stored; only the pins are** (§66).
+  `layoutTree` in `lib/families/layout.ts` is pure and recomputed from the
+  graph on every change — a stored layout goes stale the moment somebody fills
+  in a field on a page nobody has this tree open on. A dragged node is `pinned`
+  and put back exactly, pushing nobody; "Opnieuw schikken" is one commit that
+  clears the pins. Geometry belongs in that file, not in the component — the
+  same rule the web and the tijdlijn live by.
+- **`useTreeSync` is the save and the pull in one hook** (§66). The prikbord
+  keeps them in two files; a stamboom cannot, because both roads come back as
+  `{ state, graph }` and both must be applied *around* whatever this hand has
+  not saved (`pending()`). §61's rule is intact: a save says only what this hand
+  touched, absence is never a deletion, a tombstone is. Undo
+  (`components/families/treeUndo.ts`) covers the tree's **own** state only —
+  never a field on an artikel, for §29's reason.
+- **Three counts on a stamboom are per viewer, and one is not stored at all**
+  (§66). `memberCount` on the shelf counts only the members *this* reader may
+  see (a shelf saying "12" about eleven secrets counts the secrets out loud);
+  `buildFamilyGraph` leaves an unseeable artikel **absent** — never a faint card,
+  never MISSING (rule 1) — and caps ghosts at 60; and "Genoemd in" for a tree is
+  its **members only**, because the lines between them are fields on those
+  artikelen and are already counted under "In artikelen". `in_web` is checked in
+  exactly two places, `buildWebGraph` and `listMentions` — the same two a
+  prikbord uses.
+- **Promoting a los kaartje drops lines and says so** (§66). `promoteLooseCard`
+  turns each tie into a field (preferring the *new* artikel's own role field,
+  falling back to the other end), rewrites a tie to another los kaartje, and
+  where neither soort has a field for it counts the line and hands the count
+  back as `dropped` — the canvas prints "1 lijn is niet overgezet." A line that
+  vanishes in silence is worse than a line that is lost.
+- **A live key id may contain a colon now, and two patterns had to learn it**
+  (§66). `pointerFrame` in `app/api/live/site/route.ts` accepts
+  `^[A-Za-z0-9_:-]{1,64}$` for the keys of `m`, because a stamboom's carried tag
+  is a `GraphNodeId` (`entry:{id}` / `loose:{id}`) and the old pattern threw
+  every carried card away in silence — the hand was drawn on the other screen
+  and the card stood still. And `KEEPER_NOTES_KEY` in `lib/live/rooms.ts` was
+  `[a-z]+`, which would never have matched a kind with an underscore;
+  `family_tree` was the first, but the bug was already there. Ids you invent for
+  a live key (in a fixture too) must stay inside those character classes.
+- **A new prikbord `CardKind` is nine files** (§66 added the fifth reference
+  kind). `lib/boards/merge.ts` (the union, `REFERENCE_KINDS`, `cardRef`, the
+  normalise defaults), `lib/boards/service.ts` (the per-viewer resolver),
+  `app/api/boards/[id]/route.ts` (§50's `sameSide`), `BoardCard.tsx`,
+  `BoardPicker.tsx`, `BoardCanvas.tsx`, `useBoardSync.ts`, `useBoardLive.ts`,
+  and `components/web/PinSelectionButton.tsx` — whose `return` used to end
+  "…otherwise it is a tijdlijn", which quietly made a broken tijdlijn card out
+  of a `board` knot long before this round.
+- **The Keeper's tekenlaag switch goes under the fold on a full-screen canvas**
+  (§66, and the landkaart before it). `InkKeeperControls` in the flow took
+  132 px off the stage and `canvas-fills-the-screen.spec.ts` says the stage gets
+  the screen (§34). Portal it into an empty div the page leaves below the canvas
+  (`#tree-underfold`), the way `MapCanvas` does. Two more of the same family, on
+  the same page: a full-screen canvas prints its name **once**, in the §34
+  heading (`TreeTitle` makes that heading the edit box rather than adding a bar
+  of its own — the two rows cost a phone a third of its stage), and a toolbar
+  that must survive 390 px hides each button's `.tree-tool-word` and keeps its
+  icon, its `aria-label` and its `title` — hiding the letters is allowed, §64
+  forbids changing the accessible *name*.
+- **Take a canvas's pointer capture lazily, at the drag threshold — never on
+  `pointerdown`** (§66). Chromium retargets the compatibility mouse events at
+  the *capture element*, so a stage that captures on the way down means the
+  `<a>` inside a card never receives its `click`: the link is dead and nothing
+  in the console says so. `FamilyTreeCanvas` calls `setPointerCapture` only once
+  a press has passed `DRAG_SLOP` (4 px) — by then the hand really is carrying
+  something and swallowing the trailing click is exactly right. The spec found
+  this, not a person.
 
 ---
 
@@ -642,6 +760,29 @@ mistakes. Check yours against these before declaring a spec finished.
 - **Pin and stroke coordinates are fractions of `.map-world`, not `.map-stage`.**
   The stage is now much larger than the picture inside it, and a tap on bare
   cork places nothing.
+- **A canvas clips, so press "Alles in beeld" before you look for anything**
+  (§66). A stamboom lays new cards out around the whole tree, and something
+  added at the third generation is simply off the glass — `.tree-stage` has
+  `overflow: hidden`, so the locator is *attached* and never visible. Fit the
+  view first, then assert.
+- **An SVG line has no height as far as Playwright is concerned.** A horizontal
+  `<path>` has a bounding box of zero height whatever its stroke, so
+  `locator.click()` calls it invisible and waits for ever. Find the middle of
+  its hit area yourself, check with `document.elementFromPoint` that nothing
+  else is standing on it, and click with `page.mouse` — inside a `toPass()`,
+  because a card still sliding to its new place is over the line for a beat
+  (`clickLine` in `tests/e2e/family-trees.spec.ts` is the worked example).
+- **A hand that stops moving stops being heard.** A pointer frame is sight, not
+  state: eight seconds still and it is swept off every screen. A spec that
+  asserts somebody else's cursor has to keep that somebody moving *while* it
+  asks — and the other browser must believe it is not alone (§60), so it needs a
+  second real page on the same place.
+- **Anything floating over a canvas that can be pressed must be in the stage's
+  pointer-down allowlist.** The stage takes the pointer capture on the way down,
+  so the `click` that follows is retargeted to the stage and the button is not
+  merely panned under — it is *unpressable*, and the press then reads as a press
+  on bare paper. See the `target.closest('.tree-node, .tree-handle, …')` list in
+  `FamilyTreeCanvas.tsx`; add to it whenever you add a floating control.
 
 If a spec fails once and passes on a re-run, it is the "not yet listening" race
 — fix it with the helpers above rather than shrugging at it.
@@ -695,7 +836,7 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25 and 29
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29 and 31
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
@@ -706,6 +847,41 @@ in a worktree at `1d67f5c`, round 22's base. It is pre-existing red, not
 anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
+
+Round 31 (§66) leaves eleven, all named on purpose:
+
+- **A soort with two parent-role fields mirrors into the first one.**
+  Abnormaliteiten and the pantheon carry both `ouders` and `geschapen_door`, and
+  `mirrorPlan` writes into the target soort's **first** field with the inverse
+  role — so "Schepselen: X" on a god lands in X's *Ouders*, not in *Geschapen
+  door*. One field chosen once beats one value in two boxes; a Keeper can swap
+  it by moving the fields in Beheer.
+- **The mirrored page gets no revision and no feed row.** Deliberate: B's
+  geschiedenis (§65) does not fill up with what A typed on A's own page. The
+  cost is that "who put me in this family?" is not answerable from B's history.
+- **A `kin` claimed only by the *other* artikel's field makes no ghost.** Ghosts
+  come from two places — the members' own role fields, and the ends of the
+  tree's own ties — and `kin` is not mirrored, so a field on B saying "aspect of
+  A" is never read while looking at A and puts no ghost beside A. (Parent, child
+  and partner are complete, because the mirror writes them on both pages.)
+- **Undo of an *add* on a stamboom does not delete server-side**, exactly as on
+  a prikbord (round 29's leftover, same reasoning).
+- **The floating picker clamps itself inside the stage; the node menu does
+  not**, so near the bottom edge `.tree-stage`'s `overflow` clips the menu.
+- **The partner double line is offset 2 px in *world* units**, so below about
+  25 % the two strokes merge into one.
+- **`prefers-reduced-motion` makes a carried card jump between frames** instead
+  of gliding. That is what the setting asks for, but it reads worse here than on
+  a wall.
+- **Ghosts are not draggable and not pinnable.** They stand where the layout puts
+  them; adopt one first.
+- **`viewerId`, `peopleNames` and `access` are passed to the canvas and unused** —
+  the names beside the hands come off the live line.
+- **`family_tree.restored` has no Dutch feed label** (neither does
+  `board.restored`).
+- **`writeEntryDate` still bypasses `updateEntry`.** It only ever writes
+  `fields.date` so it cannot carry a role, but it is the one road into
+  `entries.fields` that the mirror does not see.
 
 Round 29 (§59–§62) leaves six, all named on purpose:
 
@@ -756,7 +932,9 @@ Round 24 (§47) leaves two, both named on purpose:
   (rule 1), so the offer cannot either. Deliberate; see DECISIONS round 24.
 - **Only prikborden can change dossier.** `timelines` (and `maps`, which has
   no case at all) carry the same gap. One `setBoardCase`-shaped function each
-  would close it.
+  would close it. *Round 31 narrowed this: a stamboom got
+  `setFamilyTreeCase` on the day it was built, so it is now "prikborden and
+  stambomen". Tijdlijnen and landkaarten still cannot — see DECISIONS round 31.*
 
 Round 23 (§46, de spiegel) leaves three, all named on purpose:
 

@@ -34,7 +34,7 @@ export type EdgeKindInfo = EdgeStyle & {
    */
   phrase: (words: Words, detail: string) => string;
   /** Which group the legend files it under. */
-  group: 'text' | 'case' | 'board' | 'map' | 'timeline' | 'people';
+  group: 'text' | 'case' | 'board' | 'map' | 'timeline' | 'family' | 'people';
 };
 
 const INK = '#2a2118';
@@ -203,6 +203,29 @@ export const EDGE_KINDS: Record<WebEdgeKind, EdgeKindInfo> = {
     label: (w) => `${w.player} in de infobox`,
     phrase: (_w, detail) => withDetail('infobox', detail),
   },
+  // §66: the stamboom's two ties. Violet, because kinship is about people and
+  // §45 says a new kind picks one of the six inks rather than bringing a
+  // seventh. A dashed line says "hangs in" the way `inCase` does; the solid,
+  // heavier one is the kinship itself, which is the strongest thing the
+  // archive can say about two people.
+  inTree: {
+    colour: VIOLET,
+    colourDark: VIOLET_DARK,
+    dash: [10, 4],
+    width: 1.6,
+    group: 'family',
+    label: (w) => `in de ${w.familyTree}`,
+    phrase: (w) => `staat in de ${w.familyTree}`,
+  },
+  lineage: {
+    colour: VIOLET,
+    colourDark: VIOLET_DARK,
+    dash: [],
+    width: 2.2,
+    group: 'family',
+    label: () => 'verwantschap',
+    phrase: (_w, detail) => detail || 'verwantschap',
+  },
 };
 
 /** A draad's own colour on the wall, on light and dark paper — the same six inks the kinds use. */
@@ -235,9 +258,14 @@ export const EDGE_KIND_ORDER: WebEdgeKind[] = [
   'pin',
   'mapOf',
   'event',
+  'inTree',
+  'lineage',
   'investigator',
   'player',
 ];
+
+/** "stambomen" → "Stambomen", without hard-coding the noun (§11). */
+const capitalise = (word: string) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : word);
 
 export const EDGE_GROUPS: { key: EdgeKindInfo['group']; label: (w: Words) => string }[] = [
   { key: 'text', label: (w) => `Tussen ${w.entryPlural}` },
@@ -245,6 +273,9 @@ export const EDGE_GROUPS: { key: EdgeKindInfo['group']; label: (w: Words) => str
   { key: 'board', label: (w) => `Op ${w.boardPlural}` },
   { key: 'map', label: (w) => `Op ${w.mapPlural}` },
   { key: 'timeline', label: (w) => `Op ${w.timelinePlural}` },
+  // §66: kinship is its own heading — a lineage line is not "op stambomen",
+  // it is a fact about two artikelen that a stamboom happens to draw.
+  { key: 'family', label: (w) => capitalise(w.familyTreePlural) },
   { key: 'people', label: (w) => `Met ${w.characterPlural}` },
 ];
 
@@ -263,6 +294,9 @@ export const NODE_KINDS: Record<WebNodeKind, NodeKindInfo> = {
   board: { label: (w) => w.board, plural: (w) => w.boardPlural, icon: 'board', colour: RED, colourDark: RED_DARK },
   map: { label: (w) => w.map, plural: (w) => w.mapPlural, icon: 'map', colour: BLUE, colourDark: BLUE_DARK },
   timeline: { label: (w) => w.timeline, plural: (w) => w.timelinePlural, icon: 'timeline', colour: GREEN, colourDark: GREEN_DARK },
+  // §66: the same violet its two ties are drawn in, the way a dossier wears
+  // gold and a tijdlijn green.
+  family_tree: { label: (w) => w.familyTree, plural: (w) => w.familyTreePlural, icon: 'tree', colour: VIOLET, colourDark: VIOLET_DARK },
   note: { label: (w) => w.note, plural: (w) => `${w.note}s`, icon: 'note', colour: '#8a7f6a', colourDark: '#b3a88f' },
 };
 

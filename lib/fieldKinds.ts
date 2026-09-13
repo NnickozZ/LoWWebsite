@@ -1,5 +1,19 @@
 import { slugify } from '@/lib/slug';
 import type { FieldDef, FieldKind } from '@/lib/db/schema';
+import type { FieldRole } from '@/lib/families/types';
+
+/**
+ * §66: the four kinship roles, checked here rather than imported from
+ * `lib/families/roles.ts` on purpose — this module is what a client component
+ * imports to render the type editor, and it must stay as small as it is. The
+ * list is four strings and it is the same four; `lib/families/roles.ts` is
+ * where the *meaning* lives (`inverseRole`, the Dutch labels, the edges).
+ */
+const FIELD_ROLE_KEYS = ['parent', 'child', 'partner', 'kin'] as const;
+
+export function isFieldRole(value: unknown): value is FieldRole {
+  return typeof value === 'string' && (FIELD_ROLE_KEYS as readonly string[]).includes(value);
+}
 
 /**
  * The field kinds a Keeper can choose in the type editor, with their Dutch
@@ -53,6 +67,11 @@ export function cleanFields(input: unknown): FieldDef[] {
     }
     if ((kind === 'entry_link' || kind === 'entry_links') && Array.isArray(field.ofType)) {
       def.ofType = field.ofType.map((slug) => String(slug)).filter(Boolean);
+    }
+    // §66: a role only means something on a koppelingsveld. Retyping a field to
+    // anything else drops it, so a Getal can never end up mirroring a stamboom.
+    if ((kind === 'entry_link' || kind === 'entry_links') && isFieldRole(field.role)) {
+      def.role = field.role;
     }
     out.push(def);
   }

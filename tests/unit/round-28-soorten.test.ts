@@ -143,9 +143,15 @@ describe('de vier machten', () => {
     }
   });
 
-  it('en houden het kort — acht velden, geen formulier', () => {
+  it('en houden het kort — acht eigen velden, geen formulier', () => {
     for (const slug of PANTHEON) {
-      expect(fieldsOf(slug).length, slug).toBe(8);
+      // §66 heeft er zes verwantschapsvelden bijgezet (Ouders, Kinderen,
+      // Partner, Geschapen door, Schepselen, Aspect van) — die zijn van de
+      // stamboom en niet van deze ronde, dus ze tellen hier niet mee. Wat
+      // ronde 28 leverde is nog steeds acht.
+      const eigen = fieldsOf(slug).filter((field) => !field.role);
+      expect(eigen.length, slug).toBe(8);
+      expect(fieldsOf(slug).length, slug).toBe(14);
     }
   });
 

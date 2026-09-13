@@ -101,6 +101,19 @@ beforeAll(async () => {
     );
   kase('c-open', 'De verdwijning');
   kase('c-dicht', 'Wat er werkelijk gebeurde', 1);
+
+  // §66: the sixth kind, on both sides.
+  const tree = (id: string, name: string, keeperOnly = 0) =>
+    run(
+      `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, keeper_only)
+       VALUES (?, ?, ?, '{}', 'keeper-1', 'all', ?)`,
+      id,
+      name,
+      id,
+      keeperOnly,
+    );
+  tree('f-open', 'Den Hollander');
+  tree('f-dicht', 'Den Hollander — Keeper', 1);
 });
 
 /* ------------------------------------------------------------ 1. de wissel */
@@ -190,6 +203,15 @@ describe('sameSide — de schrijfactie zelf wordt geweigerd', () => {
   it('permits both ends on the same side, either side', () => {
     expect(deps.sameSide('case', 'c-open', 'entry', 'e-open')).toBe(true);
     expect(deps.sameSide('case', 'c-dicht', 'entry', 'e-dicht')).toBe(true);
+  });
+
+  it('§66: and knows the sixth kind, in both directions', () => {
+    // A member coming into a stamboom crosses the same border a card on a
+    // wall does.
+    expect(deps.sameSide('family_tree', 'f-open', 'entry', 'e-dicht')).toBe(false);
+    expect(deps.sameSide('family_tree', 'f-dicht', 'entry', 'e-open')).toBe(false);
+    expect(deps.sameSide('family_tree', 'f-open', 'entry', 'e-open')).toBe(true);
+    expect(deps.sameSide('family_tree', 'f-dicht', 'case', 'c-dicht')).toBe(true);
   });
 
   it('says it in Dutch', () => {

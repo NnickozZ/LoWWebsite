@@ -236,6 +236,11 @@ if (CLEAN) {
         db.prepare('DELETE FROM timeline_events WHERE timeline_id = ?').run(id);
         db.prepare('DELETE FROM entry_mentions WHERE from_id = ?').run(id);
       }
+      /* §66 */
+      for (const id of old.familyTrees ?? []) {
+        db.prepare('DELETE FROM family_trees WHERE id = ?').run(id);
+        db.prepare('DELETE FROM entry_mentions WHERE from_id = ?').run(id);
+      }
       for (const id of old.maps ?? []) {
         db.prepare('DELETE FROM maps WHERE id = ?').run(id);
         db.prepare('DELETE FROM map_pins WHERE map_id = ?').run(id);
@@ -262,6 +267,7 @@ if (CLEAN) {
     console.log(
       `Weggehaald: ${old.entries?.length ?? 0} artikelen, ${old.cases?.length ?? 0} dossiers, ` +
         `${old.boards?.length ?? 0} prikborden, ${old.timelines?.length ?? 0} tijdlijnen, ` +
+        `${old.familyTrees?.length ?? 0} stambomen, ` +
         `${old.maps?.length ?? 0} landkaarten, ${old.users?.length ?? 0} accounts.`,
     );
   }
@@ -282,7 +288,7 @@ if (!keeper) {
   process.exit(1);
 }
 
-const manifest = { entries: [], cases: [], boards: [], timelines: [], maps: [], assets: [], users: [], activity: [], seed: SEED, per: PER, at: new Date().toISOString() };
+const manifest = { entries: [], cases: [], boards: [], timelines: [], familyTrees: [], maps: [], assets: [], users: [], activity: [], seed: SEED, per: PER, at: new Date().toISOString() };
 
 /**
  * Een landkaart en een tijdlijn hangen hun activiteitsregel aan `meta`, niet
@@ -755,6 +761,60 @@ for (const row of alle) {
     : '';
 }
 
+/* ------------------------------------------------------- §66: de stamboom */
+/*
+ * Ronde 31: een stamboom is een venster op wat er op de artikelen staat, dus
+ * een demo-archief zonder ingevulde Ouders/Kinderen/Partner laat een lege boom
+ * zien. Twee op de vijf personen krijgen hier familie — genoeg voor een paar
+ * takken, weinig genoeg dat de wiki er niet uitziet als één dorp waar iedereen
+ * elkaars neef is.
+ *
+ * Deze seed schrijft rechtstreeks in `entries`, dus hij gaat *niet* door de
+ * spiegel in `updateEntry` heen: beide kanten worden hier met de hand gezet.
+ * De vermeldingen komen er verderop vanzelf bij — die worden uit de velden van
+ * de soort berekend, en `ouders`, `kinderen` en `partner` staan daar sinds
+ * `seed:round-31-stamboom` in.
+ */
+{
+  /** Van "Jacob den Hollander" blijft "den Hollander" over, van "Pier Boone" "Boone". */
+  const achternaamVan = (naam) => {
+    const woorden = naam.trim().split(/\s+/);
+    if (woorden.length < 2) return '';
+    const laatste = woorden[woorden.length - 1];
+    const ervoor = woorden[woorden.length - 2];
+    const tussen = /^(van|de|den|der|ten|te|het|op|in)$/.test(ervoor);
+    return tussen ? `${ervoor} ${laatste}` : laatste;
+  };
+
+  const personen = van('character');
+  for (const row of personen) {
+    const achternaam = achternaamVan(row.name);
+    if (achternaam) row.velden.achternaam = achternaam;
+  }
+
+  /* Twee van elke vijf, op index gekozen in plaats van op toeval: dan is de
+     boom bij elke run dezelfde en is een e2e-spec die hem opent niet grillig. */
+  const pot = personen.filter((_, i) => i % 5 < 2);
+  const zet = (row, sleutel, wie) => {
+    const bestaand = Array.isArray(row.velden[sleutel]) ? row.velden[sleutel] : [];
+    if (bestaand.some((item) => item?.id === wie.id)) return;
+    row.velden[sleutel] = [...bestaand, ref(wie)];
+  };
+  for (let i = 0; i < pot.length; i += 3) {
+    const [een, twee, kind] = [pot[i], pot[i + 1], pot[i + 2]];
+    if (twee) {
+      zet(een, 'partner', twee);
+      zet(twee, 'partner', een);
+    }
+    if (kind) {
+      for (const ouder of [een, twee].filter(Boolean)) {
+        zet(kind, 'ouders', ouder);
+        zet(ouder, 'kinderen', kind);
+      }
+    }
+  }
+}
+
 /* ------------------------------------------------------------ wegschrijven */
 
 const insertEntry = db.prepare(
@@ -1164,6 +1224,104 @@ db.transaction(() => {
   }
 })();
 
+/* ---------------------------------------------------------------- stambomen */
+/*
+ * §66: twee stambomen — één van mensen, één van het pantheon.
+ *
+ * Een stamboom bewaart alleen wie erin staat; de lijnen staan op de artikelen
+ * zelf (Ouders, Kinderen, Partner, Geschapen door), en die zijn hierboven al
+ * ingevuld. Er wordt hier dus geen enkele lijn weggeschreven — dat zou een
+ * tweede plek zijn waar hetzelfde feit staat.
+ *
+ * Zonder x en y is niemand vastgepind, en dan legt `layoutTree` de boom zelf
+ * neer bij het openen. Eén los kaartje per boom, zodat "Artikel aanmaken" op
+ * een demo-archief iets te doen heeft.
+ *
+ * Dat kaartje krijgt wél een lijn — de enige lijnen die een stamboom zelf mag
+ * bewaren zijn de lijnen die een los kaartje raken, en een kaartje dat nergens
+ * aan hangt zweeft in z'n eentje naast de boom. De vader van Pier is de ouder
+ * van het eerste lid; Iets uit de diepte is een zijlijn ("Aspect van") naar de
+ * eerste god. Beide uiteinden zijn `loose` → `entry`, dus `mergeTreeState`
+ * neemt ze aan (twee artikelen aan één lijn weigert hij, en terecht).
+ */
+db.transaction(() => {
+  const bomen = [
+    {
+      naam: 'Wie van wie afstamt',
+      omschrijving: 'De families van Westkapelle, voor zover de doopboeken het volhouden.',
+      caseId: cases[0]?.id ?? null,
+      leden: van('character')
+        .filter((row) => row.velden.ouders || row.velden.kinderen || row.velden.partner)
+        .slice(0, 9),
+      kaartje: {
+        naam: 'De vader van Pier',
+        tekst: 'Staat in geen enkel doopboek.',
+        frame: 'unknown',
+        // Het kaartje is de ouder van het eerste lid: de lijn loopt ouder → kind.
+        lijn: { role: 'parent' },
+      },
+    },
+    {
+      naam: 'Het pantheon',
+      omschrijving: 'Wie wie geschapen heeft, en wat daaruit is voortgekomen.',
+      caseId: null,
+      leden: [...van('kosmische-goden').slice(0, 4), ...van('aardse-goden').slice(0, 4), ...van('abnormality').slice(0, 2)],
+      kaartje: {
+        naam: 'Iets uit de diepte',
+        tekst: 'Alleen als naam bekend, in twee bronnen.',
+        frame: 'divine',
+        // Een zijlijn zonder generatie: geen ouder, geen kind, wel verwant.
+        lijn: { role: 'kin', label: 'Aspect van' },
+      },
+    },
+  ];
+
+  for (const boom of bomen) {
+    if (!boom.leden.length) continue;
+    const id = newId();
+    let slug = slugify(boom.naam);
+    let n = 2;
+    while (db.prepare('SELECT id FROM family_trees WHERE slug = ?').get(slug)) slug = `${slugify(boom.naam)}-${n++}`;
+    const gemaakt = moment();
+    const stempel = gemaakt * 1000;
+    const kaartId = `l_${newId().slice(0, 10)}`;
+    /*
+     * De lijn van het losse kaartje naar het eerste lid. `role: 'parent'` loopt
+     * ouder → kind, dus het kaartje staat vooraan; `kin` is ongericht en draagt
+     * het woord dat erop komt te staan.
+     */
+    const eerste = boom.leden[0];
+    const lijnen =
+      boom.kaartje.lijn && eerste
+        ? [
+            {
+              id: `t_${newId().slice(0, 10)}`,
+              from: { kind: 'loose', id: kaartId },
+              to: { kind: 'entry', id: eerste.id },
+              role: boom.kaartje.lijn.role,
+              ...(boom.kaartje.lijn.label ? { label: boom.kaartje.lijn.label } : {}),
+              updatedAt: stempel,
+            },
+          ]
+        : [];
+    const state = {
+      v: 1,
+      members: boom.leden.map((row) => ({ id: row.id, updatedAt: stempel })),
+      loose: [{ id: kaartId, name: boom.kaartje.naam, text: boom.kaartje.tekst, frame: boom.kaartje.frame, updatedAt: stempel }],
+      ties: lijnen,
+      deleted: { members: {}, loose: {}, ties: {} },
+    };
+    db.prepare(
+      `INSERT INTO family_trees (id, name, slug, description, case_id, state, view_mode, edit_mode, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'all', 'all', ?, ?, ?)`,
+    ).run(id, boom.naam, slug, boom.omschrijving, boom.caseId, JSON.stringify(state), keeper.id, gemaakt, gemaakt);
+    manifest.familyTrees.push(id);
+    /* §27: wie in een stamboom staat, wordt daar genoemd. */
+    for (const row of boom.leden) insertMention.run(row.id, 'family_tree', id, '');
+    logLos('family_tree.created', { familyTreeId: id, name: boom.naam }, boom.caseId);
+  }
+})();
+
 /* ------------------------------------------------------------- voorstellen */
 /* §20: iemand die een artikel mag zien maar niet bewerken, dient een voorstel in. */
 
@@ -1205,7 +1363,7 @@ for (const soort of SOORTEN) {
   if (rijen?.length) console.log(`  ${String(rijen.length).padStart(3)}  ${soort.label}`);
 }
 console.log('');
-console.log(`  ${manifest.cases.length} dossiers, ${manifest.boards.length} prikborden, ${manifest.timelines.length} tijdlijnen, ${manifest.maps.length} landkaarten, ${manifest.assets.length} platen`);
+console.log(`  ${manifest.cases.length} dossiers, ${manifest.boards.length} prikborden, ${manifest.timelines.length} tijdlijnen, ${manifest.familyTrees.length} stambomen, ${manifest.maps.length} landkaarten, ${manifest.assets.length} platen`);
 console.log(`  ${tel('SELECT COUNT(*) AS n FROM entry_links')} tekstverwijzingen, ${tel('SELECT COUNT(*) AS n FROM entry_mentions')} vermeldingen, ${tel('SELECT COUNT(*) AS n FROM pending_edits')} voorstellen`);
 if (manifest.users.length) {
   console.log('');

@@ -17,6 +17,7 @@ import { db, schema } from '@/lib/db';
 import { snapshot } from '@/lib/live/docs';
 import { admit, caseRoomKey } from '@/lib/live/rooms';
 import { listBoards, listBoardsForCase } from '@/lib/boards/service';
+import { listFamilyTrees, listFamilyTreesForCase } from '@/lib/families/service';
 import { listTimelinesForCase } from '@/lib/timelines/service';
 import {
   getCaseBySlug,
@@ -115,6 +116,10 @@ export default async function CasePage({
   const looseBoards = mayEdit ? listBoards(user, { where: 'loose', sort: 'recent' }) : [];
   // §32: the dossier's tijdlijnen, behind the same two rules as its prikborden.
   const timelines = listTimelinesForCase(record.id, user);
+  // §66: the dossier's stambomen, behind the same two rules as its prikborden —
+  // and the ones hanging loose, for the picker that brings one in here.
+  const familyTrees = listFamilyTreesForCase(record.id, user);
+  const looseFamilyTrees = mayEdit ? listFamilyTrees(user, { where: 'loose', sort: 'recent' }) : [];
   const words = getWords();
   // §18: the log names characters; the account stays in the tooltip.
   const activity = attributed(listCaseActivity(record.id, user), words.keeper);
@@ -213,7 +218,7 @@ export default async function CasePage({
 
   return (
     <>
-      <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'timelines', 'users']} />
+      <LivePage place={caseKey(record.id)} watch={['entries', 'boards', 'timelines', 'family_trees', 'users']} />
       {/* §44/§45/§46: which side this dossier is on — the word and the
           colours. §57: and where the toggle goes from here, with the list kept
           apart from the tweeling so a flip that lands on it can say why. */}
@@ -244,6 +249,20 @@ export default async function CasePage({
       boards={boards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}
       looseBoards={looseBoards.map((b) => ({ id: b.id, name: b.name, updatedAt: b.updatedAt }))}
       timelines={timelines.map((t) => ({ id: t.id, slug: t.slug, name: t.name, updatedAt: t.updatedAt, scale: t.scale }))}
+      familyTrees={familyTrees.map((t) => ({
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        updatedAt: t.updatedAt,
+        memberCount: t.memberCount ?? 0,
+      }))}
+      looseFamilyTrees={looseFamilyTrees.map((t) => ({
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        updatedAt: t.updatedAt,
+        memberCount: t.memberCount ?? 0,
+      }))}
       activity={activity}
       liveNotes={liveNotes}
       lastSeenAt={user?.lastSeenAt ?? null}

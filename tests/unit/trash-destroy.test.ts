@@ -145,6 +145,45 @@ beforeAll(async () => {
   sqlite
     .prepare(`INSERT INTO board_revisions (id, board_id, snapshot, edited_by) VALUES ('br1', 'b-weg', '{}', 'keeper-1')`)
     .run();
+
+  /*
+   * §66: a stamboom in the bin, with everything that hangs off it — a member
+   * (an artikel that must survive), a los kaartje (which exists nowhere else),
+   * a right, a Keeper note, a touwtje, a tekenlaag and a "Genoemd in" row.
+   */
+  sqlite
+    .prepare(
+      `INSERT INTO family_trees (id, name, slug, state, created_by, deleted_at)
+       VALUES ('f-weg', 'Oude stamboom', 'oude-stamboom', ?, 'keeper-1', 900)`,
+    )
+    .run(
+      JSON.stringify({
+        v: 1,
+        members: [{ id: 'e-blijft', updatedAt: 1 }],
+        loose: [{ id: 'l1', name: 'Onbekende vader', frame: 'unknown', updatedAt: 1 }],
+        ties: [],
+        deleted: { members: {}, loose: {}, ties: {} },
+      }),
+    );
+  sqlite
+    .prepare(
+      `INSERT INTO access_grants (target_type, target_id, user_id, can_view, can_edit) VALUES ('family_tree', 'f-weg', 'keeper-1', 1, 1)`,
+    )
+    .run();
+  sqlite
+    .prepare(`INSERT INTO keeper_notes (kind, target_id, text) VALUES ('family_tree', 'f-weg', 'De vader is de veerman.')`)
+    .run();
+  sqlite
+    .prepare(
+      `INSERT INTO counterparts (id, keeper_kind, keeper_id, player_kind, player_id, is_twin) VALUES ('cp1', 'family_tree', 'f-weg', 'board', 'b-van-zaak', 0)`,
+    )
+    .run();
+  sqlite.prepare(`INSERT INTO ink_layers (target_id, kind, layer) VALUES ('f-weg', 'family_tree', '{}')`).run();
+  sqlite
+    .prepare(
+      `INSERT INTO entry_mentions (to_entry_id, from_kind, from_id, detail) VALUES ('e-blijft', 'family_tree', 'f-weg', '')`,
+    )
+    .run();
 });
 
 afterAll(() => {
@@ -263,5 +302,43 @@ describe('a landkaart', () => {
     expect(count(`SELECT count(*) n FROM maps WHERE id = 'm-weg'`)).toBe(0);
     expect(count(`SELECT count(*) n FROM map_pins WHERE map_id = 'm-weg'`)).toBe(0);
     expect(deps.listTrash().some((item) => item.kind === 'map')).toBe(false);
+  });
+});
+
+describe('§66: a stamboom', () => {
+  it('is in the bin, at the address it will come back to', () => {
+    const tree = deps.listTrash().find((item) => item.kind === 'family_tree');
+    expect(tree?.name).toBe('Oude stamboom');
+    expect(tree?.href).toBe('/stambomen/oude-stamboom');
+  });
+
+  it('counts the losse kaartjes, because those exist nowhere else', () => {
+    const labels = Object.fromEntries(
+      deps.destroyEffects('family_tree', 'f-weg').map((effect) => [effect.label, effect.count]),
+    );
+    expect(labels['losse kaartjes erin (die bestaan nergens anders)']).toBe(1);
+  });
+
+  it('can be put back with everyone still standing in it', () => {
+    deps.restoreFromTrash('family_tree', 'f-weg', KEEPER);
+    expect(count(`SELECT count(*) n FROM family_trees WHERE id = 'f-weg' AND deleted_at IS NULL`)).toBe(1);
+    expect(deps.listTrash().some((item) => item.kind === 'family_tree')).toBe(false);
+    deps.sqlite.prepare("UPDATE family_trees SET deleted_at = 900 WHERE id = 'f-weg'").run();
+  });
+
+  it('destroyed, leaves no row behind — and does not take the people in it', () => {
+    expect(deps.destroyFromTrash('family_tree', 'f-weg', KEEPER)).toBe('Oude stamboom');
+    expect(count(`SELECT count(*) n FROM family_trees WHERE id = 'f-weg'`)).toBe(0);
+    expect(
+      count(`SELECT count(*) n FROM access_grants WHERE target_type = 'family_tree' AND target_id = 'f-weg'`),
+    ).toBe(0);
+    expect(count(`SELECT count(*) n FROM keeper_notes WHERE kind = 'family_tree' AND target_id = 'f-weg'`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM counterparts WHERE keeper_id = 'f-weg' OR player_id = 'f-weg'`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM ink_layers WHERE target_id = 'f-weg'`)).toBe(0);
+    expect(count(`SELECT count(*) n FROM entry_mentions WHERE from_kind = 'family_tree' AND from_id = 'f-weg'`)).toBe(0);
+    // Kinship is a fact about the artikelen, so the window going does not take
+    // anybody who stood in it.
+    expect(count(`SELECT count(*) n FROM entries WHERE id = 'e-blijft'`)).toBe(1);
+    expect(deps.listTrash().some((item) => item.kind === 'family_tree')).toBe(false);
   });
 });

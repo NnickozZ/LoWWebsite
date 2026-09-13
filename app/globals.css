@@ -202,8 +202,8 @@
 /* §45 SCHEMES END */
 
 /*
- * §45: the web's sixteen kinds of tie, as aliases onto the six line colours
- * above rather than sixteen colours of their own.
+ * §45: the web's eighteen kinds of tie, as aliases onto the six line colours
+ * above rather than eighteen colours of their own.
  *
  * These are what the legend and the panel print a line in
  * (`edgeColourVar()` in `lib/web/kinds.ts`); the canvas draws the same six
@@ -233,6 +233,9 @@
   --web-event: var(--web-line-green);
   --web-investigator: var(--web-line-violet);
   --web-player: var(--web-line-violet);
+  /* §66: de stamboom — kinship is about people, so it takes the people's ink. */
+  --web-inTree: var(--web-line-violet);
+  --web-lineage: var(--web-line-violet);
 }
 
 /* ----------------------------------------------------- §29: reading faces */

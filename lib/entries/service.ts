@@ -9,7 +9,9 @@ import { newId } from '@/lib/ids';
 import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
 import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
-import { checkFieldPatch, cleanFieldPatch, listBlockKeys } from './fieldValues';
+import { checkFieldPatch, cleanFieldPatch, listBlockKeys, type StoredEntryRef } from './fieldValues';
+// §66: the pure half of the mirror — what should be written on the other page.
+import { mirrorPlan, refIdsOf } from '@/lib/families/mirror';
 import { recomputeFieldMentions } from './mentions';
 import { visibleEntryCondition, type Viewer } from './visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
@@ -703,6 +705,116 @@ export type SaveResult =
   | { status: 'pending' };
 
 /**
+ * §66: "de server spiegelt" — carry out the plan `mirrorPlan` drew up.
+ *
+ * Writing "Kinderen: B" on A is the same fact as "Ouders: A" on B, so the
+ * archive writes the other side itself rather than asking a person to walk to
+ * the other page. What may be written is decided by the pure half
+ * (`lib/families/mirror.ts`): a role field's inverse (parent↔child,
+ * partner↔partner; `kin` never), and the target soort's *first* field carrying
+ * it.
+ *
+ * Three things this deliberately does, and they are the whole of it:
+ *
+ *   - It writes `entries.fields` on the target with a **direct `db.update`**,
+ *     never a second `updateEntry`. A recursive call would mirror straight back
+ *     onto the source, which mirrors forward again — an infinite ping-pong
+ *     between two rows — and it would file a *voorstel* whenever the person who
+ *     edited A happens not to be allowed to edit B, which is a proposal nobody
+ *     made. The §38 gate is not skipped so much as not applicable: what is
+ *     written here is a `StoredEntryRef` this function built, into a field this
+ *     soort declares, not a value off the wire.
+ *   - It bumps the target's `updatedAt`, so `entry:{id}` fires and the other
+ *     page redraws. `updatedBy` is left alone: the last person to *edit* B is
+ *     still whoever that was.
+ *   - It never touches an artikel in the trash.
+ */
+function applyMirror(
+  sourceId: string,
+  sourceDefs: FieldDef[],
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+) {
+  const defsOf = (targetId: string): FieldDef[] | null => {
+    const row = db
+      .select({ typeId: schema.entries.typeId, deletedAt: schema.entries.deletedAt })
+      .from(schema.entries)
+      .where(eq(schema.entries.id, targetId))
+      .get();
+    if (!row || row.deletedAt) return null;
+    return typeFieldSpec(row.typeId).defs;
+  };
+
+  const steps = mirrorPlan(sourceId, sourceDefs, before, after, defsOf);
+  if (!steps.length) return;
+
+  // The chip the other page will print: this artikel, in the one shape
+  // `asEntryRef` keeps (`lib/entries/fieldValues.ts`). The icon and the colour
+  // are the soort's, exactly as `EntryPicker` writes them.
+  const self = db
+    .select({
+      id: schema.entries.id,
+      name: schema.entries.name,
+      slug: schema.entries.slug,
+      icon: schema.entryTypes.icon,
+      colour: schema.entryTypes.colour,
+    })
+    .from(schema.entries)
+    .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+    .where(eq(schema.entries.id, sourceId))
+    .get();
+  if (!self) return;
+  const selfRef: StoredEntryRef = {
+    id: self.id,
+    name: self.name,
+    slug: self.slug,
+    icon: self.icon,
+    colour: self.colour,
+  };
+  const idOf = (item: unknown) => refIdsOf(item)[0] ?? null;
+  const stamp = Math.floor(Date.now() / 1000);
+
+  for (const step of steps) {
+    const row = db
+      .select({
+        typeId: schema.entries.typeId,
+        fields: schema.entries.fields,
+        deletedAt: schema.entries.deletedAt,
+      })
+      .from(schema.entries)
+      .where(eq(schema.entries.id, step.targetId))
+      .get();
+    if (!row || row.deletedAt) continue;
+    const def = typeFieldSpec(row.typeId).defs.find((one) => one.key === step.fieldKey);
+    if (!def) continue;
+
+    const current = (row.fields ?? {}) as Record<string, unknown>;
+    const held = current[step.fieldKey];
+    let next: unknown;
+    if (def.kind === 'entry_link') {
+      // One box, one answer. Adding overwrites whoever was in it; removing only
+      // empties it when it is *this* artikel standing there.
+      const there = idOf(held) === sourceId;
+      if (step.add === there) continue;
+      next = step.add ? selfRef : null;
+    } else {
+      const raw = Array.isArray(held) ? held : held === null || held === undefined || held === '' ? [] : [held];
+      const without = raw.filter((item) => idOf(item) !== sourceId);
+      const there = without.length !== raw.length;
+      if (step.add === there) continue;
+      next = step.add ? [...raw, selfRef] : without;
+    }
+
+    db.update(schema.entries)
+      .set({ fields: { ...current, [step.fieldKey]: next }, updatedAt: stamp })
+      .where(eq(schema.entries.id, step.targetId))
+      .run();
+    // §27: the other side is a mention of this artikel too.
+    recomputeFieldMentions(step.targetId);
+  }
+}
+
+/**
  * Applies a per-field patch. §6: last write wins per field, so only the keys
  * present in the patch are touched. A locked entry edited by a player becomes a
  * pending edit instead.
@@ -868,6 +980,29 @@ export function updateEntry(
   // back off the merged row rather than off the patch, because §6 patches one
   // field at a time and the table has to hold what the infobox now says.
   if (values.fields !== undefined) recomputeFieldMentions(entryId);
+  /*
+   * §66: and the kinship the infobox just changed is written on the other page.
+   *
+   * Here, and nowhere else: this is the one seam where a role field is really
+   * *written* — a voorstel comes back through `approvePendingEdit`, which calls
+   * this function, so it mirrors when it is approved and not before, and the
+   * two roads above (`pending`) return long before this line. A mirror that
+   * fails is a line missing on one page, never a lost edit on this one, so it
+   * can only warn.
+   */
+  if (values.fields !== undefined) {
+    try {
+      const defs = typeFieldSpec((values.typeId as string | undefined) ?? entry.typeId).defs;
+      applyMirror(
+        entryId,
+        defs,
+        (entry.fields ?? {}) as Record<string, unknown>,
+        values.fields as Record<string, unknown>,
+      );
+    } catch (error) {
+      console.warn('[§66] de stamboom kon de andere kant niet bijschrijven', error);
+    }
+  }
   // §35: the infobox's date and this artikel's gebeurtenissen are one fact.
   // Editing the date here moves every tag of it on every tijdlijn, each
   // re-snapped to its own precision and re-anchored to its own axis; the
@@ -999,6 +1134,13 @@ export function restoreRevision(revisionId: string, user: Author) {
    * would not be a restore.
    */
   const snapshot = revision.snapshot as Record<string, unknown>;
+  // §66: what the infobox says *now*, read before it is overwritten, so the
+  // kinship the restore undoes can be undone on the other pages too.
+  const standing = db
+    .select({ typeId: schema.entries.typeId, fields: schema.entries.fields })
+    .from(schema.entries)
+    .where(eq(schema.entries.id, revision.entryId))
+    .get();
   writeRevision(revision.entryId, user.id, 'voor het terugzetten', user.characterId ?? null);
   db.update(schema.entries)
     .set({
@@ -1031,6 +1173,21 @@ export function restoreRevision(revisionId: string, user: Author) {
   recomputeLinks(revision.entryId, snapshot.body);
   // §27: an old version puts an old infobox back, so it puts its mentions back too.
   recomputeFieldMentions(revision.entryId);
+  // §66: and its kinship, on the pages at the other end of every role field —
+  // otherwise a restore that drops "Kinderen: B" leaves "Ouders: A" on B for
+  // ever, and the stamboom draws a line that only one of the two pages says.
+  if (standing) {
+    try {
+      applyMirror(
+        revision.entryId,
+        typeFieldSpec(standing.typeId).defs,
+        (standing.fields ?? {}) as Record<string, unknown>,
+        ((snapshot.fields as Record<string, unknown> | undefined) ?? {}),
+      );
+    } catch (error) {
+      console.warn('[§66] de stamboom kon de andere kant niet bijschrijven', error);
+    }
+  }
   // §35: and its date, so the gebeurtenissen go back with it.
   syncEventsFromEntryDate(revision.entryId);
   reindexEntry(revision.entryId);

@@ -14,6 +14,10 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
+// §66: the four kinship roles a koppelingsveld may carry. Type-only, so this
+// import is erased and `lib/families/types.ts` never loads the database.
+import type { FieldRole } from '@/lib/families/types';
+import type { FamilyTreeState } from '@/lib/families/types';
 
 const now = sql`(unixepoch())`;
 
@@ -206,6 +210,22 @@ export type FieldDef = {
   options?: string[];
   /** for entry_link / entry_links: restrict the picker to these type slugs */
   ofType?: string[];
+  /**
+   * §66: what this koppelingsveld *means* in a stamboom. Only meaningful on
+   * `entry_link` / `entry_links` — `cleanFields` drops it off anything else.
+   *
+   *   parent   the artikelen in this field are this artikel's parents
+   *            ("Ouders", "Geschapen door")
+   *   child    they are its children ("Kinderen", "Schepselen")
+   *   partner  they stand beside it in a union ("Partner")
+   *   kin      a side tie with no generation implied ("Aspect van")
+   *
+   * The field's *label* is the word printed on the line, so a god's vocabulary
+   * needs no code of its own. `parent` and `child` are each other's mirror and
+   * `partner` is its own; the server writes the other side for those three
+   * (`lib/families/mirror.ts`, inside `updateEntry`). `kin` is never mirrored.
+   */
+  role?: FieldRole;
 };
 
 export type Visibility = 'all' | 'keeper' | 'players';
@@ -219,7 +239,7 @@ export type Visibility = 'all' | 'keeper' | 'players';
  * when the Keeper allows it AND the owner allows it.
  */
 export type AccessMode = 'all' | 'some' | 'private';
-export type AccessTargetType = 'entry' | 'case' | 'board' | 'timeline' | 'map';
+export type AccessTargetType = 'entry' | 'case' | 'board' | 'timeline' | 'map' | 'family_tree';
 
 export const entries = sqliteTable(
   'entries',
@@ -365,7 +385,7 @@ export const entryMentions = sqliteTable(
   {
     toEntryId: text('to_entry_id').notNull(),
     fromKind: text('from_kind')
-      .$type<'case' | 'board' | 'map' | 'timeline' | 'field' | 'section'>()
+      .$type<'case' | 'board' | 'map' | 'timeline' | 'family_tree' | 'field' | 'section'>()
       .notNull(),
     /** The dossier / prikbord / landkaart / artikel the mention sits in. */
     fromId: text('from_id').notNull(),
@@ -748,6 +768,57 @@ export const timelineEvents = sqliteTable(
 );
 
 /**
+ * §66: een stamboom. The fourth container, made the way a prikbord and a
+ * tijdlijn are made: by anyone, with the owner's two dials (§17), loose or
+ * inside a dossier, on either side of the archive (§44), into the bin.
+ *
+ * It is a *window* onto the archive's kinship, not a second place where
+ * kinship is written down: who is whose parent, child or partner lives on the
+ * artikel, in koppelingsvelden that carry a role. So there are no child rows.
+ * `state` is one JSON blob of what the tree owns itself — its members, the
+ * losse kaartjes that are not artikelen (yet) and the lijnen that touch one —
+ * normalised on every read by `normaliseTreeState` (`lib/families/merge.ts`),
+ * which is where a new field on a member gets its default (CLAUDE.md §5).
+ */
+export const familyTrees = sqliteTable(
+  'family_trees',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    description: text('description').notNull().default(''),
+    caseId: text('case_id'),
+    state: text('state', { mode: 'json' }).$type<FamilyTreeState>().notNull().default({
+      v: 1,
+      members: [],
+      loose: [],
+      ties: [],
+      deleted: { members: {}, loose: {}, ties: {} },
+    }),
+    /** §17 */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    /** §43: false keeps this tree out of the web and out of "Genoemd in". */
+    inWeb: integer('in_web', { mode: 'boolean' }).notNull().default(true),
+    /**
+     * §44: the Keeper's own side. True means the table may not know this
+     * exists at all — AND-ed onto the §17 dials in `viewableCondition`, never
+     * substituted for them, exactly as §9's `visibility` is for an artikel.
+     */
+    keeperOnly: integer('keeper_only', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+    deletedAt: integer('deleted_at'),
+  },
+  (t) => [
+    uniqueIndex('family_trees_slug_idx').on(t.slug),
+    index('family_trees_case_idx').on(t.caseId),
+  ],
+);
+
+/**
  * §20: the CRDT state behind a piece of shared text, keyed by room
  * (`entry:{id}:body`, `section:{id}`). `entries.body` remains what every
  * reader uses; this is the Yjs document's own memory, so a client that was
@@ -770,7 +841,7 @@ export const liveDocs = sqliteTable('live_docs', {
  */
 export const inkLayers = sqliteTable('ink_layers', {
   targetId: text('target_id').primaryKey(),
-  kind: text('kind').$type<'board' | 'map' | 'timeline'>().notNull(),
+  kind: text('kind').$type<'board' | 'map' | 'timeline' | 'family_tree'>().notNull(),
   layer: text('layer', { mode: 'json' }).$type<unknown>().notNull().default({}),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull().default(now),
@@ -815,8 +886,8 @@ export const counterparts = sqliteTable(
   ],
 );
 
-/** The five kinds of thing that can have a Keeper side (§44). */
-export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline';
+/** The six kinds of thing that can have a Keeper side (§44, §66). */
+export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
 
 /**
  * §44: the Keeper's notes, for all five kinds, in one place.

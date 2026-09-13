@@ -11,6 +11,7 @@ import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
+import { resolveFamilyTrees, type FamilyTreeFacts } from '@/lib/families/service';
 import { mergeBoardState, normaliseState, type BoardPatch, type BoardState } from './merge';
 
 export type BoardSummary = {
@@ -586,6 +587,8 @@ export type BoardRefs = {
   timelines: Record<string, BoardTimelineFacts>;
   /** §52: the walls hanging on this wall. */
   boards: Record<string, BoardBoardFacts>;
+  /** §66: the stambomen hanging on this wall. */
+  familyTrees: Record<string, FamilyTreeFacts>;
 };
 
 /**
@@ -717,4 +720,22 @@ export function resolveBoardBoards(boardIds: string[], viewer: Viewer): Map<stri
     }
   }
   return out;
+}
+
+/**
+ * §66: what a stamboom card shows. The same rule as the tijdlijn and the
+ * prikbord above it — a stamboom has the same two dials and a dossier of its
+ * own to hide behind, so one this viewer may not open is simply absent here
+ * and the card is stamped MISSING rather than named.
+ *
+ * The reading rule lives with the stamboom (`resolveFamilyTrees`, which goes
+ * through `listFamilyTrees` and so carries §17's view dial *and* the
+ * parent-dossier rule); this is the board's door onto it, so a wall asks the
+ * same question in the same shape for all five of its reference kinds.
+ */
+export function resolveBoardFamilyTrees(
+  familyTreeIds: string[],
+  viewer: Viewer,
+): Map<string, FamilyTreeFacts> {
+  return resolveFamilyTrees(familyTreeIds, viewer);
 }

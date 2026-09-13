@@ -170,6 +170,8 @@ const NODE_LINE: Partial<Record<WebNode['kind'], WebLineColour>> = {
   board: 'red',
   map: 'blue',
   timeline: 'green',
+  // §66: a stamboom wears the violet its two ties are drawn in.
+  family_tree: 'violet',
 };
 
 function readPalette(el: HTMLElement): Palette {
@@ -634,8 +636,9 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: numb
  * The silhouette of a knot, by kind — so what a thing *is* reads at a glance
  * and without colour: an artikel is a round knot, a dossier a folder with a
  * tab, a prikbord a square of cork, a landkaart a diamond (the compass rose),
- * a tijdlijn a pill along the axis. Begins a path; the caller fills, strokes
- * or clips it. `r` is the radius the shape fits in.
+ * a tijdlijn a pill along the axis, a stamboom a gable — two lines rising to a
+ * point over a flat base, the head of a branch. Begins a path; the caller
+ * fills, strokes or clips it. `r` is the radius the shape fits in.
  */
 function knotPath(ctx: CanvasRenderingContext2D, kind: WebNode['kind'], x: number, y: number, r: number) {
   ctx.beginPath();
@@ -683,6 +686,20 @@ function knotPath(ctx: CanvasRenderingContext2D, kind: WebNode['kind'], x: numbe
       ctx.arc(x + w - h, y, h, -Math.PI / 2, Math.PI / 2);
       ctx.lineTo(x - w + h, y + h);
       ctx.arc(x - w + h, y, h, Math.PI / 2, (3 * Math.PI) / 2);
+      ctx.closePath();
+      return;
+    }
+    case 'family_tree': {
+      // A gable: a flat base, two sides, a point on top. Not the diamond a
+      // landkaart is (that one is symmetric top and bottom) and not the
+      // dossier's tab, so the three read apart in one glance at zoom 1.
+      const w = r * 1.02;
+      const h = r * 0.95;
+      ctx.moveTo(x - w, y + h);
+      ctx.lineTo(x - w, y - h * 0.15);
+      ctx.lineTo(x, y - h);
+      ctx.lineTo(x + w, y - h * 0.15);
+      ctx.lineTo(x + w, y + h);
       ctx.closePath();
       return;
     }

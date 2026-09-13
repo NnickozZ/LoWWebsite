@@ -33,7 +33,7 @@ export const CARD_WIDTH = 160;
  * from the first.
  */
 export type CardSubject = {
-  kind: 'entry' | 'map' | 'case' | 'timeline' | 'board';
+  kind: 'entry' | 'map' | 'case' | 'timeline' | 'board' | 'family_tree';
   name: string;
   /** Where a double-click goes. */
   href: string;
@@ -46,6 +46,13 @@ export type CardSubject = {
   border: string | null;
   /** What the card is called in a title attribute — "artikel", "landkaart"… */
   noun: string;
+  /**
+   * §66: the dossier this thing is filed in, when it has one and the resolver
+   * knows it. Printed after the kind's own word, because two stambomen of a
+   * long affair are told apart by the dossier they belong to and by nothing
+   * else on a card this size.
+   */
+  caseName?: string | null;
 };
 
 /** Resolves a card against the three lookup maps the board keeps. */
@@ -122,6 +129,27 @@ export function subjectOf(card: BoardCardModel, refs: BoardRefs): CardSubject | 
       // door to somewhere else, not a piece of paper about a thing.
       border: 'dashed',
       noun: 'prikbord',
+    };
+  }
+
+  if (ref.kind === 'family_tree') {
+    // §66: a stamboom on a wall. Like the tijdlijn card above it — no picture
+    // of its own, so the frame stays shut and the icon stands for it — with
+    // the dossier's name printed under the word, when it has one.
+    const tree = refs.familyTrees?.[ref.id];
+    if (!tree) return undefined;
+    return {
+      kind: 'family_tree',
+      name: tree.name,
+      href: `/stambomen/${tree.slug}`,
+      assetId: null,
+      crop: null,
+      icon: 'tree',
+      colour: 'var(--ink-muted)',
+      // The same dashed edge the other doors wear.
+      border: 'dashed',
+      noun: 'stamboom',
+      caseName: tree.caseName,
     };
   }
 
@@ -347,7 +375,9 @@ export function BoardCardView({
     card.kind === 'case' ||
     card.kind === 'timeline' ||
     // §52: and a prikbord, which is a card like the other four.
-    card.kind === 'board';
+    card.kind === 'board' ||
+    // §66: and a stamboom, which is a card like the other five.
+    card.kind === 'family_tree';
   const missing = refers && !subject;
   const { assetId: image, crop: imageCrop, isOwn } = cardImage(card, subject);
   const zoomed = (imageCrop?.portrait?.zoom ?? 1) > 1.05;
@@ -663,7 +693,13 @@ export function BoardCardView({
             <Icon name={subject.icon} size={11} />
             {/* §52: the prikbord is a word the Keeper may rename, so it comes
                 from `words` rather than from the pure resolver's noun. */}
-            {subject.kind === 'board' ? words.board : subject.noun}
+            {/* §66: so is the stamboom. */}
+            {subject.kind === 'board'
+              ? words.board
+              : subject.kind === 'family_tree'
+                ? words.familyTree
+                : subject.noun}
+            {subject.caseName ? ` · ${subject.caseName}` : ''}
           </span>
         )}
 

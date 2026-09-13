@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { canView, grantFor, loadAccessRow } from '@/lib/access';
 import { getBoard } from '@/lib/boards/service';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
@@ -70,6 +71,28 @@ export function canWatch(key: string, viewer: Viewer): boolean {
       return Boolean(getTimelineById(record.id, viewer));
     case 'event':
       return Boolean(getEvent(record.id, viewer));
+    /**
+     * §66: a stamboom is gated exactly like a prikbord — its own two dials
+     * (which since §44 carry `keeper_only` inside them) and the bin.
+     *
+     * It is spelled out here rather than asked of the service because
+     * `lib/families/service.ts` does not exist yet. When it does, this whole
+     * case becomes `return Boolean(getFamilyTreeById(record.id, viewer));` —
+     * one line, like the four above it — and nothing else here changes. Note
+     * what that will also bring: the *parent dossier's* view rule, which this
+     * spelled-out version does not ask.
+     */
+    case 'family_tree': {
+      const row = loadAccessRow('family_tree', record.id);
+      if (!row) return false;
+      const gone = db
+        .select({ deletedAt: schema.familyTrees.deletedAt })
+        .from(schema.familyTrees)
+        .where(eq(schema.familyTrees.id, record.id))
+        .get();
+      if (!gone || gone.deletedAt) return false;
+      return canView(row, viewer, viewer ? grantFor('family_tree', record.id, viewer.id) : null);
+    }
     // §33: a tekenlaag is seen by whoever may see what it is drawn on.
     case 'ink':
       return Boolean(inkTargetById(record.id, viewer));

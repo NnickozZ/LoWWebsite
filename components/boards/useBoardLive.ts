@@ -173,6 +173,8 @@ export function useBoardLive({
         timelines?: BoardRefs['timelines'];
         // §52: absent from an older server, which is what the `?? {}` below is for.
         boards?: BoardRefs['boards'];
+        /** §66: a wall hung before this round answers without them. */
+        familyTrees?: BoardRefs['familyTrees'];
       };
       // The user may have picked a card up between the request and the reply.
       if (!quietRef.current) {
@@ -181,7 +183,7 @@ export function useBoardLive({
       }
       owed.current = false;
       pullBackoff.current = 0;
-      onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {}, boards: data.boards ?? {} });
+      onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {}, boards: data.boards ?? {}, familyTrees: data.familyTrees ?? {} });
       onRenameRef.current(data.name);
       // Whatever those tabs were carrying is now where the document says.
       if (settling.current.size) {

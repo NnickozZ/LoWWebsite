@@ -46,7 +46,7 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   pending_edits: { refs: { entry_id: 'entry' }, lists: ['admin'] },
   audit_log: { lists: ['admin'] },
   activity: { refs: { case_id: 'case' }, lists: ['feed'] },
-  access_grants: { lists: ['entries', 'cases', 'boards', 'timelines'] },
+  access_grants: { lists: ['entries', 'cases', 'boards', 'timelines', 'family_trees'] },
   user_characters: { refs: { entry_id: 'entry' }, lists: ['characters', 'users'] },
   maps: { row: 'map', lists: ['maps'] },
   map_pins: { row: 'pin', refs: { map_id: 'map', entry_id: 'entry' }, lists: ['maps'] },
@@ -54,10 +54,12 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   // gebeurtenis is also a fact about the artikel's page ("Op de tijdlijn").
   timelines: { row: 'timeline', refs: { case_id: 'case' }, lists: ['timelines'] },
   timeline_events: { row: 'event', refs: { timeline_id: 'timeline', entry_id: 'entry' }, lists: ['timelines'] },
+  // §66: a stamboom, like a tijdlijn, also moves the dossier it hangs in.
+  family_trees: { row: 'family_tree', refs: { case_id: 'case' }, lists: ['family_trees'] },
   users: { lists: ['users'] },
   // §33: a stroke moves the tekenlaag's own key and nothing else — not the
-  // prikbord, landkaart or tijdlijn it is drawn on, whose pages would otherwise
-  // re-render on every stroke.
+  // prikbord, landkaart, tijdlijn or stamboom it is drawn on, whose pages would
+  // otherwise re-render on every stroke.
   ink_layers: { refs: { target_id: 'ink' }, lists: [] },
   site_settings: { lists: ['site', 'words', 'types'] },
 };
@@ -166,7 +168,9 @@ export function keysOfStatement(sql: string, params: unknown[]): string[] {
     const types = found.get('target_type') ?? [];
     const ids = found.get('target_id') ?? [];
     types.forEach((type, i) => {
-      if (['entry', 'case', 'board', 'timeline'].includes(type) && ids[i]) keys.add(`${type}:${ids[i]}`);
+      if (['entry', 'case', 'board', 'timeline', 'family_tree'].includes(type) && ids[i]) {
+        keys.add(`${type}:${ids[i]}`);
+      }
     });
   }
   return [...keys];

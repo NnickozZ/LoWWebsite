@@ -421,6 +421,10 @@ app/
     maps/            the shelf of maps, and one map with its pins
     timelines/       the shelf of tijdlijnen, and one tijdlijn with its
                      gebeurtenissen (§32)
+    stambomen/       §66: the shelf of stambomen, and one stamboom with its
+                     doek — who stands in it, and the lijnen read off the
+                     artikelen. Desktop only in the menu; a phone reaches one
+                     through a dossier, "Genoemd in" or the start page
     web/             §43: het web — the archive drawn as what points at what,
                      with one thing in the middle (`?focus=`) or all of it
     wiki/            browse, and browse-by-type (one row of soorten as tabs)
@@ -435,9 +439,15 @@ app/
   timelines.css      §62: the tijdlijn's own stylesheet — the axis, the lanes,
                      the folded-out windows, the "+n" chips and the hand on
                      the axis. Imported by the one page that is a tijdlijn
-  api/               entries, cases, boards, maps, timelines, characters,
+  stambomen.css      §66: the stamboom's own stylesheet — the stage, the world,
+                     the five frames, the lines and their hit areas, the
+                     handles and the floating picker. Imported by the one page
+                     that is a stamboom
+  api/               entries, cases, boards, maps, timelines, family-trees
+                     (§66, with `/relations` and `/promote`), characters,
                      access, assets, search, suggest, admin, ink (§33: the
-                     tekenlaag of a prikbord, landkaart or tijdlijn), web
+                     tekenlaag of a prikbord, landkaart, tijdlijn or
+                     stamboom), web
                      (§43: this viewer's graph, whole or around a focus),
                      and `live/site` — **the one stream in the whole app**
                      (§60). `api/boards/[id]/live` and `api/live/[room]` were
@@ -466,6 +476,12 @@ components/
                      folded-out windows), the sheets around it (the date form,
                      a new gebeurtenis, an existing one, the settings) and
                      the "Nieuwe tijdlijn" button
+  families/          §66: de stamboom — FamilyTreeCanvas (pan, zoom, the
+                     cards, the lines, the ink and the other hands),
+                     TreeNode (the five frames), TreeHandles (the three `+`
+                     and the `…`), treeUndo (pure: the ring of snapshots),
+                     useTreeSync (the save and the pull in one) and the
+                     "Nieuwe stamboom" button
   web/               §43: the web — WebCanvas (one <canvas>, both layouts,
                      every gesture), WebView (the page around it: search,
                      depth, legend, panel, the phone's sheets),
@@ -544,6 +560,15 @@ lib/
                      dragged gebeurtenis and an artikel's date in step — and
                      inkSpace.ts (§33, also pure: where a streek lives on an
                      axis and how wide it is, in both stroke formats)
+  families/          §66: de stamboom — types.ts (the contract), roles.ts
+                     (pure: the four roles, what a koppelingsveld with one
+                     means, and fields → lijnen), mirror.ts (pure: what the
+                     other page should say; `updateEntry` carries it out),
+                     frames.ts, merge.ts (pure: the tree's own state, and the
+                     refusal to keep a lijn between two artikelen),
+                     layout.ts (pure: generations, unions, where everybody
+                     stands), graph.ts (the drawing for one viewer, rule 1 by
+                     construction), service.ts and live.ts
   live/              §20: rooms of shared text (docs.ts is the hub, rooms.ts
                      the gates, schema.ts the ProseMirror schema on the server);
                      hub.ts, changes.ts, keys.ts and gate.ts for the one site
@@ -553,7 +578,7 @@ lib/
                      to keep itself) and colour.ts (the ink a person is drawn
                      in, moved out of `lib/boards/live.ts` so the two files do
                      not import each other)
-  keeper/            §44/§46: de Keeperkant — kinds.ts (pure: the five kinds,
+  keeper/            §44/§46: de Keeperkant — kinds.ts (pure: the six kinds,
                      where each lives, and the two `Side`s), side.ts (the one
                      read, `keeperRef`; the only place the two spellings of
                      keeper-only are written; and `sideCondition`, the §46
@@ -564,7 +589,7 @@ lib/
                      tokens, and the emitter both `globals.css` and the
                      signed-in layout are written from. Pure; the half that
                      reads and writes settings is `lib/admin/schemes.ts`
-  web/               §43: het web — types.ts (node, edge, the sixteen kinds
+  web/               §43: het web — types.ts (node, edge, the eighteen kinds
                      of tie), kinds.ts (pure: colour, dash and word per kind),
                      service.ts (the graph for one viewer, rule 1 by
                      construction), slice.ts (pure: the focus walk, the
@@ -608,7 +633,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Sixty-two rules worth knowing before changing anything:
+Sixty-six rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -1086,13 +1111,14 @@ Sixty-two rules worth knowing before changing anything:
     strokes stay where they are; only a Keeper flips it or wipes, and both go
     to the audit log. The layer has its own table and its own key (`ink:{id}`,
     gated like the thing it hangs on) — never a column on
-    `boards`/`maps`/`timelines`, so a stroke a second
+    `boards`/`maps`/`timelines`/`family_trees`, so a stroke a second
     does not re-render every page that watches those. (Since §60 "its own
     line" means its own *key*, not its own socket: there is one line per tab
     and the board hub it was written against is gone.) Frames of a stroke in
     progress ride the site line like pointer frames: sight, never state
-    (rule 20). Coordinates are the place's own — board units on a prikbord,
-    picture pixels on a landkaart, and on a tijdlijn **seconds on both axes**:
+    (rule 20). Coordinates are the place's own — board units on a prikbord
+    and (since §66) world units on a stamboom, both `screenWidth / zoom`;
+    picture pixels on a landkaart; and on a tijdlijn **seconds on both axes**:
     x an absolute moment, y the seconds from the axis, and the width in
     seconds too, all three multiplied by `pxPerSecond` on the way to the glass.
     So a drawing on a tijdlijn is ink on the axis — it grows and shrinks with
@@ -1689,7 +1715,8 @@ Sixty-two rules worth knowing before changing anything:
     and `WebEdge.colour` carries the string's colour on the wall
     (`LINE_COLOURS`, `--web-line-<colour>`); **a wall can opt out**
     (`boards.in_web`, see rule 26); and **a Keeper's web reads the containers
-    as a player** — dossiers, prikborden, landkaarten and tijdlijnen go through
+    as a player** — dossiers, prikborden, landkaarten, tijdlijnen and (since
+    §66) stambomen go through
     the ordinary dials without the Keeper's skeleton key unless the legend's
     "Ook privé van anderen" (`?others=1`) is on, while artikelen and sections
     keep the real viewer, so the Keeper's own hidden pages stay.
@@ -1701,7 +1728,7 @@ Sixty-two rules worth knowing before changing anything:
     grows as √zoom up to zoom 4 and then stops (`lineZoom`), so a close look
     at a knot is a picture and not a rope. The legend now has **two parts**:
     under *Wat* you switch kinds of knot on and off — dossiers, prikborden,
-    landkaarten, tijdlijnen and every soort of artikel in the web, each with
+    landkaarten, tijdlijnen, stambomen and every soort of artikel in the web, each with
     a count — and under *Hoe* the kinds of line; a knot switched off is
     *absent* (`hiddenNodeKinds` / `hiddenTypes` in `slice.ts`), it goes with
     everything that hung only from it, and the middle itself is never hidden.
@@ -1721,7 +1748,8 @@ Sixty-two rules worth knowing before changing anything:
     was `?s=full`, the one address in the app that is not what `assetUrl()`
     builds — the same bytes at a second HTTP cache entry.*
 
-    How a line is tied is a *kind* (`WebEdgeKind`, sixteen of them) with one
+    How a line is tied is a *kind* (`WebEdgeKind`, eighteen of them since §66)
+    with one
     colour and dash in `lib/web/kinds.ts` and one CSS custom property
     (`--web-<kind>`) in `globals.css` that must stay the same colour, because
     the legend and the panel print a line in the colour the canvas draws it.
@@ -1733,7 +1761,7 @@ Sixty-two rules worth knowing before changing anything:
     the web's lines are the archive's.
 
 44. **The archive has two sides, and a tie between them is never a right.** §44.
-    Any artikel, dossier, prikbord, landkaart or tijdlijn can be the Keeper's
+    Any artikel, dossier, prikbord, landkaart, tijdlijn or stamboom can be the Keeper's
     own: a page the table may not know exists. It is written **two ways on
     purpose**, and `isKeeperSide()` in `lib/keeper/side.ts` is the only place in
     the app where that difference is spelled out. An **artikel** says it with
@@ -1768,7 +1796,8 @@ Sixty-two rules worth knowing before changing anything:
     menu item is gone in favour of one toggle in the corner of the screen.)
 
     **A twin's two faces share one set of notes.** Keeper notes left `entries`
-    and `cases` for `keeper_notes`, keyed by `(kind, id)`, so all five kinds
+    and `cases` for `keeper_notes`, keyed by `(kind, id)`, so all six kinds
+    (de stamboom joined them in §66)
     have them and a pair keeps **one** text — held on the Keeper's side.
     `notesTarget()` is the whole rule and the only place it is written. They are
     a live room now (`keeper:{kind}:{id}:notes`), which **reverses** the note in
@@ -1831,7 +1860,7 @@ Sixty-two rules worth knowing before changing anything:
     not two, because a glance at the screen should say which side of the archive
     you are standing on before you have read a word; nineteen and not a hundred,
     because every other colour in the stylesheet is a `var()` alias onto one of
-    these — the web's sixteen `--web-<kind>` properties are aliases onto its
+    these — the web's eighteen `--web-<kind>` properties are aliases onto its
     **six** line colours, so "wat op een prikbord hangt" is one choice and the
     legend cannot disagree with the drawing. Nothing stores "this account uses
     the Keeper colours": a keeper-only page renders `data-side="keeper"` (§44)
@@ -1880,7 +1909,7 @@ Sixty-two rules worth knowing before changing anything:
 46. **De spiegel: a list filters by side; a lookup never does.** §46. The
     Keeperkant is not a page in the archive — it is the archive, read from the
     other side. On the Keeper's side every list (Start, Wiki, Dossiers,
-    Prikborden, Landkaarten, Tijdlijnen, het Web, Zoeken) shows **only** the
+    Prikborden, Landkaarten, Tijdlijnen, Stambomen, het Web, Zoeken) shows **only** the
     Keeper's own things; on the players' side only what the table may see. Two
     clean worlds, not one world with the Keeper's things added on top.
 
@@ -1918,7 +1947,7 @@ Sixty-two rules worth knowing before changing anything:
     viewer. And that reading-as-a-player rule now has an exception: on the
     Keeper's own side the real viewer is used, because since §44 `keeper_only`
     lives inside those dials and a player's eyes would leave the Keeper's web
-    without a single dossier, prikbord, landkaart or tijdlijn. It is safe
+    without a single dossier, prikbord, landkaart, tijdlijn or stamboom. It is safe
     because the side filter then narrows it to keeper-only records, which are
     the Keeper's by definition — nobody else's private thinking arrives that
     way.
@@ -2165,7 +2194,8 @@ Sixty-two rules worth knowing before changing anything:
     `/api/keeper/flip` — the one writer of the side cookie. Both directions: a
     Keeper artikel takes you over, a player-facing one takes you back. The
     decision is `sideDetour()` in `lib/keeper/side.ts` and nowhere else; the
-    five record pages (`/e`, `/c`, `/b`, `/maps`, `/timelines`) call it and
+    six record pages (`/e`, `/c`, `/b`, `/maps`, `/timelines`, `/stambomen`,
+    the last since §66) call it and
     redirect. It cannot loop, because the flip writes the cookie to exactly the
     side of the record you are opening. `queryTail()` carries the page's own
     query (`?new=1`, `?rev=`) across the round trip and drops `gewisseld`;
@@ -2179,7 +2209,8 @@ Sixty-two rules worth knowing before changing anything:
     §46's decision to leave the autocomplete open — the suggestion list under
     every text box was the widest opening in the wall. `bothSides` survives with
     exactly one user: `/api/keeper/search`, the touwtjeskiezer. The picker APIs
-    (`/api/cases`, `/api/boards`, `/api/maps`, `/api/timelines`), the pickers on
+    (`/api/cases`, `/api/boards`, `/api/maps`, `/api/timelines`,
+    `/api/family-trees`), the pickers on
     the record pages, `listTimelinesForCase`, "Genoemd in", `getBacklinks` and
     the focus web all read one side. That is allowed *because* of the wissel:
     "the side the reader stands on" and "the side this record is on" have become
@@ -2189,9 +2220,11 @@ Sixty-two rules worth knowing before changing anything:
     `isKeeperSide` so §44's two spellings of "the Keeper's own" stay in one
     place, refuses an artikel filed in a dossier, a card on a prikbord, a speld
     on a landkaart and a gebeurtenis on a tijdlijn when the two ends are not on
-    the same side: 400, `Dat staat aan de andere kant van het archief.` Four
+    the same side: 400, `Dat staat aan de andere kant van het archief.` Five
     routes carry it — `POST /api/cases/[id]/entries`, `PATCH /api/boards/[id]`,
-    `POST /api/maps/[id]/pins`, `POST /api/timelines/[id]/events`. The rule is
+    `POST /api/maps/[id]/pins`, `POST /api/timelines/[id]/events`, and since
+    §66 `POST /api/family-trees/[id]`, which asks it of a member that is *new*
+    to the tree and names the refused ids so the canvas can save the rest. The rule is
     on the server, not in the picker: a picker is a courtesy. On a prikbord only
     cards whose reference is *new* to that wall are asked, because an autosave
     posts everything the browser knows. Touwtjes and tweelingen never come past
@@ -2845,4 +2878,210 @@ Sixty-two rules worth knowing before changing anything:
     *gebeurtenis* vast en wordt niet meer overschreven. Terugzetten schrijft
     sindsdien ook een momentopname van de staat die het terugzetten opleverde,
     zodat de keten sluit.
+
+66. **Een stamboom is een venster, geen tweede plek waar verwantschap staat.**
+    §66. De zesde soort ding in het archief — na het artikel, het dossier, het
+    prikbord, de landkaart en de tijdlijn — en de eerste die erbij komt sinds
+    het archief twee kanten heeft. Wie wiens ouder, kind of partner is, is een
+    feit over een *persoon*, dus het staat op het artikel, in koppelingsvelden
+    die een rol dragen. De stamboom onthoudt alleen wat van hemzelf is: wie
+    erin staat, waar een hand hem heeft neergezet, de losse kaartjes die (nog)
+    geen artikel zijn, en de lijnen die zo'n kaartje raken — want een los
+    kaartje heeft geen pagina om een veld op te schrijven. Een lijn tussen twee
+    *artikelen* wordt nooit in een stamboom bewaard: `normaliseTreeState` gooit
+    hem weg, in de browser én op de server, want twee plekken die hetzelfde
+    feit bewaren zijn twee plekken die het oneens kunnen worden. Wijst zo'n
+    lijn naar een artikel dat níét in de boom staat, dan komt dat artikel er
+    als **verwant** bij te staan — vaag, met een `+` — en wordt de lijn
+    getekend (`buildFamilyGraph` neemt de uiteinden van de eigen lijnen mee in
+    `wanted`). Zo'n verwant wordt verder niet uitgelezen: de velden op zíjn
+    pagina blijven ongelezen tot iemand hem echt in de boom zet.
+
+    Tabel `family_trees` (migratie `0023_family_trees`), adres
+    `/stambomen/{slug}`, API `/api/family-trees`, overal in de code het woord
+    `'family_tree'`, pictogram `tree`. Net als een prikbord en een tijdlijn
+    draagt hij de twee knoppen van zijn maker (§17), `in_web` (§43),
+    `keeper_only` (§44), een dossier, een prullenbak, een tekenlaag (§33),
+    Keeper-aantekeningen, touwtjes en een tweeling (§44) — en hij wordt geboren
+    op de kant waarop hij gemaakt is (§48; `POST /api/family-trees` is de
+    zesde aanroeper van `keeperOnlyForNew` + `placeNewOnSide`). Zijn staat is
+    één JSON-blok dat bij élk lezen genormaliseerd wordt, dus een nieuw veld op
+    een lid krijgt zijn standaardwaarde in `normaliseTreeState` en dát is zijn
+    migratie.
+
+    **Een koppelingsveld met een rol.** In Beheer → Soorten kan een
+    koppelingsveld (`entry_link` / `entry_links`) een **rol in een stamboom**
+    krijgen: Ouder, Kind, Partner of Verwant (`FieldDef.role`). Het *label* van
+    het veld is het woord dat op de lijn komt te staan, dus "Geschapen door" is
+    gewoon een veld met de rol Ouder en heeft geen eigen code nodig. Alleen een
+    koppelingsveld mag een rol dragen: retype je het veld, dan valt de rol eraf
+    (`cleanFields` in `lib/fieldKinds.ts`). Het lezen zelf staat in
+    `lib/families/roles.ts`, puur en zonder database, zodat het doek het net zo
+    goed kan importeren: `roleFieldsOf` zegt welke velden meedoen,
+    `edgesFromFields` maakt er lijnen van — een Ouder-veld wordt omgedraaid,
+    zodat een lijn *altijd* van ouder naar kind loopt, welk uiteinde hem ook
+    opgeschreven heeft — en `dedupeEdges` gooit de gespiegelde helft weg.
+
+    **De server spiegelt.** "Kinderen: B" invullen op A is hetzelfde feit als
+    "Ouders: A" op B, dus het archief schrijft de andere kant zelf bij: Ouder ↔
+    Kind, Partner ↔ Partner. Verwant wordt wél getekend en met opzet níet
+    gespiegeld — een aspect, een eed, een vermoeden is de claim van één kant.
+    Weghalen spiegelt net zo goed. Het plan is puur
+    (`mirrorPlan` in `lib/families/mirror.ts`), het uitvoeren gebeurt in
+    `applyMirror` binnen `updateEntry` — dus ná de §38-poort en pas als de rij
+    echt geschreven wordt, waardoor een voorstel spiegelt op het moment dat het
+    wordt goedgekeurd en niet eerder. Drie dingen die het met opzet doet: het
+    schrijft met een **rechtstreekse `db.update`** en nooit met een tweede
+    `updateEntry` (dat zou terugspiegelen, en het zou een voorstel indienen dat
+    niemand gedaan heeft), het bumpt alleen `updatedAt` en
+    `recomputeFieldMentions` op de andere kant — geen revisie, geen feed,
+    `updatedBy` blijft van wie er het laatst zelf typte — en het raakt nooit een
+    artikel in de prullenbak. Het kiest het **eerste** veld van de andere soort
+    dat de omgekeerde rol draagt, dus een soort met zowel "Ouders" als
+    "Geschapen door" spiegelt in het bovenste van de twee. Terugzetten (§65)
+    spiegelt ook, want een teruggezette infobox die "Kinderen: B" laat vallen
+    zou anders "Ouders: A" op B laten staan.
+
+    **Wat er geleverd wordt.** Achter het merkteken `seed:round-31-stamboom`
+    (de vorm van §51: aanplakken, een bestaande sleutel overslaan, stoppen bij
+    twintig velden, en een handgezette rij met rust laten) krijgen Personen en
+    Onderzoekers **Ouders**, **Kinderen**, **Partner** en **Achternaam**;
+    Abnormaliteiten en de vier pantheon-soorten krijgen die eerste drie plus
+    **Geschapen door** (Ouder), **Schepselen** (Kind) en **Aspect van**
+    (Verwant). De `ofType` van al die velden is dezelfde zeven soorten, met de
+    soort zelf vooraan op het pantheon en `character` vooraan overal anders —
+    want `ofType[0]` is wat "'X' aanmaken" maakt. Het bestaande veld
+    **Familie** (§51) blijft wat het was: het kleurt de rand en noemt de tak,
+    en een Familie-artikel mag zelf als banier in de boom staan. *Achternaam*
+    is de geprinte naam van iemand die ingetrouwd of gevonden is, en dat is een
+    ander ding dan de band.
+
+    **Een gesleept kaartje blijft staan; de rest schikt zichzelf.** De opmaak
+    wordt nooit bewaard, alleen de vastgezette plekken: `layoutTree` in
+    `lib/families/layout.ts` rekent hem opnieuw uit bij elke verandering, puur
+    en deterministisch. Generaties langs de ouderlijnen (langste pad), partners
+    naar dezelfde rij, ouderparen met de kinderen die ze delen als *verbintenis*
+    (wie twee partners heeft zit in twee verbintenissen — dat is het hele idee
+    van een tweede huwelijk), volgorde binnen een rij op zwaartepunt, en losse
+    takken naast elkaar. Een Verwant-lijn stemt niet mee. Een lus laat de boom
+    niet vastlopen: de terugkerende lijn wordt getekend en telt niet mee voor de
+    generaties. Slepen zet een kaartje vast (`pinned`); het wordt daarna precies
+    teruggelegd waar de hand het liet en duwt met opzet niemand opzij. "Opnieuw
+    schikken" is één opslag die alle punaises weghaalt.
+
+    **Eén balk, en de naam staat er niet in.** Boven de stamboom staat één rij
+    (`.tree-tools`): het zoekvak waarmee je iemand erbij zet, wat je met de boom
+    kunt doen, wie er verder op staat, of het bewaard is, en de zoom. De naam is
+    de **kop van de pagina zelf** (§34) — `components/families/TreeTitle.tsx`
+    zet er voor wie mag bewerken een invulvak in, in hetzelfde schrift en op
+    dezelfde plek als de kop die er stond; blur of Enter slaat op met een
+    `PATCH`, Escape zet hem terug, en daarna `router.refresh()`, want de plank,
+    het kruimelpad en de knop Terug zijn allemaal servergetekend (de
+    `LivePage` van de pagina kijkt daarom nu ook naar `family_tree:{id}`, zodat
+    een hernoeming van een ander ook aankomt). Hij was er eerst twee keer — één
+    keer in die kop en één keer in een eigen balk van het doek — en dat waren op
+    een telefoon van 390 px twee rijen scherm om hetzelfde te zeggen. De balk
+    staat er ook voor wie **alleen mag kijken**: alleen de bewerkgroep hangt
+    achter dat recht, en het chipje *Alleen kijken* staat in de balk zelf.
+    Onder 600 px laten de knoppen hun **letters** vallen (`.tree-tool-word`) en
+    houden ze hun pictogram, hun `aria-label` en hun `title` — §64 verbiedt het
+    veranderen van een toegankelijke naam, niet het verbergen van de letters, en
+    het aantal schimmen blijft leesbaar naast de knop staan. De opslagstrip en
+    het regeltje onder het doek gaan op een telefoon helemaal weg; ze zeggen
+    daar niets dat de vorm niet al zegt.
+
+    **Het doek** (`components/families/FamilyTreeCanvas.tsx`, op de §34-schil).
+    Een gekozen kaartje krijgt drie ronde `+`-handvatten — boven een ouder,
+    onder een kind, opzij een partner — en een `…`. Heeft de soort geen veld
+    met die rol, dan staat het handvat er wél, maar uit, met
+    *"Deze soort heeft geen veld met de rol Ouder — voeg het toe in Beheer →
+    Soorten."* Een handvat opent een zwevend doosje: eerst de **schimmen** (wie
+    er volgens de velden al bij hoort maar niet in deze stamboom staat), dan het
+    archief (beperkt tot de `ofType` van dat veld, met de "'X' aanmaken"-rij),
+    onderaan een los kaartje. Kies je een artikel, dan wordt er een **veld op
+    dat artikel** geschreven. Elke naam op een kaartje is een echte link naar
+    het artikel — middelklik en het rechtermuismenu doen dus wat ze overal doen
+    — maar **de eerste klik kiest het kaartje en pas de tweede opent het
+    artikel**: op een doek dat je aan het schikken bent is een klik in het
+    midden van iets "dit bedoel ik", niet "neem me mee". Ctrl/⌘, een gesleepte
+    druk en Enter op een link met de aandacht erop zijn de drie uitzonderingen,
+    en alle drie worden bij het *loslaten* gevraagd. Een lijn aanklikken geeft
+    *Lijn verwijderen* — een veld weg, of, bij een los kaartje, de lijn uit de
+    boom. *Uit de stamboom*
+    verandert niets aan het artikel en zegt dat ook. Slepen schuift, scrollen of
+    knijpen zoomt van 25 % tot 250 %, *Alles in beeld* legt alles op tafel, en
+    het beeld is van de lezer (`localStorage`, `tree:{id}:view`). Vijf randen:
+    sterveling, godheid, huis, wezen, onbekend — de laatste is wat een los
+    kaartje draagt. Ctrl+Z gaat over wat dit scherm bezit (plekken, kaartjes,
+    lijnen, wie erin staat) en nooit over een veld op een artikel, om §29's
+    reden: één iemands Ctrl+Z mag niet iets weghalen dat een ander net
+    opschreef.
+
+    **Eén weg naar een veld, en één weg naar een artikel.** Het `+`-handvat gaat
+    via `POST /api/family-trees/[id]/relations` naar `writeRelation`, en die
+    bouwt de hele nieuwe waarde van het veld en geeft hem aan `updateEntry` — de
+    §38-poort, de spiegeling, de vermeldingen, de revisie en het voorstel
+    ("Als voorstel ingediend.") gelden dus precies zoals wanneer iemand de naam
+    met de hand in de infobox typt. Het recht dat gevraagd wordt is dat van het
+    *artikel*, niet dat van de stamboom. Het is de hele array, nooit een delta,
+    om §5's `mergeKeys`-reden. **Artikel aanmaken** op een los kaartje gaat via
+    `POST …/promote`: elke lijn van dat kaartje wordt een veld — bij voorkeur op
+    het nieuwe artikel zelf, anders op het andere uiteinde — een lijn naar een
+    ánder los kaartje blijft een lijn en verhuist alleen van uiteinde, en een
+    lijn waar geen van beide soorten een veld voor heeft wordt geteld en
+    hardop gemeld (*"1 lijn is niet overgezet."*), want hem stil laten
+    verdwijnen zou erger zijn dan hem kwijtraken.
+
+    **De houder-helft.** `listFamilyTrees` is een lijst, dus §46's
+    `sideCondition` staat erachter (ná de zichtbaarheid, nooit in plaats
+    ervan); `getFamilyTreeById` / `…BySlug` zijn opzoekingen en vragen er niet
+    naar. `listFamilyTreesForCase` is een opzoeking in lijstkleren en houdt het
+    zijfilter wél, om de reden van `listTimelinesForCase`: sinds §50 draait de
+    dossierpagina de lezer eerst naar zijn eigen kant. Verstoppen reist naar
+    binnen (§48): een dossier dat naar de Keeperkant gaat neemt zijn stambomen
+    mee (`hideWhatHangsIn`, de derde lus), en `setFamilyTreeCase` in een
+    Keeper-dossier neemt de boom mee; geen van beide heeft een spiegelbeeld.
+    Verhuizen naar een dossier vraagt twee rechten, net als bij een prikbord
+    (§47): je mag de boom bewerken, *en* je mag dat dossier openen. `in_web`
+    wordt op precies twee plekken gecontroleerd — `buildWebGraph` en
+    `listMentions` — en **Genoemd in** telt alleen de *leden*: de lijnen ertussen
+    zijn velden op die artikelen en staan al onder "In artikelen".
+
+    **In het web.** Een stamboom is een knoop (violet, gevelvorm), hangt aan
+    zijn dossier, en iedereen die erin staat is er met **in de stamboom** aan
+    verbonden — een los kaartje ook, maar alleen als de notitie-schakelaar
+    aanstaat (§47), en anders vallen de lijnen erdoorheen met hem weg.
+    **verwantschap** is de tweede lijn en wordt gelezen uit de *artikelen*: elk
+    koppelingsveld met een rol, van elke knoop in het web, of er nu een stamboom
+    omheen staat of niet. Ouder→kind wijst altijd die kant op en het woord op de
+    lijn is het label van het veld. **Een infoboxlijn wijkt voor een
+    verwantschapslijn**: `yieldToLineage` in `lib/web/slice.ts` gooit een
+    `field`-lijn weg zodra er een `lineage`-lijn tussen hetzelfde paar met
+    hetzelfde woord staat — op *build time*, naast `collapseMentions`, want het
+    aantal, het paneel en de tekening moeten naar dezelfde verzameling kijken.
+    Zonder die regel zou elke familie twee keer getekend worden. `in_web` uit is
+    geen knoop, geen lijn en geen "Genoemd in".
+
+    **Op het prikbord** is een stamboom een kaart zoals een tijdlijn (§32) en
+    een prikbord (§52) er een zijn: een kaart die alleen een id draagt
+    (`familyTreeId`), per lezer opgezocht (`resolveBoardFamilyTrees` →
+    `resolveFamilyTrees`), **Ontbreekt** als je hem niet mag openen, geen
+    omslag, pictogram `tree`, de naam, het dossier eronder, en een deur naar
+    `/stambomen/{slug}`. §50 weigert een stamboom van de andere kant.
+
+    **Met z'n tweeën.** `useTreeSync` is de opslag én de pull in één haak: een
+    opslag zegt alleen wat *deze* hand deed (§61), een binnengekomen document
+    wordt om het nog niet opgeslagen werk heen gelegd, en er wordt niets geland
+    zolang er een hand op de pagina ligt (§59). De hand zelf reist over de ene
+    lijn van §60, in de wereldcoördinaten van de boom; `pointerFrame` in
+    `app/api/live/site/route.ts` laat sindsdien een `:` toe in de sleutels van
+    `m`, want wat een stamboom draagt is `entry:{id}` of `loose:{id}` en niet
+    een kaal id — zonder dat werd de hand wel getekend en bleef het kaartje
+    eronder stilstaan. Een `family_tree.changed`-regel in de activiteit wordt
+    afgeknepen tot één per boom per persoon per minuut. En de tekenlaag: inkt op
+    een stamboom is in **wereldmaten**, zoals op een prikbord
+    (`screenWidth / zoom`), dus een streek is zo dik als hij eruitzag op de zoom
+    waarop je hem trok — de vijfde vermelding in de lijst van §33's breedtes.
+    De Keeperschakelaar van die laag hangt onder de vouw (`#tree-underfold`),
+    zoals bij de landkaart, want in de rij nam hij 132 px van het doek af.
 

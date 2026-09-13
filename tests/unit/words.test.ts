@@ -21,6 +21,18 @@ describe('the word list itself', () => {
     }
   });
 
+  it('§66: names the stamboom and its parts, and keeps the keys stable', () => {
+    // The keys never change once shipped (the note at the top of lib/words.ts),
+    // and every heading that prints one of these reads it from here rather
+    // than hard-coding the noun (§11).
+    expect(DEFAULT_WORDS.familyTree).toBe('stamboom');
+    expect(DEFAULT_WORDS.familyTreePlural).toBe('stambomen');
+    expect(DEFAULT_WORDS.looseCard).toBe('los kaartje');
+    expect(DEFAULT_WORDS.treeLine).toBe('lijn');
+    expect(DEFAULT_WORDS.navFamilyTrees).toBe('Stambomen');
+    expect(DEFAULT_WORDS.mentionedOnFamilyTrees).toBe('In stambomen');
+  });
+
   it('puts every word in exactly one group', () => {
     const grouped = WORD_GROUPS.flatMap((group) => group.words.map((word) => word.key));
     expect(grouped.sort()).toEqual(WORD_DEFS.map((def) => def.key).sort());

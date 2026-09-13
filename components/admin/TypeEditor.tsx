@@ -15,6 +15,7 @@ import {
 } from '@/lib/pageBlocks';
 import { capitalise, type Words } from '@/lib/words';
 import type { FieldDef, FieldKind } from '@/lib/db/schema';
+import type { FieldRole } from '@/lib/families/types';
 import {
   saveTypeAction,
   deleteTypeAction,
@@ -141,6 +142,23 @@ export function TypeEditor({
   function patchField(index: number, patch: Partial<FieldDef>) {
     setFields((current) =>
       current.map((field, i) => (i === index ? { ...field, ...patch } : field)),
+    );
+  }
+
+  /**
+   * §66: "geen rol" is the *absence* of the key, not a `role: ''` — the seed,
+   * the server's mirror and `cleanFields` all ask "does this field have a
+   * role", so an empty string left behind would read as a fifth answer.
+   */
+  function setRole(index: number, value: string) {
+    setFields((current) =>
+      current.map((field, i) => {
+        if (i !== index) return field;
+        const next = { ...field };
+        if (value) next.role = value as FieldRole;
+        else delete next.role;
+        return next;
+      }),
     );
   }
 
@@ -365,6 +383,32 @@ export function TypeEditor({
                     at once — "Leden" takes personen, onderzoekers én
                     abnormaliteiten. Same control as the page builder's list
                     block, because it is the same question. */}
+                {/* §66: en wát dit veld betekent in een stamboom. Leeg is het
+                    normale geval — een koppelingsveld is meestal geen
+                    verwantschap. Staat er wel een rol in, dan tekent elke
+                    stamboom de lijn en schrijft de server de andere kant erbij. */}
+                {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
+                  <div style={{ flex: '1 1 100%', order: 2 }}>
+                    <select
+                      className="select"
+                      aria-label={`Rol in een stamboom van veld ${index + 1}`}
+                      value={field.role ?? ''}
+                      onChange={(event) => setRole(index, event.target.value)}
+                      style={{ minHeight: 38 }}
+                    >
+                      <option value="">Rol in een stamboom: —</option>
+                      <option value="parent">Rol in een stamboom: Ouder</option>
+                      <option value="child">Rol in een stamboom: Kind</option>
+                      <option value="partner">Rol in een stamboom: Partner</option>
+                      <option value="kin">Rol in een stamboom: Verwant</option>
+                    </select>
+                    <span className="tiny muted" style={{ display: 'block', marginTop: '0.2rem' }}>
+                      Met een rol tekent elke stamboom deze lijn, en vult het archief de
+                      andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner). Verwant wordt
+                      wel getekend en niet gespiegeld.
+                    </span>
+                  </div>
+                )}
                 {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
                   <div style={{ flex: '1 1 100%', order: 1 }}>
                     <span className="tiny muted">Alleen deze soorten mogen erin (leeg = alles)</span>

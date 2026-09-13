@@ -132,9 +132,9 @@ export type InkPatch = {
   clear?: unknown;
 };
 
-/** Where a tekenlaag can hang. */
-export type InkKind = 'board' | 'map' | 'timeline';
-export const INK_KINDS: readonly InkKind[] = ['board', 'map', 'timeline'];
+/** Where a tekenlaag can hang. §66 added the stamboom. */
+export type InkKind = 'board' | 'map' | 'timeline' | 'family_tree';
+export const INK_KINDS: readonly InkKind[] = ['board', 'map', 'timeline', 'family_tree'];
 
 export function isInkKind(value: unknown): value is InkKind {
   return typeof value === 'string' && (INK_KINDS as readonly string[]).includes(value);

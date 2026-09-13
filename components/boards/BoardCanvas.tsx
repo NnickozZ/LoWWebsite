@@ -58,6 +58,7 @@ import type {
   BoardRefs,
   BoardTimelineFacts,
 } from '@/lib/boards/service';
+import type { FamilyTreeFacts } from '@/lib/families/service';
 import { BoardCardView, CARD_WIDTH, cardBorder, cardImage, subjectOf } from './BoardCard';
 import { BoardPicker, type PickableItem, type SuggestedEntry } from './BoardPicker';
 import { BoardInspector } from './BoardInspector';
@@ -151,10 +152,12 @@ export function BoardCanvas({
   initialCases,
   initialTimelines,
   initialBoards,
+  initialFamilyTrees,
   pickableMaps,
   pickableCases,
   pickableTimelines,
   pickableBoards,
+  pickableFamilyTrees,
   readOnly: locked,
   access,
   initialInk,
@@ -203,6 +206,14 @@ export function BoardCanvas({
    */
   initialBoards: Record<string, BoardBoardFacts>;
   pickableBoards: { id: string; name: string }[];
+  /**
+   * §66: the stambomen it points at, and the ones that could still go up. Same
+   * shape and same rule as the tijdlijnen above: resolved per viewer on the
+   * server, so one this viewer may not open is simply absent here and its card
+   * is stamped MISSING.
+   */
+  initialFamilyTrees: Record<string, FamilyTreeFacts>;
+  pickableFamilyTrees: { id: string; name: string }[];
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -245,6 +256,8 @@ export function BoardCanvas({
   const [caseFacts, setCaseFacts] = useState<Record<string, BoardCaseFacts>>(initialCases);
   const [timelineFacts, setTimelineFacts] = useState<Record<string, BoardTimelineFacts>>(initialTimelines);
   const [boardFacts, setBoardFacts] = useState<Record<string, BoardBoardFacts>>(initialBoards);
+  const [familyTreeFacts, setFamilyTreeFacts] =
+    useState<Record<string, FamilyTreeFacts>>(initialFamilyTrees);
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
@@ -504,6 +517,7 @@ export function BoardCanvas({
     setCaseFacts((current) => ({ ...current, ...refs.cases }));
     setTimelineFacts((current) => ({ ...current, ...(refs.timelines ?? {}) }));
     setBoardFacts((current) => ({ ...current, ...(refs.boards ?? {}) }));
+    setFamilyTreeFacts((current) => ({ ...current, ...(refs.familyTrees ?? {}) }));
     // A card someone else deleted must not stay selected here: the inspector
     // would be editing something that no longer exists. §61: measured against
     // the wall as it ends up, which is the document plus whatever this hand
@@ -603,8 +617,15 @@ export function BoardCanvas({
    * so there is one place that knows how the three kinds are looked up.
    */
   const refs = useMemo<BoardRefs>(
-    () => ({ entries, maps, cases: caseFacts, timelines: timelineFacts, boards: boardFacts }),
-    [entries, maps, caseFacts, timelineFacts, boardFacts],
+    () => ({
+      entries,
+      maps,
+      cases: caseFacts,
+      timelines: timelineFacts,
+      boards: boardFacts,
+      familyTrees: familyTreeFacts,
+    }),
+    [entries, maps, caseFacts, timelineFacts, boardFacts, familyTreeFacts],
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
@@ -822,6 +843,7 @@ export function BoardCanvas({
         caseId: null,
         timelineId: null,
         boardId: null,
+        familyTreeId: null,
         assetId: null,
         border: null,
         // Every new card is the size a card has always been; the grip and the
@@ -1818,6 +1840,7 @@ export function BoardCanvas({
           caseId: null,
           timelineId: null,
           boardId: null,
+          familyTreeId: null,
           ...rest,
           /*
            * §64: and **no `box`**. The card keeps the punaise's own x and y,
@@ -1970,6 +1993,38 @@ export function BoardCanvas({
       );
       const placed = putCard(
         { id: newCardId(), kind: 'board', boardId: item.id, name: item.name, text: '', showImage: false },
+        where,
+      );
+      void sync.saveNow({ cards: [placed] });
+    },
+    [putCard, sync],
+  );
+
+  /**
+   * §66: a stamboom on the wall. The same card as a tijdlijn's and a prikbord's
+   * — a name, an icon and a door — because a stamboom has no cover of its own
+   * either. What is behind it is resolved per viewer, so one somebody may not
+   * open comes back MISSING rather than named.
+   */
+  const placeFamilyTree = useCallback(
+    (item: PickableItem, where: PlaceWhere = {}) => {
+      setFamilyTreeFacts((current) =>
+        current[item.id]
+          ? current
+          : {
+              ...current,
+              [item.id]: { id: item.id, slug: '', name: item.name, caseName: null, missing: false },
+            },
+      );
+      const placed = putCard(
+        {
+          id: newCardId(),
+          kind: 'family_tree',
+          familyTreeId: item.id,
+          name: item.name,
+          text: '',
+          showImage: false,
+        },
         where,
       );
       void sync.saveNow({ cards: [placed] });
@@ -2380,6 +2435,7 @@ export function BoardCanvas({
             pickableCases={pickableCases}
             pickableTimelines={pickableTimelines}
             pickableBoards={pickableBoards}
+            pickableFamilyTrees={pickableFamilyTrees}
             onPickEntry={(item) => {
               closePicker();
               void addEntryCard(item.id, item.name);
@@ -2399,6 +2455,10 @@ export function BoardCanvas({
             onPickBoard={(item) => {
               closePicker();
               placeBoard(item);
+            }}
+            onPickFamilyTree={(item) => {
+              closePicker();
+              placeFamilyTree(item);
             }}
             onCreateNote={(noteName) => {
               closePicker();
@@ -2863,6 +2923,7 @@ export function BoardCanvas({
             pickableCases={pickableCases}
             pickableTimelines={pickableTimelines}
             pickableBoards={pickableBoards}
+            pickableFamilyTrees={pickableFamilyTrees}
             onPickEntry={(item) => {
               closePicker();
               void addEntryCard(item.id, item.name);
@@ -2882,6 +2943,10 @@ export function BoardCanvas({
             onPickBoard={(item) => {
               closePicker();
               placeBoard(item);
+            }}
+            onPickFamilyTree={(item) => {
+              closePicker();
+              placeFamilyTree(item);
             }}
             onCreateNote={(noteName) => {
               closePicker();

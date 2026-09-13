@@ -74,6 +74,9 @@ describe('keys', () => {
     expect(parseRecordKey('entries')).toBeNull();
     expect(parseRecordKey('entry:abc:body')).toBeNull();
     expect(parseRecordKey('user:abc')).toBeNull();
+    // §66: a kind whose name has an underscore in it, which the key regex has
+    // to allow *in the kind* as well as in the id.
+    expect(parseRecordKey('family_tree:f-1')).toEqual({ kind: 'family_tree', id: 'f-1' });
   });
 
   it('knows the room shapes', () => {
@@ -82,6 +85,10 @@ describe('keys', () => {
     }
     expect(isRoomKey('entry:a')).toBe(false);
     expect(isRoomKey('board:b:fields')).toBe(false);
+    // §66: the Keeper's notes about a stamboom are a room; the tree itself
+    // has no field room of its own.
+    expect(isRoomKey('keeper:family_tree:f-1:notes')).toBe(true);
+    expect(isRoomKey('family_tree:f-1:fields')).toBe(false);
     expect(keysOfRoom('entry:a:fields')).toEqual(['entry:a']);
     expect(keysOfRoom('section:s1')).toEqual([]);
   });
@@ -91,6 +98,7 @@ describe('keys', () => {
     expect(isWellFormedKey('x'.repeat(141))).toBe(false);
     expect(isWellFormedKey('entry:<script>')).toBe(false);
     expect(isWellFormedKey(42)).toBe(false);
+    expect(isWellFormedKey('family_tree:f-1')).toBe(true);
   });
 });
 
@@ -145,6 +153,26 @@ describe('keysOfStatement: what a write means', () => {
     );
     expect(keys).toEqual(expect.arrayContaining(['cases', 'case:case-9']));
     expect(keys).not.toContain('user:u');
+  });
+
+  it('§66: a stamboom names its row, its collection and its dossier', () => {
+    const keys = keysOfStatement(
+      'update "family_trees" set "state" = ?, "updated_at" = ? where "family_trees"."id" = ?',
+      ['{}', 1, 'tree-1'],
+    );
+    expect(keys).toEqual(expect.arrayContaining(['family_trees', 'family_tree:tree-1']));
+    const filed = keysOfStatement(
+      'insert into "family_trees" ("id", "name", "slug", "case_id") values (?, ?, ?, ?)',
+      ['tree-2', 'Den Hollander', 'den-hollander', 'case-3'],
+    );
+    expect(filed).toEqual(
+      expect.arrayContaining(['family_trees', 'family_tree:tree-2', 'case:case-3']),
+    );
+    const grant = keysOfStatement(
+      'insert into "access_grants" ("id", "target_type", "target_id", "user_id", "role") values (?, ?, ?, ?, ?)',
+      ['g2', 'family_tree', 'tree-1', 'u', 'edit'],
+    );
+    expect(grant).toEqual(expect.arrayContaining(['family_trees', 'family_tree:tree-1']));
   });
 
   it('an unknown table is nothing; a non-id value is not a key', () => {

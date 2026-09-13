@@ -152,7 +152,7 @@ export function WebView({
     },
     [],
   );
-  useLiveChanges(['entries', 'cases', 'boards', 'maps', 'timelines'], () => {
+  useLiveChanges(['entries', 'cases', 'boards', 'maps', 'timelines', 'family_trees'], () => {
     if (respin.current) return;
     respin.current = setTimeout(() => {
       respin.current = null;
@@ -403,7 +403,10 @@ export function WebView({
   // Kinds with nothing in this web are folded away under one line: a legend
   // of sixteen rows, eleven of them zero, is a form, not a key.
   const absentKinds = EDGE_KIND_ORDER.filter((k) => !(kindCounts.get(k) ?? 0));
-  const THING_KINDS: WebNodeKind[] = ['case', 'board', 'map', 'timeline'];
+  // §66: and the stambomen. `web:hidden-things` is filtered on `NODE_KINDS`
+  // itself (see `readStored` above), so a stored tick survives this addition
+  // without a migration.
+  const THING_KINDS: WebNodeKind[] = ['case', 'board', 'map', 'timeline', 'family_tree'];
   const thingRows = THING_KINDS.filter((kind) => (thingCounts.get(kind) ?? 0) > 0);
   const thingsAllOn = thingRows.every((kind) => !hiddenThings.has(kind));
   const soortenAllOn = soorten.every((soort) => !hiddenSoorten.has(soort.slug));

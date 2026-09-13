@@ -10,7 +10,7 @@ import { kindHref, sideOf, type KeeperKind, type KeeperRef, type Side } from './
 /**
  * §44: which things are the Keeper's own, and how anything is read at all.
  *
- * One rule, said once, for five kinds. `keeperRef()` is the only way anything
+ * One rule, said once, for six kinds. `keeperRef()` is the only way anything
  * in the Keeperkant learns that a record exists, and it asks that record's own
  * visibility rule every time — `visibleEntryCondition` for an artikel (§9),
  * `visibleCaseCondition` / `visibleMapCondition` / `viewableCondition` for the
@@ -34,6 +34,9 @@ const KIND_CONDITION: Record<KeeperKind, (viewer: Viewer) => SQL> = {
   map: (viewer) => visibleMapCondition(viewer),
   timeline: (viewer) =>
     and(isNull(schema.timelines.deletedAt), viewableCondition('timeline', viewer)) as SQL,
+  // §66
+  family_tree: (viewer) =>
+    and(isNull(schema.familyTrees.deletedAt), viewableCondition('family_tree', viewer)) as SQL,
 };
 
 /**
@@ -71,6 +74,9 @@ export function sideCondition(kind: KeeperKind, viewer: Viewer): SQL {
       return sql`${schema.maps.keeperOnly} = ${keeper ? 1 : 0}`;
     case 'timeline':
       return sql`${schema.timelines.keeperOnly} = ${keeper ? 1 : 0}`;
+    // §66
+    case 'family_tree':
+      return sql`${schema.familyTrees.keeperOnly} = ${keeper ? 1 : 0}`;
   }
 }
 
@@ -148,6 +154,20 @@ export function keeperRef(kind: KeeperKind, id: string, viewer: Viewer): KeeperR
         .get();
       return row ? ref(kind, row.id, row.name, row.slug, row.keeperOnly) : null;
     }
+    // §66
+    case 'family_tree': {
+      const row = db
+        .select({
+          id: schema.familyTrees.id,
+          name: schema.familyTrees.name,
+          slug: schema.familyTrees.slug,
+          keeperOnly: schema.familyTrees.keeperOnly,
+        })
+        .from(schema.familyTrees)
+        .where(and(eq(schema.familyTrees.id, id), where))
+        .get();
+      return row ? ref(kind, row.id, row.name, row.slug, row.keeperOnly) : null;
+    }
   }
 }
 
@@ -190,6 +210,15 @@ export function isKeeperSide(kind: KeeperKind, id: string): boolean {
           .select({ k: schema.timelines.keeperOnly })
           .from(schema.timelines)
           .where(eq(schema.timelines.id, id))
+          .get()?.k,
+      );
+    // §66
+    case 'family_tree':
+      return Boolean(
+        db
+          .select({ k: schema.familyTrees.keeperOnly })
+          .from(schema.familyTrees)
+          .where(eq(schema.familyTrees.id, id))
           .get()?.k,
       );
   }
@@ -238,6 +267,13 @@ function writeSide(kind: KeeperKind, id: string, on: boolean) {
       break;
     case 'timeline':
       db.update(schema.timelines).set({ keeperOnly: on }).where(eq(schema.timelines.id, id)).run();
+      break;
+    // §66
+    case 'family_tree':
+      db.update(schema.familyTrees)
+        .set({ keeperOnly: on })
+        .where(eq(schema.familyTrees.id, id))
+        .run();
       break;
   }
 }
@@ -309,10 +345,10 @@ export function placeNewOnSide(
 
 /**
  * §48: everything hanging in a dossier that has just gone to the Keeper's side
- * goes with it. Prikborden and tijdlijnen only: those two carry the dossier's
- * name into lists that a player reads, and both already know how to be
- * Keeper-only. Artikelen are not moved — an artikel is filed in several
- * dossiers at once, and §9's dial on it is its own.
+ * goes with it. Prikborden, tijdlijnen and — since §66 — stambomen: those three
+ * carry the dossier's name into lists that a player reads, and all three
+ * already know how to be Keeper-only. Artikelen are not moved — an artikel is
+ * filed in several dossiers at once, and §9's dial on it is its own.
  */
 function hideWhatHangsIn(caseId: string, keeperId: string) {
   for (const row of db
@@ -330,6 +366,20 @@ function hideWhatHangsIn(caseId: string, keeperId: string) {
     .all()) {
     writeSide('timeline', row.id, true);
     logAudit({ actorId: keeperId, action: 'keeper.side_taken', targetType: 'timeline', targetId: row.id });
+  }
+  // §66
+  for (const row of db
+    .select({ id: schema.familyTrees.id })
+    .from(schema.familyTrees)
+    .where(and(eq(schema.familyTrees.caseId, caseId), eq(schema.familyTrees.keeperOnly, false)))
+    .all()) {
+    writeSide('family_tree', row.id, true);
+    logAudit({
+      actorId: keeperId,
+      action: 'keeper.side_taken',
+      targetType: 'family_tree',
+      targetId: row.id,
+    });
   }
 }
 

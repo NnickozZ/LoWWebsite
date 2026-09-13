@@ -8,12 +8,16 @@ import { caseIdsIn } from '@/lib/entries/caseFields';
 import { extractEntryLinks } from '@/lib/entries/doc';
 import { entryIdsIn, plainMentions, revealedSectionIds } from '@/lib/entries/mentions';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
+import { listFamilyTrees } from '@/lib/families/service';
+import { dedupeEdges, edgesFromFields, ROLE_LABELS } from '@/lib/families/roles';
+import { normaliseTreeState } from '@/lib/families/merge';
+import type { FamilyTreeState } from '@/lib/families/types';
 import { sideCondition } from '@/lib/keeper/side';
 import { getWords } from '@/lib/admin/words';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
-import { collapseMentions, degrees } from './slice';
+import { collapseMentions, degrees, yieldToLineage } from './slice';
 import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebLineColour, type WebNode, type WebNodeId } from './types';
 
 /**
@@ -263,6 +267,37 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     });
   }
 
+  /*
+   * §66: de stamboom. The same shape as the prikbord above, for the same
+   * reasons: `listFamilyTrees` applies the tree's own §17 dial, its dossier's,
+   * and (through `containerViewer`) the side; `in_web` is the manager's own
+   * switch and is checked here and in `listMentions`, both or neither.
+   *
+   * The blob is read separately because `listFamilyTrees` deliberately does not
+   * hand out `state` — the shelf only wants a count — and the web needs the
+   * members, the losse kaartjes and the lijnen that touch them.
+   */
+  const treeSummaries = listFamilyTrees(containerViewer).filter((tree) => tree.inWeb);
+  const treeStates = new Map<string, FamilyTreeState>();
+  if (treeSummaries.length) {
+    const states = db
+      .select({ id: schema.familyTrees.id, state: schema.familyTrees.state })
+      .from(schema.familyTrees)
+      .where(inArray(schema.familyTrees.id, treeSummaries.map((tree) => tree.id)))
+      .all();
+    for (const row of states) treeStates.set(row.id, normaliseTreeState(row.state));
+  }
+  for (const tree of treeSummaries) {
+    put({
+      kind: 'family_tree',
+      refId: tree.id,
+      name: tree.name,
+      href: `/stambomen/${tree.slug}`,
+      subtitle: tree.caseId ? caseNames.get(tree.caseId) : undefined,
+      summary: summaryOf(tree.description),
+    });
+  }
+
   // Notities: a card that is somebody's own writing, on a wall this viewer may
   // open — and, since §47, a punaise, which is the same thing with the writing
   // on its tag. Only when asked for — the global web is about the records.
@@ -275,6 +310,32 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
         const name = looseName(card);
         if (!name) continue;
         put({ kind: 'note', refId: card.id, name, href: `/b/${board.id}`, subtitle: board.name });
+      }
+    }
+    /*
+     * §66: a los kaartje in a stamboom rides the same switch. It is the same
+     * thing a punaise is — a name with no artikel behind it yet, and the only
+     * reason it is here is the lijn that runs through it — so it is drawn as a
+     * notitie rather than as a node kind of its own (§47's rule, one round on).
+     *
+     * Its refId is `tree:{treeId}:{looseId}`, because a loose id is unique
+     * inside one tree and nowhere else; `parseWebNodeId` splits on the *first*
+     * colon, so the whole of that is the refId and the kind is still `note`.
+     */
+    for (const tree of treeSummaries) {
+      const state = treeStates.get(tree.id);
+      if (!state) continue;
+      for (const loose of state.loose) {
+        const name = loose.name.trim();
+        if (!name) continue;
+        put({
+          kind: 'note',
+          refId: looseRefId(tree.id, loose.id),
+          name,
+          href: `/stambomen/${tree.slug}`,
+          subtitle: tree.name,
+          summary: summaryOf(loose.text),
+        });
       }
     }
   }
@@ -395,6 +456,10 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   for (const timeline of timelineRows) {
     if (has('case', timeline.caseId)) add('inCase', webNodeId('case', timeline.caseId), webNodeId('timeline', timeline.id));
   }
+  // §66: a stamboom hangs in a dossier exactly as a prikbord and a tijdlijn do.
+  for (const tree of treeSummaries) {
+    if (has('case', tree.caseId)) add('inCase', webNodeId('case', tree.caseId), webNodeId('family_tree', tree.id));
+  }
 
   /* ------------------------------------------------------------ prikborden */
 
@@ -404,6 +469,12 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     const boardNode = webNodeId('board', board.id);
     const cardNode = new Map<string, WebNodeId>();
     for (const card of state.cards) {
+      /*
+       * §66: `cardRef` now answers `family_tree` as well, and this pass needs
+       * no case for it — the kinds it returns are `WebNodeKind`s and the web
+       * knows all six since this round, so a stamboom on a wall becomes a
+       * `board` edge from the wall to the tree the same way a tijdlijn does.
+       */
       const ref = cardRef(card);
       if (ref) {
         if (!has(ref.kind, ref.id)) continue;
@@ -463,6 +534,73 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     add('event', webNodeId('timeline', event.timelineId), webNodeId('entry', event.entryId), formatWhen(event.at, event.precision));
   }
 
+  /* -------------------------------------------------------------- stambomen */
+
+  /*
+   * §66: kinship, and it comes from two places that are not the same place.
+   *
+   * **Verwantschap lives on the artikel**, so a `lineage` line is read off the
+   * koppelingsvelden that carry a `role` — every artikel in the graph, whether
+   * or not it stands in a tree. That is the whole point of the round: a
+   * stamboom is a window onto the archive's kinship, not a second place where
+   * it is written down, so the web draws it out of the same fields the
+   * stamboom does. `edgesFromFields` turns a `parent`-role field round so the
+   * line always runs parent → child, whichever end wrote it; `dedupeEdges`
+   * collapses the mirrored half (`Kinderen` on A and `Ouders` on B are one
+   * line, not two).
+   *
+   * **A line touching a los kaartje** has no artikel to live on, so it lives in
+   * the tree's own `ties` and is read below — only when the losse kaartjes are
+   * knots at all, which is the notes switch.
+   *
+   * And `inTree` says who stands where: an artikel, or a los kaartje, → the
+   * tree. That one is the tree's own fact and is read off its state.
+   */
+  const roleFieldValues = new Map<string, { defs: FieldDef[]; values: Record<string, unknown> }>();
+  for (const row of entryRows) {
+    roleFieldValues.set(row.id, { defs: row.typeFields ?? [], values: (row.fields ?? {}) as Record<string, unknown> });
+  }
+  const lineage = dedupeEdges(
+    [...roleFieldValues].flatMap(([entryId, { defs, values }]) => edgesFromFields(entryId, defs, values)),
+  );
+  for (const edge of lineage) {
+    if (!has('entry', edge.from) || !has('entry', edge.to)) continue;
+    add('lineage', webNodeId('entry', edge.from), webNodeId('entry', edge.to), edge.label);
+  }
+
+  for (const tree of treeSummaries) {
+    const state = treeStates.get(tree.id);
+    if (!state) continue;
+    const treeNode = webNodeId('family_tree', tree.id);
+    for (const member of state.members) {
+      // Rule 1: a member this viewer may not open is not a knot, so there is
+      // nothing to tie — never a faint card, never a MISSING stamp.
+      if (has('entry', member.id)) add('inTree', webNodeId('entry', member.id), treeNode);
+    }
+    // A los kaartje is a knot only when the notes switch is on; without it the
+    // lijnen through one are dropped with it, exactly as a draad through a
+    // punaise is (§47).
+    const looseNode = new Map<string, WebNodeId>();
+    for (const loose of state.loose) {
+      const id = webNodeId('note', looseRefId(tree.id, loose.id));
+      if (!nodes.has(id)) continue;
+      looseNode.set(loose.id, id);
+      add('inTree', id, treeNode);
+    }
+    const endNode = (end: { kind: 'entry' | 'loose'; id: string }): WebNodeId | undefined =>
+      end.kind === 'loose'
+        ? looseNode.get(end.id)
+        : has('entry', end.id)
+          ? webNodeId('entry', end.id)
+          : undefined;
+    for (const tie of state.ties) {
+      const from = endNode(tie.from);
+      const to = endNode(tie.to);
+      if (!from || !to) continue;
+      add('lineage', from, to, tie.label || ROLE_LABELS[tie.role]);
+    }
+  }
+
   /* ---------------------------------------------------------------- people */
 
   // The same grant query `listCaseMembers` makes, for every visible dossier at
@@ -495,7 +633,11 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
 
   // Rule 1, once more and for everything above: no edge leaves the node map.
   // Round 18: a text line yields to any other tie between the same two knots.
-  const edgeList = collapseMentions([...edges.values()].filter((edge) => nodes.has(edge.from) && nodes.has(edge.to)));
+  // §66: and an infobox line yields to the kinship line read off the same
+  // field, or every family would be drawn twice.
+  const edgeList = collapseMentions(
+    yieldToLineage([...edges.values()].filter((edge) => nodes.has(edge.from) && nodes.has(edge.to))),
+  );
   const nodeList = [...nodes.values()];
   const graph: WebGraph = { nodes: nodeList, edges: edgeList };
   const degree = degrees(graph);
@@ -508,6 +650,20 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
 /** A notitie: the card's own writing. `photo` is the name it had before §8's rename. */
 function isNoteCard(card: Pick<BoardCard, 'kind'>): boolean {
   return card.kind === 'note' || card.kind === 'photo';
+}
+
+/**
+ * §66: what a los kaartje in a stamboom is called on the web.
+ *
+ * A loose id (`l_…`) is unique inside one tree and nowhere else, so the tree's
+ * id is part of it. The kind is `note`, not one of its own: a los kaartje is
+ * the stamboom's punaise — a name with no artikel behind it yet, on the web
+ * only because a lijn runs through it — and §47 settled that such a thing is
+ * drawn as a notitie and rides the notes switch rather than becoming a seventh
+ * kind of knot.
+ */
+export function looseRefId(treeId: string, looseId: string): string {
+  return `tree:${treeId}:${looseId}`;
 }
 
 /**

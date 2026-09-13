@@ -32,6 +32,11 @@ change.
 | map pin / pins | speld / spelden | on a landkaart; a *punaise* is on a prikbord |
 | timeline / timelines | tijdlijn / tijdlijnen | *de* tijdlijn (§32) |
 | event / events (on a timeline) | gebeurtenis / gebeurtenissen | a mark on a tijdlijn: an artikel, or a *losse gebeurtenis* that exists only there |
+| family tree / family trees | stamboom / stambomen | *de* stamboom (§66); a window onto the kinship that lives on the artikelen |
+| loose card / loose cards (in a family tree) | los kaartje / losse kaartjes | *het* kaartje — somebody in a stamboom who has no artikel (yet): "Onbekende vader" (§66) |
+| line (in a family tree) | lijn / lijnen | *de* lijn — ouder, kind, partner or verwant (§66); never "draad", which is on a prikbord |
+| role (of a link field in a family tree) | rol | Ouder · Kind · Partner · Verwant, set in Beheer → Soorten (§66) |
+| ghost (a relative not in this tree) | schim / schimmen | drawn faint beside the tree with a `+` (§66) |
 | character / characters | karakter / karakters | the artikel a player wears (§18) |
 | (board) card | kaart | |
 | note (on a board) | notitie | |
@@ -88,8 +93,11 @@ change.
 ## Navigation
 
 Home → Start · Cases → Dossiers · Wiki → Wiki · Boards → Prikborden ·
-Maps → Landkaarten · Timelines → Tijdlijnen · Search → Zoeken · You → Jij ·
-Admin → Beheer
+Maps → Landkaarten · Timelines → Tijdlijnen · Family trees → Stambomen ·
+Search → Zoeken · You → Jij · Admin → Beheer
+
+**Stambomen** and **Het web** are in the desktop menu only: the phone's tab bar
+is full at eight (§66).
 
 Admin panes: Gebruikers · Beoordelen · Soorten artikelen · Woorden · Prullenbak ·
 Geschiedenis · Site · Export · Logboek
@@ -1052,3 +1060,60 @@ server te vragen — en een te kort wachtwoord dus niets anders meer weggooit.
 | **Deze versie is geschreven toen dit {artikel} op de {Keeperkant} stond. Wat er toen in stond, staat er niet meer en is niet van jou om terug te lezen.** | in plaats van de vergelijking, achter *Bekijken* | Een artikel mag een verleden hebben dat niet van iedereen is (regel 7, §9). Een Keeper ziet het wel (§65). |
 | **teruggezet** | de notitie op een versie in de geschiedenis | Nieuw naast *voor het terugzetten*: de momentopname van wat het terugzetten opleverde, zodat de keten sluit en de bovenste regel zegt wat het terugzetten deed (§65). |
 | **Verslagdatum** | het datumveld op een Sessierapport | Was *Gespeeld op*, het enige veld op dat soort dat over de tafel ging in plaats van over de wereld. Alleen hernoemd waar het label nog het geleverde was; een Keeper die het zelf al anders noemde houdt zijn woord (§11). |
+
+## Ronde 31 — de stamboom (§66)
+
+*stamboom*, *stambomen* en *los kaartje* zijn hernoembare woorden
+(`familyTree`, `familyTreePlural`, `looseCard`, `treeLine` in `lib/words.ts`),
+dus overal waar hieronder **{stamboom}** of **{los kaartje}** staat, staat op het
+scherm het woord dat de Keeper gekozen heeft. Ook *artikel* en *dossier* in deze
+zinnen komen uit die lijst.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Stambomen** | het menu (alleen op een computer), de kop van de plank, en in de legenda van het web onder *Wat* én als groep onder *Hoe* | De tabbalk van een telefoon zit vol bij acht, dus daar kom je in een boom via een dossier, via *Genoemd in* of via de teller op Start (§66). |
+| **Wie van wie afstamt** | het regeltje (`.eyebrow`) boven de kop van de plank | Wat een stamboom is, in vier woorden (§66). |
+| **In stambomen** | het kopje in *Genoemd in* op een artikel | Alleen de **leden** worden geteld: de lijnen ertussen zijn velden op die artikelen en staan al onder *In artikelen* (§66). |
+| **Stamboom** | het tabblad in een dossier, de soortnaam in de prullenbak, en de rij die een kaart op een prikbord aanwijst | Overal hetzelfde woord (`words.familyTree`), want het is overal hetzelfde ding (§66). |
+| **Nieuwe {stamboom}** · **Maak nieuwe {stamboom} voor dit {dossier}** | de knop op de plank en die in een dossier | Dezelfde knop; de tweede weet in welke lade hij hangt (§66). |
+| **Naam** · **Waar gaat het over?** · **Eén regel, om hem terug te vinden** · **bijv. Het huis Den Hollander** | het blad *Nieuwe stamboom* | Het blad van een prikbord, met één zin erbij (§66). |
+| **Wie familie van wie is staat op de {artikelen} zelf, in velden als Ouders en Partner. Een {stamboom} tekent wat daar staat.** | onderaan datzelfde blad | De hele regel §66 in twee zinnen, op het moment dat iemand voor het eerst een boom maakt. |
+| **Openbare {stamboom}** · **Privé {stamboom}** · **{Stamboom} aanmaken** | de knoppen onder dat blad | Zoals bij een prikbord en een tijdlijn; in een dossier is er maar één knop (§66). |
+| **Los** · **Bij een {dossier}** · **Van mij** · **Privé of gekozen personen** | de filters op de plank | Die van de tijdlijnenplank, letterlijk (§66). |
+| **Laatst veranderd** · **Op naam** · **Nieuwste eerst** | de sorteringen op de plank | Er is met opzet géén *meeste personen*: dat aantal is per lezer (§66). |
+| **{n} personen** · **1 persoon** | onder de naam van een boom op de plank | Alleen de leden die *jij* mag zien. Een plank die "12" zegt over een boom met elf geheimen telt de geheimen hardop (§66). |
+| **Nog geen {stambomen}. Maak er een, of open een {dossier} en begin daar.** · **Geen {stamboom} die hieraan voldoet.** | de lege plank, met en zonder filter | (§66) |
+| **Nog geen stamboom.** · **Bestaande {stamboom} hierheen halen…** · **Losmaken** | het tabblad *Stamboom* in een dossier | Dezelfde drie als bij het prikbord (§47, §66). |
+| **maakte stamboom …** · **werkte aan stamboom** · **verwijderde stamboom** · **hing stamboom … in dit {dossier}** · **haalde stamboom … uit dit {dossier}** · **maakte een artikel van een los kaartje:** | de activiteit onder een dossier en op Start | *werkte aan stamboom* wordt afgeknepen tot één regel per boom per persoon per minuut (§66). |
+| **Naam van de {stamboom}** | de onzichtbare naam van het invulvak dat de kop van de pagina *is* | De naam staat niet in de werkbalk maar in de §34-kop zelf (`TreeTitle`): wie mag bewerken typt erin, blur of Enter slaat op, Escape zet hem terug. Wie niet mag bewerken ziet gewone letters (§66). |
+| **Alleen kijken** | een chipje in de werkbalk | De balk staat er ook voor wie niet mag bewerken; alleen de bewerkgroep valt weg, en dit chipje komt ervoor in de plaats (§66). |
+| **Zoomen** · **Uitzoomen** · **Inzoomen** · **Alles in beeld** | rechts in de werkbalk; *Zoomen* is de naam van het groepje met het percentage ertussen | 25 % tot 250 %; *Alles in beeld* legt alles op tafel en draagt een kruisdraad-pictogram (§66). |
+| **Zoek een {artikel} om erbij te zetten…** · **{Artikel} toevoegen aan deze {stamboom}** | het zoekvakje in de werkbalk, en zijn onzichtbare naam | (§66) |
+| **{Los kaartje}** · **Verwanten erbij ({n})** · **Opnieuw schikken** · **Ongedaan maken** | de vier bewerkknoppen in de werkbalk (de derde heeft *Ongedaan maken (Ctrl+Z)* als tooltip) | Het aantal staat *in* de naam en de knop staat er altijd: niets in die balk dat aan en uit kan mag ruimte innemen (§64). Onder 600 px vallen de **letters** weg en blijven het pictogram, het aantal en de voorgelezen naam staan — §64 verbiedt het veranderen van die naam, niet het verbergen van de letters (§66). |
+| **{Stamboom} {naam} — sleep om te schuiven, scroll om te zoomen** | de onzichtbare naam van het doek zelf | (§66) |
+| **Ouder toevoegen** · **Kind toevoegen** · **Partner toevoegen** · **{veldlabel} toevoegen bij {naam}** | de drie ronde `+`-handvatten aan een gekozen kaartje | Boven, onder, opzij. Draagt de soort een veld met die rol, dan staat het label van dát veld erop (§66). |
+| **Deze soort heeft geen veld met de rol Ouder — voeg het toe in Beheer → Soorten.** | onder een handvat dat uit staat | Het handvat blijft staan en zegt waarom het niets doet, in plaats van te verdwijnen (§66). |
+| **Meer bij {naam}** | het `…`-handvat | (§66) |
+| **Openen** · **Uit de stamboom** · **Erbij** · **Bewerken** · **{Artikel} aanmaken** · **Weghalen** | het menu achter dat handvat | *Erbij* staat op een schim, *Bewerken* / *Artikel aanmaken* / *Weghalen* op een los kaartje (§66). |
+| **{veldlabel} bij {naam}** | de kop van het zwevende doosje dat een handvat opent | Het woord van het veld, niet dat van de rol (§66). |
+| **Staat er al bij, maar niet in deze {stamboom}** | onder een naam bovenin dat doosje | Een schim: het archief weet het al, deze tekening nog niet (§66). |
+| **Zoek een {artikel}…** · **Of een {los kaartje}** · **Onbekende vader** · **Erbij** | de rest van dat doosje | Beperkt tot de soorten die dat veld toelaat, met de "'X' aanmaken"-rij. *Onbekende vader* is de plaatshouder (§66). |
+| **Als voorstel ingediend.** | melding, na een keuze in dat doosje | Er wordt een veld op een *artikel* geschreven, dus wie dat artikel niet mag bewerken dient een voorstel in (§38, §66). |
+| **Lijn verwijderen** | het menuutje bij een aangeklikte lijn | Haalt het veld weg, of — bij een los kaartje — de lijn uit de boom (§66). |
+| **{naam} uit deze {stamboom} halen?** / **Het {artikel} zelf blijft bestaan, en de velden erop ook — alleen deze {stamboom} vergeet {naam}.** | de vraag bij *Uit de stamboom* | (§66) |
+| **Uit de {stamboom} gehaald; de velden op het {artikel} blijven staan.** | de melding erna | Twee keer hetzelfde gezegd, want dit is precies wat mensen verkeerd verwachten (§66). |
+| **{naam} weghalen?** / **Een {los kaartje} bestaat nergens anders; dit is definitief.** | de vraag bij een los kaartje | (§66) |
+| **{n} lijn is niet overgezet.** · **{n} lijnen zijn niet overgezet.** | melding, na *Artikel aanmaken* op een los kaartje | Er was geen veld om die lijn op te schrijven, en de boom mag geen lijn tussen twee artikelen bewaren. Hardop, niet stil (§66). |
+| **Een kaartje zonder {artikel}. Zodra er een {artikel} van gemaakt wordt, worden de lijnen eromheen velden op dat {artikel}.** | de kop van het blad achter een los kaartje | (§66) |
+| **Naam** · **Tekst** · **Vorm** · **Klaar** | de rest van dat blad | (§66) |
+| **Sterveling** · **Godheid** · **Huis** · **Wezen** · **Onbekend** | de vijf vormen | De rand die een kaartje draagt. Een soort kiest hem vanzelf; een los kaartje begint op *Onbekend* (§66). |
+| **Naamloos {los kaartje}** | op een kaartje zonder naam | (§66) |
+| **Nog niemand in deze {stamboom}. Zoek een {artikel} hierboven, of maak een {los kaartje}.** · **Deze {stamboom} is nog leeg.** | het lege doek, met en zonder recht om te bewerken | (§66) |
+| **{n} kaartjes** · **{n} verwanten erbuiten** · **sleep om te schuiven, scroll of knijp om te zoomen** · **sleep een kaartje om het vast te zetten** | de regel onder het doek | *erbuiten* zijn de schimmen; de laatste zin staat er niet op een telefoon, en op een telefoon gaat de hele regel weg — hij zegt daar niets dat de vorm niet al zegt (§66). |
+| **Opslaan…** · **Opgeslagen** · **Niet opgeslagen — controleer je verbinding** | de opslagstrip, in de werkbalk | Die van het prikbord (§61). Op een telefoon staat hij er niet: de strip in de schil zegt het ook (§66). |
+| **Rol in een stamboom: —** · **… Ouder** · **… Kind** · **… Partner** · **… Verwant** | het keuzevakje onder een koppelingsveld in Beheer → Soorten | Leeg is het gewone geval. Eronder: *"Met een rol tekent elke stamboom deze lijn, en vult het archief de andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner). Verwant wordt wel getekend en niet gespiegeld."* (§66) |
+| **Ouders** · **Kinderen** · **Partner** · **Achternaam** | geleverde velden op Personen en Onderzoekers | *Achternaam* is een gewoon tekstveld: de geprinte naam van wie ingetrouwd of gevonden is. De *band* is het bestaande veld **Familie** (§51), dat de rand kleurt (§66). |
+| **Geschapen door** · **Schepselen** · **Aspect van** | geleverde velden op Abnormaliteiten en de vier pantheon-soorten, naast Ouders/Kinderen/Partner | Scheppen is ouderschap met een ander woord erop, dus dezelfde rol met een eigen label. *Aspect van* is *Verwant*: het wordt getekend en met opzet niet gespiegeld (§66). |
+| **in de {stamboom}** · **staat in de {stamboom}** · **verwantschap** | de legenda en het paneel van het web | Twee soorten lijn, allebei violet. Bij een verwantschapslijn staat het label van het veld als woord erbij (§66). |
+| **Zoek een {artikel}, landkaart, {dossier}, {prikbord}, {tijdlijn} of {stamboom}…** | de plaatshouder van de zoekbalk boven een prikbord | Eén woord langer sinds §66. |
+| **Wie van wie afstamt** · **Het pantheon** · **De vader van Pier** · **Iets uit de diepte** | de twee stambomen en hun losse kaartjes in `seed-wereld` | De testwereld, niet de e2e-fixture. Elk kaartje hangt ergens aan: *De vader van Pier* is de **ouder** van het eerste lid, *Iets uit de diepte* een zijlijn met het woord **Aspect van** naar de eerste god — een kaartje dat nergens aan hangt zweeft in z'n eentje naast de boom (§66). |

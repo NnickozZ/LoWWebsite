@@ -229,7 +229,16 @@ function pointerFrame(clientId: string, raw: Body['cursor']): SitePointer | null
   const m: Record<string, [number, number]> = {};
   if (raw.m && typeof raw.m === 'object') {
     for (const [id, pos] of Object.entries(raw.m as Record<string, unknown>).slice(0, 40)) {
-      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || !Array.isArray(pos)) continue;
+      /*
+       * §66: a colon is part of an id here. A prikbord and a tijdlijn carry a
+       * bare row id, but a stamboom's node is `entry:{id}` or `loose:{id}` —
+       * the two live in one drawing and a bare id could not say which — so a
+       * pattern without `:` silently threw away every carried card on the way
+       * through: the hand was drawn on the other screen and the card it was
+       * holding stood still. Nothing here is interpolated into HTML; the id is
+       * an object key and, on the far side, a lookup.
+       */
+      if (!/^[A-Za-z0-9_:-]{1,64}$/.test(id) || !Array.isArray(pos)) continue;
       const px = num(pos[0]);
       const py = num(pos[1]);
       if (px !== null && py !== null) m[id] = [px, py];

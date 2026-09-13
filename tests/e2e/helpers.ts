@@ -191,6 +191,33 @@ export async function newCaseBoard(page: Page) {
 }
 
 /**
+ * §66: the same, for a stamboom. Inside a dossier the button says what it does
+ * — "Maak nieuwe stamboom voor dit dossier" — and the sheet asks a name before
+ * either of its two buttons; from a dossier the openbare one is called
+ * "Stamboom aanmaken" rather than "Openbare stamboom", exactly as the tijdlijn's
+ * is, so both spellings are accepted here.
+ *
+ * The dossier must already be on its editing face (`editCase`): a dossier read
+ * has no button that makes anything (rule 18).
+ */
+export async function newCaseFamilyTree(page: Page, name?: string) {
+  // A phone stacks every section on one page and has no tabs at all (§32), so
+  // the tab is clicked only where there is one — `newCaseBoard`'s own habit.
+  const tab = page.getByRole('tab', { name: 'Stamboom' });
+  if (await tab.isVisible().catch(() => false)) await tab.click();
+  const make = page.getByRole('button', { name: /Maak nieuwe stamboom voor dit dossier/ });
+  await make.scrollIntoViewIfNeeded();
+  await make.click();
+  const sheet = page.getByRole('dialog', { name: /Nieuwe stamboom/ });
+  await expect(sheet).toBeVisible();
+  // §6: a sheet that has just opened is not yet listening, and a name that is
+  // wiped by the render behind it makes a tree called "Nieuwe stamboom".
+  if (name) await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
+  await sheet.getByRole('button', { name: /Stamboom aanmaken|Openbare stamboom/ }).click();
+  await page.waitForURL('**/stambomen/**');
+}
+
+/**
  * Fill a field on a page that has only just arrived.
  *
  * Every input in this archive is on the screen before React has picked it up:

@@ -4137,3 +4137,212 @@ tabel honderd keer.
   zeggen", niet "wat er gebeurd is".
 - **Het wachtende spoor is er één.** Twee kale punaises aan twee draden: alleen
   de laatste wordt vastgehouden, de oudere blijft staan zoals hij stond.
+
+## Ronde 31 — de stamboom (§66)
+
+Eén ding, en het grootste dat er sinds het prikbord bij gekomen is. Nick vroeg
+om **stambomen als een nieuwe soort ding, met een eigen tabblad naast de
+prikborden**, die net zo goed voor families als voor goden, entiteiten en
+lovecraftiaanse dingen moeten werken — dus de artikelen erin moeten buigen.
+Verder: fijne bediening, een eigen rand per soort, co-op die vloeiend werkt, en
+de bomen moeten *overal* opduiken — op prikborden, in het web (vanzelf), in
+dossiers. En de kern van de vraag: **het invullen van ouders, grootouders en
+kinderen op de meer-details-kant van een artikel moet de boom vanzelf voeden.**
+Achternaam misschien als los vakje. Eén boom moet meerdere families aankunnen.
+
+### Vier ontwerpvragen, en Nicks antwoorden
+
+1. **Wie staat er in een boom — iedereen die verwant is, of wie je kiest?**
+   Gekozen leden *plus* schimmen: wie er volgens de velden bij hoort maar niet
+   in deze boom staat, staat er vaag naast met een `+`.
+2. **Mag er iemand in staan zonder artikel?** Ja — losse kaartjes, met
+   "Artikel aanmaken" erop zoals een prikbord en een tijdlijn dat hebben, en ze
+   moeten in het web verschijnen.
+3. **Zet je de kaartjes zelf neer, of doet het archief dat?** Automatisch
+   schikken, met slepen om iets vast te zetten.
+4. **Welke velden worden er geleverd?** Ouders + Kinderen + Partner op personen,
+   Achternaam als apart tekstveld, en op het pantheon daarbovenop Geschapen
+   door / Schepselen / Aspect van — én gewoon Ouders/Kinderen/Partner op goden.
+   Nick vroeg zich hardop af of Achternaam niet beter een verwijzing naar een
+   Familie-artikel kon zijn. Antwoord: **allebei houden.** `familie` (§51) is de
+   *band* — hij kleurt de rand, noemt de tak, en een Familie-artikel mag als
+   banier in de boom staan. `achternaam` is de *geprinte naam*, van iemand die
+   ingetrouwd is of als vondeling binnenkwam. Dat zijn twee verschillende dingen
+   en ze horen niet in één vakje.
+
+### De beslissingen
+
+1. **Verwantschap staat op het artikel, niet in de stamboom.** Een
+   koppelingsveld kan een rol dragen (`FieldDef.role`: parent | child | partner
+   | kin) en een stamboom is een *venster* op wat die velden zeggen. Hij bewaart
+   alleen wat van hemzelf is: wie erin staat, de vastgezette plekken, de losse
+   kaartjes, en de lijnen die zo'n kaartje raken. `mergeTreeState` gooit elke
+   lijn tussen twee *artikelen* weg — server én browser. Waarom: twee plekken
+   die hetzelfde feit bewaren zijn twee plekken die het oneens kunnen worden, en
+   dan is de vraag "welke van de twee liegt er?" niet te beantwoorden. Het maakt
+   ook Nicks eigenlijke vraag waar: de infobox *is* de stamboom.
+2. **Het label van het veld is het woord op de lijn.** "Geschapen door" heeft
+   daarom geen eigen code nodig — het is een veld met de rol Ouder. Dat is de
+   hele reden dat dezelfde tekening voor een familie en voor een pantheon werkt,
+   en het houdt de vier rollen op vier.
+3. **De server spiegelt.** Ouder ↔ Kind, Partner ↔ Partner; weghalen net zo
+   goed. Zonder dat vult iemand "Kinderen: B" in op A, kijkt op B's pagina en
+   ziet daar niets — en de helft van elke boom zou eenrichtingslijnen zijn.
+   Verwant wordt met opzet **niet** gespiegeld: een aspect, een eed, een
+   vermoeden is de claim van één kant, en een automatische andere kant zet
+   woorden op een pagina die niemand gekozen heeft.
+4. **De spiegeling zit binnen `updateEntry`, ná de §38-poort, en nooit
+   recursief.** Ze schrijft met een rechtstreekse `db.update`. Een tweede
+   `updateEntry` zou terugspiegelen (pingpong tussen twee rijen) en zou een
+   *voorstel* indienen zodra de schrijver de andere pagina niet mag bewerken —
+   een voorstel dat niemand gedaan heeft. Een voorstel spiegelt dus op het
+   moment dat het goedgekeurd wordt, en niet eerder. De andere kant krijgt
+   `updatedAt` en `recomputeFieldMentions`, maar bewust **geen** revisie, geen
+   feed-regel en geen nieuwe `updatedBy`: B's geschiedenis (§65) hoort niet vol
+   te lopen met wat A op zijn eigen pagina typte.
+5. **Geen SQL-migratie voor de velden, wél voor de tabel.** De velden komen
+   binnen achter het merkteken `seed:round-31-stamboom`, in de vorm die §51
+   uitvond (aanplakken, bestaande sleutel overslaan, stoppen bij twintig velden,
+   een handgezette rij met rust laten). `family_trees` is wél een migratie:
+   `0023_family_trees`. De *staat* van een boom is één JSON-blok dat bij elk
+   lezen genormaliseerd wordt — dat is de prikbordregel en dus ook zijn migratie.
+6. **De opmaak wordt nooit bewaard, alleen de punaises.** `layoutTree` is puur
+   en rekent hem elke keer opnieuw uit. Waarom: een bewaarde opmaak veroudert
+   zodra iemand op een heel andere pagina een veld invult, en dan staat er een
+   boom die niet meer klopt met de velden waar hij een venster op is. Een
+   gesleept kaartje wordt precies teruggelegd en duwt met opzet niemand opzij —
+   de automatische helft om de handmatige heen laten stromen is een veel groter
+   idee, en het eerlijke simpele gedrag is dat je ziet dat je kaartje overlapt.
+7. **Het `+`-handvat schrijft een veld, niet een lijn.** Via
+   `POST …/relations` → `writeRelation` → `updateEntry`, met de hele array. Het
+   recht dat gevraagd wordt is dat van het *artikel*: wie de stamboom mag
+   tekenen maar het artikel niet mag bewerken, dient een voorstel in. Dat is de
+   prijs van beslissing 1 en hij wordt met open ogen betaald.
+8. **Promoveren gooit weg en telt hardop.** "Artikel aanmaken" op een los
+   kaartje maakt van elke lijn een veld — bij voorkeur op het nieuwe artikel
+   zelf, anders op het andere uiteinde. Een lijn waar geen van beide soorten een
+   veld voor heeft kán nergens heen (zie 1) en wordt geteld: *"1 lijn is niet
+   overgezet."* Stil laten verdwijnen zou erger zijn.
+9. **De tekening is per lezer.** Een artikel dat je niet mag zien is *afwezig* —
+   nooit een vage kaart, nooit een **Ontbreekt**-stempel (regel 1): "X heeft een
+   ouder die je niet mag zien" is zelf een geheim. Schimmen komen daarom alleen
+   uit de velden van de leden zelf (de spiegeling maakt dat compleet voor
+   ouder/kind/partner), en er gaan er hoogstens zestig in beeld.
+10. **`memberCount` is van de lezer.** Een plank die "12 personen" zegt over een
+    boom met elf geheimen erin telt de geheimen hardop. Prijs: er is geen sortering
+    op "meeste personen".
+11. **`/stambomen` staat alleen in het menu op een computer.** De tabbalk van een
+    telefoon zit vol bij acht. Op een telefoon kom je in een boom via een
+    dossier, via "Genoemd in", of via de teller op de startpagina.
+12. **In het web zijn het twee lijnen, niet één.** `inTree` (wie staat waar) is
+    van de boom; `verwantschap` (`lineage`) wordt uit de artikelen gelezen, van
+    *elke* knoop in het web, of er nu een stamboom omheen staat of niet — anders
+    zou het web alleen verwantschap kennen die iemand toevallig getekend heeft.
+    Daarom moest **een infoboxlijn wijken voor een verwantschapslijn**
+    (`yieldToLineage`): zonder die regel wordt elke familie twee keer getekend,
+    één keer als "infobox" en één keer als "verwantschap". Het gebeurt op build
+    time, naast `collapseMentions`, want het aantal, het paneel en de tekening
+    moeten naar dezelfde verzameling kijken.
+13. **Ongedaan maken gaat over wat dit scherm bezit.** Plekken, kaartjes, lijnen
+    en wie erin staat — nooit een veld op een artikel. Dezelfde redenering als
+    §29's op het prikbord: één iemands Ctrl+Z mag niet weghalen wat een ander net
+    ergens anders opschreef. En net als daar verwijdert het ongedaan maken van
+    een *toevoeging* niets aan de serverkant.
+14. **Inkt op een stamboom is in wereldmaten**, zoals op een prikbord
+    (`screenWidth / zoom`) — de vierde plek met een tekenlaag, en met opzet
+    géén vijfde manier om een breedte te meten. De Keeperschakelaar van die laag hangt onder de vouw
+    (`#tree-underfold`), zoals bij de landkaart: in de rij nam hij 132 px van het
+    doek af, en §34 zegt dat het doek het scherm krijgt.
+15. **De site-lijn mag nu een `:` in een gedragen id.** `pointerFrame` liet
+    alleen `[A-Za-z0-9_-]` toe, maar wat een stamboom draagt is `entry:{id}` of
+    `loose:{id}` — de twee wonen in één tekening en een kaal id kan niet zeggen
+    welke van de twee het is. Zonder die verandering werd de hand van de ander
+    wél getekend en bleef het kaartje eronder stilstaan. Er wordt niets van
+    geïnterpoleerd in HTML; het is een sleutel in een object en aan de andere
+    kant een opzoeking.
+16. **Twee dingen die de review vond en die niets met stambomen te maken hadden.**
+    `KEEPER_NOTES_KEY` in `lib/live/rooms.ts` matchte `[a-z]+` en zou dus nooit
+    een soort met een liggend streepje erin gematcht hebben — `family_tree` was
+    de eerste, maar de fout stond er al. En `PinSelectionButton` maakte van een
+    `board`-knoop (en zou van een `family_tree`-knoop) een kapotte tijdlijnkaart
+    gemaakt hebben, omdat het einde van die functie "anders is het een tijdlijn"
+    zei; allebei hebben nu hun eigen kaartsoort.
+
+### Eén beslissing van ronde 24 die deels teruggedraaid wordt
+
+De aantekening bij ronde 24 zegt: **"Alleen prikborden kunnen van dossier
+veranderen"**, met `timelines` en `maps` als hetzelfde gat. Dat is nu
+**"prikborden en stambomen"**: `setFamilyTreeCase` is er op de dag dat de
+stamboom gebouwd wordt, met dezelfde twee rechten als `setBoardCase` (je mag de
+boom bewerken, én je mag dat dossier openen) en met §48's verstoppen-reist-naar-
+binnen erin. Het gat is dus één soort kleiner geworden en niet dicht:
+**tijdlijnen en landkaarten kunnen het nog steeds niet.** De reden dat het hier
+wél meteen gebeurde is dat een stamboom ín een dossier hoort — het is bijna
+altijd het dossier van dat onderzoek — en dat een nieuwe soort ding zijn
+volledige uitrusting hoort te krijgen op de dag dat hij gemaakt wordt (§40, §48).
+
+### Wat er bewust niet in zit
+
+- **Een `lineage`-lijn zonder richting krijgt toch een pijlpunt.** Partner en
+  verwant zijn wederzijds, maar in het web krijgt elke soort lijn behalve een
+  onbeschreven draadje een punt. Eén uitzondering is er al; een tweede maken was
+  duurder dan het waard is.
+- **Een soort met twee ouder-velden spiegelt in het bovenste.** Abnormaliteiten
+  en het pantheon hebben zowel *Ouders* als *Geschapen door*, en de spiegeling
+  schrijft in het **eerste** veld met de omgekeerde rol. "Schepselen: X" op een
+  god landt dus in X's *Ouders* en niet in *Geschapen door*. Één veld dat één
+  keer gekozen wordt is beter dan een waarde die in twee vakjes komt te staan; de
+  Keeper kan het andersom krijgen door de velden in Beheer te verslepen.
+- **Geen revisie of feed-regel op de gespiegelde kant** (beslissing 4, met opzet).
+- **Een `kin` die alleen het andere artikel opschrijft levert geen schim.**
+  Schimmen komen uit de velden van de leden zelf en uit de uiteinden van de
+  eigen lijnen van de boom; `kin` wordt niet gespiegeld, dus "B zegt dat hij een
+  aspect van A is" wordt nooit gelezen terwijl je naar A kijkt. Ouder, kind en
+  partner zijn wél compleet, want die staan door de spiegeling op beide pagina's.
+- **Het zwevende doosje en het menu worden onderaan afgeknipt** door de
+  `overflow` van `.tree-stage`. Het doosje klemt zichzelf binnen het doek, het
+  menu niet.
+- **De dubbele partnerlijn staat 2 px uit elkaar, in wereldmaten**, dus onder de
+  25 % vallen de twee strepen samen tot één.
+- **`prefers-reduced-motion` laat een gedragen kaartje van beeld naar beeld
+  springen** in plaats van te glijden. Dat is wat die instelling vraagt, maar het
+  ziet er op een stamboom schokkeriger uit dan op een prikbord.
+- **Schimmen zijn niet te slepen en niet vast te zetten.** Ze staan waar de
+  opmaak ze zet; wie ze wil verschuiven haalt ze eerst binnen.
+- **`viewerId`, `peopleNames` en `access` worden door het doek niet gebruikt** —
+  de namen bij de handen komen van de live-lijn.
+- **`family_tree.restored` heeft geen Nederlandse feed-regel** (en
+  `board.restored` had er ook al geen).
+- **`writeEntryDate` gaat nog steeds langs `updateEntry` heen.** Het schrijft
+  alleen ooit `fields.date` en kan dus nooit een rol dragen, maar het is de ene
+  weg naar `entries.fields` die de spiegeling niet passeert.
+- **Geen e2e voor de stamboomknoop in het web zelf**; die kant is met unit-tests
+  in `web-graph` vastgelegd.
+
+### Wat de poetsronde erna nog veranderde
+
+Een leftover van hierboven is **weer weg**: het doek haalde op een telefoon 0,55
+van het scherm omdat de naam er twee keer stond (in de §34-kop én in een eigen
+balk) en de knoppen met hun volle namen over twee rijen braken. De kop *is* nu
+het invulvak (`TreeTitle`) en de knoppen laten onder 600 px alleen hun letters
+vallen, dus het doek staat op 614 van 844 px (73 %) en
+`canvas-fills-the-screen.spec.ts` heeft geen eigen ondergrens meer nodig — de
+gedeelde 62 % van §34 volstaat. Bij dezelfde ronde: de eerste klik op een naam
+kiest het kaartje en pas de tweede opent het artikel (Ctrl/⌘, middelklik en
+Enter openen meteen), de vangst van de aanwijzer wordt pas op `DRAG_SLOP`
+genomen omdat Chromium de muisgebeurtenissen naar het vangende element
+verlegt — met een vangst op `pointerdown` kreeg de `<a>` in een kaartje zijn
+klik nooit — een lijn van de boom naar een artikel dat er niet in staat maakt
+van dat artikel een schim in plaats van de lijn stil te laten vallen, en de twee
+losse kaartjes in `seed-wereld` hangen nu ergens aan (*De vader van Pier* als
+ouder van het eerste lid, *Iets uit de diepte* als **Aspect van** bij de eerste
+god).
+
+### De cijfers
+
+- vitest: 80 bestanden / 1250 tests (ronde 30 in deze sessie: 71 / 1033).
+- `tsc --noEmit` stil, `npm run build` exit 0.
+- Playwright per spec: `family-trees` 1:20 op desktop en 0:55 op de telefoon
+  (8 + 3 gevallen), `family-tree-coop` 0:57 (2), `canvas-fills-the-screen` 0:54
+  per project, `no-console-warnings` 1:03 / 1:49 onder `E2E_DEV=1`. Beide
+  familie-specs samen onder `E2E_DEV=1`: 3:54 voor tien tests.

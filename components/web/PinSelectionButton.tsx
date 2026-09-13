@@ -93,6 +93,10 @@ export function PinSelectionButton({
         if (node.kind === 'entry') return { ...base, kind: 'entry', entryId: node.refId };
         if (node.kind === 'map') return { ...base, kind: 'map', mapId: node.refId };
         if (node.kind === 'case') return { ...base, kind: 'case', caseId: node.refId };
+        // §52 / §66: a wall and a stamboom are cards too; before this the
+        // fallthrough below made a broken tijdlijn card of either.
+        if (node.kind === 'board') return { ...base, kind: 'board', boardId: node.refId };
+        if (node.kind === 'family_tree') return { ...base, kind: 'family_tree', familyTreeId: node.refId };
         return { ...base, kind: 'timeline', timelineId: node.refId };
       });
       const response = await fetch(`/api/boards/${board.id}`, {

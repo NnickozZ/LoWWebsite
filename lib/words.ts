@@ -78,6 +78,21 @@ export const WORD_GROUPS: WordGroup[] = [
         hint: 'Een merkteken op een tijdlijn: een artikel, of een losse aantekening die alleen daar bestaat.',
       },
       { key: 'eventPlural', what: 'Meer gebeurtenissen', fallback: 'gebeurtenissen' },
+      // §66
+      { key: 'familyTree', what: 'Eén stamboom', fallback: 'stamboom' },
+      { key: 'familyTreePlural', what: 'Meer stambomen', fallback: 'stambomen' },
+      {
+        key: 'looseCard',
+        what: 'Een los kaartje in een stamboom',
+        fallback: 'los kaartje',
+        hint: 'Iemand die in een stamboom staat maar (nog) geen artikel heeft: "Onbekende vader".',
+      },
+      {
+        key: 'treeLine',
+        what: 'Een lijn in een stamboom',
+        fallback: 'lijn',
+        hint: 'De verbinding tussen twee mensen: ouder, kind, partner of verwant.',
+      },
     ],
   },
   {
@@ -90,6 +105,8 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'navBoards', what: 'Prikborden', fallback: 'Prikborden' },
       { key: 'navMaps', what: 'Landkaarten', fallback: 'Landkaarten' },
       { key: 'navTimelines', what: 'Tijdlijnen', fallback: 'Tijdlijnen' },
+      // §66
+      { key: 'navFamilyTrees', what: 'Stambomen', fallback: 'Stambomen' },
       { key: 'navSearch', what: 'Zoeken', fallback: 'Zoeken' },
       { key: 'navYou', what: 'Jij', fallback: 'Jij' },
       // §43: the web — the archive drawn as what points at what.
@@ -195,7 +212,8 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'onThisPage', what: 'De kop boven de inhoudsopgave', fallback: 'Op deze pagina' },
       { key: 'manage', what: 'De kop boven rechten en Keeper-instellingen', fallback: 'Beheer van dit artikel' },
       { key: 'backlinks', what: 'De kop boven de verwijzingen', fallback: 'Genoemd in' },
-      // §27: "Genoemd in" telt vier soorten bronnen, elk onder een eigen kopje.
+      // §27: "Genoemd in" telt de soorten bronnen, elk onder een eigen kopje.
+      // Sinds §66 zijn dat er vijf: de stamboom kwam erbij.
       { key: 'mentionedInCases', what: 'Genoemd in: het kopje boven de dossiers', fallback: 'In dossiers' },
       {
         key: 'mentionedInEntries',
@@ -206,6 +224,12 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'mentionedOnBoards', what: 'Genoemd in: het kopje boven de prikborden', fallback: 'Op prikborden' },
       { key: 'mentionedOnMaps', what: 'Genoemd in: het kopje boven de landkaarten', fallback: 'Op landkaarten' },
       { key: 'mentionedOnTimelines', what: 'Genoemd in: het kopje boven de tijdlijnen', fallback: 'Op tijdlijnen' },
+      // §66
+      {
+        key: 'mentionedOnFamilyTrees',
+        what: 'Genoemd in: het kopje boven de stambomen',
+        fallback: 'In stambomen',
+      },
       { key: 'history', what: 'De kop boven de versies', fallback: 'Geschiedenis' },
       {
         key: 'visibilityAndReveals',

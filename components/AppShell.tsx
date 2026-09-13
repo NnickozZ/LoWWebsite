@@ -36,6 +36,11 @@ const NAV: {
   { href: '/boards', word: 'navBoards', icon: 'board' },
   { href: '/maps', word: 'navMaps', icon: 'map' },
   { href: '/timelines', word: 'navTimelines', icon: 'timeline' },
+  // §66: de stambomen. Desktop only, for the arithmetic below: the phone's tab
+  // bar is full at eight and this would be the tenth thing wanting a place.
+  // On a phone the way into a stamboom is a dossier, an artikel's "Genoemd in",
+  // or the count on the home page.
+  { href: '/stambomen', word: 'navFamilyTrees', icon: 'tree', desktopOnly: true },
   // §43: the web. Not in the phone's tab bar at all: nine tabs do not fit
   // (§32's arithmetic below leaves LANDKAARTEN exactly enough at eight), and
   // on a phone the whole web is a search box anyway — the way in there is the

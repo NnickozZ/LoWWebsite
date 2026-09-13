@@ -7,7 +7,7 @@ import { destroyAction, restoreAction, type AdminState } from './actions';
 
 export type TrashRowItem = {
   id: string;
-  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline';
+  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
   kindLabel: string;
   name: string;
   detail: string;

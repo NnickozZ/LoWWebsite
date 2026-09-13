@@ -118,11 +118,21 @@ export async function rejectEditAction(formData: FormData) {
 
 /* ------------------------------------------------------------- trash (§11) */
 
+/**
+ * The kinds the bin holds — one list, so a sixth one (§66's stamboom) is a
+ * word here rather than a fifth `&&` in two `if`s that could drift apart.
+ */
+const TRASH_KINDS = ['entry', 'case', 'board', 'map', 'timeline', 'family_tree'] as const;
+
+function isTrashKind(value: string): value is (typeof TRASH_KINDS)[number] {
+  return (TRASH_KINDS as readonly string[]).includes(value);
+}
+
 export async function restoreAction(formData: FormData) {
   const keeper = await requireKeeper();
   const kind = String(formData.get('kind') ?? '');
   const id = String(formData.get('id') ?? '');
-  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map' && kind !== 'timeline') return;
+  if (!isTrashKind(kind)) return;
   restoreFromTrash(kind, id, keeper.id);
   revalidatePath('/admin');
   revalidatePath('/');
@@ -144,7 +154,7 @@ export async function destroyAction(_prev: AdminState, formData: FormData): Prom
   const typed = String(formData.get('confirmName') ?? '').trim();
   const expected = String(formData.get('name') ?? '').trim();
 
-  if (kind !== 'entry' && kind !== 'case' && kind !== 'board' && kind !== 'map' && kind !== 'timeline') {
+  if (!isTrashKind(kind)) {
     return { error: 'Onbekend soort.' };
   }
   // Case-insensitive, whitespace-collapsed: this is a guard against acting

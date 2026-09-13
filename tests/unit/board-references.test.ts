@@ -164,3 +164,57 @@ describe('§52: a prikbord card', () => {
     expect(defaultShowImage('board')).toBe(true);
   });
 });
+
+/**
+ * §66: and a fifth — a stamboom on a wall.
+ *
+ * The same claim as §52's, one kind further along: `normaliseState` keeps the
+ * kind and the `familyTreeId` it carries, `cardRef` reads that id back, and the
+ * merge, the tombstones and the strings do not know the difference. Which
+ * stambomen may be named at all is `resolveBoardFamilyTrees`' job, and that is
+ * asked of a real database in `tests/unit/board-family-trees.test.ts`.
+ */
+describe('§66: a stamboom card', () => {
+  it('survives a read, keeps its familyTreeId, and resolves through cardRef', () => {
+    const state = normaliseState({
+      cards: [{ ...card({ id: 'f', kind: 'family_tree', familyTreeId: 'st1', name: 'Den Hollander' }) }],
+    });
+    expect(state.cards[0].kind).toBe('family_tree');
+    expect(state.cards[0].familyTreeId).toBe('st1');
+    expect(cardRef(state.cards[0])).toEqual({ kind: 'family_tree', id: 'st1' });
+  });
+
+  it('points at nothing when the id is missing, or when the kind is not family_tree', () => {
+    expect(cardRef(card({ id: 'x', kind: 'family_tree' }))).toBeNull();
+    // The kind decides which id is read: a note carrying a familyTreeId is a note.
+    expect(cardRef(card({ id: 'x', kind: 'note', familyTreeId: 'st1' }))).toBeNull();
+    // And a stamboom card does not answer with somebody else's id.
+    expect(cardRef(card({ id: 'x', kind: 'family_tree', boardId: 'brd1' }))).toBeNull();
+  });
+
+  it('a wall saved before stamboom cards existed reads back with a null familyTreeId', () => {
+    const state = normaliseState({ cards: [{ id: 'a', kind: 'entry', entryId: 'e1' }] });
+    expect(state.cards[0].familyTreeId).toBeNull();
+  });
+
+  it('merges by id and takes its strings with it when it goes', () => {
+    const stored = normaliseState({
+      cards: [card({ id: 'e', entryId: 'e1' }), card({ id: 'f', kind: 'family_tree', familyTreeId: 'st1' })],
+      strings: [{ id: 's', from: { card: 'e' }, to: { card: 'f' }, label: '', colour: 'red' }],
+    });
+    const moved = mergeBoardState(stored, {
+      cards: [card({ id: 'f', kind: 'family_tree', familyTreeId: 'st1', x: 480 })],
+    });
+    expect(moved.cards.find((item) => item.id === 'f')?.x).toBe(480);
+    expect(moved.cards.find((item) => item.id === 'f')?.familyTreeId).toBe('st1');
+    expect(moved.strings).toHaveLength(1);
+
+    const gone = mergeBoardState(stored, { deletedCardIds: ['f'] });
+    expect(gone.strings).toHaveLength(0);
+  });
+
+  it('starts with its frame shut, because a stamboom has no cover', () => {
+    expect(defaultShowImage('family_tree', false)).toBe(false);
+    expect(defaultShowImage('family_tree')).toBe(true);
+  });
+});

@@ -27,7 +27,7 @@
 import type { CoverCrops } from '@/lib/images/shapes';
 
 
-export type WebNodeKind = 'entry' | 'case' | 'map' | 'board' | 'timeline' | 'note';
+export type WebNodeKind = 'entry' | 'case' | 'map' | 'board' | 'timeline' | 'family_tree' | 'note';
 
 /** `${kind}:${id}` — a node id that says what table it came from. */
 export type WebNodeId = string;
@@ -97,7 +97,22 @@ export type WebEdgeKind =
   /** A karakter's player is on a dossier's list (§17 grants, §18). */
   | 'investigator'
   /** A "speler" infobox field names a player, drawn as their karakter; `detail` is the label. */
-  | 'player';
+  | 'player'
+  /** §66: somebody (or a los kaartje) stands in a stamboom. */
+  | 'inTree'
+  /**
+   * §66: kinship, read off a koppelingsveld that carries a `role`
+   * (`lib/families/roles.ts`) or off a stamboom's own line to a los kaartje.
+   * `detail` is the word on the line — the field's label ("Ouders", "Geschapen
+   * door") or the tie's, so the panel says what kind of kinship it is. For
+   * `parent` the line runs **parent → child**, whichever end wrote it down;
+   * `partner` and `kin` have no direction.
+   *
+   * A `lineage` line **replaces** the `field` line the same pair would
+   * otherwise get out of `entry_mentions` — see `yieldToLineage` in
+   * `lib/web/slice.ts`, and the text-line rule it is modelled on.
+   */
+  | 'lineage';
 
 /** The six colours a draad can have on a prikbord (`STRING_COLOURS` in `lib/boards/merge.ts`). */
 export type WebLineColour = 'red' | 'ink' | 'blue' | 'green' | 'gold' | 'violet';
@@ -147,6 +162,10 @@ export function parseWebNodeId(id: string): { kind: WebNodeKind; refId: string }
   const kind = id.slice(0, colon);
   const refId = id.slice(colon + 1);
   if (!refId) return null;
-  if (!['entry', 'case', 'map', 'board', 'timeline', 'note'].includes(kind)) return null;
+  // §66: `family_tree` has an underscore and never a colon, so splitting on the
+  // first colon still names it. A loose kaartje in a stamboom is a `note` whose
+  // refId is `tree:{treeId}:{looseId}` — the colons after the first belong to
+  // the refId, which is exactly what this split gives back.
+  if (!['entry', 'case', 'map', 'board', 'timeline', 'family_tree', 'note'].includes(kind)) return null;
   return { kind: kind as WebNodeKind, refId };
 }

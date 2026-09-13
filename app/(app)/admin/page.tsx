@@ -88,6 +88,8 @@ const TRASH_KINDS: Record<string, string> = {
   board: 'Prikbord',
   map: 'Landkaart',
   timeline: 'Tijdlijn',
+  // §66
+  family_tree: 'Stamboom',
 };
 
 export default async function AdminPage({

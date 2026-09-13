@@ -13,7 +13,7 @@ import { KeeperPanel } from './KeeperPanel';
 
 /**
  * §44: everything the Keeper's corner needs, read on the server, once, for all
- * five kinds.
+ * six kinds.
  *
  * Five pages ask the same four questions — may I see this, is it mine, what is
  * it tied to, where do its notes live — so they are asked in one place. Every

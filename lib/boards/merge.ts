@@ -23,11 +23,26 @@ import { normaliseBorder } from '@/lib/borders.mjs';
  * the rest. A wall may not hold itself (the picker leaves this board out of its
  * own list), but two walls pointing at each other is allowed and harmless: the
  * web simply draws both ties.
+ *
+ * §66: `family_tree` joins them on the same terms. A stamboom is the fifth
+ * thing the archive holds that a wall might want to point at — the house the
+ * whole affair runs in — and it is a card like the rest, carrying only an id
+ * that is resolved per viewer, so a stamboom somebody may not open comes back
+ * as MISSING rather than as a name.
  */
-export type CardKind = 'entry' | 'note' | 'photo' | 'pin' | 'map' | 'case' | 'timeline' | 'board';
+export type CardKind =
+  | 'entry'
+  | 'note'
+  | 'photo'
+  | 'pin'
+  | 'map'
+  | 'case'
+  | 'timeline'
+  | 'board'
+  | 'family_tree';
 
 /** The card kinds that stand for a record elsewhere in the archive. */
-export const REFERENCE_KINDS = ['entry', 'map', 'case', 'timeline', 'board'] as const;
+export const REFERENCE_KINDS = ['entry', 'map', 'case', 'timeline', 'board', 'family_tree'] as const;
 
 /** Index cards are all one size; a pin is a head and a tag. */
 export const CARD_SIZE = { width: 160, height: 250 } as const;
@@ -228,8 +243,13 @@ export function defaultShowImage(kind: CardKind, hasPicture?: boolean): boolean 
   if (kind === 'note' || kind === 'pin') return false;
   // §52: a prikbord has no cover of its own, so it goes with the tijdlijn —
   // the caller says `hasPicture === false` and the frame stays shut.
+  // §66: a stamboom has no cover of its own either.
   if (
-    (kind === 'entry' || kind === 'case' || kind === 'timeline' || kind === 'board') &&
+    (kind === 'entry' ||
+      kind === 'case' ||
+      kind === 'timeline' ||
+      kind === 'board' ||
+      kind === 'family_tree') &&
     hasPicture === false
   )
     return false;
@@ -242,14 +262,23 @@ export function defaultShowImage(kind: CardKind, hasPicture?: boolean): boolean 
  * page that builds the props — asks once instead of three times.
  */
 export function cardRef(
-  card: Pick<BoardCard, 'kind' | 'entryId' | 'mapId' | 'caseId' | 'timelineId' | 'boardId'>,
-): { kind: 'entry' | 'map' | 'case' | 'timeline' | 'board'; id: string } | null {
+  card: Pick<
+    BoardCard,
+    'kind' | 'entryId' | 'mapId' | 'caseId' | 'timelineId' | 'boardId' | 'familyTreeId'
+  >,
+): {
+  kind: 'entry' | 'map' | 'case' | 'timeline' | 'board' | 'family_tree';
+  id: string;
+} | null {
   if (card.kind === 'entry' && card.entryId) return { kind: 'entry', id: card.entryId };
   if (card.kind === 'map' && card.mapId) return { kind: 'map', id: card.mapId };
   if (card.kind === 'case' && card.caseId) return { kind: 'case', id: card.caseId };
   if (card.kind === 'timeline' && card.timelineId) return { kind: 'timeline', id: card.timelineId };
   // §52: a wall on a wall.
   if (card.kind === 'board' && card.boardId) return { kind: 'board', id: card.boardId };
+  // §66: a stamboom on a wall.
+  if (card.kind === 'family_tree' && card.familyTreeId)
+    return { kind: 'family_tree', id: card.familyTreeId };
   return null;
 }
 
@@ -281,6 +310,8 @@ export type BoardCard = {
   timelineId?: string | null;
   /** Set for kind 'board' — the prikbord this card stands for (§52). */
   boardId?: string | null;
+  /** Set for kind 'family_tree' — the stamboom this card stands for (§66). */
+  familyTreeId?: string | null;
   /**
    * A picture belonging to this card. Notes may gain one after the fact.
    *
@@ -578,7 +609,8 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
             card.kind === 'map' ||
             card.kind === 'case' ||
             card.kind === 'timeline' ||
-            card.kind === 'board'
+            card.kind === 'board' ||
+            card.kind === 'family_tree'
               ? card.kind
               : 'entry',
           entryId: card.entryId ?? null,
@@ -586,6 +618,7 @@ export function normaliseState(input: unknown, now = Date.now()): BoardState {
           caseId: card.caseId ?? null,
           timelineId: card.timelineId ?? null,
           boardId: card.boardId ?? null,
+          familyTreeId: card.familyTreeId ?? null,
           assetId: card.assetId ?? null,
           // Round 19: a `crop` saved on a card before this round is dropped
           // here, on read — the artikel's own crops are used everywhere.

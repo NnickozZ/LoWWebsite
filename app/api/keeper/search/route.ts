@@ -1,6 +1,9 @@
+import { and, asc, isNull } from 'drizzle-orm';
+import { viewableCondition } from '@/lib/access';
 import { apiError, json } from '@/lib/api';
 import { requireKeeper } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
+import { db, schema } from '@/lib/db';
 import { listCases } from '@/lib/cases/service';
 import { isKeeperKind, KEEPER_KINDS, type KeeperKind, type KeeperRef } from '@/lib/keeper/kinds';
 import { keeperRef } from '@/lib/keeper/side';
@@ -11,12 +14,12 @@ import { listTimelines } from '@/lib/timelines/service';
 
 export const dynamic = 'force-dynamic';
 
-/** How many of each kind a rope picker offers at once. Five kinds, one short list each. */
+/** How many of each kind a rope picker offers at once. Six kinds, one short list each. */
 const PER_KIND = 5;
 
 /**
- * §44: what a touwtje may be tied to — anything of the five kinds this Keeper
- * may see.
+ * §44: what a touwtje may be tied to — anything of the six kinds this Keeper
+ * may see (§66 added the stamboom).
  *
  * Every candidate is fetched through the list function that already carries
  * its kind's visibility rule (`suggestEntries` for artikelen,
@@ -72,6 +75,24 @@ export async function GET(request: Request) {
     if (wants('map')) for (const row of named(listMaps(keeper, both))) candidates.push({ kind: 'map', id: row.id });
     if (wants('timeline')) {
       for (const row of named(listTimelines(keeper, both))) candidates.push({ kind: 'timeline', id: row.id });
+    }
+    /*
+     * §66: stambomen. Written out here rather than asked of
+     * `listFamilyTrees(keeper, both)` because `lib/families/service.ts` does
+     * not exist yet; when it does this becomes the same one line the four
+     * above are. `bothSides` is the whole point (see the note above), so there
+     * is deliberately no `sideCondition` here — and every row still goes
+     * through `keeperRef` below before it leaves.
+     */
+    if (wants('family_tree')) {
+      const trees = db
+        .select({ id: schema.familyTrees.id, name: schema.familyTrees.name })
+        .from(schema.familyTrees)
+        .where(and(isNull(schema.familyTrees.deletedAt), viewableCondition('family_tree', keeper)))
+        .orderBy(asc(schema.familyTrees.name))
+        .limit(200)
+        .all();
+      for (const row of named(trees)) candidates.push({ kind: 'family_tree', id: row.id });
     }
 
     const results: KeeperRef[] = [];

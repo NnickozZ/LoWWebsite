@@ -189,3 +189,33 @@ export function collapseMentions(edges: WebEdge[]): WebEdge[] {
   return edges.filter((edge) => !TEXT_KINDS.has(edge.kind) || !strong.has(pair(edge.from, edge.to)));
 }
 
+/**
+ * §66: an infobox line yields to a kinship line, at build time.
+ *
+ * "Ouders" on an artikel is a koppelingsveld like any other, so `entry_mentions`
+ * already writes it down and the web already draws it as a `field` line ("in de
+ * infobox: Ouders"). Since this round the *same* field, because it carries a
+ * `role`, is also read as kinship and drawn as a `lineage` line — and without
+ * this every family would be drawn twice, two strokes between the same two
+ * knots saying the same thing under two names, counted twice in the legend.
+ *
+ * So a `field` line is dropped when a `lineage` line joins the same two knots
+ * with the same word on it. Same *word*, not merely the same pair: a soort may
+ * point one artikel at another twice ("Ouders" and "Werkgever"), and only the
+ * half that became kinship yields. The pair is unordered, because a `parent`
+ * line has been turned round to run parent → child while the field line still
+ * runs from whichever artikel wrote it down.
+ *
+ * The shape is `collapseMentions`'s, and so is the reason it lives here and
+ * runs once in `buildWebGraph`: the count, the panel and the drawing must all
+ * be looking at the same set of lines.
+ */
+export function yieldToLineage(edges: WebEdge[]): WebEdge[] {
+  const kinship = new Set<string>();
+  const pair = (a: WebNodeId, b: WebNodeId, detail: string) =>
+    a < b ? `${a}|${b}|${detail}` : `${b}|${a}|${detail}`;
+  for (const edge of edges) if (edge.kind === 'lineage') kinship.add(pair(edge.from, edge.to, edge.detail));
+  if (!kinship.size) return edges;
+  return edges.filter((edge) => edge.kind !== 'field' || !kinship.has(pair(edge.from, edge.to, edge.detail)));
+}
+

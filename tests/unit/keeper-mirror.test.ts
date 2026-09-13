@@ -43,6 +43,8 @@ type Deps = {
   getMapBySlug: typeof import('@/lib/maps/service').getMapBySlug;
   listTimelines: typeof import('@/lib/timelines/service').listTimelines;
   getTimelineBySlug: typeof import('@/lib/timelines/service').getTimelineBySlug;
+  listFamilyTrees: typeof import('@/lib/families/service').listFamilyTrees;
+  getFamilyTreeBySlug: typeof import('@/lib/families/service').getFamilyTreeBySlug;
   searchEntries: typeof import('@/lib/search/service').searchEntries;
   suggestEntries: typeof import('@/lib/search/service').suggestEntries;
 };
@@ -64,6 +66,7 @@ beforeAll(async () => {
   const boards = await import('@/lib/boards/service');
   const maps = await import('@/lib/maps/service');
   const timelines = await import('@/lib/timelines/service');
+  const families = await import('@/lib/families/service');
   const search = await import('@/lib/search/service');
   deps = {
     sqlite: dbModule.sqlite,
@@ -78,6 +81,8 @@ beforeAll(async () => {
     getMapBySlug: maps.getMapBySlug,
     listTimelines: timelines.listTimelines,
     getTimelineBySlug: timelines.getTimelineBySlug,
+    listFamilyTrees: families.listFamilyTrees,
+    getFamilyTreeBySlug: families.getFamilyTreeBySlug,
     searchEntries: search.searchEntries,
     suggestEntries: search.suggestEntries,
   };
@@ -153,6 +158,19 @@ beforeAll(async () => {
     );
   timeline('t-open', 'De nacht zelf');
   timeline('t-dicht', 'De nacht zelf — echt', 1);
+
+  // §66: de stamboom is the sixth kind, and it answers the same three questions.
+  const tree = (id: string, name: string, keeperOnly = 0) =>
+    run(
+      `INSERT INTO family_trees (id, name, slug, state, created_by, view_mode, keeper_only)
+       VALUES (?, ?, ?, '{}', 'keeper-1', 'all', ?)`,
+      id,
+      name,
+      id,
+      keeperOnly,
+    );
+  tree('f-open', 'Het huis Boone');
+  tree('f-dicht', 'Het huis Boone — wat er echt is', 1);
 });
 
 describe('a list is read from one side', () => {
@@ -162,6 +180,7 @@ describe('a list is read from one side', () => {
     expect(names(deps.listBoards(OP_KEEPERKANT))).toEqual(['De echte muur']);
     expect(names(deps.listMaps(OP_KEEPERKANT))).toEqual(['Het eiland eronder']);
     expect(names(deps.listTimelines(OP_KEEPERKANT))).toEqual(['De nacht zelf — echt']);
+    expect(names(deps.listFamilyTrees(OP_KEEPERKANT))).toEqual(['Het huis Boone — wat er echt is']);
   });
 
   it('the players’ side shows only what the table sees', () => {
@@ -170,6 +189,7 @@ describe('a list is read from one side', () => {
     expect(names(deps.listBoards(OP_SPELERSKANT))).toEqual(['De muur']);
     expect(names(deps.listMaps(OP_SPELERSKANT))).toEqual(['Het eiland']);
     expect(names(deps.listTimelines(OP_SPELERSKANT))).toEqual(['De nacht zelf']);
+    expect(names(deps.listFamilyTrees(OP_SPELERSKANT))).toEqual(['Het huis Boone']);
   });
 
   it('a viewer with no side at all sees both', () => {
@@ -178,6 +198,7 @@ describe('a list is read from one side', () => {
     expect(deps.listBoards(NERGENS)).toHaveLength(2);
     expect(deps.listMaps(NERGENS)).toHaveLength(2);
     expect(deps.listTimelines(NERGENS)).toHaveLength(2);
+    expect(deps.listFamilyTrees(NERGENS)).toHaveLength(2);
   });
 
   it('`bothSides` opts one list out again, for a picker', () => {
@@ -185,6 +206,7 @@ describe('a list is read from one side', () => {
     expect(deps.listBoards(OP_SPELERSKANT, { bothSides: true })).toHaveLength(2);
     expect(deps.listMaps(OP_KEEPERKANT, { bothSides: true })).toHaveLength(2);
     expect(deps.listTimelines(OP_SPELERSKANT, { bothSides: true })).toHaveLength(2);
+    expect(deps.listFamilyTrees(OP_SPELERSKANT, { bothSides: true })).toHaveLength(2);
     expect(deps.browseEntries(OP_KEEPERKANT, { bothSides: true })).toHaveLength(2);
   });
 
@@ -216,6 +238,7 @@ describe('the side filter never replaces the visibility rule', () => {
     expect(names(deps.listBoards(BRAM_BEWEERT))).toEqual(['De muur']);
     expect(names(deps.listMaps(BRAM_BEWEERT))).toEqual(['Het eiland']);
     expect(names(deps.listTimelines(BRAM_BEWEERT))).toEqual(['De nacht zelf']);
+    expect(names(deps.listFamilyTrees(BRAM_BEWEERT))).toEqual(['Het huis Boone']);
     expect(deps.searchEntries(BRAM_BEWEERT, 'complot').names).toEqual([]);
   });
 });
@@ -227,6 +250,7 @@ describe('a lookup never asks which side you are standing on', () => {
     expect(deps.getBoard('b-dicht', OP_SPELERSKANT)?.name).toBe('De echte muur');
     expect(deps.getMapBySlug('m-dicht', OP_SPELERSKANT)?.name).toBe('Het eiland eronder');
     expect(deps.getTimelineBySlug('t-dicht', OP_SPELERSKANT)?.name).toBe('De nacht zelf — echt');
+    expect(deps.getFamilyTreeBySlug('f-dicht', OP_SPELERSKANT)?.name).toBe('Het huis Boone — wat er echt is');
   });
 
   it('and on the Keeper’s side still lands on a player-facing page', () => {
@@ -235,6 +259,7 @@ describe('a lookup never asks which side you are standing on', () => {
     expect(deps.getBoard('b-open', OP_KEEPERKANT)?.name).toBe('De muur');
     expect(deps.getMapBySlug('m-open', OP_KEEPERKANT)?.name).toBe('Het eiland');
     expect(deps.getTimelineBySlug('t-open', OP_KEEPERKANT)?.name).toBe('De nacht zelf');
+    expect(deps.getFamilyTreeBySlug('f-open', OP_KEEPERKANT)?.name).toBe('Het huis Boone');
   });
 
   it('a player is still refused the keeper-only page at its own address', () => {
@@ -243,5 +268,6 @@ describe('a lookup never asks which side you are standing on', () => {
     expect(deps.getBoard('b-dicht', BRAM_BEWEERT)).toBeUndefined();
     expect(deps.getMapBySlug('m-dicht', BRAM_BEWEERT)).toBeUndefined();
     expect(deps.getTimelineBySlug('t-dicht', BRAM_BEWEERT)).toBeUndefined();
+    expect(deps.getFamilyTreeBySlug('f-dicht', BRAM_BEWEERT)).toBeUndefined();
   });
 });

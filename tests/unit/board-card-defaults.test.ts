@@ -26,6 +26,10 @@ describe('the picture frame a new card starts with', () => {
     expect(defaultShowImage('map')).toBe(true);
     expect(defaultShowImage('case')).toBe(true);
     expect(defaultShowImage('timeline')).toBe(true);
+    // §52 and §66: a prikbord and a stamboom have no cover, but a caller that
+    // does not say so still gets the old answer.
+    expect(defaultShowImage('board')).toBe(true);
+    expect(defaultShowImage('family_tree')).toBe(true);
   });
 
   it('but stays shut when the caller knows there is no picture (§32)', () => {
@@ -40,7 +44,17 @@ describe('the picture frame a new card starts with', () => {
   });
 
   it('has an answer for every kind of card there is', () => {
-    const kinds: CardKind[] = ['entry', 'note', 'photo', 'pin', 'map', 'case', 'timeline'];
+    const kinds: CardKind[] = [
+      'entry',
+      'note',
+      'photo',
+      'pin',
+      'map',
+      'case',
+      'timeline',
+      'board',
+      'family_tree',
+    ];
     for (const kind of kinds) expect(typeof defaultShowImage(kind)).toBe('boolean');
   });
 });

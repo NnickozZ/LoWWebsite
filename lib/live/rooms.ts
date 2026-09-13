@@ -80,7 +80,9 @@ const CASE_FIELDS_KEY = /^case:([A-Za-z0-9_-]{1,64}):fields$/;
 const MAP_FIELDS_KEY = /^map:([A-Za-z0-9_-]{1,64}):fields$/;
 const PIN_FIELDS_KEY = /^pin:([A-Za-z0-9_-]{1,64}):fields$/;
 const EVENT_FIELDS_KEY = /^event:([A-Za-z0-9_-]{1,64}):fields$/;
-const KEEPER_NOTES_KEY = /^keeper:([a-z]+):([A-Za-z0-9_-]{1,64}):notes$/;
+// §66: `_` is in the class because a kind can be two words (`family_tree`).
+// `isKeeperKind` in `roomFor` is what actually decides which ones exist.
+const KEEPER_NOTES_KEY = /^keeper:([a-z_]+):([A-Za-z0-9_-]{1,64}):notes$/;
 
 const asFields = (value: unknown): FieldValues =>
   value && typeof value === 'object'

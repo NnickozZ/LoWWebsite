@@ -1,6 +1,6 @@
 /**
- * §44: the five kinds of thing that have a Keeper side, and the flat facts
- * about them — what each is called, where each lives, which icon it wears.
+ * §44: the six kinds of thing that have a Keeper side (§66 added the
+ * stamboom), and the flat facts about them — what each is called, where each lives, which icon it wears.
  *
  * Deliberately pure: the switch button and the Keeperkant list are client
  * components and import this, so it never opens the database. `side.ts`,
@@ -9,7 +9,7 @@
 
 import type { Words } from '@/lib/words';
 
-export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline';
+export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
 
 /**
  * §46: the two sides of the archive. Every list is read from one of them, and
@@ -26,7 +26,14 @@ export function sideOf(keeperOnly: boolean): Side {
   return keeperOnly ? 'keeper' : 'player';
 }
 
-export const KEEPER_KINDS: KeeperKind[] = ['entry', 'case', 'board', 'map', 'timeline'];
+export const KEEPER_KINDS: KeeperKind[] = [
+  'entry',
+  'case',
+  'board',
+  'map',
+  'timeline',
+  'family_tree',
+];
 
 export function isKeeperKind(value: unknown): value is KeeperKind {
   return typeof value === 'string' && (KEEPER_KINDS as string[]).includes(value);
@@ -39,6 +46,7 @@ export const KIND_WORD: Record<KeeperKind, keyof Words> = {
   board: 'board',
   map: 'map',
   timeline: 'timeline',
+  family_tree: 'familyTree',
 };
 
 export const KIND_WORD_PLURAL: Record<KeeperKind, keyof Words> = {
@@ -47,6 +55,7 @@ export const KIND_WORD_PLURAL: Record<KeeperKind, keyof Words> = {
   board: 'boardPlural',
   map: 'mapPlural',
   timeline: 'timelinePlural',
+  family_tree: 'familyTreePlural',
 };
 
 export const KIND_ICON: Record<KeeperKind, string> = {
@@ -55,6 +64,7 @@ export const KIND_ICON: Record<KeeperKind, string> = {
   board: 'board',
   map: 'map',
   timeline: 'timeline',
+  family_tree: 'tree',
 };
 
 /**
@@ -73,6 +83,9 @@ export function kindHref(kind: KeeperKind, ref: { id: string; slug?: string | nu
       return `/maps/${ref.slug ?? ref.id}`;
     case 'timeline':
       return `/timelines/${ref.slug ?? ref.id}`;
+    // §66
+    case 'family_tree':
+      return `/stambomen/${ref.slug ?? ref.id}`;
   }
 }
 

@@ -1,0 +1,717 @@
+/* ------------------------------------------------------------------ §66 */
+/*
+   De stamboom — round 31.
+
+   Its own file, imported by `app/(app)/stambomen/[slug]/page.tsx`, because
+   `app/globals.css` is the round's worst collision hotspot and nothing in here
+   belongs to anything but the stamboom.
+
+   Everything is one of the nineteen scheme tokens (`lib/theme/schemes.ts`), so
+   the four palettes and the two sides come for free and no colour is written
+   down twice. The one exception is `--house`, which is set inline on a card
+   from the Familie-artikel's own colour and falls back to the rule.
+
+   The stage is the §34 canvas shell: a bar, a toolbar, then `.tree-stage` as
+   `flex: 1`. Inside it `.tree-world` is one transformed layer — every card,
+   every line and every handle is in *world* coordinates and the transform does
+   the rest — while the hands, the ink and the floating boxes are drawn on the
+   glass, in screen pixels, so they are as crisp at 250 % as at 25 %.
+*/
+
+.tree-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+/* ----------------------------------------------------- the name, as a title */
+/*
+   §34/§66: the heading *is* the box. `.canvas-head h1` already sets the size
+   and the family; the box inherits both, so the two can never drift and there
+   is exactly one line of title on the page — it used to be printed here and
+   again in a bar of the canvas's own, which on a 390 px telephone was about
+   330 px of screen spent twice.
+*/
+.canvas-head h1.tree-title {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.tree-name-input {
+  width: 100%;
+  min-width: 0;
+  margin: -0.1rem -0.3rem;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  padding: 0.1rem 0.3rem;
+  /* Inherited from the h1, so a change to `.canvas-head h1` carries. */
+  font: inherit;
+  color: inherit;
+}
+.tree-name-input:hover,
+.tree-name-input:focus {
+  border-color: var(--rule);
+  background: var(--paper-raised);
+  outline: none;
+}
+
+/* --------------------------------------------------------- who else is here */
+
+.tree-people {
+  display: inline-flex;
+  align-items: center;
+  /* §64: it is always in the flow, empty or not — somebody arriving must never
+     grow the bar and push the stage down under a hand that is working. */
+  min-height: 20px;
+  gap: 0.15rem;
+}
+.tree-person {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  line-height: 1;
+  box-shadow: 0 0 0 1px var(--paper);
+}
+.tree-person-me {
+  opacity: 0.75;
+}
+.tree-person-more {
+  background: var(--ink-muted);
+}
+
+.tree-zoom {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper-raised);
+}
+.tree-zoom button {
+  width: 26px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.tree-zoom button:hover {
+  background: var(--paper-dark);
+}
+.tree-zoom-level {
+  min-width: 3.2rem;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------- the toolbar */
+/*
+   §34/§64: **one row above the stage**, on a desk. Everything the canvas owns
+   is in it — the search box, the four things you can do to what is in the tree,
+   who else is here, the state of the save, and the glass — and nothing in it
+   may turn on and off and take up room with it: the ghost count lives inside
+   its button's own name and the button is always rendered (disabled at nought),
+   and the picker's notices are placeholders and `.visually-hidden` paragraphs,
+   which are out of flow.
+*/
+.tree-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.tree-tools-find {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 22rem;
+}
+.tree-tools .spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------ the stage */
+
+.tree-stage {
+  position: relative;
+  flex: 1;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper-dark);
+  background-image: radial-gradient(var(--cork-speck) 1px, transparent 1px);
+  background-size: 26px 26px;
+  touch-action: none;
+  cursor: grab;
+  --tree-line: var(--ink-muted);
+}
+.tree-stage.is-grabbing {
+  cursor: grabbing;
+}
+.tree-stage:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+.tree-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+/* ------------------------------------------------------------- the lines */
+/*
+   A 1×1 svg that draws the whole world: `overflow: visible` is what lets a
+   coordinate outside that one pixel — a negative one, a pinned card far to the
+   left — still be painted. The strokes are `non-scaling-stroke`, so a line is
+   the same weight on the glass at every zoom: a hairline at 25 % is a line
+   nobody can see and a rope at 250 % is a line nobody can read past.
+*/
+.tree-lines {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.tree-line {
+  fill: none;
+  stroke: var(--tree-line);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.tree-line-kin {
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+/* The double line of a couple: the same path twice, three pixels apart. */
+.tree-line-partner {
+  stroke-width: 1.5;
+  transform: translateY(-2px);
+}
+.tree-line-partner-second {
+  transform: translateY(2px);
+}
+.tree-line-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.tree-edge.is-selected .tree-line {
+  stroke: var(--stamp-red);
+  stroke-width: 2.5;
+}
+.tree-edge:hover .tree-line {
+  stroke: var(--ink);
+}
+.tree-line-label {
+  fill: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.tree-edge.is-selected .tree-line-label {
+  fill: var(--ink);
+}
+/* A line's word is written only when it is asked for — except a kin line,
+   which is a claim rather than a fact and always says which. */
+.tree-edge-parent .tree-line-label,
+.tree-edge-partner .tree-line-label {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.tree-edge-parent:hover .tree-line-label,
+.tree-edge-partner:hover .tree-line-label,
+.tree-edge.is-selected .tree-line-label {
+  opacity: 1;
+}
+
+.tree-line-menu {
+  position: absolute;
+  z-index: 12;
+  transform: translate(-50%, -130%);
+}
+
+/* ------------------------------------------------------------- the cards */
+
+.tree-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* The layout is recomputed from the graph on every change, so a person who
+     gains a partner slides across rather than teleporting. */
+  transition: transform 220ms ease;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.tree-node.is-dragging {
+  transition: none;
+  cursor: grabbing;
+  z-index: 5;
+}
+.tree-node.is-carried {
+  transition: transform 70ms linear;
+  box-shadow: 0 0 0 2px var(--carried, var(--ink-muted));
+  border-radius: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-node,
+  .tree-node.is-carried {
+    transition: none;
+  }
+}
+.tree-node.is-ghost {
+  opacity: 0.45;
+  cursor: default;
+}
+.tree-node.is-ghost:hover {
+  opacity: 0.75;
+}
+
+.tree-node-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.4rem 0.35rem;
+  border: 1px solid var(--card-rule);
+  border-radius: 2px;
+  background: var(--card-face);
+  box-shadow: 1px 2px 0 rgba(31, 27, 22, 0.16);
+  overflow: hidden;
+  text-align: center;
+}
+.tree-node.is-selected .tree-node-body {
+  border-color: var(--stamp-red);
+  box-shadow: 0 0 0 2px var(--stamp-red), 1px 2px 0 rgba(31, 27, 22, 0.16);
+}
+
+.tree-node-name {
+  font-family: var(--serif);
+  font-size: 0.86rem;
+  line-height: 1.2;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.tree-node-name:hover,
+a.tree-node-name:focus-visible {
+  color: var(--link);
+  text-decoration: underline;
+}
+.tree-node-surname,
+.tree-node-status,
+.tree-node-type,
+.tree-node-text {
+  color: var(--ink-muted);
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tree-node-status {
+  font-style: italic;
+}
+
+/* The huis, as a corner badge in its own colour. */
+.tree-node-house {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  max-width: 100%;
+  padding: 0.02rem 0.3rem;
+  background: var(--house, var(--rule));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.58rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-portrait {
+  position: relative;
+  display: block;
+  width: 74px;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  flex: 0 0 auto;
+}
+.tree-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tree-portrait-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+}
+
+/* mortal — the plain index card, and the default for a soort nobody thought of. */
+.tree-frame-mortal .tree-node-body {
+  border-left: 3px solid var(--house, var(--card-rule));
+}
+
+/* divine — a round portrait with a double ring in gold, and no status line. */
+.tree-frame-divine .tree-node-body {
+  border-radius: 6px;
+  background: var(--paper-raised);
+}
+.tree-divine-ring {
+  display: block;
+  padding: 4px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px var(--web-line-gold),
+    0 0 0 4px var(--paper-raised),
+    0 0 0 5px var(--web-line-gold);
+  margin: 0.2rem 0 0.35rem;
+}
+.tree-frame-divine .tree-portrait {
+  width: 76px;
+  border-radius: 50%;
+  border-color: var(--web-line-gold);
+}
+
+/* house — a wide banner with the sigil and the branch's own colour. */
+.tree-frame-house .tree-node-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  border: 2px solid var(--house, var(--card-rule));
+  background: var(--paper-raised);
+}
+.tree-house-sigil {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 2px;
+  background: var(--house, var(--rule));
+  color: #fff;
+}
+.tree-house-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tree-frame-house .tree-node-name {
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+/* creature — the same card, torn, with the colour taken out of the picture. */
+.tree-creature {
+  clip-path: polygon(
+    0% 4%, 7% 0%, 34% 3%, 62% 0%, 93% 4%, 100% 1%,
+    97% 33%, 100% 64%, 96% 100%, 66% 96%, 35% 100%, 6% 97%, 2% 66%, 0% 35%
+  );
+  border-radius: 0;
+  box-shadow: none;
+}
+.tree-frame-creature .tree-portrait img {
+  filter: grayscale(0.85) contrast(1.1);
+}
+
+/* unknown — a los kaartje: dashed, quiet, and honest about being a guess. */
+.tree-frame-unknown .tree-node-body {
+  justify-content: center;
+  border: 1px dashed var(--ink-muted);
+  background: transparent;
+  box-shadow: none;
+}
+/* §66: the *left*-hand corner, and that is not a taste.
+   The `…` of a chosen card is pinned on the card's top-**right** corner and is
+   32 px on the glass whatever the zoom — so in the card's own units it grows as
+   the tree is zoomed out, and below about 90 % it covers a pencil in that same
+   corner completely. A los kaartje is chosen the moment it is made, so that was
+   the ordinary case rather than an edge one: the button was on the screen,
+   looked pressable, and threw the press to the menu behind it. */
+.tree-node-edit {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.tree-node-edit:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+/* A ghost's way in. Never hover-only: on a phone this is the only road. */
+.tree-adopt {
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--stamp-red);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--stamp-red);
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.tree-adopt:hover {
+  background: var(--stamp-red);
+  color: #fff;
+}
+
+/* ----------------------------------------------------------- the handles */
+/*
+   In the world layer, so they travel with the card, and scaled back by the
+   zoom in the component so they are 32 px on the glass whatever the tree is
+   at — a `+` that shrinks to four pixels is a `+` nobody can press.
+*/
+.tree-handle {
+  position: absolute;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(31, 27, 22, 0.25);
+}
+.tree-handle:hover:not(:disabled) {
+  border-color: var(--stamp-red);
+  color: var(--stamp-red);
+}
+.tree-handle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.tree-menu-anchor {
+  position: absolute;
+  z-index: 8;
+  width: 0;
+  height: 0;
+}
+/* The `…` sits *on* the card's top-right corner, like the three `+`s sit on
+   the edges they belong to. */
+.tree-handle-menu {
+  transform: translate(-50%, -50%);
+}
+.tree-menu {
+  position: absolute;
+  left: 50%;
+  top: 26px;
+  transform: translateX(-50%);
+  min-width: 12rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 0 2px 6px rgba(31, 27, 22, 0.28);
+  overflow: hidden;
+}
+.tree-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+.tree-menu-item:hover {
+  background: var(--paper-dark);
+}
+.tree-menu-item-danger {
+  color: var(--stamp-red);
+}
+
+/* ------------------------------------------------------------ the picker */
+/*
+   The floating box a handle opens, in *screen* coordinates over the stage —
+   the prikbord's `BoardPicker variant="float"` in shape and in manners: it
+   takes the focus, it closes on Escape, and it is anchored where the handle is.
+*/
+.tree-picker {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  box-shadow: 0 3px 10px rgba(31, 27, 22, 0.3);
+}
+.tree-picker-head {
+  margin: 0;
+}
+.tree-picker-ghosts {
+  position: static;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+.tree-picker-loose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.35rem;
+}
+
+/* --------------------------------------------------------------- hands */
+/*
+   The arrow is the prikbord's (`.board-cursor`); only the layer it sits on is
+   this file's, because a hand is drawn on the glass and everything else here
+   is in the world.
+*/
+.tree-hand {
+  z-index: 9;
+}
+
+/* --------------------------------------------------------------- rest */
+
+.tree-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: 1rem;
+}
+.tree-empty p {
+  max-width: 26rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  text-align: center;
+}
+
+.tree-count {
+  margin: 0;
+}
+
+.tree-ink-toolbar {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 14;
+}
+
+/* --------------------------------------------------------------- phone */
+/*
+   390 px: the toolbar is **at most two rows** — the search box, then one row of
+   icons — and the stage takes everything else. Nothing essential waits for a
+   hover: a ghost's `+`, a handle and the `…` are all real buttons at 32 px.
+
+   §64, precisely: what goes below 600 px is the *word*, never the name. Every
+   button in here carries a constant `aria-label` (and the same `title`), so a
+   spec that finds "Opnieuw schikken" by its name finds it on a telephone too,
+   and a screen reader is told exactly what it is told on a desk. Hiding letters
+   is not renaming a control; renaming one on a condition is what breaks four
+   specs, and it is not done here.
+*/
+@media (max-width: 600px) {
+  .tree-tools {
+    gap: 0.25rem;
+  }
+  .tree-tools-find {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .tree-tools > .btn {
+    flex: 0 0 auto;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+  /* The letters go; the icon, the count and the accessible name stay. */
+  .tree-tools .tree-tool-word {
+    display: none;
+  }
+  /* Two things that only repeat what the icons already say, at the price of a
+     row: the state of the save (the strip in the shell says it too) and the
+     line of instructions under the stage. */
+  .tree-tools .save-state {
+    display: none;
+  }
+  .tree-tools .spacer {
+    flex: 1 1 0;
+  }
+  .tree-picker {
+    left: 8px !important;
+    right: 8px;
+    width: auto !important;
+  }
+  .tree-count {
+    display: none;
+  }
+}
