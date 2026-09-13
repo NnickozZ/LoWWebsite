@@ -33,8 +33,17 @@ import {
   getEntryBySlug,
   getRevision,
   listAllTags,
+  listEntryTypes,
   listRevisions,
+  REVISION_PAGE,
 } from '@/lib/entries/service';
+import {
+  changeSummary,
+  describeRevision,
+  revisionFacts,
+  revisionFactsFromRow,
+  type Change,
+} from '@/lib/entries/revisionDiff';
 import { getWords } from '@/lib/admin/words';
 import { presenceColour } from '@/lib/boards/live';
 import { snapshot } from '@/lib/live/docs';
@@ -47,6 +56,13 @@ import { cleanTypeText, defaultBlockTitle, resolveBlocks } from '@/lib/pageBlock
 import { deleteEntryAction, restoreRevisionAction } from './actions';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * §65: how many changes one row in the geschiedenis spells out before it starts
+ * counting instead. A save that fills in a whole infobox is a real thing that
+ * happens, and twenty lines under one row would bury the ten rows beneath it.
+ */
+const HISTORY_DETAIL_LIMIT = 8;
 
 export default async function EntryPage({
   params,
@@ -105,7 +121,7 @@ export default async function EntryPage({
    */
   const mentions = listMentions(entry.id, user);
   const mentionGroups = groupMentions(mentions);
-  const revisionRows = listRevisions(entry.id);
+  const revisionRows = listRevisions(entry.id, Boolean(user?.isKeeper));
   const knownTags = listAllTags(user);
   const cases = listCasesForEntry(entry.id, user);
   const isKeeper = Boolean(user?.isKeeper);
@@ -151,7 +167,9 @@ export default async function EntryPage({
    * archive asked, so one account can stand in this list twice under two names.
    */
   const revisions = attributed(
-    revisionRows.map((r) => ({
+    // `REVISION_PAGE` of them: the row `listRevisions` reads past the page is
+    // there to describe the last one by, not to be shown (§65).
+    revisionRows.slice(0, REVISION_PAGE).map((r) => ({
       ...r,
       actorId: r.editedBy,
       actorName: r.username,
@@ -249,12 +267,98 @@ export default async function EntryPage({
   const openHistory = Boolean(query.rev);
 
   const selectedRevision = query.rev ? getRevision(query.rev) : undefined;
-  const diff =
+  const selectedFacts =
     selectedRevision && selectedRevision.entryId === entry.id
+      ? revisionFacts(selectedRevision.snapshot)
+      : null;
+
+  /*
+   * §65: a version written while the artikel stood on the Keeperkant is not
+   * read out loud to a speler.
+   *
+   * This is a hole the round found rather than made: the comparison panel has
+   * always printed the prose of whatever revision `?rev=` named, to anybody who
+   * may read the artikel — including a version written where they could not look
+   * and emptied again before the artikel was opened up. An artikel is allowed to
+   * have a past that is not everybody's (rule 7, §9), so such a version now says
+   * that instead. A Keeper sees all of it, as a Keeper sees the page.
+   */
+  const shutEpoch = Boolean(selectedFacts && !isKeeper && selectedFacts.visibility === 'keeper');
+  const diff =
+    selectedRevision && selectedFacts && !shutEpoch
       ? diffLines(
           docToText((selectedRevision.snapshot as { body?: unknown }).body ?? null),
           entry.bodyText,
         )
+      : null;
+
+  /*
+   * §65: the artikel as it stands, in the same shape a snapshot has, so the one
+   * subtraction in `lib/entries/revisionDiff.ts` serves both readings: what a
+   * revision *did* (its snapshot against the one before it) and what an opened
+   * revision would *undo* (its snapshot against now). `keeperNotes` is already
+   * blanked by `getEntryBySlug` for anyone but a Keeper, and `showKeeper` below
+   * keeps it out of the sentences as well.
+   */
+  const nowFacts = revisionFacts({
+    name: entry.name,
+    shortDescription: entry.shortDescription,
+    bodyText: entry.bodyText,
+    fields: entry.fields,
+    tags: entry.tags,
+    typeId: entry.typeId,
+    coverAssetId: entry.coverAssetId,
+    coverCrop: entry.coverCrop,
+    visibility: entry.visibility,
+    keeperNotes: entry.keeperNotes,
+  });
+
+  /*
+   * §65: what each revision did.
+   *
+   * The rows arrive newest first, so the state *before* row `i` is the snapshot
+   * of row `i + 1`, and the step between the two is the revision's work. Three
+   * things are deliberate here:
+   *
+   *   - The soort list is only read when some revision actually changed soort,
+   *     which is close to never. A label for a soort nobody left is a query for
+   *     nothing, on the busiest read in the archive.
+   *   - The oldest row the page *shows* gets `null` for its "before" only when
+   *     there is genuinely nothing behind it. `listRevisions` reads one row past
+   *     the page for exactly this: with the extra row there, the bottom of the
+   *     list is described by it; without it, the bottom of the list is where the
+   *     artikel began and "Aangelegd" is the truth.
+   */
+  const revisionChanges: (Change[] | null)[] = (() => {
+    const facts = revisionRows.map((row) => revisionFactsFromRow(row));
+    const soortMoved = facts.some((fact, i) => i + 1 < facts.length && fact.typeId !== facts[i + 1].typeId);
+    const typeLabels = soortMoved
+      ? new Map(listEntryTypes().map((type) => [type.id, type.label]))
+      : undefined;
+    const options = {
+      fields: entry.typeFields ?? [],
+      typeLabels,
+      showKeeper: isKeeper,
+    };
+    /*
+     * `listRevisions` reads one row past the page. So the last row the page
+     * *shows* still has a row behind it to be described by — unless that extra
+     * row is not there, in which case the bottom of the list really is where the
+     * artikel began.
+     */
+    return facts.slice(0, REVISION_PAGE).map((after, i) => {
+      if (i + 1 < facts.length) return describeRevision(facts[i + 1], after, options);
+      return describeRevision(null, after, options);
+    });
+  })();
+
+  /** §65: and what the opened revision would put back, beside the prose diff. */
+  const selectedChanges =
+    selectedFacts && !shutEpoch
+      ? describeRevision(selectedFacts, nowFacts, {
+          fields: entry.typeFields ?? [],
+          showKeeper: isKeeper,
+        })
       : null;
 
   /**
@@ -383,6 +487,14 @@ export default async function EntryPage({
             <span className="muted">({revisions.length})</span>
           </summary>
           <div style={{ padding: '0.6rem 0 1rem' }}>
+            {shutEpoch && (
+              <p className="small muted" style={{ marginBottom: '0.8rem' }}>
+                <Icon name="lock" size={13} /> Deze versie is geschreven toen dit {words.entry} op
+                de {words.keeperSide} stond. Wat er toen in stond, staat er niet meer en is niet
+                van jou om terug te lezen.{' '}
+                <Link href={`/e/${entry.slug}`}>Sluiten</Link>
+              </p>
+            )}
             {diff && selectedRevision && (
               <div
                 style={{
@@ -407,6 +519,20 @@ export default async function EntryPage({
                     Sluiten
                   </Link>
                 </div>
+                {/* §65: the prose is the <pre> below, and it was the only thing
+                    this panel ever showed. Everything else a revision holds —
+                    the naam, the infobox, the tags, the omslag — stands here,
+                    so "terugzetten" says what it is about to do. */}
+                {selectedChanges && selectedChanges.length > 0 && (
+                  <ul className="rev-changes" style={{ marginBottom: '0.6rem' }}>
+                    {selectedChanges.map((change, index) => (
+                      <li key={index}>
+                        <strong>{change.label}</strong>
+                        {change.detail ? <> — {change.detail}</> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <pre
                   style={{
                     margin: 0,
@@ -437,27 +563,59 @@ export default async function EntryPage({
               </div>
             )}
 
+            {/*
+              * §65: a row says who, *what*, and when — in that order, because
+              * "what" is the column a reader scans. The nouns are on the first
+              * line and the details under it; `HISTORY_DETAIL_LIMIT` keeps a
+              * save that filled in twenty fields from turning one row into a
+              * page of its own.
+              */}
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {revisions.map((revision) => (
-                <li
-                  key={revision.id}
-                  className="row"
-                  style={{ borderBottom: '1px solid var(--rule)', padding: '0.4rem 0' }}
-                >
-                  <Icon name="clock" size={15} style={{ color: 'var(--ink-muted)' }} />
-                  <span className="small" style={{ flex: 1 }}>
-                    <span title={revision.actorAccount ?? undefined}>{revision.actorLabel ?? 'Iemand'}</span>
-                    {revision.note ? ` — ${revision.note}` : ''}
-                  </span>
-                  <span className="tiny muted">{relativeTime(revision.createdAt)}</span>
-                  <Link
-                    className="btn btn-small btn-ghost"
-                    href={`/e/${entry.slug}?rev=${revision.id}`}
+              {revisions.map((revision, index) => {
+                const changes = revisionChanges[index] ?? null;
+                const details = changes && changes[0]?.kind !== 'created' ? changes : [];
+                const shown = details.slice(0, HISTORY_DETAIL_LIMIT);
+                const hidden = details.length - shown.length;
+                return (
+                  <li
+                    key={revision.id}
+                    style={{ borderBottom: '1px solid var(--rule)', padding: '0.45rem 0' }}
                   >
-                    Bekijken
-                  </Link>
-                </li>
-              ))}
+                    <div className="row">
+                      <Icon name="clock" size={15} style={{ color: 'var(--ink-muted)' }} />
+                      <span className="small" style={{ flex: 1, minWidth: 0 }}>
+                        <span title={revision.actorAccount ?? undefined}>
+                          {revision.actorLabel ?? 'Iemand'}
+                        </span>
+                        {changes && changeSummary(changes) ? (
+                          <span className="muted"> — {changeSummary(changes)}</span>
+                        ) : null}
+                        {revision.note ? <span className="muted"> · {revision.note}</span> : null}
+                      </span>
+                      <span className="tiny muted">{relativeTime(revision.createdAt)}</span>
+                      <Link
+                        className="btn btn-small btn-ghost"
+                        href={`/e/${entry.slug}?rev=${revision.id}`}
+                      >
+                        Bekijken
+                      </Link>
+                    </div>
+                    {shown.length > 0 && (
+                      <ul className="rev-changes">
+                        {shown.map((change, i) => (
+                          <li key={i}>
+                            <strong>{change.label}</strong>
+                            {change.detail ? <> — {change.detail}</> : null}
+                          </li>
+                        ))}
+                        {hidden > 0 && (
+                          <li className="muted">en nog {hidden} {hidden === 1 ? 'ding' : 'dingen'}</li>
+                        )}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
               {!revisions.length && <li className="muted small">Nog geen versies vastgelegd.</li>}
             </ul>
           </div>

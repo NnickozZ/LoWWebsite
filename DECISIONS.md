@@ -3952,3 +3952,188 @@ hier.
   server** — met opzet, zie hierboven.
 - **De tijdlijn heeft nog geen live veldkamer voor zijn eigen naam en
   beschrijving.** Bewust uitgesteld (Q3).
+
+## Ronde 30 — 13 September 2026: de voordeur, de wachtende punaise, en een geschiedenis die iets zegt (§63, §64, §65)
+
+Zeven klachten van Nick, en geen ervan over iets wat niet werkte. Het waren
+zeven plekken waar het archief *wel* deed wat het moest en er niets over zei, of
+waar het onderweg iets weggooide dat van jou was. Drie ervan werden een regel.
+
+### De voordeur (§63)
+
+Twee klachten, en het waren dezelfde klacht twee keer.
+
+**"Als ik enter en het zijn er te weinig dan resetten de andere velden ook."**
+Dat is geen bug in dit formulier maar een ontwerpbeslissing van React: een
+`<form action={…}>` is een formulieractie, en React roept er na afloop
+`requestFormReset()` op, omdat het gewone geval een formulier is dat lukte. Een
+wachtwoord van zeven tekens kwam dus terug met zijn zin én met een lege
+uitnodigingscode en een lege naam.
+
+Het had op drie manieren gerepareerd kunnen worden en het is alle drie geworden,
+met opzet — dit is het eerste scherm van het archief en het mag niet slim zijn.
+De regels worden eerst in de browser gevraagd (`run()` is een client-functie aan
+`useActionState`), de vakjes lezen hun `defaultValue` uit de echo, en een
+`useEffect` schrijft ze er ook nog met de hand in. Dat laatste omdat de tweede
+manier ervan afhangt dat React in dezelfde commit reset; een effect loopt ná de
+commit en heeft dus het laatste woord.
+
+De beslissing die het opschrijven waard is: **de echo verlaat de browser niet.**
+`run` heeft de `FormData` nog in handen nadat de server geantwoord heeft, dus het
+archief hoeft nooit een wachtwoord terug te sturen om de vakjes te laten staan —
+en de serveractie krijgt `{}` mee in plaats van de vorige staat, want argumenten
+van een serveractie reizen mee in het verzoek en `prev` meegeven zou de hele echo
+weer naar boven posten. Bij *inloggen* wordt het wachtwoord wél gewist en de naam
+bewaard: het wachtwoord was het verkeerde, en het laten staan nodigt uit tot
+dezelfde klik. De vakjes staan `readOnly` zolang de actie loopt, want een letter
+die je tijdens de rit typt zou door het herstel stil worden weggegooid.
+
+En de zin staat nu onder het vakje waar hij over gaat, niet als één rode regel
+onder alles. Daarmee kwam ook de laatste Engelse hoek van het archief aan het
+licht: `passwordProblem` en `usernameProblem` antwoordden *"Use at least 8
+characters."* — op het eerste scherm dat een nieuwe speler ziet. Ze staan nu in
+`lib/auth/rules.mjs` en `lib/auth/username.mjs`, twee bestanden die niets
+importeren, zodat de browser dezelfde zin stelt als de server.
+
+**"Een nieuw account aanmaken op de login pagina is ook heel erg onduidelijk."**
+Het stond er wel: *"Nieuw hier? Gebruik je uitnodigingscode."*, acht grijze
+woorden onderaan, in hetzelfde `.small .muted` als de waarschuwing erboven, en
+het woord dat de bestemming beschreef stond waar een mens een *zelfstandig
+naamwoord* verwacht in plaats van een werkwoord. Het is nu een paneel met een
+stippellijn, een kop, een knop over de volle breedte (**Registreer je nu**) en
+eronder de enige voorwaarde. Bewust geen tweede rode knop: het rode stempel op
+die pagina is *Inloggen*, en twee rode knoppen maken van een pagina een vraag.
+Dit paneel is hard te missen door zijn vorm.
+
+Twee prijzen die we bewust betalen. `noValidate` staat aan, dus een leeg vakje
+krijgt onze Nederlandse zin op dezelfde plek in plaats van een bel in de taal van
+de browser. En een client-functie aan `useActionState` betekent dat het formulier
+geen serveractie meer als `action` heeft, dus het verzendt niet meer zonder
+JavaScript. Dat was nooit een ondersteunde manier om dit archief te gebruiken en
+het was eerder per ongeluk waar.
+
+### De punaise die wacht (§64)
+
+**"Als ik vanuit een lege lijn een artikel toevoeg die nog niet onderdeel is van
+het dossier … dan spawned hij in los van het einde."** De eerste agent zocht dit
+in het web en vond daar niets, om de goede reden: in het web valt niets te
+slepen. Het is §52 op het prikbord — een draad die je op kaal kurk loslaat duwt
+een kale punaise in de muur, knoopt de draad eraan en opent de zoekdoos.
+
+Wat er stuk was: die punaise werd alleen onthouden in de *state* van die doos.
+Escape, een klik op het kurk en een binnengekomen pull van iemand anders maakten
+hem allemaal leeg, en de zoekbalk bovenaan de muur gaf helemaal geen plek mee.
+Dat is waarom de klacht precies over dit geval ging: een artikel dat al in het
+dossier zit pak je uit de lade, en alleen een artikel dat er *niet* in zit loopt
+via de doos en via "Toevoegen aan {dossier}".
+
+De beslissing: **het wachtende spoor staat in een ref, en wordt op precies één
+plek opgebruikt** — op het moment dat er echt een kaart hangt. Een blad dat
+zonder opslaan dichtgaat laat de punaise, de draad en de vraag dus staan, en de
+volgende keuze landt er nog steeds op. Afbreken laat ze ook staan: dat is wat
+§52 altijd deed, een verkeerd getypte Escape mag geen net getrokken draad
+vernietigen, en het is wat de balk in staat stelt te antwoorden. De kaart erft de
+positie die de punaise *nu* heeft, niet waar de draad ooit viel.
+
+En de les die de e2e-suite ons leerde en die niets met punaises te maken heeft:
+de eerste versie zette een regeltje in de werkbalk zodra er een draad wachtte.
+`.board-tools` ligt *boven* `.board-viewport`, dus de hele muur schoof omlaag, en
+een spec die de kop van een speld één keer opmeet zat er bij de tweede sleep
+twintig pixels naast — met een rood dat naar de zoekdoos wees en niet naar de
+opmaak. Niets in die werkbalk dat aan en uit kan mag nog ruimte innemen.
+
+### De geschiedenis (§65)
+
+**"De edit history laat niet zien wat er aangepast is, het is gewoon een log met
+bijna 0 info."** Klopt, en het kon ook niet anders: de regel printte een naam en
+een tijd, en het enige dat erachter zat was een regeldiff van de lopende tekst.
+
+Er hoefde niets nieuws voor weggeschreven te worden. `writeRevision` maakt al
+sinds het begin een momentopname van het hele artikel, dus wat een versie *deed*
+is het verschil met de versie eronder. Dat is `lib/entries/revisionDiff.ts`,
+puur en getoetst, en het is puur omdat elke zin die de geschiedenis afdrukt een
+beslissing is over wat een lezer mag weten — en zulke beslissingen horen niet in
+een servercomponent te worden samengesteld.
+
+Vier dingen worden niet gezegd, en de laatste twee zijn het interessantst. Een
+koppeling wordt geteld en nooit genoemd (regel 7: een id naar een naam oplossen
+zou een artikel verklappen dat het archief misschien dichthoudt).
+Zichtbaarheid en Keeper-aantekeningen zijn van de Keeper, en de woorden van die
+aantekeningen reizen niet eens mee uit de database — `listRevisions` selecteert
+die kolom alleen voor een Keeper, want `getEntryBySlug` wist hem al en een tweede
+weg die hem alsnog oplevert maakt die ene redactie ongedaan. Uit een **tijdvak
+dat dicht stond** wordt niets geciteerd: de naamwoorden blijven staan, de
+antwoorden niet. En een lege lijst levert een lege zin die als *niets* wordt
+afgedrukt, want "geen zichtbare wijziging" zou juist het teken zijn dat de Keeper
+aan de zichtbaarheid gedraaid heeft.
+
+Dat tijdvak sloot ook een gat dat er al zat en dat deze ronde alleen maar vond:
+het venster achter *Bekijken* printte de lopende tekst van elke versie aan
+iedereen die het artikel mag lezen — inclusief een versie die geschreven is toen
+het artikel op de Keeperkant stond en die leeggehaald was voordat het artikel
+openging. Zo'n versie zegt dat nu, in plaats van zichzelf voor te lezen.
+
+Twee reparaties in de momentopnames zelf waren nodig *voordat* die aftrekking de
+waarheid kon vertellen, en allebei waren het stille fouten van jaren. De
+ordening had een tiebreak nodig (`created_at` is hele seconden en terugzetten
+schrijft er twee in dezelfde), en `writeRevision` coalesceerde op de notitie van
+de *nieuwe* aanroep en nooit op die van de rij die hij overschreef — dus
+"aangemaakt" hield in de praktijk vast hoe een artikel er vijf minuten ná het
+maken uitzag, en een "teruggezet" werd stil overschreven door de eerstvolgende
+typfout. Een rij met een notitie legt een gebeurtenis vast en wordt niet meer
+overschreven. Terugzetten schrijft sindsdien ook een momentopname van wat het
+opleverde, zodat de keten sluit.
+
+Aan de leeskant: tien `json_extract`-kolommen in plaats van de hele blobs (de
+grootste sleutel is `body`, het hele ProseMirror-document, en beschrijven heeft
+daar niets van nodig — 0,75 ms tegen 6,36 ms op honderd opnames van 17 KB), één
+rij voorbij de pagina lezen zodat de onderste rij die je ziet door iets
+beschreven kan worden, en de tekst geteld als twee multisets van regels in plaats
+van met `diffLines`, want een LCS honderd keer per pagina is een kwadratische
+tabel honderd keer.
+
+### Vier kleinere dingen
+
+- **"Die artiekel".** In de eerste alinea van *Jouw karakters* stond twee keer
+  een fout lidwoord bij een het-woord: "maak de {artikel}" en "op die {artikel}".
+  De rest van het archief schrijft het goed, dus dit week als enige af.
+- **Een verwijzing is een link.** Middel- en rechtermuisknop deden niets op een
+  chip in de editor (daar stond `window.location.href`, die modifiers en
+  muisknoppen volledig negeerde), op een kaart op een prikbord, op een knoop in
+  het web en op een tag op een tijdlijn. Waar een echt `<a href>` kon is het er
+  nu een — met de voorwaarde dat elke druk die de muur, de as of het doek zelf
+  toebehoort de standaardactie van die link weigert, en dat een sleep nooit
+  navigeert. Waar het niet kon (een knoop is een streek in een `<canvas>`) doen
+  `auxclick` en de modifiers het werk. De prijs staat in
+  `tests/e2e/web.spec.ts`: de rijen in het webpaneel waren `<button>`s en zijn
+  `<a>`s, dus hun rol in de spec veranderde mee. Dat is de goede kant op —
+  een rij die een artikel aanwijst *is* een link.
+- **"Gespeeld op" heet "Verslagdatum".** Het enige veld op een sessierapport dat
+  over de tafel ging in plaats van over de wereld. Nick koos uit vier
+  voorstellen (*Opgetekend op*, *Dagtekening*, *Opgemaakt op*, *Verslagdatum*).
+  Via een merkteken in de seed, en alleen waar het label nog woord voor woord het
+  geleverde is: een Keeper die het zelf al anders noemde houdt zijn woord (§11).
+  De sleutel `date_played` verandert niet — daar hangen de ingevulde datums aan.
+- **Drie dingen uit de review die geen klacht waren.** Een legacy-uitsnede
+  (`{x, y, zoom}`) naast een uitsnede van ronde 19 (`{portrait: …}`) liet elke
+  oude versie "bijgesneden" roepen; `normaliseCrops` aan beide kanten lost dat
+  op. Een snelheidslimiet op het inlogformulier gooide de cursor in het
+  naamvakje, terwijl die zin van geen enkel vakje is. En `run` had geen
+  `try/catch`, dus een verzending zonder verbinding kwam als een error-boundary
+  terug in plaats van als een zin — met een uitzondering voor wat Next's eigen
+  `redirect` over een `digest` laat rijden, want dát doorslikken zou iemand
+  stranden op een formulier dat net gelukt was.
+
+### Waar ronde 30 eindigt
+
+- **Zonder JavaScript gaat de voordeur niet open.** Zie §63; bewust.
+- **De geschiedenis leest honderd versies.** Bij meer dan honderd is de onderste
+  rij die je ziet geen "aangelegd" meer maar een rij zonder samenvatting, wat
+  klopt maar niet uitlegt dat er meer is. Een knop "ouder" is er niet.
+- **Een tijdvak wordt afgemeten aan de zichtbaarheid van de twee momentopnames**
+  rond een stap. Een artikel dat tussen twee opnames in heen en terug op de
+  Keeperkant stond zonder dat er iets opgeslagen werd, is daarmee niet te zien —
+  in de praktijk schrijft omslaan een opname, maar de regel is "wat de opnames
+  zeggen", niet "wat er gebeurd is".
+- **Het wachtende spoor is er één.** Twee kale punaises aan twee draden: alleen
+  de laatste wordt vastgehouden, de oudere blijft staan zoals hij stond.

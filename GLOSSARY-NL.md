@@ -1024,3 +1024,31 @@ Beheer → Soorten, zoals bij elke soort.
 | **Niet opgeslagen — het archief antwoordde niet.** | de opslagstrip van een prikbord | Het archief antwoordde wél, maar slecht. Wordt vanzelf opnieuw geprobeerd (§61). |
 | **Niet opgeslagen — die kaart mocht hier niet hangen.** | de opslagstrip van een prikbord | Eén of meer kaarten zijn geweigerd (meestal §50: *Dat staat aan de andere kant van het archief.*). Die gaan van de muur, de rest wordt gewoon bewaard (§61). |
 | **Niet opgeslagen — het archief nam dit niet aan.** · **Niet opgeslagen — log eerst in.** | de opslagstrip van een prikbord | Een reden die niet met wachten overgaat. Het staat er met de zin van het archief zelf erachter als het er een gaf (§61). |
+
+## Ronde 30 — de voordeur, de wachtende punaise, en de geschiedenis (§63–§65)
+
+De zinnen op het inlog- en inschrijfformulier waren de laatste Engelse hoek van
+het archief. Ze staan nu in `lib/auth/rules.mjs` en `lib/auth/username.mjs`,
+twee bestanden die niets importeren, zodat de browser ze kan stellen zonder de
+server te vragen — en een te kort wachtwoord dus niets anders meer weggooit.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Nog geen account?** | de kop van het paneel onder het inlogformulier | De tweede deur. Stond er als *Nieuw hier?* in grijze kleine letters onderaan; het is nu een kop boven een knop (§63). |
+| **Registreer je nu** | de knop in dat paneel, over de volle breedte | Bewust géén `btn-primary`: het rode stempel op die pagina is *Inloggen*. Dit valt op door zijn vorm (§63). |
+| **Je hebt de uitnodigingscode van je Keeper nodig — die staat in je uitnodiging.** | onder die knop | De enige voorwaarde, vóór de klik in plaats van erna (§63). |
+| **Minstens 8 tekens.** | onder het wachtwoordvakje bij inschrijven | De regel hardop, vóór hij gebroken kan worden. Hij was alleen te vinden door hem te breken (§63). |
+| **Een wachtwoord is minstens 8 tekens lang.** | onder het wachtwoordvakje | Was *"Use at least 8 characters."* (§63). |
+| **Een naam is minstens 2 tekens lang.** · **Een naam is hoogstens 32 tekens lang.** · **Alleen letters, cijfers, spaties, streepjes en apostrofs.** | onder het naamvakje | Waren Engels (§63). |
+| **Vul de uitnodigingscode van je Keeper in.** · **Vul je naam in.** · **Vul je wachtwoord in.** | onder het betreffende vakje | `noValidate` staat aan, dus een leeg vakje krijgt deze zin op dezelfde plek als elke andere in plaats van een bel in de taal van de browser (§63). |
+| **Geen verbinding met het archief. Probeer het opnieuw.** | onder de knop | Het enige geval waarin er niets geantwoord werd. Stond er eerder helemaal niet: een verzending zonder verbinding gaf een foutpagina (§63). |
+| *(waar de zin staat)* | onder het vakje waar hij over gaat | Een reden die van één vakje is staat eronder en de cursor springt erheen. Een reden die van geen enkel vakje is — een snelheidslimiet, een archief dat nog niet ingericht is — staat onder de knop en verplaatst de cursor niet (§63). |
+| **Zoek wat er aan de {draad} komt…** | de plaatshouder van het zoekvakje boven een prikbord, zolang er een kale punaise aan een draad wacht | Zegt dat je keuze niet in het midden van het beeld landt maar aan die draad. In de plaatshouder en niet als regel eronder, want niets in die balk dat aan en uit kan mag ruimte innemen — dat schoof de hele muur omlaag (§64). |
+| **Aangelegd** | de eerste regel in de geschiedenis van een artikel | De enige versie waar niets vóór staat (§65). |
+| **Naam · Soort · Eerste regel · Tekst · Tags · Omslag · Uitsnede · Zichtbaar voor · Keeper-aantekeningen** | de regels onder een versie in de geschiedenis | De zelfstandige naamwoorden van wat een versie veranderde; de velden van de infobox staan ertussen onder hun eigen naam, in de volgorde van de soort (§65). |
+| **ingevuld: “…”** · **leeggemaakt** · **bijgewerkt** · **gewijzigd** · **“oud” → “nieuw”** | achter zo'n naamwoord | Wat ermee gebeurde. Een *Lange tekst* wordt nooit geciteerd (*bijgewerkt*), en een koppeling nooit genoemd maar geteld (**2 erbij, 1 eraf**) — die houdt ids, en een id naar een naam oplossen zou een artikel verklappen dat het archief misschien dichthoudt (§65, regel 7). |
+| **3 regels erbij, 1 regel eraf** · **12 woorden erbij** · **regels verplaatst** | achter *Tekst* | Hoeveel er aan de lopende tekst bewoog. De echte diff staat één klik verderop, achter *Bekijken* (§65). |
+| **en nog 3 dingen** | onder een versie die er meer dan acht veranderde | Eén opslag kan een hele infobox invullen; twintig regels onder één versie begraven de tien versies eronder (§65). |
+| **Deze versie is geschreven toen dit {artikel} op de {Keeperkant} stond. Wat er toen in stond, staat er niet meer en is niet van jou om terug te lezen.** | in plaats van de vergelijking, achter *Bekijken* | Een artikel mag een verleden hebben dat niet van iedereen is (regel 7, §9). Een Keeper ziet het wel (§65). |
+| **teruggezet** | de notitie op een versie in de geschiedenis | Nieuw naast *voor het terugzetten*: de momentopname van wat het terugzetten opleverde, zodat de keten sluit en de bovenste regel zegt wat het terugzetten deed (§65). |
+| **Verslagdatum** | het datumveld op een Sessierapport | Was *Gespeeld op*, het enige veld op dat soort dat over de tafel ging in plaats van over de wereld. Alleen hernoemd waar het label nog het geleverde was; een Keeper die het zelf al anders noemde houdt zijn woord (§11). |

@@ -112,16 +112,33 @@ test('from an artikel into the web, and around it', async ({ page }, testInfo) =
   const panel = page.getByTestId('web-panel');
   await expect(panel).toContainText(a.name);
   await expect(panel).toContainText('Tussen artikelen');
-  const rowB = panel.getByRole('button', { name: new RegExp(b.name) });
+  /*
+   * §64's round: a verbinding row is a **link**, not a button.
+   *
+   * Every row in the panel stands for something in the archive that has a page,
+   * so it is a real `<a href>` — which is what gives the middle button, a
+   * ⌘/Ctrl-klik and the right-click menu the "openen in een nieuw tabblad" a
+   * reader expects of a reference. Nothing else about the row changed: it still
+   * carries the direction mark, the phrase for the kind of tie, and a plain left
+   * click still picks the other end rather than walking to it.
+   */
+  const rowB = panel.getByRole('link', { name: new RegExp(b.name) });
   await expect(rowB).toContainText('genoemd in de tekst');
   await expect(rowB).toContainText('→');
+  // And it is a link in the way that matters: it points at the artikel itself.
+  await expect(rowB).toHaveAttribute('href', `/e/${b.slug}`);
   // Depth 1: C is two steps away and not here.
   await expect(panel).not.toContainText(c.name);
 
   // Pick B from the panel: the panel is now about B, and B can become the middle.
-  await panel.getByRole('button', { name: new RegExp(b.name) }).click();
+  // A plain click is refused by the row and answered here, so it picks; it does
+  // not navigate, which is what the assertions after it depend on.
+  await panel.getByRole('link', { name: new RegExp(b.name) }).click();
+  await expect(page).toHaveURL(/\/web\?focus=entry/);
   await expect(panel).toContainText(b.name);
-  await expect(panel.getByRole('button', { name: new RegExp(a.name) })).toContainText('←');
+  await expect(panel.getByRole('link', { name: new RegExp(a.name) })).toContainText('←');
+  // "Middelpunt" performs an action rather than naming a thing, so it is still
+  // a button — as is every other control in the panel.
   await panel.getByTestId('web-focus-this').click();
   await page.waitForURL(`**/web?focus=entry%3A${b.id}`);
   if (isPhone) {

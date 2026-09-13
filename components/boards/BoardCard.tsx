@@ -171,6 +171,103 @@ export function cardBorder(card: BoardCardModel, subject?: CardSubject): string 
 }
 
 /**
+ * Whether a press on a card's reference is the *browser's* to answer, not the
+ * wall's.
+ *
+ * The wall's left button is thoroughly spoken for: one click selects a card, a
+ * double-click opens what it stands for, and a press that travels drags it. So
+ * a plain left click is refused the anchor's own navigation — `open()` below
+ * still does the walking, and only when the press was a click rather than a
+ * drag. A press with ctrl, cmd or alt down is a reader asking the browser for a
+ * second place to read in, and those are handed straight on, untouched: no
+ * `preventDefault`, no `router.push`, nothing. The middle button and the
+ * context menu never arrive here at all — the surface is a real `<a>` with a
+ * real href and the browser answers both of those itself, which is the whole
+ * reason for making it an anchor.
+ *
+ * Shift is deliberately *not* in the list, and this is the one place in the app
+ * where it is not: on this wall shift+click adds a card to the selection, and a
+ * new window is not worth losing multiple selection over.
+ */
+function opensElsewhere(event: React.MouseEvent) {
+  return event.metaKey || event.ctrlKey || event.altKey;
+}
+
+/**
+ * The stylesheet paints every bare `a` in `--link` and underlines it, which is
+ * right in prose and wrong on a pinned index card: the name on the cork is set
+ * in the card's own serif, in the card's own ink, and it must look exactly as
+ * it looked when it was a `<p>`. Inline because it belongs to the element that
+ * needs it rather than to the cascade — a card is an anchor or a div depending
+ * on what it stands for, and only one of the two wants the reset.
+ */
+const LINK_RESET: React.CSSProperties = { color: 'inherit', textDecoration: 'none' };
+
+/**
+ * One of a card's clickable faces — the picture frame, or the name under it.
+ *
+ * It is a real `<a>` the moment the card stands for something in the archive,
+ * and a plain `<div>` when it stands for nothing (a notitie, a card whose
+ * artikel is gone, a pinned photograph that opens full size rather than going
+ * anywhere). Being an anchor is what gives the middle button, ctrl+click and
+ * "Openen op nieuw tabblad" in the context menu their ordinary meaning for
+ * free, without a line of JavaScript to read mouse buttons with.
+ *
+ * `draggable={false}` is not optional: a browser's own link-drag starts within
+ * the first few pixels of a card drag and takes the pointer capture with it, so
+ * the card would be left stuck to the cursor halfway across the wall.
+ */
+function CardFace({
+  href,
+  className,
+  title,
+  style,
+  tabIndex,
+  onClick,
+  onDoubleClick,
+  children,
+}: {
+  /** Where this face goes, or null when it goes nowhere. */
+  href: string | null;
+  className: string;
+  title?: string;
+  style?: React.CSSProperties;
+  /**
+   * `-1` on a face that is a link for the mouse and not a stop for the keyboard.
+   * A card has two faces pointing at the same artikel, and §62 already made the
+   * case on the tijdlijn: two tab stops for one thing is two presses of Tab per
+   * card to walk past a wall. Only on the anchor, because a `tabIndex` on the
+   * `<div>` would make a slip of paper take focus on a press for nothing.
+   */
+  tabIndex?: number;
+  onClick: (event: React.MouseEvent) => void;
+  onDoubleClick: (event: React.MouseEvent) => void;
+  children: React.ReactNode;
+}) {
+  if (!href) {
+    return (
+      <div className={className} title={title} style={style} onClick={onClick} onDoubleClick={onDoubleClick}>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <a
+      href={href}
+      draggable={false}
+      className={className}
+      title={title}
+      style={{ ...LINK_RESET, ...style }}
+      tabIndex={tabIndex}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
  * One index card. The picture frame is a uniform staand 3:4 whatever is in it
  * — the entry's cover, a picture pinned to this card, or a placeholder — so a
  * board reads as one wall of cards rather than a collage. The frame can be
@@ -182,6 +279,7 @@ export function BoardCardView({
   selected,
   interactive,
   canOpenOnTap,
+  pressMoved,
   onPointerDown,
   onPinPointerDown,
   onTextChange,
@@ -208,6 +306,17 @@ export function BoardCardView({
    * selected the card, so a boolean prop would always read "selected" by then.
    */
   canOpenOnTap: () => boolean;
+  /**
+   * Whether the press that is ending here travelled — a drag, not a click.
+   * Asked at click time, like `canOpenOnTap` and for the same reason.
+   *
+   * It exists because of one narrow case: ctrl held down while a card is
+   * dragged. The wall ignores ctrl, so that is an ordinary move, but the click
+   * the drag ends with carries the modifier and the anchor would answer it by
+   * opening the artikel in a new tab — a navigation nobody asked for, left
+   * behind by a gesture that was only ever about moving a card.
+   */
+  pressMoved: () => boolean;
   onPointerDown: (event: React.PointerEvent) => void;
   onPinPointerDown: (event: React.PointerEvent) => void;
   onTextChange: (text: string) => void;
@@ -309,6 +418,14 @@ export function BoardCardView({
     );
   }
 
+  /**
+   * Where this card's faces point, or null when they point nowhere. A card
+   * that stands for something in the archive has an address; a notitie, a
+   * pinned photograph and a card whose subject is gone or out of reach have
+   * none, and those faces stay plain `<div>`s.
+   */
+  const openHref = refers && subject ? subject.href : null;
+
   /** A card that stands for something opens it; a picture opens full size. */
   function open(event: React.MouseEvent) {
     event.stopPropagation();
@@ -316,12 +433,38 @@ export function BoardCardView({
     else if (isOwn) onViewFull();
   }
 
+  /**
+   * Which presses on a card's face the wall answers itself, and which it keeps
+   * its hands off. True means "not ours — the browser has it from here".
+   *
+   * Two ways a press is not the wall's. A modified one is the reader asking for
+   * a second tab or window (`opensElsewhere`) — *unless* the press travelled, in
+   * which case it was a drag and the modifier was incidental: a card moved with
+   * ctrl held down must not also walk off to its artikel when it lands. And a
+   * keyboard press is one too: "one click selects, two opens" is a sentence
+   * about a mouse, and somebody who has tabbed to a card and pressed Enter has
+   * asked for the artikel as plainly as anybody can. `detail === 0` is how a
+   * keyboard activation tells itself apart — a mouse click always counts.
+   */
+  function standAside(event: React.MouseEvent) {
+    // A face with nowhere to go has no default to refuse and nothing to hand on.
+    if (!openHref) return false;
+    if (event.detail === 0) return true;
+    if (opensElsewhere(event) && !pressMoved()) return true;
+    // Not a `stopPropagation`: the wall underneath still wants to know a card
+    // was pressed. Only the anchor's own walking is refused.
+    event.preventDefault();
+    return false;
+  }
+
   function onCoverClick(event: React.MouseEvent) {
+    if (standAside(event)) return;
     if (!canOpenOnTap()) return;
     open(event);
   }
 
   function onCoverDoubleClick(event: React.MouseEvent) {
+    if (standAside(event)) return;
     open(event);
   }
 
@@ -387,8 +530,14 @@ export function BoardCardView({
       />
 
       {framed ? (
-        <div
+        <CardFace
+          /* A real link when there is somewhere to go, so the middle button
+             and the context menu mean on this wall what they mean in prose. */
+          href={openHref}
           className={`board-card-cover ${coverClass('portrait')}`}
+          /* The name below is this card's tab stop; the picture is the same
+             link for the mouse and is skipped on the way past. */
+          tabIndex={-1}
           onClick={onCoverClick}
           onDoubleClick={onCoverDoubleClick}
           title={
@@ -426,7 +575,7 @@ export function BoardCardView({
             />
           )}
           {missing && <span className="stamp board-missing">Ontbreekt</span>}
-        </div>
+        </CardFace>
       ) : (
         // With the frame off the pin still needs somewhere to sit.
         <div className="board-card-nocover">
@@ -435,12 +584,18 @@ export function BoardCardView({
       )}
 
       <div className="board-card-body">
-        <p
+        <CardFace
+          href={openHref}
           className="board-card-name"
+          /* It was a `<p>`; an `<a>` is inline, and the name's own bottom
+             margin would be dropped on the floor without this. */
+          style={{ display: 'block' }}
           onClick={(event) => {
+            if (standAside(event)) return;
             if (refers && subject && canOpenOnTap()) open(event);
           }}
           onDoubleClick={(event) => {
+            if (standAside(event)) return;
             if (refers && subject) open(event);
           }}
         >
@@ -454,7 +609,7 @@ export function BoardCardView({
             with, and a notitie, a foto and a speld own that field themselves.
           */}
           {(refers && subject ? subject.name : card.name) || 'Naamloos'}
-        </p>
+        </CardFace>
 
         {editing ? (
           <>

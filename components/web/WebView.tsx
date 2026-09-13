@@ -354,7 +354,21 @@ export function WebView({
         <ul className="suggest-list web-suggest">
           {matches.map((node) => (
             <li key={node.id}>
-              <button type="button" className="suggest-item" onClick={() => setFocus(node.id)}>
+              {/*
+                A hit is a reference too, so it is a link as well — a plain
+                click still makes it the middelpunt, which is what this box is
+                for. `.suggest-item` is shared with every other picker in the
+                archive and says nothing about colour, so the two things a link
+                would bring along are refused here rather than in the
+                stylesheet, where it would reach a dozen pickers that are
+                rightly buttons.
+              */}
+              <NodeRowLink
+                node={node}
+                className="suggest-item"
+                style={{ color: 'inherit' }}
+                onPlainClick={() => setFocus(node.id)}
+              >
                 <NodeGlyph node={node} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <strong>{node.name}</strong>
@@ -363,7 +377,7 @@ export function WebView({
                     {node.degree === 1 ? 'verbinding' : 'verbindingen'}
                   </span>
                 </span>
-              </button>
+              </NodeRowLink>
             </li>
           ))}
         </ul>
@@ -554,10 +568,10 @@ export function WebView({
       <ul className="web-list">
         {selectedNodes.map((node) => (
           <li key={node.id}>
-            <button type="button" className="web-list-row" onClick={() => onSelect(new Set([node.id]))}>
+            <NodeRowLink node={node} onPlainClick={() => onSelect(new Set([node.id]))}>
               <NodeGlyph node={node} />
               <span className="web-list-name">{node.name}</span>
-            </button>
+            </NodeRowLink>
           </li>
         ))}
       </ul>
@@ -580,6 +594,14 @@ export function WebView({
       </p>
       <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
         Shift-klik kiest er meer; shift-slepen trekt een vak. Een selectie kan op een {words.board}.
+      </p>
+      {/*
+        Written down because neither gesture leaves a mark on the glass: a knot
+        is a stroke in een canvas, so there is no cursor that turns into a hand
+        and no adres in de hoek van het venster to give it away.
+      */}
+      <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
+        Middelklik of ⌘/Ctrl-klik opent een knoop in een nieuw tabblad.
       </p>
     </div>
   );
@@ -610,11 +632,11 @@ export function WebView({
               .slice(0, 20)
               .map((node) => (
                 <li key={node.id}>
-                  <button type="button" className="web-list-row" onClick={() => setFocus(node.id)}>
+                  <NodeRowLink node={node} onPlainClick={() => setFocus(node.id)}>
                     <NodeGlyph node={node} />
                     <span className="web-list-name">{node.name}</span>
                     <span className="tiny muted">{node.degree}</span>
-                  </button>
+                  </NodeRowLink>
                 </li>
               ))}
           </ul>
@@ -757,6 +779,105 @@ export function WebView({
 
 /* ------------------------------------------------------------- the panel */
 
+/**
+ * A press that is asking for a second place to read in, rather than for this
+ * list's own answer. The tijdlijn's tags ask the same question in the same
+ * words (`opensElsewhere` there), and shift is in the list here for the same
+ * reason it is there: nothing in *a list* uses shift with a pointer. On the
+ * glass it does — shift-klik kiest er meer — which is why `WebCanvas` has to
+ * spell its own version out rather than share this one.
+ */
+function opensElsewhere(event: {
+  /** A key press has no button, and a key press is never the middle one. */
+  button?: number;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}) {
+  return (event.button ?? 0) !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
+/**
+ * Een referentie is een link.
+ *
+ * Every row in the web's lists — the selection, the panel's verbindingen, the
+ * phone's twenty busiest knots, a hit in the search box — *is* a reference to
+ * something in the archive that has a page. Each was a `<button>`, which means
+ * the two things every reader does to a reference did nothing at all: the
+ * middle button opened no tab, and the right-click menu had no "Openen in een
+ * nieuw tabblad" to offer, because there was no link under the cursor for it to
+ * talk about. A prikbord's faces and a tijdlijn's tags are already real `<a>`s
+ * for exactly that reason; the web was the one surface still left out.
+ *
+ * So the row is an `<a href>` and the browser does all of it for us. A plain
+ * left click is still what the list is *for* — kiezen, of middelpunt maken —
+ * so that one is refused here; every other click is handed over untouched, and
+ * `contextmenu` is never touched at all. It is why there is no `window.open` in
+ * this file: the only place in the web that needs one is the canvas, where a
+ * knot is a stroke and not an element for the browser to aim at.
+ *
+ * `draggable={false}` for the reason the other two carry it: a browser's own
+ * link-drag snatches the press away in the first few pixels.
+ */
+function NodeRowLink({
+  node,
+  onPlainClick,
+  onPlainDoubleClick,
+  className = 'web-list-row',
+  style,
+  title,
+  children,
+}: {
+  node: WebNode;
+  onPlainClick: () => void;
+  onPlainDoubleClick?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      className={className}
+      href={node.href}
+      title={title}
+      draggable={false}
+      // The row wears the list's own type, not a link's: `.web-list-row` already
+      // says `color: inherit`, and the underline is all that is left to refuse.
+      style={{ textDecoration: 'none', ...style }}
+      onClick={(event) => {
+        // A modified click is the browser's — that is where "in een nieuw
+        // tabblad" comes from, and we must not stand in front of it. React's
+        // onClick is the primary button only; the middle one arrives as
+        // `auxclick` and is never seen here at all, which is the point.
+        if (opensElsewhere(event)) return;
+        event.preventDefault();
+        onPlainClick();
+      }}
+      onDoubleClick={
+        onPlainDoubleClick
+          ? (event) => {
+              if (opensElsewhere(event)) return;
+              event.preventDefault();
+              onPlainDoubleClick();
+            }
+          : undefined
+      }
+      onKeyDown={(event) => {
+        // A `<button>` answered the spacebar and an `<a>` scrolls the page with
+        // it, so the row would have lost half of its keyboard. Enter needs
+        // nothing: it arrives as a click and `onClick` above answers it.
+        if (event.key !== ' ' || opensElsewhere(event)) return;
+        event.preventDefault();
+        onPlainClick();
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 function NodeGlyph({ node }: { node: WebNode }) {
   const icon = node.kind === 'entry' ? (node.isCharacter ? 'mask' : node.typeIcon || 'file') : NODE_KINDS[node.kind].icon;
   const colour = node.kind === 'entry' ? node.typeColour : undefined;
@@ -820,7 +941,12 @@ function NodePanel({
         const via = edge.via ? nodeById.get(edge.via) : undefined;
         return (
           <li key={`${edge.id}|${other.id}`}>
-            <button type="button" className="web-list-row" onClick={() => onPick(other.id)} onDoubleClick={() => onFocus(other.id)} title={`${arrow === '←' ? `${other.name} wijst hierheen` : arrow === '→' ? `${node.name} verwijst naar ${other.name}` : `${words.string} tussen beide`} · klik: kiezen · dubbelklik: middelpunt`}>
+            <NodeRowLink
+              node={other}
+              onPlainClick={() => onPick(other.id)}
+              onPlainDoubleClick={() => onFocus(other.id)}
+              title={`${arrow === '←' ? `${other.name} wijst hierheen` : arrow === '→' ? `${node.name} verwijst naar ${other.name}` : `${words.string} tussen beide`} · klik: kiezen · dubbelklik: middelpunt · middelklik: nieuw tabblad`}
+            >
               <span className="web-list-arrow" aria-hidden="true" style={{ color: edgeColourVar(edge) }}>{arrow}</span>
               <NodeGlyph node={other} />
               <span style={{ flex: 1, minWidth: 0 }}>
@@ -830,7 +956,7 @@ function NodePanel({
                   {via ? ` · ${via.name}` : ''}
                 </span>
               </span>
-            </button>
+            </NodeRowLink>
           </li>
         );
       })}

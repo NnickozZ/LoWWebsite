@@ -221,11 +221,26 @@ export function writeRevision(
   if (!entry) return;
 
   const nowSeconds = Math.floor(Date.now() / 1000);
+  /*
+   * §65: `createdAt` is whole seconds, and a restore now writes two revisions in
+   * the same one, so "the latest" needs a tiebreak or SQLite is free to answer
+   * with either. `rowid` is insertion order, which is exactly the question being
+   * asked. The same tiebreak is on `listRevisions`, where the history's whole
+   * reading — each row as the step from the row below it — depends on the order
+   * being the order things were written in.
+   *
+   * Honest about what `rowid` is worth: this table's primary key is `TEXT`, so
+   * SQLite promises nothing about the rowid surviving a `VACUUM` — only an
+   * `INTEGER PRIMARY KEY` is an alias for it. In practice a VACUUM copies rows
+   * out in rowid order and the order comes back the same, and `scripts/restore.mjs`
+   * replays the file rather than the rows. If that ever stops being true the fix
+   * is a column with sub-second time in it, not a stronger claim here.
+   */
   const latest = db
     .select()
     .from(schema.entryRevisions)
     .where(eq(schema.entryRevisions.entryId, entryId))
-    .orderBy(desc(schema.entryRevisions.createdAt))
+    .orderBy(desc(schema.entryRevisions.createdAt), sql`${schema.entryRevisions}.rowid DESC`)
     .limit(1)
     .get();
 
@@ -243,12 +258,28 @@ export function writeRevision(
     keeperNotes: entry.keeperNotes,
   };
 
+  /*
+   * §65: `!latest.note` is the fourth condition, and it was missing.
+   *
+   * Coalescing tests the *incoming* call's note, which keeps a landmark from
+   * being created on top of an ordinary save — but it never asked what the row
+   * it is about to overwrite says. So a Keeper who restored a version and then
+   * fixed a typo thirty seconds later had the "teruggezet" row's snapshot
+   * quietly replaced by the post-typo state: the note still said teruggezet, and
+   * "Bekijken" on it showed something else entirely. Same for "aangemaakt",
+   * which for years has been holding whatever the artikel looked like five
+   * minutes after it was made rather than what it was made as.
+   *
+   * A row with a note records an *event*. Overwriting its snapshot makes the note
+   * a lie, so it is left alone and the save gets a row of its own.
+   */
   if (
     latest &&
     latest.editedBy === editedBy &&
     (latest.characterId ?? null) === characterId &&
     nowSeconds - latest.createdAt < REVISION_COALESCE_SECONDS &&
-    !note
+    !note &&
+    !latest.note
   ) {
     db.update(schema.entryRevisions)
       .set({ snapshot, createdAt: nowSeconds })
@@ -984,6 +1015,19 @@ export function restoreRevision(revisionId: string, user: Author) {
     })
     .where(eq(schema.entries.id, revision.entryId))
     .run();
+  /*
+   * §65: and a revision *of the restored state*, right after it lands.
+   *
+   * Until round 30 a restore wrote one revision — the state it was about to
+   * replace, noted "voor het terugzetten" — and nothing after. That left the
+   * newest row in the history holding a snapshot of a version the artikel no
+   * longer had, so a history that describes each row as the step from the row
+   * below it would describe the restore as whatever the *previous* edit did, and
+   * never mention the restore at all. One more snapshot closes the chain: the
+   * note keeps it out of `writeRevision`'s five-minute coalescing, and "Bekijken"
+   * on it now shows the version the restore actually produced.
+   */
+  writeRevision(revision.entryId, user.id, 'teruggezet', user.characterId ?? null);
   recomputeLinks(revision.entryId, snapshot.body);
   // §27: an old version puts an old infobox back, so it puts its mentions back too.
   recomputeFieldMentions(revision.entryId);
@@ -1009,7 +1053,27 @@ export function restoreRevision(revisionId: string, user: Author) {
   return revision.entryId;
 }
 
-export function listRevisions(entryId: string) {
+/**
+ * §65: the history, with enough of each snapshot beside it to say what the
+ * revision *did*.
+ *
+ * The ten `json_extract` columns are the point. A snapshot's biggest key by far
+ * is `body`, the whole ProseMirror document, and describing a change needs none
+ * of it — `bodyText` is the plain projection written beside it for exactly this
+ * kind of reading. Pulling the blobs whole and picking in JavaScript would read
+ * two to three times as much for a hundred rows, on a page that is already the
+ * busiest read in the archive.
+ *
+ * `json_extract` of an object or an array hands back JSON *text*, so `fields`,
+ * `tags` and `coverCrop` arrive as strings; `revisionFacts` in
+ * `lib/entries/revisionDiff.ts` is the one reader that untangles that, and it
+ * treats every key as missing until proven otherwise, because these rows were
+ * written by a dozen rounds of this app.
+ */
+export const REVISION_PAGE = 100;
+
+export function listRevisions(entryId: string, keeper = false) {
+  const snap = schema.entryRevisions.snapshot;
   return db
     .select({
       id: schema.entryRevisions.id,
@@ -1020,12 +1084,41 @@ export function listRevisions(entryId: string) {
       characterId: schema.entryRevisions.characterId,
       username: schema.users.username,
       isKeeper: schema.users.isKeeper,
+      snapName: sql<string | null>`json_extract(${snap}, '$.name')`,
+      snapShort: sql<string | null>`json_extract(${snap}, '$.shortDescription')`,
+      snapBodyText: sql<string | null>`json_extract(${snap}, '$.bodyText')`,
+      snapFields: sql<string | null>`json_extract(${snap}, '$.fields')`,
+      snapTags: sql<string | null>`json_extract(${snap}, '$.tags')`,
+      snapTypeId: sql<string | null>`json_extract(${snap}, '$.typeId')`,
+      snapCoverAssetId: sql<string | null>`json_extract(${snap}, '$.coverAssetId')`,
+      snapCoverCrop: sql<string | null>`json_extract(${snap}, '$.coverCrop')`,
+      snapVisibility: sql<string | null>`json_extract(${snap}, '$.visibility')`,
+      /*
+       * §65: the Keeper's notes leave the database only for a Keeper.
+       * `getEntryBySlug` blanks that column for everybody else, and a second
+       * road that quietly hands the same words to the same page would undo the
+       * one redaction the artikel page has. Nothing renders them — the history
+       * only ever says *that* they moved — but the words do not need to travel
+       * to say that, and a later `{...revision}` spread would not know.
+       */
+      snapKeeperNotes: keeper
+        ? sql<string | null>`json_extract(${snap}, '$.keeperNotes')`
+        : sql<string | null>`NULL`,
     })
     .from(schema.entryRevisions)
     .leftJoin(schema.users, eq(schema.users.id, schema.entryRevisions.editedBy))
     .where(eq(schema.entryRevisions.entryId, entryId))
-    .orderBy(desc(schema.entryRevisions.createdAt))
-    .limit(100)
+    // §65: see `writeRevision` — whole seconds need a tiebreak, and insertion
+    // order is the one the history reads by.
+    .orderBy(desc(schema.entryRevisions.createdAt), sql`${schema.entryRevisions}.rowid DESC`)
+    /*
+     * §65: one row past the page on purpose. The history describes each row as
+     * the step from the row below it, so the oldest row it *shows* needs a row
+     * beneath it to be described at all — and whether that row exists is also
+     * how the page knows the difference between "this is where the artikel
+     * began" and "this is where we stopped reading".
+     */
+    .limit(REVISION_PAGE + 1)
     .all();
 }
 

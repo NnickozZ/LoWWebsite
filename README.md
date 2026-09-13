@@ -2695,3 +2695,154 @@ Sixty-two rules worth knowing before changing anything:
     zetten"**, in the line under the axis and in the empty state. Keyboard: the
     stage is focusable; arrows pan (Shift faster), `+` and `−` zoom, `0` shows
     everything, Esc closes the last window.
+
+63. **De voordeur gooit nooit weg wat je al getypt had, en heeft een tweede
+    deur die je kunt zien.** §63. `<form action={…}>` met `useActionState` is een
+    React-formulieractie, en React roept er `requestFormReset()` op zodra de
+    actie klaar is — met opzet, want het gewone geval is een formulier dat
+    lukte. Een wachtwoord van zeven tekens kwam dus terug met zijn zin *en* een
+    lege uitnodigingscode en een lege naam, en dat tweede had met geen van beide
+    iets te maken.
+
+    Drie antwoorden, opzettelijk op elkaar gestapeld, in
+    `app/(auth)/AuthForm.tsx`. De regels worden **eerst in de browser** gevraagd:
+    `run()` is een client-functie die aan `useActionState` wordt gegeven, dus
+    "te kort" en "die twee zijn niet hetzelfde" worden beantwoord zonder dat het
+    archief iets gevraagd wordt. Dat is ook de enige reden dat de vakjes een
+    wachtwoord mogen vasthouden — de echo verlaat deze machine niet, want `run`
+    heeft de `FormData` nog in handen nadat de server geantwoord heeft, en de
+    serveractie krijgt `{}` mee en nooit de vorige staat (argumenten van een
+    serveractie reizen mee in het verzoek). Elk vakje leest daarna zijn
+    `defaultValue` uit die echo, want een reset zet een vakje terug op zijn
+    *attribuut*. En omdat dat ervan afhangt dat React in dezelfde commit reset,
+    schrijft een `useEffect` de waarden er ook nog eens met de hand in: een
+    effect loopt ná de commit en heeft dus het laatste woord. De vakjes staan
+    `readOnly` zolang het archief antwoord geeft, want de echo is de `FormData`
+    van het moment van verzenden en een letter die je er tijdens de rit in typt
+    zou stil verdwijnen.
+
+    De zin staat **onder het vakje waar hij over gaat** (`field` op `AuthState`)
+    en de cursor springt erheen; een reden die van geen enkel vakje is — een
+    snelheidslimiet, een archief dat nog niet ingericht is — staat onder de knop
+    en verplaatst de cursor niet. De regels zelf staan in `lib/auth/rules.mjs`
+    en `lib/auth/username.mjs`, twee bestanden die *niets* importeren, zodat de
+    browser en de server onmogelijk van mening kunnen verschillen over "lang
+    genoeg"; `lib/auth/password.mjs` exporteert ze opnieuw zodat elke bestaande
+    aanroep blijft werken. Die zinnen zijn nu Nederlands — dit was de laatste
+    hoek van het archief die in het Engels antwoordde, en hij deed het op het
+    eerste scherm dat een nieuwe speler ooit ziet.
+
+    De weg naar een account was acht grijze woorden onderaan de kaart, in
+    precies hetzelfde `.small .muted` als de waarschuwing erboven. Het is nu een
+    paneel met een stippellijn, een eigen kop (**Nog geen account?**), een knop
+    over de volle breedte (**Registreer je nu**) en eronder de enige voorwaarde.
+    Bewust géén tweede `btn-primary`: het rode stempel op die pagina is
+    *Inloggen*. Het paneel is hard te missen door zijn *vorm*, niet door zijn
+    kleur — wat dit archief overal doet.
+
+    Twee prijzen, opgeschreven zodat niemand ze "repareert". `noValidate` staat
+    aan: `required` blijft op de vakjes staan voor wie met een schermlezer
+    werkt, maar een leeg vakje krijgt dezelfde Nederlandse zin op dezelfde plek
+    als een te kort vakje, in plaats van een bel in de taal van de browser. En
+    een client-functie aan `useActionState` betekent dat het formulier geen
+    serveractie meer als `action` heeft, dus het verzendt niet meer met
+    JavaScript uit. Dat was nooit een ondersteunde manier om dit archief te
+    gebruiken en het was eerder per ongeluk waar; nu is het met opzet niet waar.
+
+64. **Een punaise aan een draad houdt vast tot er iets op komt.** §64. §52 liet
+    een draad die je op kaal kurk losliet een kale punaise achter, knoopte de
+    draad eraan vast en opende de zoekdoos op die plek — maar hij onthield die
+    punaise alleen in de *state* van die doos. Escape, een klik op het kurk en
+    een binnengekomen pull van iemand anders maakten hem allemaal leeg, en de
+    zoekbalk bovenaan de muur gaf helemaal geen plek mee. Wie dus een artikel
+    koos dat nog niet in het dossier zat — het ene geval dat via
+    `offerToFileEntry` en "Toevoegen aan {dossier}" loopt, en precies het geval
+    dat gemeld werd — kreeg zijn kaart los in het midden van het beeld, met de
+    punaise nog leeg aan de draad.
+
+    De wachtende punaise staat nu in een **ref** (`pendingPin`, met
+    `pendingPinHolds()` en `leadPlace()` puur in `lib/boards/place.ts`), gezet op
+    het moment dat de kale punaise gemaakt wordt en niet wanneer de doos
+    opengaat. Hij overleeft dus het sluiten van de doos, een pull, het wachten
+    op `/api/preview`, het blad voor een nieuw artikel, de bevestiging en de
+    `router.refresh()` erna. Er is **één** plek waar hij opgebruikt wordt
+    (`takeLead()`, vanuit `putCard`, op het moment dat er echt een kaart hangt),
+    dus een blad dat zonder opslaan dichtgaat laat de punaise, de draad en de
+    vraag precies zoals ze waren. Beide zoekdozen — de zwevende en die in de
+    balk — beantwoorden dezelfde wachtende draad, en de kaart erft de positie
+    die de punaise *nu* heeft, niet waar de draad ooit viel.
+
+    Afbreken laat de kale punaise en zijn draad staan en houdt de vraag open, in
+    alle drie de afbreekwegen. Dat is wat §52 altijd deed (een spoor met een
+    plek erop), een verkeerd getypte Escape mag geen net getrokken draad
+    vernietigen, en het is wat de balk in staat stelt om te antwoorden.
+    Loslaten is de handeling die er al was: trek de draad van de punaise af.
+    Alleen het laatste spoor wordt vastgehouden.
+
+    Eén regel die deze ronde aan `BoardCanvas.tsx` toegevoegd is en die geen
+    hint is maar een les: **niets in `.board-tools` dat aan en uit kan gaan mag
+    ruimte innemen.** De eerste versie zette er een regeltje bij zodra er een
+    draad wachtte, de werkbalk werd daarvan hoger, en de hele muur schoof
+    omlaag — waarop een e2e-spec die de kop van een speld één keer opmeet er bij
+    de tweede sleep twintig pixels naast zat. De melding zit nu in de
+    `placeholder` van het zoekvakje en in een `.visually-hidden` regel via
+    `aria-describedby`, en het toegankelijke *label* verandert niet, want vier
+    specs vinden dat vakje op zijn naam.
+
+65. **De geschiedenis zegt wát er veranderd is.** §65. De geschiedenis onder een
+    artikel was een lijst regels die elk een naam en een tijd zeiden en niets
+    anders — "Iemand · 3 uur geleden", elf keer. Eén ervan openen gaf een
+    regeldiff van de lopende tekst, en dat was het enige dat hij kón zeggen: een
+    ronde werk die het artikel hernoemde, vier velden invulde en de omslag
+    eraf trok las precies als een ronde die één typfout repareerde.
+
+    Er wordt niets nieuws voor weggeschreven. `writeRevision` maakt al sinds het
+    begin een momentopname van het hele artikel, dus wat een versie *deed* is
+    het verschil tussen zijn momentopname en die van de versie eronder.
+    `lib/entries/revisionDiff.ts` is die aftrekking, puur en getoetst
+    (`tests/unit/revision-diff.test.ts`): naam, soort, eerste regel, tekst, elk
+    veld in de infobox (in de eigen volgorde van de soort), tags, omslag,
+    uitsnede, zichtbaarheid en Keeper-aantekeningen. De regel noemt de
+    zelfstandige naamwoorden, eronder staat per ding wat ermee gebeurde, en het
+    venster achter *Bekijken* zet diezelfde lijst boven de tekstdiff, zodat
+    *Deze versie terugzetten* zegt waar het over gaat.
+
+    **Vier dingen die niet gezegd worden.** Een koppeling wordt geteld en nooit
+    genoemd: die velden houden ids, en een id naar een naam oplossen zou een
+    lezer de naam van een artikel geven dat het archief misschien voor hem
+    dichthoudt (regel 7). Zichtbaarheid en Keeper-aantekeningen zijn van de
+    Keeper, en van de aantekeningen reizen de woorden niet eens mee uit de
+    database. Uit een **tijdvak dat dicht stond** (`visibility: 'keeper'` aan één
+    van beide kanten van de stap) wordt niets geciteerd: de naamwoorden blijven
+    staan — dát er iets veranderde zegt de regel al door te bestaan — maar geen
+    enkel antwoord van achter die deur wordt voorgelezen. Datzelfde tijdvak
+    sluit nu ook de oude tekstdiff, wat een gat was dat deze ronde vond en niet
+    maakte. En een lege lijst levert een **lege** zin op, die als niets
+    afgedrukt wordt: "geen zichtbare wijziging" zou juist het teken zijn dat de
+    Keeper aan de zichtbaarheid gedraaid heeft.
+
+    Drie dingen aan de leeskant. `listRevisions` haalt tien `json_extract`-
+    kolommen op in plaats van de blobs: de grootste sleutel in een momentopname
+    is `body`, het hele ProseMirror-document, en beschrijven heeft daar niets van
+    nodig — `bodyText` staat ernaast. Gemeten op honderd opnames van 17 KB is
+    dat 0,75 ms tegen 6,36 ms. Hij leest **één rij voorbij de pagina**, want de
+    onderste rij die je ziet heeft een rij onder zich nodig om door beschreven
+    te worden, en of die rij bestaat is ook hoe de pagina het verschil weet
+    tussen "hier begon het artikel" en "hier zijn we gestopt met lezen". En de
+    tekst wordt niet met `diffLines` geteld maar als twee multisets van regels,
+    lineair: de echte diff staat nog steeds één klik verderop.
+
+    Twee reparaties in de momentopnames zelf, allebei nodig voordat die
+    aftrekking de waarheid vertelt. `created_at` is hele seconden en een
+    terugzetting schrijft er twee in dezelfde, dus de ordening heeft
+    `rowid DESC` als tiebreak — de hele lezing hangt aan "elke rij is de stap
+    vanaf de rij eronder". En `writeRevision` coalesceerde op de *nieuwe* notitie
+    en nooit op die van de rij die hij overschreef, dus een Keeper die
+    terugzette en dertig seconden later een typfout verbeterde zag de
+    momentopname van de rij "teruggezet" stil vervangen worden; hetzelfde gold
+    jarenlang voor "aangemaakt", dat in de praktijk vasthield hoe het artikel er
+    vijf minuten ná het maken uitzag. Een rij met een notitie legt een
+    *gebeurtenis* vast en wordt niet meer overschreven. Terugzetten schrijft
+    sindsdien ook een momentopname van de staat die het terugzetten opleverde,
+    zodat de keten sluit.
+

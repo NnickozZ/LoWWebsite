@@ -238,10 +238,15 @@ export function CharacterWardrobe({ me }: { me: Me }) {
           one exception is the first one, and the paragraph says so only while
           it is true — a speler holding nobody. */}
       {state.characters.length === 0 ? (
+        /* "artikel" is een het-woord, dus "het" en "dat" — dit stond er twee
+           keer fout ("maak de …", "op die …") en het is de eerste alinea die
+           een nieuwe speler op de Jij-pagina leest. De rest van het archief
+           schrijft het goed ("Het {words.entry} komt in de wiki", "Op dat
+           {words.entry} komt dan"), dus dit week als enige af. */
         <p className="small muted" style={{ margin: 0 }}>
-          Je hebt nog geen {words.character}. Je eerste koppel je zelf: maak de {words.entry} van je
+          Je hebt nog geen {words.character}. Je eerste koppel je zelf: maak het {words.entry} van je
           onderzoeker en zoek hem hieronder op, of gebruik de knop &lsquo;
-          {words.thisIsMyCharacter}&rsquo; op die {words.entry}. Daarna geeft de {words.keeper} je
+          {words.thisIsMyCharacter}&rsquo; op dat {words.entry}. Daarna geeft de {words.keeper} je
           {' '}
           {words.characterPlural} uit.
         </p>

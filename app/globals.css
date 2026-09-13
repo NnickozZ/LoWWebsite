@@ -2250,6 +2250,69 @@ details.section[open] > summary::before {
   margin-bottom: 0.15rem;
 }
 
+/*
+ * §65: de regels onder een versie in de geschiedenis. Een ingesprongen lijstje
+ * zonder opsommingstekens, met een dun streepje links, zodat het bij de regel
+ * erboven hoort en niet bij de versie eronder. Klein en grijs: de kop van de
+ * regel is wie en wanneer, dit is het antwoord op "wat dan".
+ */
+.rev-changes {
+  list-style: none;
+  margin: 0.25rem 0 0.1rem;
+  padding: 0 0 0 0.65rem;
+  border-left: 2px solid var(--rule);
+  font-size: 0.84rem;
+  color: var(--ink-muted);
+}
+.rev-changes li {
+  margin: 0.1rem 0;
+  /* Een lange waarde in een veld mag de kolom niet oprekken. */
+  overflow-wrap: anywhere;
+}
+.rev-changes strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/*
+ * §63: de tweede deur. Wie nog geen account heeft stond tot ronde 30 voor acht
+ * grijze woorden onderaan de kaart, in precies hetzelfde `.small .muted` als de
+ * waarschuwing erboven. Nu is het een eigen paneel met een eigen kop en een
+ * knop over de volle breedte.
+ *
+ * Opzettelijk géén tweede `.btn-primary`: het rode stempel op de inlogpagina is
+ * *Inloggen*. Dit paneel is hard te missen door zijn vorm — een uitgesneden
+ * strook met een stippellijn, zoals een bon die je invult om toegelaten te
+ * worden — en niet door zijn kleur. Vorm is wat dit archief overal gebruikt om
+ * iets van een afstand leesbaar te maken.
+ */
+.auth-join {
+  margin-top: 1.3rem;
+  padding: 0.9rem 0.9rem 0.8rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  text-align: center;
+}
+.auth-join-head {
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin: 0 0 0.6rem;
+}
+.auth-join-btn {
+  width: 100%;
+  font-size: 1.02rem;
+}
+.auth-join-note {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  margin: 0.6rem 0 0;
+}
+
 /* ------------------------------------------------- card border treatments */
 /*
  * One treatment per entry type (lib/borders.mjs), meant to be read from across

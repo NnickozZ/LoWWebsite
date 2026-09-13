@@ -59,6 +59,33 @@ function ToolbarButton({ label, active, onClick, children }: ToolbarButtonProps)
   );
 }
 
+/**
+ * Whether a press on a reference is the *browser's* to answer rather than ours.
+ *
+ * A plain left click on a chip is the archive's: it walks you to the artikel in
+ * the tab you are already reading in, which is what a wiki does and what this
+ * has always done. Every other press is a reader asking for a *second* place to
+ * read in — ctrl or cmd for a tab, shift for a window, alt for a saved copy, and
+ * the middle button for a tab as well — and not one of those may be answered by
+ * taking the tab they are standing in.
+ *
+ * The two must diverge, because handling them alike is exactly the bug: a chip
+ * whose click was `window.location.href` took the tab you were standing in with
+ * it however you pressed, so ctrl+click *lost* the page you were reading
+ * instead of opening a second one, and the middle button did nothing at all —
+ * or, inside a contenteditable on X11, pasted the primary selection into the
+ * prose.
+ */
+function opensElsewhere(event: MouseEvent) {
+  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
+/** The chip under the pointer, for the events ProseMirror hands us raw. */
+function chipSlugAt(target: EventTarget | null) {
+  const chip = (target as HTMLElement | null)?.closest?.('a[data-entry-slug]');
+  return chip?.getAttribute('data-entry-slug') || null;
+}
+
 export function RichEditor({
   initialDoc,
   placeholder = 'Schrijf op wat er gebeurd is…',
@@ -220,13 +247,53 @@ export function RichEditor({
     ...(binding ? {} : { content: (initialDoc as object) ?? { type: 'doc', content: [{ type: 'paragraph' }] } }),
     editorProps: {
       attributes: { class: 'prose' },
-      handleClickOn: (_view, _pos, node) => {
-        // Clicking a chip while editing should still take you to the entry.
-        if (node.type.name === 'entryLink' && node.attrs.slug) {
-          window.location.href = `/e/${node.attrs.slug}`;
+      /*
+       * Clicking a chip while editing should still take you to the entry — and
+       * a chip is a reference, so it owes the reader everything a hyperlink
+       * owes them. The press's own event decides which: see `opensElsewhere`.
+       *
+       * `window.open` rather than letting the anchor follow itself, because
+       * this surface is a contenteditable for most of its life and a browser
+       * does not reliably follow a link the caret is allowed to sit in. So the
+       * new tab is opened by hand, and `return true` tells ProseMirror the
+       * press is answered — otherwise it would also put the caret on the chip.
+       */
+      handleClickOn: (_view, _pos, node, _nodePos, event) => {
+        if (node.type.name !== 'entryLink' || !node.attrs.slug) return false;
+        const url = `/e/${node.attrs.slug}`;
+        if (opensElsewhere(event)) {
+          event.preventDefault();
+          window.open(url, '_blank', 'noopener');
           return true;
         }
-        return false;
+        window.location.href = url;
+        return true;
+      },
+      handleDOMEvents: {
+        /*
+         * The middle button never reaches `handleClickOn`: a browser reports it
+         * as `auxclick` and ProseMirror's click handling is built on `click`. So
+         * the chip is found the other way round, from the element under the
+         * pointer, and opened by hand.
+         *
+         * `preventDefault` earns its place twice over here — it stops the
+         * middle button from pasting the X11 primary selection into the prose,
+         * which is what that button means inside a contenteditable, and it
+         * stops a browser from reading the press as the start of an autoscroll.
+         *
+         * Right-click is deliberately not handled at all, here or anywhere
+         * else in this file. The chip is a real `<a>` with a real href (see
+         * `EntryLink`), so the browser's own menu already offers to open it on
+         * a new tab; swallowing `contextmenu` is the one way to lose that.
+         */
+        auxclick: (_view, event) => {
+          if (event.button !== 1) return false;
+          const slug = chipSlugAt(event.target);
+          if (!slug) return false;
+          event.preventDefault();
+          window.open(`/e/${slug}`, '_blank', 'noopener');
+          return true;
+        },
       },
       /*
        * §30: a picture on the clipboard becomes a picture in the prose. This

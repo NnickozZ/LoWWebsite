@@ -37,6 +37,7 @@ export type SuggestedEntry = {
 export function BoardPicker({
   variant,
   cards,
+  holding = false,
   pickableMaps,
   pickableCases,
   pickableTimelines,
@@ -59,6 +60,17 @@ export function BoardPicker({
   variant: 'bar' | 'float';
   /** What is already on the wall, so the same thing is not offered twice. */
   cards: BoardCard[];
+  /**
+   * §64: a bare punaise is still waiting on the end of a draad, so whatever is
+   * picked here lands on *that* rather than in the middle of the view.
+   *
+   * Only the bar asks for this. The floating box is always standing on the
+   * punaise it opened for and says so in its own label, but the bar is the box a
+   * reader reaches for after the floating one has closed — and a card that
+   * quietly flies to the other side of the wall is a behaviour that reads as a
+   * bug the first time it happens. So it is said out loud, above the list.
+   */
+  holding?: boolean;
   pickableMaps: PickableItem[];
   pickableCases: PickableItem[];
   pickableTimelines: PickableItem[];
@@ -180,6 +192,11 @@ export function BoardPicker({
         Two labels, because both pickers can be on the screen at once and a
         label that reads the same twice is a label that names neither.
       */}
+      {/*
+        The label never moves with `holding`. Four e2e specs reach this box by
+        `getByLabel('Kaart toevoegen')`, and a control that renames itself when
+        the wall happens to be holding a lead is a control nothing can find.
+      */}
       <label className="visually-hidden" htmlFor={`board-search${variant === 'float' ? '-here' : ''}`}>
         {variant === 'float'
           ? `${capitalise(ui.words.card)} hier vastknopen`
@@ -190,9 +207,34 @@ export function BoardPicker({
         id={`board-search${variant === 'float' ? '-here' : ''}`}
         className="input"
         value={search}
-        placeholder={`Zoek een ${ui.words.entry}, landkaart, ${ui.words.case}, ${ui.words.board} of ${ui.words.timeline}…`}
+        /*
+         * §64: the notice lives in the placeholder, and that is not a shortcut.
+         *
+         * It was a line of its own under the box for one round, and it cost the
+         * suite a spec: `.board-tools` is laid out *above* `.board-viewport`, so a
+         * paragraph that appears when a draad is dropped makes the whole wall
+         * jump down by its height — under the hand that is still working, and out
+         * from under every coordinate anything had measured. Nothing that can
+         * turn on and off in the toolbar may take up room. A placeholder takes
+         * none, and it is where the reader is already looking.
+         */
+        placeholder={
+          holding
+            ? `Zoek wat er aan de ${ui.words.string} komt…`
+            : `Zoek een ${ui.words.entry}, landkaart, ${ui.words.case}, ${ui.words.board} of ${ui.words.timeline}…`
+        }
+        aria-describedby={holding ? `board-search-holding${variant}` : undefined}
         onChange={(event) => setSearch(event.target.value)}
       />
+      {/*
+        And the same sentence in full for a screen reader. `.visually-hidden` is
+        `position: absolute`, so this one is out of flow and cannot move the wall.
+      */}
+      {holding && (
+        <p className="visually-hidden" id={`board-search-holding${variant}`}>
+          Wat je kiest komt aan de {ui.words.string} die nog wacht.
+        </p>
+      )}
       {typed && (
         <ul className="suggest-list" style={{ position: 'absolute', zIndex: 30, left: 0, right: 0 }}>
           {suggestions.map((item) =>

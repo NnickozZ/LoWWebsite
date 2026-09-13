@@ -1,4 +1,4 @@
-import { cardBox, type BoardCard, type CardBox } from './merge';
+import { cardBox, isCardEnd, type BoardCard, type BoardString, type CardBox } from './merge';
 
 /**
  * §61: where a new card goes, worked out without stopping the wall.
@@ -218,4 +218,141 @@ export function freeSpotNear(input: {
     if (score === 0) break;
   }
   return { x: best.x, y: best.y };
+}
+
+/* --------------------------------------------- §64: de wachtende punaise */
+
+/**
+ * §64: een punaise aan een draad houdt vast tot er iets op komt.
+ *
+ * A draad let go on bare cork pushes a bare punaise in at the spot and ties
+ * itself to that (§52). The punaise is a question — "this lead goes somewhere I
+ * have not named yet" — and the next thing the person names is its answer: that
+ * thing *becomes* the punaise, so the draad is still tied to the same card id
+ * and never has to be rewritten.
+ *
+ * What this type is for is the gap in between. §52 only ever answered the
+ * question from the floating picker that opens at the drop, and only while that
+ * box was on the screen — so a reader who pressed Escape, clicked the cork, or
+ * was interrupted by a pull that shut the box, and then reached for the search
+ * box at the top of the wall, got a card in the middle of the view and a bare
+ * punaise still hanging off the draad. Which is exactly what the report said:
+ * "spawned hij in los van het einde en niet connected aan de lijn".
+ *
+ * So the waiting punaise outlives the box. It is held in a ref rather than in
+ * state on purpose — see `pendingPin` in `BoardCanvas.tsx` — because it has to
+ * survive a re-render, an `await`, a sheet, a confirm and an incoming document,
+ * none of which may be allowed to forget what the draad was asking.
+ */
+export type PendingPin = {
+  /** The bare punaise's card id — the card a pick is to *become*. */
+  pin: string;
+  /**
+   * The board point the draad was let go at.
+   *
+   * A **fallback only**, and deliberately not where the answer lands: the
+   * punaise can be dragged across the wall while the lead waits, and a card that
+   * sprang back to the spot the draad was first dropped at — taking the draad
+   * with it — is its own bug. The card keeps the punaise's *current* place; this
+   * point is what is left to go on in the one case where the punaise itself has
+   * gone and a plain card has to be hung up somewhere sensible instead.
+   */
+  at: { x: number; y: number };
+};
+
+/**
+ * Where a picked thing lands.
+ *
+ * `at` is a board point — a card dragged out of the tray and dropped somewhere
+ * specific. `onto` is a card that is already there and is to *become* the thing
+ * picked, which is what answering a draad does: the draad is tied to that
+ * punaise already, so changing the card in place keeps the knot and a new card
+ * would not. Neither means "wherever there is room", which is the wall's oldest
+ * answer and still the right one for a card nobody placed.
+ */
+export type PlaceWhere = { at?: { x: number; y: number }; onto?: string };
+
+/**
+ * §64: does the waiting punaise still hold?
+ *
+ * A ref with no expiry would, left alone, hand a card to a punaise that is no
+ * longer there to take it — and silently overwrite a punaise somebody has since
+ * made something of. There is deliberately **no clock** here: "tot er iets op
+ * komt" means until something comes, however long that is, and a lead a reader
+ * left on the wall for ten minutes is still the lead they drew. What ends it is
+ * the wall itself, in three questions:
+ *
+ * 1. **Is it still on the wall?** An undo, this hand's own delete or somebody
+ *    else's takes the punaise, and there is then nothing to upgrade. (A card
+ *    made here and not saved yet is pushed back into every incoming document by
+ *    `shouldReadd`, so "absent" here means absent, not merely unsaved.)
+ * 2. **Is it still a bare punaise?** The moment it carries a name, or is no
+ *    longer a `pin` at all, it is a thing the person made on purpose — and a
+ *    pick that overwrote it would destroy work nobody asked it to.
+ * 3. **Is a draad still tied to it?** A punaise with no draad left is not "aan
+ *    een draad" any more, and answering a question nothing is asking would drop
+ *    a card on a reader from a gesture they have already undone.
+ */
+export function pendingPinHolds(input: {
+  pending: PendingPin | null;
+  cards: readonly BoardCard[];
+  strings: readonly BoardString[];
+}): boolean {
+  const { pending } = input;
+  if (!pending) return false;
+  const card = input.cards.find((item) => item.id === pending.pin);
+  if (!card) return false;
+  if (card.kind !== 'pin' || card.name) return false;
+  return input.strings.some(
+    (line) =>
+      (isCardEnd(line.from) && line.from.card === pending.pin) ||
+      (isCardEnd(line.to) && line.to.card === pending.pin),
+  );
+}
+
+/**
+ * The box a card wants so that it sits centred on a board point.
+ *
+ * This was three lines inside `putCard`, which is the one place on the wall
+ * where "where does it land" had escaped this module. It is the same answer for
+ * a card dragged out of the tray and for one that answers a draad: the paper
+ * is laid over the spot the hand let go of, not hung below it.
+ *
+ * `CARD_SIZE`, not the card's measured size: the document's reserved box is
+ * what every other placement on this wall is measured in, and a framed card
+ * painting taller than its box is a drawing detail rather than a position.
+ */
+export function boxAtPoint(
+  at: { x: number; y: number },
+  size: { width: number; height: number },
+): { x: number; y: number } {
+  return {
+    x: Math.round(at.x - size.width / 2),
+    y: Math.round(at.y - size.height / 2),
+  };
+}
+
+/**
+ * §64: the waiting punaise, turned into a place — or nothing.
+ *
+ * The whole decision in one pure function, so that the component has exactly
+ * **one** road from "a lead is waiting" to "the card goes here". It had two for a
+ * while — the picker rows took the lead when a row was pressed, and `putCard`
+ * took it when no place was given — and two readers of one ref is precisely how
+ * the first repair broke: pressing "'Jacob' aanmaken" consumed the lead, and
+ * closing the nieuw-artikel sheet without saving left the punaise on the wall
+ * with nothing holding it any more. The reported bug, back again, and now with
+ * no way to re-arm it but redrawing the draad.
+ *
+ * So nothing takes the lead until a card is actually being hung up. A pick is
+ * only a pick when it places something.
+ */
+export function leadPlace(input: {
+  pending: PendingPin | null;
+  cards: readonly BoardCard[];
+  strings: readonly BoardString[];
+}): PlaceWhere | null {
+  if (!pendingPinHolds(input)) return null;
+  const pending = input.pending!;
+  return { onto: pending.pin, at: pending.at };
 }

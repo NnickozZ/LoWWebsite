@@ -17,7 +17,24 @@ import { usernameKey, usernameProblem } from '@/lib/auth/username.mjs';
 import { newId } from '@/lib/ids';
 import { logAudit } from '@/lib/entries/service';
 
-export type AuthState = { error?: string };
+/**
+ * §63: which box the sentence is about, so the form can put it under that box
+ * instead of one red line under everything. `null`/absent means "nobody's box
+ * in particular" — a rate limit, an archive that was never set up.
+ */
+export type AuthField = 'code' | 'username' | 'password' | 'password2' | null;
+
+/**
+ * §63: `values` and `seq` are written by the *client* half of this action
+ * (`AuthForm.tsx`), never here — the archive has no business sending a password
+ * back down the wire. They are on the type because they travel in the same bag.
+ */
+export type AuthState = {
+  error?: string;
+  field?: AuthField;
+  values?: Record<'code' | 'username' | 'password' | 'password2', string>;
+  seq?: number;
+};
 
 export async function signupAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const ip = clientIp(await headers());
@@ -36,15 +53,17 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
   if (!settings) return { error: 'Het archief is nog niet ingericht. Voer `make bootstrap` uit.' };
 
   if (!constantTimeEqual(code.toUpperCase(), settings.inviteCode.toUpperCase())) {
-    return { error: 'Die uitnodigingscode klopt niet.' };
+    return { error: 'Die uitnodigingscode klopt niet.', field: 'code' };
   }
 
   const nameProblem = usernameProblem(username);
-  if (nameProblem) return { error: nameProblem };
+  if (nameProblem) return { error: nameProblem, field: 'username' };
 
-  if (password !== password2) return { error: 'De twee wachtwoorden zijn niet hetzelfde.' };
   const pwProblem = passwordProblem(password);
-  if (pwProblem) return { error: pwProblem };
+  if (pwProblem) return { error: pwProblem, field: 'password' };
+  if (password !== password2) {
+    return { error: 'De twee wachtwoorden zijn niet hetzelfde.', field: 'password2' };
+  }
 
   const key = usernameKey(username);
   const taken = db
@@ -52,7 +71,7 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
     .from(schema.users)
     .where(eq(schema.users.usernameLower, key))
     .get();
-  if (taken) return { error: 'Die naam is al in gebruik.' };
+  if (taken) return { error: 'Die naam is al in gebruik.', field: 'username' };
 
   const count = db
     .select({ n: sql<number>`count(*)` })
@@ -95,8 +114,9 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
     .where(eq(schema.users.usernameLower, usernameKey(username)))
     .get();
 
-  // Same message either way — no account enumeration.
-  const wrong = { error: 'Naam of wachtwoord klopt niet.' };
+  // Same message either way, and on *neither* box — naming one would be the
+  // account enumeration the single sentence exists to avoid.
+  const wrong: AuthState = { error: 'Naam of wachtwoord klopt niet.' };
   if (!user || user.isDisabled) return wrong;
   if (!(await verifyPassword(user.passwordHash, password))) return wrong;
 

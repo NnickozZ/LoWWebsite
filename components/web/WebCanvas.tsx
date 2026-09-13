@@ -724,6 +724,25 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+/**
+ * Een knoop openen in een nieuw tabblad.
+ *
+ * A knot is a reference to a thing that has a page, so the middle button and a
+ * ⌘/Ctrl-klik have to mean on a knot what they mean on any link in the archive.
+ * Everywhere *else* in the web that is a real `<a href>` and the browser does
+ * this for us (see `NodeRowLink` in `WebView.tsx`) — here it cannot be: the
+ * knots are strokes in a `<canvas>`, not elements, so there is nothing for the
+ * browser to aim at and this one line of our own is the whole of the fallback.
+ *
+ * `noopener` because the new tab has no business with `window.opener`, and the
+ * answer is checked: a blocked pop-up must not look like a click that worked.
+ */
+function openInNewTab(href: string | undefined): boolean {
+  if (!href) return false;
+  const opened = window.open(href, '_blank', 'noopener');
+  return Boolean(opened);
+}
+
 export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function WebCanvas(props, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -766,6 +785,16 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     },
     marquee: null as null | { x0: number; y0: number; x1: number; y1: number },
     lastClick: { id: null as WebNodeId | null, at: 0 },
+    /**
+     * When the browser's own context menu last opened over the glass.
+     *
+     * On a Mac a Ctrl-klik *is* the right mouse button, and it reaches
+     * `pointerup` as an ordinary left click with `ctrlKey` set — identical, from
+     * here, to the Ctrl-klik a Windows reader uses to open a link in a new tab.
+     * A menu that opened a moment ago is the only thing that tells the two
+     * apart, so the crossing is remembered rather than the platform sniffed.
+     */
+    menuAt: 0,
     fitKey: '',
     /** Fit once the drawing has settled enough to know its size. */
     pendingFit: false,
@@ -1961,7 +1990,9 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     if (!canvas) return;
     const s = state.current;
 
-    const local = (e: PointerEvent | WheelEvent) => {
+    // Any mouse-ish event: `auxclick` and `contextmenu` are plain MouseEvents,
+    // and a PointerEvent and a WheelEvent are both one too.
+    const local = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
@@ -1998,6 +2029,9 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         s.marquee = null;
         return;
       }
+      // Nothing about a non-primary button happens here. The middle one is
+      // answered by `onAux`/`onMiddleDown` below, and the right one belongs to
+      // the browser.
       if (e.button !== 0) return;
       // A tap on a speld lets that knot go; nothing else happens.
       const pinned = hitPin(p.x, p.y);
@@ -2159,6 +2193,32 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         return;
       }
       const node = g.node ?? null;
+      /*
+       * ⌘/Ctrl-klik is een link z'n ⌘/Ctrl-klik: een nieuw tabblad.
+       *
+       * A knot stands for a page, and until this round the only way to that
+       * page was the panel's "Openen" — so the two gestures every reader uses
+       * on a reference did nothing at all here. Shift-klik keeps choosing more
+       * than one, because that is the one the page itself promises ("Shift-klik
+       * kiest er meer") and a marquee is shift-slepen; ⌘/Ctrl was never written
+       * down anywhere, so it is the one free to mean what it means everywhere
+       * else in the archive. A Mac's Ctrl-klik is the right button and arrives
+       * here looking exactly like it — `menuAt` is how that one is left to the
+       * browser, whose own menu is already showing by the time we get here.
+       *
+       * Before the double-tap, because a modified press is never half of one —
+       * asking for a tab twice must not silently become "nieuw middelpunt" —
+       * and `lastClick` is cleared so the plain click after it is not either.
+       * Only when the tab actually opened: a blocked pop-up falls through to
+       * choosing the knot, which is better than a press that did nothing.
+       */
+      const menuJustOpened = s.menuAt > 0 && now - s.menuAt < 600;
+      if (node && !g.shift && (e.ctrlKey || e.metaKey) && !menuJustOpened) {
+        if (openInNewTab(s.nodeById.get(node)?.href)) {
+          s.lastClick = { id: null, at: 0 };
+          return;
+        }
+      }
       if (node && s.lastClick.id === node && now - s.lastClick.at < 420) {
         s.lastClick = { id: null, at: 0 };
         onFocus(node);
@@ -2169,7 +2229,7 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         if (!g.shift && selected.size) onSelect(new Set());
         return;
       }
-      if (g.shift || e.ctrlKey || e.metaKey) {
+      if (g.shift) {
         const next = new Set(selected);
         if (next.has(node)) next.delete(node);
         else next.add(node);
@@ -2207,6 +2267,58 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
 
     const onLeave = () => setHover(null, null);
 
+    /*
+     * De middelste knop op een knoop: een nieuw tabblad.
+     *
+     * `auxclick` is the middle button's click — it is not a `click`, and it is
+     * not a gesture either, so it is read off the glass on its own rather than
+     * threaded through `s.gesture`: a middle press never pans, never drags a
+     * knot and never draws a vak, so there is nothing a drag could turn it
+     * into. The knot is hit-tested where the button came up, the same way a tap
+     * is, so the middle button cannot open something the hand was not on.
+     */
+    /*
+     * Windows starts its autoscroll compass on the middle *press*, so the press
+     * is what has to be refused — and it has to be refused on **`mousedown`, not
+     * `pointerdown`**.
+     *
+     * Do not "tidy" this into `onDown`. Preventing a `pointerdown` suppresses
+     * the compatibility mouse events it would have produced, and `auxclick` is
+     * derived from that pair — browsers differ on exactly how much goes with it,
+     * and where it goes the middle button on a knot silently does nothing at all,
+     * which is the one thing `onAux` exists to prevent. `mousedown`'s own default
+     * action *is* the autoscroll, so refusing it there stops the compass and
+     * leaves the click sequence whole.
+     */
+    const onMiddleDown = (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault();
+    };
+
+    const onAux = (e: MouseEvent) => {
+      if (e.button !== 1) return;
+      // Unless a hand is already carrying something: a middle button pressed
+      // halfway through a pan or a drag is not a reader asking for a tab, and
+      // slepen mag nooit navigeren.
+      if (s.gesture && s.gesture.moved) return;
+      const p = local(e);
+      const id = hitNode(p.x, p.y);
+      if (!id) return;
+      if (openInNewTab(s.nodeById.get(id)?.href)) e.preventDefault();
+    };
+
+    /*
+     * De rechter knop blijft van de browser.
+     *
+     * Nothing is ever `preventDefault`ed here, and that is the whole of this
+     * listener's first job: a reader's own menu — "Openen in een nieuw
+     * tabblad", "Kopiëren", the translator — is the last thing a drawing should
+     * swallow. Its second job is the note it leaves behind, which is what keeps
+     * a Mac's Ctrl-klik from being read as a ⌘-klik in `onUp`.
+     */
+    const onMenu = () => {
+      s.menuAt = performance.now();
+    };
+
     // The keyboard: Escape lets go of the selection, + and − zoom, F fits.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -2228,10 +2340,16 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     canvas.addEventListener('pointerup', onUp);
     canvas.addEventListener('pointercancel', onCancel);
     canvas.addEventListener('pointerleave', onLeave);
+    canvas.addEventListener('mousedown', onMiddleDown);
+    canvas.addEventListener('auxclick', onAux);
+    canvas.addEventListener('contextmenu', onMenu);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('keydown', onKey);
     return () => {
       canvas.removeEventListener('keydown', onKey);
+      canvas.removeEventListener('mousedown', onMiddleDown);
+      canvas.removeEventListener('auxclick', onAux);
+      canvas.removeEventListener('contextmenu', onMenu);
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);

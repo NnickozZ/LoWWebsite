@@ -102,6 +102,54 @@ const CULL_PX = 400;
 /** §62: a long press on the axis, on a phone, is a double-click on the axis. */
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_SLOP = 8;
+/**
+ * §62: how far a pointer may travel before a press on a gebeurtenis is a drag
+ * rather than a click. One number asked in two places on purpose — the drag
+ * starts carrying the tag at it, and the click the press ends with is refused at
+ * it. "What the pointer did decides" only holds while both ask the same
+ * question; two thresholds would leave a band of presses that are a drag to one
+ * handler and a click to the other.
+ */
+const TAG_DRAG_SLOP = 3;
+
+/**
+ * Whether a press on a reference is the *browser's* to answer rather than the
+ * axis's.
+ *
+ * A tag that stands for an artikel is a reference, so it is a real `<a>` with a
+ * real href — which is the only way the middle button opens a second tab and
+ * the only way the context menu offers to. But its plain left press is not a
+ * navigation and never was: §62 gave the press to the pointer handlers, where a
+ * press that travels carries the tag along the axis and a press that does not
+ * folds its window out. So the two must diverge — the unmodified press is
+ * refused the anchor's own walking and answered by the axis, and a press with
+ * ctrl, cmd, shift or alt down is a reader asking for a second place to read
+ * in, handed straight to the browser with nothing done to it.
+ *
+ * **What the pointer did decides; the modifier only chooses where a click
+ * goes.** That is the whole rule, and it is asked at the *end* of a press, not
+ * at the start: a key can go down after the press began and be let go before it
+ * ends, so a guard on the way in cannot see it. A press that travelled is a
+ * drag whatever is held down — §62 has already carried the tag along the axis —
+ * and the click it ends with opens nothing and folds nothing out. A press that
+ * stayed put is a click, and this says whether it is the axis's or the
+ * browser's.
+ *
+ * Unlike the prikbord's version of this, shift is in the list: nothing on the
+ * axis uses shift with a pointer (it is the coarse step for the arrow keys, and
+ * a key is not a press).
+ */
+function opensElsewhere(event: React.MouseEvent) {
+  return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
+/**
+ * `.timeline-tag` is the same strip of paper whether it is a button or a link,
+ * so the one thing the stylesheet would do differently to an `<a>` — underline
+ * it — is undone here. Its colour already comes from the class, which outranks
+ * the bare `a` rule.
+ */
+const TAG_LINK_RESET: React.CSSProperties = { textDecoration: 'none' };
 
 type View = { origin: number; pxPerSecond: number };
 
@@ -709,8 +757,25 @@ export function TimelineCanvas({
     startAt: number;
     unit: Scale;
     moved: boolean;
+    /**
+     * Whether this press began on the tag's anchor — that is, whether there is
+     * anywhere for the browser to go with it. A press on the mark or the stem
+     * is the axis's however it is modified, because those are not links.
+     */
+    onLink: boolean;
   };
   const eventDrag = useRef<EventDrag | null>(null);
+  /**
+   * Whether the press that is ending travelled far enough to have been a drag.
+   *
+   * It has to outlive `eventDrag`, which `onEventPointerUp` clears before the
+   * browser fires the `click` — and the click is where the anchor's navigation
+   * is refused. `drag.moved` would not do: that is "the tag was carried", which
+   * a viewer who may not edit never sets however far their finger goes, and the
+   * click such a press ends with is no more a click than an editor's is. The
+   * prikbord asks the same question through `pressMoved` in `BoardCard`.
+   */
+  const pressTravelled = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   /** One place says "this hand has a tag", so nothing can forget half of it. */
   const holdTag = useCallback((id: string | null) => {
@@ -745,12 +810,25 @@ export function TimelineCanvas({
 
   function onEventPointerDown(event: React.PointerEvent, item: TimelineEvent) {
     if (event.button !== 0 || !view) return;
+    /*
+     * A fresh press has travelled nowhere yet. Cleared here rather than on the
+     * way out, so a press that is abandoned halfway — a second finger, a
+     * cancelled pointer — cannot leave a stale `true` behind to swallow the next
+     * reader's ctrl+click.
+     */
+    pressTravelled.current = false;
     // Not while the potlood is out: the tekenlaag's sheet has the pointer then.
     if (inkActive) return;
     if (eventDrag.current) {
       abortEventDrag();
       return;
     }
+    /*
+     * A modified press is *followed* like any other — the modifier is not asked
+     * about until the press ends (see `opensElsewhere`). Bailing out here was
+     * wrong twice over: it could not see a key pressed after the press began,
+     * and it believed a key that was let go before the release.
+     */
     // A viewer who may not edit still presses a tag to fold its window out, so
     // the press is followed either way; only the moving is the editor's.
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -761,6 +839,7 @@ export function TimelineCanvas({
       startAt: item.at,
       unit: item.precision,
       moved: false,
+      onLink: Boolean((event.target as HTMLElement).closest('a.timeline-tag')),
     };
     // §62: a hand is on the wall. Nothing lands until it comes off.
     handOn.current = true;
@@ -769,9 +848,17 @@ export function TimelineCanvas({
 
   function onEventPointerMove(event: React.PointerEvent) {
     const drag = eventDrag.current;
-    if (!drag || drag.pointerId !== event.pointerId || !view || !canEdit) return;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    /*
+     * Travel is a fact about the pointer, recorded before anything asks whether
+     * this hand is allowed to move a tag. A viewer who may not edit still drags
+     * their finger across the paper, and the click that press ends with is no
+     * more a click than an editor's — so it must not open a tab either.
+     */
+    if (Math.abs(event.clientX - drag.startClientX) > TAG_DRAG_SLOP) pressTravelled.current = true;
+    if (!view || !canEdit) return;
     const dx = event.clientX - drag.startClientX;
-    if (!drag.moved && Math.abs(dx) <= 3) return;
+    if (!drag.moved && Math.abs(dx) <= TAG_DRAG_SLOP) return;
     if (!drag.moved) {
       drag.moved = true;
       holdTag(drag.id);
@@ -792,7 +879,17 @@ export function TimelineCanvas({
     // Not a drag at all: the press was a click, and a click folds the window
     // out — exactly what it did before there was any dragging.
     if (!drag.moved) {
-      toggle(drag.id);
+      /*
+       * Unless it was a click the browser is about to answer: a modified release
+       * on a tag that is a link opens a tab or a window, and folding the window
+       * out as well would be answering a press that was not addressed to the
+       * axis. Read off *this* event, the release, because that is the only
+       * moment at which what is held down is what the reader meant. Anywhere
+       * else on the gebeurtenis — the mark, the stem — `onLink` is false and the
+       * axis answers the press however it is modified, because there is nowhere
+       * for the browser to go.
+       */
+      if (!(drag.onLink && opensElsewhere(event))) toggle(drag.id);
       if (owed.current) void pull();
       return;
     }
@@ -1580,6 +1677,13 @@ export function TimelineCanvas({
           const colour = event.kind === 'entry' ? (event.entry?.typeColour ?? 'var(--ink-muted)') : NOTE_COLOUR;
           const reach = LANE_0 + lane * LANE_STEP;
           const when = formatWhen(at, event.precision);
+          /*
+           * Where the tag sends a reader who asks the browser instead of the
+           * axis. A gebeurtenis that stands for an artikel has an address; a
+           * losse gebeurtenis is writing on the axis itself and has none, and
+           * one whose artikel is out of reach has no `entry` to read a slug off.
+           */
+          const tagHref = event.kind === 'entry' && event.entry ? `/e/${event.entry.slug}` : null;
           return (
             <div
               key={event.id}
@@ -1608,16 +1712,63 @@ export function TimelineCanvas({
               <span className="timeline-marker" aria-hidden="true">
                 {event.kind === 'entry' && <Icon name={event.entry?.typeIcon ?? 'file'} size={12} />}
               </span>
-              <button
-                type="button"
-                className="timeline-tag"
-                onClick={(click) => click.detail === 0 && toggle(event.id)}
-                aria-expanded={shown}
-                aria-label={`${event.name}, ${when}`}
-                title={when}
-              >
-                {event.name}
-              </button>
+              {/*
+               * The same strip of paper twice, with an address and without one.
+               * A tag that stands for an artikel is a real `<a>`, because that
+               * is the only way the middle button opens a second tab and the
+               * only way the context menu offers to — a reference the browser
+               * cannot see is a reference that behaves like less than a link.
+               *
+               * What it is *not* is a navigation on a plain press: that press
+               * is still §62's, answered by `onEventPointerUp` for a mouse and
+               * by `detail === 0` here for a keyboard, which is why every press
+               * the axis keeps is given `preventDefault`. `draggable={false}`
+               * for the same reason the prikbord's faces carry it: a browser's
+               * own link-drag would otherwise snatch the pointer capture away
+               * in the first few pixels of carrying a tag along the axis.
+               */}
+              {tagHref ? (
+                <a
+                  href={tagHref}
+                  draggable={false}
+                  className="timeline-tag"
+                  style={TAG_LINK_RESET}
+                  onClick={(click) => {
+                    /*
+                     * A press that travelled was a drag, and a drag's trailing
+                     * click is not a click: the tag has already been carried and
+                     * committed by `onEventPointerUp`, so this opens nothing and
+                     * folds nothing out, whatever was held down at the release.
+                     * Without this, carrying a tag along the axis and pressing
+                     * ctrl before letting go moved the gebeurtenis *and* opened
+                     * its artikel in a tab nobody asked for.
+                     */
+                    if (pressTravelled.current) {
+                      click.preventDefault();
+                      return;
+                    }
+                    if (opensElsewhere(click)) return;
+                    click.preventDefault();
+                    if (click.detail === 0) toggle(event.id);
+                  }}
+                  aria-expanded={shown}
+                  aria-label={`${event.name}, ${when}`}
+                  title={when}
+                >
+                  {event.name}
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="timeline-tag"
+                  onClick={(click) => click.detail === 0 && toggle(event.id)}
+                  aria-expanded={shown}
+                  aria-label={`${event.name}, ${when}`}
+                  title={when}
+                >
+                  {event.name}
+                </button>
+              )}
             </div>
           );
         })}

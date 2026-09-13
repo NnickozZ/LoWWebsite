@@ -42,7 +42,14 @@ import {
   type Viewport,
 } from '@/lib/boards/merge';
 import { changedIds, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
-import { freeSpotNear as findFreeSpot } from '@/lib/boards/place';
+import {
+  boxAtPoint,
+  freeSpotNear as findFreeSpot,
+  leadPlace,
+  pendingPinHolds,
+  type PendingPin,
+  type PlaceWhere,
+} from '@/lib/boards/place';
 import type {
   BoardBoardFacts,
   BoardCaseFacts,
@@ -262,6 +269,9 @@ export function BoardCanvas({
    * rather than making a second one, so the string never has to be rewritten;
    * cancelling leaves the speld, which is exactly what dropping a string in
    * the void has always done.
+   *
+   * §64: this is the **box**, and nothing else. Where the card belongs is
+   * `pendingPin` below, which outlives it.
    */
   const [picker, setPicker] = useState<{
     pin: string;
@@ -269,6 +279,53 @@ export function BoardCanvas({
     left: number;
     top: number;
   } | null>(null);
+
+  /**
+   * §64: een punaise aan een draad houdt vast tot er iets op komt.
+   *
+   * The bare punaise a draad was let go on, waiting for something to become.
+   * `picker` above is only the box that asks; this is the answer's address, and
+   * it has to outlive the box — a reader presses Escape, clicks the cork, gets
+   * interrupted by a pull that shuts the box, and then reaches for the search
+   * field at the top of the wall, which is the obvious place to add a card.
+   * Before this round that road placed the card in the middle of the view and
+   * left the punaise hanging off the draad: "spawned hij in los van het einde".
+   *
+   * A **ref**, on purpose and not negotiable: between the drop and the card
+   * landing there is a re-render, an `await` on `/api/preview`, possibly the
+   * nieuw-artikel sheet, the "Toevoegen aan {dossier}" confirm and the
+   * `router.refresh()` after it, and at least one incoming document. State is
+   * overwritten by the first of those; a ref is not reachable from any of them.
+   * `pendingPinHolds` is what decides it is still worth anything (§64), and
+   * `takeLead`, called from `putCard` and nowhere else, is the only road out.
+   *
+   * One punaise, the most recent: a reader who drops three leads before naming
+   * any of them answers the last one, and the other two stay what they were
+   * before this round — bare punaises on the wall, each with its draad, each
+   * still draggable and labelable. A queue would have to guess which lead a pick
+   * belonged to, and guessing wrong is worse than the card landing where the
+   * hand last was.
+   */
+  const pendingPin = useRef<PendingPin | null>(null);
+  /**
+   * §64: the same fact, in a shape a render can see — and *only* for the hint.
+   *
+   * The ref above is the authority; this is a shadow of it, set in the three
+   * places the ref moves (the drop, `takeLead`, the expiry effect). It exists
+   * because the bar's search box has to be able to say "dit komt aan de draad
+   * die nog wacht" — a behaviour a reader cannot see coming is a behaviour that
+   * reads as a bug the first time it surprises them. If the two ever drift the
+   * worst case is a line of help shown or not shown; where the card lands is
+   * never decided from here.
+   *
+   * Whatever this turns on in the toolbar **may not take up room**. `.board-tools`
+   * is laid out above `.board-viewport`, so anything that appears there pushes the
+   * whole wall down by its height — mid-gesture, and out from under every
+   * coordinate anything had measured. It cost `round-27-board.spec.ts` its second
+   * draad: the hand came down twenty pixels above the speld it was aiming at. See
+   * the placeholder in `BoardPicker`.
+   */
+  const [holdingAPin, setHoldingAPin] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -754,8 +811,6 @@ export function BoardCanvas({
   );
 
   type NewCard = Pick<BoardCard, 'id' | 'kind' | 'name' | 'text'> & Partial<BoardCard>;
-  /** §52: where a picked thing lands — see `putCard`. */
-  type PlaceWhere = { at?: { x: number; y: number }; onto?: string };
 
   const addCard = useCallback(
     (card: NewCard) => {
@@ -1155,7 +1210,9 @@ export function BoardCanvas({
       return;
     }
 
-    // Anywhere else on the cork closes that picker, leaving the speld behind.
+    // Anywhere else on the cork closes that picker, leaving the speld behind —
+    // and §64: leaving the *question* behind too. The box is gone; the draad is
+    // still asking, and the bar at the top of the wall may answer it.
     if (picker) setPicker(null);
 
     /*
@@ -1377,6 +1434,22 @@ export function BoardCanvas({
           // This gesture already pushed its undo entry when the grip was taken.
           commit(() => ({ cards: nextCards, strings: nextStrings }), { undo: false });
           setSelectedStringId(id);
+          /*
+           * §64: an end pulled onto bare cork makes the very same thing — a bare
+           * punaise with a draad on it and nothing on the punaise — so it asks
+           * the same question and the bar may answer it. No box opens here,
+           * which is §52's own choice and left alone: moving an end is a
+           * correction to a draad that already exists, not a new lead, and a
+           * search box springing up mid-correction would be in the way. But the
+           * punaise that *did* appear is still waiting, and "een punaise aan een
+           * draad houdt vast tot er iets op komt" has to be true of every bare
+           * punaise a draad was just dropped on, or the symptom this round fixes
+           * comes straight back through the other gesture.
+           */
+          if (fresh) {
+            pendingPin.current = { pin: fresh.id, at: point };
+            setHoldingAPin(true);
+          }
         } else {
           const line: BoardString = {
             id: newStringId(),
@@ -1398,8 +1471,28 @@ export function BoardCanvas({
            * wall as it was before this round: a lead with a place on it. Answer
            * the picker and that same speld *becomes* the thing picked, which is
            * why the knot survives without a single string being rewritten.
+           *
+           * §64: and the question is remembered whether the box is on the
+           * screen or not. This line is the fix: the punaise is written down
+           * *before* the picker is opened and is not forgotten when it closes,
+           * so the answer may arrive from the bar at the top of the wall, after
+           * an Escape, or ten minutes and a pull later, and still land here.
            */
-          if (fresh && interactive) {
+          if (fresh) {
+            pendingPin.current = { pin: fresh.id, at: point };
+            setHoldingAPin(true);
+          }
+          /*
+           * The box itself only wants a wall this hand may edit. It used to ask
+           * `interactive`, which is `!isPhone && !readOnly` — but the phone half
+           * of that was never doing anything: §8 refuses to *start* a draad
+           * below 768 px (`onPinPointerDown`, `onEndHandlePointerDown` both bail
+           * on `!interactive`), so a phone can never reach a dropped string in
+           * the first place. Naming the phone here only suggested the box was
+           * deliberately withheld from it. If §8 ever lets a phone draw a
+           * draad, this box comes with it for free.
+           */
+          if (fresh && !readOnly) {
             const rect = viewportRef.current?.getBoundingClientRect();
             // Kept clear of the right and bottom edges: the cork is clipped,
             // and a picker half off it cannot be typed in.
@@ -1562,7 +1655,7 @@ export function BoardCanvas({
       if (event.key === 'Escape') {
         // §52: the picker a dropped string opened. Closing it leaves the speld
         // and the string exactly as they were — nothing is placed and nothing
-        // is taken back.
+        // is taken back. §64: nor is the question forgotten; see `onCancel`.
         if (picker) setPicker(null);
         else if (lightbox) setLightbox(null);
         else if (inkTool.active) inkTool.setActive(false);
@@ -1637,6 +1730,45 @@ export function BoardCanvas({
 
   /* ------------------------------------------------------------- search */
 
+  /**
+   * §64: the waiting punaise, taken — **the only place that consumes it**.
+   *
+   * Called from exactly one caller, `putCard` below, at the instant a card is
+   * actually being hung up. That is the repair of the repair: the first version
+   * took the lead in the picker rows, the moment a row was pressed, and
+   * `startEntry`'s row does not place anything — it opens the nieuw-artikel
+   * sheet and waits. Close that sheet without saving and the punaise was still
+   * on the wall with nothing holding it: the next pick from the bar spawned the
+   * card in the middle of the view, which is the reported bug back again, with
+   * no way to re-arm it short of redrawing the draad.
+   *
+   * So: a pick is only a pick when it places something. Nothing between the row
+   * and the card — an `await` on `/api/preview`, a sheet, a confirm, a pull —
+   * can lose the lead, because nothing between them touches it.
+   *
+   * Two readers of one ref is how that bug happened, so there is one. Every
+   * picker row calls `closePicker` instead, which only shuts the box.
+   */
+  const takeLead = useCallback((): PlaceWhere | null => {
+    const pending = pendingPin.current;
+    if (!pending) return null;
+    const place = leadPlace({ pending, cards: cardsRef.current, strings: stringsRef.current });
+    // Cleared whether it still held or not: a lead that has stopped holding is
+    // not a lead, and leaving it on the pile would hand it to the *next* card.
+    pendingPin.current = null;
+    setHoldingAPin(false);
+    return place;
+  }, []);
+
+  /**
+   * §64: shut the box, keep the lead. Every row of either picker, before it acts.
+   *
+   * The counterpart to `takeLead`: pressing a row is finished with the search
+   * box whatever happens next, but it is not yet a card on the wall, so it is
+   * not yet an answer to the draad.
+   */
+  const closePicker = useCallback(() => setPicker(null), []);
+
   /*
    * §52: where a picked thing lands.
    *
@@ -1645,18 +1777,40 @@ export function BoardCanvas({
    * thing picked, which is the one the string drop uses: the string is tied to
    * that speld already, so changing the card in place keeps the knot and a new
    * card would not.
+   *
+   * §64: and a caller that names **no** place at all gets the waiting punaise.
+   * Here rather than at six call sites, so the seventh cannot forget it. The
+   * line it draws is **naming something takes the draad; making something blank
+   * does not**: everything that arrives through here is a thing the person
+   * named — an artikel, a landkaart, a dossier, a tijdlijn, another wall, a
+   * notitie they titled — and the draad still hanging is the most specific place
+   * on the wall to put it. The roads that go straight to `addCard` are outside
+   * it on purpose: "Nieuwe notitie" and a pasted picture make a blank thing, and
+   * a paste already has a point of its own. A caller with its own `at` — a card
+   * dragged out of the tray and dropped somewhere — has a place and keeps it.
    */
   const putCard = useCallback(
-    (card: NewCard, where: PlaceWhere = {}) => {
-      const box = where.at
-        ? {
-            x: Math.round(where.at.x - CARD_WIDTH / 2),
-            y: Math.round(where.at.y - CARD_SIZE.height / 2),
-          }
-        : {};
-      if (where.onto) {
+    (card: NewCard, given: PlaceWhere = {}) => {
+      // §64: one consumer, and this is it — see `takeLead`. A caller that named
+      // a place of its own keeps it and the lead is left alone.
+      const where = given.onto || given.at ? given : takeLead() ?? given;
+      const box = where.at ? boxAtPoint(where.at, { width: CARD_WIDTH, height: CARD_SIZE.height }) : {};
+      /*
+       * §64: an `onto` that is no longer on the wall must not swallow the card.
+       *
+       * `patchCard` maps over the document, so naming a card that is gone is a
+       * silent no-op — and nothing appears at all, which is worse than the bug
+       * this round is fixing. `takeLead` asks `leadPlace` in this same tick, so
+       * this cannot happen by way of the lead any more; it stays because a caller
+       * may hand an `onto` in from anywhere, and a card the reader can see beats
+       * a card that was never drawn. With `at` to go on it lands at the drop
+       * point: untied beats absent.
+       */
+      const onto =
+        where.onto && cardsRef.current.some((item) => item.id === where.onto) ? where.onto : undefined;
+      if (onto) {
         const { id: _newId, ...rest } = card;
-        patchCard(where.onto, {
+        patchCard(onto, {
           // Every id this card might have carried before is cleared first, so a
           // speld that becomes a dossier cannot keep pointing at an artikel.
           entryId: null,
@@ -1665,15 +1819,29 @@ export function BoardCanvas({
           timelineId: null,
           boardId: null,
           ...rest,
-          ...box,
+          /*
+           * §64: and **no `box`**. The card keeps the punaise's own x and y,
+           * because the punaise is where the draad's end is *now*.
+           *
+           * `...box` used to be applied here too, which only looked harmless
+           * while the lead lived no longer than the floating picker. It does not
+           * any more: drop a draad, drag the bare punaise six hundred units
+           * across the wall, then answer from the bar, and the card appeared back
+           * at the spot the draad was first let go of — dragging the draad with
+           * it, because the draad is tied to this very card. A card landing
+           * somewhere the hand has not been is the same complaint this round
+           * started from, wearing a different coat. The stored point is still the
+           * right answer for the other branch, where the punaise is gone and
+           * there is nothing left to inherit a place from.
+           */
           // It was a speld a moment ago, and a speld stands straight.
           rotation: placementRotation(),
         });
-        return where.onto;
+        return onto;
       }
       return addCard({ ...card, ...box }).id;
     },
-    [addCard, patchCard],
+    [addCard, patchCard, takeLead],
   );
 
   /**
@@ -1817,9 +1985,14 @@ export function BoardCanvas({
    * in it), with the card placed when the sheet answers. If the sheet is
    * closed without writing anything, nothing is placed: `onCreated` is the
    * only road out.
+   *
+   * §64: and it takes **no** place of its own, deliberately. "Nothing is placed"
+   * has to mean nothing *happens* — a sheet the reader closes must leave the
+   * waiting punaise exactly as it found it — so the lead is resolved inside
+   * `onCreated`, by `putCard`, and a dismissed sheet never reaches it.
    */
   const startEntry = useCallback(
-    (entryName: string, where: PlaceWhere = {}) => {
+    (entryName: string) => {
       ui.openNewEntry({
         name: entryName,
         caseId: caseId ?? undefined,
@@ -1857,7 +2030,6 @@ export function BoardCanvas({
               text: '',
               showImage: defaultShowImage('entry', false),
             },
-            where,
           );
           void sync.saveNow({ cards: [placed] });
         },
@@ -1867,20 +2039,35 @@ export function BoardCanvas({
   );
 
   /**
-   * §52: the speld the open picker is standing on, as a `PlaceWhere`, and the
-   * picker closed in the same breath — every row of that list wants both.
+   * §64: the lead stops being a lead, so the box and the ref both let go.
+   *
+   * The speld can go while the picker is open — an undo, this hand's own
+   * delete, or somebody else's — and it can also stop being a *bare* punaise
+   * (a name typed on it, the draad pulled off it), which is the half the old
+   * version of this missed. `pendingPinHolds` asks all three questions in one
+   * place, so the box on the screen and the answer's address can never disagree
+   * about whether there is still something to answer.
+   *
+   * Measured against `cards`/`strings` — the wall as rendered, which is the
+   * document *plus* whatever this hand has not saved yet (`applyRemote` pushes
+   * an unsaved card back into every incoming document), so a punaise that is
+   * merely in flight is never mistaken for one that is gone.
    */
-  const pickedHere = useCallback((): PlaceWhere => {
-    const where: PlaceWhere = picker ? { onto: picker.pin, at: picker.at } : {};
-    setPicker(null);
-    return where;
-  }, [picker]);
-
-  // The speld can go while the picker is open — an undo, or somebody else's
-  // delete. Nothing to hang a card on any more, so the box goes with it.
   useEffect(() => {
+    const pending = pendingPin.current;
+    if (pending && !pendingPinHolds({ pending, cards, strings })) {
+      pendingPin.current = null;
+      setHoldingAPin(false);
+    }
+    /*
+     * And the box, asked *unconditionally* — not only when there is still a lead.
+     * The two used to be one check, which left the box standing over a punaise
+     * that had gone whenever the lead had already been consumed (a sheet open
+     * behind it, say). The box is a thing on the screen pointing at a card; if
+     * that card is not there, it has nothing to stand on, lead or no lead.
+     */
     if (picker && !cards.some((card) => card.id === picker.pin)) setPicker(null);
-  }, [cards, picker]);
+  }, [cards, strings, picker]);
 
   /** Everything in the case that is not already a card on this wall. */
   const trayEntries = useMemo(() => {
@@ -1890,7 +2077,15 @@ export function BoardCanvas({
     return caseEntries.filter((entry) => !onWall.has(entry.id));
   }, [caseEntries, cards]);
 
-  async function addEntryCard(entryId: string, entryName: string, where: PlaceWhere = {}) {
+  /**
+   * §64: no `PlaceWhere` parameter, on purpose.
+   *
+   * It had one, which the pickers filled in before this `await` — and a place
+   * decided before a card exists is a place that can be decided and then thrown
+   * away. `putCard` asks for the lead itself, after the fetch, in the same tick
+   * it hangs the card up.
+   */
+  async function addEntryCard(entryId: string, entryName: string) {
     // §32: unknown until the preview answers; a card of an artikel without a
     // cover starts with its frame shut (`defaultShowImage`).
     let hasCover: boolean | undefined;
@@ -1915,7 +2110,7 @@ export function BoardCanvas({
         }));
       }
     }
-    putCard(
+    const placed = putCard(
       {
         id: newCardId(),
         kind: 'entry',
@@ -1924,8 +2119,15 @@ export function BoardCanvas({
         text: '',
         showImage: defaultShowImage('entry', hasCover),
       },
-      where,
     );
+    /*
+     * §64: saved at once rather than on the 300 ms debounce, the way every other
+     * `place*` on this wall already does it. It matters more here than it looks:
+     * everybody else on the board is staring at a bare punaise on the end of a
+     * draad, and the answer to it should not wait behind the confirm sheet
+     * `offerToFile` is about to put up.
+     */
+    void sync.saveNow({ cards: [placed] });
     offerToFile(entryId, entryName);
   }
 
@@ -2155,25 +2357,57 @@ export function BoardCanvas({
       {!readOnly && (
       <div className="board-tools">
         <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 0 }}>
-          {/* §52: the same picker the string drop opens, in the bar where it
-              has always been. Everything picked here lands in the middle of
-              the view, as the search box has always done. */}
+          {/*
+            §52: the same picker the string drop opens, in the bar where it has
+            always been. Everything picked here lands in the middle of the view,
+            as the search box has always done —
+
+            §64: — *unless* a punaise is still waiting on the end of a draad, and
+            then this is the box that answers it. That is the whole repair: this
+            list is where a reader goes once the floating box has closed, and it
+            places things through exactly the same `putCard` the floating one
+            does, so the two roads cannot disagree about where the card belongs.
+            Neither of them takes the lead here: pressing a row only shuts the
+            box (`closePicker`), and the lead is consumed where the card is
+            actually hung up — or not at all, if the row opened a sheet the
+            reader then closed without saving.
+          */}
           <BoardPicker
             variant="bar"
             cards={cards}
+            holding={holdingAPin}
             pickableMaps={pickableMaps}
             pickableCases={pickableCases}
             pickableTimelines={pickableTimelines}
             pickableBoards={pickableBoards}
-            onPickEntry={(item) => void addEntryCard(item.id, item.name)}
-            onPickMap={(item) => placeMap(item)}
-            onPickCase={(item) => placeCase(item)}
-            onPickTimeline={(item) => placeTimeline(item)}
-            onPickBoard={(item) => placeBoard(item)}
-            onCreateNote={(noteName) =>
-              addCard({ id: newCardId(), kind: 'note', name: noteName, text: '' })
-            }
-            onCreateEntry={(entryName) => startEntry(entryName)}
+            onPickEntry={(item) => {
+              closePicker();
+              void addEntryCard(item.id, item.name);
+            }}
+            onPickMap={(item) => {
+              closePicker();
+              placeMap(item);
+            }}
+            onPickCase={(item) => {
+              closePicker();
+              placeCase(item);
+            }}
+            onPickTimeline={(item) => {
+              closePicker();
+              placeTimeline(item);
+            }}
+            onPickBoard={(item) => {
+              closePicker();
+              placeBoard(item);
+            }}
+            onCreateNote={(noteName) => {
+              closePicker();
+              putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' });
+            }}
+            onCreateEntry={(entryName) => {
+              closePicker();
+              startEntry(entryName);
+            }}
           />
         </div>
 
@@ -2404,6 +2638,11 @@ export function BoardCanvas({
               selected={selected.has(card.id)}
               interactive={interactive}
               canOpenOnTap={() => !interactive && pressWasSelected.current === card.id}
+              /* A card's faces are real links now, so the click a drag ends
+                 with has to be able to say it was a drag — otherwise a card
+                 moved with ctrl held down would open its artikel on the way
+                 down. The same ref `onOpen` below already asks. */
+              pressMoved={() => dragMoved.current}
               onPointerDown={(event) => onCardPointerDown(event, card.id)}
               onPinPointerDown={(event) => onPinPointerDown(event, card.id)}
               onTextChange={(text) => !readOnly && patchCard(card.id, { text })}
@@ -2625,18 +2864,47 @@ export function BoardCanvas({
             pickableTimelines={pickableTimelines}
             pickableBoards={pickableBoards}
             onPickEntry={(item) => {
-              const where = pickedHere();
-              void addEntryCard(item.id, item.name, where);
+              closePicker();
+              void addEntryCard(item.id, item.name);
             }}
-            onPickMap={(item) => placeMap(item, pickedHere())}
-            onPickCase={(item) => placeCase(item, pickedHere())}
-            onPickTimeline={(item) => placeTimeline(item, pickedHere())}
-            onPickBoard={(item) => placeBoard(item, pickedHere())}
+            onPickMap={(item) => {
+              closePicker();
+              placeMap(item);
+            }}
+            onPickCase={(item) => {
+              closePicker();
+              placeCase(item);
+            }}
+            onPickTimeline={(item) => {
+              closePicker();
+              placeTimeline(item);
+            }}
+            onPickBoard={(item) => {
+              closePicker();
+              placeBoard(item);
+            }}
             onCreateNote={(noteName) => {
-              const where = pickedHere();
-              putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' }, where);
+              closePicker();
+              putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' });
             }}
-            onCreateEntry={(entryName) => startEntry(entryName, pickedHere())}
+            onCreateEntry={(entryName) => {
+              closePicker();
+              startEntry(entryName);
+            }}
+            /*
+             * §64: cancelling shuts the box and **keeps the lead**.
+             *
+             * Deliberate, and the same in all three places a cancel can happen
+             * (here, Escape, a press on bare cork): the punaise and its draad
+             * stay on the wall exactly as §52 left them — a lead with a place on
+             * it, draggable and labelable — and the question they ask stays
+             * open, so the next thing named in either picker still lands on it.
+             * Taking them away instead would reverse §52's documented decision
+             * and would make a mistyped Escape destroy the draad the person had
+             * just drawn. Letting go is the gestures that already exist: pull
+             * the draad off the punaise (which takes a bare unused one out with
+             * it) or delete it.
+             */
             onCancel={() => setPicker(null)}
           />
         )}

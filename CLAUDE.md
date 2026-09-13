@@ -145,7 +145,10 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[56][0-9]" app components lib` before
-  choosing a number — the latest is §62 / rule 62 (round 29: §59 de refresh-hold
+  choosing a number — the latest is §65 / rule 65 (round 30: §63 de voordeur die
+  niet weggooit wat je typte en een tweede deur die je kunt zien, §64 een punaise
+  aan een draad die vasthoudt tot er iets op komt, §65 een geschiedenis die zegt
+  wát er veranderd is; round 29: §59 de refresh-hold
   — niets landt terwijl er een hand op de pagina ligt, §60 één lijn per tab en
   een lijn die nooit opgeeft, §61 een muur die nooit opgeeft, §62 een tijdlijn
   met z'n tweeën; round 28: §56 een chipje
@@ -217,7 +220,36 @@ freely there.
   it). A pin **move** still does not refresh — the known gap is that narrow one
   now, not the whole file.
 - **`lib/assets.ts` loads sharp and the database**, so nothing client-side may
-  import it. Pure, client-safe helpers belong in `lib/upload.ts`.
+  import it. Pure, client-safe helpers belong in `lib/upload.ts`. Same shape and
+  same reason at the front door: `lib/auth/password.mjs` loads `@node-rs/argon2`
+  and `node:crypto`, so the *rules* a browser needs to ask (§63) live in
+  `lib/auth/rules.mjs`, which imports nothing at all, and are re-exported from
+  `password.mjs` so no caller had to move. There is one definition of "long
+  enough" and the signup form and the server action read that one.
+- **A React form action resets the form, and that is not a thing to discover
+  twice.** `useActionState` calls `requestFormReset()` once the action settles, so
+  a form that comes back with an error comes back *empty* unless it says
+  otherwise — which is the bug Nick reported about signup in round 30.
+  `app/(auth)/AuthForm.tsx` is the worked example (§63): validate in the browser
+  where the rule is pure, echo the typed values into state from the `FormData`
+  the client function still holds (never from the server's reply — a password has
+  no business travelling back down), read them through `defaultValue`, *and*
+  write them back in a `useEffect`, because the declarative half depends on React
+  resetting inside the same commit as the state update. Two more, both found by
+  review rather than by use: never hand the server action `prev` (a server
+  action's arguments are serialised into the request, so `serverAction(prev,
+  formData)` posts the whole echo back up), and hold the boxes `readOnly` while
+  the action is pending, or a letter typed during the round trip is silently
+  thrown away by the restore.
+- **Nothing in `.board-tools` that can turn on and off may take up room** (§64).
+  The toolbar is laid out *above* `.board-viewport`, so a line that appears when
+  something is true grows the bar and pushes the whole wall down — and a spec
+  that measured a speld once before the first drag then clicks twenty pixels
+  above it, failing with "element(s) not found" pointing at the picker rather
+  than at the layout. Put such a notice in a `placeholder`, or in a
+  `.visually-hidden` paragraph wired through `aria-describedby`. And never change
+  a control's accessible *label* on a condition: four specs find the board's
+  search box by its name.
 - **Never bulk-upgrade the dependencies.** `npm update --save`, `npx npm-check-updates -u`
   or `npm install <pkg>@latest` across the board will take Next from 15.5.25 to
   16, Tiptap from 2 to 3, drizzle from 0.39 to 0.45 and sharp from 0.33 to 0.35

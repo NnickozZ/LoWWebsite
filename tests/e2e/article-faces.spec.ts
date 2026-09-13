@@ -70,7 +70,11 @@ test('everyone lands in lezen, and everyone may cross', async ({
   await expect(page.locator('#entry-name')).toHaveCount(0);
   await expect(page.locator('.entry-mode-toggle')).toHaveText('Bewerken');
   await expect(page.getByRole('heading', { name: entryName })).toBeVisible();
-  await expect(page.getByText('Een lage bakstenen toren op de dijk.')).toBeVisible();
+  // `.entry-lead` and not a loose `getByText`: since §65 the geschiedenis prints
+  // what each versie changed, so the eerste regel's own words also stand in a
+  // row down there ("Eerste regel — “Een lage …”") and a loose text locator
+  // matches two elements. The claim here is about the reading face's lead.
+  await expect(page.locator('.entry-lead')).toHaveText('Een lage bakstenen toren op de dijk.');
   // Nothing on the reading face may be typed into.
   await expect(page.locator('.entry-page [contenteditable="true"]')).toHaveCount(0);
 
