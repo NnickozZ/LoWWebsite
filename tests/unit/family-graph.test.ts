@@ -85,10 +85,10 @@ beforeAll(async () => {
   entry('e-huis', 'Boone', 'family');
   const house = { id: 'e-huis', name: 'Boone', slug: 'e-huis' };
 
-  entry('e-pier', 'Pier Boone', 'character', { achternaam: 'Boone', familie: house, status: 'vermist' });
-  entry('e-kind', 'Jacob Boone', 'character', { achternaam: 'Boone', familie: house });
+  entry('e-pier', 'Pier Boone', 'character', { familie: house, status: 'vermist' });
+  entry('e-kind', 'Jacob Boone', 'character', { familie: house });
   // A ghost: related to a member, not in the tree.
-  entry('e-zus', 'Neeltje Boone', 'character', { achternaam: 'Boone' });
+  entry('e-zus', 'Neeltje Boone', 'character', {});
   // A ghost the table may not see at all.
   entry('e-geheim', 'De ware vader', 'character', {}, 'keeper');
   // Somebody with a frame of their own.
@@ -97,7 +97,7 @@ beforeAll(async () => {
 });
 
 describe('leden, spoken en de vier frames', () => {
-  it('a member is drawn with its soort, its surname, its house and its frame', () => {
+  it('a member is drawn with its soort, its house and its frame', () => {
     const tree = deps.createFamilyTree({ name: 'Het huis Boone' }, KEEPER);
     treeId = tree.id;
     deps.saveFamilyTreeState(
@@ -117,7 +117,6 @@ describe('leden, spoken en de vier frames', () => {
     const pier = nodeOf(graph, 'entry:e-pier') as EntryGraphNode;
     expect(pier.standing).toBe('member');
     expect(pier.frame).toBe('mortal');
-    expect(pier.surname).toBe('Boone');
     expect(pier.house).toEqual({ id: 'e-huis', name: 'Boone', colour: expect.any(String) });
     expect(pier.status).toBe('vermist');
     expect(pier).toMatchObject({ x: 100, y: 200, pinned: true });
@@ -127,7 +126,13 @@ describe('leden, spoken en de vier frames', () => {
     expect((nodeOf(graph, 'entry:e-god') as EntryGraphNode).frame).toBe('divine');
     expect((nodeOf(graph, 'entry:e-plek') as EntryGraphNode).frame).toBe('mortal');
     // §66: `roleFields` says which handle a card may offer.
-    expect(graph.roleFields['e-pier'].map((field) => field.key)).toEqual(['ouders', 'kinderen', 'partner']);
+    expect(graph.roleFields['e-pier'].map((field) => field.key)).toEqual([
+      'ouders',
+      'kinderen',
+      'partner',
+      // §67: en het getypte broer-of-zusveld, voor als de ouders niet bekend zijn.
+      'broers_zussen',
+    ]);
     expect(graph.roleFields['e-plek']).toEqual([]);
   });
 

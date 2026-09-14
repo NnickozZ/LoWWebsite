@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
@@ -18,8 +17,10 @@ import { useIsPhone } from '@/components/useIsPhone';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
 import { InkCanvas } from '@/components/ink/InkCanvas';
-import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
-import { useInk } from '@/components/ink/useInk';
+import { InkShell } from '@/components/ink/InkShell';
+import { UnderFold } from '@/components/ink/UnderFold';
+import { usePanZoomInk } from '@/components/ink/panZoom';
+import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import type { InkLayerView } from '@/lib/ink/types';
 
 /**
@@ -134,28 +135,12 @@ function writeLegendOpen(open: boolean) {
   }
 }
 
-/** The empty div a landkaart's page leaves below the canvas, for `UnderFold`. */
-const UNDER_FOLD_ID = 'map-underfold';
-
 /**
- * §34: the landkaart takes the screen, so anything in the canvas column that is
- * neither the one line of heading nor the canvas is a line taken off the map.
- * The Keeper's tekenlaag switch is a *tool* — 132 px of one on a telephone,
- * which is the difference between a map that fills three-quarters of the screen
- * and one that fills five-eighths — and it belongs below the fold with the rest
- * of the Keeper's tools, in the slot the page leaves after `.page-canvas` (the
- * tijdlijn's answer to the same question is its Instellingen sheet).
- *
- * It is put there after mount rather than rendered where it stands, so the
- * block never shows in the column and then jumps out of it. No slot — a
- * player's page, where there is nothing below the fold — means nothing to
- * place.
+ * The empty div a landkaart's page leaves below the canvas (`UnderFold` in
+ * `components/ink/UnderFold.tsx` — §34: the Keeper's tekenlaag switch is a
+ * tool, and 132 px of tool on a telephone is a third of the map).
  */
-function UnderFold({ children }: { children: ReactNode }) {
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-  useEffect(() => setSlot(document.getElementById(UNDER_FOLD_ID)), []);
-  return slot ? createPortal(children, slot) : null;
-}
+const UNDER_FOLD_ID = 'map-underfold';
 
 export function MapCanvas({
   map,
@@ -411,38 +396,37 @@ export function MapCanvas({
   // person's own hand, which lands where they put it.
   const live = useLive();
 
-  // §33: the tekenlaag, in picture pixels under the same pan and zoom as the
-  // picture. Its width scales with the zoom like the picture does.
-  const ink = useInk({ kind: 'map', id: map.id, initial: initialInk, onError: (message) => ui.toast(message) });
-  const inkTool = useInkTool();
-  const inkActive = inkTool.active && ink.enabled;
-  const inkProject = useCallback((x: number, y: number) => ({ x: view.tx + x * view.zoom, y: view.ty + y * view.zoom }), [view]);
-  const inkToContent = useCallback(
-    (clientX: number, clientY: number) => {
-      const rect = stageRef.current?.getBoundingClientRect();
-      const v = viewRef.current;
-      return { x: (clientX - (rect?.left ?? 0) - v.tx) / v.zoom, y: (clientY - (rect?.top ?? 0) - v.ty) / v.zoom };
-    },
-    [],
-  );
+  /*
+   * §33: the tekenlaag, in picture pixels under the same pan and zoom as the
+   * picture. Its width scales with the zoom like the picture does. §67: the
+   * wiring is `useCanvasInk`, the same in all four places; what stays here is
+   * the space the picture is panned in (`tx`/`ty` under this canvas's own
+   * names) and the corner the bar stands in.
+   */
+  const inkView = useMemo(() => ({ x: view.tx, y: view.ty, zoom: view.zoom }), [view]);
+  const inkSpace = usePanZoomInk(stageRef, inkView);
+  const ink = useCanvasInk({
+    kind: 'map',
+    id: map.id,
+    initial: initialInk,
+    project: inkSpace.project,
+    toContent: inkSpace.toContent,
+    widthScale: view.zoom,
+    noun: `deze ${words.map}`,
+    onError: (message) => ui.toast(message),
+    onOpen: () => setSelectedId(null),
+    stopPropagation: true,
+  });
+  const onInkKey = ink.onKeyDown;
   useEffect(() => {
-    if (!ink.enabled && inkTool.active) inkTool.setActive(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ink.enabled]);
-  useEffect(() => {
-    if (!inkTool.active) return;
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
-      if (event.key === 'Escape') inkTool.setActive(false);
-      else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        ink.undo();
-      }
+      onInkKey(event);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [inkTool, ink]);
+  }, [onInkKey]);
 
   const draggingRef = useRef<string | null>(null);
   draggingRef.current = dragging;
@@ -1004,10 +988,7 @@ export function MapCanvas({
         {/* §33: the tekenlaag, over the picture and under the spelden. */}
         <InkCanvas
           className="ink-layer"
-          strokes={ink.strokes}
-          stableCount={ink.stableCount}
-          project={inkProject}
-          widthScale={view.zoom}
+          {...ink.layerProps}
           viewKey={`${view.tx},${view.ty},${view.zoom}`}
           width={stageSize.w}
           height={stageSize.h}
@@ -1072,33 +1053,9 @@ export function MapCanvas({
           )}
         </div>
 
-        {inkActive && (
-          <InkCapture
-            tool={inkTool.tool}
-            toContent={inkToContent}
-            widthScale={view.zoom}
-            onBegin={ink.begin}
-            onExtend={ink.extend}
-            onEnd={ink.end}
-            onAbort={ink.abort}
-            stopPropagation
-          />
-        )}
-        {ink.enabled && !placing && (
-          <InkToolbar
-            className="ink-toolbar-bottom"
-            active={inkTool.active}
-            tool={inkTool.tool}
-            onActive={(next) => {
-              inkTool.setActive(next);
-              if (next) setSelectedId(null);
-            }}
-            onTool={inkTool.setTool}
-            canUndo={ink.canUndo}
-            onUndo={ink.undo}
-            saving={ink.saving}
-          />
-        )}
+        {/* §33: the sheet and the bar, in that order — bottom-left, because the
+            legend has the top-left corner. */}
+        <InkShell shell={ink} corner="bottom-left" toolbar={!placing} />
 
         {!isPhone &&
           (legendOpen ? (
@@ -1136,29 +1093,10 @@ export function MapCanvas({
       <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
         {shown.length} van {pins.length} {pins.length === 1 ? pinWord : words.mapPinPlural} te zien
         {' · '}sleep om te schuiven, scroll of knijp om te zoomen
-        {ink.enabled && <> · het potlood tekent op de {mapWord}, Esc stopt</>}
+        {ink.ink.enabled && <> · het potlood tekent op de {mapWord}, Esc stopt</>}
       </p>
 
-      {isKeeper && (
-        <UnderFold>
-          <InkKeeperControls
-            enabled={ink.enabled}
-            strokeCount={ink.layer.strokes.length}
-            noun={`deze ${mapWord}`}
-            onSetEnabled={(enabled) => void ink.keeper({ enabled })}
-            onClear={() =>
-              void ui
-                .confirm({
-                  title: 'Tekenlaag wissen?',
-                  message: `Alle streken op deze ${mapWord} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
-                  confirmLabel: 'Wissen',
-                  danger: true,
-                })
-                .then((yes) => yes && ink.keeper({ clear: true }))
-            }
-          />
-        </UnderFold>
-      )}
+      {isKeeper && <UnderFold slotId={UNDER_FOLD_ID}>{ink.keeperControls}</UnderFold>}
 
       {selected && (
         <Sheet onClose={() => setSelectedId(null)} labelledBy="pin-title">

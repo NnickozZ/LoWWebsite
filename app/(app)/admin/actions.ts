@@ -324,7 +324,7 @@ export async function saveWordsAction(
 /* ----------------------------------------------------------- colours (§45) */
 
 /**
- * Beheer → Kleuren. The form posts all four palettes, nineteen colours each,
+ * Beheer → Kleuren. The form posts all four palettes, twenty-four colours each,
  * as `<schemeKey>.<tokenKey>`; `schemesFromForm` reads them back and
  * `cleanSchemes` throws away anything that is not six hex digits, so nothing a
  * Keeper can type reaches the stylesheet but a colour.

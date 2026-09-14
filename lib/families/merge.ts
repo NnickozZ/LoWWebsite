@@ -151,8 +151,9 @@ function normaliseLoose(input: unknown, now: number): LooseCard | null {
  *   - nothing else. A line to a loose card that is not in this tree is kept, so
  *     a patch may send the line and the card in either order.
  *
- * A `partner` line has its ends sorted, so the same pair sent from either side
- * collapses to one row instead of drawing twice.
+ * A `partner` line — and since §67 a `sibling` line — has its ends sorted, so
+ * the same pair sent from either side collapses to one row instead of drawing
+ * twice.
  */
 function normaliseTie(input: unknown, now: number): TreeTie | null {
   if (!input || typeof input !== 'object') return null;
@@ -166,7 +167,10 @@ function normaliseTie(input: unknown, now: number): TreeTie | null {
   if (sameRef(from, to)) return null;
   if (from.kind === 'entry' && to.kind === 'entry') return null;
 
-  if (raw.role === 'partner' && nodeId(from) > nodeId(to)) [from, to] = [to, from];
+  // §67: a `sibling` line is undirected too, and is sorted for the same reason.
+  if ((raw.role === 'partner' || raw.role === 'sibling') && nodeId(from) > nodeId(to)) {
+    [from, to] = [to, from];
+  }
 
   const label = trimmed(raw.label, MAX_LABEL);
   return {

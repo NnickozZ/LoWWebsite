@@ -568,6 +568,13 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     add('lineage', webNodeId('entry', edge.from), webNodeId('entry', edge.to), edge.label);
   }
 
+  /*
+   * §66 (round 32): a familie's "Stamboom" is an `inTree` line too, so the pair
+   * it names is remembered here — the same two knots must never be joined
+   * twice, once bare (a member) and once with the field's label on it.
+   */
+  const inTreePairs = new Set<string>();
+
   for (const tree of treeSummaries) {
     const state = treeStates.get(tree.id);
     if (!state) continue;
@@ -575,7 +582,10 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     for (const member of state.members) {
       // Rule 1: a member this viewer may not open is not a knot, so there is
       // nothing to tie — never a faint card, never a MISSING stamp.
-      if (has('entry', member.id)) add('inTree', webNodeId('entry', member.id), treeNode);
+      if (has('entry', member.id)) {
+        add('inTree', webNodeId('entry', member.id), treeNode);
+        inTreePairs.add(`${webNodeId('entry', member.id)}>${treeNode}`);
+      }
     }
     // A los kaartje is a knot only when the notes switch is on; without it the
     // lijnen through one are dropped with it, exactly as a draad through a
@@ -598,6 +608,26 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       const to = endNode(tie.to);
       if (!from || !to) continue;
       add('lineage', from, to, tie.label || ROLE_LABELS[tie.role]);
+    }
+  }
+
+  /*
+   * §66 (round 32): "Het huis Den Hollander" naming its stamboom in its own
+   * infobox stands in that tree as far as the web is concerned — the same
+   * `inTree` line a member gets, with the field's label on it ("Stamboom"). A
+   * familie that is *also* a member is one knot joined once: the member pass
+   * above wrote the bare line, and a second one saying the same thing with a
+   * word on it would draw the pair twice.
+   */
+  for (const row of entryRows) {
+    const from = webNodeId('entry', row.id);
+    const values = (row.fields ?? {}) as Record<string, unknown>;
+    for (const { treeId, label } of treeLinksInFields(row.typeFields ?? [], values)) {
+      if (!has('family_tree', treeId)) continue;
+      const to = webNodeId('family_tree', treeId);
+      if (inTreePairs.has(`${from}>${to}`)) continue;
+      inTreePairs.add(`${from}>${to}`);
+      add('inTree', from, to, label);
     }
   }
 
@@ -721,4 +751,31 @@ export function caseLinksInFields(
       ? caseIdsIn(values[field.key]).map((caseId) => ({ caseId, label: field.label }))
       : [],
   );
+}
+
+/**
+ * §66 (round 32): every stamboom an infobox points at, with the label of the
+ * field that points there — `caseLinksInFields` for the sixth kind of thing.
+ *
+ * A `family_tree_link` holds one ref, never a list, and both shapes
+ * `coerceFieldValue` accepts are read: the `{ id, name, slug }` the picker
+ * writes and the bare id an older or hand-written value may be.
+ */
+export function treeLinksInFields(
+  fields: FieldDef[],
+  values: Record<string, unknown>,
+): { treeId: string; label: string }[] {
+  const out: { treeId: string; label: string }[] = [];
+  for (const field of fields) {
+    if (field.kind !== 'family_tree_link') continue;
+    const value = values[field.key];
+    const treeId =
+      typeof value === 'string'
+        ? value
+        : value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string'
+          ? ((value as { id: string }).id)
+          : '';
+    if (treeId) out.push({ treeId, label: field.label });
+  }
+  return out;
 }

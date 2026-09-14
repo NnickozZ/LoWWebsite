@@ -6,10 +6,13 @@ import { LiveField, useLiveFields } from '@/components/live/LiveFields';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import type { FieldDef } from '@/lib/db/schema';
 import type { CaseRef } from '@/lib/cases/service';
+import type { ResolvedEntryRef } from '@/lib/entries/derived';
 import { caseIdsIn } from '@/lib/entries/caseFields';
 import { parseDutchDate } from '@/lib/timelines/time';
+import type { StoredTreeRef } from '@/lib/entries/fieldValues';
 import { EntryPicker, type EntryRef } from './EntryPicker';
 import { CasePicker } from './CasePicker';
+import { FamilyTreePicker } from '@/components/families/FamilyTreePicker';
 import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 
 type Values = Record<string, unknown>;
@@ -21,11 +24,66 @@ type Values = Record<string, unknown>;
  */
 export type CaseRefs = Record<string, CaseRef>;
 
+/**
+ * §67: what the *archive* has to say under a field, rendered on the server and
+ * handed down by field key — the same shape `slots` has on the page
+ * (`app/(app)/e/[slug]/page.tsx`), and for the same reason: a derived list is a
+ * read of the archive, so it must run behind `visibleEntryCondition` and never
+ * travel to a player's browser as props. Today there is exactly one: the
+ * brothers and sisters that follow from shared parents, under `broers_zussen`.
+ * It is printed under the field on both faces and cannot be edited there — the
+ * way to change it is to change the parents.
+ */
+export type DerivedFieldNotes = Record<string, ReactNode>;
+
+/**
+ * §67: **een chip wordt vers opgezocht.** The artikelen named in this infobox,
+ * looked up per viewer on the server (`resolveFieldRefs`) rather than read out
+ * of the stored `{ id, name, slug }` copy. An id that is not in this map is one
+ * this reader may not see or one that no longer exists, and it is not printed
+ * at all — absent, never MISSING (rule 1). Both faces obey it: a chip nobody
+ * may see is not a chip somebody may remove either, which is why the writing
+ * face works from this map too and the server puts the hidden ones back.
+ */
+export type EntryRefs = Record<string, ResolvedEntryRef>;
+
 function CaseChip({ item }: { item: CaseRef }) {
   return (
     <a className="entry-chip" href={`/c/${item.slug}`} data-case-id={item.id}>
       <Icon name="folder" size={12} />
       {item.name}
+    </a>
+  );
+}
+
+/**
+ * §66 (round 32): a stamboom named in an infobox. Unlike a dossier it is not
+ * resolved per viewer — the name and the slug are stored with the id
+ * (`StoredTreeRef`), so this is all the chip needs and all it gets.
+ */
+function asTreeRef(value: unknown): StoredTreeRef | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  return typeof raw.id === 'string' && raw.id ? (raw as StoredTreeRef) : null;
+}
+
+function TreeChip({ tree }: { tree: StoredTreeRef }) {
+  const label = tree.name || 'Stamboom';
+  // A ref is a copy, so the tree may have been renamed or thrown away since.
+  // The link is followed to the address that was stored: a 404 is an answer, a
+  // page that will not draw is not. With no slug there is nothing to follow.
+  if (!tree.slug) {
+    return (
+      <span className="entry-chip" style={{ opacity: 0.6 }}>
+        <Icon name="tree" size={12} />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <a className="entry-chip" href={`/stambomen/${tree.slug}`} data-family-tree-id={tree.id}>
+      <Icon name="tree" size={12} />
+      {label}
     </a>
   );
 }
@@ -39,6 +97,27 @@ function asEntryRef(value: unknown): EntryRef | null {
 
 function asEntryRefs(value: unknown): EntryRef[] {
   return Array.isArray(value) ? (value.filter(Boolean) as EntryRef[]) : [];
+}
+
+/**
+ * §67: the stored value, read through this viewer's fresh lookup. The order is
+ * the one the field holds — the order somebody chose them in — and the entries
+ * are the ones that came back, so a destroyed or unseeable id simply is not in
+ * the list. Nothing here ever falls back on the stored copy: a stale name is
+ * the smaller half of the bug and a name that should not be read is the larger.
+ */
+function resolveOne(value: unknown, refs: EntryRefs): ResolvedEntryRef | null {
+  const stored = asEntryRef(value);
+  return (stored && refs[stored.id]) || null;
+}
+
+function resolveMany(value: unknown, refs: EntryRefs): ResolvedEntryRef[] {
+  const out: ResolvedEntryRef[] = [];
+  for (const stored of asEntryRefs(value)) {
+    const fresh = refs[stored.id];
+    if (fresh && !out.some((item) => item.id === fresh.id)) out.push(fresh);
+  }
+  return out;
 }
 
 /**
@@ -252,7 +331,12 @@ function DateHint({ id, value }: { id: string; value: unknown }) {
  * infobox leave empty rows out altogether — a wiki's infobox lists the facts
  * that are known, not every fact the template could hold.
  */
-export function fieldValue(field: FieldDef, value: unknown, cases: CaseRefs = {}): ReactNode | null {
+export function fieldValue(
+  field: FieldDef,
+  value: unknown,
+  cases: CaseRefs = {},
+  refs: EntryRefs = {},
+): ReactNode | null {
   switch (field.kind) {
     case 'text':
     case 'longtext':
@@ -310,14 +394,20 @@ export function fieldValue(field: FieldDef, value: unknown, cases: CaseRefs = {}
       );
     }
 
+    /*
+     * §67: the stored ref is a copy, so it says who was chosen, not who that is
+     * now. `refs` is the fresh answer for this reader; an id that is not in it
+     * prints nothing — the artikel is destroyed, or it is one they may not see,
+     * and naming it would be the leak itself.
+     */
     case 'entry_link': {
-      const entry = asEntryRef(value);
+      const entry = resolveOne(value, refs);
       if (!entry) return null;
       return <EntryChip entry={entry} />;
     }
 
     case 'entry_links': {
-      const entries = asEntryRefs(value);
+      const entries = resolveMany(value, refs);
       if (!entries.length) return null;
       return (
         <span className="row-wrap" style={{ gap: '0.25rem' }}>
@@ -346,6 +436,13 @@ export function fieldValue(field: FieldDef, value: unknown, cases: CaseRefs = {}
           ))}
         </span>
       );
+    }
+
+    // §66 (round 32): which stamboom this artikel is the family of.
+    case 'family_tree_link': {
+      const tree = asTreeRef(value);
+      if (!tree) return null;
+      return <TreeChip tree={tree} />;
     }
 
     // A map pin has no reading shape of its own; the maps a fiche is on are
@@ -381,23 +478,33 @@ export function FieldsView({
   fields,
   values,
   cases = {},
+  refs = {},
+  derived = {},
 }: {
   fields: FieldDef[];
   values: Values;
   cases?: CaseRefs;
+  /** §67: the artikelen this infobox names, looked up fresh for this reader. */
+  refs?: EntryRefs;
+  /** §67: what the archive works out under a field, by field key. */
+  derived?: DerivedFieldNotes;
 }) {
   const rows = fields.flatMap((field) => {
-    const shown = fieldValue(field, values[field.key], cases);
-    return shown === null ? [] : [{ field, shown }];
+    const shown = fieldValue(field, values[field.key], cases, refs);
+    const under = derived[field.key] ?? null;
+    // §67: an empty field with something derived under it is still a row — the
+    // whole point of the derived half is that nobody typed anything.
+    return shown === null && under === null ? [] : [{ field, shown, under }];
   });
   if (!rows.length) return null;
 
   return (
     <div className="stack fields-compact fields-view">
-      {rows.map(({ field, shown }) => (
+      {rows.map(({ field, shown, under }) => (
         <div key={field.key}>
           <span className="label">{field.label}</span>
           <div className="field-value">{shown}</div>
+          {under}
         </div>
       ))}
     </div>
@@ -413,12 +520,24 @@ export function FieldsEditor({
   hideLabels = false,
   compact = false,
   cases = {},
+  refs = {},
+  derived = {},
   onCasePicked,
 }: {
   fields: FieldDef[];
   values: Values;
   /** §21: the dossiers behind the stored ids, already filtered for this viewer. */
   cases?: CaseRefs;
+  /** §67: what the archive works out under a field, by field key. Read-only. */
+  derived?: DerivedFieldNotes;
+  /**
+   * §67: the artikelen the stored refs point at, looked up fresh for this
+   * viewer. The writing face works from these and nothing else: a chip this
+   * hand may not see is not drawn here, and taking one away is therefore not
+   * something this hand can do by accident. The server puts the invisible ones
+   * back on save — "je kunt niet weghalen wat je niet ziet".
+   */
+  refs?: EntryRefs;
   /** A dossier just picked here is not in `cases` yet; the page adds it. */
   onCasePicked?: (item: CaseRef) => void;
   /** `meta.live` says the room already saved this; the parent then skips its own save. */
@@ -441,6 +560,22 @@ export function FieldsEditor({
   const mayType = useMayType();
   const gate = useAuthorGate();
   const readOnly = locked || !mayType;
+
+  /*
+   * §67: what this hand picked *since the page was read*. `refs` is the
+   * server's answer at render time and does not know about an artikel chosen
+   * a moment ago — and the picker only ever offers what this viewer may see,
+   * so a picked ref is resolved by construction. Without this, the second pick
+   * rebuilt the list from `refs` alone and silently dropped the first (round
+   * 26's §51 spec caught it: two members picked, one survived the reload).
+   */
+  const [picked, setPicked] = useState<EntryRefs>({});
+  const known: EntryRefs = { ...refs, ...picked };
+  const remember = (entry: EntryRef) =>
+    setPicked((prev) => ({
+      ...prev,
+      [entry.id]: { id: entry.id, name: entry.name, slug: entry.slug, icon: entry.icon ?? null, colour: entry.colour ?? null },
+    }));
 
   if (!fields.length) return null;
 
@@ -587,19 +722,29 @@ export function FieldsEditor({
               </div>
             )}
 
+            {/* §67: the box shows who is in it *now*, not who was picked. An
+                artikel this hand may not see leaves the box looking empty, and
+                clearing an empty box takes nothing away: the server keeps what
+                it knows is standing there. */}
             {field.kind === 'entry_link' && (
               <EntryPicker
-                value={asEntryRef(value)}
+                value={resolveOne(value, known)}
                 ofType={field.ofType}
-                onPick={(entry) => set(entry)}
+                onPick={(entry) => {
+                  remember(entry);
+                  set(entry);
+                }}
                 onClear={() => set(null)}
               />
             )}
 
+            {/* §67: the same list the reading face prints, with a cross on
+                each. What is sent back is this visible list; the ids that were
+                filtered out of it are put back by `updateEntry`. */}
             {field.kind === 'entry_links' && (
               <div className="stack" style={{ gap: '0.4rem' }}>
                 <div className="row-wrap">
-                  {asEntryRefs(value).map((entry) => (
+                  {resolveMany(value, known).map((entry) => (
                     <span key={entry.id} className="row" style={{ gap: '0.2rem' }}>
                       <a
                         className="entry-chip"
@@ -619,7 +764,7 @@ export function FieldsEditor({
                           className="btn btn-ghost btn-small"
                           aria-label={`${entry.name} verwijderen`}
                           onClick={() =>
-                            set(asEntryRefs(value).filter((item) => item.id !== entry.id))
+                            set(resolveMany(value, known).filter((item) => item.id !== entry.id))
                           }
                         >
                           <Icon name="close" size={13} />
@@ -634,8 +779,9 @@ export function FieldsEditor({
                     ofType={field.ofType}
                     placeholder="Nog een toevoegen…"
                     onPick={(entry) => {
-                      const current = asEntryRefs(value);
+                      const current = resolveMany(value, known);
                       if (current.some((item) => item.id === entry.id)) return;
+                      remember(entry);
                       set([...current, entry]);
                     }}
                     onClear={() => undefined}
@@ -671,6 +817,17 @@ export function FieldsEditor({
               />
             )}
 
+            {/* §66 (round 32): "families moet een link hebben hiervoor" — one
+                stamboom, picked from the shelf this viewer may see. */}
+            {field.kind === 'family_tree_link' && (
+              <FamilyTreePicker
+                id={`field-${field.key}`}
+                value={asTreeRef(value)}
+                readOnly={readOnly}
+                onChange={(next) => set(next)}
+              />
+            )}
+
             {field.kind === 'map_pin' && (
               <p className="small muted" style={{ margin: 0 }}>
                 Spelden staan tegenwoordig op de landkaarten zelf: zet dit artikel op een kaart via
@@ -678,6 +835,11 @@ export function FieldsEditor({
                 <a href="/maps">kaartenpagina</a>.
               </p>
             )}
+
+            {/* §67: and what the archive works out under this field — the
+                derived broers en zussen. Read-only on both faces: the way to
+                change it is to change the parents. */}
+            {derived[field.key] ?? null}
           </div>
         );
       })}

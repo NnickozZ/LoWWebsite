@@ -21,7 +21,7 @@ import { presenceColour } from '@/lib/boards/live';
 import { displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { buildFamilyGraph } from '@/lib/families/graph';
-import { getFamilyTreeBySlug } from '@/lib/families/service';
+import { getFamilyTreeBySlug, linkedFamiliesOf } from '@/lib/families/service';
 import { inkForViewer } from '@/lib/ink/merge';
 import { getInk } from '@/lib/ink/service';
 import { sideOf } from '@/lib/keeper/kinds';
@@ -58,6 +58,15 @@ export default async function FamilyTreePage({
 
   const words = getWords();
   const graph = buildFamilyGraph(tree, user);
+
+  /*
+   * §66 (round 32): the other end of "Stamboom" on a Familie-artikel. Per
+   * viewer, like everything else on this page — a Keeper-only familie pointing
+   * here is simply not in the list, and with nobody pointing here the line is
+   * not printed at all (it stands outside `.tree-tools`, so a line that comes
+   * and goes would move the canvas, which is §64's whole complaint).
+   */
+  const linked = linkedFamiliesOf(tree.id, user);
 
   // §17: may this viewer draw in it, and may they turn its dials.
   const grant = user ? grantFor('family_tree', tree.id, user.id) : null;
@@ -116,6 +125,22 @@ export default async function FamilyTreePage({
                 </span>
               </>
             )}
+            {/* §66 (round 32): whose stamboom this is, read off the Familie's
+                own infobox — the other side of its Stamboom field. It stands
+                in the eyebrow beside the dossier because it is the same kind of
+                fact ("this belongs to …"), and because the heading row is one
+                line and has no room for a second sentence. Per lezer: a
+                Keeper-only familie is not printed to a player (rule 1). */}
+            {linked.map((family) => (
+              <span key={family.id}>
+                {' · '}
+                <span className="canvas-head-of" data-testid="tree-head-of">
+                  <Link href={`/e/${family.slug}`} style={{ color: 'inherit' }} data-entry-id={family.id}>
+                    <Icon name={family.icon} size={12} /> {family.name}
+                  </Link>
+                </span>
+              </span>
+            ))}
           </p>
           {/* §34/§66: the heading *is* the name box. It used to be printed
               here and again in the canvas's own bar, which on a telephone was

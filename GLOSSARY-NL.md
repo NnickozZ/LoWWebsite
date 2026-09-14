@@ -1112,8 +1112,63 @@ zinnen komen uit die lijst.
 | **{n} kaartjes** · **{n} verwanten erbuiten** · **sleep om te schuiven, scroll of knijp om te zoomen** · **sleep een kaartje om het vast te zetten** | de regel onder het doek | *erbuiten* zijn de schimmen; de laatste zin staat er niet op een telefoon, en op een telefoon gaat de hele regel weg — hij zegt daar niets dat de vorm niet al zegt (§66). |
 | **Opslaan…** · **Opgeslagen** · **Niet opgeslagen — controleer je verbinding** | de opslagstrip, in de werkbalk | Die van het prikbord (§61). Op een telefoon staat hij er niet: de strip in de schil zegt het ook (§66). |
 | **Rol in een stamboom: —** · **… Ouder** · **… Kind** · **… Partner** · **… Verwant** | het keuzevakje onder een koppelingsveld in Beheer → Soorten | Leeg is het gewone geval. Eronder: *"Met een rol tekent elke stamboom deze lijn, en vult het archief de andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner). Verwant wordt wel getekend en niet gespiegeld."* (§66) |
-| **Ouders** · **Kinderen** · **Partner** · **Achternaam** | geleverde velden op Personen en Onderzoekers | *Achternaam* is een gewoon tekstveld: de geprinte naam van wie ingetrouwd of gevonden is. De *band* is het bestaande veld **Familie** (§51), dat de rand kleurt (§66). |
+| **Ouders** · **Kinderen** · **Partner** | geleverde velden op Personen en Onderzoekers | De *band* is het bestaande veld **Familie** (§51), dat de rand kleurt (§66). Er stond in ronde 31 ook een **Achternaam** naast — een gewoon tekstveld voor de geprinte naam van wie ingetrouwd of gevonden is — en dat is in ronde 33 teruggedraaid: zie §67. Sinds §67 staat er wél **Broers en zussen** bij. |
 | **Geschapen door** · **Schepselen** · **Aspect van** | geleverde velden op Abnormaliteiten en de vier pantheon-soorten, naast Ouders/Kinderen/Partner | Scheppen is ouderschap met een ander woord erop, dus dezelfde rol met een eigen label. *Aspect van* is *Verwant*: het wordt getekend en met opzet niet gespiegeld (§66). |
 | **in de {stamboom}** · **staat in de {stamboom}** · **verwantschap** | de legenda en het paneel van het web | Twee soorten lijn, allebei violet. Bij een verwantschapslijn staat het label van het veld als woord erbij (§66). |
 | **Zoek een {artikel}, landkaart, {dossier}, {prikbord}, {tijdlijn} of {stamboom}…** | de plaatshouder van de zoekbalk boven een prikbord | Eén woord langer sinds §66. |
 | **Wie van wie afstamt** · **Het pantheon** · **De vader van Pier** · **Iets uit de diepte** | de twee stambomen en hun losse kaartjes in `seed-wereld` | De testwereld, niet de e2e-fixture. Elk kaartje hangt ergens aan: *De vader van Pier* is de **ouder** van het eerste lid, *Iets uit de diepte* een zijlijn met het woord **Aspect van** naar de eerste god — een kaartje dat nergens aan hangt zweeft in z'n eentje naast de boom (§66). |
+
+## Ronde 32 — de familie van een stamboom, en de kleuren van een kaartje (§66, §45)
+
+Twee kleine dingen naast elkaar: een Familie mag nu zeggen welke {stamboom} van
+haar is, en de kleuren van een kaartje staan in **Beheer → Kleuren** zoals al
+het andere. De zinnen in de Kleuren-pane komen uit `lib/theme/schemes.ts` en
+gaan *niet* door `lib/words.ts` heen — daar staat dus letterlijk *stamboom*, ook
+als de Keeper zijn bomen anders noemt.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Koppeling naar een stamboom** | de keuzelijst met veldsoorten in Beheer → Soorten | De nieuwe veldsoort (`family_tree_link`). Precies één boom of niets, nooit een lijst: "welke" is de hele vraag die het veld stelt. Hij draagt geen *ofType* en geen *Rol in een stamboom* — een stamboom is geen artikel (§66). |
+| **Stamboom** | een geleverd veld op **Families**, in de infobox | Achter het merkteken `seed:round-32-stamboom-link`, in dezelfde vorm als §51's aanplakken. Niet elke boom hoort bij een familie — het pantheon hoort bij niemand — maar een familie moet er een kunnen aanwijzen. Leeg laten mag altijd, en een Keeper mag het veld op elke soort zetten (§66). |
+| **Zoek een stamboom…** | de plaatshouder van dat veld, zolang er nog niets gekozen is | De lijst wordt één keer opgehaald bij het eerste aanklikken en hier gefilterd; er is met opzet **geen "'X' aanmaken"-rij**, want een boom die uit een infoboxvakje ontstaat is een lege tekening die niemand ooit opent (§66). |
+| **Geen stamboom met die naam.** · **Er is nog geen stamboom om naar te wijzen.** | onder dat vakje, met en zonder iets ingetypt | Wat de lijst aanbiedt is wat deze lezer mag openen, en (§50) alleen van de kant waarop hij staat — op de Keeperkant staan er dus alleen Keeper-bomen in (§66). |
+| **{naam} verwijderen** | de voorgelezen naam van het kruisje naast het gekozen chipje | Haalt de koppeling weg, niet de boom. Zonder naam staat er *Stamboom verwijderen* (§66). |
+| **Stamboom** *(als chipje)* | in de infobox, waar het veld is ingevuld | Het chipje draagt het boompictogram en is een deur naar `/stambomen/{slug}`. Het woord *Stamboom* staat er alleen als er geen naam bewaard is: het veld bewaart naam én slug naast het id, dus normaal staat de naam van de boom er (§66). |
+| **· {pictogram} De familie Boone** | het regeltje (`.eyebrow`) boven de kop van een stamboom, achter het dossier | De andere kant van het veld: van wie deze boom is. Het staat in dat regeltje en niet in een eigen regel *"Stamboom van …"*, want de §34-kop is één rij en die zin kapte de naam van de boom af. Per lezer: een familie die je niet mag zien staat er niet (regel 1, §66). |
+| **in de stamboom** | de legenda en het paneel van het web | Ongewijzigd woord, één bron erbij: naast de leden van een boom trekt ook een familie die in haar infobox naar die boom wijst zo'n lijn, met het label van het veld erop. Wie allebei is — lid én verwijzer — krijgt één lijn, niet twee (§66). |
+| **De stamboom** | de kop van de nieuwe groep in Beheer → Kleuren | Eronder: *"Een kaartje in een stamboom is een vlak van zichzelf, met zijn eigen inkt."* Dat is de hele reden dat deze vier kleuren bestaan: het kaartje las eerst de inkt van de *pagina*, en die is in een donker schema bijna wit — wit op beige (§45, §66). |
+| **Het kaartje in een stamboom** | het eerste kleurvakje in die groep (`--tree-face`) | In een donker schema is het kaartje donker en de inkt erop licht. Het blijft wél *lichter* dan het doek eronder: donkerder dan de ondergrond leest als een gat in plaats van als papier (§45). |
+| **De inkt op zo'n kaartje — de naam** | het tweede (`--tree-ink`) | Het enige waarvoor een stamboom gelezen wordt. `tests/unit/tree-contrast.test.ts` houdt hem in alle vier de schema's op 7:1 tegen het kaartje (§45). |
+| **De lijnen tussen de kaartjes** | het derde (`--tree-line`) | Gemeten tegen het doek (`--paper-dark`), niet tegen het papier van de pagina (§45). |
+| **De ring om een godheid en het accent van een huis zonder eigen kleur** | het vierde (`--tree-accent`) | Het goud. Een Familie-artikel met een eigen kleur houdt die (`--house` gaat eroverheen); een huis zonder kleur draagt dit, met witte letters erop — daarom is het in het donker met opzet niet lichter gemaakt (§45, §66). |
+| **De inkt op een kaart op een prikbord** | een vijfde nieuw kleurvakje, in de groep **Het prikbord** (`--card-ink`) | Stond er als een hard ingetypte kleur die niemand kon verzetten. Dezelfde regel als hierboven, op de plek waar het antwoord toevallig al goed was (§45). |
+
+## Ronde 33 — broers en zussen, een tweede ouder, en samen kiezen (§67)
+
+Ook hier zijn *stamboom*, *los kaartje*, *artikel* en *lijn* hernoembare woorden
+(`lib/words.ts`), dus waar hieronder **{stamboom}** staat, staat op het scherm
+het woord van de Keeper. De drie oordelen achter een afgeleide naam — *vol*,
+*half*, *onbekend* — staan met een kleine letter en in het enkelvoud: ze staan
+náást een naam, niet boven een kolom.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Broers en zussen** | een geleverd veld op alle zeven stamboomsoorten, in de infobox | Achter het merkteken `seed:round-33-broers-zussen`, in dezelfde vorm als §51's aanplakken. Met opzet het *uitzonderingsgeval*: het archief leidt broers en zussen zelf af uit gedeelde ouders, en dit vakje is voor als de ouders nergens staan (§67). |
+| **Rol in een stamboom: Broer of zus** | de vijfde keuze in dat keuzevakje in Beheer → Soorten (de lijst komt sinds §67 uit `FIELD_ROLES`, dus een rol erbij verschijnt er vanzelf) | De zin eronder is één woordpaar langer: *"Met een rol tekent elke stamboom deze lijn, en vult het archief de andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner, Broer of zus ↔ Broer of zus). Verwant wordt wel getekend en niet gespiegeld."* De rol staat op dezelfde rij en maakt geen verbintenis (§67). |
+| *(nog nergens afgedrukt)* **Wie hier staat, staat op dezelfde rij, zonder verbintenis — voor als de ouders niet bekend zijn.** | `ROLE_HINTS` in `lib/families/roles.ts` — één zin per rol, klaar om onder het keuzevakje te komen | Geschreven en getest, maar nog door geen scherm gelezen; de zin die er nu staat is de gedeelde zin hierboven (§67). |
+| **vol** · **half** · **onbekend** · **genoteerd** | het kleine woordje achter een afgeleide naam, en in de tekening | Wat het archief eerlijk kan zeggen: *vol* = allebei dezelfde twee ouders, *half* = elke kant heeft een ouder die de ander mist, *onbekend* = ze delen er één en de ene lijst is korter. *genoteerd* is wat iemand zelf opschreef (§67). |
+| **Volgens de ouders** | het kopje boven de afgeleide chipjes onder het veld *Broers en zussen*, op beide gezichten van het artikel | Per lezer op de server uitgerekend; niet te bewerken — de weg om het te veranderen loopt via de ouders (§67). |
+| **Volgt uit de ouders** | in het menuutje bij een aangeklikte lijn, waar *Lijn verwijderen* zou staan | Een afgeleide lijn is nergens opgeschreven, dus er is niets te ontschrijven. Een knop die stilletjes niets doet is erger dan geen knop (§67). |
+| **De ouders zeggen iets anders** | de voorgelezen titel van het ringetje op een getypte broer-en-zuslijn | Allebei hebben ouders en ze delen er geen. De lijn blijft staan: het archief overstemt geen mens (§67). |
+| **Tweede ouder (optioneel) bij {naam}** | de kop van het doosje, meteen nadat er een kind gekozen is | Het `+ kind`-handvat sluit niet, het stelt één vraag erbij. Er staat niets voorgeselecteerd (§67). |
+| **Partner van {naam}** | onder een naam in de snelle rijen van dat doosje | Alleen een suggestie: een partner is géén ouder, en twee mensen naast elkaar in een boom zijn daarmee niet de ouders van iemand (§67). |
+| **Tweede ouder zoeken** | de onzichtbare naam van het zoekvakje in datzelfde doosje | (§67) |
+| **Overslaan** | de knop eronder | Krijgt de focus zodra de tweede stap opengaat, dus Enter is een overslaan — en Escape ook (§67). |
+| **Kind van beide toevoegen: {naam} en {naam}** | de voorgelezen naam van het `+` dat tússen twee gekozen kaartjes staat | Het enige handvat op een stamboom dat van twee kaartjes tegelijk is; het schrijft op allebei de pagina's. Staat er uit als een van de twee soorten geen veld met de rol Kind heeft, met *"De soort van {naam} heeft geen veld met de rol Kind — voeg het toe in Beheer → Soorten."* (§67) |
+| **Meer bij {n} kaartjes** | het `…` bij een selectie van meer dan één | Naast *Meer bij {naam}*, dat bij één kaartje hoort (§66, §67). |
+| **{n} uit de {stamboom}** | het enige item in dat menu | Wat een selectie verder kan is slepen, en dat is een gebaar (§67). |
+| **{n} kaartjes uit deze {stamboom} halen?** | de vraag bij het weghalen van een hele selectie | **Eén** vraag voor allebei de soorten kaartje: zes bladen achter elkaar zijn geen zes vragen maar iemand die "ja" klikt zonder te lezen (§67). |
+| **{n} kaartjes horen bij een {artikel}: die blijven bestaan, met alle velden erop — alleen deze {stamboom} vergeet ze.** · **{n} kaartjes hebben geen {artikel} (een {los kaartje}): die bestaan nergens anders, dus die zijn definitief weg.** | de twee helften van die vraag | Elk deel wordt apart geteld en apart verwoord, want het zijn twee verschillende dingen. Een hernoembaar woord staat er alleen in het enkelvoud: het meervoud ervan is niet te raden (§67). |
+| **Weghalen** | de knop onder die vraag | (§67) |
+| **{n} kaartjes uit de {stamboom} gehaald.** + **Ongedaan maken** | de melding erna | Eén commit, dus één stap terug (§67). |
+| **· sleep een kaartje om het vast te zetten · shift-klik of shift-sleep om er meer te kiezen** | de staart van de regel onder het doek | Alleen voor wie mag bewerken, en niet op een telefoon: een vinger heeft geen shift-toets (§8, §67). |

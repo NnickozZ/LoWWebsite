@@ -3,13 +3,14 @@ import type { FieldDef, FieldKind } from '@/lib/db/schema';
 import type { FieldRole } from '@/lib/families/types';
 
 /**
- * §66: the four kinship roles, checked here rather than imported from
+ * §66/§67: the five kinship roles, checked here rather than imported from
  * `lib/families/roles.ts` on purpose — this module is what a client component
  * imports to render the type editor, and it must stay as small as it is. The
- * list is four strings and it is the same four; `lib/families/roles.ts` is
+ * list is five strings and it is the same five; `lib/families/roles.ts` is
  * where the *meaning* lives (`inverseRole`, the Dutch labels, the edges).
+ * `sibling` joined in round 33 and `FIELD_ROLES` there must say the same.
  */
-const FIELD_ROLE_KEYS = ['parent', 'child', 'partner', 'kin'] as const;
+const FIELD_ROLE_KEYS = ['parent', 'child', 'partner', 'sibling', 'kin'] as const;
 
 export function isFieldRole(value: unknown): value is FieldRole {
   return typeof value === 'string' && (FIELD_ROLE_KEYS as readonly string[]).includes(value);
@@ -32,6 +33,11 @@ export const FIELD_KINDS: { kind: FieldKind; label: string }[] = [
   { kind: 'user_link', label: 'Koppeling naar een speler' },
   { kind: 'case_link', label: 'Koppeling naar één dossier' },
   { kind: 'case_links', label: 'Koppelingen naar dossiers' },
+  // §66 (round 32): "Stambomen moeten gelinkt kunnen worden aan families." One
+  // tree, never a list — a familie has one stamboom or none. It carries no
+  // `ofType` and no `role`: a stamboom is not an artikel, so there is no soort
+  // to aim it at and no kinship for it to mean.
+  { kind: 'family_tree_link', label: 'Koppeling naar een stamboom' },
   { kind: 'date', label: 'Datum' },
   { kind: 'map_pin', label: 'Speld op de landkaart (verwijst naar de kaartenpagina)' },
 ];

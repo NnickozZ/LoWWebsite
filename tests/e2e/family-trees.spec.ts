@@ -5,6 +5,7 @@ import {
   editCase,
   fillWhenReady,
   newCaseFamilyTree,
+  newEntryButton,
   signIn,
   signUp,
 } from './helpers';
@@ -275,6 +276,16 @@ test('de handgreep onderaan maakt een kind, en dat is een veld op allebei de art
   await sheet.getByRole('button', { name: 'Aanmaken', exact: true }).click();
   await expect(sheet).toBeHidden({ timeout: 20_000 });
 
+  /*
+   * §67: the box does not close on the answer — a child usually has two
+   * parents, so it asks who the other one is. Nothing is preselected and
+   * "Overslaan" has the focus; this child has one parent, so skip.
+   */
+  const second = page.getByTestId('tree-picker-second-parent');
+  await expect(second).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('tree-second-parent-skip').click();
+  await expect(second).toBeHidden();
+
   // A second card, and a line between the two of them.
   const childCard = cardOf(page, child);
   await expect(childCard).toBeVisible({ timeout: 20_000 });
@@ -539,6 +550,67 @@ test('een dossier heeft een Stamboom-tabblad, en de stamboom draagt het dossier'
   await expect(shelfRow).toContainText(new RegExp(caseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
   await page.goto('/');
   await expect(page.locator('.home-numbers')).toContainText(/\d+ stambomen|1 stamboom/);
+});
+
+/* ------------------------------------------- h2. de familie en haar stamboom */
+
+/**
+ * §66 (round 32): "Stambomen moeten gelinkt kunnen worden aan families (niet
+ * altijd, maar families moet een link hebben hiervoor)."
+ *
+ * One field on the Familie's own page, and one line on the tree's. The fixture
+ * has no Familie-artikel, so one is made the way a person makes one — the `+`,
+ * the soort, the name — and the tree is picked out of the field's own box.
+ */
+test('een Familie wijst naar zijn stamboom, en de stamboom zegt van wie hij is', async ({ page }, info) => {
+  test.skip(info.project.name === 'phone', '§66: one viewport is enough for a field and a chip');
+  test.setTimeout(150_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const treeName = `De tak van de dijk ${stamp}`;
+  const familyName = `Familie Van der Dijk ${stamp}`;
+
+  await signIn(page, ...KEEPER);
+  const treeUrl = await newTree(page, treeName);
+
+  await page.goto('/');
+  await newEntryButton(page).click();
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  const soort = sheet.getByRole('radio', { name: 'Families', exact: true });
+  await expect(soort).toBeVisible({ timeout: 20_000 });
+  await soort.click();
+  await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), familyName);
+  await sheet.getByRole('button', { name: 'Aanmaken', exact: true }).click();
+  await page.waitForURL('**/e/**', { timeout: 20_000 });
+  // §6: `?new=1` lands on the editing face, where the name is a box.
+  await expect(page.locator('#entry-name')).toHaveValue(familyName);
+  const familyUrl = new URL(page.url()).pathname;
+
+  // Rule 18 all the same: ask for the editing face rather than assuming it.
+  await editArticle(page);
+  const row = editRow(page, 'stamboom');
+  await expect(row).toBeVisible();
+  await fillWhenReady(row.locator('#field-stamboom'), treeName);
+  const option = row.locator('.suggest-item').filter({ hasText: treeName }).first();
+  await expect(option).toBeVisible({ timeout: 15_000 });
+  await option.click();
+
+  // The chip carries the tree's own address, so it is a way back to it.
+  const chip = row.locator('.entry-chip');
+  await expect(chip).toHaveText(treeName);
+  await expect(chip).toHaveAttribute('href', `/stambomen/${new URL(treeUrl).pathname.split('/').pop()}`);
+  await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 20_000 });
+
+  // And it is a printed fact on the reading face, which is where nobody lands
+  // in bewerken (rule 18) — so the clean address is the way back in.
+  await page.goto(familyUrl);
+  await expect(page.getByRole('heading', { name: familyName, level: 1 })).toBeVisible();
+  await expect(readRow(page, 'Stamboom')).toContainText(treeName);
+
+  /* The other end: the tree names its familie in the eyebrow, beside the
+     dossier — the same kind of fact, in the same small capitals. */
+  await page.goto(treeUrl);
+  const head = page.getByTestId('tree-head-of').first();
+  await expect(head.getByRole('link', { name: familyName })).toBeVisible();
 });
 
 /* ----------------------------------------------------------- i. de Keeperkant */

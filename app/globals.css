@@ -41,7 +41,7 @@
  * `tests/unit/schemes.test.ts` fails the moment the two drift apart. Do not
  * hand-edit a colour in here — change `lib/theme/schemes.ts` and paste its
  * output back, or the archive's defaults and the Keeper's saved palettes stop
- * being the same nineteen tokens.
+ * being the same twenty-four tokens.
  *
  * The Keeper's own palettes, when they have edited any, come from the same
  * emitter as a `<style>` in `app/(app)/layout.tsx`, later in the document and
@@ -69,6 +69,11 @@
   --cork-speck: #5a3e2029;
   --card-face: #fbf7ec;
   --card-rule: #cdbfa4;
+  --card-ink: #1f1b16;
+  --tree-face: #fbf7ec;
+  --tree-ink: #1f1b16;
+  --tree-line: #5c544a;
+  --tree-accent: #8a6a24;
   --web-line-ink: #2a2118;
   --web-line-red: #c0392b;
   --web-line-blue: #1f4e79;
@@ -93,6 +98,11 @@
   --cork-speck: #4a3a2429;
   --card-face: #f4f1e8;
   --card-rule: #c3bda9;
+  --card-ink: #1f1b16;
+  --tree-face: #f4f1e8;
+  --tree-ink: #191d1b;
+  --tree-line: #55605b;
+  --tree-accent: #7d6320;
   --web-line-ink: #22231f;
   --web-line-red: #b03a2a;
   --web-line-blue: #1c4f5c;
@@ -117,6 +127,11 @@
   --cork-speck: #0000004d;
   --card-face: #e9e2d2;
   --card-rule: #8b7f68;
+  --card-ink: #1f1b16;
+  --tree-face: #2e2922;
+  --tree-ink: #ece5d6;
+  --tree-line: #8a8072;
+  --tree-accent: #9a7729;
   --web-line-ink: #e8e1d2;
   --web-line-red: #e2705f;
   --web-line-blue: #8fb8dd;
@@ -141,6 +156,11 @@
   --cork-speck: #0000004d;
   --card-face: #e6e6dc;
   --card-rule: #85857a;
+  --card-ink: #1f1b16;
+  --tree-face: #252d33;
+  --tree-ink: #e2e8ea;
+  --tree-line: #79868c;
+  --tree-accent: #9a7729;
   --web-line-ink: #dfe5e6;
   --web-line-red: #e2705f;
   --web-line-blue: #7fc3d4;
@@ -166,6 +186,11 @@
   --cork-speck: #0000004d;
   --card-face: #e9e2d2;
   --card-rule: #8b7f68;
+  --card-ink: #1f1b16;
+  --tree-face: #2e2922;
+  --tree-ink: #ece5d6;
+  --tree-line: #8a8072;
+  --tree-accent: #9a7729;
   --web-line-ink: #e8e1d2;
   --web-line-red: #e2705f;
   --web-line-blue: #8fb8dd;
@@ -189,6 +214,11 @@
   --cork-speck: #0000004d;
   --card-face: #e6e6dc;
   --card-rule: #85857a;
+  --card-ink: #1f1b16;
+  --tree-face: #252d33;
+  --tree-ink: #e2e8ea;
+  --tree-line: #79868c;
+  --tree-accent: #9a7729;
   --web-line-ink: #dfe5e6;
   --web-line-red: #e2705f;
   --web-line-blue: #7fc3d4;
@@ -1596,8 +1626,9 @@ details.section[open] > summary::before {
 }
 
 /* ---------------------------------------------------------------- boards
-   §45: the kurk, its spikkels and the two card colours used to be written out
-   three times over right here. They are four of the nineteen tokens now, so
+   §45: the kurk, its spikkels and the card colours used to be written out
+   three times over right here. They are five of the twenty-four tokens now
+   (round 32 added `--card-ink`, which was a hard-coded `#1f1b16`), so
    they come out of the generated block at the top of this file and out of the
    Keeper's Kleuren pane — `--cork-speck` with its alpha baked into the eighth
    hex digit, so the picker beside it stays a plain colour. */
@@ -1828,7 +1859,9 @@ details.section[open] > summary::before {
   background: var(--card-face);
   border: 1px solid var(--card-rule);
   box-shadow: 2px 3px 0 rgba(40, 26, 12, 0.22);
-  color: #1f1b16;
+  /* §45/§66: a kaart is a surface of its own, so it carries its own inkt —
+     never --ink, which follows the page and is nearly white in the dark. */
+  color: var(--card-ink);
   user-select: none;
   touch-action: none;
 }
@@ -3223,7 +3256,7 @@ details.section[open] > summary::before {
   padding: 0;
   text-align: left;
   background: var(--card-face);
-  color: #1f1b16;
+  color: var(--card-ink);
   cursor: grab;
   overflow: hidden;
 }
@@ -3738,6 +3771,26 @@ details.section[open] > summary::before {
   font-size: 0.92rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+/*
+ * §67: een lange naam op een chip duwt het kruis niet van het scherm.
+ *
+ * `.entry-chip` is `white-space: nowrap` everywhere else on purpose — a chip
+ * inside a sentence is one word and may not break in half. In an infobox it is
+ * not in a sentence: it stands in a column about 220 px wide on a 390 px
+ * screen, and a name longer than that used to carry the "verwijderen" cross
+ * beside it clean off the paper — the button was unpressable and the whole page
+ * scrolled sideways, which nothing in this archive may do. So here, and only
+ * here, a chip wraps and the row it is in may shrink.
+ */
+.fields-compact .entry-chip {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.fields-compact .row-wrap > .row {
+  min-width: 0;
+  max-width: 100%;
 }
 .infobox-tags {
   padding-top: 0.2rem;
@@ -5290,7 +5343,10 @@ details.section[open] > summary::before {
  * On a prikbord every other corner is taken — the inspector bottom-left, the
  * tray top-right — and the top-left is bare cork people click to let go of a
  * selection, so the toolbar sits bottom-right; on a phone the inspector spans
- * the bottom, so there it moves up to the top-left.
+ * the bottom, so there it moves up to the top-left. §67: a stamboom stands in
+ * the same corner and wears this same class (`InkShell corner="bottom-right"`)
+ * rather than growing a rule of its own — the corner is the canvas's choice,
+ * the position is the bar's.
  */
 .ink-toolbar-board {
   top: auto;
@@ -5314,7 +5370,7 @@ details.section[open] > summary::before {
    of §45, every --web-line-* and --web-<kind> off this element, so a Keeper
    who turns one of the six line colours turns the legend and the drawing at
    once. The six live in the generated block at the top of this file (and in
-   the Keeper's own `<style>`, when they have edited any); the sixteen kinds
+   the Keeper's own `<style>`, when they have edited any); the eighteen kinds
    are aliases onto them, written once beside it. `lib/web/kinds.ts` keeps its
    constants as the fallback for a property that is missing — nothing here is
    the second copy it used to be. */

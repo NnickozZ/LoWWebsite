@@ -4,6 +4,7 @@ import type { FieldDef } from '@/lib/db/schema';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { frameForType } from './frames';
 import { dedupeEdges, edgesFromFields, refIdsIn, roleFieldsOf, ROLE_LABELS } from './roles';
+import { classifySiblings, pairKey, primaryParentField, reconcileSiblings } from './siblings';
 import type {
   EntryGraphNode,
   FamilyGraph,
@@ -88,12 +89,6 @@ function readSoorten(typeIds: string[]): Map<string, SoortRow> {
     out.set(row.id, { ...row, defs: (row.defs ?? []) as FieldDef[] });
   }
   return out;
-}
-
-/** The `achternaam` box, when the soort has one and somebody filled it in. */
-function surnameOf(fields: Record<string, unknown>): string | null {
-  const value = fields.achternaam;
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 /** The first of `status` / `toestand` that holds a word — the small line under the name. */
@@ -214,7 +209,6 @@ export function buildFamilyGraph(tree: FamilyTree, viewer: Viewer): FamilyGraph 
       frame: frameForType(soort?.slug ?? ''),
       coverAssetId: row.coverAssetId ?? null,
       coverCrop: row.coverCrop ?? null,
-      surname: surnameOf(row.fields),
       house: (houseId ? houses.get(houseId) : undefined) ?? null,
       status: statusOf(row.fields),
       standing,
@@ -266,14 +260,77 @@ export function buildFamilyGraph(tree: FamilyTree, viewer: Viewer): FamilyGraph 
     }
   }
 
-  const edges: GraphEdge[] = dedupeEdges(fieldEdges).map((edge) => ({
-    id: `field:${edge.entryId}:${edge.fieldKey}:${edge.targetId}`,
-    from: `entry:${edge.from}`,
-    to: `entry:${edge.to}`,
-    role: edge.role,
-    label: edge.label,
-    source: { kind: 'field', entryId: edge.entryId, fieldKey: edge.fieldKey, targetId: edge.targetId },
-  }));
+  /*
+   * ------------------------------------------------ §67 broers en zussen
+   *
+   * Who the drawn artikelen record as their parents — read off the **first**
+   * parent-role field of each soort only, which is the one the mirror writes
+   * into (`primaryParentField`, and the comment there says why: every creature
+   * of one god is not a brother of every other).
+   *
+   * Only artikelen that are on the glass are in the map. A derived sibling
+   * therefore never makes a ghost: it is a line between two cards that are both
+   * already drawn, and where one of the two is missing there is nothing to say.
+   */
+  const parentsOf = new Map<string, Set<string>>();
+  for (const row of [...memberRows, ...ghostRows]) {
+    const key = primaryParentField(soorten.get(row.typeId)?.defs ?? []);
+    if (!key) continue;
+    const parents = new Set(refIdsIn(row.fields[key]).filter((id) => id !== row.id && drawn.has(id)));
+    if (parents.size) parentsOf.set(row.id, parents);
+  }
+
+  const deduped = dedupeEdges(fieldEdges);
+  const derivedSiblings = classifySiblings(parentsOf).filter(
+    // A ghost is drawn for its line to the tree, not for its own family — the
+    // same rule the field lines above already follow.
+    (pair) => !(ghostIds.has(pair.a) && ghostIds.has(pair.b)),
+  );
+  const verdicts = reconcileSiblings(
+    deduped.filter((edge) => edge.role === 'sibling').map((edge) => ({ a: edge.from, b: edge.to })),
+    derivedSiblings,
+    parentsOf,
+  );
+  const keptExplicit = new Map(
+    verdicts.filter((one) => one.source === 'explicit').map((one) => [pairKey(one.a, one.b), one]),
+  );
+
+  const edges: GraphEdge[] = deduped.flatMap((edge): GraphEdge[] => {
+    const base = {
+      id: `field:${edge.entryId}:${edge.fieldKey}:${edge.targetId}`,
+      from: `entry:${edge.from}`,
+      to: `entry:${edge.to}`,
+      role: edge.role,
+      label: edge.label,
+      source: {
+        kind: 'field' as const,
+        entryId: edge.entryId,
+        fieldKey: edge.fieldKey,
+        targetId: edge.targetId,
+      },
+    };
+    if (edge.role !== 'sibling') return [base];
+    // §67: an explicit link the parents already prove is dropped from the
+    // drawing — never from the field.
+    const verdict = keptExplicit.get(pairKey(edge.from, edge.to));
+    if (!verdict) return [];
+    return [{ ...base, sibling: 'explicit', ...(verdict.contested ? { contested: true } : {}) }];
+  });
+
+  for (const verdict of verdicts) {
+    if (verdict.source !== 'derived') continue;
+    edges.push({
+      id: `derived:sibling:${verdict.a}|${verdict.b}`,
+      from: `entry:${verdict.a}`,
+      to: `entry:${verdict.b}`,
+      role: 'sibling',
+      label: ROLE_LABELS.sibling,
+      // A line nobody wrote down: it follows from two facts that are written
+      // down, so there is no field to PATCH and nothing to take away.
+      source: { kind: 'derived' },
+      sibling: verdict.kind,
+    });
+  }
 
   /*
    * And the tree's own lines. A tie whose artikel end this viewer may not see

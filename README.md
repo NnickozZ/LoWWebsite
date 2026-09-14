@@ -585,7 +585,7 @@ lib/
                      "only this side" fragment every *list* is AND-ed with),
                      ties.ts (a twin and a touwtje), notes.ts (one text per
                      pair, `notesTarget`)
-  theme/             §45: schemes.ts — the four palettes, their nineteen
+  theme/             §45: schemes.ts — the four palettes, their twenty-four
                      tokens, and the emitter both `globals.css` and the
                      signed-in layout are written from. Pure; the half that
                      reads and writes settings is `lib/admin/schemes.ts`
@@ -633,7 +633,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Sixty-six rules worth knowing before changing anything:
+Sixty-seven rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -877,7 +877,13 @@ Sixty-six rules worth knowing before changing anything:
     else; it must never add a name to the JSON. The same rule governs the
     dossiers named in an infobox field (`case_link` / `case_links`): the field
     stores ids, `resolveCaseRefs` supplies the names, and an id that resolves
-    to nothing prints nothing.
+    to nothing prints nothing. **One field is deliberately not like that**, and
+    it is worth knowing which: `family_tree_link` (§66, round 32) stores
+    `{ id, name, slug }`, because nothing resolves a stamboom per viewer on the
+    way to the reading face the way `resolveCaseRefs` resolves a dossier. It is
+    an `entry_link`-shaped copy, not a MISSING-shaped lookup — a renamed or
+    destroyed tree leaves a chip pointing at an address that answers 404. That
+    is the trade, and it is written down in `DECISIONS.md` round 32.
 
 20. **A pointer frame is sight, never state.** §8. Cursors, carried cards and
     the selection box someone is dragging open all travel as `PointerFrame`
@@ -1855,10 +1861,11 @@ Sixty-six rules worth knowing before changing anything:
     `tests/unit/keeper-leaks.test.ts` pins all four.
 
 45. **Four palettes: the page picks the side, the person picks the light.** §45.
-    Spelers licht, Spelers donker, Keeper licht, Keeper donker — nineteen tokens
-    each, in `lib/theme/schemes.ts`, editable in **Beheer → Kleuren**. Four and
+    Spelers licht, Spelers donker, Keeper licht, Keeper donker — twenty-four
+    tokens each, in `lib/theme/schemes.ts`, editable in **Beheer → Kleuren**.
+    Four and
     not two, because a glance at the screen should say which side of the archive
-    you are standing on before you have read a word; nineteen and not a hundred,
+    you are standing on before you have read a word; twenty-four and not a hundred,
     because every other colour in the stylesheet is a `var()` alias onto one of
     these — the web's eighteen `--web-<kind>` properties are aliases onto its
     **six** line colours, so "wat op een prikbord hangt" is one choice and the
@@ -1897,14 +1904,43 @@ Sixty-six rules worth knowing before changing anything:
     Two decisions that read as inconsistencies and are not. Schemes are stored
     **in full**, defaults included, where §11's words are stored sparsely: a
     word left alone should follow a later change to its default, but a Keeper
-    who tuned three of nineteen colours does not want the other sixteen moving
-    under them in a later round. And the pane **warns** below WCAG's 4.5:1 for
+    who tuned three of twenty-four colours does not want the other twenty-one
+    moving under them in a later round. And the pane **warns** below WCAG's 4.5:1 for
     ink on paper rather than refusing the save — the archive is the Keeper's,
     but nobody should be able to make the whole thing unreadable by accident and
     find out on a phone in a tent. The canvas is not exempt from any of this:
     `WebCanvas` reads the custom properties (`readPalette`) rather than keeping
     its own copies, so the dark face, the Keeper's side and the Keeper's own
     palette all reach the drawing.
+
+    **A kaart is a surface of its own** (round 32, which took the count from
+    nineteen to twenty-four). Five tokens joined on one argument: a card is not
+    a hole in the page, it is a piece of paper lying *on* the page, so it
+    carries its own ink and nothing drawn on it may reach for `--ink` or
+    `--paper*`. A stamboom's kaartje was painted `--card-face` — a light paper
+    in every scheme, dark ones included — and the name on it was written in
+    `--ink`, which in a dark palette is nearly white: white on beige, and
+    unreadable at night on the one thing a stamboom is read for. A new group
+    **De stamboom** holds `--tree-face` (the kaartje), `--tree-ink` (the name on
+    it), `--tree-line` (the lines between the kaartjes) and `--tree-accent` (the
+    gold of a godheid's ring, and of a huis with no colour of its own), and
+    `--card-ink` joins the prikbord's group, replacing a hard-coded `#1f1b16` on
+    `.board-card` and `.board-tray-card` that nobody could turn. In a dark
+    palette the kaartje itself goes dark and the ink on it goes light — the card
+    turns over with the light rather than staying pale — and it is *lighter*
+    than the stage it lies on, because darker than the stage reads as a hole
+    rather than as paper. `app/stambomen.css` derives two locals from the two
+    card tokens with `color-mix` (`--tree-rule` for the card's own edge,
+    `--tree-ink-soft` for the small grey lines on it) so a Keeper turns two
+    dials and not four; those two are not tokens and do not belong in Kleuren.
+    `--house` still overrides the accent where a Familie-artikel has a colour.
+    `tests/unit/tree-contrast.test.ts` holds the floors in all four palettes —
+    `--tree-ink` on `--tree-face` at 7:1 (AAA: a name on a card is small and
+    often over a portrait's edge), `--tree-line` on `--paper-dark` at 3:1 (the
+    stage is `--paper-dark`, never `--paper`), `--card-ink` on `--card-face` at
+    4.5:1, `--tree-accent` at 2:1 against both the card and the stage, and the
+    card turning over with the light — so a later round that darkens one of a
+    pair and forgets the other fails there rather than on somebody's screen.
 
 46. **De spiegel: a list filters by side; a lookup never does.** §46. The
     Keeperkant is not a page in the archive — it is the archive, read from the
@@ -2945,7 +2981,8 @@ Sixty-six rules worth knowing before changing anything:
     **Wat er geleverd wordt.** Achter het merkteken `seed:round-31-stamboom`
     (de vorm van §51: aanplakken, een bestaande sleutel overslaan, stoppen bij
     twintig velden, en een handgezette rij met rust laten) krijgen Personen en
-    Onderzoekers **Ouders**, **Kinderen**, **Partner** en **Achternaam**;
+    Onderzoekers **Ouders**, **Kinderen** en **Partner** (§67 zette er
+    **Broers en zussen** naast en haalde **Achternaam** weer weg — zie daar);
     Abnormaliteiten en de vier pantheon-soorten krijgen die eerste drie plus
     **Geschapen door** (Ouder), **Schepselen** (Kind) en **Aspect van**
     (Verwant). De `ofType` van al die velden is dezelfde zeven soorten, met de
@@ -2953,8 +2990,51 @@ Sixty-six rules worth knowing before changing anything:
     want `ofType[0]` is wat "'X' aanmaken" maakt. Het bestaande veld
     **Familie** (§51) blijft wat het was: het kleurt de rand en noemt de tak,
     en een Familie-artikel mag zelf als banier in de boom staan. *Achternaam*
-    is de geprinte naam van iemand die ingetrouwd of gevonden is, en dat is een
-    ander ding dan de band.
+    was er in ronde 31 als tweede vakje naast die band — de geprinte naam van
+    iemand die ingetrouwd of gevonden is — en dat is in ronde 33 teruggedraaid
+    (§67): één naam op twee plekken is één naam die zichzelf kan tegenspreken.
+
+    **Een Familie wijst naar zijn stamboom** (ronde 32). Niet elke stamboom
+    hoort bij een familie — het pantheon hoort bij niemand, en een boom van een
+    onderzoek hoort bij het dossier — dus de boom draagt geen familie-kolom.
+    Maar een familie moet er wel een kunnen aanwijzen, en dat is een veld op het
+    *artikel*: een nieuwe veldsoort `family_tree_link` (**Koppeling naar een
+    stamboom**), die precies één boom bewaart of niets, nooit een lijst, want
+    "welke" is de hele vraag die hij stelt. Families krijgt hem geleverd als
+    **Stamboom** achter het merkteken `seed:round-32-stamboom-link`, in dezelfde
+    vorm als §51's aanplakken; een Keeper mag hem op elke soort zetten. Hij
+    draagt geen `ofType` en geen rol: een stamboom is geen artikel, dus er is
+    geen soort om hem op te richten en geen verwantschap die hij kan betekenen.
+    De waarde is `{ id, name, slug }` en níét het kale id dat een `case_link`
+    bewaart — een dossier wordt op de server per lezer opgezocht
+    (`resolveCaseRefs`), een stamboom niet, en het chipje in de infobox wordt
+    rechtstreeks uit de infobox getekend. Een verwijzing is dus een *kopie*: een
+    hernoemde of weggegooide boom laat een chipje achter dat naar een adres
+    wijst dat 404 antwoordt, net als een verouderde `entry_link`, en dat is
+    beter dan een pagina die niet wil tekenen. Kiezen doe je in
+    `components/families/FamilyTreePicker.tsx`, de tweelingbroer van
+    `CasePicker` op één punt na: er is met opzet **geen "'X' aanmaken"-rij**,
+    want een boom die uit een infoboxvakje tevoorschijn komt is een lege boom
+    die niemand ooit opent. Wat de lijst aanbiedt komt van `GET
+    /api/family-trees`, dus alleen wat deze lezer mag openen en (§50) alleen van
+    de kant waarop hij staat. De andere kant: `linkedFamiliesOf` in
+    `lib/families/service.ts` zoekt de artikelen op die naar déze boom wijzen —
+    een opzoeking, dus §46's `sideCondition` blijft eraf, maar
+    `visibleEntryCondition` staat erin, zodat een Keeper-familie die hierheen
+    wijst voor een speler simpelweg afwezig is (regel 1); de sleutel komt uit
+    `entry_types.fields` en wordt daarom door `isFieldKey` gehaald en als
+    parameter gebonden, nooit geïnterpoleerd. De boom drukt zo'n familie af **in
+    het regeltje boven de kop, naast het dossier** (`· ⛨ De familie Boone`,
+    `data-testid="tree-head-of"`) en niet in een eigen regel "Stamboom van …":
+    de §34-kop is één rij, en een zin erbij duwde de titel eruit. In het web is
+    het een **in de stamboom**-lijn van het artikel naar de boom, met het label
+    van het veld erop (`treeLinksInFields`, de `caseLinksInFields` van de zesde
+    soort ding) — en ontdubbeld tegen het lidmaatschap, want een familie die
+    zelf ook als banier in de boom staat mag niet twee keer met dezelfde knoop
+    verbonden worden. Er wordt géén rij in `entry_mentions` van geschreven, om
+    de reden van `case_link`: het veld wijst naar een record, niet naar een
+    artikel. En in de geschiedenis (§65) telt hij mee als koppeling en wordt hij
+    nooit bij naam genoemd (`LINK_KINDS` in `revisionDiff.ts`, regel 7).
 
     **Een gesleept kaartje blijft staan; de rest schikt zichzelf.** De opmaak
     wordt nooit bewaard, alleen de vastgezette plekken: `layoutTree` in
@@ -3085,3 +3165,209 @@ Sixty-six rules worth knowing before changing anything:
     De Keeperschakelaar van die laag hangt onder de vouw (`#tree-underfold`),
     zoals bij de landkaart, want in de rij nam hij 132 px van het doek af.
 
+67. **De stamboom, tweede pas: één potlood, één manier van kiezen, en broers en
+    zussen die niemand hoeft te typen.** §67. Ronde 31 zette de stamboom neer en
+    ronde 32 verfde hem; deze ronde is de tweede pas eroverheen. Zeven dingen,
+    en ze hangen aan één zin: *wat op meerdere doeken hetzelfde is, moet ook op
+    één plek staan* — en wat het archief zelf kan uitrekenen, hoeft niemand vier
+    keer in te vullen.
+
+    **Eén potlood, vier plekken.** De tekenlaag (§33) hangt op een prikbord, een
+    landkaart, een tijdlijn én een stamboom, en tot deze ronde bedraadde elk van
+    de vier hem in zijn eigen bestand: dezelfde haak, hetzelfde effect dat de
+    balk sluit als de Keeper de schakelaar omzet, dezelfde twee toetsen,
+    dezelfde bevestigingsvraag met een ander zelfstandig naamwoord erin. Vier
+    kopieën is vier kansen om er één verkeerd te doen, en de stamboom had er
+    twee tegelijk verkeerd. Dus: `components/ink/useCanvasInk.tsx` is de hele
+    bedrading (`useInk` + `useInkTool`, de Escape en de Ctrl+Z van de
+    tekenmodus, de Keeperschakelaar met zijn *Tekenlaag wissen?*), en
+    `components/ink/InkShell.tsx` tekent de twee stukken **in de enige volgorde
+    die werkt: eerst het vangvel (`InkCapture`), dán de balk (`InkToolbar`)** —
+    de balk staat er in z-index bovenop, dus hij moet er ook ná geschilderd
+    worden. Wat van een doek zelf blijft is alleen wat écht van dat doek is:
+    waar de laag in zijn DOM zit, wat het loslaat als het potlood tevoorschijn
+    komt, en welke hoek de balk krijgt — en dat laatste is een *woord*
+    (`InkShell`'s `corner`: `top-left` de tijdlijn, `bottom-left` de landkaart,
+    `bottom-right` het prikbord en de stamboom), nooit een regel in de
+    stylesheet van het doek. **Een doek zet `.ink-toolbar` nooit zelf neer.** De
+    regel die hier stond (`.tree-ink-toolbar`) zette geen `top` en geen z-index
+    boven `.ink-capture`, dus de balk was een strook over de hele hoogte van het
+    doek *onder* het vangvel: met het potlood uit trok elke druk op de gum, op
+    ongedaan maken en op het potlood zelf een streek. `#tree-underfold` en
+    `#map-underfold` gaan door dezelfde `UnderFold` (§34: de Keeperschakelaar
+    kostte 132 px doek), en de derde gedeelde helft is
+    `components/ink/panZoom.ts`: één translate en één schaal, `project` en
+    `toContent`, voor de drie doeken die zo'n wereld hebben (een tijdlijn houdt
+    z'n eigen paar, want zijn x is een *moment*). Daar zat in alle drie de
+    kopieën dezelfde fout in: een doek is `position: relative` **met een rand
+    van 1 px**, een absoluut geplaatst kind wordt tegen de *padding*-doos gelegd
+    en `getBoundingClientRect()` geeft de *rand*-doos, dus alleen `rect.left`
+    aftrekken legde elke streek één pixel links en boven de hand die hem trok.
+    `clientLeft` / `clientTop` zijn precies die rand en gaan er nu ook af.
+
+    **Kiezen gaat overal hetzelfde.** Het gebaar dat het prikbord uitvond geldt
+    nu overal: **shift-klik** zet er één bij of haalt er één af, **shift-slepen
+    op kaal papier** trekt een vak open en alles wat het vak *raakt* is gekozen
+    zodra het dichtgaat (raken, niet omvatten — "helemaal erbinnen" laat bij een
+    veeg over een rij kaartjes juist de twee aan de uiteinden vallen, en dat
+    leest als een fout), **gewoon slepen** schuift het doek, en **Escape** laat
+    alles los. Eén druk op iets dat al gekozen is laat de hele groep staan: je
+    staat op het punt hem te slepen, en een groep pakken bij één van zijn leden
+    mag hem niet uit elkaar halen — dat wás de wrat op het prikbord, waar de
+    selectie inklapte tot het aangedrukte kaartje terwijl de hele groep
+    meereisde (zes kaartjes bewogen, één had een rand, de inspecteur zei "1
+    kaart"). De rekensom staat in `lib/canvas/select.ts` (`normaliseRect`,
+    `boxesTouch`, `hitsIn`, `toggleSelection`, `pressSelection`, `groupDelta`) en
+    de React eromheen in `components/canvas/useMarqueeSelect.ts`; `lib/canvas/
+    view.ts` is dezelfde beweging voor het beeld (`clampZoom`, `zoomAbout`,
+    `toWorld`, `fitViewport`, `MIN_ZOOM` 0,25 en `MAX_ZOOM` 2,5) en
+    `lib/families/layout.ts` exporteert het onder zijn oude namen door, zodat er
+    in de boom niets voor hoefde te veranderen. Eén draaiknop mag een doek
+    lager zetten: het prikbord houdt *Alles in beeld* op **1,2** in plaats van
+    2,5, want een muur van vier kaartjes tweeënhalf keer opgeblazen leest als
+    kapot. Wat elk doek zélf houdt, met opzet: ongedaan maken
+    (`components/canvas/undoStack.ts` is alleen de boekhouding), welke ids een
+    opslag mag beweren (§61), wie wat vasthoudt, de inspecteur, en wat een druk
+    verder nog betekent. Het web is niet meegegaan: dat is één `<canvas>` met
+    een zak veranderlijke staat en zijn vak leeft in schermruimte — bewust met
+    rust gelaten.
+
+    **Broers en zussen worden afgeleid, en het veld is de uitzondering.** Twee
+    mensen met dezelfde ouders *zijn* broer en zus, en niemand hoort dat op vier
+    pagina's te typen om een lijn te krijgen. Dus rekent het archief het uit
+    (`lib/families/siblings.ts`, puur), uit het **eerste** veld met de rol Ouder
+    van elke soort — hetzelfde veld waar de spiegeling in schrijft, en om een
+    scherpe reden: een god draagt zowel *Ouders* als *Geschapen door*, en wie
+    uit álle ouder-velden afleidt maakt van elk schepsel van één god de broer
+    van elk ander. Drie uitspraken, en het archief zegt alleen wat het weet:
+    **vol** als beide ouderverzamelingen gelijk zijn en er twee in staan (twee
+    is de ondergrens, want één gedeelde moeder en verder niets zegt niets over
+    de vaders), **half** als elke kant een opgeschreven ouder heeft die de
+    andere mist én ze er minstens één delen, en **onbekend** als ze er één delen
+    en de ene verzameling in de andere past. Geen gedeelde ouder is geen
+    uitspraak. Alles per lezer, achter `visibleEntryCondition`: een ouder die
+    deze lezer niet mag zien is er simpelweg niet, en twee halfbroers lezen op
+    zo'n scherm als hele — dat is regel 1 die zijn werk doet, geen fout. En een
+    afgeleide lijn maakt **nooit een schim**: hij loopt alleen tussen twee
+    kaartjes die allebei al op het glas staan. Daarnaast is er één *getypt* veld,
+    **Broers en zussen** (`broers_zussen`, rol `sibling`, geleverd op alle zeven
+    stamboomsoorten achter `seed:round-33-broers-zussen`), voor precies het
+    geval dat de afleiding niet kan bereiken: de ouders staan nergens. Die rol
+    spiegelt op zichzelf, zoals Partner, en maakt **geen verbintenis** — een
+    broer en een zus zijn geen paar en er hangt geen balk onder hen. Twee regels
+    wegen de twee lezingen tegen elkaar (`reconcileSiblings`): een getypte
+    koppeling tussen twee die al als **vol** afleiden is overbodig en valt uit
+    de *tekening* — nooit uit het veld, precies zoals `yieldToLineage` in het
+    web (§66) — en een getypte koppeling die de opgeschreven ouders
+    *tegenspreken* (allebei hebben ouders, ze delen er geen) blijft staan en
+    krijgt `contested: true`: het archief overstemt geen mens, het zet er een
+    ringetje bij met *De ouders zeggen iets anders*. **Wat er getekend wordt is
+    het kleinste eerlijke antwoord**: alleen **half** en **genoteerd** krijgen
+    een dunne, gestreepte lijn. Vol heeft de gedeelde balk al — dezelfde waarheid
+    twee keer tekenen is ruis — en onbekend betekent "ik weet niet welk van de
+    twee", en een lijn die "misschien" zegt is erger dan geen lijn. Niet elke
+    afgeleide waarheid krijgt een lijn. Een afgeleide lijn is ook van niemand om
+    weg te halen: waar de knop *Lijn verwijderen* staat, staat bij zo'n lijn
+    **Volgt uit de ouders** — er is geen veld om te ontschrijven, en een knop
+    die stilletjes niets doet is erger dan geen knop. Op het artikel staat het
+    veld zelf (chipjes, bewerkbaar) en eronder, per lezer op de server
+    uitgerekend (`siblingsOf`), de afgeleide lijst onder het kopje **Volgens de
+    ouders**, met achter elke naam *vol*, *half* of *onbekend*, en niet weg te
+    halen: de weg om hem te veranderen loopt via de ouders.
+
+    **Een kind met één of twee ouders.** Het model wist dit altijd al — een
+    ouder-veld op een artikel is één naam en niets in de opmaak eist een tweede,
+    en een verbintenis met één ouder erin tekent gewoon. Wat ontbrak was de
+    *vraag*. Nu zijn er twee wegen naar hetzelfde en allebei zijn ze er: het
+    `+ kind`-handvat sluit zijn doosje niet zodra het kind gekozen is maar wordt
+    **Tweede ouder (optioneel) bij …**, met de partners van de bron als snelle
+    rijen (*Partner van …*), het archief eronder, en **Overslaan** — die de
+    focus krijgt, dus Enter is een overslaan en Escape ook. Er staat nooit iets
+    voorgeselecteerd: **een partner is geen ouder**, en twee mensen die naast
+    elkaar in een boom staan zijn daarmee niet de ouders van iemand. De andere
+    weg: staan er precies twee kaartjes gekozen en dragen beider soorten een
+    veld met de rol Kind, dan verschijnt er één `+` *tussen* hen in
+    (`TreeSharedHandle`, *Kind van beide toevoegen: A en B*), en die schrijft
+    het op allebei de pagina's — de vraag is dan al gesteld en beantwoord door
+    de selectie. Verder kan een selectie precies twee dingen: samen slepen (één
+    opslag, één stap terug) en samen uit de boom (**één** vraag die de leden en
+    de losse kaartjes apart telt en beschrijft, **één** commit, **één** melding
+    met *Ongedaan maken*) — en iedereen ziet wat deze hand gekozen heeft, als
+    gekleurde ringen (`useTreeHolding`, `.tree-held`) en als het vak dat je
+    opentrekt, allebei in wereldmaten.
+
+    **De spiegel veegt bij weghalen alles.** Erbij schrijven landt nog steeds in
+    het **eerste** veld van de andere soort met de omgekeerde rol (één veld dat
+    één keer gekozen wordt, §66) — maar **weghalen veegt élk veld van die rol**.
+    Anders blijft "Geschapen door: A" staan op een pagina waarvan de
+    "Schepselen: B" net leeggemaakt is, of laat een Keeper die zijn velden
+    sindsdien verplaatst heeft een lijn achter die niet meer weg te krijgen is.
+    Te weinig weghalen is een lijn die niet te verwijderen valt; te veel is hier
+    onmogelijk, want alleen het bron-artikel wordt ooit uitgeveegd. Twee kleine
+    reparaties in dezelfde hoek: `coerceFieldValue` / `checkFieldPatch` weigeren
+    een **zelfverwijzing** in een rolveld (niemand is zijn eigen ouder, kind,
+    partner of broer — de rest van de lijst blijft staan en de sleutel wordt wél
+    gemeld), en in de opmaak **wint de afstamming van een rij**: een partner- of
+    broerlijn waarvan de twee uiteinden al door een ouderpad verbonden zijn doet
+    niet mee aan het gelijktrekken, want anders duwden de twee regels elkaar
+    tien rijen naar beneden (iemand die tegelijk ouder én partner van dezelfde
+    persoon is — in een pantheon eerder regel dan uitzondering). De lijn wordt
+    nog steeds getekend.
+
+    **Een chipje wordt vers opgezocht, en je kunt niet weghalen wat je niet
+    ziet.** Een `entry_link(s)` bewaart een `{ id, name, slug }`-*kopie* van het
+    moment dat iemand koos. Drie dingen gaan er mis als je die afdrukt: een
+    weggegooid artikel laat voor eeuwig een chipje achter naar een adres dat
+    niets antwoordt, een hernoemd artikel houdt zijn oude naam, en — het ergste
+    — een artikel dat deze lezer niet mag zien staat **met naam en al in hun
+    HTML**; de naam ís het geheim. Dus zoekt de pagina ze per lezer opnieuw op
+    (`resolveFieldRefs` in `lib/entries/derived.ts`, één query voor de hele
+    infobox, achter `visibleEntryCondition`) en drukken beide gezichten alleen af
+    wat daarin staat — afwezig, nooit ONTBREEKT (regel 1). De schrijvende helft
+    is de andere kant van die regel: de bewerker stuurt de **hele** lijst terug
+    (§5's `mergeKeys`), en een lijst die gebouwd is uit wat je kon zien is een
+    lijst met het geheim eruit. Dus meet `keepUnseenRefs` in `updateEntry` het
+    weghalen tegen wat deze hand écht kon zien: een id dat weg is en **bestaat
+    maar onzichtbaar is voor deze schrijver** wordt teruggezet (in de prullenbak
+    telt als onzichtbaar, met opzet: een teruggezet artikel hoort zijn band terug
+    te krijgen — en voor een Keeper is dat meteen het énige geval, want die ziet
+    alles wat niet in de prullenbak ligt), en een id dat helemaal geen rij meer
+    heeft valt weg: dát is de ene plek waar een dood chipje wordt opgeruimd. Een
+    vakje dat er maar één kan houden krijgt zijn onzichtbare id alleen terug als
+    het **leeggemaakt** is; iemand anders kiezen is een antwoord op een vraag
+    die deze hand kon zien staan. `writeRelation` (§66) rijdt over dezelfde weg
+    en gehoorzaamt dit zonder het te weten. **En de kopie zelf reist ook niet
+    mee**: de pagina geeft `fields` in z'n geheel door aan het clientonderdeel
+    dat allebei de gezichten tekent, dus een bewaarde *naam* van een artikel dat
+    deze lezer niet mag zien stond in de lading van de pagina — getekend door
+    niets, leesbaar voor wie de bron opent. `scrubUnseenRefs`
+    (`lib/entries/derived.ts`) snijdt de waarden terug tot wat de opzoeking
+    beantwoordde vóór ze naar beneden gaan, en de artikelpagina geeft dat door
+    als `shownFields`. Resolve-on-read heeft dus **drie** helften:
+    `resolveFieldRefs` zegt wat een chipje tekent, `scrubUnseenRefs` wat de
+    pagina meestuurt, en `keepUnseenRefs` wat een opslag terugzet — precies wat
+    de eerste twee eraf haalden. Eén gat blijft, hier met naam genoemd:
+    `approvePendingEdit` past een voorstel toe met de rechten van de
+    *beoordelaar*, dus een voorstel dat een geheim mist wordt tegen de Keeper
+    gemeten die het goedkeurt en niet tegen de speler die het maakte. En één
+    regel opmaak hoort hier ook: binnen `.fields-compact` — en alleen daar — mag
+    een `.entry-chip` **afbreken** en mag de rij eromheen krimpen. Een chipje is
+    overal elders één woord dat niet doormidden mag, maar in een infobox staat
+    het in een kolom van zo'n 220 px op een scherm van 390, en een naam van
+    negenentwintig tekens droeg het kruisje *verwijderen* van het papier af: de
+    knop was niet in te drukken en de hele pagina schoof opzij, wat niets in dit
+    archief mag doen.
+
+    **Achternaam is weer weg**, en dat draait een beslissing van ronde 31 terug.
+    Eén naam op twee plekken is één naam die zichzelf kan tegenspreken; de band
+    is het veld **Familie** (§51), dat de rand kleurt en de tak noemt. Een vers
+    archief krijgt het veld niet meer (het staat niet meer in `ENTRY_TYPES`), en
+    een bestaand archief raakt het kwijt via `seed:round-33-drop-achternaam` —
+    **maar alleen als er nergens iets in staat**: één telling per soort over de
+    artikelen die niet in de prullenbak liggen, en staat er ook maar één
+    niet-lege `achternaam` in, dan blijft de velddefinitie staan, want dat is de
+    tekst van de Keeper en niet van ons (§11). Het is bovendien een nauwe match
+    — sleutel `achternaam` **en** kind `text` — dus wie de sleutel hergebruikt
+    heeft voor iets anders houdt zijn veld. `surname` is uit de graaf, de knoop
+    en het kaartje verdwenen; de marker valt hoe dan ook, want dit is een
+    eenmalige opruiming en geen regel die elke start opnieuw langsloopt.

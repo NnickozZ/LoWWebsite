@@ -42,6 +42,10 @@ import {
   type Viewport,
 } from '@/lib/boards/merge';
 import { changedIds, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
+import { groupDelta } from '@/lib/canvas/select';
+import { clampZoom, fitViewport, zoomAbout } from '@/lib/canvas/view';
+import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
+import { UNDO_LIMIT, createUndoStack, type UndoStack } from '@/components/canvas/undoStack';
 import {
   boxAtPoint,
   freeSpotNear as findFreeSpot,
@@ -69,14 +73,23 @@ import { useBoardLive } from './useBoardLive';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { fitUpload } from '@/components/shrinkImage';
 import { InkCanvas } from '@/components/ink/InkCanvas';
-import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
+import { InkShell } from '@/components/ink/InkShell';
+import { contentPanZoom, stageBoxOf, usePanZoomInk } from '@/components/ink/panZoom';
+import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import { useElementSize } from '@/components/ink/useElementSize';
-import { useInk } from '@/components/ink/useInk';
 import type { InkLayerView } from '@/lib/ink/types';
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2.5;
-const UNDO_LIMIT = 50;
+/*
+ * §67: the wall's zoom floor and ceiling, and its undo depth, are the shared
+ * ones now — `lib/canvas/view.ts` and `components/canvas/undoStack.ts` both
+ * took their numbers from this file in the first place. What is left here is
+ * the two "alles in beeld" ever had of its own.
+ */
+/** How far in "Alles in beeld" is allowed to go. A wall of four cards blown up
+ *  two and a half times reads as broken rather than as helpful. */
+const FIT_MAX_ZOOM = 1.2;
+/** Air round the wall when everything is brought into view, in screen pixels. */
+const FIT_PADDING = 40;
 /** Size of the SVG layer the red string is drawn on, centred on the origin. */
 const STRING_LAYER = 40000;
 
@@ -259,7 +272,6 @@ export function BoardCanvas({
   const [familyTreeFacts, setFamilyTreeFacts] =
     useState<Record<string, FamilyTreeFacts>>(initialFamilyTrees);
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     assetId: string;
@@ -269,12 +281,6 @@ export function BoardCanvas({
   const [name, setName] = useState(boardName);
 
   const [drawing, setDrawing] = useState<Drawing | null>(null);
-  const [marquee, setMarquee] = useState<{
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
-  } | null>(null);
 
   /**
    * §52: the picker opened where a string was let go on bare cork. `pin` is
@@ -352,7 +358,14 @@ export function BoardCanvas({
    * and then the centre of the view is the honest answer.
    */
   const pointerAt = useRef<{ x: number; y: number } | null>(null);
-  const undoStack = useRef<Snapshot[]>([]);
+  /**
+   * §67: the shared ring, which was this wall's own fifty-deep array before the
+   * stamboom copied it and §67 gave the two of them one file. Made once and
+   * held for the life of the wall, the same way `clientIdRef` below is.
+   */
+  const undoStackRef = useRef<UndoStack<Snapshot> | null>(null);
+  if (!undoStackRef.current) undoStackRef.current = createUndoStack<Snapshot>(UNDO_LIMIT);
+  const undoStack = undoStackRef.current;
   const dragMoved = useRef(false);
   /** Which card was already selected when the current press began. */
   const pressWasSelected = useRef<string | null>(null);
@@ -418,6 +431,38 @@ export function BoardCanvas({
   const clientId = clientIdRef.current;
 
   /**
+   * §67: which kaartjes are chosen, and the box being swept over the cork.
+   *
+   * Both used to be state right here, with the hit test written out in
+   * `onPointerUp` below. They are the same gesture on every canvas, so they
+   * live in `components/canvas/useMarqueeSelect.ts` now and the arithmetic in
+   * `lib/canvas/select.ts`. What stays this wall's own is everything around
+   * them: the draad's own selection (`selectedStringId`), undo, which ids a
+   * save may assert, the coloured borders of everybody else's hands, and the
+   * inspector.
+   *
+   * Called this high up in the file because `busy` — which pauses the pull —
+   * has to know about the box, and `busy` is what `useBoardSync` and
+   * `useBoardLive` are given. `toBoard` and `live` are both declared further
+   * down; the hook only ever calls them from a pointer handler, long after
+   * this render has finished, so reading them from these closures is safe.
+   */
+  const selection = useMarqueeSelect<BoardCard>({
+    // §61: the wall as it is at the drop, not as it was at the render that
+    // opened the box.
+    items: () => cardsRef.current,
+    boxOf: cardBox,
+    toWorld: (clientX, clientY) => toBoard(clientX, clientY),
+    // §8: no marquee under 768 px, and none on a wall this hand may not edit.
+    enabled: interactive,
+    mode: 'replace',
+    onBroadcast: (rect) => {
+      if (live.state === 'live') live.reportPointer({ selection: rect });
+    },
+  });
+  const { selected, setSelected, marquee } = selection;
+
+  /**
    * §61: a hand on the wall, as *state* rather than as a read of two refs
    * during render. The refs are written by a pointer handler, which does not
    * schedule a render, so "busy" could lag a frame behind the hand it describes
@@ -425,7 +470,7 @@ export function BoardCanvas({
    * enough for a pull to land on the first millimetre of a drag.
    */
   const [handOn, setHandOn] = useState(false);
-  const busy = handOn || Boolean(drawing || marquee);
+  const busy = handOn || Boolean(drawing) || selection.busy;
 
   /**
    * Applying someone else's version of the board. Shared with the save path,
@@ -597,19 +642,29 @@ export function BoardCanvas({
    * the board hub), because it is not the board: drawing is for everyone who
    * may look, including a viewer this wall is read-only for.
    */
-  const ink = useInk({ kind: 'board', id: boardId, initial: initialInk, onError: (message) => ui.toast(message) });
-  const inkTool = useInkTool();
-  const inkActive = inkTool.active && ink.enabled;
   const viewportSize = useElementSize(viewportRef);
-  const inkProject = useCallback(
-    (x: number, y: number) => ({ x: viewport.x + x * viewport.zoom, y: viewport.y + y * viewport.zoom }),
-    [viewport],
-  );
-  // The switch turned off under an open toolbar closes it.
-  useEffect(() => {
-    if (!ink.enabled && inkTool.active) inkTool.setActive(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ink.enabled]);
+  /*
+   * §67: the cork's own pan-and-zoom pair, from the shared helper — and it is
+   * the wall's `toBoard` as well (below), so a card and a streek land on the
+   * same point of the cork.
+   */
+  const inkSpace = usePanZoomInk(viewportRef, viewport);
+  const ink = useCanvasInk({
+    kind: 'board',
+    id: boardId,
+    initial: initialInk,
+    project: inkSpace.project,
+    toContent: inkSpace.toContent,
+    widthScale: viewport.zoom,
+    noun: `dit ${ui.words.board}`,
+    onError: (message) => ui.toast(message),
+    onOpen: () => {
+      setSelected(new Set());
+      setSelectedStringId(null);
+    },
+  });
+  const inkActive = ink.inkActive;
+  const onInkKey = ink.onKeyDown;
 
   /**
    * One card, resolved. Everything that has to know what a card *is* — the
@@ -629,10 +684,12 @@ export function BoardCanvas({
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
-  const pushUndo = useCallback((snapshot: Snapshot) => {
-    undoStack.current.push(snapshot);
-    if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift();
-  }, []);
+  const pushUndo = useCallback(
+    (snapshot: Snapshot) => {
+      undoStack.push(snapshot);
+    },
+    [undoStack],
+  );
 
   /**
    * §61: **`commit` takes an updater.** The next board is built from `prev` —
@@ -665,7 +722,7 @@ export function BoardCanvas({
 
   const undo = useCallback(() => {
     if (readOnly) return;
-    const previous = undoStack.current.pop();
+    const previous = undoStack.pop();
     if (!previous) return;
     const current: Snapshot = { cards: cardsRef.current, strings: stringsRef.current };
     /*
@@ -691,21 +748,17 @@ export function BoardCanvas({
       cards: changedIds(current.cards, previous.cards),
       strings: changedIds(current.strings, previous.strings),
     });
-  }, [putBoard, readOnly, sync]);
+  }, [putBoard, readOnly, setSelected, sync, undoStack]);
 
   /* ------------------------------------------------------------ geometry */
 
-  const toBoard = useCallback(
-    (clientX: number, clientY: number) => {
-      const rect = viewportRef.current?.getBoundingClientRect();
-      if (!rect) return { x: 0, y: 0 };
-      return {
-        x: (clientX - rect.left - viewport.x) / viewport.zoom,
-        y: (clientY - rect.top - viewport.y) / viewport.zoom,
-      };
-    },
-    [viewport],
-  );
+  /*
+   * A point of the screen, in board units. §67: the shared sum
+   * (`components/ink/panZoom.ts`) — which also takes the viewport's 1 px
+   * border off, because `.board-world` is laid out against the padding box
+   * while a bounding rectangle starts at the border box.
+   */
+  const toBoard = inkSpace.toContent;
 
   const centreOfView = useCallback(() => {
     const rect = viewportRef.current?.getBoundingClientRect();
@@ -1094,16 +1147,6 @@ export function BoardCanvas({
 
   /* ------------------------------------------------------------- pointer */
 
-  function selectCard(cardId: string, additive: boolean) {
-    setSelectedStringId(null);
-    setSelected((current) => {
-      const next = new Set(additive ? current : []);
-      if (additive && next.has(cardId)) next.delete(cardId);
-      else next.add(cardId);
-      return next;
-    });
-  }
-
   /*
    * A card is *not* given `preventDefault()` here, and that is deliberate.
    * Cancelling a pointerdown suppresses the compatibility mouse events the
@@ -1120,8 +1163,19 @@ export function BoardCanvas({
     const additive = event.shiftKey;
     const alreadySelected = selected.has(cardId);
     pressWasSelected.current = alreadySelected ? cardId : null;
-    if (!additive && !alreadySelected) selectCard(cardId, false);
-    else selectCard(cardId, additive);
+    /*
+     * §67: shift toggles; a plain press on a card that is *not* chosen chooses
+     * only it; a plain press on one that already is leaves the whole group
+     * standing, because the next thing that press does is drag the group.
+     *
+     * That last case is the one this round repairs. The wall used to collapse
+     * the selection to the pressed card here while `chosen` below still carried
+     * all six along with the hand: six kaartjes travelled and one was outlined,
+     * the inspector said "1 kaart", and the drop left five of them looking
+     * unpicked in a place nobody had asked for.
+     */
+    setSelectedStringId(null);
+    selection.select(cardId, additive, alreadySelected);
 
     if (!interactive) return;
 
@@ -1256,11 +1310,8 @@ export function BoardCanvas({
     setSelected(new Set());
     setSelectedStringId(null);
 
-    if (event.shiftKey && interactive) {
-      const point = toBoard(event.clientX, event.clientY);
-      setMarquee({ x0: point.x, y0: point.y, x1: point.x, y1: point.y });
-      return;
-    }
+    // §67: shift-drag on bare cork sweeps a box; a plain drag pans.
+    if (event.shiftKey && selection.beginMarquee(event)) return;
 
     pan.current = {
       startX: event.clientX,
@@ -1310,9 +1361,9 @@ export function BoardCanvas({
         dragMoved.current = true;
         pushUndo(drag.current.before);
       }
-      const origin = drag.current.origin;
-      const moving: Record<string, { x: number; y: number }> = {};
-      for (const [id, from] of origin) moving[id] = { x: Math.round(from.x + dx), y: Math.round(from.y + dy) };
+      // §67: every member of the group from where it stood at the press, never
+      // from where it is now, or a drag would compound itself frame by frame.
+      const moving = groupDelta(drag.current.origin, dx, dy);
       // §61: these cards, and no others — a drag of one card must not assert
       // where the other thirty-nine are.
       sync.touch({ cards: Object.keys(moving) });
@@ -1343,23 +1394,11 @@ export function BoardCanvas({
       return;
     }
 
-    if (marquee) {
-      const point = toBoard(event.clientX, event.clientY);
-      setMarquee({ ...marquee, x1: point.x, y1: point.y });
-      // §8, live: a box dragged round half the wall is something you are doing
-      // *to* a board somebody else is working on. They should see it happen,
-      // not only see six cards light up when it closes.
-      if (live.state === 'live') {
-        live.reportPointer({
-          selection: [
-            Math.round(marquee.x0),
-            Math.round(marquee.y0),
-            Math.round(point.x),
-            Math.round(point.y),
-          ],
-        });
-      }
-    }
+    // §67: the box grows, and §8/live: a box dragged round half the wall is
+    // something you are doing *to* a board somebody else is working on, so they
+    // see it happen rather than only seeing six cards light up when it closes.
+    // The frame itself goes out through `onBroadcast`, where the hook was made.
+    if (selection.onPointerMove(event)) return;
   }
 
   function onPointerUp(event: React.PointerEvent) {
@@ -1423,7 +1462,7 @@ export function BoardCanvas({
       );
       if (twin) {
         // Nothing changed, so the grip's undo entry has nothing to undo.
-        if (drawing.editing) undoStack.current.pop();
+        if (drawing.editing) undoStack.pop();
         setSelectedStringId(twin.id);
         setDrawing(null);
         ui.toast('Die twee zijn al met elkaar verbonden.');
@@ -1536,28 +1575,15 @@ export function BoardCanvas({
       return;
     }
 
-    if (marquee) {
-      const minX = Math.min(marquee.x0, marquee.x1);
-      const maxX = Math.max(marquee.x0, marquee.x1);
-      const minY = Math.min(marquee.y0, marquee.y1);
-      const maxY = Math.max(marquee.y0, marquee.y1);
-      const hit = cardsRef.current
-        .filter((card) => {
-          const box = cardBox(card);
-          return (
-            box.x + box.width > minX &&
-            box.x < maxX &&
-            box.y + box.height > minY &&
-            box.y < maxY
-          );
-        })
-        .map((card) => card.id);
-      setSelected(new Set(hit));
-      setMarquee(null);
-      // The box is closed; take it off everyone else's wall. The selection it
-      // made shows up as the coloured borders presence already draws.
-      if (live.state === 'live') live.reportPointer({ selection: null });
-    }
+    /*
+     * §67: the box closes. Everything it *touches* is picked — half a kaartje
+     * is enough, the rule every drawing program has — and what was picked
+     * before is replaced, not added to. The hit test measures `cardsRef`, the
+     * wall as it is at the drop (§61), and it is written down once in
+     * `lib/canvas/select.ts`. The `selection: null` frame that takes the box
+     * off everybody else's wall goes out through `onBroadcast`.
+     */
+    if (selection.onPointerUp(event)) return;
   }
 
   /* ----------------------------------------------------------------- zoom */
@@ -1568,14 +1594,9 @@ export function BoardCanvas({
       if (!rect) return;
       const atX = px ?? rect.width / 2;
       const atY = py ?? rect.height / 2;
-      setViewport((current) => {
-        const nextZoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-        return {
-          zoom: nextZoom,
-          x: atX - ((atX - current.x) / current.zoom) * nextZoom,
-          y: atY - ((atY - current.y) / current.zoom) * nextZoom,
-        };
-      });
+      // §67: the same sum the stamboom does, and now the same code — keep the
+      // board point under the pointer exactly where it is.
+      setViewport((current) => zoomAbout(current, factor, atX, atY));
       // §61: the viewport is the only shared thing a zoom touches.
       if (!readOnly) sync.markDirty({ viewport: true });
     },
@@ -1644,7 +1665,7 @@ export function BoardCanvas({
     }
     const ratio = distance / pinch.current.distance;
 
-    const nextZoom = clamp(pinch.current.zoom * ratio, MIN_ZOOM, MAX_ZOOM);
+    const nextZoom = clampZoom(pinch.current.zoom * ratio);
     setViewport((current) => ({ ...current, zoom: nextZoom }));
   }
 
@@ -1652,16 +1673,26 @@ export function BoardCanvas({
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect || !cardsRef.current.length) return;
     const bounds = boardBounds(cardsRef.current);
-    const zoom = clamp(
-      Math.min((rect.width - 80) / bounds.width, (rect.height - 80) / bounds.height),
-      MIN_ZOOM,
-      1.2,
+    /*
+     * §67: the shared "alles in beeld", with the wall's own two numbers — forty
+     * pixels of air on each side, and a ceiling of 1.2 rather than the canvas
+     * maximum, because a board of four kaartjes blown up two and a half times
+     * reads as broken. `boardBounds` answers x/y/width/height; this wants the
+     * four edges.
+     */
+    setViewport(
+      fitViewport(
+        {
+          minX: bounds.x,
+          minY: bounds.y,
+          maxX: bounds.x + bounds.width,
+          maxY: bounds.y + bounds.height,
+        },
+        { width: rect.width, height: rect.height },
+        FIT_PADDING,
+        FIT_MAX_ZOOM,
+      ),
     );
-    setViewport({
-      zoom,
-      x: rect.width / 2 - (bounds.x + bounds.width / 2) * zoom,
-      y: rect.height / 2 - (bounds.y + bounds.height / 2) * zoom,
-    });
     if (!readOnly) sync.markDirty({ viewport: true });
   }
 
@@ -1680,7 +1711,7 @@ export function BoardCanvas({
         // is taken back. §64: nor is the question forgotten; see `onCancel`.
         if (picker) setPicker(null);
         else if (lightbox) setLightbox(null);
-        else if (inkTool.active) inkTool.setActive(false);
+        else if (onInkKey(event)) return;
         else if (drawing) setDrawing(null);
         else if (!typing) {
           setSelected(new Set());
@@ -1691,12 +1722,9 @@ export function BoardCanvas({
       if (typing) return;
 
       // §33: in the tekenmodus, Ctrl+Z takes back your own last stroke — for
-      // a viewer too, who has no cards to undo.
-      if (inkActive && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        ink.undo();
-        return;
-      }
+      // a viewer too, who has no cards to undo. (§67: and the same two keys,
+      // in the same words, on all four canvases.)
+      if (onInkKey(event)) return;
 
       if (readOnly) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
@@ -1716,7 +1744,7 @@ export function BoardCanvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, selectedStringId, drawing, lightbox, removeCards, removeString, undo, readOnly, inkActive, inkTool, ink]);
+  }, [selected, selectedStringId, drawing, lightbox, removeCards, removeString, undo, readOnly, onInkKey]);
 
   /** If the pointer leaves the board mid-drag, finish rather than stick. */
   useEffect(() => {
@@ -2561,10 +2589,7 @@ export function BoardCanvas({
         {/* §33: the tekenlaag, under the cork's cards and strings. */}
         <InkCanvas
           className="ink-layer"
-          strokes={ink.strokes}
-          stableCount={ink.stableCount}
-          project={inkProject}
-          widthScale={viewport.zoom}
+          {...ink.layerProps}
           viewKey={`${viewport.x},${viewport.y},${viewport.zoom}`}
           width={viewportSize.width}
           height={viewportSize.height}
@@ -2974,35 +2999,9 @@ export function BoardCanvas({
           />
         )}
 
-        {inkActive && (
-          <InkCapture
-            tool={inkTool.tool}
-            toContent={toBoard}
-            widthScale={viewport.zoom}
-            onBegin={ink.begin}
-            onExtend={ink.extend}
-            onEnd={ink.end}
-            onAbort={ink.abort}
-          />
-        )}
-        {ink.enabled && (
-          <InkToolbar
-            className="ink-toolbar-board"
-            active={inkTool.active}
-            tool={inkTool.tool}
-            onActive={(next) => {
-              inkTool.setActive(next);
-              if (next) {
-                setSelected(new Set());
-                setSelectedStringId(null);
-              }
-            }}
-            onTool={inkTool.setTool}
-            canUndo={ink.canUndo}
-            onUndo={ink.undo}
-            saving={ink.saving}
-          />
-        )}
+        {/* §33: the sheet and the bar, in that order — bottom-right, because
+            every other corner of the cork is taken. */}
+        <InkShell shell={ink} corner="bottom-right" />
 
         {!cards.length && !inkActive && (
           <div className="board-empty">
@@ -3151,24 +3150,7 @@ export function BoardCanvas({
               </span>
             </label>
           )}
-          {access.isKeeper && (
-            <InkKeeperControls
-              enabled={ink.enabled}
-              strokeCount={ink.layer.strokes.length}
-              noun={`dit ${ui.words.board}`}
-              onSetEnabled={(enabled) => void ink.keeper({ enabled })}
-              onClear={() =>
-                void ui
-                  .confirm({
-                    title: 'Tekenlaag wissen?',
-                    message: `Alle streken op dit ${ui.words.board} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
-                    confirmLabel: 'Wissen',
-                    danger: true,
-                  })
-                  .then((yes) => yes && ink.keeper({ clear: true }))
-              }
-            />
-          )}
+          {access.isKeeper && ink.keeperControls}
         </Sheet>
       )}
 

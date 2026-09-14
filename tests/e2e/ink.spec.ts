@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, signIn, signUp } from './helpers';
+import { becomeInvestigator, fillWhenReady, signIn, signUp } from './helpers';
 
 /**
  * §33: the tekenlaag — free-hand drawing on a prikbord, a landkaart and a
@@ -390,6 +390,101 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
   expect(grew).toBeLessThan(1.85);
   const aspect = (zoomed.maxX - zoomed.minX) / (zoomed.maxY - zoomed.minY);
   expect(Math.abs(aspect - wasWide / wasTall)).toBeLessThan((wasWide / wasTall) * 0.1);
+});
+
+/**
+ * §67: a stamboom draws, and the toolbar over it can be *pressed*.
+ *
+ * The tijdlijn case above is the shape of this one — draw, gum, undo, and the
+ * place gives the hand back when the pencil goes away — with the thing that
+ * was actually broken bolted onto the front of it. The stamboom's bar had a
+ * rule of its own (`.tree-ink-toolbar`) that set neither `top` nor a z-index
+ * over `.ink-capture`, so it was a strip down the whole height of the stage
+ * *underneath* the capture sheet: you could see the gum and you could not
+ * press it — every press drew a line instead, and no assertion about pixels
+ * would ever have said so. So this asks the browser directly, with
+ * `elementFromPoint`, whether the button is the thing under the button.
+ */
+test('a stamboom draws, and with the pencil out the gum and the undo are still buttons', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, 'Keeper', 'abbeytower34');
+  await page.goto('/stambomen');
+  await page.getByRole('button', { name: 'Nieuwe stamboom' }).click();
+  const sheet = page.getByRole('dialog', { name: /Nieuwe stamboom/ });
+  await expect(sheet).toBeVisible();
+  await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), `Inktboom ${Date.now().toString(36)}`);
+  await sheet.getByRole('button', { name: 'Openbare stamboom' }).click();
+  await page.waitForURL('**/stambomen/**');
+  await expect(page.getByTestId('tree-stage')).toBeVisible();
+  await page.waitForTimeout(500);
+
+  const box = await stageBox(page, '.tree-stage');
+  await page.getByTestId('ink-pen').click();
+  await expect(page.getByTestId('ink-capture')).toBeVisible();
+
+  // The bar is a bar, not a strip: whatever corner it stands in, it is one row
+  // of buttons and nothing like the height of the stage.
+  const bar = (await page.getByTestId('ink-toolbar').boundingBox())!;
+  expect(bar.height).toBeLessThan(Math.max(120, box.height / 3));
+
+  /** What the browser says is under the middle of a control on the glass. */
+  const under = async (testId: string) => {
+    const target = (await page.getByTestId(testId).boundingBox())!;
+    return page.evaluate(
+      ({ x, y }) => {
+        const el = document.elementFromPoint(x, y);
+        if (!el) return 'nothing';
+        const button = el.closest('[data-testid]');
+        return button?.getAttribute('data-testid') ?? el.className.toString();
+      },
+      { x: target.x + target.width / 2, y: target.y + target.height / 2 },
+    );
+  };
+  // The same probe, one to show it can tell the difference: over bare paper
+  // the sheet really is on top (which is the whole point of it), and over the
+  // gum it is not.
+  const middle = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-testid]')?.getAttribute('data-testid') ?? 'nothing',
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+  );
+  expect(middle).toBe('ink-capture');
+  expect(await under('ink-eraser')).toBe('ink-eraser');
+
+  // 1. A line, in the middle of the stage.
+  await stroke(page, box.x + box.width * 0.3, box.y + box.height / 2, 20);
+  await expect(page.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
+  const drawn = await settled(page);
+  expect(drawn.count).toBeGreaterThan(0);
+  expect(await under('ink-undo')).toBe('ink-undo');
+
+  // 2. The gum, chosen by *pressing* it — the press that used to draw.
+  await page.getByTestId('ink-eraser').click();
+  await expect(page.getByTestId('ink-eraser')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByTestId('ink-eraser-2').click();
+  await sweep(page, box.x + box.width * 0.3 + 60, box.y + box.height / 2 - 90);
+  await waitForInk(page, (i) => i.count < drawn.count);
+  await expect(page.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
+  const gummed = await settled(page);
+  expect(gummed.count).toBeLessThan(drawn.count);
+
+  // 3. And the undo button, likewise pressed: a gum is a streek (§33), so the
+  //    one it lifts is the gum, and the line comes back whole.
+  await expect(page.getByTestId('ink-undo')).toBeEnabled();
+  await page.getByTestId('ink-undo').click();
+  await waitForInk(page, (i) => i.count > gummed.count + 20);
+  const back = await settled(page);
+  expect(Math.abs(back.count - drawn.count)).toBeLessThan(drawn.count * 0.15);
+
+  // 4. The pencil away — by the pencil, not by Escape — and the stage pans again.
+  await page.getByTestId('ink-pen').click();
+  await expect(page.getByTestId('ink-capture')).toHaveCount(0);
+  const viewOf = () => page.evaluate(() => (window as unknown as { __tree: { view: { x: number } } }).__tree.view.x);
+  const before = await viewOf();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.8);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5 - 150, box.y + box.height * 0.8, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(viewOf).toBeLessThan(before - 100);
 });
 
 test('a gum on a tijdlijn stays over what it took away when the axis is zoomed', async ({ page }) => {

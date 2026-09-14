@@ -92,7 +92,7 @@ describe('cleanFields and the rol', () => {
 
   it('drops it off anything that is not a koppelingsveld', () => {
     const cleaned = cleanFields([
-      { key: 'achternaam', label: 'Achternaam', kind: 'text', role: 'parent' },
+      { key: 'bijnaam', label: 'Bijnaam', kind: 'text', role: 'parent' },
       { key: 'leeftijd', label: 'Leeftijd', kind: 'number', role: 'child' },
       { key: 'baas', label: 'Baas', kind: 'user_link', role: 'parent' },
       { key: 'zaak', label: 'Zaak', kind: 'case_links', role: 'partner' },
@@ -117,7 +117,7 @@ const PERSOON: FieldDef[] = [
   { key: 'kinderen', label: 'Kinderen', kind: 'entry_links', role: 'child' },
   { key: 'partner', label: 'Partner', kind: 'entry_links', role: 'partner' },
   { key: 'aspect_van', label: 'Aspect van', kind: 'entry_links', role: 'kin' },
-  { key: 'achternaam', label: 'Achternaam', kind: 'text' },
+  { key: 'bijnaam', label: 'Bijnaam', kind: 'text' },
 ];
 /** A soort that stands in a tree but has nowhere to write the other side. */
 const KAAL: FieldDef[] = [{ key: 'naam', label: 'Naam', kind: 'text' }];
@@ -183,6 +183,33 @@ describe('mirrorPlan', () => {
     const plan = mirrorPlan('a', PERSOON, {}, { kinderen: [ref('b', 'B')] }, () => god);
     expect(plan).toEqual([{ targetId: 'b', fieldKey: 'geschapen_door', add: true }]);
   });
+
+  /*
+   * §67, the repair. Adding lands in one box; *removing* has to look in all of
+   * them, or a value typed by hand into the second one — or mirrored into the
+   * first before the Keeper reordered the fields — stands for ever on a page
+   * whose other side was just emptied.
+   */
+  it('§67: sweeps every field of the inverse role when a tie is taken away', () => {
+    const god: FieldDef[] = [
+      { key: 'ouders', label: 'Ouders', kind: 'entry_links', role: 'parent' },
+      { key: 'geschapen_door', label: 'Geschapen door', kind: 'entry_links', role: 'parent' },
+    ];
+    const plan = mirrorPlan('a', PERSOON, { kinderen: [ref('b', 'B')] }, { kinderen: [] }, () => god);
+    expect(plan).toEqual([
+      { targetId: 'b', fieldKey: 'ouders', add: false },
+      { targetId: 'b', fieldKey: 'geschapen_door', add: false },
+    ]);
+  });
+
+  it('§67: and still adds to the first one only', () => {
+    const god: FieldDef[] = [
+      { key: 'ouders', label: 'Ouders', kind: 'entry_links', role: 'parent' },
+      { key: 'geschapen_door', label: 'Geschapen door', kind: 'entry_links', role: 'parent' },
+    ];
+    const plan = mirrorPlan('a', PERSOON, {}, { kinderen: [ref('b', 'B')] }, () => god);
+    expect(plan).toEqual([{ targetId: 'b', fieldKey: 'ouders', add: true }]);
+  });
 });
 
 /* -------------------------------------------------------------- the server */
@@ -216,6 +243,60 @@ describe('de server spiegelt', () => {
     expect(valuesOf(god.id).aspect_van).toBeUndefined();
   });
 
+  /*
+   * §67 on a real archive, with the soort the leftover was written about: an
+   * abnormaliteit carries both `ouders` and `geschapen_door`, and both are
+   * `role: 'parent'`.
+   */
+  it('§67: takes the source out of every parent field of the target, not just the first', () => {
+    const god = deps.createEntry({
+      typeSlug: 'kosmische-goden',
+      name: 'De Diepe Mond',
+      createdBy: KEEPER.id,
+    });
+    const schepsel = deps.createEntry({
+      typeSlug: 'abnormality',
+      name: 'Het ding in de sluis',
+      createdBy: KEEPER.id,
+    });
+
+    // Filling in the god's Schepselen mirrors into the creature's *first*
+    // parent field, which is Ouders.
+    deps.updateEntry(god.id, { fields: { schepselen: [ref(schepsel.id, 'Het ding in de sluis')] } }, KEEPER);
+    expect((valuesOf(schepsel.id).ouders as { id: string }[]).map((one) => one.id)).toEqual([god.id]);
+
+    // And somebody typed the same god into the second box by hand.
+    deps.updateEntry(
+      schepsel.id,
+      { fields: { geschapen_door: [ref(god.id, 'De Diepe Mond')] } },
+      KEEPER,
+    );
+    expect((valuesOf(schepsel.id).geschapen_door as { id: string }[]).map((one) => one.id)).toEqual([
+      god.id,
+    ]);
+
+    // Emptying Schepselen has to clear both, or the line cannot be removed.
+    deps.updateEntry(god.id, { fields: { schepselen: [] } }, KEEPER);
+    expect(valuesOf(schepsel.id).ouders).toEqual([]);
+    expect(valuesOf(schepsel.id).geschapen_door).toEqual([]);
+  });
+
+  /* §67: an artikel is never its own parent, child, partner or brother. */
+  it('§67: refuses a role field that points at the artikel it is on', () => {
+    const solo = deps.createEntry({ typeSlug: 'character', name: 'Sien Alleen', createdBy: KEEPER.id });
+    const other = deps.createEntry({ typeSlug: 'character', name: 'Teun Alleen', createdBy: KEEPER.id });
+
+    const result = deps.updateEntry(
+      solo.id,
+      { fields: { ouders: [ref(solo.id, 'Sien Alleen'), ref(other.id, 'Teun Alleen')] } },
+      KEEPER,
+    );
+    // The rest of the list survives; only the self reference goes, and the key
+    // is named so a plain save can say something about it.
+    expect((valuesOf(solo.id).ouders as { id: string }[]).map((one) => one.id)).toEqual([other.id]);
+    expect(result.status === 'saved' && result.rejectedFields).toEqual(['ouders']);
+  });
+
   it('and never onto an artikel in the trash', () => {
     const a = deps.createEntry({ typeSlug: 'character', name: 'Kees Traas', createdBy: KEEPER.id });
     const weg = deps.createEntry({ typeSlug: 'character', name: 'Nel Traas', createdBy: KEEPER.id });
@@ -237,14 +318,25 @@ describe('the seed marker', () => {
     'bovennatuurlijke-wezens',
   ];
 
-  it('gave personen and onderzoekers Ouders, Kinderen, Partner and an Achternaam', () => {
+  it('gave personen and onderzoekers Ouders, Kinderen and Partner — and no Achternaam (§67)', () => {
     for (const slug of MENSEN) {
       const by = (key: string) => fieldsOf(slug).find((field) => field.key === key);
       expect(by('ouders'), slug).toMatchObject({ label: 'Ouders', kind: 'entry_links', role: 'parent' });
       expect(by('kinderen'), slug).toMatchObject({ label: 'Kinderen', kind: 'entry_links', role: 'child' });
       expect(by('partner'), slug).toMatchObject({ label: 'Partner', kind: 'entry_links', role: 'partner' });
-      expect(by('achternaam'), slug).toMatchObject({ label: 'Achternaam', kind: 'text' });
-      expect(by('achternaam')?.role, slug).toBeUndefined();
+      // §67 reverses round 31 on this one field: a fresh archive never has it.
+      expect(by('achternaam'), slug).toBeUndefined();
+    }
+  });
+
+  it('§67: and gave all seven the typed Broers en zussen box', () => {
+    for (const slug of [...MENSEN, ...MACHTEN]) {
+      const by = (key: string) => fieldsOf(slug).find((field) => field.key === key);
+      expect(by('broers_zussen'), slug).toMatchObject({
+        label: 'Broers en zussen',
+        kind: 'entry_links',
+        role: 'sibling',
+      });
     }
   });
 
@@ -303,7 +395,7 @@ describe('the seed marker', () => {
     // soorten carrying a role field.
     deps.sqlite.prepare("DELETE FROM schema_migrations WHERE name = 'seed:round-31-stamboom'").run();
     for (const slug of [...MENSEN, ...MACHTEN]) {
-      const without = fieldsOf(slug).filter((field) => !field.role && field.key !== 'achternaam');
+      const without = fieldsOf(slug).filter((field) => !field.role);
       deps.sqlite
         .prepare('UPDATE entry_types SET fields = ? WHERE slug = ?')
         .run(JSON.stringify(without), slug);
@@ -330,5 +422,50 @@ describe('the seed marker', () => {
     const before = fieldsOf('kosmische-goden');
     deps.seedBaseline(deps.sqlite);
     expect(fieldsOf('kosmische-goden')).toEqual(before);
+  });
+
+  /*
+   * §67: the round-33 marker, and it is last in the file on purpose — it leaves
+   * a Keeper's own field standing under the same key, which is exactly what the
+   * "aims every one of them at the seven soorten" case above would object to.
+   */
+  it('§67: appends Broers en zussen to an archive that had round 31 but not 33', () => {
+    // An archive upgraded in round 31: Ouders, Kinderen and Partner are there
+    // and that marker is down, so only round 33's own marker can reach it.
+    deps.sqlite
+      .prepare("DELETE FROM schema_migrations WHERE name = 'seed:round-33-broers-zussen'")
+      .run();
+    for (const slug of [...MENSEN, ...MACHTEN]) {
+      deps.sqlite
+        .prepare('UPDATE entry_types SET fields = ? WHERE slug = ?')
+        .run(JSON.stringify(fieldsOf(slug).filter((field) => field.key !== 'broers_zussen')), slug);
+    }
+    // A Keeper who already made their own box under that key keeps it, word,
+    // kind, role and all.
+    deps.sqlite.prepare('UPDATE entry_types SET fields = ? WHERE slug = ?').run(
+      JSON.stringify([
+        ...fieldsOf('investigator'),
+        { key: 'broers_zussen', label: 'Broers', kind: 'entry_links', role: 'kin' },
+      ]),
+      'investigator',
+    );
+
+    deps.seedBaseline(deps.sqlite);
+    for (const slug of ['character', ...MACHTEN]) {
+      expect(fieldsOf(slug).find((field) => field.key === 'broers_zussen'), slug).toMatchObject({
+        label: 'Broers en zussen',
+        kind: 'entry_links',
+        role: 'sibling',
+      });
+    }
+    expect(fieldsOf('investigator').find((field) => field.key === 'broers_zussen')).toMatchObject({
+      label: 'Broers',
+      role: 'kin',
+    });
+
+    // And a second run changes nothing: the marker is down and the key is there.
+    const after = fieldsOf('character');
+    deps.seedBaseline(deps.sqlite);
+    expect(fieldsOf('character')).toEqual(after);
   });
 });

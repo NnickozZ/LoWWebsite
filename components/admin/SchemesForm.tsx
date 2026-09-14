@@ -21,7 +21,7 @@ import { saveSchemesAction, type AdminState } from '@/app/(app)/admin/actions';
 /**
  * §45's Kleuren pane.
  *
- * Four palettes of nineteen colours, and the only hard part is that a Keeper
+ * Four palettes of twenty-four colours, and the only hard part is that a Keeper
  * cannot see what they are doing: the page they are standing on is painted in
  * the palette they are *not* editing three times out of four. So every scheme
  * carries its own specimen — paper, inkt, liniaal, stempel and a link, drawn
@@ -35,7 +35,7 @@ import { saveSchemesAction, type AdminState } from '@/app/(app)/admin/actions';
  *
  * Field names are `<schemeKey>.<tokenKey>`, which is what `schemesFromForm`
  * reads back. Everything is posted, defaults included — a palette is a whole,
- * and a Keeper who tuned three colours does not want the other sixteen moving
+ * and a Keeper who tuned three colours does not want the other twenty-one moving
  * under them in a later round.
  */
 export function SchemesForm({ schemes }: { schemes: Schemes }) {
@@ -64,7 +64,7 @@ export function SchemesForm({ schemes }: { schemes: Schemes }) {
       </p>
 
       {/*
-        Tabs and not four open panels: nineteen pickers times four is a screen
+        Tabs and not four open panels: twenty-four pickers times four is a screen
         nobody reads, and the specimen is only honest when one palette has the
         attention. Every input stays in the form though — a hidden panel still
         posts, or switching tab before Opslaan would throw three palettes away.

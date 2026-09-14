@@ -67,6 +67,8 @@ const player: FieldDef = { key: 'player', label: 'Speler', kind: 'user_link' };
 const dossier: FieldDef = { key: 'zaak', label: 'Dossier', kind: 'case_link' };
 const dossiers: FieldDef = { key: 'zaken', label: 'Dossiers', kind: 'case_links' };
 const speld: FieldDef = { key: 'plek', label: 'Speld', kind: 'map_pin' };
+/** §66 (round 32): the Familie's own field, aimed at one stamboom. */
+const stamboom: FieldDef = { key: 'stamboom', label: 'Stamboom', kind: 'family_tree_link' };
 
 const ALL = [
   text,
@@ -82,6 +84,7 @@ const ALL = [
   dossier,
   dossiers,
   speld,
+  stamboom,
 ];
 const ref = (id: string, name: string) => ({ id, name, slug: name.toLowerCase() });
 
@@ -219,6 +222,36 @@ describe('one value, measured against its kind', () => {
     expect(coerceFieldValue(player, { id: 'u1' })).toBeUndefined();
   });
 
+  /*
+   * §66 (round 32): one stamboom, and — unlike a dossier — the name and the
+   * slug travel with the id, because nothing resolves a tree per viewer on the
+   * way to the reading face. A bare id is still taken, exactly as `case_link`
+   * takes one, and comes back as an id with nothing to print yet.
+   */
+  it('stores a stamboom as one ref with its name and slug beside the id', () => {
+    expect(coerceFieldValue(stamboom, { id: 'ft-1', name: 'Het huis Boone', slug: 'huis-boone' })).toEqual({
+      id: 'ft-1',
+      name: 'Het huis Boone',
+      slug: 'huis-boone',
+    });
+    // Never a list: a familie has one stamboom or none.
+    expect(coerceFieldValue(stamboom, [{ id: 'ft-1' }])).toBeUndefined();
+    expect(coerceFieldValue(stamboom, null)).toBeNull();
+    expect(coerceFieldValue(stamboom, '')).toBeNull();
+    // A bare id, the shape `case_link` also accepts.
+    expect(coerceFieldValue(stamboom, 'ft-2')).toEqual({ id: 'ft-2' });
+    // Nothing that is not a reference at all.
+    expect(coerceFieldValue(stamboom, { name: 'Zonder id' })).toBeUndefined();
+    expect(coerceFieldValue(stamboom, 12)).toBeUndefined();
+    // And the same limits the other refs have.
+    const long = coerceFieldValue(stamboom, { id: 'x'.repeat(200), name: 'y'.repeat(500) }) as {
+      id: string;
+      name: string;
+    };
+    expect(long.id).toHaveLength(64);
+    expect(long.name).toHaveLength(200);
+  });
+
   it('takes nothing but a clear for a speld, because spelden live on the landkaart', () => {
     expect(coerceFieldValue(speld, null)).toBeNull();
     expect(coerceFieldValue(speld, { x: 0.5, y: 0.5 })).toBeUndefined();
@@ -335,6 +368,50 @@ describe('a patch, measured against the soort', () => {
   it('shrugs off a patch that is not an object at all', () => {
     expect(cleanFieldPatch([text], [], null as never)).toEqual({});
     expect(cleanFieldPatch([text], [], ['x'] as never)).toEqual({});
+  });
+
+  /*
+   * §67: nobody is their own parent. A self reference in a role field is not
+   * merely silly — the mirror would try to write the other side onto the row it
+   * came from, and a stamboom would draw a line from a card to itself.
+   */
+  describe('§67 een verwijzing naar jezelf in een rolveld', () => {
+    const ouders: FieldDef = { key: 'ouders', label: 'Ouders', kind: 'entry_links', role: 'parent' };
+    const moeder: FieldDef = { key: 'moeder', label: 'Moeder', kind: 'entry_link', role: 'parent' };
+    const self = (id: string) => ({ id, name: 'Zichzelf', slug: id });
+
+    it('drops the self out of a list and keeps the rest, and says so', () => {
+      const result = checkFieldPatch(
+        [ouders],
+        [],
+        { ouders: [self('me'), { id: 'ander', name: 'Ander', slug: 'ander' }] },
+        'me',
+      );
+      expect((result.fields.ouders as { id: string }[]).map((one2) => one2.id)).toEqual(['ander']);
+      expect(result.rejected).toEqual(['ouders']);
+    });
+
+    it('empties a single box handed itself', () => {
+      const result = checkFieldPatch([moeder], [], { moeder: self('me') }, 'me');
+      expect(result.fields.moeder).toBeNull();
+      expect(result.rejected).toEqual(['moeder']);
+    });
+
+    it('leaves an ordinary koppelingsveld alone — "zie ook: dit artikel" is allowed', () => {
+      const zieOok: FieldDef = { key: 'involved', label: 'Betrokkenen', kind: 'entry_links' };
+      const result = checkFieldPatch([zieOok], [], { involved: [self('me')] }, 'me');
+      expect((result.fields.involved as { id: string }[]).map((one2) => one2.id)).toEqual(['me']);
+      expect(result.rejected).toEqual([]);
+    });
+
+    it('and changes nothing when no selfId is given', () => {
+      expect(coerceFieldValue(ouders, [self('me')])).toEqual([
+        { id: 'me', name: 'Zichzelf', slug: 'me' },
+      ]);
+      expect(coerceFieldValue(ouders, [self('me')], 'me')).toEqual([]);
+      expect(coerceFieldValue(moeder, self('me'), 'me')).toBeNull();
+      expect(coerceFieldValue(moeder, self('ander'), 'me')).toMatchObject({ id: 'ander' });
+    });
   });
 });
 

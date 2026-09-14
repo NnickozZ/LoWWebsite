@@ -815,6 +815,107 @@ function applyMirror(
 }
 
 /**
+ * §67 — **je kunt niet weghalen wat je niet ziet.**
+ *
+ * The infobox draws an `entry_link(s)` field from a fresh per-viewer lookup
+ * (`resolveFieldRefs`), so an artikel this hand may not see is not a chip on
+ * their screen. But the editor saves the *whole* array (§5's `mergeKeys` rule:
+ * a list inside `fields` replaces, so a delta could never remove the last ref),
+ * and an array built out of what they could see is an array with the secret
+ * taken out of it. Save the page once and the Keeper's line is gone, with
+ * nothing on either screen having said so.
+ *
+ * So the removal is measured against what the actor could actually see:
+ *
+ *   - an id in `before` that is still in `after` — untouched, nothing to do;
+ *   - an id that is gone and **exists but is invisible to this actor** — put
+ *     back. Soft-deleted counts as invisible on purpose: a row in the trash can
+ *     be restored, and it should come back to the tie it had. For a Keeper that
+ *     is the *only* case, because `visibleEntryCondition` shows them everything
+ *     that is not in the trash;
+ *   - an id that is gone and no longer has a row at all — really destroyed, and
+ *     a ref to it is a dead chip. Let it drop; this is the one place a stale ref
+ *     is cleaned up.
+ *
+ * One query per patched field at most, and none at all for the usual save,
+ * where nothing was removed. A one-box `entry_link` cannot hold two answers, so
+ * a hidden id is only put back when the box was *cleared*: choosing somebody
+ * else is a deliberate answer to a question this hand could see was being
+ * asked, and overwriting it is what that box does.
+ *
+ * `writeRelation` (§66) rides the same road — it calls `updateEntry` with the
+ * field's whole array — so a stamboom handle obeys this without knowing it.
+ * The §21 fields room does not: it sweeps `field.*` *strings* out of the Yjs
+ * document and a ref is not one.
+ *
+ * Mutates `after` in place, which is `checkFieldPatch`'s own result and not the
+ * caller's object.
+ */
+function keepUnseenRefs(
+  spec: { defs: FieldDef[]; listKeys: string[] },
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  actor: Author,
+) {
+  const kindOf = (key: string): FieldDef['kind'] | null => {
+    const def = spec.defs.find((one) => one?.key === key);
+    if (def) return def.kind;
+    // A hand-filled list block is an `entry_links` field in all but name — the
+    // same synthetic def `checkFieldPatch` measured the value against.
+    return spec.listKeys.includes(key) ? 'entry_links' : null;
+  };
+  const refsOf = (value: unknown): StoredEntryRef[] => {
+    const list = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
+    return list.filter(
+      (item): item is StoredEntryRef =>
+        Boolean(item) && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string',
+    );
+  };
+
+  const viewer: Viewer = { id: actor.id, isKeeper: actor.isKeeper };
+  for (const [key, next] of Object.entries(after)) {
+    const kind = kindOf(key);
+    if (kind !== 'entry_link' && kind !== 'entry_links') continue;
+
+    const held = refsOf(before[key]);
+    if (!held.length) continue;
+    const kept = new Set(refsOf(next).map((ref) => ref.id));
+    const dropped = held.filter((ref) => !kept.has(ref.id));
+    if (!dropped.length) continue;
+    // For a single box, only a *clearing* can put anything back.
+    if (kind === 'entry_link' && refsOf(next).length) continue;
+
+    const ids = [...new Set(dropped.map((ref) => ref.id))];
+    // Which of them this actor could see. Everything else that still has a row
+    // is a removal they were never in a position to make.
+    const seen = new Set(
+      db
+        .select({ id: schema.entries.id })
+        .from(schema.entries)
+        .where(and(inArray(schema.entries.id, ids), visibleEntryCondition(viewer)))
+        .all()
+        .map((row) => row.id),
+    );
+    const alive = new Set(
+      db
+        .select({ id: schema.entries.id })
+        .from(schema.entries)
+        .where(inArray(schema.entries.id, ids))
+        .all()
+        .map((row) => row.id),
+    );
+    const restore = dropped.filter((ref) => alive.has(ref.id) && !seen.has(ref.id));
+    if (!restore.length) continue;
+
+    if (kind === 'entry_link') {
+      after[key] = restore[0];
+    } else {
+      after[key] = [...refsOf(next), ...restore];
+    }
+  }
+}
+
+/**
  * Applies a per-field patch. §6: last write wins per field, so only the keys
  * present in the patch are touched. A locked entry edited by a player becomes a
  * pending edit instead.
@@ -941,8 +1042,12 @@ export function updateEntry(
     const targetTypeId =
       (patch.typeSlug !== undefined ? getEntryType(patch.typeSlug)?.id : undefined) ?? entry.typeId;
     const spec = typeFieldSpec(targetTypeId);
-    const checked = checkFieldPatch(spec.defs, spec.listKeys, patch.fields);
+    // §67: and measured against the artikel itself, so a role field that names
+    // its own page is dropped rather than mirrored onto the row it came from.
+    const checked = checkFieldPatch(spec.defs, spec.listKeys, patch.fields, entryId);
     if (!options.live) rejectedFields = checked.rejected;
+    // §67: and what this hand could not see, it may not have removed.
+    keepUnseenRefs(spec, (entry.fields ?? {}) as Record<string, unknown>, checked.fields, user);
     // Nothing survived the gate: no write, no revision, no feed row. A patch of
     // pure rubbish is not an edit of this artikel.
     if (Object.keys(checked.fields).length) {

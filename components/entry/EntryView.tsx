@@ -40,7 +40,14 @@ import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
 import { OriginLine, type OriginCaseLite } from './OriginLine';
-import { FieldsEditor, FieldsView, fieldValue, type CaseRefs } from './FieldsEditor';
+import {
+  FieldsEditor,
+  FieldsView,
+  fieldValue,
+  type CaseRefs,
+  type DerivedFieldNotes,
+  type EntryRefs,
+} from './FieldsEditor';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
 import { TagsEditor } from './TagsEditor';
@@ -139,6 +146,8 @@ export function EntryView({
   openAddMore,
   cases,
   caseLinks,
+  resolvedRefs,
+  derivedFields,
   sections,
   revealUsers,
   revealCases,
@@ -168,6 +177,22 @@ export function EntryView({
    * it, and the field prints nothing rather than naming it.
    */
   caseLinks: CaseRefs;
+  /**
+   * §67: the *artikelen* this infobox names, resolved on the server for this
+   * viewer (`resolveFieldRefs`) — the same idea as `caseLinks` above, one round
+   * later, and for the same three reasons. A stored `entry_link(s)` value is a
+   * `{ id, name, slug }` copy taken when somebody picked it, so on its own it
+   * links to a destroyed artikel for ever, prints a name that has since
+   * changed, and — the one that matters — names an artikel this reader may not
+   * see. An id that is not in this map is not printed on either face.
+   */
+  resolvedRefs: EntryRefs;
+  /**
+   * §67: what the archive works out *under* a field, by field key, rendered on
+   * the server exactly as `slots` are and for the same reason. Today there is
+   * one: the derived broers en zussen under `broers_zussen`.
+   */
+  derivedFields: DerivedFieldNotes;
   sections: SectionLite[];
   revealUsers: RevealableUser[];
   revealCases: RevealableCase[];
@@ -493,7 +518,13 @@ export function EntryView({
    */
   const readableFields =
     entry.typeFields.length > 0 ? (
-      <FieldsView fields={entry.typeFields} values={fields} cases={caseRefs} />
+      <FieldsView
+        fields={entry.typeFields}
+        values={fields}
+        cases={caseRefs}
+        refs={resolvedRefs}
+        derived={derivedFields}
+      />
     ) : null;
   const hasReadableInfo = Boolean(readableFields) || tags.length > 0;
 
@@ -527,6 +558,8 @@ export function EntryView({
           fields={entry.typeFields}
           values={fields}
           cases={caseRefs}
+          refs={resolvedRefs}
+          derived={derivedFields}
           onCasePicked={(item) => setCaseRefs((current) => ({ ...current, [item.id]: item }))}
           onChange={(patch, meta) => {
             const next = { ...fields, ...patch };
@@ -692,19 +725,23 @@ export function EntryView({
         };
         // §22: reading, an empty hand-filled list is not a list — it is an
         // invitation to fill one in, which is the other face's business.
-        if (reading && !fieldValue(linkField, fields[linkField.key])) return null;
+        // §67: through the same fresh lookup as the infobox — a hand-filled
+        // list is an `entry_links` field in all but name, and an empty one
+        // after the lookup is an empty list.
+        if (reading && !fieldValue(linkField, fields[linkField.key], {}, resolvedRefs)) return null;
         return (
           <details key={block.id} id={anchor} className="section entry-block" open={block.open || reading}>
             <summary>{heading || 'Lijst'}</summary>
             <div className="stack" style={{ padding: '0.6rem 0 1rem' }}>
               {note}
               {reading ? (
-                <div>{fieldValue(linkField, fields[linkField.key])}</div>
+                <div>{fieldValue(linkField, fields[linkField.key], {}, resolvedRefs)}</div>
               ) : (
                 <FieldsEditor
                   hideLabels
                   fields={[linkField]}
                   values={fields}
+                  refs={resolvedRefs}
                   onChange={(patch) => {
                     const next = { ...fields, ...patch };
                     setFields(next);

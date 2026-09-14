@@ -19,8 +19,8 @@ import type { AccessSettings } from '@/lib/access';
 import { eventKey, timelineKey } from '@/lib/live/keys';
 import type { TimelineEvent, TimelineSummary } from '@/lib/timelines/service';
 import { InkCanvas, type Project } from '@/components/ink/InkCanvas';
-import { InkCapture, InkKeeperControls, InkToolbar, useInkTool } from '@/components/ink/InkTools';
-import { useInk } from '@/components/ink/useInk';
+import { InkShell } from '@/components/ink/InkShell';
+import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import type { InkFormat, InkLayerView } from '@/lib/ink/types';
 import { TIMELINE_INK_FORMAT, inkFromScreen, inkWidthScale, projectInk } from '@/lib/timelines/inkSpace';
 import {
@@ -551,15 +551,6 @@ export function TimelineCanvas({
    * never rewritten. `project` and `widthScale` are handed each stroke's own
    * space, so one layer can carry both.
    */
-  const ink = useInk({
-    kind: 'timeline',
-    id: timeline.id,
-    initial: initialInk,
-    format: TIMELINE_INK_FORMAT,
-    onError: (message) => ui.toast(message),
-  });
-  const inkTool = useInkTool();
-  const inkActive = inkTool.active && ink.enabled;
   const viewRef = useRef(view);
   viewRef.current = view;
   const stageHRef = useRef(stageH);
@@ -582,24 +573,36 @@ export function TimelineCanvas({
   const inkWidthOf = useCallback((v?: InkFormat) => inkWidthScale(view?.pxPerSecond ?? 0, v), [view]);
   /** For the stroke about to be drawn — the hook divides the brush's pixels by it. */
   const inkWidthNow = inkWidthScale(view?.pxPerSecond ?? 0, TIMELINE_INK_FORMAT);
+  /*
+   * §67: the wiring is the shared one; only the space is this place's own —
+   * which is why `project`, `toContent` and the two width scales are handed in
+   * rather than worked out in there.
+   */
+  const ink = useCanvasInk({
+    kind: 'timeline',
+    id: timeline.id,
+    initial: initialInk,
+    format: TIMELINE_INK_FORMAT,
+    project: inkProject,
+    toContent: inkToContent,
+    widthScale: inkWidthNow,
+    layerWidthScale: inkWidthOf,
+    noun: `deze ${words.timeline}`,
+    onError: (message) => ui.toast(message),
+    onOpen: () => setOpen([]),
+    stopPropagation: true,
+  });
+  const inkActive = ink.inkActive;
+  const onInkKey = ink.onKeyDown;
   useEffect(() => {
-    if (!ink.enabled && inkTool.active) inkTool.setActive(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ink.enabled]);
-  useEffect(() => {
-    if (!inkTool.active) return;
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
-      if (event.key === 'Escape') inkTool.setActive(false);
-      else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        ink.undo();
-      }
+      onInkKey(event);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [inkTool, ink]);
+  }, [onInkKey]);
 
   /**
    * §62: where somebody else's hand has a tag right now, in seconds.
@@ -1291,11 +1294,10 @@ export function TimelineCanvas({
    * a drag or a stroke stops it, an open blad does not — the blad re-seeds the
    * fields nobody touched and keeps the ones they did (§62, `EventSheets`).
    */
-  const [inkDrawing, setInkDrawing] = useState(false);
-  const busy = handDown || draggingId !== null || inkDrawing || uploading || sheet !== null;
+  const busy = handDown || draggingId !== null || ink.busy || uploading || sheet !== null;
   useHoldRefresh(busy);
   // The list's own gate, kept in a ref so `pull` never changes identity.
-  handOn.current = handDown || draggingId !== null || inkDrawing;
+  handOn.current = handDown || draggingId !== null || ink.busy;
   useEffect(() => {
     if (!busy && owed.current) void pull();
   }, [busy, pull]);
@@ -1648,10 +1650,7 @@ export function TimelineCanvas({
         {/* §33: the tekenlaag, under the axis and the gebeurtenissen. */}
         <InkCanvas
           className="ink-layer"
-          strokes={ink.strokes}
-          stableCount={ink.stableCount}
-          project={inkProject}
-          widthScale={inkWidthOf}
+          {...ink.layerProps}
           viewKey={`${view?.origin ?? 0},${view?.pxPerSecond ?? 0},${stageH},${width}`}
           width={width}
           height={stageH}
@@ -1815,42 +1814,9 @@ export function TimelineCanvas({
             ),
           )}
 
-        {inkActive && (
-          <InkCapture
-            tool={inkTool.tool}
-            toContent={inkToContent}
-            widthScale={inkWidthNow}
-            /* §62: a stroke is a hand on the axis — nothing lands under it. */
-            onBegin={(...args) => {
-              setInkDrawing(true);
-              return ink.begin(...args);
-            }}
-            onExtend={ink.extend}
-            onEnd={(...args) => {
-              setInkDrawing(false);
-              return ink.end(...args);
-            }}
-            onAbort={(...args) => {
-              setInkDrawing(false);
-              return ink.abort(...args);
-            }}
-            stopPropagation
-          />
-        )}
-        {ink.enabled && (
-          <InkToolbar
-            active={inkTool.active}
-            tool={inkTool.tool}
-            onActive={(next) => {
-              inkTool.setActive(next);
-              if (next) setOpen([]);
-            }}
-            onTool={inkTool.setTool}
-            canUndo={ink.canUndo}
-            onUndo={ink.undo}
-            saving={ink.saving}
-          />
-        )}
+        {/* §33: the sheet and the bar, in that order. §62: a stroke is a hand
+            on the axis — nothing lands under it. */}
+        <InkShell shell={ink} corner="top-left" />
 
         {!events.length && !inkActive && (
           <p className="timeline-empty small muted">
@@ -1979,24 +1945,7 @@ export function TimelineCanvas({
             onSave={saveSettings}
             onDelete={() => void deleteTimeline()}
           />
-          {isKeeper && (
-            <InkKeeperControls
-              enabled={ink.enabled}
-              strokeCount={ink.layer.strokes.length}
-              noun={`deze ${words.timeline}`}
-              onSetEnabled={(enabled) => void ink.keeper({ enabled })}
-              onClear={() =>
-                void ui
-                  .confirm({
-                    title: 'Tekenlaag wissen?',
-                    message: `Alle streken op deze ${words.timeline} gaan weg, voor iedereen. Dit is niet terug te draaien.`,
-                    confirmLabel: 'Wissen',
-                    danger: true,
-                  })
-                  .then((yes) => yes && ink.keeper({ clear: true }))
-              }
-            />
-          )}
+          {isKeeper && ink.keeperControls}
         </Sheet>
       )}
 

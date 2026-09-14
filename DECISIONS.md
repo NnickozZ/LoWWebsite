@@ -4346,3 +4346,292 @@ god).
   (8 + 3 gevallen), `family-tree-coop` 0:57 (2), `canvas-fills-the-screen` 0:54
   per project, `no-console-warnings` 1:03 / 1:49 onder `E2E_DEV=1`. Beide
   familie-specs samen onder `E2E_DEV=1`: 3:54 voor tien tests.
+
+## Ronde 32 — het kaartje: zijn familie en zijn kleuren (§66, §45)
+
+Een kleine naronde op ronde 31, met drie dingen die Nick vroeg toen hij de
+stamboom voor het eerst echt gebruikte. Eén: **"Stambomen moeten gelinkt kunnen
+worden aan families (niet altijd, maar families moet een link hebben
+hiervoor)."** Twee: de kleuren van de stamboom moeten net als al het andere in
+**Beheer → Kleuren** te verzetten zijn. Drie: de namen in een stamboom waren in
+het donkere thema niet te lezen — er moest een kleurronde overheen zodat hij in
+elk van de vier schema's werkt.
+
+Geen nieuw regelnummer: dit rekt §66 (de stamboom) en §45 (de vier
+kleurschema's) op, en de merktekens in de code zeggen daarom `§66` en `§45/§66`.
+
+### Twee vragen, en Nicks antwoorden
+
+1. **Waar horen de stamboomkleuren te wonen — in Beheer → Kleuren voor het hele
+   archief, of per boom?** In **Beheer → Kleuren**, voor het hele archief. Een
+   stamboom is geen ding met een eigen huisstijl; hij is een venster op het
+   archief en hoort eruit te zien als de rest ervan. Per boom zou een tweede
+   plek zijn waar kleur bewaard wordt, en dan is de vraag welke van de twee wint
+   (dezelfde redenering als beslissing 1 van ronde 31, één laag hoger).
+2. **Hoe wijst een familie naar een boom — een veld dat je invult, of iets dat
+   het archief zelf afleidt?** Een **veld op Families**, met de hand ingevuld.
+   Afleiden zou moeten raden: een boom met drie Boones erin is niet
+   vanzelfsprekend "de stamboom van de familie Boone", en het pantheon is van
+   niemand. En een geraden verband is niet weg te halen.
+
+### De beslissingen
+
+1. **Een kaart is een vlak van zichzelf, en draagt dus zijn eigen inkt.** Dit is
+   de hele kleurhelft van de ronde in één zin. Het kaartje in een stamboom werd
+   geverfd met `--card-face` — een licht papier in élk schema, ook de donkere,
+   want zo was het prikbord bedacht — en de naam erop werd geschreven met
+   `--ink`, dat in een donker schema bijna wit is. Wit op beige. Niets aan die
+   twee tokens was fout; fout was dat iets dat op een kaart getekend wordt de
+   inkt van de *pagina* las. Sindsdien geldt: niets dat op een kaartje staat
+   grijpt naar `--ink` of `--paper*`. Wat er *naast* een kaartje op het doek
+   staat — de kiezer, het menu, de handvatten, de lege melding, de werkbalk —
+   houdt gewoon de paginatokens, want dat zijn geen kaarten.
+2. **Vijf tokens, geen vier.** De stamboom kreeg er vier (`--tree-face`,
+   `--tree-ink`, `--tree-line`, `--tree-accent`) in een eigen groep *De
+   stamboom*, en het prikbord kreeg `--card-ink` erbij — want daar stond het
+   antwoord al goed, maar als een hard ingetypte `#1f1b16` op `.board-card` en
+   `.board-tray-card` die niemand kon verzetten. Dezelfde regel, twee plekken:
+   hem op één plek repareren zou betekenen dat het prikbord de volgende keer
+   dezelfde bug krijgt. Negentien tokens werden er zo vierentwintig.
+   `--tree-rule` en `--tree-ink-soft` zijn met `color-mix` van de twee
+   kaarttokens **afgeleid** en met opzet géén tokens: een Keeper hoort twee
+   knoppen te draaien en niet vier, en een rand die niet meebeweegt met de kaart
+   is precies het soort losgeraakte paar dat deze ronde repareert.
+3. **De donkere kaart is *lichter* dan het doek, niet donkerder.** Dat was de
+   ene keuze die eerst de andere kant op ging. Een kaartje donkerder dan de
+   ondergrond leest niet als papier maar als een **gat** in het doek; papier
+   ligt erop en vangt licht. `--tree-face` is dus `#2e2922` op een donkerder
+   doek, en `tests/unit/tree-contrast.test.ts` legt vast dat het verschil met
+   `--paper-dark` tussen 1,1 en 3 blijft: te weinig en het kaartje verdwijnt, te
+   veel en het schittert.
+4. **Het goud is `#9a7729` in het donker, en dat is met opzet niet lichter.** De
+   banier van een huis draagt witte letters (`--house, var(--tree-accent)` met
+   `color: #fff`), dus het goud moet donker genoeg blijven om die letters te
+   dragen. Een lichter goud zou beter opvallen op het doek en de tekst erop
+   onleesbaar maken — en een banier zonder leesbare naam is erger dan een banier
+   die iets minder opvalt. `--house` blijft er overigens overheen gaan: een
+   Familie met een eigen kleur houdt die.
+5. **Het veld bewaart naam én slug, en niet alleen een id.** Een `case_link`
+   bewaart een kaal id omdat de server het dossier per lezer opzoekt
+   (`resolveCaseRefs`) voordat de infobox getekend wordt. Voor een stamboom
+   bestaat die opzoeking niet, en het chipje wordt rechtstreeks uit de infobox
+   getekend, dus reist `{ id, name, slug }` mee — de vorm van een `entry_link`.
+   Prijs, met open ogen betaald: een verwijzing is een *kopie*, dus een
+   hernoemde of weggegooide boom laat een chipje achter dat naar een 404 wijst.
+   Dat is precies wat een verouderde `entry_link` ook doet, en het is beter dan
+   een pagina die weigert te tekenen. Regel 19 in de README zegt "geen naam in
+   de JSON"; dit is de uitzondering, en ze staat daar nu bij genoemd.
+6. **Geen "'X' aanmaken"-rij in de kiezer.** `CasePicker` heeft er een,
+   `FamilyTreePicker` met opzet niet: een dossier dat uit een infoboxvakje
+   ontstaat is meteen een bruikbaar dossier, maar een stamboom is een doek met
+   een eigen plank, en een boom die zo tevoorschijn komt is een lege tekening
+   die niemand ooit opent. Wie een boom wil, maakt er een waar bomen gemaakt
+   worden.
+7. **De familie staat in het regeltje boven de kop, naast het dossier.** Eerst
+   stond er een eigen regel *"Stamboom van Het huis Den Hollander"* onder de
+   naam. Dat werkte niet: de §34-kop is **één rij**, en die extra zin duwde de
+   titel eruit — de naam van de boom werd afgekapt om te kunnen zeggen van wie
+   hij was. Het is nu een chipje in de `.eyebrow`, achter het dossier
+   (`· ⛨ De familie Boone`, `data-testid="tree-head-of"`), want het is dezelfde
+   soort feit ("dit hoort bij …") en het staat op dezelfde regel als het andere.
+   Per lezer, zoals alles op die pagina: een Keeper-familie die hierheen wijst
+   wordt voor een speler niet afgedrukt (regel 1).
+
+### Wat er bewust niet in zit
+
+- **Drie hard ingetypte kleuren op een prikbordkaart blijven staan**:
+  `.board-card-kind` `#6d6357`, `.board-card-text-empty` `#8a8072` en
+  `.board-card-text-input` met `background: #fff`. Ze staan alle drie op
+  `--card-face`, dat vandaag in elk schema licht is, dus er is nu niets mis.
+  Maar een Keeper die de kaart donker verft krijgt grijs op donker met een wit
+  vak in het midden. De cure is dezelfde als bij `--card-ink`: een `color-mix`
+  van `--card-ink` en `--card-face`, geen drie nieuwe tokens.
+- **De Keeper-paletten zijn met de contrasttest nagerekend en niet met het oog
+  bekeken.** De vier schema's staan in `tests/unit/tree-contrast.test.ts`, maar
+  van de twee Keeper-paletten is alleen de rekensom gedaan; er is geen
+  schermafdruk van een stamboom op de Keeperkant in het donker. Aan diezelfde
+  kant hoort een tweede beperking die geen bug is: de kiezer haalt zijn lijst
+  bij `GET /api/family-trees`, en die lijst is §50-gefilterd — op de Keeperkant
+  staan er dus alleen Keeper-bomen in.
+- **Kleuren per boom zijn niet gebouwd** (vraag 1). Wie een pantheon in een
+  ander goud wil dan een familie, kan dat niet — en dat is het antwoord, niet
+  een gat.
+- **Geen `entry_mentions`-rij voor `family_tree_link`.** Hetzelfde als bij een
+  `case_link`: het veld wijst naar een *record*, niet naar een artikel, en
+  "Genoemd in" gaat over artikelen. De boom vindt zijn families via
+  `linkedFamiliesOf`, en het web tekent de lijn zelf.
+- **Eén boom per familie, en nooit een lijst.** "Welke" is de hele vraag die het
+  veld stelt; een familie met twee stambomen is een familie met een probleem dat
+  een tweede veld niet oplost.
+
+### De cijfers
+
+- vitest: 82 bestanden / 1290 tests (ronde 31: 80 / 1250).
+- Playwright: `family-trees.spec.ts` 9 geslaagd op desktop (het nieuwe geval
+  slaat de telefoon over — één beeldverhouding is genoeg voor een veld en een
+  chipje).
+
+## Ronde 33 — de stamboom, tweede pas (§67)
+
+De tweede pas over de stamboom, en de eerste ronde waarin het meeste werk *naar
+buiten* ging in plaats van erbij: drie dingen die op vier doeken los van elkaar
+stonden zijn nu één ding. Nick vroeg acht dingen, in zijn eigen volgorde:
+
+1. **Broers en zussen**, en halfbroers en halfzussen — de stamboom kende ze
+   niet.
+2. **Een kind moet aan één ouder kunnen hangen, of aan twee** — het moest niet
+   zo zijn dat er een partner nodig is om een kind toe te voegen.
+3. **De Achternaam** die ronde 31 leverde: weg ermee.
+4. **Het tekengereedschap op de stamboom werkt niet** — de balk was er wel en je
+   kon er niet op drukken.
+5. **Meerdere kaartjes tegelijk kunnen kiezen en bewerken.**
+6. **Hergebruik**: wat op het prikbord al bestaat mag niet nog een keer
+   geschreven worden.
+7. **Integriteit**: geen dode chipjes, geen lijnen die blijven hangen, geen
+   velden die iets anders zeggen dan de tekening.
+8. **Eerst een plan met vragen, dan pas bouwen** — geen ronde die halverwege
+   ontdekt dat iets anders bedoeld was.
+
+### Zes vragen, en Nicks antwoorden
+
+1. **Welke broer-en-zuslijnen worden getekend?** *Alleen de expliciete en de
+   halve.* Vol heeft de gedeelde balk al; onbekend is een gok.
+2. **Bij het toevoegen van een kind: één ouder of twee?** *Allebei* — een
+   optionele tweede stap in het doosje, én één gedeeld handvat als er twee
+   gekozen staan.
+3. **Waar hoort de potloodbalk op een stamboom?** *Rechtsonder*, zoals op het
+   prikbord.
+4. **Wat mag een selectie van meerdere kaartjes?** *Samen slepen, één
+   bevestiging bij het weghalen, en anderen zien de selectie.* Uitdrukkelijk
+   **niet**: een selectie op een prikbord prikken.
+5. **Broers en zussen: een veld, een afgeleide lijst, of allebei?** *Allebei* —
+   een veld voor wat je niet kunt afleiden, en de afgeleide lijst eronder.
+6. **Dode chipjes in de infobox: opruimen bij het weggooien, of vers
+   opzoeken?** *Vers opzoeken*, per lezer, bij elk lezen.
+
+### De beslissingen
+
+1. **Broers en zussen worden afgeleid, niet bewaard.** Twee mensen met dezelfde
+   ouders zíjn broer en zus; dat vier keer laten typen om een lijn te krijgen is
+   precies de dubbele boekhouding die §66 voor de andere drie rollen weigert.
+   `lib/families/siblings.ts` is de hele uitrekening en is puur — dezelfde
+   opzet als `lib/families/layout.ts`, zodat de tekening, de artikelpagina en de
+   test naar hetzelfde antwoord kijken.
+2. **Uit het *eerste* ouder-veld, en alleen daaruit.** Dat is het veld waar de
+   spiegeling in schrijft, en de reden is een echt geval: een god draagt zowel
+   *Ouders* als *Geschapen door*, allebei met de rol Ouder. Wie uit álle
+   ouder-velden afleidt maakt van elk schepsel van één god de broer van elk
+   ander — dat is geen familie, dat is een kluwen. Scheppen is ouderschap met
+   een ander woord erop om er een *lijn* van te maken, niet om uit te rekenen
+   wie iemands zus is. Een Keeper die het anders wil versleept de velden in
+   Beheer, net als bij de spiegeling.
+3. **Drie uitspraken, en de ondergrens van twee.** Vol vraagt twee gedeelde
+   ouders: één gedeelde moeder en verder niets zegt niets over de vaders. Half
+   is de enige vorm waarin het archief het écht weet. Onbekend is "we delen er
+   één en de ene lijst is korter dan de andere" — waarschijnlijk broer en zus,
+   maar van welke soort weet niemand, en dat is beter hardop dan geraden.
+4. **Vol krijgt geen lijn.** De gedeelde balk zegt het al, en dezelfde waarheid
+   twee keer tekenen is ruis; onbekend krijgt er ook geen, want een lijn die
+   "misschien" betekent is erger dan de balk alleen. Wat overblijft is precies
+   wat de tekening nog niet zei: half, en wat iemand zelf opschreef. **Niet elke
+   afgeleide waarheid krijgt een lijn** — dat is de algemene vorm ervan.
+5. **En toch een getypt veld.** Ouders zijn lang niet altijd bekend, en dan is
+   "deze twee horen bij elkaar" een feit dat nergens uit volgt. `broers_zussen`
+   (rol `sibling`) is dat doosje; hij spiegelt op zichzelf zoals Partner en
+   maakt geen verbintenis. Een getypte koppeling die al als vol afleidt valt uit
+   de *tekening* en niet uit het veld (`yieldToLineage`, §66, met een andere
+   hoed op); een die de ouders tegenspreken blijft staan met `contested` — het
+   archief overstemt geen mens, het zet er een ringetje bij.
+6. **Weghalen spiegelt naar élk veld met die rol, erbij zetten in het eerste.**
+   Ronde 31 koos "het eerste veld" voor allebei en dat is aan de weghaalkant
+   fout: de waarde kan met de hand in het tweede vakje getypt zijn, of de Keeper
+   heeft de velden sindsdien verplaatst, en dan blijft er een lijn staan die
+   niet meer weg te krijgen is. Te weinig weghalen is een kapotte knop; te veel
+   kan hier niet, want alleen het bron-artikel wordt ooit uitgeveegd. Dit sluit
+   de leftover van ronde 31 half — de *asymmetrie* is nu met opzet.
+7. **Een chipje wordt vers opgezocht, niet geschrobd bij het weggooien.** Een
+   opruiming bij het vernietigen moet elke plek kennen waar een verwijzing kan
+   staan (infoboxen, handgevulde lijstblokken, voorstellen, revisies) en is
+   stuk zodra er een plek bijkomt; opzoeken bij het lezen is één query en kan
+   niet verouderen. Het lost bovendien twee dingen op die schrobben niet lost:
+   een hernoemd artikel, en — het echte — een artikel dat deze lezer niet mag
+   zien maar wél met naam in hun HTML stond.
+8. **Je kunt niet weghalen wat je niet ziet.** De keerzijde van 7: de bewerker
+   stuurt de hele lijst terug (§5's `mergeKeys`), en een lijst die gebouwd is
+   uit wat je kon zien is een lijst met het geheim eruit. `keepUnseenRefs` zet
+   terug wat bestaat maar voor deze schrijver onzichtbaar is, laat vallen wat
+   geen rij meer heeft, en doet bij een enkel vakje alleen iets als het
+   *leeggemaakt* is.
+9. **En de kopie gaat ook niet mee naar beneden.** Opzoeken bij het lezen
+   bepaalt wat er *getekend* wordt, en dat is maar de helft van regel 1: de
+   pagina geeft `fields` heel aan het clientonderdeel, dus de bewaarde naam van
+   een artikel dat deze lezer niet mag zien reisde mee in de lading van de
+   pagina. `scrubUnseenRefs` snijdt de waarden terug tot wat de opzoeking
+   beantwoordde (`shownFields`), en daarmee heeft de regel drie helften:
+   `resolveFieldRefs` wat een chipje tekent, `scrubUnseenRefs` wat de pagina
+   meestuurt, `keepUnseenRefs` wat een opslag terugzet. Er wordt niets in het
+   archief veranderd — dit is de vorm van de *pagina*.
+10. **Achternaam gaat er weer af, en dit draait ronde 31 expliciet terug.** Daar
+   stond: "allebei houden — `familie` is de band, `achternaam` is de geprinte
+   naam." In de praktijk is het één naam op twee plekken, en twee plekken die
+   hetzelfde feit bewaren kunnen het oneens worden (§66's eigen argument, tegen
+   §66's eigen veld). Maar: **een ingevuld veld blijft staan.** De marker telt
+   per soort of er ergens een niet-lege `achternaam` staat, en zo ja blijft de
+   definitie waar hij is — dat is de tekst van de Keeper (§11).
+11. **Eén potlood, één manier van kiezen, één pan-en-zoom.** De potloodbalk op
+    de stamboom werkte niet en de oorzaak was geen toeval: het doek tekende de
+    balk vóór het vangvel en zette hem neer met een eigen regel
+    (`.tree-ink-toolbar`) zonder z-index erboven, dus met het potlood uit trok
+    elke druk op de gum een streek. Vier kopieën van dezelfde bedrading is vier
+    kansen om er één verkeerd te doen, dus staat de bedrading nu in
+    `useCanvasInk` + `InkShell` (vangvel eerst, balk daarna) en is de hoek een
+    *woord*. Regel: **een doek zet `.ink-toolbar` nooit in zijn eigen
+    stylesheet.** Idem voor het kiezen (`lib/canvas/select.ts` +
+    `useMarqueeSelect`), het beeld (`lib/canvas/view.ts`) en de rand van 1 px
+    (`panZoom.ts`) — die laatste zat in alle drie de kopieën fout en legde elke
+    streek één pixel naast de hand.
+12. **De afstamming wint van een rij.** Een partner- of broerlijn waarvan de
+    uiteinden al door een ouderpad verbonden zijn stemt niet mee over de
+    generaties; anders duwden de twee regels elkaar tien rijen omlaag. Getekend
+    wordt hij nog steeds.
+
+### Wat er bewust niet in zit
+
+- **`approvePendingEdit` meet tegen de beoordelaar.** Een goedgekeurd voorstel
+  gaat door `updateEntry` met de rechten van wie het goedkeurt, dus
+  `keepUnseenRefs` vraagt "kon de *Keeper* dit zien?" en niet "kon de indiener
+  dit zien?". Een voorstel dat een Keeper-geheim mist verliest het bij het
+  goedkeuren.
+- **Het web heeft zijn eigen sleepvak gehouden.** `WebCanvas` is één `<canvas>`
+  met een zak veranderlijke staat en zijn vak leeft in schermruimte; het naar
+  `lib/canvas/select.ts` trekken zou een herschrijving zijn en geen hergebruik.
+- **De drie hard ingetypte kaartkleuren van ronde 32 staan er nog** (zie daar).
+- **Schimmen zijn nog steeds niet te slepen en niet te kiezen** — een schim
+  staat niet in de boom, dus een veeg eroverheen pakt hem niet mee
+  (`boxOf` geeft `null`).
+- **Grote broer-en-zusgroepen worden niet afgetopt in de graaf.** Eén ouder met
+  veertig kinderen levert 780 paren; de artikelpagina stopt bij honderd
+  (`MAX_DERIVED_SIBLINGS`), de tekening niet — bijna alle paren worden als niets
+  getekend, maar ze worden wél uitgerekend.
+- **Geen geboortedatum en geen tweelingen.** De volgorde binnen een rij komt van
+  het zwaartepunt, niet van wie ouder is, en een tweeling is niet te
+  onderscheiden van twee broers.
+- **Geen aanduiding voor adoptie of stiefouderschap.** De weg ernaartoe is een
+  tweede ouder-veld met een eigen label ("Adoptiefouders"), precies zoals
+  "Geschapen door" er een is — en dat is nú pas veilig, want tot deze ronde
+  liet de spiegeling bij het weghalen zo'n tweede veld staan.
+- **`ROLE_HINTS` wordt nog door geen scherm gelezen.** Vijf zinnen die zeggen
+  wat een rol met de *tekening* doet, geschreven en getest in
+  `lib/families/roles.ts`; onder het keuzevakje in Beheer staat nog steeds de
+  ene gedeelde zin. Eén regel in `TypeEditor` sluit dat.
+- **`m` in een aanwijzerframe blijft op veertig afgetopt en `holding` op
+  zestig.** Een groep van meer dan veertig kaartjes reist niet compleet mee over
+  het scherm van een ander terwijl hij gesleept wordt; wat gekozen is, is voor
+  de eerste zestig te zien. Het frame is *zicht*, geen staat, dus de pull erna
+  zet alles alsnog goed.
+
+### De cijfers
+
+- vitest: 88 bestanden / 1409 tests (ronde 32: 82 / 1290). Playwright volledig: 299 passed / 62 skipped / 1 failed (`per-place-crops`, rood sinds ronde 19).
+- `tsc --noEmit` stil.
+- Playwright: door de orkestrator gedraaid en daar genoteerd.

@@ -92,6 +92,9 @@ const LINK_KINDS = new Set([
   'entry_links',
   'case_link',
   'case_links',
+  // §66 (round 32): a stamboom is a record with dials of its own, so its name
+  // is no more printable in a history than a dossier's.
+  'family_tree_link',
   'user_link',
   'map_pin',
 ]);

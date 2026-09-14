@@ -30,7 +30,20 @@ import type { AccessMode } from '@/lib/db/schema';
  * printed on the line, so "Geschapen door" is a `parent` role with a god's
  * vocabulary and needs no code of its own.
  */
-export type FieldRole = 'parent' | 'child' | 'partner' | 'kin';
+export type FieldRole = 'parent' | 'child' | 'partner' | 'sibling' | 'kin';
+
+/**
+ * §67 (round 33): what a sibling line rests on.
+ *   full     – both recorded parent sets are equal and hold two parents
+ *   half     – each side has a recorded parent the other lacks
+ *   unknown  – they share a parent, but one side's parents are a subset of the
+ *              other's (one parent known on one side is no proof of half)
+ *   explicit – a `sibling`-role field says so; parents may be unrecorded
+ * Derived kinds are computed per viewer in `buildFamilyGraph` from the FIRST
+ * parent-role field of each soort (the one the mirror writes into) — never from
+ * every parent-role field, or every creature of one god becomes a brother.
+ */
+export type SiblingKind = 'full' | 'half' | 'unknown' | 'explicit';
 
 // ---------------------------------------------------------------------------
 // The tree's own state — one JSON blob in `family_trees.state`, normalised on
@@ -198,8 +211,6 @@ export type EntryGraphNode = GraphNodeBase & {
   coverAssetId: string | null;
   /** §19 three crops; the canvas wears the vierkant one. Already normalised. */
   coverCrop: unknown;
-  /** The `achternaam` field when the soort has one — printed under the name. */
-  surname: string | null;
   /** The `familie` link when the soort has one — colours the frame, names the branch. */
   house: { id: string; name: string; colour: string | null } | null;
   /** Any short "status"/"toestand" field, for the small line under the name. */
@@ -233,7 +244,17 @@ export type GraphEdge = {
   label: string;
   source:
     | { kind: 'field'; entryId: string; fieldKey: string; targetId: string }
-    | { kind: 'tie'; tieId: string };
+    | { kind: 'tie'; tieId: string }
+    /** §67: a line nobody wrote down — it follows from two facts already written. Never removable from the tree. */
+    | { kind: 'derived' };
+  /** §67: only on `role: 'sibling'`. */
+  sibling?: SiblingKind;
+  /**
+   * §67: an explicit sibling claim that the recorded parents contradict (both
+   * sides have parents recorded and share none). Kept and drawn — a Keeper's
+   * typed field is never silently dropped — but the canvas may say so.
+   */
+  contested?: boolean;
 };
 
 export type FamilyGraph = {
@@ -269,6 +290,11 @@ export type LayoutNodeInput = {
 export type LayoutEdgeInput = {
   from: GraphNodeId;
   to: GraphNodeId;
+  /**
+   * `parent` orders generations and makes unions; `partner` equalises a pair
+   * onto one row and makes a childless union; `sibling` (§67) equalises a pair
+   * onto one row and makes NO union; `kin` places nothing.
+   */
   role: FieldRole;
 };
 

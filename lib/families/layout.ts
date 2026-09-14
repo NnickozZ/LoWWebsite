@@ -32,11 +32,15 @@ import {
  *    on who is older.
  * 2. **Generations by longest path**, so a grandchild is two rows below the
  *    grandparent even when there is also a direct line between them, with
- *    **partners pulled onto one row** and the whole thing re-run until it
- *    settles (capped at ten rounds, because a partner who is also an ancestor
- *    would otherwise push each other down for ever).
+ *    **partners and siblings pulled onto one row** (§67) and the whole thing
+ *    re-run until it settles (capped at ten rounds). A partner or sibling line
+ *    whose two ends are already joined by a **parent path** is left out of that
+ *    equalising altogether — lineage wins, and without that rule a person who
+ *    is both parent and partner of the same person drifted ten rows down.
  * 3. **Unions** — one or two parents and the children they share. A person with
  *    two partners is in two unions; that is the whole of "a second marriage".
+ *    A `sibling` line makes none: a brother and a sister are not a couple and
+ *    there is no bar to hang anybody from (§67).
  * 4. **Order within a row** by barycentre, two sweeps down and two up, with the
  *    parents of a union held together as one block so a couple never has a
  *    stranger standing between them.
@@ -124,7 +128,7 @@ export function layoutTree(
       [from, to] = [to, from];
       role = 'parent';
     }
-    if (role !== 'parent' && role !== 'partner' && role !== 'kin') continue;
+    if (role !== 'parent' && role !== 'partner' && role !== 'sibling' && role !== 'kin') continue;
     const key =
       role === 'parent' ? `parent|${from}|${to}` : `${role}|${[from, to].sort().join('|')}`;
     if (seenEdge.has(key)) continue;
@@ -134,6 +138,14 @@ export function layoutTree(
 
   const parentEdges = edges.filter((edge) => edge.role === 'parent');
   const partnerEdges = edges.filter((edge) => edge.role === 'partner');
+  /**
+   * §67: a sibling line equalises a pair onto one row, exactly as a partner
+   * line does, and makes **no union** — a brother and a sister are not a couple
+   * and there is no bar to hang children from. It does join two halves into one
+   * component (unlike `kin`), because two people the archive calls siblings
+   * belong on the same drawing.
+   */
+  const siblingEdges = edges.filter((edge) => edge.role === 'sibling');
 
   /* ------------------------------------------------- 1. the lineage DAG */
   const rawChildren = new Map<GraphNodeId, GraphNodeId[]>();
@@ -206,6 +218,35 @@ export function layoutTree(
     }
   }
 
+  /*
+   * §67: who is an ancestor of whom, on the DAG, computed once.
+   *
+   * A person can be both the parent *and* the partner of the same person (an
+   * archive of gods is full of it), and a person can be recorded as somebody's
+   * sibling *and* their child. The settle loop below equalises a partner pair
+   * onto one row, which for such a pair fights the parent edge that puts one a
+   * row below the other: the two pushed each other down ten rounds and the
+   * couple ended up ten rows from everybody else. The rule is that **lineage
+   * wins**: a partner or sibling line whose two ends are already joined by a
+   * parent path has no say in the generations. It is still drawn.
+   *
+   * Reverse topological order, so a node's reach is the union of its children's
+   * — one pass, and the DAG never changes while the generations settle.
+   */
+  const reach = new Map<GraphNodeId, Set<GraphNodeId>>();
+  for (let i = topo.length - 1; i >= 0; i--) {
+    const id = topo[i];
+    const set = new Set<GraphNodeId>();
+    for (const child of dagChildren.get(id) ?? []) {
+      set.add(child);
+      for (const further of reach.get(child) ?? []) set.add(further);
+    }
+    reach.set(id, set);
+  }
+  /** Is one of these two an ancestor of the other? */
+  const alongLineage = (a: GraphNodeId, b: GraphNodeId) =>
+    Boolean(reach.get(a)?.has(b)) || Boolean(reach.get(b)?.has(a));
+
   const floor = new Map<GraphNodeId, number>();
   const longestPath = (): Map<GraphNodeId, number> => {
     const gen = new Map<GraphNodeId, number>();
@@ -217,10 +258,20 @@ export function layoutTree(
     return gen;
   };
 
+  /*
+   * §67: a partner line and a sibling line both say "these two stand on one
+   * row", so both are equalised here — and both stand aside where a parent path
+   * already joins the pair, or the two rules would push each other down for
+   * ever (`alongLineage` above).
+   */
+  const levelEdges = [...partnerEdges, ...siblingEdges].filter(
+    (edge) => !alongLineage(edge.from, edge.to),
+  );
+
   let generation = longestPath();
   for (let round = 0; round < SETTLE_ROUNDS; round++) {
     let moved = false;
-    for (const edge of partnerEdges) {
+    for (const edge of levelEdges) {
       const target = Math.max(generation.get(edge.from) ?? 0, generation.get(edge.to) ?? 0);
       for (const id of [edge.from, edge.to]) {
         if ((floor.get(id) ?? 0) < target) {
@@ -269,7 +320,9 @@ export function layoutTree(
   const neighbours = new Map<GraphNodeId, GraphNodeId[]>();
   for (const edge of edges) {
     // §66: a `kin` line has no say in placement, so it does not even join two
-    // otherwise unrelated halves into one component.
+    // otherwise unrelated halves into one component. §67: a `sibling` line
+    // does — two people the archive calls brother and sister belong on the same
+    // drawing, even when neither has a parent recorded.
     if (edge.role === 'kin') continue;
     push(neighbours, edge.from, edge.to);
     push(neighbours, edge.to, edge.from);
@@ -574,7 +627,41 @@ export type UnionGeometry = {
   partnerLink: { x1: number; y1: number; x2: number; y2: number } | null;
 };
 
-export type TreeGeometry = { unions: UnionGeometry[] };
+/**
+ * §67: one sibling line, ready to stroke. It hangs off no union — a brother and
+ * a sister are not a couple — so it is its own little polyline in world
+ * coordinates, and like everything else in this file it is decided here so a
+ * test can read it.
+ *
+ * Two shapes, and which one you get depends only on where the two cards ended
+ * up. **On one row** (the usual case, because the settle loop puts siblings
+ * there) it is a straight segment across the gap between the facing edges, at
+ * the height of the two cards' middles — the same reading `partnerLine` gives a
+ * couple. **On two rows** — which happens when a parent path between the pair
+ * won the argument (`alongLineage`), or a hand dragged one card away — it rises
+ * from the top-centre of each card to a little above the higher of the two and
+ * runs across, so the line reads as going *over* the row rather than through
+ * whoever is standing between them.
+ */
+export type SiblingGeometry = {
+  a: GraphNodeId;
+  b: GraphNodeId;
+  /** true when the two cards share a row and the link is the straight segment. */
+  sameRow: boolean;
+  /** The polyline, two points on one row and four across two. */
+  points: Point[];
+};
+
+/** How far above the higher card a two-row sibling line arcs, in world px. */
+export const SIBLING_RISE = 26;
+/**
+ * §67: two rises that would share a height and overlap in x are stacked this
+ * far apart, or the longer line's hit stroke lies over the shorter one along
+ * its whole length and the shorter one can never be pressed.
+ */
+export const SIBLING_LANE = 8;
+
+export type TreeGeometry = { unions: UnionGeometry[]; siblings: SiblingGeometry[] };
 
 /**
  * Every line a union draws. `sizes` is how big each node is drawn — the same
@@ -584,10 +671,14 @@ export type TreeGeometry = { unions: UnionGeometry[] };
  *
  * A `kin` line is not here: it joins two cards directly and has no union, so the
  * canvas draws it with `curvePath` between whichever two points it likes.
+ *
+ * §67: `edges` is optional and only the `sibling` ones are read out of it — a
+ * caller that draws no sibling lines may leave it out and gets an empty list.
  */
 export function edgeGeometry(
   result: LayoutResult,
   sizes: Readonly<Record<GraphNodeId, { width: number; height: number }>>,
+  edges: readonly { from: GraphNodeId; to: GraphNodeId; role: FieldRole }[] = [],
 ): TreeGeometry {
   const box = (id: GraphNodeId) => {
     const at = result.positions[id];
@@ -658,7 +749,126 @@ export function edgeGeometry(
       partnerLink,
     });
   }
-  return { unions };
+
+  /* ------------------------------------------------------- §67 the siblings */
+  const siblings: SiblingGeometry[] = [];
+  const seenPair = new Set<string>();
+  for (const edge of edges) {
+    if (!edge || edge.role !== 'sibling') continue;
+    const [a, b] = [edge.from, edge.to].sort();
+    if (a === b) continue;
+    const key = `${a}|${b}`;
+    if (seenPair.has(key)) continue;
+    seenPair.add(key);
+    const one = box(a);
+    const two = box(b);
+    if (!one || !two) continue;
+
+    /*
+     * §67: a line straight across the row is only honest when nothing stands
+     * between the two. Siblings share a generation with everybody else born
+     * in it, and the barycentre may well seat a cousin between them — under
+     * whose card a straight line would run, invisible and unpressable. So a
+     * pair with somebody in between rises over the row like a pair on two rows.
+     */
+    const sameGeneration = result.positions[a].generation === result.positions[b].generation;
+    const sameRow = sameGeneration && !somebodyBetween(result, sizes, a, b, one, two);
+    if (sameRow) {
+      const [leftBox, rightBox] = one.cx <= two.cx ? [one, two] : [two, one];
+      const y = tidy((one.cy + two.cy) / 2);
+      const x1 = Math.min(leftBox.right, rightBox.left);
+      const x2 = Math.max(leftBox.right, rightBox.left);
+      siblings.push({
+        a,
+        b,
+        sameRow: true,
+        points: [
+          { x: tidy(x1), y },
+          { x: tidy(x2), y },
+        ],
+      });
+      continue;
+    }
+
+    const riseY = tidy(Math.min(one.top, two.top) - SIBLING_RISE);
+    siblings.push({
+      a,
+      b,
+      sameRow: false,
+      points: [
+        { x: tidy(one.cx), y: tidy(one.top) },
+        { x: tidy(one.cx), y: riseY },
+        { x: tidy(two.cx), y: riseY },
+        { x: tidy(two.cx), y: tidy(two.top) },
+      ],
+    });
+  }
+
+  laneSiblingRises(siblings);
+  return { unions, siblings };
+}
+
+/**
+ * §67: rises that share a height and overlap in x get lanes — greedy interval
+ * colouring, shortest span first so the short lines stay low and the long
+ * ones climb over them. Mutates the four-point polylines in place.
+ */
+export function laneSiblingRises(siblings: SiblingGeometry[]): void {
+  const rising = siblings.filter((line) => !line.sameRow && line.points.length === 4);
+  const byHeight = new Map<number, SiblingGeometry[]>();
+  for (const line of rising) {
+    const y = line.points[1].y;
+    const group = byHeight.get(y) ?? [];
+    group.push(line);
+    byHeight.set(y, group);
+  }
+  for (const group of byHeight.values()) {
+    if (group.length < 2) continue;
+    const spans = group
+      .map((line) => ({
+        line,
+        from: Math.min(line.points[1].x, line.points[2].x),
+        to: Math.max(line.points[1].x, line.points[2].x),
+      }))
+      .sort((l, r) => l.to - l.from - (r.to - r.from) || l.from - r.from);
+    const lanes: { from: number; to: number }[][] = [];
+    for (const span of spans) {
+      let lane = lanes.findIndex((taken) => taken.every((other) => span.to <= other.from || span.from >= other.to));
+      if (lane < 0) {
+        lane = lanes.length;
+        lanes.push([]);
+      }
+      lanes[lane].push({ from: span.from, to: span.to });
+      if (lane === 0) continue;
+      const y = tidy(span.line.points[1].y - SIBLING_LANE * lane);
+      span.line.points[1] = { x: span.line.points[1].x, y };
+      span.line.points[2] = { x: span.line.points[2].x, y };
+    }
+  }
+}
+
+/** §67: does another card on the same generation row stand between these two? */
+function somebodyBetween(
+  result: LayoutResult,
+  sizes: Record<GraphNodeId, { width: number; height: number }>,
+  a: GraphNodeId,
+  b: GraphNodeId,
+  one: { left: number; right: number; cx: number },
+  two: { left: number; right: number; cx: number },
+): boolean {
+  const generation = result.positions[a].generation;
+  const from = Math.min(one.right, two.right);
+  const to = Math.max(one.left, two.left);
+  if (to <= from) return false;
+  for (const [id, placed] of Object.entries(result.positions)) {
+    if (id === a || id === b || placed.generation !== generation) continue;
+    const size = sizes[id];
+    if (!size) continue;
+    const left = placed.x;
+    const right = placed.x + size.width;
+    if (right > from && left < to) return true;
+  }
+  return false;
 }
 
 /**
@@ -692,89 +902,86 @@ export function boxCentre(box: Box): Point {
   return { x: tidy(box.x + box.width / 2), y: tidy(box.y + box.height / 2) };
 }
 
-// ---------------------------------------------------------------------------
-// The viewport — pan and zoom, in one pure place
-// ---------------------------------------------------------------------------
+/** §67: how far below the lower of two cards a handle that belongs to both sits. */
+export const BETWEEN_GAP = 44;
 
 /**
- * Where the glass is over the world. A world point is drawn at
- * `x + worldX * zoom`, `y + worldY * zoom`, which is exactly what
- * `.tree-world`'s `transform: translate(x, y) scale(zoom)` does — so the canvas
- * never has to reckon a coordinate twice and this file can be tested without
- * one.
+ * §67: where a control that belongs to **two** cards goes.
+ *
+ * The shared "Kind van beide toevoegen" handle is the one thing on a stamboom
+ * that is not attached to a single card, so it cannot hang off a box the way
+ * the other four handles do. It sits between the two centres — halfway, whether
+ * the pair are side by side or one is dragged far off — and *below the lower of
+ * the two*, which is where the child it makes is going to appear. Below the
+ * higher one would put it on top of whoever is standing between them.
+ *
+ * Pure, and here rather than in the component, for the reason every other
+ * number in this file is: a test can read it.
  */
-export type TreeView = { x: number; y: number; zoom: number };
-
-/** §66: how far in and out a stamboom goes. A card is unreadable below the floor. */
-export const MIN_ZOOM = 0.25;
-export const MAX_ZOOM = 2.5;
-/** Air round the tree when everything is brought into view, in screen pixels. */
-export const FIT_PADDING = 48;
-
-export function clampZoom(zoom: number): number {
-  if (!Number.isFinite(zoom)) return 1;
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
-}
-
-/** A view read back out of `localStorage` is anybody's JSON until this says otherwise. */
-export function isTreeView(value: unknown): value is TreeView {
-  if (!value || typeof value !== 'object') return false;
-  const raw = value as Partial<TreeView>;
-  return (
-    typeof raw.x === 'number' &&
-    Number.isFinite(raw.x) &&
-    typeof raw.y === 'number' &&
-    Number.isFinite(raw.y) &&
-    typeof raw.zoom === 'number' &&
-    Number.isFinite(raw.zoom)
-  );
-}
-
-/**
- * "Alles in beeld": the whole tree centred in the stage, at whichever zoom fits
- * both ways, never past the floor or the ceiling. An empty tree — or a stage
- * that has not been measured yet — comes back centred at 1, because a `NaN`
- * in a transform is a blank page.
- */
-export function fitViewport(
-  bounds: { minX: number; minY: number; maxX: number; maxY: number },
-  stage: { width: number; height: number },
-  padding = FIT_PADDING,
-): TreeView {
-  const width = Math.max(0, bounds.maxX - bounds.minX);
-  const height = Math.max(0, bounds.maxY - bounds.minY);
-  const stageW = Number.isFinite(stage.width) ? stage.width : 0;
-  const stageH = Number.isFinite(stage.height) ? stage.height : 0;
-  if (stageW <= 0 || stageH <= 0) return { x: 0, y: 0, zoom: 1 };
-  const room = { width: Math.max(1, stageW - padding * 2), height: Math.max(1, stageH - padding * 2) };
-  const zoom = clampZoom(
-    width <= 0 || height <= 0 ? 1 : Math.min(room.width / width, room.height / height),
-  );
+export function betweenBoxes(a: Box, b: Box, gap: number = BETWEEN_GAP): Point {
   return {
-    x: tidy((stageW - width * zoom) / 2 - bounds.minX * zoom),
-    y: tidy((stageH - height * zoom) / 2 - bounds.minY * zoom),
-    zoom,
+    x: tidy((a.x + a.width / 2 + (b.x + b.width / 2)) / 2),
+    y: tidy(Math.max(a.y + a.height, b.y + b.height) + gap),
   };
 }
 
 /**
- * Zoom by `factor` and keep the world point under (`stageX`, `stageY`) exactly
- * where it is — the wheel's rule, and the buttons' too, which zoom about the
- * middle of the glass. Once the zoom is at its floor or its ceiling the view
- * does not move at all, so a wheel spun on and on does not creep sideways.
+ * §67: the middle of a polyline, where its word is written.
+ *
+ * Not the average of the points — that drifts towards whichever end has the
+ * most corners in it, and a four-point sibling line across two rows has three
+ * of them on one side. This walks the line and answers the point at half its
+ * length, so the word sits where a reader would say the middle is.
  */
-export function zoomAbout(view: TreeView, factor: number, stageX: number, stageY: number): TreeView {
-  const zoom = clampZoom(view.zoom * (Number.isFinite(factor) && factor > 0 ? factor : 1));
-  if (zoom === view.zoom) return view;
-  const worldX = (stageX - view.x) / view.zoom;
-  const worldY = (stageY - view.y) / view.zoom;
-  return { x: tidy(stageX - worldX * zoom), y: tidy(stageY - worldY * zoom), zoom };
+export function polylineMidpoint(points: readonly Point[]): Point {
+  if (!points.length) return { x: 0, y: 0 };
+  if (points.length === 1) return { x: tidy(points[0].x), y: tidy(points[0].y) };
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  }
+  if (total <= 0) return { x: tidy(points[0].x), y: tidy(points[0].y) };
+  let walked = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const step = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    if (walked + step >= total / 2) {
+      const t = step > 0 ? (total / 2 - walked) / step : 0;
+      return {
+        x: tidy(points[i - 1].x + (points[i].x - points[i - 1].x) * t),
+        y: tidy(points[i - 1].y + (points[i].y - points[i - 1].y) * t),
+      };
+    }
+    walked += step;
+  }
+  const last = points[points.length - 1];
+  return { x: tidy(last.x), y: tidy(last.y) };
 }
 
-/** A screen point on the stage, in world coordinates. */
-export function toWorld(view: TreeView, stageX: number, stageY: number): Point {
-  return { x: (stageX - view.x) / view.zoom, y: (stageY - view.y) / view.zoom };
-}
+// ---------------------------------------------------------------------------
+// The viewport — pan and zoom, moved out in §67
+// ---------------------------------------------------------------------------
+
+/*
+ * §67: the four sums that put the glass over the world now live in
+ * `lib/canvas/view.ts`, because the prikbord was doing them by hand as well and
+ * the next canvas would have been the third. Nothing about them was ever
+ * particular to a stamboom.
+ *
+ * They are re-exported here under the names the tree has always used —
+ * `TreeView`, `isTreeView` — so the canvas, and the tests that already stand on
+ * this file, did not have to move to follow them.
+ */
+export {
+  FIT_PADDING,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  clampZoom,
+  fitViewport,
+  isCanvasView as isTreeView,
+  toWorld,
+  zoomAbout,
+} from '@/lib/canvas/view';
+export type { CanvasView as TreeView } from '@/lib/canvas/view';
 
 /**
  * A gentle bow between two points, for a `kin` line — the one line in a stamboom

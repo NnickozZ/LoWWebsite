@@ -105,6 +105,39 @@ function asCaseRef(value: unknown): { id: string } | undefined {
   return id ? { id: id.slice(0, 64) } : undefined;
 }
 
+/**
+ * §66 (round 32): what a `family_tree_link` value looks like once stored.
+ *
+ * Deliberately *not* the dossier's shape. A dossier is named per viewer on the
+ * server (`resolveCaseRefs`), so a `case_link` keeps nothing but the id; a
+ * stamboom's chip is drawn straight out of the infobox by `FieldsEditor`, which
+ * gets no map to look one up in, so the name and the slug travel with the id —
+ * exactly as an `entry_link`'s do. A ref is a copy: a renamed or destroyed tree
+ * leaves a chip pointing at an address that answers 404, which is what a stale
+ * `entry_link` does too and is better than a page that will not draw.
+ */
+export type StoredTreeRef = { id: string; name?: string; slug?: string };
+
+/**
+ * One stamboom reference. A bare id is taken as well as `{ id }`, the same
+ * courtesy `asCaseRef` extends, so a value written by hand or by an older
+ * shape is not thrown away — it is simply a chip with nothing to print yet.
+ */
+function asTreeRef(value: unknown): StoredTreeRef | undefined {
+  const bare = str(value);
+  if (bare) return { id: bare.slice(0, 64) };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const id = str(raw.id);
+  if (!id) return undefined;
+  const ref: StoredTreeRef = { id: id.slice(0, 64) };
+  const name = str(raw.name);
+  const slug = str(raw.slug);
+  if (name) ref.name = name.slice(0, 200);
+  if (slug) ref.slug = slug.slice(0, 200);
+  return ref;
+}
+
 /** One player. Only the two things `UserPicker` writes and the page prints. */
 function asUserRef(value: unknown): { id: string; username: string } | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
@@ -132,11 +165,51 @@ function asList<T>(value: unknown, one: (item: unknown) => T | undefined): T[] |
 }
 
 /**
+ * §67: does this value point at `id`? Read forgivingly, in every shape a
+ * koppelingsveld has ever been written in, because the self-reference gate
+ * below has to catch a hand-rolled `PATCH` as well as a picker.
+ */
+function refersTo(value: unknown, id: string): boolean {
+  const one = (item: unknown): boolean => {
+    if (typeof item === 'string') return item === id;
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      return (item as Record<string, unknown>).id === id;
+    }
+    return false;
+  };
+  return Array.isArray(value) ? value.some(one) : one(value);
+}
+
+/**
+ * §67: a role field that points at the artikel it is on. Nobody is their own
+ * parent, their own child, their own partner or their own brother, and a self
+ * reference is not merely silly — the mirror would try to write the other side
+ * onto the same row, and a stamboom would draw a line from a card to itself.
+ * `edgesFromFields` already refuses to *draw* one; this refuses to store it.
+ *
+ * Only a field with a `role` is checked. An ordinary koppelingsveld may
+ * perfectly well name its own artikel ("Zie ook"), and that is nobody's
+ * business but the Keeper's.
+ */
+function isSelfReference(def: FieldDef, value: unknown, selfId: string | undefined): boolean {
+  if (!selfId || !def.role) return false;
+  if (def.kind !== 'entry_link' && def.kind !== 'entry_links') return false;
+  return refersTo(value, selfId);
+}
+
+/**
  * One value, measured against the definition the Keeper wrote. Returns the
  * value to store, or `undefined` for "this is not a value of this kind" — the
  * caller drops it rather than storing something the page cannot draw.
+ *
+ * §67: `selfId` is the id of the artikel being written. Given one, a `role`
+ * field's reference to that same artikel is dropped — see `isSelfReference`.
  */
-export function coerceFieldValue(def: FieldDef, value: unknown): unknown | undefined {
+export function coerceFieldValue(
+  def: FieldDef,
+  value: unknown,
+  selfId?: string,
+): unknown | undefined {
   switch (def.kind) {
     case 'text':
     case 'longtext':
@@ -207,11 +280,21 @@ export function coerceFieldValue(def: FieldDef, value: unknown): unknown | undef
       return out;
     }
 
-    case 'entry_link':
-      return isBlank(value) ? null : asEntryRef(value);
+    case 'entry_link': {
+      if (isBlank(value)) return null;
+      const ref = asEntryRef(value);
+      // §67: an artikel is never its own parent — clearing the box is the only
+      // honest answer to being handed itself.
+      if (ref && selfId && def.role && ref.id === selfId) return null;
+      return ref;
+    }
 
-    case 'entry_links':
-      return asList(value, asEntryRef);
+    case 'entry_links': {
+      const list = asList(value, asEntryRef);
+      if (!list || !selfId || !def.role) return list;
+      // §67: the rest of the list survives; only the self reference goes.
+      return list.filter((ref) => ref.id !== selfId);
+    }
 
     case 'user_link':
       return isBlank(value) ? null : asUserRef(value);
@@ -221,6 +304,11 @@ export function coerceFieldValue(def: FieldDef, value: unknown): unknown | undef
 
     case 'case_links':
       return asList(value, asCaseRef);
+
+    // §66 (round 32): one stamboom, or none. Never a list — a familie has one
+    // tree, and "which one" is the whole question the field asks.
+    case 'family_tree_link':
+      return isBlank(value) ? null : asTreeRef(value);
 
     // §19: a speld lives in `map_pins`, on the landkaart itself. The kind is
     // still offered so an old type keeps rendering its explanatory line, but
@@ -288,7 +376,11 @@ const RESERVED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 export type FieldPatchResult = {
   /** What may be written. Everything else is simply not here. */
   fields: Record<string, unknown>;
-  /** The keys that were thrown away, so a plain save can say so. */
+  /**
+   * The keys something was thrown away from, so a plain save can say so.
+   * Usually the whole value was refused; since §67 a role field that named its
+   * own artikel is *also* named here, with the rest of its list kept.
+   */
   rejected: string[];
 };
 
@@ -296,11 +388,17 @@ export type FieldPatchResult = {
  * The gate, with its reasons. `updateEntry` uses this: a live room drops the
  * rejects in silence (a CRDT that got a 400 back would retry for ever), a plain
  * `PATCH` hands them to the caller.
+ *
+ * §67: `selfId` is the artikel being written, and it is what lets the gate
+ * refuse a self reference in a role field. It is optional because two callers
+ * have no artikel yet or no need — a soort's own editor measuring a shape, and
+ * a test.
  */
 export function checkFieldPatch(
   defs: FieldDef[],
   listKeys: string[],
   patch: Record<string, unknown>,
+  selfId?: string,
 ): FieldPatchResult {
   const known = defsByKey(defs, listKeys);
   const fields: Record<string, unknown> = {};
@@ -315,11 +413,14 @@ export function checkFieldPatch(
       rejected.push(key);
       continue;
     }
-    const kept = coerceFieldValue(def, value);
+    const kept = coerceFieldValue(def, value, selfId);
     if (kept === undefined) {
       rejected.push(key);
       continue;
     }
+    // §67: the value is stored (a list keeps its other members), and the key is
+    // still reported — something the caller sent was not written.
+    if (isSelfReference(def, value, selfId)) rejected.push(key);
     fields[key] = kept;
   }
   return { fields, rejected };
@@ -330,8 +431,9 @@ export function cleanFieldPatch(
   defs: FieldDef[],
   listKeys: string[],
   patch: Record<string, unknown>,
+  selfId?: string,
 ): Record<string, unknown> {
-  return checkFieldPatch(defs, listKeys, patch).fields;
+  return checkFieldPatch(defs, listKeys, patch, selfId).fields;
 }
 
 /**

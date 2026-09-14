@@ -280,7 +280,7 @@ function nodeColour(node: WebNode, palette: Palette): string {
   if (node.kind === 'entry' && node.typeColour) return node.typeColour;
   // A dossier, prikbord, landkaart or tijdlijn wears the same colour its ties
   // are drawn in; an artikel and a notitie have a grey of their own, which is
-  // not one of the nineteen tokens.
+  // not one of the twenty-four tokens.
   const line = NODE_LINE[node.kind];
   const custom = line ? palette.web[`--web-line-${line}`] : undefined;
   if (custom) return custom;

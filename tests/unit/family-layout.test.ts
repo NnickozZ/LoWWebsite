@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BETWEEN_GAP,
+  betweenBoxes,
   boxCentre,
   clampZoom,
   curvePath,
   edgeGeometry,
+  polylineMidpoint,
   fitViewport,
   isTreeView,
   layoutTree,
@@ -12,6 +15,7 @@ import {
   partnerLine,
   toWorld,
   zoomAbout,
+  type TreeView,
 } from '@/lib/families/layout';
 import {
   COL_GAP,
@@ -536,69 +540,249 @@ describe('§66 de lijn tussen twee partners', () => {
   });
 });
 
-describe('§66 alles in beeld', () => {
-  const bounds = { minX: 0, minY: 0, maxX: 400, maxY: 200 };
-
-  it('centres the tree and fits it both ways', () => {
-    const view = fitViewport(bounds, { width: 600, height: 400 }, 0);
-    // 600/400 = 1.5 across, 400/200 = 2 down: the narrower one wins.
-    expect(view.zoom).toBe(1.5);
-    expect(view.x).toBe(0);
-    expect(view.y).toBe(50);
-  });
-
-  it('leaves air round it, and never zooms past the ceiling', () => {
-    const padded = fitViewport(bounds, { width: 600, height: 400 });
-    expect(padded.zoom).toBeLessThan(1.5);
-    const tiny = fitViewport({ minX: 0, minY: 0, maxX: 10, maxY: 10 }, { width: 900, height: 900 });
-    expect(tiny.zoom).toBe(MAX_ZOOM);
-  });
-
-  it('never zooms past the floor either', () => {
-    const huge = fitViewport({ minX: 0, minY: 0, maxX: 40000, maxY: 40000 }, { width: 600, height: 400 });
-    expect(huge.zoom).toBe(MIN_ZOOM);
-  });
-
-  it('answers something usable for an empty tree and an unmeasured stage', () => {
-    expect(fitViewport({ minX: 0, minY: 0, maxX: 0, maxY: 0 }, { width: 600, height: 400 })).toEqual({
-      x: 300,
-      y: 200,
-      zoom: 1,
+/**
+ * §67: pan and zoom moved to `lib/canvas/view.ts`, because the prikbord was
+ * doing the same four sums by hand. Their own tests moved with them
+ * (`tests/unit/canvas-view.test.ts`); what is left here is the promise this
+ * file makes to the stamboom's canvas — that the old names still come out of
+ * the old door, and mean the same thing.
+ */
+describe('§67 de zoom, doorgegeven onder de oude namen', () => {
+  it('hands the tree the same four sums it always had', () => {
+    expect(clampZoom(99)).toBe(MAX_ZOOM);
+    expect(clampZoom(0)).toBe(MIN_ZOOM);
+    expect(fitViewport({ minX: 0, minY: 0, maxX: 400, maxY: 200 }, { width: 600, height: 400 }, 0)).toEqual({
+      x: 0,
+      y: 50,
+      zoom: 1.5,
     });
-    expect(fitViewport(bounds, { width: 0, height: 0 })).toEqual({ x: 0, y: 0, zoom: 1 });
+    const view: TreeView = { x: 20, y: 30, zoom: 1 };
+    const next = zoomAbout(view, 2, 120, 80);
+    expect(next.zoom).toBe(2);
+    expect(toWorld(next, 120, 80).x).toBeCloseTo(toWorld(view, 120, 80).x, 6);
+  });
+
+  it('still refuses a stored view that is not one', () => {
+    expect(isTreeView({ x: 1, y: 2, zoom: 1 })).toBe(true);
+    expect(isTreeView({ x: 1, y: 2 })).toBe(false);
+    expect(isTreeView(null)).toBe(false);
   });
 });
 
-describe('§66 de zoom om de muis heen', () => {
-  const view = { x: 20, y: 30, zoom: 1 };
+/* ---------------------------------------------------------------- round 33 */
 
-  it('keeps the world point under the pointer exactly where it is', () => {
-    const next = zoomAbout(view, 2, 120, 80);
-    const before = toWorld(view, 120, 80);
-    const after = toWorld(next, 120, 80);
-    expect(next.zoom).toBe(2);
-    expect(after.x).toBeCloseTo(before.x, 6);
-    expect(after.y).toBeCloseTo(before.y, 6);
+const sibling = (a: string, b: string): LayoutEdgeInput => ({
+  from: `entry:${a}`,
+  to: `entry:${b}`,
+  role: 'sibling',
+});
+
+describe('§67 broers en zussen op één rij', () => {
+  it('pulls a sibling with no parents onto the row of the one who has them', () => {
+    const result = layoutTree(
+      [node('opa'), node('a'), node('b')],
+      [parent('opa', 'a'), sibling('a', 'b')],
+    );
+    expect(at(result, 'a').generation).toBe(1);
+    expect(at(result, 'b').generation).toBe(1);
   });
 
-  it('stops at the floor and the ceiling, and does not creep sideways there', () => {
-    const out = zoomAbout({ x: 0, y: 0, zoom: MIN_ZOOM }, 0.5, 300, 200);
-    expect(out).toEqual({ x: 0, y: 0, zoom: MIN_ZOOM });
-    const inward = zoomAbout({ x: 0, y: 0, zoom: MAX_ZOOM }, 2, 300, 200);
-    expect(inward).toEqual({ x: 0, y: 0, zoom: MAX_ZOOM });
+  it('and makes no union at all — a brother and a sister are not a couple', () => {
+    const result = layoutTree([node('a'), node('b')], [sibling('a', 'b')]);
+    expect(result.unions).toEqual([]);
   });
 
-  it('clamps a zoom read back out of a browser that was told anything', () => {
-    expect(clampZoom(Number.NaN)).toBe(1);
-    expect(clampZoom(99)).toBe(MAX_ZOOM);
-    expect(clampZoom(0)).toBe(MIN_ZOOM);
+  it('but does join two halves into one component, unlike a kin line', () => {
+    const nodes = [node('a'), node('b')];
+    const joined = layoutTree(nodes, [sibling('a', 'b')]);
+    const apart = layoutTree(nodes, [kin('a', 'b')]);
+    // Joined: side by side in one row, a column gap apart. Apart: two
+    // components, which stand three column gaps apart.
+    expect(at(joined, 'b').x - at(joined, 'a').x).toBe(W + COL_GAP);
+    expect(at(apart, 'b').x - at(apart, 'a').x).toBe(W + 3 * COL_GAP);
   });
 
-  it('refuses a stored view that is not one', () => {
-    expect(isTreeView({ x: 1, y: 2, zoom: 1 })).toBe(true);
-    expect(isTreeView({ x: 1, y: 2 })).toBe(false);
-    expect(isTreeView({ x: Number.NaN, y: 2, zoom: 1 })).toBe(false);
-    expect(isTreeView(null)).toBe(false);
-    expect(isTreeView('{"x":1}')).toBe(false);
+  it('has no say in the generations at all, the way a parent line does', () => {
+    // b's own child still hangs below b, and the sibling line moves nobody.
+    const result = layoutTree(
+      [node('a'), node('b'), node('kind')],
+      [sibling('a', 'b'), parent('b', 'kind')],
+    );
+    expect(at(result, 'a').generation).toBe(0);
+    expect(at(result, 'b').generation).toBe(0);
+    expect(at(result, 'kind').generation).toBe(1);
+  });
+});
+
+/*
+ * §67, the repair: two rules that both want to be right about one pair.
+ *
+ * A person can be both the parent and the partner of the same person, and the
+ * old settle loop let the two push each other down until it ran out of rounds —
+ * the couple ended ten rows below everybody else. Lineage wins now: the partner
+ * (or sibling) line is still drawn, it simply does not vote.
+ */
+describe('§67 lineage wint van een rij', () => {
+  it('ouder én partner van dezelfde persoon blijft twee rijen', () => {
+    const result = layoutTree([node('a'), node('b')], [parent('a', 'b'), partner('a', 'b')]);
+    expect(at(result, 'a').generation).toBe(0);
+    expect(at(result, 'b').generation).toBe(1);
+  });
+
+  it('and nobody is dragged down ten rows by the settling', () => {
+    const result = layoutTree(
+      [node('a'), node('b'), node('los')],
+      [parent('a', 'b'), partner('a', 'b')],
+    );
+    // The whole tree is two rows deep, not eleven.
+    const rows = Object.values(result.positions).map((one) => one.generation);
+    expect(Math.max(...rows)).toBe(1);
+    expect(at(result, 'los').generation).toBe(0);
+  });
+
+  it('the same for a sibling line between a parent and their child', () => {
+    const result = layoutTree([node('a'), node('b')], [parent('a', 'b'), sibling('a', 'b')]);
+    expect(at(result, 'a').generation).toBe(0);
+    expect(at(result, 'b').generation).toBe(1);
+  });
+
+  it('and for a grandparent who is also somebody’s partner', () => {
+    const result = layoutTree(
+      [node('opa'), node('pa'), node('kind')],
+      [parent('opa', 'pa'), parent('pa', 'kind'), partner('opa', 'kind')],
+    );
+    expect(at(result, 'opa').generation).toBe(0);
+    expect(at(result, 'pa').generation).toBe(1);
+    expect(at(result, 'kind').generation).toBe(2);
+  });
+
+  it('leaves an ordinary partner pair alone', () => {
+    const result = layoutTree(
+      [node('g'), node('a'), node('b')],
+      [parent('g', 'a'), partner('a', 'b')],
+    );
+    expect(at(result, 'b').generation).toBe(1);
+  });
+});
+
+describe('§67 de tekening van een broer-of-zuslijn', () => {
+  it('runs between the facing edges when the two share a row', () => {
+    const nodes = [node('a'), node('b')];
+    const edges = [sibling('a', 'b')];
+    const result = layoutTree(nodes, edges);
+    const drawn = edgeGeometry(result, sizesOf(nodes), edges);
+    expect(drawn.siblings).toHaveLength(1);
+    const line = drawn.siblings[0];
+    expect(line).toMatchObject({ a: 'entry:a', b: 'entry:b', sameRow: true });
+    expect(line.points).toHaveLength(2);
+    expect(line.points[0].y).toBe(line.points[1].y);
+    expect(line.points[0].y).toBe(at(result, 'a').y + H / 2);
+    expect(line.points[1].x - line.points[0].x).toBe(COL_GAP);
+  });
+
+  it('rises over the row when a third card stands between the two', () => {
+    // Three siblings of one union sit on one row; a and c are not adjacent.
+    const nodes = [node('p'), node('a'), node('b'), node('c')];
+    const edges = [parent('p', 'a'), parent('p', 'b'), parent('p', 'c'), sibling('a', 'c')];
+    const result = layoutTree(nodes, edges);
+    const order = ['a', 'b', 'c'].sort((l, r) => at(result, l).x - at(result, r).x);
+    const [left, , right] = order;
+    const drawn = edgeGeometry(result, sizesOf(nodes), [sibling(left, right)]);
+    const line = drawn.siblings[0];
+    expect(line.sameRow).toBe(false);
+    expect(line.points).toHaveLength(4);
+    expect(line.points[1].y).toBeLessThan(at(result, left).y);
+  });
+
+  it('stacks two rises that overlap so neither line lies under the other', () => {
+    // a, b, c, d in one row; a–c and a–d both rise over b; the longer climbs higher.
+    const nodes = [node('p'), node('a'), node('b'), node('c'), node('d')];
+    const edges = [parent('p', 'a'), parent('p', 'b'), parent('p', 'c'), parent('p', 'd')];
+    const result = layoutTree(nodes, edges);
+    const order = ['a', 'b', 'c', 'd'].sort((l, r) => at(result, l).x - at(result, r).x);
+    const [first, , third, fourth] = order;
+    const drawn = edgeGeometry(result, sizesOf(nodes), [sibling(first, third), sibling(first, fourth)]);
+    expect(drawn.siblings).toHaveLength(2);
+    const short = drawn.siblings.find((line) => line.b === `entry:${third}` || line.a === `entry:${third}`)!;
+    const long = drawn.siblings.find((line) => line.b === `entry:${fourth}` || line.a === `entry:${fourth}`)!;
+    expect(short.points[1].y).not.toBe(long.points[1].y);
+    expect(long.points[1].y).toBeLessThan(short.points[1].y);
+  });
+
+  it('rises over the row when the two ended up on different ones', () => {
+    const nodes = [node('a'), node('b')];
+    const edges = [parent('a', 'b'), sibling('a', 'b')];
+    const result = layoutTree(nodes, edges);
+    const drawn = edgeGeometry(result, sizesOf(nodes), edges);
+    const line = drawn.siblings[0];
+    expect(line.sameRow).toBe(false);
+    expect(line.points).toHaveLength(4);
+    // Off the top of each card, up to one height above the higher of the two.
+    expect(line.points[0]).toEqual({ x: at(result, 'a').x + W / 2, y: at(result, 'a').y });
+    expect(line.points[3]).toEqual({ x: at(result, 'b').x + W / 2, y: at(result, 'b').y });
+    expect(line.points[1].y).toBe(line.points[2].y);
+    expect(line.points[1].y).toBeLessThan(Math.min(at(result, 'a').y, at(result, 'b').y));
+  });
+
+  it('draws one line per pair, whichever end wrote it, and nothing for a partner', () => {
+    const nodes = [node('a'), node('b')];
+    const edges = [sibling('a', 'b'), sibling('b', 'a'), partner('a', 'b')];
+    const drawn = edgeGeometry(layoutTree(nodes, edges), sizesOf(nodes), edges);
+    expect(drawn.siblings).toHaveLength(1);
+  });
+
+  it('and none at all when the caller hands it no edges', () => {
+    const nodes = [node('a'), node('b')];
+    expect(edgeGeometry(layoutTree(nodes, [sibling('a', 'b')]), sizesOf(nodes)).siblings).toEqual([]);
+  });
+});
+
+describe('§67 de handgreep die van twee kaartjes is', () => {
+  const box = (x: number, y: number, width = 100, height = 60) => ({ x, y, width, height });
+
+  it('sits halfway between the two centres, below the lower of the two', () => {
+    const at = betweenBoxes(box(0, 0), box(200, 0));
+    expect(at.x).toBe(150); // (50 + 250) / 2
+    expect(at.y).toBe(60 + BETWEEN_GAP);
+  });
+
+  it('takes the *lower* card, not the higher one, so the handle is never behind a card', () => {
+    const high = box(0, 0);
+    const low = box(200, 500);
+    const at = betweenBoxes(high, low);
+    expect(at.y).toBe(560 + BETWEEN_GAP);
+    // And the order of the two makes no difference to either coordinate.
+    expect(betweenBoxes(low, high)).toEqual(at);
+  });
+
+  it('answers the same point for two cards on top of each other', () => {
+    expect(betweenBoxes(box(10, 10), box(10, 10))).toEqual({ x: 60, y: 70 + BETWEEN_GAP });
+  });
+});
+
+describe('§67 het midden van een geknikte lijn', () => {
+  it('is halfway along a straight segment', () => {
+    expect(polylineMidpoint([{ x: 0, y: 0 }, { x: 100, y: 0 }])).toEqual({ x: 50, y: 0 });
+  });
+
+  it('walks the line rather than averaging the corners', () => {
+    /*
+     * Three of the four points sit on the left, so the *average* would be at
+     * x = 25 — a third of the way along a line whose middle is in the bar at
+     * the top. Walking gives the point a reader would call the middle.
+     */
+    const points = [
+      { x: 0, y: 100 },
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ];
+    expect(polylineMidpoint(points)).toEqual({ x: 50, y: 0 });
+  });
+
+  it('is safe on nothing, on one point, and on a line of length nought', () => {
+    expect(polylineMidpoint([])).toEqual({ x: 0, y: 0 });
+    expect(polylineMidpoint([{ x: 7, y: 9 }])).toEqual({ x: 7, y: 9 });
+    expect(polylineMidpoint([{ x: 7, y: 9 }, { x: 7, y: 9 }])).toEqual({ x: 7, y: 9 });
   });
 });

@@ -22,7 +22,7 @@ import {
  * The load-bearing test in here is the first one. `app/globals.css` carries
  * the archive's own colours as a generated block, and `app/(app)/layout.tsx`
  * writes the Keeper's over it from the same emitter — so the day the two stop
- * being the same nineteen tokens is the day a token added to the module never
+ * being the same twenty-four tokens is the day a token added to the module never
  * reaches an archive whose Keeper never opened the Kleuren pane. There is no
  * way to notice that by looking at a screen: every palette still *works*, one
  * of them is simply a round out of date. Hence a test that reads the
@@ -55,7 +55,7 @@ describe('globals.css and lib/theme/schemes.ts', () => {
     }
   });
 
-  it('leaves the sixteen kinds of tie as aliases onto the six line colours', () => {
+  it('leaves the eighteen kinds of tie as aliases onto the six line colours', () => {
     // A --web-<kind> that ever became a colour of its own is the legend and
     // the canvas disagreeing again (§43).
     const kinds = [
@@ -75,6 +75,9 @@ describe('globals.css and lib/theme/schemes.ts', () => {
       ['event', 'green'],
       ['investigator', 'violet'],
       ['player', 'violet'],
+      // §66: the stamboom's two, round 31.
+      ['inTree', 'violet'],
+      ['lineage', 'violet'],
     ];
     for (const [kind, line] of kinds) {
       expect(CSS).toContain(`--web-${kind}: var(--web-line-${line});`);

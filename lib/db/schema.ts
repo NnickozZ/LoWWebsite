@@ -199,6 +199,9 @@ export type FieldKind =
   | 'user_link'
   | 'case_link'
   | 'case_links'
+  // §66 (round 32): one stamboom, so a Familie can say which tree it is the
+  // family of. Stored as one `{ id, name, slug }` — see `lib/entries/fieldValues.ts`.
+  | 'family_tree_link'
   | 'date'
   | 'map_pin';
 

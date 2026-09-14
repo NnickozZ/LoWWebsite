@@ -130,6 +130,10 @@ beforeAll(async () => {
       { key: 'kinderen', label: 'Kinderen', kind: 'entry_links', role: 'child' },
       { key: 'partner', label: 'Partner', kind: 'entry_link', role: 'partner' },
       { key: 'vriend', label: 'Vriend', kind: 'entry_link' },
+      // §67 (round 33): the typed sibling box, undirected like Partner.
+      { key: 'broers_zussen', label: 'Broers en zussen', kind: 'entry_links', role: 'sibling' },
+      // §66 (round 32): and a field aimed at the stamboom itself.
+      { key: 'stamboom', label: 'Stamboom', kind: 'family_tree_link' },
     ]),
   );
 
@@ -157,11 +161,30 @@ beforeAll(async () => {
   entry('e-vader', 'geslacht', 'Willem de Oude', {
     fields: { kinderen: [{ id: 'e-dochter', name: 'Neeltje' }] },
   });
-  entry('e-moeder', 'geslacht', 'Grietje Blaas', { fields: { partner: { id: 'e-vader', name: 'Willem de Oude' } } });
+  entry('e-moeder', 'geslacht', 'Grietje Blaas', {
+    fields: {
+      partner: { id: 'e-vader', name: 'Willem de Oude' },
+      // §66 (round 32): a member who also names the tree in her infobox.
+      stamboom: { id: 'ft-huis', name: 'Het geslacht De Oude', slug: 'geslacht-de-oude' },
+    },
+  });
   entry('e-zoon', 'geslacht', 'Klaas de Jonge', {
     fields: { ouders: [{ id: 'e-vader', name: 'Willem de Oude' }], vriend: { id: 'e-jan', name: 'Jan Vermeer' } },
   });
   entry('e-dochter', 'geslacht', 'Neeltje de Stille', { visibility: 'keeper' });
+  // §67: a brother nobody could derive — his parents are nowhere.
+  entry('e-broer', 'geslacht', 'Pier de Jonge', {
+    fields: { broers_zussen: [{ id: 'e-zoon', name: 'Klaas de Jonge' }] },
+  });
+
+  /*
+   * §66 (round 32): a familie that names the stamboom it is the family of, and
+   * stands nowhere in it — the line has to come off the *field*. And a member
+   * who names the same tree, to show the pair is joined once and not twice.
+   */
+  entry('e-huisnaam', 'geslacht', 'Geslacht De Oude als familie', {
+    fields: { stamboom: { id: 'ft-huis', name: 'Het geslacht De Oude', slug: 'geslacht-de-oude' } },
+  });
 
   // Bram wears Jan; a second fiche too, to show every karakter a member holds counts.
   run(`INSERT INTO user_characters (user_id, entry_id, sort_order) VALUES ('bram', 'e-jan', 0)`);
@@ -510,6 +533,23 @@ describe('the Keeper sees every kind of tie', () => {
     }
   });
 
+  /*
+   * §66 (round 32): "Stambomen moeten gelinkt kunnen worden aan families." A
+   * `family_tree_link` in an infobox is an `inTree` line with the field's own
+   * label on it — and a familie that is also a member is joined once.
+   */
+  it('a familie that names its stamboom stands in it, once, with the field’s word on the line', () => {
+    expect(hasEdge(graph, 'inTree', 'entry:e-huisnaam', 'family_tree:ft-huis', 'Stamboom')).toBe(true);
+    // The member who names the same tree keeps the bare member line and gets
+    // no second one: two knots, one line.
+    expect(
+      edgesOf(graph, 'inTree').filter(
+        (edge) => edge.from === 'entry:e-moeder' && edge.to === 'family_tree:ft-huis',
+      ),
+    ).toHaveLength(1);
+    expect(hasEdge(graph, 'inTree', 'entry:e-moeder', 'family_tree:ft-huis', '')).toBe(true);
+  });
+
   it('a stamboom kept out of the web is not in it at all', () => {
     expect(graph.nodes.some((node) => node.id === 'family_tree:ft-uit')).toBe(false);
     expect(touching(graph, 'family_tree:ft-uit')).toEqual([]);
@@ -522,6 +562,19 @@ describe('the Keeper sees every kind of tie', () => {
     expect(hasEdge(graph, 'lineage', 'entry:e-vader', 'entry:e-dochter', 'Kinderen')).toBe(true);
     // A partner line keeps the direction the artikel that said it wrote it in.
     expect(hasEdge(graph, 'lineage', 'entry:e-moeder', 'entry:e-vader', 'Partner')).toBe(true);
+    /*
+     * §67: and so does a sibling line — it is undirected, mirrored, and reaches
+     * the web through exactly the same road, with the field's own word on it.
+     * The web draws nothing *derived*: a stamboom works siblings out of shared
+     * parents per viewer, and the web only ever reads what is written down.
+     */
+    expect(hasEdge(graph, 'lineage', 'entry:e-broer', 'entry:e-zoon', 'Broers en zussen')).toBe(true);
+    const tussen = graph.edges.filter(
+      (edge) =>
+        (edge.from === 'entry:e-broer' && edge.to === 'entry:e-zoon') ||
+        (edge.from === 'entry:e-zoon' && edge.to === 'entry:e-broer'),
+    );
+    expect(tussen.map((edge) => edge.kind)).toEqual(['lineage']);
   });
 
   /*

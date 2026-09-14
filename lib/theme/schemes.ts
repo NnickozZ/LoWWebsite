@@ -90,6 +90,11 @@ export type TokenKey =
   | 'corkSpeck'
   | 'cardFace'
   | 'cardRule'
+  | 'cardInk'
+  | 'treeFace'
+  | 'treeInk'
+  | 'treeLine'
+  | 'treeAccent'
   | 'lineInk'
   | 'lineRed'
   | 'lineBlue'
@@ -103,17 +108,27 @@ export type TokenDef = {
   css: string;
   /** What it colours, in Dutch, beside the picker. */
   what: string;
-  group: 'paper' | 'board' | 'web';
+  group: 'paper' | 'board' | 'tree' | 'web';
 };
 
 /**
- * Every colour a Keeper may turn. Nineteen, not the hundred the stylesheet
+ * Every colour a Keeper may turn. Twenty-four, not the hundred the stylesheet
  * has: the rest are `var()` aliases onto these, written once in globals.css —
  * `--web-mention: var(--web-line-ink)` and its twenty-one siblings — so the
  * web's line colours are six choices rather than twenty-two.
  *
  * `--accent` is not here either. It has always been "whatever the stamp is",
  * and the emitter writes it as `var(--stamp-red)` so it stays that.
+ *
+ * Round 32 added five of the twenty-four, and all five say the same thing: a
+ * kaart is a **surface of its own**, so it carries its own inkt. A prikbord
+ * card was already painted `--card-face` in every scheme — light, even in the
+ * dark — and its text was a hard-coded `#1f1b16` nobody could turn; a stamboom
+ * card was painted the same way and its text was `--ink`, which in a dark
+ * scheme is nearly white, so the names on it were white on beige. `--card-ink`
+ * makes the prikbord's answer adjustable and the four `--tree-*` make the
+ * stamboom's a choice: in a dark palette the kaartje itself goes dark and the
+ * inkt on it goes light, which is the only way round that reads.
  */
 export const TOKENS: TokenDef[] = [
   { key: 'paper', css: '--paper', what: 'Het papier — de achtergrond van elke pagina', group: 'paper' },
@@ -129,6 +144,16 @@ export const TOKENS: TokenDef[] = [
   { key: 'corkSpeck', css: '--cork-speck', what: 'De spikkels in het kurk', group: 'board' },
   { key: 'cardFace', css: '--card-face', what: 'Het vlak van een kaart op een prikbord', group: 'board' },
   { key: 'cardRule', css: '--card-rule', what: 'De rand van zo’n kaart', group: 'board' },
+  { key: 'cardInk', css: '--card-ink', what: 'De inkt op een kaart op een prikbord', group: 'board' },
+  { key: 'treeFace', css: '--tree-face', what: 'Het kaartje in een stamboom', group: 'tree' },
+  { key: 'treeInk', css: '--tree-ink', what: 'De inkt op zo’n kaartje — de naam', group: 'tree' },
+  { key: 'treeLine', css: '--tree-line', what: 'De lijnen tussen de kaartjes', group: 'tree' },
+  {
+    key: 'treeAccent',
+    css: '--tree-accent',
+    what: 'De ring om een godheid en het accent van een huis zonder eigen kleur',
+    group: 'tree',
+  },
   { key: 'lineInk', css: '--web-line-ink', what: 'Web: wat de tekst noemt', group: 'web' },
   { key: 'lineRed', css: '--web-line-red', what: 'Web: wat op een prikbord hangt', group: 'web' },
   { key: 'lineBlue', css: '--web-line-blue', what: 'Web: wat op een landkaart staat', group: 'web' },
@@ -140,6 +165,11 @@ export const TOKENS: TokenDef[] = [
 export const TOKEN_GROUPS: { group: TokenDef['group']; title: string; note: string }[] = [
   { group: 'paper', title: 'Papier en inkt', note: 'De negen kleuren waar elk scherm op staat.' },
   { group: 'board', title: 'Het prikbord', note: 'Alleen het kurk en de kaarten die erop hangen.' },
+  {
+    group: 'tree',
+    title: 'De stamboom',
+    note: 'Een kaartje in een stamboom is een vlak van zichzelf, met zijn eigen inkt.',
+  },
   { group: 'web', title: 'Het web', note: 'De zes kleuren waarin het web zijn lijnen tekent.' },
 ];
 
@@ -163,6 +193,11 @@ const PLAYER_LIGHT: Palette = {
   corkSpeck: '#5a3e20',
   cardFace: '#fbf7ec',
   cardRule: '#cdbfa4',
+  cardInk: '#1f1b16',
+  treeFace: '#fbf7ec',
+  treeInk: '#1f1b16',
+  treeLine: '#5c544a',
+  treeAccent: '#8a6a24',
   lineInk: '#2a2118',
   lineRed: '#c0392b',
   lineBlue: '#1f4e79',
@@ -185,6 +220,11 @@ const PLAYER_DARK: Palette = {
   corkSpeck: '#000000',
   cardFace: '#e9e2d2',
   cardRule: '#8b7f68',
+  cardInk: '#1f1b16',
+  treeFace: '#2e2922',
+  treeInk: '#ece5d6',
+  treeLine: '#8a8072',
+  treeAccent: '#9a7729',
   lineInk: '#e8e1d2',
   lineRed: '#e2705f',
   lineBlue: '#8fb8dd',
@@ -214,6 +254,11 @@ const KEEPER_LIGHT: Palette = {
   corkSpeck: '#4a3a24',
   cardFace: '#f4f1e8',
   cardRule: '#c3bda9',
+  cardInk: '#1f1b16',
+  treeFace: '#f4f1e8',
+  treeInk: '#191d1b',
+  treeLine: '#55605b',
+  treeAccent: '#7d6320',
   lineInk: '#22231f',
   lineRed: '#b03a2a',
   lineBlue: '#1c4f5c',
@@ -237,6 +282,11 @@ const KEEPER_DARK: Palette = {
   corkSpeck: '#000000',
   cardFace: '#e6e6dc',
   cardRule: '#85857a',
+  cardInk: '#1f1b16',
+  treeFace: '#252d33',
+  treeInk: '#e2e8ea',
+  treeLine: '#79868c',
+  treeAccent: '#9a7729',
   lineInk: '#dfe5e6',
   lineRed: '#e2705f',
   lineBlue: '#7fc3d4',

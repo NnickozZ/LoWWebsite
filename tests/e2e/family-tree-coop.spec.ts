@@ -192,3 +192,101 @@ test('de hand van de ander wordt op de stamboom getekend', async ({ page, browse
 
   await other.context.close();
 });
+
+/**
+ * §67, met z'n tweeën: **wat de ander vasthoudt, en het vak dat hij opentrekt.**
+ *
+ * The prikbord's two live gestures, on a stamboom (`board-live.spec.ts` is the
+ * shape of both). They are different kinds of thing on the wire and that is why
+ * they are asserted together:
+ *
+ *  - a *selection* is a fact about a person, so it rides the **roster**
+ *    (`setHolding`) and stays up as long as they hold it — outlines with their
+ *    name on, `.tree-held`, exactly like `.board-held`;
+ *  - a *box being dragged open* is a gesture in progress, so it rides the
+ *    **pointer frame** — which means the hand dragging it has to keep moving
+ *    while this is asked (§6: a hand that stops moving stops being heard), and
+ *    the other browser must believe it is not alone (§60).
+ */
+test('wat de ander gekozen heeft, en het kader dat hij opentrekt, staan op jouw glas', async ({
+  page,
+  browser,
+}, info) => {
+  test.setTimeout(180_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const CLASINA = 'Sister Clasina';
+
+  await signIn(page, ...KEEPER);
+  await page.goto('/stambomen');
+  const tree = await makeTree(page, `Samen kiezen ${stamp}`);
+  await page.goto(`/stambomen/${tree.slug}`);
+  await expect(page.getByTestId('tree-stage')).toBeVisible();
+  await addFromToolbar(page, 'Jacob', JACOB);
+  await expect(cardOf(page, JACOB)).toBeVisible();
+  await addFromToolbar(page, 'Clasina', CLASINA);
+  await expect(cardOf(page, CLASINA)).toBeVisible();
+  await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 20_000 });
+  /*
+   * Whoever is put in a tree is the chosen card straight away, so this hand is
+   * *holding* one — and the whole point below is that the outlines B's screen
+   * draws are A's and the ones A's screen draws are B's. Let go first.
+   */
+  await page.keyboard.press('Escape');
+
+  const other = await watcher(browser, `/stambomen/${tree.slug}`);
+  await expect(cardOf(other.page, JACOB)).toBeVisible({ timeout: 25_000 });
+  await expect(cardOf(other.page, CLASINA)).toBeVisible({ timeout: 25_000 });
+  // A holds nothing, so B's glass has no outline on it.
+  await expect(other.page.locator('.tree-held')).toHaveCount(0, { timeout: 25_000 });
+
+  /* 1. B chooses two cards; A sees whose hand is on them. */
+  await other.page.getByTestId('tree-fit').click();
+  await other.page.waitForTimeout(400);
+  await cardOf(other.page, JACOB).click({ position: { x: 6, y: 6 } });
+  await cardOf(other.page, CLASINA).click({ position: { x: 6, y: 6 }, modifiers: ['Shift'] });
+  const mine = await other.page.evaluate(
+    () => (window as unknown as { __tree: { selected: () => string[] } }).__tree.selected(),
+  );
+  expect(mine).toHaveLength(2);
+
+  const held = page.locator('.tree-held');
+  await expect(held).toHaveCount(2, { timeout: 25_000 });
+  await expect(held.first().locator('.tree-held-name')).toHaveText('Keeper');
+  // And B does not draw their own choice as somebody else's.
+  await expect(other.page.locator('.tree-held')).toHaveCount(0);
+
+  /*
+   * 2. B sweeps a box open over bare paper. A frame is sight, not state, so B
+   * keeps moving while this is asked — a hand that stopped the instant the
+   * question was put has sent its last frame already.
+   */
+  const stage = (await other.page.getByTestId('tree-stage').boundingBox())!;
+  const from = { x: stage.x + 14, y: stage.y + stage.height - 20 };
+  await other.page.keyboard.down('Shift');
+  await other.page.mouse.move(from.x, from.y);
+  await other.page.mouse.down();
+  await other.page.mouse.move(from.x + 40, from.y - 30, { steps: 4 });
+
+  const theirs = page.locator('.tree-marquee-other');
+  let step = 1;
+  await expect
+    .poll(
+      async () => {
+        step = Math.min(step + 1, 8);
+        await other.page.mouse.move(from.x + step * 40, from.y - step * 30);
+        return theirs.count();
+      },
+      { timeout: 25_000, intervals: [200, 300, 500, 500, 500] },
+    )
+    .toBe(1);
+  await expect(theirs.locator('.tree-marquee-name')).toHaveText('Keeper');
+  // Nobody else's box is ever drawn on the glass of the hand dragging it.
+  await expect(other.page.locator('.tree-marquee-other')).toHaveCount(0);
+
+  /* And it is gone the moment the hand lets go. */
+  await other.page.mouse.up();
+  await other.page.keyboard.up('Shift');
+  await expect(theirs).toHaveCount(0, { timeout: 20_000 });
+
+  await other.context.close();
+});

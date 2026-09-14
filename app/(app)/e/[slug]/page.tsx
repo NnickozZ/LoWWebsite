@@ -26,7 +26,12 @@ import {
   listRevealableUsers,
   listSections,
 } from '@/lib/entries/secrets';
-import { listDerivedEntries } from '@/lib/entries/derived';
+import { listDerivedEntries, resolveFieldRefs, scrubUnseenRefs } from '@/lib/entries/derived';
+// §67: broers en zussen die uit de ouders volgen, per lezer op de server.
+import { siblingsOf } from '@/lib/families/service';
+import { refIdsIn } from '@/lib/families/roles';
+import { SIBLING_WORDS } from '@/lib/families/siblings';
+import { listBlockKeys } from '@/lib/entries/fieldValues';
 import { groupMentions, listMentions } from '@/lib/entries/mentions';
 import {
   getBacklinks,
@@ -263,6 +268,82 @@ export default async function EntryPage({
   }
 
   const blocks = resolveBlocks(entry.typeBlocks);
+  /*
+   * §67: the artikelen this infobox names, looked up afresh for this viewer.
+   * The stored `entry_link(s)` value is a `{ id, name, slug }` copy of the
+   * moment it was picked; this is who that is *now*. One query for the whole
+   * page, through `visibleEntryCondition` like every other read — so a
+   * destroyed artikel, a renamed one and one this reader may not see are all
+   * answered here rather than by the chip. The hand-filled lists go through the
+   * same map, which is why the block keys are handed over with the fields.
+   */
+  const refSpec = {
+    typeFields: entry.typeFields ?? [],
+    fields: (entry.fields ?? {}) as Record<string, unknown>,
+    listKeys: listBlockKeys(blocks),
+  };
+  const resolvedRefs = resolveFieldRefs(refSpec, user);
+  /*
+   * §67: and the same answer applied to the values themselves, because the page
+   * hands `fields` down to the client component whole. A stored ref carries the
+   * *name* it was picked under, so an unresolved one is a leak in the payload
+   * even where no chip is drawn (rule 1). `scrubUnseenRefs` says the rest.
+   */
+  const shownFields = scrubUnseenRefs(refSpec, resolvedRefs);
+  /*
+   * §67: en de broers en zussen die niemand hoefde te typen.
+   *
+   * A sibling is not a fact of its own: two people with the same parents are
+   * brother and sister whether or not anybody wrote it down, so the archive
+   * works it out (`siblingsOf`, `lib/families/siblings.ts`) instead of asking
+   * for it four times. It runs here, on the server, behind
+   * `visibleEntryCondition` like every other read — a half-sibling through a
+   * parent this reader may not see is simply absent, and the two then read as
+   * full siblings, which is rule 1 rather than a mistake.
+   *
+   * It is printed *under* the `sibling`-role field, so it is only asked for
+   * when the soort has one; the explicit chips in that field are left out here,
+   * or the same person would stand under their own name twice.
+   */
+  const siblingField = (entry.typeFields ?? []).find(
+    (field) =>
+      (field.kind === 'entry_link' || field.kind === 'entry_links') && field.role === 'sibling',
+  );
+  const derivedFields: Record<string, ReactNode> = {};
+  if (siblingField) {
+    const typed = new Set(
+      refIdsIn(((entry.fields ?? {}) as Record<string, unknown>)[siblingField.key]),
+    );
+    const derivedSiblings = siblingsOf(entry.id, user).filter((one) => !typed.has(one.id));
+    if (derivedSiblings.length) {
+      derivedFields[siblingField.key] = (
+        <div className="stack" data-testid="derived-siblings" style={{ gap: '0.25rem', marginTop: '0.35rem' }}>
+          <span className="tiny muted">Volgens de ouders</span>
+          <span className="row-wrap" style={{ gap: '0.25rem' }}>
+            {derivedSiblings.map((one) => (
+              <span key={one.id} className="row" style={{ gap: '0.2rem' }}>
+                <a
+                  className="entry-chip"
+                  href={`/e/${one.slug}`}
+                  data-entry-id={one.id}
+                  data-sibling-kind={one.kind}
+                  style={
+                    one.colour
+                      ? ({ ['--chip-colour' as string]: one.colour } as React.CSSProperties)
+                      : undefined
+                  }
+                >
+                  {one.name}
+                </a>
+                <span className="tiny muted">{SIBLING_WORDS[one.kind]}</span>
+              </span>
+            ))}
+          </span>
+        </div>
+      );
+    }
+  }
+
   const typeText = cleanTypeText(entry.typePageText);
   const openHistory = Boolean(query.rev);
 
@@ -695,7 +776,8 @@ export default async function EntryPage({
           name: entry.name,
           shortDescription: entry.shortDescription,
           body: entry.body,
-          fields: entry.fields ?? {},
+          // §67: what this reader may be told, not what is stored.
+          fields: shownFields,
           tags: entry.tags ?? [],
           coverAssetId: entry.coverAssetId,
           coverCrop: entry.coverCrop,
@@ -735,6 +817,8 @@ export default async function EntryPage({
         timelinesToPlace={timelinesToPlace}
         origin={origin}
         caseLinks={caseLinks}
+        resolvedRefs={resolvedRefs}
+        derivedFields={derivedFields}
         /*
          * §22: everybody lands on the reading face, a Keeper included, and the
          * toggle crosses over. The only artikel that opens in Bewerken is one

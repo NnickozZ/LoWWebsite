@@ -6,10 +6,24 @@
    `app/globals.css` is the round's worst collision hotspot and nothing in here
    belongs to anything but the stamboom.
 
-   Everything is one of the nineteen scheme tokens (`lib/theme/schemes.ts`), so
+   Everything is one of the twenty-four scheme tokens (`lib/theme/schemes.ts`), so
    the four palettes and the two sides come for free and no colour is written
    down twice. The one exception is `--house`, which is set inline on a card
-   from the Familie-artikel's own colour and falls back to the rule.
+   from the Familie-artikel's own colour and falls back to the accent.
+
+   §45/§66, round 32 — **a kaartje is a surface of its own.** Four of those
+   tokens are the stamboom's: `--tree-face` is the card, `--tree-ink` the inkt
+   on it, `--tree-line` the lines between the cards and `--tree-accent` the gold
+   of a godheid's ring and of a huis without a colour of its own. Nothing drawn
+   *on a card* may reach for `--ink` or `--paper*`: those follow the page, and
+   in a dark palette `--ink` is nearly white — which is exactly how the names in
+   a stamboom came to be white on beige. The page's own tokens are still right
+   for everything that stands *beside* a card on the stage: the picker, the node
+   menu, the handles, the empty notice and the toolbar.
+
+   Two locals derived from the two tokens, so a Keeper turns two dials and not
+   four: `--tree-rule` (the card's own edge) and `--tree-ink-soft` (the small
+   grey lines on it). They are not scheme tokens; do not add them to Kleuren.
 
    The stage is the §34 canvas shell: a bar, a toolbar, then `.tree-stage` as
    `flex: 1`. Inside it `.tree-world` is one transformed layer — every card,
@@ -37,7 +51,12 @@
 .canvas-head h1.tree-title {
   display: flex;
   min-width: 0;
-  flex: 1 1 12rem;
+  /* The name never gives way: it takes its own width and shrinks for nothing.
+     The description beside it is the one that truncates (§34's
+     `.canvas-head-desc` already does). The familie a stamboom belongs to
+     (round 32) is printed in the eyebrow beside the dossier, not on this row. */
+  flex: 0 0 auto;
+  max-width: 100%;
 }
 .tree-name-input {
   width: 100%;
@@ -159,7 +178,11 @@
   background-size: 26px 26px;
   touch-action: none;
   cursor: grab;
-  --tree-line: var(--ink-muted);
+  /* Derived from the two card tokens, never from the page's inkt — see the
+     note at the top of this file. `--tree-line` is a scheme token now and is
+     not written here any more. */
+  --tree-rule: color-mix(in srgb, var(--tree-ink) 40%, var(--tree-face));
+  --tree-ink-soft: color-mix(in srgb, var(--tree-ink) 70%, var(--tree-face));
 }
 .tree-stage.is-grabbing {
   cursor: grabbing;
@@ -213,6 +236,33 @@
 .tree-line-partner-second {
   transform: translateY(2px);
 }
+/*
+   §67 — de lijn tussen broers en zussen.
+
+   Thinner than a lineage line and dashed, because it is a *side* line: nobody
+   descends from anybody along it. Only two of the four kinds are drawn at all
+   (`half` and `explicit`; see the canvas), so this stroke always means "there is
+   something here the bars do not already say" — which is why it may be faint
+   without being useless. `non-scaling-stroke` for the same reason as every
+   other line here: one pixel at 25 % is invisible, three at 250 % is a rope.
+*/
+.tree-line-sibling {
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+/*
+   An explicit sibling the recorded parents contradict. A small ring where the
+   word goes: enough to make a reader hover, never enough to look like an error
+   the archive is refusing to save.
+*/
+.tree-line-contested {
+  fill: var(--paper-dark);
+  stroke: var(--stamp-red);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
 .tree-line-hit {
   fill: none;
   stroke: transparent;
@@ -233,7 +283,10 @@
   font-family: var(--sans);
   font-size: 11px;
   paint-order: stroke;
-  stroke: var(--paper);
+  /* The halo is the *stage's* colour — the label floats on `--paper-dark`, not
+     on the page's paper, and a light halo on a dark stage was a white outline
+     round every word. */
+  stroke: var(--paper-dark);
   stroke-width: 3px;
   stroke-linejoin: round;
   pointer-events: none;
@@ -244,19 +297,34 @@
 /* A line's word is written only when it is asked for — except a kin line,
    which is a claim rather than a fact and always says which. */
 .tree-edge-parent .tree-line-label,
-.tree-edge-partner .tree-line-label {
+.tree-edge-partner .tree-line-label,
+.tree-edge-sibling .tree-line-label {
   opacity: 0;
   transition: opacity 120ms ease;
 }
 .tree-edge-parent:hover .tree-line-label,
 .tree-edge-partner:hover .tree-line-label,
+.tree-edge-sibling:hover .tree-line-label,
 .tree-edge.is-selected .tree-line-label {
   opacity: 1;
 }
 
+/* §67: the note where a derived line's "verwijderen" would have been. */
+.tree-line-note {
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+
 .tree-line-menu {
   position: absolute;
-  z-index: 12;
+  /* §67: over `.ink-toolbar` (31), which stands in the bottom-right corner of
+     the same stage — a line whose middle falls in that corner would otherwise
+     put its button under the bar, where a press cannot reach it. */
+  z-index: 32;
   transform: translate(-50%, -130%);
 }
 
@@ -280,7 +348,7 @@
 }
 .tree-node.is-carried {
   transition: transform 70ms linear;
-  box-shadow: 0 0 0 2px var(--carried, var(--ink-muted));
+  box-shadow: 0 0 0 2px var(--carried, var(--tree-line));
   border-radius: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -306,9 +374,10 @@
   width: 100%;
   height: 100%;
   padding: 0.4rem 0.35rem;
-  border: 1px solid var(--card-rule);
+  border: 1px solid var(--tree-rule);
   border-radius: 2px;
-  background: var(--card-face);
+  background: var(--tree-face);
+  color: var(--tree-ink);
   box-shadow: 1px 2px 0 rgba(31, 27, 22, 0.16);
   overflow: hidden;
   text-align: center;
@@ -322,7 +391,7 @@
   font-family: var(--serif);
   font-size: 0.86rem;
   line-height: 1.2;
-  color: var(--ink);
+  color: var(--tree-ink);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -331,11 +400,10 @@ a.tree-node-name:focus-visible {
   color: var(--link);
   text-decoration: underline;
 }
-.tree-node-surname,
 .tree-node-status,
 .tree-node-type,
 .tree-node-text {
-  color: var(--ink-muted);
+  color: var(--tree-ink-soft);
   line-height: 1.25;
   overflow: hidden;
   display: -webkit-box;
@@ -354,7 +422,9 @@ a.tree-node-name:focus-visible {
   bottom: 0;
   max-width: 100%;
   padding: 0.02rem 0.3rem;
-  background: var(--house, var(--rule));
+  /* A huis with a colour keeps it; one without wears the tree's gold, which is
+     chosen dark enough in all four palettes to carry white letters. */
+  background: var(--house, var(--tree-accent));
   color: #fff;
   font-family: var(--sans);
   font-size: 0.58rem;
@@ -371,8 +441,10 @@ a.tree-node-name:focus-visible {
   width: 74px;
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid var(--rule);
-  background: var(--paper-dark);
+  border: 1px solid var(--tree-rule);
+  /* A shade of the card itself, so an empty portrait is a hollow in the card
+     rather than a hole through it. */
+  background: color-mix(in srgb, var(--tree-ink) 10%, var(--tree-face));
   flex: 0 0 auto;
 }
 .tree-portrait img {
@@ -384,33 +456,37 @@ a.tree-node-name:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink-muted);
+  /* The placeholder icon draws in `currentColor` (`components/Icon.tsx`), so
+     this one line is the whole of its colour. */
+  color: var(--tree-ink-soft);
 }
 
 /* mortal — the plain index card, and the default for a soort nobody thought of. */
 .tree-frame-mortal .tree-node-body {
-  border-left: 3px solid var(--house, var(--card-rule));
+  border-left: 3px solid var(--house, var(--tree-rule));
 }
 
 /* divine — a round portrait with a double ring in gold, and no status line. */
 .tree-frame-divine .tree-node-body {
   border-radius: 6px;
-  background: var(--paper-raised);
+  background: var(--tree-face);
 }
 .tree-divine-ring {
   display: block;
   padding: 4px;
   border-radius: 50%;
+  /* The gap between the two rings is the *card*, not the page's raised paper —
+     a light band there in a dark palette read as a hole round the head. */
   box-shadow:
-    0 0 0 1px var(--web-line-gold),
-    0 0 0 4px var(--paper-raised),
-    0 0 0 5px var(--web-line-gold);
+    0 0 0 1px var(--tree-accent),
+    0 0 0 4px var(--tree-face),
+    0 0 0 5px var(--tree-accent);
   margin: 0.2rem 0 0.35rem;
 }
 .tree-frame-divine .tree-portrait {
   width: 76px;
   border-radius: 50%;
-  border-color: var(--web-line-gold);
+  border-color: var(--tree-accent);
 }
 
 /* house — a wide banner with the sigil and the branch's own colour. */
@@ -419,8 +495,8 @@ a.tree-node-name:focus-visible {
   align-items: center;
   gap: 0.5rem;
   text-align: left;
-  border: 2px solid var(--house, var(--card-rule));
-  background: var(--paper-raised);
+  border: 2px solid var(--house, var(--tree-accent));
+  background: var(--tree-face);
 }
 .tree-house-sigil {
   flex: 0 0 auto;
@@ -430,7 +506,7 @@ a.tree-node-name:focus-visible {
   width: 44px;
   height: 44px;
   border-radius: 2px;
-  background: var(--house, var(--rule));
+  background: var(--house, var(--tree-accent));
   color: #fff;
 }
 .tree-house-words {
@@ -459,7 +535,7 @@ a.tree-node-name:focus-visible {
 /* unknown — a los kaartje: dashed, quiet, and honest about being a guess. */
 .tree-frame-unknown .tree-node-body {
   justify-content: center;
-  border: 1px dashed var(--ink-muted);
+  border: 1px dashed var(--tree-rule);
   background: transparent;
   box-shadow: none;
 }
@@ -479,15 +555,17 @@ a.tree-node-name:focus-visible {
   height: 22px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--rule);
+  /* It stands *on* a kaartje, so it wears the kaartje's colours and not the
+     page's — the same reason the name does. */
+  border: 1px solid var(--tree-rule);
   border-radius: 2px;
-  background: var(--paper);
-  color: var(--ink-muted);
+  background: var(--tree-face);
+  color: var(--tree-ink-soft);
   cursor: pointer;
 }
 .tree-node-edit:hover {
-  color: var(--ink);
-  border-color: var(--ink);
+  color: var(--tree-ink);
+  border-color: var(--tree-ink);
 }
 
 /* A ghost's way in. Never hover-only: on a phone this is the only road. */
@@ -520,6 +598,8 @@ a.tree-node-name:focus-visible {
    zoom in the component so they are 32 px on the glass whatever the tree is
    at — a `+` that shrinks to four pixels is a `+` nobody can press.
 */
+/* Page tokens on purpose, the `…` included: a handle is a button with a paper
+   of its own that happens to hover over a corner, not ink written on a card. */
 .tree-handle {
   position: absolute;
   z-index: 7;
@@ -545,6 +625,17 @@ a.tree-node-name:focus-visible {
 .tree-handle:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+/*
+   §67: the handle that belongs to two cards rather than one. Marked in the
+   accent so it does not read as a fifth `+` on either of them — it is between
+   them, and it is about both.
+*/
+.tree-handle-both {
+  border-color: var(--tree-accent);
+  box-shadow:
+    0 1px 2px rgba(31, 27, 22, 0.25),
+    0 0 0 3px var(--paper-dark);
 }
 .tree-menu-anchor {
   position: absolute;
@@ -599,7 +690,10 @@ a.tree-node-name:focus-visible {
 */
 .tree-picker {
   position: absolute;
-  z-index: 20;
+  /* §67: 40, the prikbord's `.board-picker-float`, and for the same reason —
+     a handle near the bottom-right corner opens the box over `.ink-toolbar`
+     (31), and a box you cannot type in is worse than a bar you cannot see. */
+  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -635,6 +729,74 @@ a.tree-node-name:focus-visible {
   z-index: 9;
 }
 
+/* ------------------------------------------------ §67 kiezen, en samen */
+/*
+   The sweep box and the coloured rings, both **inside `.tree-world`** and
+   therefore in world coordinates: everybody sees the same rectangle over the
+   same people, whatever zoom they are standing at.
+
+   No `--link` anywhere in here. A stamboom's own two colours are `--tree-line`
+   (the lines between the cards) and `--tree-accent` (the gold), and the blue of
+   a hyperlink on a stage of aged paper reads as a piece of the web that got
+   loose — §45/§66, and the note at the top of this file.
+*/
+.tree-marquee {
+  position: absolute;
+  z-index: 6;
+  border: 1px dashed var(--tree-accent);
+  background: color-mix(in srgb, var(--tree-line) 12%, transparent);
+  pointer-events: none;
+}
+/* Somebody else's box, in their own ink. Solid rather than dashed, so at a
+   glance you can tell your own from theirs when both are open at once. */
+.tree-marquee-other {
+  z-index: 7;
+  border: 1px solid var(--marquee-colour, var(--tree-line));
+  background: color-mix(in srgb, var(--marquee-colour, #1f4e79) 12%, transparent);
+}
+.tree-marquee-name {
+  position: absolute;
+  left: -1px;
+  bottom: 100%;
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.05rem 0.35rem;
+  background: var(--marquee-colour, var(--tree-line));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+/* §8: whose hand is on which card. The prikbord's `.board-held` shape, in
+   world coordinates and with the tree's own fallback colour. */
+.tree-held {
+  position: absolute;
+  pointer-events: none;
+  z-index: 4;
+  outline: 2px solid var(--held-colour, var(--tree-line));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.tree-held-name {
+  position: absolute;
+  top: -1.15rem;
+  left: -2px;
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.05rem 0.3rem;
+  background: var(--held-colour, var(--tree-line));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  border-radius: 2px 2px 0 0;
+}
+
 /* --------------------------------------------------------------- rest */
 
 .tree-empty {
@@ -660,12 +822,16 @@ a.tree-node-name:focus-visible {
   margin: 0;
 }
 
-.tree-ink-toolbar {
-  position: absolute;
-  left: 8px;
-  bottom: 8px;
-  z-index: 14;
-}
+/*
+ * §67: there is no `.tree-ink-toolbar` any more, and there must never be one
+ * again. A canvas does not position `.ink-toolbar` in its own stylesheet: the
+ * bar's own rule (`app/globals.css`) puts it in a corner and above the capture
+ * sheet, and a canvas picks the corner with `InkShell`'s `corner` — this one
+ * bottom-right, `.ink-toolbar-board`, like the prikbord. The rule that stood
+ * here set neither `top` nor a z-index over `.ink-capture`, so the bar was a
+ * strip down the whole height of the stage *under* the sheet: with the pencil
+ * out, every press on the gum or on undo drew a line instead.
+ */
 
 /* --------------------------------------------------------------- phone */
 /*

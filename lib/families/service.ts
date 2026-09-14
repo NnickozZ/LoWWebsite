@@ -9,9 +9,15 @@ import { logActivity, updateEntry, type SaveResult } from '@/lib/entries/service
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { newId } from '@/lib/ids';
 import { isKeeperSide, setKeeperSide, sideCondition } from '@/lib/keeper/side';
+import { isFieldKey } from '@/lib/pageBlocks';
 import { uniqueSlug } from '@/lib/slug';
 import { mergeTreeState, normaliseTreeState } from './merge';
 import { refIdsIn, roleFieldsOf } from './roles';
+import {
+  classifySiblings,
+  primaryParentField,
+  type DerivedSiblingKind,
+} from './siblings';
 import type {
   FamilyTree,
   FamilyTreePatch,
@@ -413,6 +419,88 @@ export function resolveFamilyTrees(ids: string[], viewer: Viewer): Map<string, F
   return out;
 }
 
+/* -------------------------------------------------- the other way round */
+
+/**
+ * §66 (round 32): the artikelen that point *at* this stamboom — "Stamboom van
+ * Het huis Den Hollander", printed under the tree's own description.
+ *
+ * The link is a `family_tree_link` field on an artikel (seeded on Families, but
+ * a Keeper may put one on any soort), so this is the reverse of a value the
+ * archive stores on the other page. Three things it is careful about:
+ *
+ *  - **Rule 1, as everywhere**: `visibleEntryCondition(viewer)` is AND-ed in,
+ *    so a Keeper-only familie pointing here is absent from a player's page —
+ *    not greyed out, not counted. It is a *lookup* by tree, not a shelf, so it
+ *    asks no `sideCondition` (§46): a Keeper walking in from either side must
+ *    find the head of the page they are standing on intact.
+ *  - **The key is never interpolated.** It comes off `entry_types.fields`,
+ *    which is the Keeper's typing, so it is checked with `isFieldKey` and bound
+ *    as a parameter — the rule `listDerivedEntries` was written to (see
+ *    `lib/entries/derived.ts`).
+ *  - **Both stored shapes are asked for**: the `{ id, name, slug }` the picker
+ *    writes, and the bare id `coerceFieldValue` still accepts.
+ */
+export type LinkedFamily = { id: string; name: string; slug: string; icon: string; colour: string };
+
+export function linkedFamiliesOf(treeId: string, viewer: Viewer, limit = 20): LinkedFamily[] {
+  if (!treeId) return [];
+
+  // One query over the soorten: which of them has a field aimed at a stamboom,
+  // and under which key. An archive has a dozen soorten, so this is cheap.
+  const aimed: { typeId: string; key: string }[] = [];
+  for (const type of db
+    .select({ id: schema.entryTypes.id, fields: schema.entryTypes.fields })
+    .from(schema.entryTypes)
+    .all()) {
+    for (const field of (type.fields ?? []) as FieldDef[]) {
+      if (field?.kind === 'family_tree_link' && isFieldKey(field.key)) {
+        aimed.push({ typeId: type.id, key: field.key });
+      }
+    }
+  }
+  if (!aimed.length) return [];
+
+  const out: LinkedFamily[] = [];
+  const seen = new Set<string>();
+  for (const { typeId, key } of aimed) {
+    if (out.length >= limit) break;
+    const at = `$.${key}`;
+    const atId = `$.${key}.id`;
+    const fields = schema.entries.fields;
+    const rows = db
+      .select({
+        id: schema.entries.id,
+        name: schema.entries.name,
+        slug: schema.entries.slug,
+        icon: schema.entryTypes.icon,
+        colour: schema.entryTypes.colour,
+      })
+      .from(schema.entries)
+      .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+      .where(
+        and(
+          isNull(schema.entries.deletedAt),
+          visibleEntryCondition(viewer),
+          eq(schema.entries.typeId, typeId),
+          sql`(
+            (json_type(${fields}, ${at}) = 'object' AND json_extract(${fields}, ${atId}) = ${treeId})
+            OR (json_type(${fields}, ${at}) = 'text' AND json_extract(${fields}, ${at}) = ${treeId})
+          )`,
+        ),
+      )
+      .orderBy(sql`${schema.entries.name} COLLATE NOCASE ASC`)
+      .limit(limit)
+      .all();
+    for (const row of rows) {
+      if (seen.has(row.id) || out.length >= limit) continue;
+      seen.add(row.id);
+      out.push({ id: row.id, name: row.name, slug: row.slug, icon: row.icon, colour: row.colour });
+    }
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------- kinship */
 
 /** The one shape a koppelingsveld's value is stored in (`lib/entries/fieldValues.ts`). */
@@ -642,4 +730,227 @@ export function promoteLooseCard(
   });
 
   return { state, dropped };
+}
+
+// ---------------------------------------------------------------------------
+// §67 — broers en zussen, voor één artikel
+// ---------------------------------------------------------------------------
+
+/** One derived brother or sister, as the artikel page prints it. */
+export type DerivedSibling = {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  colour: string | null;
+  /** What the recorded parents say: `vol`, `half` or `onbekend` on the page. */
+  kind: DerivedSiblingKind;
+};
+
+/** How many the page will ever print. Past this it is a list, not a family. */
+const MAX_DERIVED_SIBLINGS = 100;
+
+/**
+ * §67: the brothers and sisters of one artikel, worked out from the parents.
+ *
+ * The road, and every step of it goes through `visibleEntryCondition`, because
+ * a sibling is a read of the archive and rule 1 does not bend for a derived
+ * list — a half-sibling through a parent this reader may not see is simply not
+ * there, and the two read as full siblings on their screen:
+ *
+ *   1. this artikel's **primary parent field** (`primaryParentField`) — the one
+ *      the mirror writes into, never `geschapen_door`;
+ *   2. those parents, resolved per viewer;
+ *   3. everybody who names one of them in *their* primary parent field (a JSON
+ *      query in the shape of `listDerivedEntries`, so nothing here depends on
+ *      the mirror having run) **and** everybody those parents name in their own
+ *      primary child field (the other direction, for the same reason);
+ *   4. each candidate's own recorded parents, and `classifySiblings` on the lot.
+ *
+ * Never the tree's `ties`: a los kaartje is not an artikel and has no page to
+ * be a sibling on.
+ */
+export function siblingsOf(entryId: string, viewer: Viewer): DerivedSibling[] {
+  if (!entryId) return [];
+
+  /* --------------------------------- which key holds a soort's parents/children */
+
+  const parentKeyOf = new Map<string, string>();
+  const childKeyOf = new Map<string, string>();
+  for (const type of db
+    .select({ id: schema.entryTypes.id, fields: schema.entryTypes.fields })
+    .from(schema.entryTypes)
+    .all()) {
+    const defs = (type.fields ?? []) as FieldDef[];
+    const parentKey = primaryParentField(defs);
+    if (parentKey && isFieldKey(parentKey)) parentKeyOf.set(type.id, parentKey);
+    const childKey = roleFieldsOf(defs).find((field) => field.role === 'child')?.key;
+    if (childKey && isFieldKey(childKey)) childKeyOf.set(type.id, childKey);
+  }
+  if (!parentKeyOf.size) return [];
+
+  /* ------------------------------------------------------------------ the self */
+
+  const self = db
+    .select({
+      id: schema.entries.id,
+      typeId: schema.entries.typeId,
+      fields: schema.entries.fields,
+    })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(viewer)))
+    .get();
+  if (!self) return [];
+  const selfKey = parentKeyOf.get(self.typeId);
+  if (!selfKey) return [];
+
+  const wanted = refIdsIn((self.fields ?? {})[selfKey]).filter((id) => id && id !== entryId);
+  if (!wanted.length) return [];
+
+  const parentRows = db
+    .select({
+      id: schema.entries.id,
+      typeId: schema.entries.typeId,
+      fields: schema.entries.fields,
+    })
+    .from(schema.entries)
+    .where(and(inArray(schema.entries.id, wanted.slice(0, 20)), visibleEntryCondition(viewer)))
+    .all();
+  if (!parentRows.length) return [];
+  const parentIds = parentRows.map((row) => row.id);
+
+  /* ------------------------------------------------------------ the candidates */
+
+  /**
+   * "Whose `<key>` names one of these parents?" — the same two shapes
+   * `listDerivedEntries` asks about, an object ref and a list of them, with the
+   * `json_type` guards that keep `json_each` away from a bare string.
+   */
+  const namesAParent = (key: string) => {
+    const at = `$.${key}`;
+    const atId = `$.${key}.id`;
+    const fields = schema.entries.fields;
+    const anyOf = (column: ReturnType<typeof sql>) =>
+      sql.join(
+        parentIds.map((id) => sql`${column} = ${id}`),
+        sql` OR `,
+      );
+    return sql`(
+      (json_type(${fields}, ${at}) = 'object' AND (${anyOf(sql`json_extract(${fields}, ${atId})`)}))
+      OR EXISTS (
+        SELECT 1 FROM json_each(
+          CASE WHEN json_type(${fields}, ${at}) = 'array'
+               THEN json_extract(${fields}, ${at})
+               ELSE '[]' END
+        ) AS je
+        WHERE json_valid(je.value) AND (${anyOf(sql`json_extract(je.value, '$.id')`)})
+      )
+    )`;
+  };
+
+  const candidateIds = new Set<string>();
+  // The parents' own "Kinderen": the direction the mirror would have filled in.
+  for (const parent of parentRows) {
+    const key = childKeyOf.get(parent.typeId);
+    if (!key) continue;
+    for (const id of refIdsIn((parent.fields ?? {})[key])) {
+      if (id && id !== entryId) candidateIds.add(id);
+    }
+  }
+  const pointing = db
+    .select({ id: schema.entries.id })
+    .from(schema.entries)
+    .where(
+      and(
+        visibleEntryCondition(viewer),
+        sql`${schema.entries.id} <> ${entryId}`,
+        sql.join(
+          [...new Set(parentKeyOf.values())].map((key) => namesAParent(key)),
+          sql` OR `,
+        ),
+      ),
+    )
+    .limit(MAX_DERIVED_SIBLINGS * 2)
+    .all();
+  for (const row of pointing) candidateIds.add(row.id);
+  if (!candidateIds.size) return [];
+
+  const candidates = db
+    .select({
+      id: schema.entries.id,
+      name: schema.entries.name,
+      slug: schema.entries.slug,
+      typeId: schema.entries.typeId,
+      fields: schema.entries.fields,
+      icon: schema.entryTypes.icon,
+      colour: schema.entryTypes.colour,
+    })
+    .from(schema.entries)
+    .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+    .where(
+      and(
+        inArray(schema.entries.id, [...candidateIds].slice(0, MAX_DERIVED_SIBLINGS * 2)),
+        visibleEntryCondition(viewer),
+      ),
+    )
+    .orderBy(sql`${schema.entries.name} COLLATE NOCASE ASC`)
+    .limit(MAX_DERIVED_SIBLINGS)
+    .all();
+  if (!candidates.length) return [];
+
+  /* -------------------------------------------------- everybody's parents, seen */
+
+  const rawParents = new Map<string, string[]>();
+  rawParents.set(entryId, wanted);
+  for (const row of candidates) {
+    const key = parentKeyOf.get(row.typeId);
+    rawParents.set(row.id, key ? refIdsIn((row.fields ?? {})[key]) : []);
+  }
+  // The other direction, so a sibling recorded only on the parent's page still
+  // counts: a parent that names somebody in its "Kinderen" is that person's
+  // parent whether or not the mirror has run.
+  for (const parent of parentRows) {
+    const key = childKeyOf.get(parent.typeId);
+    if (!key) continue;
+    for (const childId of refIdsIn((parent.fields ?? {})[key])) {
+      const held = rawParents.get(childId);
+      if (held && !held.includes(parent.id)) held.push(parent.id);
+    }
+  }
+
+  // Rule 1: a parent this reader may not see is absent, not a secret hinted at.
+  const everyParent = [...new Set([...rawParents.values()].flat())].filter(Boolean);
+  const visibleParents = new Set(
+    everyParent.length
+      ? db
+          .select({ id: schema.entries.id })
+          .from(schema.entries)
+          .where(and(inArray(schema.entries.id, everyParent.slice(0, 500)), visibleEntryCondition(viewer)))
+          .all()
+          .map((row) => row.id)
+      : [],
+  );
+
+  const parentsOf = new Map<string, Set<string>>();
+  for (const [id, ids] of rawParents) {
+    const kept = new Set(ids.filter((one) => one !== id && visibleParents.has(one)));
+    if (kept.size) parentsOf.set(id, kept);
+  }
+
+  /* ------------------------------------------------------------- the answer */
+
+  const verdictOf = new Map<string, DerivedSiblingKind>();
+  for (const pair of classifySiblings(parentsOf)) {
+    if (pair.a === entryId) verdictOf.set(pair.b, pair.kind);
+    else if (pair.b === entryId) verdictOf.set(pair.a, pair.kind);
+  }
+
+  const out: DerivedSibling[] = [];
+  for (const row of candidates) {
+    const kind = verdictOf.get(row.id);
+    if (!kind || row.id === entryId) continue;
+    out.push({ id: row.id, name: row.name, slug: row.slug, icon: row.icon, colour: row.colour, kind });
+    if (out.length >= MAX_DERIVED_SIBLINGS) break;
+  }
+  return out;
 }

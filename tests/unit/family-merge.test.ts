@@ -230,6 +230,25 @@ describe('§66 a line between two artikelen is never stored in the tree', () => 
     ).ties[0];
     expect(parent.from).toEqual({ kind: 'loose', id: 'zz' });
   });
+
+  /* §67: a sibling tie is undirected and mirrored too, so it sorts as well. */
+  it('sorts the ends of a sibling tie, exactly as a partner tie', () => {
+    const one = normaliseTreeState(
+      {
+        ties: [
+          tie('t1', {
+            role: 'sibling',
+            from: { kind: 'loose', id: 'zz' },
+            to: { kind: 'entry', id: 'aa' },
+          }),
+        ],
+      },
+      NOW,
+    ).ties[0];
+    expect(one.role).toBe('sibling');
+    expect(one.from).toEqual({ kind: 'entry', id: 'aa' });
+    expect(one.to).toEqual({ kind: 'loose', id: 'zz' });
+  });
 });
 
 describe('§66 the caps', () => {

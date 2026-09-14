@@ -16,8 +16,9 @@ import type { EntryGraphNode, GraphNode, LooseGraphNode } from '@/lib/families/t
  * knows how each of the five looks:
  *
  *   mortal   – the index card: a square portrait, the name in the serif, the
- *              achternaam small under it, the huis as a corner badge in its own
- *              colour, and a line of status.
+ *              huis as a corner badge in its own colour, and a line of status.
+ *              (§67: an achternaam used to sit under the name. It is gone — the
+ *              huis already says whose family this is, in colour.)
  *   divine   – a round portrait with a double ring in gold, the name under it,
  *              and no status line: a god's condition is not a fact of that kind.
  *   house    – a wide banner with the sigil, for a Familie-artikel standing in
@@ -66,17 +67,6 @@ export type TreeNodeProps = {
 
 function isEntry(node: GraphNode): node is EntryGraphNode {
   return node.kind === 'entry';
-}
-
-/**
- * Whether the achternaam is worth printing under the name. "Jacob den
- * Hollander" with "den Hollander" under it is a card that says the same thing
- * twice; anything else is a surname the name does not already carry.
- */
-export function showSurname(name: string, surname: string | null): surname is string {
-  const trimmed = (surname ?? '').trim();
-  if (!trimmed) return false;
-  return !name.trim().toLowerCase().endsWith(trimmed.toLowerCase());
 }
 
 export function TreeNode({
@@ -213,10 +203,7 @@ export function TreeNode({
         <div className={`tree-node-body tree-index${node.frame === 'creature' ? ' tree-creature' : ''}`}>
           {portrait()}
           {title}
-          {showSurname(node.name, entry?.surname ?? null) && (
-            <span className="tree-node-surname tiny">{entry?.surname}</span>
-          )}
-          {entry?.status && <span className="tree-node-status tiny">{entry.status}</span>}
+          {entry?.status &&<span className="tree-node-status tiny">{entry.status}</span>}
           {house && (
             <span className="tree-node-house" title={house.name}>
               {house.name}

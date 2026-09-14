@@ -31,8 +31,8 @@ export function getSchemes(): Schemes {
  * Everything is written, defaults included, rather than only what differs.
  * Words are stored as a sparse override so that a later change to a default
  * still reaches a Keeper who never touched that word; colours are not like
- * that — a palette is a whole, and a Keeper who tuned three of nineteen
- * colours does not want the other sixteen moving under them in a later round.
+ * that — a palette is a whole, and a Keeper who tuned three of twenty-four
+ * colours does not want the other twenty-one moving under them in a later round.
  */
 export function saveSchemes(input: unknown, keeperId: string): void {
   const schemes = cleanSchemes(input);

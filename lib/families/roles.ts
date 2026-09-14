@@ -15,10 +15,23 @@ import type { FieldRole, RoleFieldInfo } from './types';
  */
 
 // ---------------------------------------------------------------------------
-// The four roles
+// The five roles
 // ---------------------------------------------------------------------------
 
-export const FIELD_ROLES: readonly FieldRole[] = ['parent', 'child', 'partner', 'kin'] as const;
+/**
+ * §67 (round 33) added `sibling`. It is the one role that is usually *not*
+ * typed: two people with the same parents are brother and sister without
+ * anybody saying so, and `lib/families/siblings.ts` works that out. The field
+ * exists for the case the derivation cannot reach — the parents are unrecorded,
+ * or unknown, and somebody still knows the two are siblings.
+ */
+export const FIELD_ROLES: readonly FieldRole[] = [
+  'parent',
+  'child',
+  'partner',
+  'sibling',
+  'kin',
+] as const;
 
 export function isFieldRole(value: unknown): value is FieldRole {
   return typeof value === 'string' && (FIELD_ROLES as readonly string[]).includes(value);
@@ -28,12 +41,13 @@ export function isFieldRole(value: unknown): value is FieldRole {
  * The word for a role on its own, for the Beheer select and for a line whose
  * field has no label of its own. A *field's* label is what is actually printed
  * on the line — "Geschapen door" is a `parent` with a god's vocabulary — so
- * these four are the fallback, never the headline.
+ * these five are the fallback, never the headline.
  */
 export const ROLE_LABELS: Record<FieldRole, string> = {
   parent: 'Ouder',
   child: 'Kind',
   partner: 'Partner',
+  sibling: 'Broer of zus',
   kin: 'Verwant',
 };
 
@@ -46,6 +60,7 @@ export const ROLE_HINTS: Record<FieldRole, string> = {
   parent: 'Wie hier staat, staat een generatie hoger.',
   child: 'Wie hier staat, staat een generatie lager.',
   partner: 'Wie hier staat, staat ernaast, op dezelfde rij.',
+  sibling: 'Wie hier staat, staat op dezelfde rij, zonder verbintenis — voor als de ouders niet bekend zijn.',
   kin: 'Een zijlijn: een gestippelde lijn zonder generatie.',
 };
 
@@ -54,6 +69,10 @@ export const ROLE_HINTS: Record<FieldRole, string> = {
  * with: writing "Kinderen: B" on A puts A in B's first `parent`-role field.
  * `kin` is not mirrored — an aspect, an eed, a vermoeden is one person's claim —
  * so it has no inverse.
+ *
+ * §67: `sibling` mirrors onto itself, exactly as `partner` does. "B is mijn
+ * broer" is the same fact as "A is mijn broer", and a Keeper who typed it once
+ * should not have to walk to the other page and type it again.
  */
 export function inverseRole(role: FieldRole): FieldRole | null {
   switch (role) {
@@ -63,6 +82,8 @@ export function inverseRole(role: FieldRole): FieldRole | null {
       return 'parent';
     case 'partner':
       return 'partner';
+    case 'sibling':
+      return 'sibling';
     default:
       return null;
   }
@@ -169,10 +190,10 @@ export type FieldEdge = {
  * Every line one artikel's infobox draws.
  *
  * A `parent`-role field on A holding B means B is the parent of A, so the line
- * runs B → A; a `child`-role field on A holding B runs A → B. `partner` and
- * `kin` are undirected and are returned as stored, A → B, so the canvas can tell
- * which artikel said it; `dedupeEdges` is what collapses the two halves of a
- * mirrored pair.
+ * runs B → A; a `child`-role field on A holding B runs A → B. `partner`,
+ * `sibling` (§67) and `kin` are undirected and are returned as stored, A → B, so
+ * the canvas can tell which artikel said it; `dedupeEdges` is what collapses the
+ * two halves of a mirrored pair.
  */
 export function edgesFromFields(
   entryId: string,
@@ -201,11 +222,15 @@ export function edgesFromFields(
   return out;
 }
 
-/** The pair-and-role a line is, whichever end said it. */
+/**
+ * The pair-and-role a line is, whichever end said it. `partner` and — since
+ * §67 — `sibling` have their ends sorted, because both are mirrored and both
+ * are undirected: the two readings of one pair must collapse to one line.
+ */
 function edgeKey(edge: Pick<FieldEdge, 'from' | 'to' | 'role'>): string {
-  if (edge.role === 'partner') {
+  if (edge.role === 'partner' || edge.role === 'sibling') {
     const ends = [edge.from, edge.to].sort();
-    return `partner|${ends[0]}|${ends[1]}`;
+    return `${edge.role}|${ends[0]}|${ends[1]}`;
   }
   return `${edge.role}|${edge.from}|${edge.to}`;
 }
@@ -220,8 +245,9 @@ function edgeKey(edge: Pick<FieldEdge, 'from' | 'to' | 'role'>): string {
  * graph walks its members, which is deterministic.
  *
  * A `parent` line collapses on `from`/`to` because `edgesFromFields` has already
- * turned both halves into parent → child. A `partner` line collapses on the
- * sorted ends, because it has no direction. A `kin` line is not mirrored at all,
+ * turned both halves into parent → child. A `partner` line — and a `sibling`
+ * line, §67 — collapses on the sorted ends, because it has no direction and the
+ * mirror writes it on both pages. A `kin` line is not mirrored at all,
  * so only an exact repeat of the same direction collapses — "A is een aspect van
  * B" and "B is een aspect van A" are two different claims and both are drawn.
  */

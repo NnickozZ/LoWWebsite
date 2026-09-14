@@ -18,13 +18,17 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 80 files, 1250 tests as of round 31 (round 29: 69 / 982)
+npx vitest run         # 88 files, 1409 tests as of round 33 (round 32: 82 / 1290)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
                        # dozen specs), so take your own first green run as the
                        # baseline, not this line
 ```
+
+Single specs, for planning a round rather than for waiting on the whole suite
+(round 33, one project at a time): `family-trees` ~1.4 min, `family-trees-33`
+~1.8 min (4.2 under `E2E_DEV=1`), `family-tree-coop` ~1 min, `ink` ~1.5 min.
 
 If any of those is red on an untouched checkout, **say so and stop**. Do not
 start a feature on a broken baseline; you will not be able to tell your damage
@@ -128,7 +132,10 @@ you set these up front. Put them in every sub-agent prompt.
    `components/timelines/TimelineCanvas.tsx`, `components/maps/MapCanvas.tsx`,
    `components/families/FamilyTreeCanvas.tsx`, `components/ui/UiProvider.tsx`,
    `lib/db/schema.ts`, `lib/db/migrations.mjs`, `lib/entries/service.ts`,
-   `lib/families/service.ts`, `tests/e2e/helpers.ts`.
+   `lib/families/service.ts`, `tests/e2e/helpers.ts`. Since round 33, three
+   more that every canvas now leans on: `lib/canvas/*`, `components/canvas/*`
+   and `components/ink/useCanvasInk.tsx` — a change there is a change to four
+   drawings at once, so it is one agent's, never two.
 4. **Two agents may share a file; two agents may not share a section of it.** If
    two features both rework the timeline, that is *one* agent, not two.
 5. **Give each agent the verify commands and make it run them.** An agent that
@@ -146,7 +153,12 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is §66 / rule 66 (round 31: §66 de stamboom —
+  choosing a number — the latest is §67 / rule 67 (round 33: §67 de stamboom,
+  tweede pas — één potlood, één manier van kiezen, en broers en zussen die
+  afgeleid worden). **Round 32 added no number**:
+  it is a follow-up that extends §66 (a Familie points at its stamboom) and §45
+  (five colours, so a kaartje is readable in every scheme), and its code markers
+  say `§66` and `§45/§66` for that reason. (Round 31: §66 de stamboom —
   een venster op de verwantschap die op de artikelen staat; round 30: §63 de voordeur die
   niet weggooit wat je typte en een tweede deur die je kunt zien, §64 een punaise
   aan een draad die vasthoudt tot er iets op komt, §65 een geschiedenis die zegt
@@ -199,7 +211,34 @@ freely there.
   axis. A tijdlijn stroke with no `v` is v0: x in seconds, y a fraction of the
   stage's height, width in screen pixels, drawn by the old formula for ever.
   Do not "fix" any of the four, and do not migrate a v0 stroke — the `stageH`
-  it was drawn at was never recorded.
+  it was drawn at was never recorded. **What is *not* different per place is the
+  wiring** (§67): `components/ink/useCanvasInk.tsx` is the whole of it, and
+  `InkShell` renders the two pieces in the one order that works — the capture
+  sheet first, the toolbar after it, or the bar is visible and unpressable —
+  with the corner passed as a word (`bottom-right` on a prikbord and a stamboom,
+  `bottom-left` on a landkaart, the base rule's `top-left` on a tijdlijn).
+  **A canvas never positions `.ink-toolbar` in its own stylesheet.** The three
+  pan-and-zoom canvases share `components/ink/panZoom.ts` as well, and its
+  border term is the part that was wrong in all three copies: a stage is
+  `position: relative` with a **1 px border**, an absolutely placed child is laid
+  out against the *padding* box while `getBoundingClientRect()` gives the
+  *border* box, so `clientLeft`/`clientTop` come off too or every stroke lands a
+  pixel up and to the left of the hand that drew it.
+- **Kiezen is one gesture and it lives in two files** (§67). Shift-click
+  toggles, shift-drag on bare paper sweeps a box that selects everything it
+  *touches* and replaces what was chosen, a plain drag pans, Escape clears —
+  and a plain press on something already chosen leaves the whole group standing,
+  because you are about to drag it (that was the prikbord's wart:
+  `pressSelection` is the fix and the reason the function exists). The
+  arithmetic is `lib/canvas/select.ts`, the React is
+  `components/canvas/useMarqueeSelect.ts`, the view maths is `lib/canvas/view.ts`
+  (`clampZoom`, `zoomAbout`, `toWorld`, `fitViewport`; `lib/families/layout.ts`
+  re-exports them under their old names) and the undo ring is
+  `components/canvas/undoStack.ts`. Each surface keeps undo, dirty ids,
+  presence, the inspector and what else a press means. One dial is a surface's
+  own: the wall's "alles in beeld" stops at **1.2**, not `MAX_ZOOM`. The web is
+  deliberately not on this — it is one `<canvas>` and a bag of mutable state,
+  and its box lives in screen space.
 - **A breakpoint that lives in two files must be the same number in both.**
   `WIDE` in `components/useIsPhone.ts` decides whether the artikel page's rail
   and sidebar are *rendered*; the `@media` block round `.entry-layout-wide` in
@@ -550,11 +589,48 @@ freely there.
   never opened Beheer → Kleuren one round behind in exactly one colour, with
   nothing broken. `lib/theme/schemes.ts` stays **pure** (client components
   import it); `lib/admin/schemes.ts` is the half that touches the database, the
-  same split `lib/words.ts` and `lib/admin/words.ts` have. And the nineteen
+  same split `lib/words.ts` and `lib/admin/words.ts` have. And the twenty-four
   tokens are the whole vocabulary: every other colour is a `var()` alias onto
-  one of them — the web's sixteen `--web-<kind>` properties now alias its six
+  one of them — the web's eighteen `--web-<kind>` properties now alias its six
   `--web-line-*`, so a new `WebEdgeKind` picks one of the six rather than
   bringing a colour.
+- **A kaart is a surface of its own and never reads the page's inkt** (§45/§66,
+  round 32 — the five tokens that took nineteen to twenty-four). A card is
+  paper lying *on* the page, not a hole in it, so nothing drawn on one may
+  reach for `--ink` or `--paper*`. The bug that named the rule: a stamboom
+  kaartje was painted `--card-face` (light in every scheme, dark ones included)
+  and its name written in `--ink`, which in a dark palette is nearly white —
+  white on beige. The tokens are `--tree-face`, `--tree-ink`, `--tree-line` and
+  `--tree-accent` (group **De stamboom** in `lib/theme/schemes.ts`) plus
+  `--card-ink` in the prikbord's group, which replaced a hard-coded `#1f1b16`
+  on `.board-card` / `.board-tray-card`. In a dark palette the card goes dark
+  and the ink on it goes light, and the card stays *lighter* than the stage —
+  darker than the stage reads as a hole. `app/stambomen.css` derives
+  `--tree-rule` and `--tree-ink-soft` from the two card tokens with
+  `color-mix`; those are locals, not tokens, and must not be added to Kleuren.
+  `tests/unit/tree-contrast.test.ts` holds the floors in all four palettes
+  (ink/face ≥ 7, line/`--paper-dark` ≥ 3, cardInk/cardFace ≥ 4.5, accent ≥ 2
+  against both, and "the card turns over with the light"), so a round that
+  darkens one of a pair and forgets the other fails there and not at night.
+- **A new `FieldKind` is nine places** (§66, round 32 added
+  `family_tree_link`). The `FieldKind` union in `lib/db/schema.ts`;
+  `FIELD_KINDS` in `lib/fieldKinds.ts` — plus `cleanFields` in the same file
+  **only if it carries config** (`options`, `ofType`, `role`; a
+  `family_tree_link` carries none, so it does not appear there);
+  `lib/entries/fieldValues.ts` twice, a coercer and a reader, and that pair is
+  the gate — a kind nothing coerces stores nothing; `components/entry/
+  FieldsEditor.tsx` twice as well, the reading face (`fieldValue`) and the
+  writing face; a **picker component** when it names a record
+  (`FamilyTreePicker`, beside `CasePicker` and `EntryPicker`);
+  `LINK_KINDS` in `lib/entries/revisionDiff.ts` when it is a reference, so §65
+  counts it and never names it (rule 7); `lib/entries/mentions.ts` **only if it
+  points at an artikel** — a dossier, a speler and a stamboom write no
+  `entry_mentions` row; `lib/web/service.ts` an edge pass plus a
+  `*LinksInFields` helper when the web draws the target
+  (`treeLinksInFields`, the sibling of `caseLinksInFields`); and
+  `lib/db/seed.mjs` in **both** halves — the field in `ENTRY_TYPES` for a new
+  archive **and** a marker block (`seed:round-32-stamboom-link`) for one that
+  already exists. Miss the marker and only new archives ever see the field.
 - **Nothing lands while a hand is on the page** (§59, round 29). Anything
   mid-gesture — a drag, an open sheet with half-typed fields, an ink stroke, an
   upload — calls `useHoldRefresh(busy)` from `components/live/refreshHold.ts`,
@@ -639,9 +715,15 @@ freely there.
   approved. It must never call `updateEntry` again: that ping-pongs between two
   rows and files a proposal nobody made. It bumps the target's `updatedAt` and
   `recomputeFieldMentions` and deliberately writes **no** revision, feed row or
-  `updatedBy`, and never touches a row in the trash. `kin` is not mirrored.
-  `restoreRevision` mirrors too, or an undone "Kinderen: B" leaves "Ouders: A"
-  standing for ever.
+  `updatedBy`, and never touches a row in the trash. `kin` is not mirrored;
+  `sibling` is, onto itself, like `partner` (§67). `restoreRevision` mirrors
+  too, or an undone "Kinderen: B" leaves "Ouders: A" standing for ever.
+  **Adding and removing are not symmetric, on purpose** (§67): an add lands in
+  the target soort's **first** field with the inverse role, a removal sweeps
+  **every** field of that role — the value may have been typed by hand into the
+  second box, or the Keeper may have reordered the fields since, and a mirror
+  that only looks in the first box leaves a line nobody can delete. Taking away
+  too much is impossible here: only the source artikel is ever swept out.
 - **A stamboom's layout is never stored; only the pins are** (§66).
   `layoutTree` in `lib/families/layout.ts` is pure and recomputed from the
   graph on every change — a stored layout goes stale the moment somebody fills
@@ -649,6 +731,60 @@ freely there.
   and put back exactly, pushing nobody; "Opnieuw schikken" is one commit that
   clears the pins. Geometry belongs in that file, not in the component — the
   same rule the web and the tijdlijn live by.
+- **A brother is worked out, and the typed field is the exception** (§67).
+  `lib/families/siblings.ts` is pure and derives siblings from the **first**
+  parent-role field of each soort only — the one the mirror writes into —
+  because a god carries both `ouders` and `geschapen_door` and deriving from
+  every parent-role field makes every creature of one god the brother of every
+  other. Three verdicts (`full` needs two shared parents, `half` needs a
+  recorded parent on each side the other lacks, `unknown` is a subset), per
+  viewer behind `visibleEntryCondition`, and no ghosts: a derived line joins two
+  cards that are both already on the glass. The typed field `broers_zussen`
+  (role `sibling`) exists for what cannot be derived; it mirrors onto itself and
+  makes **no union**. **Not every derived truth gets a line**: only `half` and
+  explicit are stroked — `full` already has the shared bar and `unknown` means
+  "I don't know which", and a line that says "possibly" is worse than none. An
+  explicit link that derives as `full` yields at build time
+  (`reconcileSiblings`, `yieldToLineage`'s reasoning); one the parents
+  contradict is kept and marked `contested`. A derived line has no field to
+  unwrite, so where "Lijn verwijderen" would be it says *Volgt uit de ouders*.
+- **Lineage beats a row** (§67). A partner or sibling line whose ends are
+  already joined by a parent path is left out of the settle loop's equalising
+  (`alongLineage` in `lib/families/layout.ts`) — someone who is both parent and
+  partner of the same person otherwise pushed the pair ten rows down. It is
+  still drawn.
+- **A ref is a copy, so a chip is resolved on read — and you cannot remove what
+  you cannot see** (§67). An `entry_link(s)` value stores `{ id, name, slug }`
+  as it was when somebody picked it, so the infobox looks every id up afresh per
+  viewer (`resolveFieldRefs` in `lib/entries/derived.ts`, one query, behind
+  `visibleEntryCondition`) and prints only what comes back — a destroyed, a
+  renamed and an unseeable artikel are all answered there, and an id that is not
+  in the map is absent, never MISSING (rule 1). **The lookup has three halves,
+  and all three are the same answer**: `resolveFieldRefs` decides what a chip
+  draws, `scrubUnseenRefs` (same file) cuts the *values* down to it before the
+  page hands `fields` to the client component — the stored copy carries the
+  **name**, so an unresolved ref is a leak in the payload even where no chip is
+  drawn — and `keepUnseenRefs` puts back on the way in exactly what those two
+  took out on the way out. The writing face is that third half: the editor sends
+  the **whole** array (§5's `mergeKeys`), so
+  `keepUnseenRefs` in `updateEntry` puts back every dropped id that still has a
+  row but was invisible to the actor (in the trash counts as invisible — for a
+  Keeper that is the only case), lets a destroyed one go, and for a one-box
+  `entry_link` only restores when the box was *cleared*. `writeRelation` rides
+  the same road. Do not add a scrub-on-destroy beside this. And one rule of
+  layout hangs off the same chips: inside `.fields-compact` only, an
+  `.entry-chip` may wrap and its row may shrink — a 29-character name otherwise
+  carried the "verwijderen" cross off a 390 px screen and scrolled the page
+  sideways.
+- **A selection is a Set, and three things hang off it** (§67): the ids go out
+  as `holding` on the site line (capped at sixty in the hub) so everybody else
+  gets `.tree-held` / `.board-held` rings, the open box travels in the pointer
+  frame's `s`, and a group drag travels in `m` (capped at forty). **A frame on
+  the site line is a state, not a telegram** — the fields nobody mentions keep
+  their last value — so whoever opened the box has to say when it is closed;
+  `useMarqueeSelect` broadcasts `null` on the way up and the canvas passes it
+  on. `components/families/useTreeHolding.ts` is the stamboom's half of what
+  `useBoardLive` does for the wall.
 - **`useTreeSync` is the save and the pull in one hook** (§66). The prikbord
   keeps them in two files; a stamboom cannot, because both roads come back as
   `{ state, graph }` and both must be applied *around* whatever this hand has
@@ -692,7 +828,10 @@ freely there.
   (§66, and the landkaart before it). `InkKeeperControls` in the flow took
   132 px off the stage and `canvas-fills-the-screen.spec.ts` says the stage gets
   the screen (§34). Portal it into an empty div the page leaves below the canvas
-  (`#tree-underfold`), the way `MapCanvas` does. Two more of the same family, on
+  (`#tree-underfold` / `#map-underfold`) — and since §67 that portal is one
+  component, `components/ink/UnderFold.tsx`, placed after mount so the block
+  never shows in the column and then jumps out of it; the switch itself comes
+  from `useCanvasInk`'s `keeperControls`. Two more of the same family, on
   the same page: a full-screen canvas prints its name **once**, in the §34
   heading (`TreeTitle` makes that heading the edit box rather than adding a bar
   of its own — the two rows cost a phone a third of its stage), and a toolbar
@@ -772,6 +911,33 @@ mistakes. Check yours against these before declaring a spec finished.
   else is standing on it, and click with `page.mouse` — inside a `toPass()`,
   because a card still sliding to its new place is over the line for a beat
   (`clickLine` in `tests/e2e/family-trees.spec.ts` is the worked example).
+  **And the middle of the box is the wrong point for a sibling line** (§67): it
+  runs along a generation row, so everybody else born in that generation stands
+  between its two ends and its midpoint is reliably *under* somebody's card.
+  Walk the path instead — `getPointAtLength` at a handful of fractions, mapped
+  to the screen through `getScreenCTM` because the drawing hangs under a CSS
+  transform — and take the first point `elementFromPoint` says is still the
+  line's (`clickLine` in `tests/e2e/family-trees-33.spec.ts`).
+- **On a phone the infobox is a folded `<details id="block-info">`** that only
+  springs open while *reading*, so a spec that switches to the editing face
+  finds every field attached, laid out and `hidden`. Call `openInfobox()`
+  (`family-trees-33.spec.ts`) before touching a field — it is a no-op at
+  1440 px, where the same block is a `<section>` — and press the summary until
+  `details.open` answers true, because a page that has just switched faces is
+  not listening yet and a second click folds it back up.
+- **A card being visible is not `window.__tree` knowing about it.** The seam is
+  put up by an effect, so straight after a reload — and reliably under
+  `E2E_DEV=1`, where a dev build compiles on the way in and every render
+  happens twice — the drawing is on the glass a beat before it can be asked
+  about. Poll it (`treeNodeReady`), and read every id and slug **off the glass
+  before navigating away**: after a `goto` there is no seam to ask.
+- **For an artikel the Keeperkant *is* the §9 visibility.**
+  `sideCondition('entry')` reads `visibility = 'keeper'`, and a suggest list is
+  sided (§50), so a Keeper standing on the players' side cannot find a
+  Keeper-only artikel in any picker at all. A spec that needs a link to a secret
+  writes the link **first** and hides the artikel afterwards — which is also the
+  honest order: a Keeper writes a family down and then decides one of them is
+  not for the table yet.
 - **A hand that stops moving stops being heard.** A pointer frame is sight, not
   state: eight seconds still and it is swept off every screen. A spec that
   asserts somebody else's cursor has to keep that somebody moving *while* it
@@ -836,7 +1002,7 @@ no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29 and 31
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32 and 33
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
@@ -848,14 +1014,54 @@ anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
 
-Round 31 (§66) leaves eleven, all named on purpose:
+Round 33 (§67) leaves these, all named on purpose:
 
-- **A soort with two parent-role fields mirrors into the first one.**
-  Abnormaliteiten and the pantheon carry both `ouders` and `geschapen_door`, and
-  `mirrorPlan` writes into the target soort's **first** field with the inverse
-  role — so "Schepselen: X" on a god lands in X's *Ouders*, not in *Geschapen
-  door*. One field chosen once beats one value in two boxes; a Keeper can swap
-  it by moving the fields in Beheer.
+- **`approvePendingEdit` measures against the reviewer.** It applies a voorstel
+  through `updateEntry` with `isKeeper: true`, so `keepUnseenRefs` asks "could
+  the *reviewer* see this?" rather than "could the proposer?" — a proposal built
+  without a Keeper-only ref loses it on approval.
+- **The web's marquee was left alone.** `WebCanvas` is one `<canvas>` and a bag
+  of mutable state and its box lives in screen space; moving it onto
+  `lib/canvas/select.ts` would be a rewrite, not a reuse.
+- **Ghosts are still not draggable, and now not selectable either** — `boxOf`
+  answers `null` for them, so a sweep across the edge of the picture does not
+  pick up six people who are not in this stamboom.
+- **Large sibling sets are not capped in the graph.** One parent with forty
+  children is 780 derived pairs; the artikel page stops at a hundred
+  (`MAX_DERIVED_SIBLINGS`), the drawing does not — nearly all of them are drawn
+  as nothing, but they are all worked out.
+- **No birth date and no twins.** Order within a row is by barycentre, not by
+  who is older, and a twin is indistinguishable from a brother.
+- **No adoption or step-parent qualifier.** The road is a second parent-role
+  field with a label of its own ("Adoptiefouders"), exactly as "Geschapen door"
+  is one — and that is only safe now, because until this round the mirror's
+  removal left such a second field standing.
+- **`ROLE_HINTS` is written and read by nobody but its test.** The sentence
+  under Beheer's role select is still the one shared line.
+- **`m` in a pointer frame stays capped at forty and `holding` at sixty.** A
+  group of more than forty does not travel whole across somebody else's screen
+  mid-drag; the pull afterwards puts it right. Sight, not state.
+
+Round 32 (§45/§66) leaves one worth naming here:
+
+- **Three muted card colours in `app/globals.css` are still hard-coded**, and
+  they were left alone deliberately because the round only turned the ones that
+  were unreadable: `.board-card-kind` `#6d6357`, `.board-card-text-empty`
+  `#8a8072` and `.board-card-text-input` `background: #fff`. All three sit on
+  `--card-face`, which is a light paper in every scheme, so nothing is wrong
+  today — but a Keeper who paints a dark card face gets grey on dark and a
+  white box in the middle of it. The cure is the same one `--card-ink` got: a
+  `color-mix` off `--card-ink` and `--card-face`, not three more tokens.
+
+Round 31 (§66) leaves ten, all named on purpose — the eleventh is **closed**:
+
+- ~~**A soort with two parent-role fields mirrors into the first one.**~~
+  **Closed in round 33 (§67), half of it deliberately.** Adding still lands in
+  the target soort's *first* field with the inverse role — one field chosen once
+  beats one value in two boxes, and a Keeper can swap it by moving the fields in
+  Beheer. **Removing now sweeps every field of that role**, which is the half
+  that was a bug: an emptied "Schepselen: B" used to leave "Geschapen door: A"
+  standing on the other page with no way to take it off.
 - **The mirrored page gets no revision and no feed row.** Deliberate: B's
   geschiedenis (§65) does not fill up with what A typed on A's own page. The
   cost is that "who put me in this family?" is not answerable from B's history.

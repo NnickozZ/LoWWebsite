@@ -776,21 +776,9 @@ for (const row of alle) {
  * `seed:round-31-stamboom` in.
  */
 {
-  /** Van "Jacob den Hollander" blijft "den Hollander" over, van "Pier Boone" "Boone". */
-  const achternaamVan = (naam) => {
-    const woorden = naam.trim().split(/\s+/);
-    if (woorden.length < 2) return '';
-    const laatste = woorden[woorden.length - 1];
-    const ervoor = woorden[woorden.length - 2];
-    const tussen = /^(van|de|den|der|ten|te|het|op|in)$/.test(ervoor);
-    return tussen ? `${ervoor} ${laatste}` : laatste;
-  };
-
+  // §67: hier stond een `achternaam` per persoon. Dat veld bestaat niet meer —
+  // welke familie iemand is zie je aan het Familie-veld, dat de rand kleurt.
   const personen = van('character');
-  for (const row of personen) {
-    const achternaam = achternaamVan(row.name);
-    if (achternaam) row.velden.achternaam = achternaam;
-  }
 
   /* Twee van elke vijf, op index gekozen in plaats van op toeval: dan is de
      boom bij elke run dezelfde en is een e2e-spec die hem opent niet grillig. */
@@ -1319,6 +1307,21 @@ db.transaction(() => {
     /* §27: wie in een stamboom staat, wordt daar genoemd. */
     for (const row of boom.leden) insertMention.run(row.id, 'family_tree', id, '');
     logLos('family_tree.created', { familyTreeId: id, name: boom.naam }, boom.caseId);
+
+    /*
+     * §66 (ronde 32): één familie wijst naar de boom van de mensen, zodat het
+     * veld Stamboom ergens ingevuld staat en de familie in de wenkbrauw boven de
+     * boom te zien is, naast het dossier. Niet elke stamboom hoort bij een familie — het pantheon
+     * hoort bij niemand — dus alleen de eerste.
+     */
+    const familie = boom === bomen[0] ? van('family')[0] : null;
+    if (familie) {
+      familie.velden.stamboom = { id, name: boom.naam, slug };
+      db.prepare('UPDATE entries SET fields = ? WHERE id = ?').run(
+        JSON.stringify(familie.velden),
+        familie.id,
+      );
+    }
   }
 })();
 

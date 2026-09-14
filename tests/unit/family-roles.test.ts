@@ -22,12 +22,13 @@ const defs: RoleFieldSource[] = [
   { key: 'partner', label: 'Partner', kind: 'entry_link', role: 'partner' },
   { key: 'aspect_van', label: 'Aspect van', kind: 'entry_links', role: 'kin' },
   { key: 'familie', label: 'Familie', kind: 'entry_link' },
-  { key: 'achternaam', label: 'Achternaam', kind: 'text', role: 'parent' },
+  // A plain Tekst carrying a role anyway: the role must be ignored, not obeyed.
+  { key: 'bijnaam', label: 'Bijnaam', kind: 'text', role: 'parent' },
 ];
 
-describe('§66 de vier rollen', () => {
-  it('lists exactly four roles and recognises them', () => {
-    expect([...FIELD_ROLES]).toEqual(['parent', 'child', 'partner', 'kin']);
+describe('§66/§67 de vijf rollen', () => {
+  it('lists exactly five roles and recognises them', () => {
+    expect([...FIELD_ROLES]).toEqual(['parent', 'child', 'partner', 'sibling', 'kin']);
     for (const role of FIELD_ROLES) expect(isFieldRole(role)).toBe(true);
     expect(isFieldRole('ouder')).toBe(false);
     expect(isFieldRole('')).toBe(false);
@@ -40,6 +41,7 @@ describe('§66 de vier rollen', () => {
       parent: 'Ouder',
       child: 'Kind',
       partner: 'Partner',
+      sibling: 'Broer of zus',
       kin: 'Verwant',
     });
     for (const role of FIELD_ROLES) {
@@ -48,10 +50,12 @@ describe('§66 de vier rollen', () => {
     }
   });
 
-  it('mirrors parent↔child and partner↔partner, and never mirrors kin', () => {
+  it('mirrors parent↔child, partner↔partner and sibling↔sibling, and never mirrors kin', () => {
     expect(inverseRole('parent')).toBe('child');
     expect(inverseRole('child')).toBe('parent');
     expect(inverseRole('partner')).toBe('partner');
+    // §67: "B is mijn broer" is the same fact as "A is mijn broer".
+    expect(inverseRole('sibling')).toBe('sibling');
     expect(inverseRole('kin')).toBeNull();
     // Mirroring twice is the identity, which is what stops the server looping.
     for (const role of FIELD_ROLES) {
@@ -139,7 +143,7 @@ describe('§66 fields become lines', () => {
   });
 
   it('draws nothing from a field that is not a role field, and nothing to itself', () => {
-    expect(edgesFromFields('A', defs, { familie: 'H', achternaam: 'B' })).toEqual([]);
+    expect(edgesFromFields('A', defs, { familie: 'H', bijnaam: 'B' })).toEqual([]);
     expect(edgesFromFields('A', defs, { ouders: ['A'] })).toEqual([]);
     expect(edgesFromFields('', defs, { ouders: ['B'] })).toEqual([]);
     expect(edgesFromFields('A', defs, {})).toEqual([]);

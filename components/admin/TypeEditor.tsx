@@ -7,6 +7,10 @@ import { slugify } from '@/lib/slug';
 import { BORDER_OPTIONS } from '@/components/borders';
 import { PageBlocksEditor, type TypeLite } from '@/components/admin/PageBlocksEditor';
 import { FIELD_KINDS } from '@/lib/fieldKinds';
+// §66/§67: the roles and their Dutch words come from one place, so a role added
+// there turns up in this select on its own. `lib/families/roles.ts` is pure —
+// no database, no React — which is exactly why a client component may read it.
+import { FIELD_ROLES, ROLE_LABELS } from '@/lib/families/roles';
 import {
   DEFAULT_BODY_PLACEHOLDER,
   DEFAULT_DESCRIPTION_PLACEHOLDER,
@@ -397,15 +401,16 @@ export function TypeEditor({
                       style={{ minHeight: 38 }}
                     >
                       <option value="">Rol in een stamboom: —</option>
-                      <option value="parent">Rol in een stamboom: Ouder</option>
-                      <option value="child">Rol in een stamboom: Kind</option>
-                      <option value="partner">Rol in een stamboom: Partner</option>
-                      <option value="kin">Rol in een stamboom: Verwant</option>
+                      {FIELD_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          Rol in een stamboom: {ROLE_LABELS[role]}
+                        </option>
+                      ))}
                     </select>
                     <span className="tiny muted" style={{ display: 'block', marginTop: '0.2rem' }}>
                       Met een rol tekent elke stamboom deze lijn, en vult het archief de
-                      andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner). Verwant wordt
-                      wel getekend en niet gespiegeld.
+                      andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner, Broer of zus ↔
+                      Broer of zus). Verwant wordt wel getekend en niet gespiegeld.
                     </span>
                   </div>
                 )}
