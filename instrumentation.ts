@@ -41,6 +41,26 @@ export async function register() {
       error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
     });
   }
+
+  /**
+   * §69: sweep the spelden and gebeurtenissen that were buried for an undo
+   * nobody came back for. Once, here, rather than on a timer — see
+   * `lib/db/sweep.ts` for why. Failing is harmless: the rows stay one more
+   * restart, and every read already filters them out.
+   */
+  try {
+    const { sweepDeletedRows } = await import('./lib/db/sweep');
+    const swept = sweepDeletedRows();
+    if (swept.pins || swept.events) {
+      const { logEvent } = await import('./lib/diagnostics');
+      logEvent('info', 'swept rows buried for an undo that never came', swept);
+    }
+  } catch (err) {
+    const { logEvent } = await import('./lib/diagnostics');
+    logEvent('error', 'could not sweep buried rows at start-up', {
+      error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+    });
+  }
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (

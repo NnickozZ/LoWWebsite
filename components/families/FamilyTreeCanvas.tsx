@@ -63,6 +63,7 @@ import {
 import type { InkLayerView } from '@/lib/ink/types';
 import { entryKey, familyTreeKey } from '@/lib/live/keys';
 import { capitalise } from '@/lib/words';
+import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 import {
   TreeHandles,
   TreeSelectionMenu,
@@ -1362,15 +1363,22 @@ export function FamilyTreeCanvas({
     [commit],
   );
 
+  /**
+   * §69: no question first; the answer is the *Ongedaan maken* in the toast.
+   *
+   * Cheap to undo here for a reason that predates this round: a stamboom's own
+   * state is a document with tombstones (§66), and `undo()` lifts them by
+   * re-stamping — so this needs no restore road of its own the way a speld and
+   * a gebeurtenis do. It was already the case for a whole selection
+   * (`removeChosen`); the single-card roads simply never offered it.
+   *
+   * Note what is *not* undone, and could not be: this takes the kaartje out of
+   * the drawing, and the velden on the artikel are untouched either way. That
+   * is the sentence the old confirm existed to say, and it is still said — in
+   * the toast, where it does not cost a click.
+   */
   const removeMember = useCallback(
     async (entryId: string, entryName: string) => {
-      const yes = await ui.confirm({
-        title: `${entryName} uit deze ${words.familyTree} halen?`,
-        message: `Het ${words.entry} zelf blijft bestaan, en de velden erop ook — alleen deze ${words.familyTree} vergeet ${entryName}.`,
-        confirmLabel: 'Uit de stamboom',
-        danger: true,
-      });
-      if (!yes) return;
       commit((prev) => ({
         members: prev.members.filter((member) => member.id !== entryId),
         deletedMembers: [entryId],
@@ -1379,20 +1387,22 @@ export function FamilyTreeCanvas({
         deletedTies: prev.ties.filter((tie) => touchesEntry(tie, entryId)).map((tie) => tie.id),
       }));
       clearSelection();
-      ui.toast(`Uit de ${words.familyTree} gehaald; de velden op het ${words.entry} blijven staan.`);
+      ui.toast(
+        `${entryName} is uit de ${words.familyTree} gehaald; de velden op het ${words.entry} blijven staan.`,
+        { label: 'Ongedaan maken', onAction: () => undo() },
+      );
     },
-    [commit, ui, words.entry, words.familyTree, clearSelection],
+    [commit, ui, undo, words.entry, words.familyTree, clearSelection],
   );
 
+  /**
+   * §69: likewise no question — and here the old one said *"dit is
+   * definitief"*, which was the reason to ask and is no longer true. A los
+   * kaartje is tree state, so `undo()` brings it back whole, with the lijnen
+   * that hung off it.
+   */
   const removeLoose = useCallback(
     async (looseId: string, cardName: string) => {
-      const yes = await ui.confirm({
-        title: `${cardName || `Dit ${words.looseCard}`} weghalen?`,
-        message: `Een ${words.looseCard} bestaat nergens anders; dit is definitief.`,
-        confirmLabel: 'Weghalen',
-        danger: true,
-      });
-      if (!yes) return;
       commit((prev) => ({
         loose: prev.loose.filter((card) => card.id !== looseId),
         deletedLoose: [looseId],
@@ -1401,8 +1411,12 @@ export function FamilyTreeCanvas({
       }));
       clearSelection();
       setSheet(null);
+      ui.toast(`${cardName || `Het ${words.looseCard}`} is weggehaald.`, {
+        label: 'Ongedaan maken',
+        onAction: () => undo(),
+      });
     },
-    [commit, ui, words.looseCard, clearSelection],
+    [commit, ui, undo, words.looseCard, clearSelection],
   );
 
   /**
@@ -1461,14 +1475,6 @@ export function FamilyTreeCanvas({
             `${l === 1 ? 'dat is' : 'die zijn'} definitief weg.`,
         );
       }
-      const yes = await ui.confirm({
-        title: `${total} kaartjes uit deze ${words.familyTree} halen?`,
-        message: parts.join(' '),
-        confirmLabel: 'Weghalen',
-        danger: true,
-      });
-      if (!yes) return;
-
       const goneMembers = new Set(memberIds);
       const goneLoose = new Set(looseIds);
       // A tie with nobody on one end is not a tie — and a selection can take
@@ -1487,7 +1493,15 @@ export function FamilyTreeCanvas({
       }));
       clearSelection();
       setSheet(null);
-      ui.toast(`${total} kaartjes uit de ${words.familyTree} gehaald.`, {
+      /*
+       * §69: the sentence the confirm used to carry is still said — it is just
+       * said *after*, where it costs nothing. `parts` is the same wording, and
+       * it matters most exactly here: a sweep can take a kaartje that is an
+       * artikel (which keeps every field it has) and a los kaartje (which
+       * exists nowhere else) in the same gesture, and those are not the same
+       * loss. The undo covers both.
+       */
+      ui.toast(`${total} kaartjes uit de ${words.familyTree} gehaald. ${parts.join(' ')}`, {
         label: 'Ongedaan maken',
         onAction: () => undo(),
       });
@@ -1496,6 +1510,31 @@ export function FamilyTreeCanvas({
   );
 
   /** A new los kaartje in the middle of the glass, ready to be named. */
+  /**
+   * §69: bare glass makes a los kaartje — a double-click on a desk, a
+   * half-second press on a phone.
+   *
+   * A stamboom is the surface where this reads most naturally: half of drawing
+   * a family is putting down a person nobody has written an artikel for yet,
+   * and until round 35 the only road to one was the toolbar. It goes down where
+   * the hand is, `pinned: true` like every card `addLoose` makes, so the layout
+   * leaves it exactly there (§66 — a stamboom stores no layout, only the pins).
+   */
+  const makeOnEmpty = useMakeOnEmpty({
+    enabled: canEdit && !inkActive,
+    ignore: '.tree-node, .tree-handle, .tree-menu, .tree-menu-anchor, .tree-line-menu, .tree-picker, .tree-line-hit',
+    busy: () => pressTravelled.current,
+    onMake: ({ clientX, clientY }) => {
+      const el = stageRef.current;
+      const current = viewRef.current ?? { x: 0, y: 0, zoom: 1 };
+      const rect = el?.getBoundingClientRect();
+      const at = rect
+        ? toWorld(current, clientX - rect.left, clientY - rect.top)
+        : toWorld(current, clientX, clientY);
+      addLoose('', at);
+    },
+  });
+
   const addLoose = useCallback(
     (
       cardName: string,
@@ -2291,9 +2330,19 @@ export function FamilyTreeCanvas({
         role="group"
         tabIndex={0}
         aria-label={`${capitalise(words.familyTree)} ${tree.name} — sleep om te schuiven, scroll om te zoomen`}
-        onPointerDown={onStagePointerDown}
-        onPointerMove={onStagePointerMove}
-        onPointerUp={(event) => onStagePointerUp(event)}
+        onDoubleClick={makeOnEmpty.onDoubleClick}
+        onPointerDown={(event) => {
+          onStagePointerDown(event);
+          makeOnEmpty.onPointerDown(event);
+        }}
+        onPointerMove={(event) => {
+          onStagePointerMove(event);
+          makeOnEmpty.onPointerMove(event);
+        }}
+        onPointerUp={(event) => {
+          makeOnEmpty.cancel();
+          onStagePointerUp(event);
+        }}
         onPointerCancel={(event) => onStagePointerUp(event, true)}
         onPointerLeave={() => reportHand(null)}
       >
@@ -2784,6 +2833,14 @@ function TreePickerBox({
       <div
         className="tree-picker"
         data-testid="tree-picker-second-parent"
+        /*
+         * §69: the kiezer floats over the glass, takes the keyboard and answers
+         * Escape — that is a dialog, whatever it is made of, and a reader that
+         * is told so knows it may leave it. `aria-labelledby` points at the
+         * line it already prints rather than a second name nobody sees.
+         */
+        role="dialog"
+        aria-labelledby="tree-picker-second-parent-head"
         style={{ left, top, width }}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
@@ -2792,7 +2849,7 @@ function TreePickerBox({
           onSkip();
         }}
       >
-        <p className="tiny muted tree-picker-head">
+        <p className="tiny muted tree-picker-head" id="tree-picker-second-parent-head">
           Tweede ouder (optioneel) bij <strong>{child.name}</strong>
         </p>
         {partners.length > 0 && (
@@ -2852,6 +2909,9 @@ function TreePickerBox({
     <div
       className="tree-picker"
       data-testid="tree-picker"
+      /* §69: a dialog, as above. */
+      role="dialog"
+      aria-labelledby="tree-picker-head"
       style={{ left, top, width }}
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
@@ -2860,7 +2920,7 @@ function TreePickerBox({
         onCancel();
       }}
     >
-      <p className="tiny muted tree-picker-head">
+      <p className="tiny muted tree-picker-head" id="tree-picker-head">
         {both && both.length === 2 ? (
           <>
             {heading} van <strong>{both[0].name}</strong> en <strong>{both[1].name}</strong>

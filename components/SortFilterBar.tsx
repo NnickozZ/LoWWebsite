@@ -1,10 +1,11 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
+import { useDismiss } from '@/components/ui/useDismiss';
 
 /**
  * The one toolbar every list page shares: what is being shown, a "Filters"
@@ -62,6 +63,9 @@ export function SortFilterBar({
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
+  /** §69: the caret goes back here when Escape closes the panel. */
+  const filtersRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   const shownGroups = groups.filter((group) => group.options.length > 0);
   const chosen = (key: string): string[] => (params.get(key) ?? '').split(',').filter(Boolean);
@@ -106,22 +110,13 @@ export function SortFilterBar({
     go(next);
   };
 
-  // A desktop popover closes on a click outside it, and on Escape.
-  useEffect(() => {
-    if (!open || isPhone) return;
-    const onDown = (event: PointerEvent) => {
-      if (anchorRef.current && !anchorRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open, isPhone]);
+  /*
+   * §69: a desktop popover closes on a press outside it and on Escape. On a
+   * phone the same `open` renders a `Sheet` instead, which is modal and brings
+   * its own Escape, its own backdrop and its own focus-restore — so the hook
+   * stands down there rather than answering the same press twice.
+   */
+  useDismiss({ open: open && !isPhone, onDismiss: close, ref: anchorRef, opener: filtersRef });
 
   const groupRows = shownGroups.map((group) => {
     const current = chosen(group.key);
@@ -180,6 +175,7 @@ export function SortFilterBar({
           <div className="sortbar-anchor" ref={anchorRef}>
             <button
               type="button"
+              ref={filtersRef}
               className={`btn btn-small sortbar-filters${activeCount ? ' sortbar-filters-on' : ''}`}
               aria-expanded={open}
               aria-haspopup="dialog"

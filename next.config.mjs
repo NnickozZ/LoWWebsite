@@ -70,7 +70,8 @@ const nextConfig = {
     if (nextRuntime === 'edge') {
       config.plugins.push(
         new webpack.IgnorePlugin({
-          resourceRegExp: /lib[\\/](diagnostics|entries[\\/]mentions)$/,
+          // §69 added `db/sweep`, which loads better-sqlite3 through `lib/db`.
+          resourceRegExp: /lib[\\/](diagnostics|entries[\\/]mentions|db[\\/]sweep)$/,
         }),
       );
     }

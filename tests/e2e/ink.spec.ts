@@ -318,7 +318,18 @@ test('a landkaart takes ink under its spelden and keeps it', async ({ page }) =>
 
   await page.reload();
   await expect(page.getByRole('application')).toBeVisible();
-  const kept = await waitForInk(page, (i) => i.count > 0);
+  /*
+   * §6: `settled`, not `waitForInk(count > 0)`.
+   *
+   * A reload redraws the layer in more than one frame — the picture arrives,
+   * the view fits, the strokes are restroked — so the first reading with *any*
+   * points in it is a line that is still being drawn. Alone that is invisible;
+   * in a full run, with the machine busy, it caught a third of the stroke and
+   * read as "the archive lost the ink". The helper two lines up already knows
+   * how to wait for a canvas to stop changing, and this is exactly what it is
+   * for. (Round 35: found by a run, not by a person.)
+   */
+  const kept = await settled(page);
   expect(Math.abs(kept.count - drawn.count)).toBeLessThan(drawn.count * 0.15);
   // The layer is under the pins: the toolbar's canvas sits before the pins in the DOM.
   const order = await page.evaluate(() => {

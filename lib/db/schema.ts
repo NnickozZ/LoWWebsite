@@ -680,6 +680,30 @@ export const mapPins = sqliteTable(
     characterId: text('character_id'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
+    /**
+     * §69, round 35: gone, but not yet unrecoverable.
+     *
+     * A speld and a gebeurtenis are deleted without being asked about now, and
+     * the answer to "are you sure?" is an *Ongedaan maken* in the toast that
+     * follows. That is only honest if there is something to undo, and for these
+     * two there was not: `removePin` and `removeEvent` were a hard
+     * `db.delete`, and the road back through `addPin`/`addEvent` would mint a
+     * new id, re-derive the author from whoever pressed undo, and — for a
+     * gebeurtenis — lose the picture, because the create route cannot carry an
+     * `asset_id`. A column keeps the row whole: same id, same author, same
+     * karakter, same picture.
+     *
+     * **Every read of this table filters it** (`livePins` / `liveEvents` in the
+     * services), with two deliberate exceptions in `lib/admin/trash.ts`: what a
+     * destroy will take away, and what it takes away, both count the buried
+     * rows too — they are going either way.
+     *
+     * This is not the prullenbak. `lib/admin/trash.ts` is for the six kinds of
+     * container a Keeper can hand back; a speld is not a thing anybody browses
+     * a bin for. It is the memory behind one toast, swept by
+     * `sweepDeletedRows()` after `DELETED_ROW_TTL_MS`.
+     */
+    deletedAt: integer('deleted_at'),
   },
   (t) => [
     index('map_pins_map_idx').on(t.mapId),
@@ -763,6 +787,8 @@ export const timelineEvents = sqliteTable(
     characterId: text('character_id'),
     createdAt: integer('created_at').notNull().default(now),
     updatedAt: integer('updated_at').notNull().default(now),
+    /** §69: see `mapPins.deletedAt` — the same column for the same reason. */
+    deletedAt: integer('deleted_at'),
   },
   (t) => [
     index('timeline_events_timeline_idx').on(t.timelineId, t.at),

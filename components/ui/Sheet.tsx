@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { popoverIsOpen } from '@/lib/popoverStack';
 import {
   SHEET_BASE_Z,
   closeSheet,
@@ -93,6 +94,15 @@ export function Sheet({
       // Everything under the top sheet plays dead: one Escape closes one sheet.
       if (!isTopSheet(id)) return;
       if (event.key === 'Escape') {
+        /*
+         * §69: a popover open inside this sheet takes the press first. This
+         * handler is in the **capture** phase on `document`, so it is upstream
+         * of anything the popover could register — it cannot win by listening,
+         * it can only be asked about. One press peels one layer: the list goes,
+         * and the next press is this sheet's. Escape only; Tab below still
+         * belongs to the top sheet, because a popover traps no focus.
+         */
+        if (popoverIsOpen()) return;
         event.stopPropagation();
         onCloseRef.current();
         return;

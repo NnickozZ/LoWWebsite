@@ -108,7 +108,8 @@ export function NewMapButton() {
 
   return (
     <>
-      <button type="button" className="btn btn-primary btn-small" onClick={() => setOpen(true)}>
+      {/* §69: ask who is writing *before* the sheet, never over it. */}
+      <button type="button" className="btn btn-primary btn-small" onClick={() => ui.openMaker(() => setOpen(true))}>
         <Icon name="upload" size={15} />
         {cap(words.map)} ophangen
       </button>
@@ -154,8 +155,23 @@ export function NewMapButton() {
                 id="new-map-name"
                 className="input"
                 value={name}
+                /*
+                 * §69: the name is where a hand starts on the other three
+                 * makers, so it is where it starts here. The file chooser is
+                 * above it because a landkaart *is* the picture, but a chooser
+                 * cannot usefully hold the caret — it opens the operating
+                 * system's own dialog, which takes the focus anyway.
+                 */
+                autoFocus
                 placeholder="Bijv. Het eiland"
                 onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => {
+                  // §69: Enter makes it, as on the tijdlijn and the stamboom.
+                  if (event.key === 'Enter' && !busy) {
+                    event.preventDefault();
+                    void submit();
+                  }
+                }}
               />
             </div>
             <div>

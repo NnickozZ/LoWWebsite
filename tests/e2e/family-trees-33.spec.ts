@@ -688,17 +688,21 @@ test('§67e: kiezen met een kader, samen dragen, één keer terug, één vraag',
       .toBeLessThan(2);
   }
 
-  /* 5. Delete asks once, for the lot, and names how many. */
+  /*
+   * 5. Delete takes the lot at once — and since §69 it does not ask first. The
+   * sentence the confirm used to carry (which kaartjes are artikelen and keep
+   * their fields, which are losse kaartjes and exist nowhere else) moved into
+   * the toast, where it costs no click, and the undo is what makes that safe.
+   * So: no dialog at all, and the count is named afterwards.
+   */
   const slugs = await Promise.all(people.map(async (who) => (await treeNodeReady(page, who)).slug!));
   await fit(page);
   await sweep();
   expect(await chosen(page)).toHaveLength(3);
   await page.keyboard.press('Delete');
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toHaveCount(1);
-  await expect(dialog).toContainText('3 kaartjes uit deze stamboom halen?');
-  await dialog.getByRole('button', { name: 'Weghalen' }).click();
   await expect(page.locator('[data-testid="tree-node"]')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.toast')).toContainText('3 kaartjes uit de stamboom gehaald');
 
   /*
    * The artikelen themselves are untouched — that is the whole reason a

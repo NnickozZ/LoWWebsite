@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { StoredTreeRef } from '@/lib/entries/fieldValues';
+import { useDismiss } from '@/components/ui/useDismiss';
+import { NewFamilyTreeSheet } from './NewFamilyTreeSheet';
 
 /**
  * §66 (round 32): names *one* stamboom in an infobox field — the editing face
@@ -16,9 +18,15 @@ import type { StoredTreeRef } from '@/lib/entries/fieldValues';
  *    way `resolveCaseRefs` resolves a dossier. `GET /api/family-trees` already
  *    lists only what this viewer may open (and, per §50, only the side they
  *    stand on), so what is offered here is what may be named.
- *  - It makes nothing. A dossier's picker carries a "'X' aanmaken" row; a
- *    stamboom is a canvas with a shelf of its own, and a tree conjured out of
- *    an infobox would be an empty one nobody ever opens.
+ *  - **§69, round 35: it makes one too.** Until then it was the only picker in
+ *    the archive without a "'X' aanmaken" row, on the reasoning that a stamboom
+ *    is a canvas with a shelf of its own and a tree conjured out of an infobox
+ *    would be an empty one nobody opens. Nick reversed that: an empty stamboom
+ *    is exactly what you want at the moment you are filling in a Familie, and
+ *    the alternative was leaving the artikel half-typed to go and make one. The
+ *    sheet is `NewFamilyTreeSheet`, the same one the shelf's button opens, and
+ *    it hands the tree *back* rather than navigating to it — the person is in
+ *    the middle of a page.
  *
  * The list is fetched once, when the box is first focused, and filtered here by
  * the same fuzzy match the rest of the archive uses — an archive has a handful
@@ -41,7 +49,10 @@ export function FamilyTreePicker({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [all, setAll] = useState<TreeRow[]>([]);
+  /** §69: the aanmaak-sheet, with what was typed as its name. */
+  const [making, setMaking] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const closeList = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     if (!open || all.length) return;
@@ -51,13 +62,12 @@ export function FamilyTreePicker({
       .catch(() => undefined);
   }, [open, all.length]);
 
-  useEffect(() => {
-    const onDown = (event: PointerEvent) => {
-      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, []);
+  /*
+   * §69: Escape closes it and a press outside closes it — the box holds the
+   * input as well as the list, so the caret never leaves and there is nothing
+   * to hand back.
+   */
+  useDismiss({ open, onDismiss: closeList, ref: boxRef });
 
   const matches = useMemo(() => {
     const free = all.filter((row) => row.id !== value?.id);
@@ -139,11 +149,32 @@ export function FamilyTreePicker({
                   </button>
                 </li>
               ))}
-              {!matches.length && (
+              {!matches.length && !query.trim() && (
                 <li className="tiny muted" style={{ padding: '0.5rem 0.6rem' }}>
-                  {query.trim()
-                    ? 'Geen stamboom met die naam.'
-                    : 'Er is nog geen stamboom om naar te wijzen.'}
+                  Er is nog geen stamboom om naar te wijzen.
+                </li>
+              )}
+              {/*
+               * §69: the aanmaak-rij, and only once something is typed — it is
+               * the *first* `.suggest-item`, so an always-there one is the row
+               * a hand lands on before the tree it was looking for arrives, and
+               * with nothing typed there is no name to give the new one.
+               */}
+              {query.trim() && (
+                <li>
+                  <button
+                    type="button"
+                    className="suggest-item"
+                    onClick={() => {
+                      setOpen(false);
+                      setMaking(query.trim());
+                    }}
+                  >
+                    <Icon name="plus" size={15} style={{ color: 'var(--stamp-red)' }} />
+                    <span>
+                      &lsquo;<strong>{query.trim()}</strong>&rsquo; aanmaken
+                    </span>
+                  </button>
                 </li>
               )}
             </ul>
@@ -152,6 +183,22 @@ export function FamilyTreePicker({
       )}
 
       {readOnly && !value && <p className="tiny muted" style={{ margin: 0 }}>—</p>}
+
+      {/*
+       * §69: made here, so it lands here. `onCreated` is what keeps the person
+       * on the page they were filling in — see `NewFamilyTreeSheet`.
+       */}
+      {making !== null && (
+        <NewFamilyTreeSheet
+          initialName={making}
+          onClose={() => setMaking(null)}
+          onCreated={(tree) => {
+            setMaking(null);
+            setQuery('');
+            onChange({ id: tree.id, name: tree.name, slug: tree.slug });
+          }}
+        />
+      )}
     </div>
   );
 }

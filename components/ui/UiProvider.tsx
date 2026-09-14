@@ -114,6 +114,13 @@ type UiValue = {
   openNewEntry: (prefill?: NewEntryPrefill) => void;
   openNewCase: (prefill?: NewCasePrefill) => void;
   /**
+   * §69: "ask, then make", for the four container buttons. Says once, and only
+   * once, that this window may not write (§18b); otherwise asks who it is
+   * writing as if that is still open, and runs `then` — synchronously where
+   * there is nothing to ask, so the click that opens a sheet is not lost.
+   */
+  openMaker: (then: () => void) => void;
+  /**
    * §48: whether this browser is a Keeper's, and which side of the archive it
    * is standing on. Every sheet that makes something reads it, because what is
    * made here is born on that side and the sheet has to say so.
@@ -281,6 +288,29 @@ export function UiProvider({
     [mayType, refuse, askThen],
   );
 
+  /**
+   * §69: the one door every *container* maker outside this provider goes
+   * through — the four buttons that hang a prikbord, a tijdlijn, a landkaart
+   * or a stamboom.
+   *
+   * It is `openNewCase`'s two steps with somebody else's sheet at the end. The
+   * four used to have neither: a window with no onderzoeker was told twice
+   * (the banner on the way in, and the server's refusal after a POST that was
+   * never going to land), and a window that had not yet said who it writes as
+   * was asked *after* its own sheet was already up — which §18b's note on
+   * `ensureAuthor` says cannot work, because the question is itself a sheet.
+   */
+  const openMaker = useCallback(
+    (then: () => void) => {
+      if (!mayType) {
+        refuse();
+        return;
+      }
+      askThen(then);
+    },
+    [mayType, refuse, askThen],
+  );
+
   // The `n` shortcut is bound once for the life of the shell, so it reads the
   // opener through a ref rather than closing over the one that existed then.
   const openNewEntryRef = useRef(openNewEntry);
@@ -370,12 +400,13 @@ export function UiProvider({
       confirm,
       openNewEntry,
       openNewCase,
+      openMaker,
       isKeeper,
       side,
       caseHere,
       setCaseHere,
     }),
-    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase, isKeeper, side, caseHere],
+    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase, openMaker, isKeeper, side, caseHere],
   );
 
   return (

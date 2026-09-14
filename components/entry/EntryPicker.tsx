@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { entryDisplayName } from '@/lib/entries/caseName';
 import { AdriftChip } from '@/components/entry/AdriftChip';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
+import { useDismiss } from '@/components/ui/useDismiss';
 import { preferredCasesParam, usePreferredCases } from './PreferredCases';
 
 export type EntryRef = {
@@ -60,6 +62,14 @@ export function EntryPicker({
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Suggestion[]>([]);
   const boxRef = useRef<HTMLDivElement>(null);
+  const closeList = useCallback(() => setOpen(false), []);
+  /*
+   * §69: the *drawn* list, not the open flag — the same condition the render
+   * below uses. The flag goes true on focus, and a token on the popover pile
+   * for a list nobody can see costs a press of Escape that appears to do
+   * nothing (see `lib/popoverStack.ts`).
+   */
+  const listShown = open && query.trim().length > 0;
 
   useEffect(() => {
     const typed = query.trim();
@@ -82,20 +92,19 @@ export function EntryPicker({
       } catch {
         /* ignore */
       }
-    }, 160);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
   }, [query, open, ofType, preferCases]);
 
-  useEffect(() => {
-    const onDown = (event: PointerEvent) => {
-      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, []);
+  /*
+   * §69: Escape closes it and a press outside closes it — the box holds the
+   * input as well as the list, so the caret never leaves and there is nothing
+   * to hand back.
+   */
+  useDismiss({ open: listShown, onDismiss: closeList, ref: boxRef });
 
   if (value) {
     return (

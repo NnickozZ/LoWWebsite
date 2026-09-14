@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@/components/Icon';
 import { useMentionFiling } from '@/components/cases/useMentionFiling';
+import { closePopover, openPopover } from '@/lib/popoverStack';
 import { useUi } from './UiProvider';
 
 /**
@@ -81,6 +82,19 @@ export function MentionPopover({
   itemsRef.current = items;
   const activeRef = useRef(active);
   activeRef.current = active;
+
+  /*
+   * §69: while the list is up it stands on the popover pile, so a `Sheet` round
+   * it lets Escape through to the list first — its own handler is in the
+   * capture phase on `document` and is upstream of the capture listener this
+   * component puts on the box. One press closes the list, the next closes the
+   * sheet. `lib/popoverStack.ts` is the whole of it.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const token = openPopover();
+    return () => closePopover(token);
+  }, [open]);
 
   /*
    * §48: the row the rich editor has had since §6 — "'Jan' aanmaken" — in the

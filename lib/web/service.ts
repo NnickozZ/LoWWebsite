@@ -17,6 +17,8 @@ import { getWords } from '@/lib/admin/words';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
+import { livePinCondition } from '@/lib/maps/service';
+import { liveEventCondition } from '@/lib/timelines/service';
 import { collapseMentions, degrees, yieldToLineage } from './slice';
 import { webNodeId, type WebEdge, type WebEdgeKind, type WebGraph, type WebLineColour, type WebNode, type WebNodeId } from './types';
 
@@ -510,6 +512,9 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       targetMapId: schema.mapPins.targetMapId,
     })
     .from(schema.mapPins)
+    // §69: a buried speld draws no line. The web is the place this is most
+    // easily forgotten, because the pass has no other WHERE at all.
+    .where(livePinCondition())
     .all()) {
     if (!has('map', pin.mapId)) continue;
     const from = webNodeId('map', pin.mapId);
@@ -529,6 +534,9 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       precision: schema.timelineEvents.precision,
     })
     .from(schema.timelineEvents)
+    // §69: a buried gebeurtenis draws no line. As with the spelden above, this
+    // pass has no other WHERE, so it is the easiest one to forget.
+    .where(liveEventCondition())
     .all()) {
     if (event.kind !== 'entry' || !has('timeline', event.timelineId) || !has('entry', event.entryId)) continue;
     add('event', webNodeId('timeline', event.timelineId), webNodeId('entry', event.entryId), formatWhen(event.at, event.precision));

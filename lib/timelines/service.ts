@@ -153,6 +153,24 @@ export type TimelineListOptions = {
 };
 
 /**
+ * §69, round 35: a gebeurtenis that has been taken off the axis.
+ *
+ * The sibling of `livePinCondition` in `lib/maps/service.ts`, for the same
+ * reason and with the same duty: `removeEvent` buries the row so the *Ongedaan
+ * maken* in the toast puts back the same gebeurtenis — same id, same author,
+ * same picture, which a fresh `addEvent` could not manage, because the create
+ * route cannot even carry an `assetId`.
+ *
+ * Every read of `timeline_events` AND-s this in, each with a `§69` comment, and
+ * `tests/unit/buried-rows.test.ts` checks them all against a real database. The
+ * two in `lib/admin/trash.ts` deliberately do not: a destroy counts and takes
+ * the buried rows too.
+ */
+export function liveEventCondition() {
+  return isNull(schema.timelineEvents.deletedAt);
+}
+
+/**
  * §17: a tijdlijn is visible when its own view dial allows the viewer AND, if
  * it sits in a dossier, that dossier is visible — the same two-step
  * `listBoards` makes, one condition per table.
@@ -197,7 +215,14 @@ export function listTimelines(viewer: Viewer, options: TimelineListOptions = {})
   for (const row of db
     .select({ timelineId: schema.timelineEvents.timelineId, n: sql<number>`count(*)` })
     .from(schema.timelineEvents)
-    .where(and(inArray(schema.timelineEvents.timelineId, ids), eq(schema.timelineEvents.kind, 'note')))
+    // §69: a buried gebeurtenis is not counted on the shelf.
+    .where(
+      and(
+        liveEventCondition(),
+        inArray(schema.timelineEvents.timelineId, ids),
+        eq(schema.timelineEvents.kind, 'note'),
+      ),
+    )
     .groupBy(schema.timelineEvents.timelineId)
     .all()) {
     counts.set(row.timelineId, Number(row.n));
@@ -207,7 +232,9 @@ export function listTimelines(viewer: Viewer, options: TimelineListOptions = {})
     .from(schema.timelineEvents)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.timelineEvents.entryId))
     .where(
+      // §69: nor here.
       and(
+        liveEventCondition(),
         inArray(schema.timelineEvents.timelineId, ids),
         eq(schema.timelineEvents.kind, 'entry'),
         visibleEntryCondition(viewer),
@@ -530,7 +557,10 @@ function eventQuery() {
 /** Every gebeurtenis this viewer may see on the tijdlijn, in time order. The tijdlijn itself must already have passed `getTimelineById`. */
 export function listEvents(timelineId: string, viewer: Viewer): TimelineEvent[] {
   return eventQuery()
-    .where(and(eq(schema.timelineEvents.timelineId, timelineId), visibleEventCondition(viewer)))
+    // §69: a buried gebeurtenis is not on the axis.
+    .where(
+      and(liveEventCondition(), eq(schema.timelineEvents.timelineId, timelineId), visibleEventCondition(viewer)),
+    )
     .orderBy(asc(schema.timelineEvents.at), asc(schema.timelineEvents.createdAt))
     .all()
     .map(shapeEvent);
@@ -539,7 +569,8 @@ export function listEvents(timelineId: string, viewer: Viewer): TimelineEvent[] 
 /** One gebeurtenis, behind its tijdlijn's rule and its own. */
 export function getEvent(eventId: string, viewer: Viewer): TimelineEvent | undefined {
   const row = eventQuery()
-    .where(and(eq(schema.timelineEvents.id, eventId), visibleEventCondition(viewer)))
+    // §69: buried is gone.
+    .where(and(liveEventCondition(), eq(schema.timelineEvents.id, eventId), visibleEventCondition(viewer)))
     .get();
   if (!row) return undefined;
   if (!getTimelineById(row.timelineId, viewer)) return undefined;
@@ -639,7 +670,8 @@ function ownEvent(eventId: string, actor: Actor) {
       assetId: schema.timelineEvents.assetId,
     })
     .from(schema.timelineEvents)
-    .where(eq(schema.timelineEvents.id, eventId))
+    // §69: buried is gone — or a second Delete would "edit" it.
+    .where(and(liveEventCondition(), eq(schema.timelineEvents.id, eventId)))
     .get();
   if (!event) throw new Error('Gebeurtenis niet gevonden');
   if (!viewerCanEditTimeline(event.timelineId, actor)) throw new Error(TIMELINE_NOT_YOURS);
@@ -651,7 +683,8 @@ export function viewerCanEditEvent(eventId: string, actor: Actor): boolean {
   const event = db
     .select({ timelineId: schema.timelineEvents.timelineId })
     .from(schema.timelineEvents)
-    .where(eq(schema.timelineEvents.id, eventId))
+    // §69: buried is gone.
+    .where(and(liveEventCondition(), eq(schema.timelineEvents.id, eventId)))
     .get();
   return Boolean(event && viewerCanEditTimeline(event.timelineId, actor));
 }
@@ -716,7 +749,12 @@ if (typeof window === 'undefined' && !globalForShutdown.__zcfTimelineFlush) {
 /** Is the row still there at all? `viewerCanEditEvent` cannot tell gone from forbidden. */
 export function eventExists(eventId: string): boolean {
   return Boolean(
-    db.select({ id: schema.timelineEvents.id }).from(schema.timelineEvents).where(eq(schema.timelineEvents.id, eventId)).get(),
+    // §69: buried is gone — this is what answers EVENT_GONE.
+    db
+      .select({ id: schema.timelineEvents.id })
+      .from(schema.timelineEvents)
+      .where(and(liveEventCondition(), eq(schema.timelineEvents.id, eventId)))
+      .get(),
   );
 }
 
@@ -861,11 +899,52 @@ export function convertEventToEntry(eventId: string, entryId: string, actor: Act
   return getEvent(eventId, actor)!;
 }
 
+/**
+ * §69: the gebeurtenis comes off the axis, and the row stays.
+ *
+ * The sibling of `removePin`, and here the reason is even plainer: a
+ * gebeurtenis carries a picture (`assetId`, `showImage`) that the create route
+ * cannot even accept, so a delete-and-remake would have handed back a
+ * gebeurtenis with the picture missing and called it an undo.
+ */
 export function removeEvent(eventId: string, actor: Actor) {
   const event = ownEvent(eventId, actor);
-  db.delete(schema.timelineEvents).where(eq(schema.timelineEvents.id, eventId)).run();
+  db
+    .update(schema.timelineEvents)
+    .set({ deletedAt: now(), updatedAt: now() })
+    .where(eq(schema.timelineEvents.id, eventId))
+    .run();
   db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, event.timelineId)).run();
   flushMentions(event.timelineId);
+}
+
+/**
+ * §69: put it back, whole — the sibling of `restorePin`.
+ *
+ * `ownEvent` refuses a buried row by design, so the right is asked here: the
+ * tijdlijn has to be one this hand may edit, which on a tijdlijn is the whole
+ * rule (§17 — whoever may edit the tijdlijn may edit every gebeurtenis on it).
+ */
+export function restoreEvent(eventId: string, actor: Actor): boolean {
+  const event = db
+    .select({
+      id: schema.timelineEvents.id,
+      timelineId: schema.timelineEvents.timelineId,
+      deletedAt: schema.timelineEvents.deletedAt,
+    })
+    .from(schema.timelineEvents)
+    .where(eq(schema.timelineEvents.id, eventId))
+    .get();
+  if (!event || event.deletedAt === null) return false;
+  if (!viewerCanEditTimeline(event.timelineId, actor)) return false;
+  db
+    .update(schema.timelineEvents)
+    .set({ deletedAt: null, updatedAt: now() })
+    .where(eq(schema.timelineEvents.id, eventId))
+    .run();
+  db.update(schema.timelines).set({ updatedAt: now() }).where(eq(schema.timelines.id, event.timelineId)).run();
+  flushMentions(event.timelineId);
+  return true;
 }
 
 /**
@@ -889,7 +968,10 @@ export function listEventsForEntry(
     })
     .from(schema.timelineEvents)
     .innerJoin(schema.timelines, eq(schema.timelines.id, schema.timelineEvents.timelineId))
-    .where(and(eq(schema.timelineEvents.entryId, entryId), isNull(schema.timelines.deletedAt)))
+    // §69: a buried gebeurtenis does not put this artikel on a tijdlijn.
+    .where(
+      and(liveEventCondition(), eq(schema.timelineEvents.entryId, entryId), isNull(schema.timelines.deletedAt)),
+    )
     .orderBy(asc(schema.timelineEvents.at))
     .all();
   if (!rows.length) return [];

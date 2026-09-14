@@ -47,6 +47,8 @@ import {
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
+import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { openSheetCount } from '@/lib/sheetStack';
 import {
   EditEventSheet,
   NewEventSheet,
@@ -103,9 +105,6 @@ const POPOUT_HEADROOM = 8;
  * takes the capture with it, and the drag ends where nobody let go.
  */
 const CULL_PX = 400;
-/** §62: a long press on the axis, on a phone, is a double-click on the axis. */
-const LONG_PRESS_MS = 500;
-const LONG_PRESS_SLOP = 8;
 /**
  * §62: how far a pointer may travel before a press on a gebeurtenis is a drag
  * rather than a click. One number asked in two places on purpose — the drag
@@ -557,6 +556,16 @@ export function TimelineCanvas({
    */
   const viewRef = useRef(view);
   viewRef.current = view;
+  /*
+   * §69: the camera keys are answered from a `window` listener bound once, so
+   * the two things `fit` needs are read through refs rather than closed over —
+   * the listener would otherwise be re-bound on every render and on every
+   * gebeurtenis that moved.
+   */
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
+  const widthRef = useRef(width);
+  widthRef.current = width;
   const stageHRef = useRef(stageH);
   stageHRef.current = stageH;
   const inkProject = useCallback<Project>(
@@ -1006,9 +1015,10 @@ export function TimelineCanvas({
     }
     gesture.current = g;
     setGrabbing(true);
-    // §62: a phone's way of saying "a gebeurtenis here".
-    if (g.pointers.size === 1) startLongPress(event);
-    else cancelLongPress();
+    // §62/§69: a phone's way of saying "a gebeurtenis here". A second finger
+    // is a pinch, so it is not a request for anything.
+    if (g.pointers.size === 1) makeOnEmpty.onPointerDown(event);
+    else makeOnEmpty.cancel();
   }
 
   function onPointerMove(event: React.PointerEvent) {
@@ -1032,8 +1042,7 @@ export function TimelineCanvas({
     if (event.pointerType !== 'touch' && !eventDrag.current) {
       reportHand({ clientX: event.clientX, clientY: event.clientY });
     }
-    const press = longPress.current;
-    if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_SLOP) cancelLongPress();
+    makeOnEmpty.onPointerMove(event);
     const g = gesture.current;
     if (!g || !el || !g.pointers.has(event.pointerId)) return;
     const rect = el.getBoundingClientRect();
@@ -1055,7 +1064,7 @@ export function TimelineCanvas({
   }
 
   function onPointerUp(event: React.PointerEvent) {
-    cancelLongPress();
+    makeOnEmpty.cancel();
     const g = gesture.current;
     if (!g) return;
     g.pointers.delete(event.pointerId);
@@ -1076,52 +1085,67 @@ export function TimelineCanvas({
     }
   }
 
-  function onDoubleClick(event: React.MouseEvent) {
-    if (!canEdit || !view) return;
-    // §33: two quick dots with the potlood are two dots, not a new gebeurtenis.
-    if ((event.target as HTMLElement).closest('.timeline-event, .timeline-popout, .ink-capture, .ink-toolbar')) return;
-    const el = stageRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    // §35: the moment under the finger, snapped to the finest the tijdlijn
-    // measures and pushed onto its anchor's day — so the sheet opens with the
-    // date already made and nothing to fill in.
-    const moment = onAxis(view.origin + (event.clientX - rect.left) / view.pxPerSecond, timeline.scale);
-    setSheet({ mode: 'add', at: moment, entry: null });
-  }
+  /**
+   * §69: the three camera keys, from the window — as the prikbord, the
+   * landkaart and the stamboom answer them.
+   *
+   * This canvas invented them (§62) but bound them to `onStageKey`, so they
+   * only answered while the stage itself had focus; the other three listen on
+   * the window and answer wherever the hand last clicked. That is a difference
+   * nobody chose, and the contract spec is what found it — it asked all three
+   * surfaces the same question and only this one needed a click on the stage
+   * first.
+   *
+   * The stage keeps its own handler for the arrows and Escape, which really
+   * are the focused axis's, and it still answers the camera keys there: a
+   * React handler's `stopPropagation` reaches the root container, which is
+   * below `window`, so a press with the stage focused is handled once.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+      if (typing || openSheetCount() > 0) return;
+      const camera = cameraKey(event);
+      if (!camera) return;
+      event.preventDefault();
+      if (camera === 'fit') fit(eventsRef.current, widthRef.current);
+      else zoomAt(camera === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP, widthRef.current / 2);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fit, zoomAt]);
 
   /**
-   * §62: a phone has no double-click, so it has a long press.
+   * §62/§69: bare axis makes a gebeurtenis — by a double-click on a desk and by
+   * a half-second press on a phone.
    *
-   * Half a second on the bare axis with the finger still (less than 8 px of
-   * travel) opens the same sheet with the same moment filled in. Anything that
-   * is a gesture cancels it: a second finger, a pan, a press that began on a
-   * tag or a window, the potlood.
+   * This file invented both roads; §69 moved them into
+   * `components/canvas/useMakeOnEmpty.ts` so the prikbord, the landkaart and
+   * the stamboom could answer the same gesture without writing the long press
+   * (and its travel fence, and its pinch guard) three more times. What stays
+   * here is the only part that is this canvas's own: §35's moment under the
+   * finger, snapped to the finest the tijdlijn measures and pushed onto its
+   * anchor's day, so the sheet opens with the date already made.
    */
-  const longPress = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
-  const cancelLongPress = useCallback(() => {
-    if (!longPress.current) return;
-    clearTimeout(longPress.current.timer);
-    longPress.current = null;
-  }, []);
-
-  function startLongPress(event: React.PointerEvent) {
-    cancelLongPress();
-    if (!canEdit || !view || inkActive || event.pointerType === 'mouse') return;
-    const el = stageRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const stageX = event.clientX - rect.left;
-    const timer = setTimeout(() => {
-      longPress.current = null;
+  const makeOnEmpty = useMakeOnEmpty({
+    enabled: canEdit && Boolean(view) && !inkActive,
+    ignore: '.timeline-event, .timeline-popout',
+    busy: () => Boolean(gesture.current?.moved) || (gesture.current?.pointers.size ?? 0) > 1,
+    onMake: ({ clientX }) => {
+      const el = stageRef.current;
       const current = viewRef.current;
-      if (!current) return;
-      // The gesture turned into a pan or a pinch after all.
-      if (gesture.current?.moved || (gesture.current?.pointers.size ?? 0) > 1) return;
-      setSheet({ mode: 'add', at: onAxis(current.origin + stageX / current.pxPerSecond, timeline.scale), entry: null });
-    }, LONG_PRESS_MS);
-    longPress.current = { timer, x: event.clientX, y: event.clientY };
-  }
+      if (!el || !current) return;
+      const stageX = clientX - el.getBoundingClientRect().left;
+      setSheet({
+        mode: 'add',
+        at: onAxis(current.origin + stageX / current.pxPerSecond, timeline.scale),
+        entry: null,
+      });
+    },
+  });
 
   /**
    * §62: the axis under a keyboard. The arrows walk along it, `+` and `-`
@@ -1422,18 +1446,45 @@ export function TimelineCanvas({
     return () => document.removeEventListener('paste', pasteImage);
   }, [pasteImage]);
 
+  /**
+   * §69: put the gebeurtenis back — the road behind the toast, see
+   * `restoreEvent`. It takes what the archive answers rather than re-adding the
+   * client's own copy, because somebody else may have moved it along the axis
+   * or turned the note into an artikel in the meantime.
+   */
+  const undoRemoveEvent = useCallback(
+    async (eventId: string) => {
+      try {
+        const response = await fetch(`/api/timelines/${timeline.id}/events/${eventId}/restore`, {
+          method: 'POST',
+        });
+        const data = (await response.json()) as { event?: TimelineEvent; error?: string };
+        if (!response.ok || !data.event) {
+          ui.toast(data.error ?? 'Terugzetten is niet gelukt.');
+          return;
+        }
+        const back = data.event;
+        setEvents((current) => (current.some((e) => e.id === back.id) ? current : [...current, back]));
+        refreshArchive();
+      } catch {
+        ui.toast('Geen verbinding.');
+      }
+    },
+    [timeline.id, ui, refreshArchive],
+  );
+
+  /**
+   * §69: it comes off the axis without being asked about, and the question is
+   * in the toast afterwards. See `removePin` on the landkaart for the whole
+   * argument; here the old confirm even said *"dit is definitief"* about a
+   * losse gebeurtenis, which is the sentence this round set out to stop having
+   * to write. It is not definitief any more: `removeEvent` buries the row, so
+   * the gebeurtenis comes back with its id, its hand, its words **and its
+   * picture** — which a remake could not manage at all, because the create
+   * route cannot carry an `assetId`.
+   */
   const removeEvent = useCallback(
     async (event: TimelineEvent) => {
-      const yes = await ui.confirm({
-        title: `${event.name} van de ${words.timeline} halen?`,
-        message:
-          event.kind === 'entry'
-            ? `Het ${words.entry} zelf blijft bestaan; alleen de ${words.event} op deze ${words.timeline} gaat weg.`
-            : `Een losse ${words.event} bestaat nergens anders; dit is definitief.`,
-        confirmLabel: 'Weghalen',
-        danger: true,
-      });
-      if (!yes) return;
       setSaving(true);
       try {
         const response = await fetch(`/api/timelines/${timeline.id}/events/${event.id}`, { method: 'DELETE' });
@@ -1445,13 +1496,18 @@ export function TimelineCanvas({
         setEvents((current) => current.filter((e) => e.id !== event.id));
         setSheet(null);
         refreshArchive();
+        const what = event.name || words.event.charAt(0).toUpperCase() + words.event.slice(1);
+        ui.toast(`${what} is van de ${words.timeline} gehaald.`, {
+          label: 'Ongedaan maken',
+          onAction: () => void undoRemoveEvent(event.id),
+        });
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
         setSaving(false);
       }
     },
-    [timeline.id, ui, words.entry, words.event, words.timeline, refreshArchive],
+    [timeline.id, ui, words.event, words.timeline, refreshArchive, undoRemoveEvent],
   );
 
   /** §8: a note becomes the gebeurtenis of an artikel, in place. */
@@ -1694,7 +1750,7 @@ export function TimelineCanvas({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onPointerLeave={() => reportHand(null)}
-        onDoubleClick={onDoubleClick}
+        onDoubleClick={makeOnEmpty.onDoubleClick}
         onKeyDown={onStageKey}
         /* §62: the axis is a thing you can stand on with a keyboard: the
            arrows walk along it, + and - measure it, 0 shows everything, and

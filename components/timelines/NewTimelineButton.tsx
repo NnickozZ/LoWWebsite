@@ -26,6 +26,13 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
   const [name, setName] = useState('');
   const [scale, setScale] = useState<Scale>('day');
   const [busy, setBusy] = useState<'public' | 'private' | null>(null);
+  /*
+   * §69: the refusal stays in the sheet, beside the button that caused it. A
+   * toast over an open sheet is behind the person's eyes and gone in four
+   * seconds, and the sheet it is about is still standing — the landkaart's
+   * sheet has always said it this way and now the other three do too.
+   */
+  const [error, setError] = useState<string | null>(null);
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   // §48: which side it is born on — see `NewBoardButton` for why a dossier of
   // the Keeper's takes the choice away.
@@ -35,6 +42,7 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
 
   async function create(isPrivate: boolean) {
     setBusy(isPrivate ? 'private' : 'public');
+    setError(null);
     try {
       const response = await fetch('/api/timelines', {
         method: 'POST',
@@ -50,14 +58,17 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
       });
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as { error?: string };
-        ui.toast(data.error ?? `Nieuwe ${words.timeline} aanmaken is niet gelukt.`);
+        setError(data.error ?? `Nieuwe ${words.timeline} aanmaken is niet gelukt.`);
         return;
       }
       const data = (await response.json()) as { timeline: { slug: string } };
       setOpen(false);
       router.push(`/timelines/${data.timeline.slug}`);
+      // §69: the shelf behind this sheet is server-rendered — without this the
+      // Back button lands on the list from before this tijdlijn existed.
+      router.refresh();
     } catch {
-      ui.toast('Geen verbinding met het archief. Probeer het zo opnieuw.');
+      setError('Geen verbinding met het archief. Probeer het zo opnieuw.');
     } finally {
       setBusy(null);
     }
@@ -65,7 +76,8 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
 
   return (
     <>
-      <button type="button" className="btn btn-primary btn-small" onClick={() => setOpen(true)}>
+      {/* §69: ask who is writing *before* the sheet, never over it. */}
+      <button type="button" className="btn btn-primary btn-small" onClick={() => ui.openMaker(() => setOpen(true))}>
         <Icon name="plus" size={15} />
         {caseId ? `Maak nieuwe ${words.timeline} voor dit ${words.case}` : `Nieuwe ${words.timeline}`}
       </button>
@@ -136,6 +148,7 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
               onChange={setKeeperSide}
               words={words}
             />
+            {error && <p className="error-note">{error}</p>}
             <div className="row-wrap" style={{ gap: '0.4rem' }}>
               <button
                 type="button"

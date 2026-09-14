@@ -45,11 +45,18 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
         }),
       });
       if (!response.ok) {
-        ui.toast(`Nieuw ${ui.words.board} aanmaken is niet gelukt.`);
+        // §69: the archive's own sentence where it has one. "Aanmaken is niet
+        // gelukt" over the top of "Je mag hier niet schrijven" tells the person
+        // nothing they can act on.
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        ui.toast(data.error ?? `Nieuw ${ui.words.board} aanmaken is niet gelukt.`);
         return;
       }
       const data = await response.json();
       router.push(`/b/${data.board.id}`);
+      // §69: the shelf this button stands on is server-rendered, so the Back
+      // button would otherwise land on a list from before this wall existed.
+      router.refresh();
     } catch {
       // A `fetch` that rejects rather than answering means the archive did not
       // reply at all — the server is down or the connection dropped. Without
@@ -74,7 +81,7 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
       <button
         type="button"
         className="btn btn-primary btn-small"
-        onClick={() => void create(false)}
+        onClick={() => ui.openMaker(() => void create(false))}
         disabled={busy !== null}
         title="Iedereen mag kijken en prikken"
       >
@@ -88,7 +95,7 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
       <button
         type="button"
         className="btn btn-small"
-        onClick={() => void create(true)}
+        onClick={() => ui.openMaker(() => void create(true))}
         disabled={busy !== null}
         title="Alleen jij en de Keepers, tot je het openzet"
       >

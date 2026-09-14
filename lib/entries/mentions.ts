@@ -8,6 +8,8 @@ import { visibleMapCondition } from '@/lib/maps/visibility';
 import { extractEntryLinks } from './doc';
 import { sideCondition } from '@/lib/keeper/side';
 import { listTimelines } from '@/lib/timelines/service';
+import { livePinCondition } from '@/lib/maps/service';
+import { liveEventCondition } from '@/lib/timelines/service';
 import { canSeeSection, visibleEntryCondition, type Viewer } from './visibility';
 
 /**
@@ -437,7 +439,9 @@ export function recomputeMapMentions(mapId: string): void {
       text: schema.mapPins.text,
     })
     .from(schema.mapPins)
-    .where(eq(schema.mapPins.mapId, mapId))
+    // §69: a buried speld names nobody — this is what keeps "Genoemd in" from
+    // still crediting a landkaart for a speld that was taken off it.
+    .where(and(livePinCondition(), eq(schema.mapPins.mapId, mapId)))
     .all();
 
   const targets: MentionTarget[] = [];
@@ -466,7 +470,8 @@ export function recomputeTimelineMentions(timelineId: string): void {
       text: schema.timelineEvents.text,
     })
     .from(schema.timelineEvents)
-    .where(eq(schema.timelineEvents.timelineId, timelineId))
+    // §69: a buried gebeurtenis names nobody.
+    .where(and(liveEventCondition(), eq(schema.timelineEvents.timelineId, timelineId)))
     .all();
 
   const targets: MentionTarget[] = [];

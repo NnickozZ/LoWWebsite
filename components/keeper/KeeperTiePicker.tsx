@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 import {
   KIND_ICON,
   KIND_WORD,
@@ -70,7 +71,7 @@ export function KeeperTiePicker({
       } catch {
         /* aborted */
       }
-    }, 160);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();

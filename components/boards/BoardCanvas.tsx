@@ -88,6 +88,7 @@ import { contentPanZoom, stageBoxOf, usePanZoomInk } from '@/components/ink/panZ
 import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import { useElementSize } from '@/components/ink/useElementSize';
 import type { InkLayerView } from '@/lib/ink/types';
+import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 
 /*
  * §67: the wall's zoom floor and ceiling, and its undo depth, are the shared
@@ -893,6 +894,40 @@ export function BoardCanvas({
   );
 
   type NewCard = Pick<BoardCard, 'id' | 'kind' | 'name' | 'text'> & Partial<BoardCard>;
+
+  /**
+   * §69: bare cork makes a notitie — a double-click on a desk, a half-second
+   * press on a phone.
+   *
+   * The wall is the surface people scatter most on, and until round 35 it was
+   * the one with no way to put something down without going to the toolbar. The
+   * gesture itself is the tijdlijn's, from §62, lifted into
+   * `components/canvas/useMakeOnEmpty.ts` so all four answer it the same way.
+   *
+   * Placed *where the hand is* rather than in the middle of the view, which is
+   * the only thing that makes it better than the button: `addCard` falls back to
+   * `freeSpotNear(centreOfView())` when no x/y is given, and here there is one.
+   * The free-spot search still runs, so a double-click on top of a card that is
+   * already there nudges the new one clear instead of hiding it.
+   */
+  const makeOnEmpty = useMakeOnEmpty({
+    /*
+     * `!readOnly`, deliberately **not** `interactive` — which is
+     * `!isPhone && !readOnly` and is the gate on *dragging* a card, for §6.2's
+     * separate reason. Making something is not dragging something: a phone
+     * that can press the toolbar's "Notitie" can press bare cork for half a
+     * second, and the contract spec found this by asking the phone the same
+     * question it asks the desk.
+     */
+    enabled: !readOnly && !inkActive,
+    ignore: '.board-card, .board-string, .board-string-hit, .board-grip, .board-handle, .board-inspector, .board-picker',
+    busy: () => dragMoved.current || pan.current !== null,
+    onMake: ({ clientX, clientY }) => {
+      const at = toBoard(clientX, clientY);
+      const spot = freeSpotNear(at.x, at.y, cardSize({ kind: 'note' }));
+      addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '', x: spot.x, y: spot.y });
+    },
+  });
 
   const addCard = useCallback(
     (card: NewCard) => {
@@ -2623,9 +2658,19 @@ export function BoardCanvas({
         className="board-viewport"
         ref={viewportRef}
         {...gate}
-        onPointerDown={onSurfacePointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onDoubleClick={makeOnEmpty.onDoubleClick}
+        onPointerDown={(event) => {
+          onSurfacePointerDown(event);
+          makeOnEmpty.onPointerDown(event);
+        }}
+        onPointerMove={(event) => {
+          onPointerMove(event);
+          makeOnEmpty.onPointerMove(event);
+        }}
+        onPointerUp={(event) => {
+          makeOnEmpty.cancel();
+          onPointerUp(event);
+        }}
         onPointerCancel={onPointerUp}
         /*
          * The wall's position is the transform on `.board-world`, and nothing

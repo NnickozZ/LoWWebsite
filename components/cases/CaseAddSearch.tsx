@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { entryDisplayName } from '@/lib/entries/caseName';
 import { AdriftChip } from '@/components/entry/AdriftChip';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 
 type Suggestion = {
   id: string;
@@ -71,7 +72,7 @@ export function CaseAddSearch({
       } catch {
         /* aborted */
       }
-    }, 160);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();

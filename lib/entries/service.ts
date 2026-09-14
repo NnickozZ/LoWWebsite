@@ -19,6 +19,7 @@ import { visibleMapCondition } from '@/lib/maps/visibility';
 import { publishSaved, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
 import { entryFieldsRoomKey } from '@/lib/live/keys';
 import { syncEventsFromEntryDate } from '@/lib/timelines/moment';
+import { livePinCondition } from '@/lib/maps/service';
 
 export type EntryTypeRow = {
   id: string;
@@ -513,7 +514,10 @@ export function browseEntries(viewer: Viewer, options: BrowseOptions = {}): Entr
           .select({ one: sql`1` })
           .from(schema.mapPins)
           .innerJoin(schema.maps, eq(schema.maps.id, schema.mapPins.mapId))
-          .where(and(eq(schema.mapPins.entryId, schema.entries.id), visibleMapCondition(viewer))),
+          // §69: a buried speld does not put this artikel on a landkaart.
+          .where(
+            and(livePinCondition(), eq(schema.mapPins.entryId, schema.entries.id), visibleMapCondition(viewer)),
+          ),
       ),
     );
   }

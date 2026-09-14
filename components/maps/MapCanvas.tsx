@@ -7,7 +7,7 @@ import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
-import { DRAG_SLOP, FIT_PADDING, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
+import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
@@ -25,6 +25,8 @@ import { UnderFold } from '@/components/ink/UnderFold';
 import { usePanZoomInk } from '@/components/ink/panZoom';
 import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import type { InkLayerView } from '@/lib/ink/types';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
+import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 
 /**
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
@@ -50,8 +52,9 @@ import type { InkLayerView } from '@/lib/ink/types';
  * pixel* — so a 400 px drawing at the shared ceiling of 2.5 would still be a
  * postage stamp, and a 4000 px survey map at the shared floor of 0.25 is still
  * perfectly readable. The floor is a fraction of whatever "fits", the ceiling
- * is absolute. What is shared is the road they travel: `clampZoom` below, and
- * `FIT_PADDING` in `fit`.
+ * is absolute. What is shared is the road they travel: `clampZoom` below. The
+ * shared `FIT_PADDING` is the one thing this canvas does *not* take — see the
+ * note in `fit`.
  */
 const MIN_ZOOM_FACTOR = 0.4;
 const MAX_ZOOM = 8;
@@ -237,16 +240,20 @@ export function MapCanvas({
        * §69: air round the picture, and a ceiling.
        *
        * This used to divide the stage by the picture and take the answer as
-       * read. Two things came of that. A picture much smaller than the stage
-       * fitted at a zoom above the ceiling — a 200×150 drawing on a 1440 px
-       * screen opened at 5.04 and the first press of "Inzoomen" *shrank* it,
-       * because `zoomBy` clamps and `fit` did not. And the picture touched all
-       * four edges, where every other canvas leaves `FIT_PADDING` of air.
+       * read, which fitted a picture much smaller than the stage at a zoom
+       * above the ceiling — a 200×150 drawing on a 1440 px screen opened at
+       * 5.04, and the first press of "Inzoomen" *shrank* it, because `zoomBy`
+       * clamps and `fit` did not. The ceiling is the fix, and it stays.
+       *
+       * The **air does not**, and that is this canvas's one named exception to
+       * §69's shared `FIT_PADDING` (Nick, round 35). The other three are
+       * drawings with things scattered over them, and a card sitting hard
+       * against the glass reads as cut off. A landkaart is one rectangle you
+       * look *into*: the picture is the whole subject, and 48 px on each side
+       * of a 390 px phone is a quarter of the screen given away to nothing.
+       * So a landkaart fills the glass.
        */
-      const room = {
-        w: Math.max(1, size.w - FIT_PADDING * 2),
-        h: Math.max(1, size.h - FIT_PADDING * 2),
-      };
+      const room = { w: Math.max(1, size.w), h: Math.max(1, size.h) };
       const zoom = Math.min(MAX_ZOOM, Math.min(room.w / map.width, room.h / map.height));
       // The floor is a fraction of *this* number (`clampZoom`), so it is the
       // fit itself that is remembered, not the clamped view.
@@ -740,6 +747,15 @@ export function MapCanvas({
         }
         const saved = data.pin;
         setPins((current) => current.map((p) => (p.id === saved.id ? saved : p)));
+        /*
+         * §5/§69: the last third of the gap CLAUDE.md names. A speld that was
+         * **created** and one that was **removed** have refreshed since round
+         * 13; a speld that was **moved** did not, so walking down the chip and
+         * coming back up put it back where it stood before the drag. One
+         * refresh per gesture, and only where something actually moved — a
+         * name or a line of text typed in the blad is already live.
+         */
+        if (patch.x !== undefined || patch.y !== undefined) router.refresh();
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
@@ -797,20 +813,77 @@ export function MapCanvas({
     [map.id, map.name, router, ui],
   );
 
+  /**
+   * §69: bare cork asks what goes there — a double-click on a desk, a
+   * half-second press on a phone, the same gesture the tijdlijn has had since
+   * §62 and the wall and the stamboom got in the same round.
+   *
+   * It opens the *same* sheet the "Speld zetten" button opens, at the point
+   * under the hand, rather than a second road into `createPin`: a speld may be
+   * an artikel, a notitie or another landkaart, and that question has one
+   * place to be asked.
+   *
+   * Only inside the picture. The stage is much larger than the drawing on it
+   * (§6's note about `.map-world`), and a double-click on bare stage is a
+   * double-click on nothing.
+   */
+  const makeOnEmpty = useMakeOnEmpty({
+    enabled: mayType && !ink.ink.enabled && !placing,
+    ignore: '.map-pin, .map-legend, .map-legend-toggle',
+    busy: () => Boolean(gesture.current?.moved),
+    onMake: ({ clientX, clientY }) => {
+      const point = stagePoint({ clientX, clientY });
+      const at = toPicture(point.x, point.y);
+      if (at.x < 0 || at.x > 1 || at.y < 0 || at.y > 1) return;
+      setPlacing({ mode: 'ask', x: at.x, y: at.y });
+    },
+  });
+
+  /**
+   * §69: put it back. The road behind the toast — see `restorePin`.
+   *
+   * It does not put the speld back into `pins` from the client's own copy: it
+   * asks the archive and takes what comes back, because in between somebody
+   * else may have moved it, renamed it, or turned the note into an artikel.
+   * The undo is "un-remove", not "restore my snapshot".
+   */
+  const undoRemovePin = useCallback(
+    async (pinId: string) => {
+      try {
+        const response = await fetch(`/api/maps/${map.id}/pins/${pinId}/restore`, { method: 'POST' });
+        const data = (await response.json()) as { pin?: MapPin; error?: string };
+        if (!response.ok || !data.pin) {
+          ui.toast(data.error ?? 'Terugzetten is niet gelukt.');
+          return;
+        }
+        const back = data.pin;
+        setPins((current) => (current.some((p) => p.id === back.id) ? current : [...current, back]));
+        setSelectedId(back.id);
+        router.refresh();
+      } catch {
+        ui.toast('Geen verbinding.');
+      }
+    },
+    [map.id, router, ui],
+  );
+
+  /**
+   * §69: the speld comes off without being asked about, and the question is in
+   * the toast afterwards.
+   *
+   * It used to open a `ui.confirm` first. Four canvases disagreed about that —
+   * the prikbord took a card off a wall with no question at all — and of the two
+   * answers, this is the one that costs nothing when you meant it and costs one
+   * press when you did not. What makes it honest rather than merely faster is
+   * that `removePin` buries the row instead of deleting it, so *Ongedaan maken*
+   * gives back the same speld: same id, same hand, same karakter.
+   *
+   * A whole landkaart is still asked about. That is a different thing — it goes
+   * to the prullenbak, which is where a Keeper looks for it by name, and the
+   * question there is not "did you mean to?" but "do you know what hangs in it?"
+   */
   const removePin = useCallback(
     async (pin: MapPin) => {
-      const yes = await ui.confirm({
-        title: `${pin.name} van de ${words.map} halen?`,
-        message:
-          pin.kind === 'entry'
-            ? `De ${words.entry} zelf blijft bestaan; alleen de ${words.mapPin} gaat weg.`
-            : pin.kind === 'map'
-              ? `De ${words.map} zelf blijft hangen; alleen de ${words.mapPin} gaat weg.`
-              : undefined,
-        confirmLabel: `${words.mapPin.charAt(0).toUpperCase()}${words.mapPin.slice(1)} weghalen`,
-        danger: true,
-      });
-      if (!yes) return;
       setBusy(true);
       try {
         const response = await fetch(`/api/maps/${map.id}/pins/${pin.id}`, { method: 'DELETE' });
@@ -823,13 +896,20 @@ export function MapCanvas({
         setSelectedId(null);
         // §5, as above: a pulled speld must not come back on the way back up.
         router.refresh();
+        // Not `cap` — that is declared further down the component, so naming it
+        // in the dep list below would read it in its own temporal dead zone.
+        const what = pin.name || words.mapPin.charAt(0).toUpperCase() + words.mapPin.slice(1);
+        ui.toast(`${what} is van de ${words.map} gehaald.`, {
+          label: 'Ongedaan maken',
+          onAction: () => void undoRemovePin(pin.id),
+        });
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
         setBusy(false);
       }
     },
-    [map.id, router, ui, words.entry, words.map, words.mapPin],
+    [map.id, router, ui, undoRemovePin, words.map, words.mapPin],
   );
 
   /**
@@ -1049,10 +1129,23 @@ export function MapCanvas({
       <div
         ref={stageRef}
         className={`map-stage${placing ? ' map-stage-placing' : ''}`}
-        onPointerDown={onStagePointerDown}
-        onPointerMove={onStagePointerMove}
-        onPointerUp={onStagePointerUp}
-        onPointerCancel={onStagePointerUp}
+        onDoubleClick={makeOnEmpty.onDoubleClick}
+        onPointerDown={(event) => {
+          onStagePointerDown(event);
+          makeOnEmpty.onPointerDown(event);
+        }}
+        onPointerMove={(event) => {
+          onStagePointerMove(event);
+          makeOnEmpty.onPointerMove(event);
+        }}
+        onPointerUp={(event) => {
+          makeOnEmpty.cancel();
+          onStagePointerUp(event);
+        }}
+        onPointerCancel={(event) => {
+          makeOnEmpty.cancel();
+          onStagePointerUp(event);
+        }}
         onPointerLeave={() => live.reportPointer(null)}
         onWheel={onWheel}
         role="application"
@@ -1146,6 +1239,9 @@ export function MapCanvas({
           (legendOpen ? (
             <aside
               className="map-legend"
+              /* §69: an `aside` with no name is "complementary" and nothing
+                 more; every floating panel on every canvas says what it is. */
+              aria-label="Legenda"
               // The legend floats over the stage; what happens in it is not a pan.
               onPointerDown={(event) => event.stopPropagation()}
               onPointerUp={(event) => event.stopPropagation()}
@@ -1503,7 +1599,7 @@ function NewPinSheet({
       } catch {
         /* aborted, or offline: the list just stays as it was */
       }
-    }, 160);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
-import { capitalise } from '@/lib/words';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { CaseRef } from '@/lib/cases/service';
+import { useDismiss } from '@/components/ui/useDismiss';
 
 /**
  * §21: names one or more dossiers in an infobox field — the working half of
@@ -49,6 +49,7 @@ export function CasePicker({
   const [open, setOpen] = useState(false);
   const [all, setAll] = useState<CaseRef[]>([]);
   const boxRef = useRef<HTMLDivElement>(null);
+  const closeList = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     if (!open || all.length) return;
@@ -58,13 +59,12 @@ export function CasePicker({
       .catch(() => undefined);
   }, [open, all.length]);
 
-  useEffect(() => {
-    const onDown = (event: PointerEvent) => {
-      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, []);
+  /*
+   * §69: Escape closes it and a press outside closes it — the box holds the
+   * input as well as the list, so the caret never leaves and there is nothing
+   * to hand back.
+   */
+  useDismiss({ open, onDismiss: closeList, ref: boxRef });
 
   const chosen = useMemo(() => new Set(ids), [ids]);
 
@@ -159,6 +159,16 @@ export function CasePicker({
                   Er is nog geen {ui.words.case} om naar te wijzen.
                 </li>
               )}
+              {/*
+               * §69: the aanmaak-rij only once something has been typed. It is
+               * the *first* `.suggest-item` in the list (the real rows wait on
+               * a fetch), so an always-there "Dossier aanmaken" is the row a
+               * hand lands on before the thing it was looking for has arrived —
+               * which is the trap `tests/e2e` writes `hasNotText: 'aanmaken'`
+               * round, and the same trap for a person. With nothing typed there
+               * is nothing to call the new dossier anyway.
+               */}
+              {query.trim() && (
               <li>
                 <button
                   type="button"
@@ -181,16 +191,11 @@ export function CasePicker({
                 >
                   <Icon name="plus" size={15} style={{ color: 'var(--stamp-red)' }} />
                   <span>
-                    {query.trim() ? (
-                      <>
-                        &lsquo;<strong>{query.trim()}</strong>&rsquo; aanmaken
-                      </>
-                    ) : (
-                      <>{capitalise(ui.words.case)} aanmaken</>
-                    )}
+                    &lsquo;<strong>{query.trim()}</strong>&rsquo; aanmaken
                   </span>
                 </button>
               </li>
+              )}
             </ul>
           )}
         </>

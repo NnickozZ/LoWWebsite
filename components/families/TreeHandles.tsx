@@ -194,8 +194,14 @@ function TreeCornerMenu({
       >
         <span aria-hidden="true">…</span>
       </button>
+      {/*
+       * §69: a `role="menu"` with no name is announced as "menu" and nothing
+       * else, so a reader hearing it has no idea whose menu it is. The button
+       * that opens it already carries the card's name (`label`); the menu says
+       * the same thing.
+       */}
       {menuOpen && (
-        <div className="tree-menu" role="menu" data-testid="tree-menu">
+        <div className="tree-menu" role="menu" aria-label={label} data-testid="tree-menu">
           {menu.map((item) => (
             <button
               key={item.key}

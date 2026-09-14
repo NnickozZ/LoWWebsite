@@ -31,6 +31,7 @@ import {
 } from '@/lib/timelines/time';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 
 /**
  * §32: the sheets around a tijdlijn — the date form, a new gebeurtenis, an
@@ -255,7 +256,7 @@ export function NewEventSheet({
       } catch {
         /* aborted, or offline: the list just stays as it was */
       }
-    }, 160);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();

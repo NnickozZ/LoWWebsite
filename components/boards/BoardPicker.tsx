@@ -6,6 +6,7 @@ import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { BoardCard } from '@/lib/boards/merge';
+import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 
 /** Anything the wall can be told to point at: an id and a name, no more. */
 export type PickableItem = { id: string; name: string };
@@ -116,7 +117,7 @@ export function BoardPicker({
       } catch {
         /* aborted */
       }
-    }, 160);
+    }, SUGGEST_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();

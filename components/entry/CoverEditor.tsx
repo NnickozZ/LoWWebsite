@@ -9,6 +9,7 @@ import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { cropFor, SHAPE_ORDER, SHAPES, type CoverCrops, type Crop, type CropShape } from '@/lib/images/shapes';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
+import { useDismiss } from '@/components/ui/useDismiss';
 
 /**
  * §6: upload from device or paste from clipboard.
@@ -72,6 +73,9 @@ export function CoverEditor({
   const [local, setLocal] = useState<CoverCrops | null>(crop);
   const fileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  /** §69: where the caret goes back to when Escape closes the menu. */
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
     setLocal(crop);
@@ -131,23 +135,14 @@ export function CoverEditor({
     return () => document.removeEventListener('paste', onPaste);
   }, [upload, readOnly]);
 
-  // The menu closes on a click outside it, and on Escape — as the Filters
-  // popover does, so both behave the same way under the same fingers.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (event: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
+  /*
+   * §69: this menu was the model the hook was written from — it already closed
+   * on a press outside and on Escape, and it was the only one of the six that
+   * did both. What it gains is the two halves it did not have: the press of
+   * Escape now stops here instead of travelling on, and the caret goes back to
+   * the button that opened the menu rather than falling to `<body>`.
+   */
+  useDismiss({ open: menuOpen, onDismiss: closeMenu, ref: menuRef, opener: menuButtonRef });
 
   // Reading an artikel that never had a picture: nothing at all, so the
   // sidebar starts at the facts instead of at an empty frame.
@@ -175,6 +170,7 @@ export function CoverEditor({
           <div className="cover-menu-anchor" ref={menuRef}>
             <button
               type="button"
+              ref={menuButtonRef}
               className="btn btn-small cover-menu-button"
               aria-expanded={menuOpen}
               aria-haspopup="menu"

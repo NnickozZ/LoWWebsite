@@ -1,5 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
+import { liveEventCondition } from '@/lib/timelines/service';
 import {
   applyAnchor,
   clampPrecision,
@@ -128,7 +129,10 @@ function eventsOfEntry(entryId: string) {
     })
     .from(schema.timelineEvents)
     .innerJoin(schema.timelines, eq(schema.timelines.id, schema.timelineEvents.timelineId))
-    .where(and(eq(schema.timelineEvents.entryId, entryId), isNull(schema.timelines.deletedAt)))
+    // §69: a buried gebeurtenis is not one of this artikel's moments.
+    .where(
+      and(liveEventCondition(), eq(schema.timelineEvents.entryId, entryId), isNull(schema.timelines.deletedAt)),
+    )
     .all();
 }
 

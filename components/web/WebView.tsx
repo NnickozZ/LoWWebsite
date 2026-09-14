@@ -682,7 +682,15 @@ export function WebView({
           </button>
         )}
         <div className="spacer" />
-        <button type="button" className="btn btn-small btn-ghost" aria-pressed={legendOpen} onClick={() => setLegendOpen((v) => !v)} data-testid="web-legend-toggle">
+        <button
+          type="button"
+          className="btn btn-small btn-ghost"
+          aria-pressed={legendOpen}
+          /* §69: it opens a panel, so it says so — the landkaart's toggle already did. */
+          aria-expanded={legendOpen}
+          onClick={() => setLegendOpen((v) => !v)}
+          data-testid="web-legend-toggle"
+        >
           <Icon name="filter" size={15} />
           Legenda
         </button>
@@ -724,7 +732,12 @@ export function WebView({
       )}
 
       <div className={`web-body${legendOpen ? ' web-body-legend' : ''}`}>
-        {legendOpen && !phone && <aside className="web-side web-side-legend">{legend}</aside>}
+        {/* §69: named, like the landkaart's. */}
+        {legendOpen && !phone && (
+          <aside className="web-side web-side-legend" aria-label="Legenda">
+            {legend}
+          </aside>
+        )}
         <div className="web-stage-wrap">
           {!full && <p className="web-loading small muted">Het web wordt gesponnen…</p>}
           <WebCanvas

@@ -167,9 +167,24 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await ask2.getByRole('button', { name: /Notitie .Mijn eigen speld. zetten/ }).click();
   const own = other.getByRole('dialog', { name: 'Mijn eigen speld' });
   await expect(own).toBeVisible();
+  /*
+   * §69: no confirm any more. It goes on the press, and the toast carries the
+   * undo — this is the line that used to be a second dialog.
+   *
+   * The id is read *before* the press, because what is being asserted is that
+   * the speld comes back rather than that a speld comes back: `restorePin`
+   * lifts `deleted_at` off the row that was always there, where the re-POST it
+   * replaced would have minted a new id and put this account's name on it.
+   */
+  const ownPin = other.locator('.map-pin', { hasText: 'Mijn eigen speld' });
+  const ownId = await ownPin.getAttribute('data-pin-id');
   await own.getByRole('button', { name: 'Speld weghalen' }).click();
-  await other.getByRole('dialog', { name: /van de landkaart halen/ }).getByRole('button', { name: 'Speld weghalen' }).click();
   await expect(other.locator('.map-pin')).toHaveCount(2);
+  await expect(ownPin).toHaveCount(0);
+
+  await other.getByRole('button', { name: 'Ongedaan maken' }).click();
+  await expect(other.locator(`.map-pin[data-pin-id="${ownId}"]`)).toBeVisible();
+  await expect(other.locator('.map-pin')).toHaveCount(3);
   await otherCtx.close();
 });
 

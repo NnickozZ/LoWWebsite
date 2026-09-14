@@ -194,7 +194,8 @@ export function listMaps(viewer: Viewer, options: MapListOptions = {}): MapSumma
   const notes = db
     .select({ mapId: schema.mapPins.mapId, n: sql<number>`count(*)` })
     .from(schema.mapPins)
-    .where(and(inArray(schema.mapPins.mapId, ids), eq(schema.mapPins.kind, 'note')))
+    // §69: a buried speld is not counted on the shelf.
+    .where(and(livePinCondition(), inArray(schema.mapPins.mapId, ids), eq(schema.mapPins.kind, 'note')))
     .groupBy(schema.mapPins.mapId)
     .all();
   for (const row of notes) counts.set(row.mapId, Number(row.n));
@@ -203,7 +204,13 @@ export function listMaps(viewer: Viewer, options: MapListOptions = {}): MapSumma
     .from(schema.mapPins)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.mapPins.entryId))
     .where(
-      and(inArray(schema.mapPins.mapId, ids), eq(schema.mapPins.kind, 'entry'), visibleEntryCondition(viewer)),
+      // §69: nor here.
+      and(
+        livePinCondition(),
+        inArray(schema.mapPins.mapId, ids),
+        eq(schema.mapPins.kind, 'entry'),
+        visibleEntryCondition(viewer),
+      ),
     )
     .groupBy(schema.mapPins.mapId)
     .all();
@@ -216,7 +223,9 @@ export function listMaps(viewer: Viewer, options: MapListOptions = {}): MapSumma
     .from(schema.mapPins)
     .innerJoin(targetMap, eq(targetMap.id, schema.mapPins.targetMapId))
     .where(
+      // §69: nor here.
       and(
+        livePinCondition(),
         inArray(schema.mapPins.mapId, ids),
         eq(schema.mapPins.kind, 'map'),
         visibleMapCondition(viewer, targetMap),
@@ -492,6 +501,30 @@ function shapePin(row: {
  *      hidden landkaart away by its name and its icon, which is the whole
  *      reason 0016 gave a landkaart a dial in the first place.
  */
+/**
+ * §69, round 35: a speld that has been taken off the landkaart.
+ *
+ * `removePin` buries the row instead of deleting it, so the *Ongedaan maken* in
+ * the toast can put back the same speld — same id, same author, same karakter —
+ * rather than a new one that looks like it. The cost of keeping the row is that
+ * **every read has to say it does not want it**, and a read that forgets is a
+ * speld that is gone from the landkaart and still on the web, still under
+ * "Genoemd in", still in the count on the shelf. It fails silently, in one
+ * place at a time.
+ *
+ * So this is one exported condition, AND-ed in at every select, with a `§69`
+ * comment at each call site — the shape `sideCondition` has carried since §46 —
+ * and `tests/unit/buried-rows.test.ts` asks every one of them against a real
+ * SQLite file rather than trusting that they were all found.
+ *
+ * Two places deliberately do *not* filter, both in `lib/admin/trash.ts`: what a
+ * destroy is about to take away, and what it takes away. Those rows are going
+ * either way, and a count that left them out would be a lie about the damage.
+ */
+export function livePinCondition() {
+  return isNull(schema.mapPins.deletedAt);
+}
+
 function visiblePinCondition(viewer: Viewer) {
   return sql`${visibleMapCondition(viewer)} AND (${schema.mapPins.kind} = 'note' OR (${schema.mapPins.kind} = 'entry' AND ${schema.entries.id} IS NOT NULL AND ${visibleEntryCondition(viewer)}) OR (${schema.mapPins.kind} = 'map' AND ${targetMap.id} IS NOT NULL))`;
 }
@@ -517,7 +550,8 @@ export function listPins(mapId: string, viewer: Viewer): MapPin[] {
     .leftJoin(schema.entries, eq(schema.entries.id, schema.mapPins.entryId))
     .leftJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
     .leftJoin(targetMap, targetJoin(viewer))
-    .where(and(eq(schema.mapPins.mapId, mapId), visiblePinCondition(viewer)))
+    // §69: buried spelden are not on the landkaart.
+    .where(and(livePinCondition(), eq(schema.mapPins.mapId, mapId), visiblePinCondition(viewer)))
     .orderBy(asc(schema.mapPins.createdAt))
     .all()
     .map(shapePin);
@@ -531,7 +565,8 @@ export function getPin(pinId: string, viewer: Viewer): MapPin | undefined {
     .leftJoin(schema.entries, eq(schema.entries.id, schema.mapPins.entryId))
     .leftJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
     .leftJoin(targetMap, targetJoin(viewer))
-    .where(and(eq(schema.mapPins.id, pinId), visiblePinCondition(viewer)))
+    // §69: buried is gone.
+    .where(and(livePinCondition(), eq(schema.mapPins.id, pinId), visiblePinCondition(viewer)))
     .get();
   return row ? shapePin(row) : undefined;
 }
@@ -668,7 +703,9 @@ function ownPin(pinId: string, actor: Author) {
       createdBy: schema.mapPins.createdBy,
     })
     .from(schema.mapPins)
-    .where(eq(schema.mapPins.id, pinId))
+    // §69: a buried speld is gone as far as every road but the restore is
+    // concerned — including this one, or a second Delete would "edit" it.
+    .where(and(livePinCondition(), eq(schema.mapPins.id, pinId)))
     .get();
   if (!pin) throw new Error('Speld niet gevonden');
   // §17: the speld follows its landkaart. A map this writer may not see has no
@@ -696,7 +733,8 @@ export function viewerCanEditPin(pinId: string, actor: Author): boolean {
   const pin = db
     .select({ mapId: schema.mapPins.mapId, createdBy: schema.mapPins.createdBy })
     .from(schema.mapPins)
-    .where(eq(schema.mapPins.id, pinId))
+    // §69: buried is gone.
+    .where(and(livePinCondition(), eq(schema.mapPins.id, pinId)))
     .get();
   if (!pin) return false;
   if (!getMapById(pin.mapId, actor)) return false;
@@ -796,12 +834,66 @@ export function convertPinToEntry(
   return getPin(pinId, actor)!;
 }
 
+/**
+ * §69: the speld goes off the landkaart, and the row stays where it is.
+ *
+ * Nothing asks first any more — the question moved into the toast afterwards
+ * as an *Ongedaan maken* — so there has to be something to undo, and it has to
+ * be the *same* speld. A `db.delete` and a later `addPin` would give back a
+ * different id with a different author on it, which is not an undo; it is a
+ * second speld that looks like the first.
+ *
+ * Every read filters `deletedAt` (see `livePinCondition`), so from here on the
+ * speld is gone in exactly the way it used to be. `sweepDeletedRows` takes the
+ * row itself away later.
+ */
 export function removePin(pinId: string, actor: Author) {
   const pin = ownPin(pinId, actor);
-  db.delete(schema.mapPins).where(eq(schema.mapPins.id, pinId)).run();
+  db
+    .update(schema.mapPins)
+    .set({ deletedAt: now(), updatedAt: now() })
+    .where(eq(schema.mapPins.id, pinId))
+    .run();
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
   // §27: a speld that has been pulled names nothing.
   recomputeMapMentions(pin.mapId);
+}
+
+/**
+ * §69: put it back, whole.
+ *
+ * The right asked is the one that took it off — `ownPin` cannot be used,
+ * because it refuses a buried speld on purpose (that is what stops a second
+ * Delete counting as an edit), so the same two questions are asked here
+ * directly: the landkaart has to be one this hand may see, and the speld has
+ * to be theirs or a Keeper's.
+ *
+ * Answers `false` where there is nothing to put back — swept, destroyed with
+ * its landkaart, or never there. The canvas says so rather than pretending.
+ */
+export function restorePin(pinId: string, actor: Author): boolean {
+  const pin = db
+    .select({
+      id: schema.mapPins.id,
+      mapId: schema.mapPins.mapId,
+      createdBy: schema.mapPins.createdBy,
+      deletedAt: schema.mapPins.deletedAt,
+    })
+    .from(schema.mapPins)
+    .where(eq(schema.mapPins.id, pinId))
+    .get();
+  if (!pin || pin.deletedAt === null) return false;
+  if (!getMapById(pin.mapId, actor)) return false;
+  if (!actor.isKeeper && pin.createdBy !== actor.id) return false;
+  db
+    .update(schema.mapPins)
+    .set({ deletedAt: null, updatedAt: now() })
+    .where(eq(schema.mapPins.id, pinId))
+    .run();
+  db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
+  // §27: and it names what it named again.
+  recomputeMapMentions(pin.mapId);
+  return true;
 }
 
 /** Where a fiche is on the maps — for the "Op de landkaart" block on its page. */
@@ -849,7 +941,9 @@ export function listMapsPinningMap(
     .from(schema.mapPins)
     .innerJoin(schema.maps, eq(schema.maps.id, schema.mapPins.mapId))
     .where(
+      // §69: a buried speld is no way up out of this landkaart.
       and(
+        livePinCondition(),
         eq(schema.mapPins.targetMapId, mapId),
         eq(schema.mapPins.kind, 'map'),
         visibleMapCondition(viewer),
@@ -883,7 +977,8 @@ export function listPinsForEntry(
     .from(schema.mapPins)
     .innerJoin(schema.maps, eq(schema.maps.id, schema.mapPins.mapId))
     // §17: "Op de landkaart" may only name the landkaarten this reader may open.
-    .where(and(eq(schema.mapPins.entryId, entryId), visibleMapCondition(viewer)))
+    // §69: and a buried speld puts this artikel on no landkaart at all.
+    .where(and(livePinCondition(), eq(schema.mapPins.entryId, entryId), visibleMapCondition(viewer)))
     .orderBy(asc(schema.maps.sortOrder))
     .all();
 }

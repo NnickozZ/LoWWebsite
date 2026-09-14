@@ -91,6 +91,23 @@ describe.each(SCHEME_KEYS)('%s', (key) => {
     expect(cardIsDark).toBe(pageIsDark);
   });
 
+  it('draws the ring round a chosen kaartje so it is seen on card and stage', () => {
+    /*
+     * §69, round 35: one ring for "chosen" on every canvas, and it is `--link`
+     * — the archive's colour for a way through to something else (§39). It was
+     * `--stamp-red` on a stamboom and `--link` on a prikbord, which is a 1-1
+     * split with no tiebreaker in the code; Nick picked the blue.
+     *
+     * The ring lies half on the card and half on the stage — `box-shadow`
+     * spreads outwards from `.tree-node-body`'s border — so it has to be seen
+     * against both, at WCAG's 3:1 floor for a graphical object. This check is
+     * why the choice was a choice rather than a rename: had the blue failed in
+     * one of the four palettes, the red would have had to stay somewhere.
+     */
+    expect(ratio(palette.link, palette.treeFace)).toBeGreaterThanOrEqual(3);
+    expect(ratio(palette.link, palette.paperDark)).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps the kaartje a card on the stage and not a hole in it', () => {
     // Distinct from the stage it lies on, but not by so much that it glares.
     const separation = ratio(palette.treeFace, palette.paperDark);
