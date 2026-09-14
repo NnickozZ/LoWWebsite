@@ -23,6 +23,46 @@ export const MAX_ZOOM = 2.5;
 /** Air round the world when everything is brought into view, in screen pixels. */
 export const FIT_PADDING = 48;
 
+/**
+ * §69 — one hand on every canvas.
+ *
+ * Three numbers that were four different numbers until this round, and the
+ * difference was never a decision:
+ *
+ * - `ZOOM_STEP` is what a zoom **button** does. It was 1.25 on the prikbord and
+ *   the stamboom, 1.4 on the landkaart and 1.6 on the tijdlijn.
+ * - `wheelFactor` is what one notch of the **wheel** does. Three surfaces
+ *   already used `exp(-deltaY × 0.0015)`; the prikbord used a flat 1.1 per
+ *   event, which ignores how far the wheel actually turned — a trackpad's long
+ *   smooth swipe and a mouse's single click moved it by exactly the same
+ *   amount (measured: `deltaY` −100 and −300 both gave one step).
+ * - `DRAG_SLOP` is how far a press travels before it is a drag rather than a
+ *   click. It was 4 px on the stamboom, 5 on the landkaart, 3 on one axis of
+ *   the tijdlijn, and on the prikbord *four board units* — which at zoom 0.25
+ *   is sixteen screen pixels and at 2.5 is under two.
+ *
+ * The tijdlijn keeps its own reading of the wheel (§68: the wheel drags the
+ * paper the way the hand goes) and asks `wheelFactor` only for ctrl+wheel.
+ */
+export const ZOOM_STEP = 1.25;
+export const DRAG_SLOP = 4;
+
+/**
+ * How much one wheel event zooms. `deltaMode` 1 is "lines" (Firefox) and 2 is
+ * "pages"; both arrive with a much smaller number than pixels do, so a factor
+ * tuned for pixels would be imperceptible there.
+ */
+export function wheelFactor(deltaY: number, deltaMode = 0): number {
+  if (!Number.isFinite(deltaY)) return 1;
+  const perUnit = deltaMode === 0 ? 0.0015 : deltaMode === 1 ? 0.05 : 0.3;
+  return Math.exp(-deltaY * perUnit);
+}
+
+/** Has this press travelled far enough to be a drag? Screen pixels, both axes. */
+export function passedSlop(dx: number, dy: number, slop = DRAG_SLOP): boolean {
+  return Math.hypot(dx, dy) > slop;
+}
+
 function tidy(value: number): number {
   return Math.round(value * 1000) / 1000;
 }

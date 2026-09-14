@@ -38,11 +38,15 @@ import {
   placeWindows,
   snapTo,
   ticksBetween,
+  UNIT_SECONDS,
   type AnchorUnit,
   type Precision,
   type Scale,
   type Side,
 } from '@/lib/timelines/time';
+import { cameraKey } from '@/components/canvas/cameraKeys';
+import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
+import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import {
   EditEventSheet,
   NewEventSheet,
@@ -110,7 +114,7 @@ const LONG_PRESS_SLOP = 8;
  * question; two thresholds would leave a band of presses that are a drag to one
  * handler and a click to the other.
  */
-const TAG_DRAG_SLOP = 3;
+const TAG_DRAG_SLOP = DRAG_SLOP;
 
 /**
  * Whether a press on a reference is the *browser's* to answer rather than the
@@ -727,7 +731,9 @@ export function TimelineCanvas({
       event.preventDefault();
       const rect = el.getBoundingClientRect();
       if (event.ctrlKey || event.metaKey) {
-        zoomAt(Math.exp(-event.deltaY * 0.0015), event.clientX - rect.left);
+        // §69: the shared reading of a wheel — the same factor the other three
+        // canvases zoom by, so one notch means one notch everywhere.
+        zoomAt(wheelFactor(event.deltaY, event.deltaMode), event.clientX - rect.left);
       } else {
         /*
          * §68: the wheel drags the paper, the hand's way round.
@@ -776,6 +782,8 @@ export function TimelineCanvas({
     id: string;
     pointerId: number;
     startClientX: number;
+    /** §69: travel is measured on the diagonal, so the press needs both. */
+    startClientY: number;
     startAt: number;
     unit: Scale;
     moved: boolean;
@@ -851,13 +859,23 @@ export function TimelineCanvas({
      * wrong twice over: it could not see a key pressed after the press began,
      * and it believed a key that was let go before the release.
      */
-    // A viewer who may not edit still presses a tag to fold its window out, so
-    // the press is followed either way; only the moving is the editor's.
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    /*
+     * A viewer who may not edit still presses a tag to fold its window out, so
+     * the press is followed either way; only the moving is the editor's.
+     *
+     * §69/§66: **no pointer capture yet.** It is taken the moment the press
+     * turns into a drag (`onEventPointerMove`) and not one pixel before.
+     * Chromium retargets the compatibility mouse events at the capture
+     * element, and this element is very often an `<a href>` — an artikel's
+     * tag — so capturing on the way down means that link never receives its
+     * own `click`. The stamboom learned this from a spec rather than from a
+     * person (§66); the tijdlijn was still doing it the old way.
+     */
     eventDrag.current = {
       id: item.id,
       pointerId: event.pointerId,
       startClientX: event.clientX,
+      startClientY: event.clientY,
       startAt: item.at,
       unit: item.precision,
       moved: false,
@@ -877,12 +895,25 @@ export function TimelineCanvas({
      * their finger across the paper, and the click that press ends with is no
      * more a click than an editor's — so it must not open a tab either.
      */
-    if (Math.abs(event.clientX - drag.startClientX) > TAG_DRAG_SLOP) pressTravelled.current = true;
+    const travelled = passedSlop(
+      event.clientX - drag.startClientX,
+      event.clientY - drag.startClientY,
+      TAG_DRAG_SLOP,
+    );
+    if (travelled) pressTravelled.current = true;
     if (!view || !canEdit) return;
     const dx = event.clientX - drag.startClientX;
-    if (!drag.moved && Math.abs(dx) <= TAG_DRAG_SLOP) return;
+    // The tag only ever moves along the axis; what decides that it is moving at
+    // all is the same diagonal travel every other canvas asks about (§69).
+    if (!drag.moved && !travelled) return;
     if (!drag.moved) {
       drag.moved = true;
+      /*
+       * §69/§66: *now* the capture, and not before. By here the hand really is
+       * carrying a tag, so swallowing the trailing click is exactly right — it
+       * is the click on the artikel's link that a drag must not fire.
+       */
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
       holdTag(drag.id);
     }
     const at = onAxis(drag.startAt + dx / view.pxPerSecond, drag.unit);
@@ -947,6 +978,13 @@ export function TimelineCanvas({
 
   function onPointerDown(event: React.PointerEvent) {
     if (!view) return;
+    /*
+     * §69/§68: only the left button and a finger start a pan. Without this a
+     * right-press on the bare axis took the pointer capture and dragged the
+     * whole tijdlijn under the browser's own menu — measured: 100 px, and the
+     * stage wearing `timeline-stage-grabbing` the whole way.
+     */
+    if (event.button !== 0) return;
     // A press that begins on a tag is that gebeurtenis's, never a pan (§35);
     // the stage has always looked the other way here, which is what lets a
     // finger drag a tag on a phone without the axis sliding away under it.
@@ -1095,6 +1133,20 @@ export function TimelineCanvas({
     const target = event.target as HTMLElement | null;
     if (target && target !== event.currentTarget && target.closest('.timeline-event, .timeline-popout, .ink-toolbar')) return;
     const step = event.shiftKey ? 240 : 60;
+    /*
+     * §69: the three camera keys are read in one place now and answered on all
+     * four canvases. This is where they were invented; the reading moved to
+     * `components/canvas/cameraKeys.ts` so the other three could not drift
+     * from it, and the step is the shared one (it was 1.6 here, 1.25 on the
+     * prikbord and the stamboom, 1.4 on the landkaart).
+     */
+    const camera = cameraKey(event);
+    if (camera) {
+      event.preventDefault();
+      if (camera === 'fit') fit(events, width);
+      else zoomAt(camera === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP, width / 2);
+      return;
+    }
     switch (event.key) {
       case 'ArrowLeft':
       case 'ArrowRight': {
@@ -1103,20 +1155,6 @@ export function TimelineCanvas({
         moveView((current) => (current ? { ...current, origin: current.origin + by / current.pxPerSecond } : current));
         return;
       }
-      case '+':
-      case '=':
-        event.preventDefault();
-        zoomAt(1.6, width / 2);
-        return;
-      case '-':
-      case '_':
-        event.preventDefault();
-        zoomAt(1 / 1.6, width / 2);
-        return;
-      case '0':
-        event.preventDefault();
-        fit(events, width);
-        return;
       case 'Escape':
         if (inkActive) return;
         if (!open.length) return;
@@ -1630,15 +1668,15 @@ export function TimelineCanvas({
           </button>
         )}
         <span className="spacer" />
-        <button type="button" className="btn btn-ghost btn-small" title="Uitzoomen" aria-label="Uitzoomen" onClick={() => zoomAt(1 / 1.6, width / 2)}>
-          <Icon name="zoomOut" size={16} />
-        </button>
-        <button type="button" className="btn btn-ghost btn-small" title="Inzoomen" aria-label="Inzoomen" onClick={() => zoomAt(1.6, width / 2)}>
-          <Icon name="zoomIn" size={16} />
-        </button>
-        <button type="button" className="btn btn-ghost btn-small" title="Alles in beeld" aria-label="Alles in beeld" onClick={() => fit(events, width)}>
-          <Icon name="fit" size={16} />
-        </button>
+        {/* §69: the shared block. The number is pixels per unit of this
+            tijdlijn's own scale — there is no "zoom 1" on an axis, and 200 %
+            is exactly where `maxPxPerSecond` already stops. */}
+        <CanvasZoomControls
+          percent={view ? view.pxPerSecond * UNIT_SECONDS[timeline.scale] : 0}
+          onOut={() => zoomAt(1 / ZOOM_STEP, width / 2)}
+          onIn={() => zoomAt(ZOOM_STEP, width / 2)}
+          onFit={() => fit(events, width)}
+        />
         {canEdit && (
           <button type="button" className="btn btn-ghost btn-small" onClick={() => setSheet({ mode: 'settings' })} data-testid="timeline-settings">
             <Icon name="gear" size={16} />

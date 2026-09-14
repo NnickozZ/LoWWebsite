@@ -16,9 +16,12 @@ import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 
+import { cameraKey } from '@/components/canvas/cameraKeys';
+import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
 import type { AccessSettings } from '@/lib/access';
 import { groupDelta, pressSelection } from '@/lib/canvas/select';
+import { passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { FRAME_LABELS } from '@/lib/families/frames';
 import {
   betweenBoxes,
@@ -148,8 +151,12 @@ export type FamilyTreeCanvasProps = {
   initialInk: InkLayerView;
 };
 
-/** How far a pointer may travel before a press on a card is a drag. */
-const DRAG_SLOP = 4;
+/*
+ * §69: how far a pointer may travel before a press on a card is a drag used to
+ * be a `DRAG_SLOP` of this file's own. The number and the sum both live in
+ * `lib/canvas/view.ts` now (`DRAG_SLOP`, `passedSlop`), where the prikbord,
+ * the landkaart and the tijdlijn read the same ones.
+ */
 /**
  * §67: how many carried cards one live frame may name. The site line takes the
  * first forty keys of `m` (`pointerFrame`, `app/api/live/site/route.ts`) and
@@ -795,12 +802,24 @@ export function FamilyTreeCanvas({
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const rect = el.getBoundingClientRect();
-      zoomBy(Math.exp(-event.deltaY * 0.0015), { x: event.clientX - rect.left, y: event.clientY - rect.top });
+      /*
+       * §69: a sideways swipe pans, the way the prikbord has always answered
+       * one. It used to fall through to the zoom, which read `deltaY` — nought
+       * on a horizontal swipe — so the gesture did nothing at all.
+       */
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        moveView((current) => ({ ...current, x: current.x - event.deltaX }));
+        return;
+      }
+      zoomBy(wheelFactor(event.deltaY, event.deltaMode), {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
     };
     // Not passive: the page must not scroll under the tree.
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [zoomBy]);
+  }, [zoomBy, moveView]);
 
   /* -------------------------------------------------------- hands, live */
 
@@ -985,6 +1004,13 @@ export function FamilyTreeCanvas({
 
   const onStagePointerDown = (event: React.PointerEvent) => {
     if (inkActive) return;
+    /*
+     * §69/§68: only the left button and a finger start a pan. Without this a
+     * right-press on bare paper took the pointer capture and dragged the whole
+     * tree while the browser's menu was coming up — measured: 100 px of travel
+     * and `.is-grabbing` on the stage.
+     */
+    if (event.button !== 0) return;
     const target = event.target as HTMLElement;
     /*
      * §66: everything on the glass that is a *control* is named here, and
@@ -1080,13 +1106,22 @@ export function FamilyTreeCanvas({
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     const dx = event.clientX - gesture.startX;
     const dy = event.clientY - gesture.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) gesture.moved = true;
+    // §69: the same threshold a card drag uses, measured on the diagonal.
+    if (passedSlop(dx, dy)) gesture.moved = true;
     moveView(() => ({ ...gesture.from, x: gesture.from.x + dx, y: gesture.from.y + dy }));
   };
 
   const onStagePointerUp = (event: React.PointerEvent, cancelled = false) => {
     touches.current.delete(event.pointerId);
     if (touches.current.size < 2) pinch.current = null;
+    /*
+     * §69: a shift-press the hook held back, answered now the press is over.
+     * `pressTravelled` is this canvas's own answer to `DRAG_SLOP`, and it is
+     * set for a reader as well as an editor — so a press that went nowhere
+     * toggles, and one that dragged the group leaves the group standing.
+     * Above every early return, and above the `canEdit` gate below it.
+     */
+    selection.endPress(pressTravelled.current);
     if (nodeDrag.current) {
       endNodeDrag(event, !cancelled);
       return;
@@ -1150,15 +1185,27 @@ export function FamilyTreeCanvas({
     const alreadySelected = selected.has(node.id);
     pressWasSelected.current = alreadySelected ? node.id : null;
     pressTravelled.current = false;
+    setSelectedEdge(null);
+    setMenuOpen(false);
+    /*
+     * §69: a schim is not selectable, and now it is not selectable *either
+     * way*. `boxOf` has answered `null` for one since §67, so a sweep has
+     * always stepped over it — but a plain click chose it, ring and all, and
+     * then nothing could be done with it: it cannot be dragged, it cannot be
+     * deleted, and it is not in the document to be saved. Two answers to
+     * "is this thing chooseable" is one answer too many.
+     */
+    if (node.standing === 'ghost') {
+      clearSelection();
+      return;
+    }
     /*
      * §67: shift toggles; a plain press on a card that is not chosen chooses
      * only it; a plain press on one that already is leaves the whole group
      * standing, because the next thing that press does is drag the group.
      */
     selection.select(node.id, additive, alreadySelected);
-    setSelectedEdge(null);
-    setMenuOpen(false);
-    if (!canEdit || node.standing === 'ghost') return;
+    if (!canEdit) return;
     const at = layout.positions[node.id];
     if (!at) return;
     /*
@@ -1205,7 +1252,7 @@ export function FamilyTreeCanvas({
     const zoom = viewRef.current?.zoom ?? 1;
     const dx = (event.clientX - held.startX) / zoom;
     const dy = (event.clientY - held.startY) / zoom;
-    if (Math.hypot(event.clientX - held.startX, event.clientY - held.startY) > DRAG_SLOP) {
+    if (passedSlop(event.clientX - held.startX, event.clientY - held.startY)) {
       /*
        * Recorded before anything asks whether this hand may *move* a card: a
        * reader who cannot edit still drags a finger across the paper, and the
@@ -1214,7 +1261,7 @@ export function FamilyTreeCanvas({
        */
       pressTravelled.current = true;
     }
-    if (!held.moved && Math.hypot(event.clientX - held.startX, event.clientY - held.startY) <= DRAG_SLOP) return;
+    if (!held.moved && !passedSlop(event.clientX - held.startX, event.clientY - held.startY)) return;
     if (!held.moved) {
       held.moved = true;
       // Now, and only now: the hand is carrying something, so it may leave the
@@ -1968,6 +2015,18 @@ export function FamilyTreeCanvas({
         undo();
         return;
       }
+      /*
+       * §69: `+`, `−` and `0` move the camera, the way the tijdlijn has always
+       * let them. A reader may press them too — they change nothing anybody
+       * else can see — so they sit above the `canEdit` gate.
+       */
+      const camera = cameraKey(event);
+      if (camera) {
+        event.preventDefault();
+        if (camera === 'fit') fitAll();
+        else zoomBy(camera === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP);
+        return;
+      }
       if (!canEdit || sheet) return;
       if (event.key === 'Delete' || event.key === 'Backspace') {
         if (!selected.size) return;
@@ -1979,7 +2038,20 @@ export function FamilyTreeCanvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onInkKey, picker, menuOpen, selectedEdge, selected, canEdit, sheet, undo, removeChosen, clearSelection]);
+  }, [
+    onInkKey,
+    picker,
+    menuOpen,
+    selectedEdge,
+    selected,
+    canEdit,
+    sheet,
+    undo,
+    removeChosen,
+    clearSelection,
+    fitAll,
+    zoomBy,
+  ]);
 
   /* ------------------------------------------------------------ the e2e seam */
 
@@ -2199,26 +2271,16 @@ export function FamilyTreeCanvas({
 
         <span className="save-state">{syncLabel(sync.state, sync.error)}</span>
 
-        <span className="tree-zoom" role="group" aria-label="Zoomen">
-          <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Uitzoomen" title="Uitzoomen">
-            &minus;
-          </button>
-          <span className="tree-zoom-level">{Math.round(glass.zoom * 100)}%</span>
-          <button type="button" onClick={() => zoomBy(1.25)} aria-label="Inzoomen" title="Inzoomen">
-            +
-          </button>
-        </span>
-        <button
-          type="button"
-          className="btn btn-small"
-          onClick={fitAll}
-          data-testid="tree-fit"
-          aria-label="Alles in beeld"
-          title="Alles in beeld"
-        >
-          <Icon name="crosshair" size={14} />
-          <span className="tree-tool-word">Alles in beeld</span>
-        </button>
+        {/* §69: the shared block. Its buttons are `.btn.btn-small` like every
+            other control in this row — these were 26×24 px, the only ones on
+            the page that were not. */}
+        <CanvasZoomControls
+          percent={glass.zoom * 100}
+          onOut={() => zoomBy(1 / ZOOM_STEP)}
+          onIn={() => zoomBy(ZOOM_STEP)}
+          onFit={fitAll}
+          fitTestId="tree-fit"
+        />
       </div>
 
       {/* ---------------------------------------------------------- stage */}

@@ -42,8 +42,18 @@ import {
   type Viewport,
 } from '@/lib/boards/merge';
 import { changedIds, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
+import { cameraKey } from '@/components/canvas/cameraKeys';
+import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { groupDelta } from '@/lib/canvas/select';
-import { clampZoom, fitViewport, zoomAbout } from '@/lib/canvas/view';
+import {
+  clampZoom,
+  FIT_PADDING,
+  fitViewport,
+  passedSlop,
+  wheelFactor,
+  zoomAbout,
+  ZOOM_STEP,
+} from '@/lib/canvas/view';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
 import { UNDO_LIMIT, createUndoStack, type UndoStack } from '@/components/canvas/undoStack';
 import {
@@ -88,8 +98,6 @@ import type { InkLayerView } from '@/lib/ink/types';
 /** How far in "Alles in beeld" is allowed to go. A wall of four cards blown up
  *  two and a half times reads as broken rather than as helpful. */
 const FIT_MAX_ZOOM = 1.2;
-/** Air round the wall when everything is brought into view, in screen pixels. */
-const FIT_PADDING = 40;
 /** Size of the SVG layer the red string is drawn on, centred on the origin. */
 const STRING_LAYER = 40000;
 
@@ -1209,6 +1217,8 @@ export function BoardCanvas({
    */
   function onGripPointerDown(event: React.PointerEvent, card: BoardCard) {
     if (!interactive) return;
+    // §69/§68: only the left button is the archive's. A touch reports 0 too.
+    if (event.button !== 0) return;
     // A grip is only ever dragged: no click, no focus, no pan underneath it.
     event.stopPropagation();
     event.preventDefault();
@@ -1228,6 +1238,12 @@ export function BoardCanvas({
 
   function onPinPointerDown(event: React.PointerEvent, cardId: string) {
     if (!interactive) return;
+    /*
+     * §69/§68: only the left button. Without this, a right-press on a pin head
+     * started a draad — measured: a `.board-string-drawing` path followed the
+     * right button across the cork while the browser's own menu was opening.
+     */
+    if (event.button !== 0) return;
     // A pin head is a drag and nothing else — no click, no focus, no text —
     // so refusing the default here costs nothing and stops the string from
     // dragging a blue selection along behind it.
@@ -1245,6 +1261,8 @@ export function BoardCanvas({
     end: 'from' | 'to',
   ) {
     if (!interactive) return;
+    // §69/§68: only the left button.
+    if (event.button !== 0) return;
     event.stopPropagation();
     // Same as the pin head: a grip is only ever dragged.
     event.preventDefault();
@@ -1259,6 +1277,9 @@ export function BoardCanvas({
   }
 
   function onStringPointerDown(event: React.PointerEvent, stringId: string) {
+    // §69/§68: only the left button — a right-press on a draad belongs to the
+    // browser, and choosing the draad under its menu is not what was asked.
+    if (event.button !== 0) return;
     event.stopPropagation();
     setSelected(new Set());
     setSelectedStringId(stringId);
@@ -1357,7 +1378,20 @@ export function BoardCanvas({
     if (drag.current) {
       const dx = (event.clientX - drag.current.startX) / viewport.zoom;
       const dy = (event.clientY - drag.current.startY) / viewport.zoom;
-      if (!dragMoved.current && Math.abs(dx) + Math.abs(dy) > 4) {
+      /*
+       * §69: the shared threshold, measured where the hand is — on the screen.
+       * This asked for four *board units* of Manhattan travel, which is a hand
+       * that has to move sixteen screen pixels at zoom 0.25 and under two at
+       * 2.5: the same press was a click on a zoomed-out wall and a drag on a
+       * zoomed-in one.
+       */
+      if (
+        !dragMoved.current &&
+        passedSlop(
+          event.clientX - drag.current.startX,
+          event.clientY - drag.current.startY,
+        )
+      ) {
         dragMoved.current = true;
         pushUndo(drag.current.before);
       }
@@ -1402,6 +1436,15 @@ export function BoardCanvas({
   }
 
   function onPointerUp(event: React.PointerEvent) {
+    /*
+     * §69: a shift-press the hook held back, answered now that the press is
+     * over. A press that travelled was a group being dragged by one of its
+     * members and leaves the group standing; one that did not is the toggle
+     * it looked like. First thing in the handler, because every road out of
+     * here returns early — and on a phone or a read-only wall there is no
+     * `drag.current` at all, so no later branch would reach it.
+     */
+    selection.endPress(dragMoved.current);
     if (resize.current) {
       const changed = resize.current.moved;
       const id = resize.current.id;
@@ -1648,8 +1691,10 @@ export function BoardCanvas({
     }
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
+    // §69: the shared reading of a wheel. This was a flat 1.1 per event, which
+    // answered a mouse's click and a trackpad's long swipe with the same step.
     zoomAround(
-      event.deltaY < 0 ? 1.1 : 1 / 1.1,
+      wheelFactor(event.deltaY, event.deltaMode),
       event.clientX - rect.left,
       event.clientY - rect.top,
     );
@@ -1657,16 +1702,32 @@ export function BoardCanvas({
 
   function onTouchMove(event: React.TouchEvent) {
     if (event.touches.length !== 2) return;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
     const [a, b] = [event.touches[0], event.touches[1]];
     const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    /*
+     * §69: a knijp zooms about the point between the two fingers, the way the
+     * landkaart, the tijdlijn and the stamboom already do it.
+     *
+     * This used to set `zoom` and nothing else, which anchors the wall at its
+     * top-left corner rather than under the hand — measured on a 390 px
+     * screen, the y never moved at all and the x drifted fifty pixels. And
+     * both fingers had each started a pan of their own on the way down, so the
+     * wall slid *under* the knijp as well: a second finger ends the pan.
+     */
+    pan.current = null;
     if (!pinch.current) {
       pinch.current = { distance, zoom: viewport.zoom };
       return;
     }
-    const ratio = distance / pinch.current.distance;
-
-    const nextZoom = clampZoom(pinch.current.zoom * ratio);
-    setViewport((current) => ({ ...current, zoom: nextZoom }));
+    const started = pinch.current;
+    const midX = (a.clientX + b.clientX) / 2 - rect.left;
+    const midY = (a.clientY + b.clientY) / 2 - rect.top;
+    setViewport((current) => {
+      const wanted = clampZoom(started.zoom * (distance / started.distance));
+      return zoomAbout(current, wanted / current.zoom, midX, midY);
+    });
   }
 
   function fitAll() {
@@ -1726,6 +1787,19 @@ export function BoardCanvas({
       // in the same words, on all four canvases.)
       if (onInkKey(event)) return;
 
+      /*
+       * §69: `+`, `−` and `0` move the camera. Above the `readOnly` gate on
+       * purpose — a viewer may look wherever they like, and on a wall with no
+       * zoom buttons on a phone this is the keyboard's only way in.
+       */
+      const camera = cameraKey(event);
+      if (camera) {
+        event.preventDefault();
+        if (camera === 'fit') fitAll();
+        else zoomAround(camera === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP);
+        return;
+      }
+
       if (readOnly) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
@@ -1744,7 +1818,19 @@ export function BoardCanvas({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, selectedStringId, drawing, lightbox, removeCards, removeString, undo, readOnly, onInkKey]);
+  }, [
+    selected,
+    selectedStringId,
+    drawing,
+    lightbox,
+    removeCards,
+    removeString,
+    undo,
+    readOnly,
+    onInkKey,
+    picker,
+    zoomAround,
+  ]);
 
   /** If the pointer leaves the board mid-drag, finish rather than stick. */
   useEffect(() => {
@@ -2399,19 +2485,14 @@ export function BoardCanvas({
         {/* §61: the archive's own reason when it gave one, not a guess. */}
         <span className="save-state">{syncLabel(sync.state, sync.error)}</span>
 
-        <span className="board-zoom" role="group" aria-label="Zoomen">
-          <button type="button" onClick={() => zoomAround(1 / 1.25)} aria-label="Uitzoomen">
-            &minus;
-          </button>
-          <span className="board-zoom-level">{Math.round(viewport.zoom * 100)}%</span>
-          <button type="button" onClick={() => zoomAround(1.25)} aria-label="Inzoomen">
-            +
-          </button>
-        </span>
-
-        <button type="button" className="btn btn-small" onClick={fitAll}>
-          Alles in beeld
-        </button>
+        {/* §69: the shared block — the same three buttons, the same names and
+            the same size as the landkaart, the tijdlijn and the stamboom. */}
+        <CanvasZoomControls
+          percent={viewport.zoom * 100}
+          onOut={() => zoomAround(1 / ZOOM_STEP)}
+          onIn={() => zoomAround(ZOOM_STEP)}
+          onFit={fitAll}
+        />
         <button
           type="button"
           className="btn btn-small btn-ghost"

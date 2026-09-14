@@ -117,7 +117,9 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   const pinAfter = (await page.locator('.map-pin', { hasText: 'Pier Boone' }).boundingBox())!;
   expect(Math.round(pinAfter.height)).toBe(Math.round(pinBefore.height));
   expect(Math.round(pinAfter.width)).toBe(Math.round(pinBefore.width));
-  await page.getByRole('button', { name: 'Passend maken' }).click();
+  // §69: this button was the landkaart's own "Passend maken"; every canvas
+  // says "Alles in beeld" now, and it is the same button on all four.
+  await page.getByRole('button', { name: 'Alles in beeld' }).click();
 
   // The legend: one line per kind, and switching notes off hides the note.
   const legend = await openLegend(page);

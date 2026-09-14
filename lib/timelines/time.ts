@@ -1,3 +1,5 @@
+import { FIT_PADDING } from '@/lib/canvas/view';
+
 /**
  * §32: time, as a tijdlijn measures it.
  *
@@ -596,8 +598,15 @@ export function fitView(
   // One moment, or all on one moment: show it in the middle of a default span.
   let span = max - min;
   if (span < UNIT_SECONDS[scale] * 2) span = Math.max(span, defaultSpan(scale) / 4);
-  const padded = span * 1.25;
-  const pxPerSecond = Math.min(maxPxPerSecond(scale), Math.max(MIN_PX_PER_SECOND, w / padded));
+  /*
+   * §69: `FIT_PADDING` pixels of air at each end, the same margin the other
+   * three canvases leave. It used to be a quarter of the span added to it,
+   * which is a margin that grows with the reach of the tijdlijn: a century of
+   * gebeurtenissen left twelve years of blank paper on either side, and an
+   * afternoon left an hour.
+   */
+  const room = Math.max(1, w - FIT_PADDING * 2);
+  const pxPerSecond = Math.min(maxPxPerSecond(scale), Math.max(MIN_PX_PER_SECOND, room / span));
   const shown = w / pxPerSecond;
   return { origin: (min + max) / 2 - shown / 2, pxPerSecond };
 }

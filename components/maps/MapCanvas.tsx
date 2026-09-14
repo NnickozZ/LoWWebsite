@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { cameraKey } from '@/components/canvas/cameraKeys';
+import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
+import { DRAG_SLOP, FIT_PADDING, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
@@ -41,9 +44,19 @@ import type { InkLayerView } from '@/lib/ink/types';
  * "Speld zetten" mode a tap or click on the map asks what goes there.
  */
 
+/*
+ * §69: the landkaart keeps its own two zoom numbers, and that is a decision
+ * rather than a leftover. Zoom 1 here means *one picture pixel per screen
+ * pixel* — so a 400 px drawing at the shared ceiling of 2.5 would still be a
+ * postage stamp, and a 4000 px survey map at the shared floor of 0.25 is still
+ * perfectly readable. The floor is a fraction of whatever "fits", the ceiling
+ * is absolute. What is shared is the road they travel: `clampZoom` below, and
+ * `FIT_PADDING` in `fit`.
+ */
 const MIN_ZOOM_FACTOR = 0.4;
 const MAX_ZOOM = 8;
-const DRAG_THRESHOLD = 5;
+/** §69: the threshold itself is shared; this name is used all over the file. */
+const DRAG_THRESHOLD = DRAG_SLOP;
 const NOTE_COLOUR = 'var(--stamp-red)';
 /**
  * §39: a speld that stands for another landkaart. The ink blue the archive
@@ -220,7 +233,23 @@ export function MapCanvas({
   const fit = useCallback(
     (size = stageSize) => {
       if (!size.w || !size.h || !map.width || !map.height) return;
-      const zoom = Math.min(size.w / map.width, size.h / map.height);
+      /*
+       * §69: air round the picture, and a ceiling.
+       *
+       * This used to divide the stage by the picture and take the answer as
+       * read. Two things came of that. A picture much smaller than the stage
+       * fitted at a zoom above the ceiling — a 200×150 drawing on a 1440 px
+       * screen opened at 5.04 and the first press of "Inzoomen" *shrank* it,
+       * because `zoomBy` clamps and `fit` did not. And the picture touched all
+       * four edges, where every other canvas leaves `FIT_PADDING` of air.
+       */
+      const room = {
+        w: Math.max(1, size.w - FIT_PADDING * 2),
+        h: Math.max(1, size.h - FIT_PADDING * 2),
+      };
+      const zoom = Math.min(MAX_ZOOM, Math.min(room.w / map.width, room.h / map.height));
+      // The floor is a fraction of *this* number (`clampZoom`), so it is the
+      // fit itself that is remembered, not the clamped view.
       fitZoomRef.current = zoom;
       setView({
         zoom,
@@ -422,11 +451,17 @@ export function MapCanvas({
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
-      onInkKey(event);
+      if (onInkKey(event)) return;
+      // §69: `+`, `−` and `0` move the camera here too.
+      const camera = cameraKey(event);
+      if (!camera) return;
+      event.preventDefault();
+      if (camera === 'fit') fit();
+      else zoomBy(camera === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onInkKey]);
+  }, [onInkKey, fit, zoomBy]);
 
   const draggingRef = useRef<string | null>(null);
   draggingRef.current = dragging;
@@ -489,7 +524,14 @@ export function MapCanvas({
     if (event.button !== 0 && event.pointerType === 'mouse') return;
     const point = stagePoint(event);
     pointers.current.set(event.pointerId, point);
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    /*
+     * §69/§66: **no pointer capture yet** — it is taken at the drag threshold
+     * in `onStagePointerMove`. Chromium retargets the compatibility mouse
+     * events at the capture element, so a stage that captures on the way down
+     * swallows the `click` of anything inside it. The stamboom was taught this
+     * by a spec; the landkaart, whose spelden carry links in their blad, was
+     * still doing it the old way.
+     */
 
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
@@ -514,9 +556,13 @@ export function MapCanvas({
     event.stopPropagation();
     const point = stagePoint(event);
     pointers.current.set(event.pointerId, point);
-    // The stage holds the capture, so the up arrives there even off the pin.
-    // (Which also means no `click` reaches the pin: selection happens on up.)
-    stageRef.current?.setPointerCapture(event.pointerId);
+    /*
+     * §69/§66: the capture is taken at the drag threshold, in
+     * `onStagePointerMove`, and the stage is what takes it — so the up arrives
+     * there even when the hand has left the speld. Until then the speld keeps
+     * its own events, which is what lets a press that goes nowhere stay a
+     * press on the speld rather than a press on the stage.
+     */
     gesture.current = {
       kind: 'pin',
       moved: false,
@@ -561,7 +607,16 @@ export function MapCanvas({
 
     const dx = point.x - g.start.x;
     const dy = point.y - g.start.y;
-    if (!g.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    // §69: one threshold, one shape of sum, on all four canvases.
+    if (!g.moved && !passedSlop(dx, dy, DRAG_THRESHOLD)) return;
+    if (!g.moved) {
+      /*
+       * §69/§66: *now* the capture. The hand really is carrying something — the
+       * picture or a speld — so the up belongs to the stage wherever it lands,
+       * and swallowing the trailing click is exactly right.
+       */
+      stageRef.current?.setPointerCapture(event.pointerId);
+    }
     g.moved = true;
 
     if (g.kind === 'pan' || (g.kind === 'pin' && !g.movable)) {
@@ -617,9 +672,40 @@ export function MapCanvas({
     }
   };
 
+  /*
+   * §69: the capture is lazy now, so a press that leaves the stage *before* it
+   * passes the threshold never comes back as a pointerup here — and a gesture
+   * left standing would make the next press on the picture read as the tail of
+   * this one. The prikbord has kept this same net since §61; this is its shape.
+   * A gesture that moved took the capture and needs no help.
+   */
+  useEffect(() => {
+    const finish = () => {
+      const g = gesture.current;
+      if (!g || g.moved) return;
+      gesture.current = null;
+      pointers.current.clear();
+      setDragging(null);
+    };
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    return () => {
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+    };
+  }, []);
+
   const onWheel = (event: React.WheelEvent) => {
+    /*
+     * §69: a sideways swipe pans, as it does on the prikbord and the stamboom.
+     * `deltaX` used to be read by nobody here, so the gesture was silent.
+     */
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+      setView((current) => ({ ...current, tx: current.tx - event.deltaX }));
+      return;
+    }
     const point = stagePoint(event);
-    zoomBy(Math.exp(-event.deltaY * 0.0015), point);
+    zoomBy(wheelFactor(event.deltaY, event.deltaMode), point);
   };
 
   // React attaches wheel listeners passively; keeping the page from scrolling
@@ -946,17 +1032,16 @@ export function MapCanvas({
             Legenda
           </button>
         )}
-        <span className="row" style={{ gap: '0.2rem' }} aria-label="Zoomen">
-          <button type="button" className="btn btn-ghost btn-small" aria-label="Uitzoomen" onClick={() => zoomBy(1 / 1.4)}>
-            <Icon name="zoomOut" size={16} />
-          </button>
-          <button type="button" className="btn btn-ghost btn-small" aria-label="Inzoomen" onClick={() => zoomBy(1.4)}>
-            <Icon name="zoomIn" size={16} />
-          </button>
-          <button type="button" className="btn btn-ghost btn-small" aria-label="Passend maken" title="Passend maken" onClick={() => fit()}>
-            <Icon name="fit" size={16} />
-          </button>
-        </span>
+        {/* §69: the shared block. The third button was called "Passend maken"
+            here and "Alles in beeld" on the other three; the number beside it
+            is picture pixels per screen pixel, which is what zoom means on a
+            landkaart. */}
+        <CanvasZoomControls
+          percent={view.zoom * 100}
+          onOut={() => zoomBy(1 / ZOOM_STEP)}
+          onIn={() => zoomBy(ZOOM_STEP)}
+          onFit={() => fit()}
+        />
       </div>
 
       {isPhone && legendOpen && <div className="map-legend map-legend-phone">{legendPanel}</div>}

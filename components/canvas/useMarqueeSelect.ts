@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import {
   hitsIn,
   pressSelection,
+  toggleSelection,
   type Box,
   type Rect,
 } from '@/lib/canvas/select';
@@ -54,6 +55,12 @@ export type MarqueeSelect = {
   setSelected: (next: Set<string> | ((current: Set<string>) => Set<string>)) => void;
   /** A press on a thing. `additive` is Shift; see `pressSelection`. */
   select: (id: string, additive: boolean, alreadySelected?: boolean) => void;
+  /**
+   * §69: that press has ended. Pass whether it travelled far enough to be a
+   * drag. Only a shift-press on something already chosen is waiting on this;
+   * for every other press it costs nothing and may be called anyway.
+   */
+  endPress: (travelled: boolean) => void;
   /** Nothing chosen. Cheap when nothing was chosen already. */
   clear: () => void;
   /** The box being swept, in world coordinates, or null. */
@@ -119,12 +126,45 @@ export function useMarqueeSelect<T extends { id: string }>(options: {
   /** The open box, as a ref too: `onPointerUp` must not read a stale render. */
   const openRef = useRef<Rect | null>(null);
 
+  /**
+   * §69: a shift-press on something *already* chosen, held back until the
+   * press is over.
+   *
+   * Measured on both canvases that answer shift at all: choose A, shift-click
+   * B, then shift-press B and drag. Both cards travelled — which is right,
+   * that is a group being grabbed by one of its members — and B came out of
+   * the selection on the way down, so the hand let go of a group of two with
+   * one of them outlined and the other not. The toggle is the *end* of a
+   * press that did not travel; a press that travels is a drag and must leave
+   * the selection alone.
+   */
+  const pendingToggle = useRef<string | null>(null);
+
   const select = useCallback((id: string, additive: boolean, alreadySelected?: boolean) => {
     setSelected((current) => {
+      const chosen = alreadySelected ?? current.has(id);
+      if (additive && chosen) {
+        // Not yet: this may be the first millimetre of a group drag.
+        pendingToggle.current = id;
+        return current;
+      }
+      pendingToggle.current = null;
       // `pressSelection` gives back the very Set it was handed when the press
       // changes nothing — a plain press on a card that is already chosen.
-      return pressSelection(current, id, additive, alreadySelected ?? current.has(id));
+      return pressSelection(current, id, additive, chosen);
     });
+  }, []);
+
+  /**
+   * The press that `select` held back is over. `travelled` is the surface's own
+   * answer to "was this a drag" — each one measures it against `DRAG_SLOP` in
+   * its own coordinates, and only the surface knows.
+   */
+  const endPress = useCallback((travelled: boolean) => {
+    const id = pendingToggle.current;
+    pendingToggle.current = null;
+    if (!id || travelled) return;
+    setSelected((current) => toggleSelection(current, id, true));
   }, []);
 
   const clear = useCallback(() => {
@@ -177,6 +217,7 @@ export function useMarqueeSelect<T extends { id: string }>(options: {
     selected,
     setSelected,
     select,
+    endPress,
     clear,
     marquee,
     beginMarquee,

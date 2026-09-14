@@ -391,8 +391,20 @@ test('a tijdlijn that speelt op one day fills it in and will not leave it', asyn
   // Zoomed all the way out the axis is that day and no more, so neither a
   // pan nor another zoom can bring 4 October into sight: the tag does not
   // move a pixel.
+  /*
+   * §69: the button steps by the shared 1.25 now rather than this canvas's own
+   * 1.6, so "all the way out" takes more presses than the eight this used to
+   * count. Press until the axis stops answering instead: the fence is what is
+   * being tested, not the number of clicks it takes to reach it.
+   */
   const zoomOut = page.getByRole('button', { name: 'Uitzoomen' });
-  for (let i = 0; i < 8; i++) await zoomOut.click();
+  let resting = Number.NaN;
+  for (let i = 0; i < 30; i++) {
+    await zoomOut.click();
+    const box = (await tag.boundingBox())!;
+    if (Math.abs(box.x - resting) < 0.5) break;
+    resting = box.x;
+  }
   const before = (await tag.boundingBox())!;
   const stage = (await page.getByTestId('timeline-stage').boundingBox())!;
   // From the empty left-hand end of the axis, so the press is bare stage and

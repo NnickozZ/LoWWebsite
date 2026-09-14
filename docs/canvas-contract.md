@@ -530,33 +530,42 @@ Alles hieronder is `OPEN`. Er staat bij wat de meerderheid doet en wat het
 kost; er staat geen keuze in. Fase 2 begint pas als hier een antwoord op staat
 (*Klaar is klaar* punt 1).
 
-1. **Het wiel op de tijdlijn pant (§68); op de andere drie zoomt het.** Ik heb
-   het `BEWUST` gestempeld op grond van README regel 68 en `TC:732-748`, maar
-   het staat niet in *Bewust anders*. Blijft het? (Zo ja: ctrl+wiel zoomt er al
+> **Beantwoord op 14 september 2026** — vraag 1, 2, 3 en 11, de vier die as 1
+> tegenhielden. Ze staan hieronder met het antwoord erbij en zijn in fase 2
+> as 1 gebouwd. Vraag 4, 5 (deels), 6, 7, 8, 9 en 10 staan nog open en houden
+> as 3, as 4 en de tweede partij tegen.
+
+1. **BEANTWOORD — blijft pannen.** Het wiel op de tijdlijn pant (§68); op de
+   andere drie zoomt het. Nick koos de uitzondering te houden, dus hij is
+   `BEWUST` met §68 als de regel die hem beschermt, en er wordt niets aan
+   regel 68 omgekeerd. Ctrl+wiel zoomt er wél, en gaat sinds as 1 door
+   dezelfde `wheelFactor` als de andere drie. (Zo ja: ctrl+wiel zoomt er al
    om de cursor, dus rij 2 klopt op alle vier; zo nee: één regel in `TC:750-752`
    en regel 68 wordt herschreven — een `DECISIONS`-omkering.)
-2. **Zijwaarts wiel.** Het prikbord pant x op een zijwaartse trackpad-veeg
-   (`BC:1644-1647`); de landkaart, de stamboom en het web negeren `deltaX`. De
-   meerderheid is "niets" en dat is het enige vakje in de tafel waar de
-   meerderheid een dood gebaar is. Naar alle vier (één regel in de gedeelde
-   wielhelper, S) of naar geen (één regel weg)?
-3. **Toetsen voor de camera** (`+` `−` `0`, pijltjes). Alleen de tijdlijn (en het
-   web met `f`) heeft ze; de knoppen zijn overal met Tab bereikbaar, dus een
-   toetsenbordgebruiker is niet buitengesloten. Naar alle vier (S, één gedeelde
-   keydown in `components/canvas/`) of naar geen (de tijdlijn verliest ze, en
-   zijn `aria-label` "pijltjes schuiven, + en - zoomen" `TC:1666` gaat mee)?
+2. **BEANTWOORD — naar alle vier.** Een zijwaartse trackpad-veeg pant nu ook
+   op de landkaart en de stamboom (de tijdlijn deed het al, §68). Het prikbord
+   hield wat het had.
+3. **BEANTWOORD — naar alle vier.** `+`, `−` en `0` bedienen de camera op
+   elk canvas; het lezen van de toets staat één keer in
+   `components/canvas/cameraKeys.ts` en elke plek houdt zijn eigen wachters
+   (typen, potlood, open blad). De pijltjes blijven van de tijdlijn alleen —
+   die schuiven langs een as en hebben op een tweedimensionaal glas geen
+   betekenis die hier al vastligt.
 4. **Dubbelklik op leeg papier maakt iets** (tijdlijn: nieuwe gebeurtenis op dat
    moment, `TC:1041-1053`; telefoon: lang drukken 500 ms, `TC:1070-1086`). De
    andere drie hebben alleen de knop. Het is de reden dat taak A op de tijdlijn
    4 is en niet 7. Naar alle vier (prikbord: notitie op die plek; stamboom:
    los kaartje op die plek; landkaart: het is al `Speld zetten` + tik — M per
    plek, 1,5–2 u samen) of naar geen (de tijdlijn wordt 7)?
-5. **De zoomgrenzen van de landkaart** (`fit × 0.4` tot 8 in beeldpixels,
-   `MC:44-45`) tegenover `MIN_ZOOM`/`MAX_ZOOM` 0.25–2.5. Zoom 1 is op een
-   landkaart "1 beeldpixel per schermpixel"; een kaart van 400 px breed is bij
-   2.5 nog klein, een kaart van 4000 px is bij 0.25 nog leesbaar. Blijft de
-   landkaart in beeldpixels (dan alleen `clampZoom`/`fitViewport` met eigen
-   grenzen), of gaat hij op de gedeelde 0.25–2.5 ten opzichte van *fit*?
+5. **BEANTWOORD — beeldpixels blijven**, en zijn daarmee `BEWUST` met de reden
+   in `MC:44-58`. Wat wél gedeeld werd in as 1: `fit` klemt nu op het plafond
+   (een tekening van 200×150 opende op 5.04 en de eerste druk op `Inzoomen`
+   maakte hem *kleiner*) en laat `FIT_PADDING` lucht.
+   **Nog open in deze vraag:** die 48 px lucht is de enige plek waar ik het
+   contract volgde tegen mijn eigen twijfel in — op een telefoon van 390 px
+   kost het een kwart van de breedte, en een landkaart is het enige canvas
+   waarvan de wereld één rechthoek is die het glas mág vullen. Eén constante
+   terugzetten naar 0 is één regel.
 6. **Bevestigen of undo-toast bij verwijderen.** Prikbord: geen vraag, toast
    met `Ongedaan maken` (`BC:942-984`). Stamboom: altijd vragen (`FC:1320-1422`)
    én undo. Landkaart en tijdlijn: vragen, geen undo. Eén regel voor alle
@@ -581,9 +590,14 @@ kost; er staat geen keuze in. Fase 2 begint pas als hier een antwoord op staat
 10. **`FamilyTreePicker` zonder `‘X’ aanmaken`-rij** — per commentaar
     "by design" (`FamilyTreePicker.tsx:19-21`), terwijl `CasePicker` en
     `EntryPicker` er wel een hebben. Blijft dat?
-11. **De `NN%`-uitlezing** naast de zoomknoppen (prikbord, stamboom) vervalt in
-    het doel van rij 5 omdat drie van de vijf plekken hem niet hebben en hij op
-    de landkaart en de as niets betekent. Bezwaar?
+11. **BEANTWOORD — overal erbij.** Alle vier de plekken tonen het getal. Wat
+    het betekent verschilt per plek, en dat staat in
+    `components/canvas/CanvasZoomControls.tsx`: bordeenheden op een prikbord,
+    wereldeenheden op een stamboom, **beeldpixels** op een landkaart (zoom 1 =
+    één beeldpixel per schermpixel) en op een tijdlijn **pixels per eenheid
+    van de schaal** — 200 px per dag leest als 200 %, precies waar
+    `maxPxPerSecond` (`time:571-573`) toch al ophoudt, en de vloer van 1 px per
+    jaar leest als 1 %.
 
 Twee dingen die géén vraag zijn maar wel een keuze van deze ronde, voor de
 volledigheid: de **woorden** (`Ophangen`/`Aanmaken`/`Openen`, `Passend maken`,

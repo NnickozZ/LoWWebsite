@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampZoom,
+  DRAG_SLOP,
   fitViewport,
   isCanvasView,
   MAX_ZOOM,
   MIN_ZOOM,
+  passedSlop,
   toWorld,
+  wheelFactor,
   zoomAbout,
+  ZOOM_STEP,
 } from '@/lib/canvas/view';
 
 /**
@@ -100,5 +104,55 @@ describe('§67 de zoom om de muis heen', () => {
     expect(isCanvasView({ x: Number.NaN, y: 2, zoom: 1 })).toBe(false);
     expect(isCanvasView(null)).toBe(false);
     expect(isCanvasView('{"x":1}')).toBe(false);
+  });
+});
+
+/**
+ * §69 — the three numbers that were four numbers. The point of each test is
+ * the *property*, not the constant: a number nobody relies on can be retuned,
+ * but "further turn, more zoom" and "the same press is a drag at every zoom"
+ * are what the round is for.
+ */
+describe('§69 één hand', () => {
+  it('zooms further the further the wheel turns', () => {
+    // The prikbord's flat 1.1 answered these two the same; this must not.
+    const small = wheelFactor(-100);
+    const large = wheelFactor(-300);
+    expect(small).toBeGreaterThan(1);
+    expect(large).toBeGreaterThan(small);
+    // And the other way is the exact inverse, so a notch back undoes a notch.
+    expect(wheelFactor(100) * wheelFactor(-100)).toBeCloseTo(1, 10);
+  });
+
+  it('reads a line-wheel and a page-wheel on their own scale', () => {
+    // Firefox reports deltaMode 1 with a deltaY of about 3 per notch, so the
+    // pixel factor would be invisible there.
+    expect(wheelFactor(-3, 1)).toBeGreaterThan(wheelFactor(-3, 0));
+    expect(wheelFactor(-1, 2)).toBeGreaterThan(wheelFactor(-1, 1));
+  });
+
+  it('answers 1 to a wheel that reported nothing usable', () => {
+    expect(wheelFactor(Number.NaN)).toBe(1);
+    expect(wheelFactor(0)).toBe(1);
+  });
+
+  it('measures the drag threshold on the diagonal, not per axis', () => {
+    // 3 px each way is 4.24 px of travel: a drag. Per-axis thresholds of 3
+    // (the tijdlijn and the stamboom's pan) and of 4 both said "still a click".
+    expect(passedSlop(3, 3)).toBe(true);
+    expect(passedSlop(DRAG_SLOP, 0)).toBe(false);
+    expect(passedSlop(DRAG_SLOP + 0.1, 0)).toBe(true);
+    expect(passedSlop(0, 0)).toBe(false);
+  });
+
+  it('keeps a button step that is a step, and its inverse', () => {
+    expect(ZOOM_STEP).toBeGreaterThan(1);
+    const inward = zoomAbout({ x: 0, y: 0, zoom: 1 }, ZOOM_STEP, 100, 100);
+    const back = zoomAbout(inward, 1 / ZOOM_STEP, 100, 100);
+    expect(back.zoom).toBeCloseTo(1, 10);
+    // The point under the cursor is where it started, so a zoom in and out is
+    // not a slow drift sideways.
+    expect(back.x).toBeCloseTo(0, 6);
+    expect(back.y).toBeCloseTo(0, 6);
   });
 });

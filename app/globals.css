@@ -2198,47 +2198,45 @@ details.section[open] > summary::before {
   border: 1px solid var(--card-rule);
 }
 
-/* ------------------------------------------------------------ board zoom */
-/* Pinch does the zooming on a phone; the readout only costs a row. */
-@media (max-width: 767px) {
-  .board-zoom {
-    display: none !important;
-  }
-}
-.board-zoom {
+/* ----------------------------------------------------------- canvas zoom */
+/*
+ * §69: one zoom block for the prikbord, the landkaart, the tijdlijn and the
+ * stamboom (`components/canvas/CanvasZoomControls.tsx`). It replaced
+ * `.board-zoom` and `.tree-zoom`, which were the same control at two sizes,
+ * and the two loose icon rows the landkaart and the tijdlijn built by hand.
+ *
+ * It is deliberately *not* hidden on a phone. The prikbord used to drop it
+ * below 768 px on the reasoning that knijpen does the zooming — which is true
+ * for zooming and leaves no way at all to press "alles in beeld", the one
+ * button that answers "where did my card go".
+ */
+.canvas-zoom {
   display: inline-flex;
   align-items: center;
+  gap: 0.15rem;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   background: var(--paper-raised);
-  overflow: hidden;
+  padding: 0.1rem;
 }
-.board-zoom button {
-  min-width: 34px;
-  min-height: 34px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-.board-zoom button:hover {
-  background: var(--paper-dark);
-}
-.board-zoom-level {
-  min-width: 4ch;
+.canvas-zoom-level {
+  min-width: 4.2ch;
   text-align: center;
   font-family: var(--stamp-face);
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--ink-muted);
-  border-left: 1px solid var(--rule);
-  border-right: 1px solid var(--rule);
-  padding: 0 0.2rem;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0 0.15rem;
+}
+/*
+ * §64: the letters may go, the accessible name may not. Same trick, and the
+ * same breakpoint as `useIsPhone`, so a toolbar that has to survive 390 px
+ * keeps its icon, its `aria-label` and its `title`.
+ */
+@media (max-width: 767px) {
+  .canvas-tool-word {
+    display: none;
+  }
 }
 
 /* ----------------------------------------------------------- board empty */

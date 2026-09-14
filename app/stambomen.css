@@ -107,34 +107,12 @@
   background: var(--ink-muted);
 }
 
-.tree-zoom {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--paper-raised);
-}
-.tree-zoom button {
-  width: 26px;
-  height: 24px;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 0.9rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.tree-zoom button:hover {
-  background: var(--paper-dark);
-}
-.tree-zoom-level {
-  min-width: 3.2rem;
-  text-align: center;
-  font-family: var(--sans);
-  font-size: 0.7rem;
-  color: var(--ink-muted);
-}
+/*
+ * §69: `.tree-zoom` lived here and drew the same control the prikbord drew in
+ * `globals.css`, at 26×24 px against everybody else's 34 — the only buttons on
+ * this page that were not `.btn.btn-small`. Both are gone; the block is
+ * `components/canvas/CanvasZoomControls.tsx` and its rules are `.canvas-zoom`.
+ */
 
 /* --------------------------------------------------------- the toolbar */
 /*

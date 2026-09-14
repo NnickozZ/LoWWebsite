@@ -344,7 +344,7 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
 
   await page.getByTestId('ink-pen').click();
   const box = await stageBox(page, '.timeline-stage');
-  // On the axis, and starting at three tenths across: a zoom of 1.6 about the
+  // On the axis, and starting at three tenths across: a zoom step about the
   // middle of the stage has to leave the whole line on the glass, on a 390 px
   // phone as well as on a 1440 px desktop, or the box below is a box round a
   // clipped line.
@@ -373,8 +373,10 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
    * the axis and its y with the stage's height, so the same drawing was an
    * ellipse at every zoom but the one it was made at — and panning, which is
    * all the test above does, could never show it, because a pan leaves
-   * `pxPerSecond` alone. A drawing on a tijdlijn is ink on the axis now: at
-   * 1.6× it is 1.6× as big in *both* directions, so its shape is untouched.
+   * `pxPerSecond` alone. A drawing on a tijdlijn is ink on the axis now: one
+   * zoom step makes it that much bigger in *both* directions, so its shape is
+   * untouched. (§69: that step is the shared 1.25 since this round; it was
+   * 1.6 here, and the band below moved with it.)
    *
    * The aspect ratio is the assertion because it does not care where the
    * drawing ended up — zooming about the middle of the stage moves it, and a
@@ -383,11 +385,11 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
   const wasWide = kept.maxX - kept.minX;
   const wasTall = kept.maxY - kept.minY;
   await page.getByRole('button', { name: 'Inzoomen' }).click();
-  await waitForInk(page, (i) => i.maxY - i.minY > wasTall * 1.3);
+  await waitForInk(page, (i) => i.maxY - i.minY > wasTall * 1.1);
   const zoomed = await settled(page);
   const grew = (zoomed.maxY - zoomed.minY) / wasTall;
-  expect(grew).toBeGreaterThan(1.4);
-  expect(grew).toBeLessThan(1.85);
+  expect(grew).toBeGreaterThan(1.15);
+  expect(grew).toBeLessThan(1.4);
   const aspect = (zoomed.maxX - zoomed.minX) / (zoomed.maxY - zoomed.minY);
   expect(Math.abs(aspect - wasWide / wasTall)).toBeLessThan((wasWide / wasTall) * 0.1);
 });
