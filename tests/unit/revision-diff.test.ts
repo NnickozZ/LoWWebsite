@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   bodyChange,
+  bodyEdit,
+  bodyLines,
+  bodyPhrase,
   changeSummary,
   describeRevision,
   revisionFacts,
@@ -97,6 +100,21 @@ describe('describeRevision — the nouns and their sentences', () => {
       facts({ bodyText: 'Eerste regel.\nTweede regel.\nDerde regel.' }),
     );
     expect(detailFor(changes, 'Tekst')).toBe('1 regel erbij');
+  });
+
+  it('§68: hangs the lines themselves on the Tekst change', () => {
+    const changes = describeRevision(facts(), facts({ bodyText: 'Eerste regel.\nDerde regel.' }));
+    const body = changes.find((change) => change.kind === 'body');
+    expect(body?.detail).toBe('1 regel erbij, 1 regel eraf');
+    expect(body?.lines).toEqual({ added: ['Derde regel.'], removed: ['Tweede regel.'], clipped: false });
+  });
+
+  it('§68: carries no lines for a step where only the order moved', () => {
+    // The box under the row would be an empty box, which reads as a broken one.
+    const changes = describeRevision(facts(), facts({ bodyText: 'Tweede regel.\nEerste regel.' }));
+    const body = changes.find((change) => change.kind === 'body');
+    expect(body?.detail).toBe('regels verplaatst');
+    expect(body?.lines).toBeUndefined();
   });
 
   describe('the infobox', () => {
@@ -250,6 +268,31 @@ describe('describeRevision — the nouns and their sentences', () => {
       expect(JSON.stringify(changes)).not.toContain('moordenaar');
     });
 
+    it('§68: counts the prose and quotes not one line of it', () => {
+      const changes = describeRevision(
+        facts({ visibility: 'keeper', bodyText: 'Hij heeft het gedaan.' }),
+        facts({ visibility: 'all', bodyText: 'Een havenmeester.' }),
+        { fields: FIELDS },
+      );
+      const body = changes.find((change) => change.kind === 'body');
+      // The count stays: a count is not a quotation, and the row already says
+      // by existing that somebody wrote something.
+      expect(body?.detail).toBe('1 regel erbij, 1 regel eraf');
+      expect(body?.lines).toBeUndefined();
+      expect(JSON.stringify(changes)).not.toContain('gedaan');
+    });
+
+    it('§68: reads the lines of a shut epoch to a Keeper', () => {
+      const changes = describeRevision(
+        facts({ visibility: 'keeper', bodyText: 'Hij heeft het gedaan.' }),
+        facts({ visibility: 'all', bodyText: 'Een havenmeester.' }),
+        { fields: FIELDS, showKeeper: true },
+      );
+      expect(changes.find((change) => change.kind === 'body')?.lines?.removed).toEqual([
+        'Hij heeft het gedaan.',
+      ]);
+    });
+
     it('reads it all to a Keeper', () => {
       const changes = describeRevision(shut, open, { fields: FIELDS, showKeeper: true });
       expect(detailFor(changes, 'Naam')).toBe('“De moordenaar” → “Jacob den Hollander”');
@@ -309,6 +352,61 @@ describe('bodyChange', () => {
 
   it('ignores blank lines, which a document gains and loses on its own', () => {
     expect(bodyChange('een\n\ntwee', 'een\ntwee')).toBe('regels verplaatst');
+  });
+});
+
+/**
+ * §68: the same pass, read the other way — not how many lines moved but which.
+ * The claim worth pinning is that it *is* the same pass: the sentence on a
+ * history row and the box under it must never be able to disagree.
+ */
+describe('bodyEdit', () => {
+  it('gives the lines that came and went, in the order they stand', () => {
+    const edit = bodyEdit('een\ntwee\ndrie', 'een\nvier\ndrie\nvijf');
+    expect(edit.added).toEqual(['vier', 'vijf']);
+    expect(edit.removed).toEqual(['twee']);
+  });
+
+  it('says the same thing as the sentence on the row', () => {
+    for (const [before, after] of [
+      ['een\ntwee', 'een\ndrie\nvier'],
+      ['een\ntwee\ndrie', 'een'],
+      ['een\ntwee', 'twee\neen'],
+      ['een twee', 'een twee drie'],
+    ]) {
+      expect(bodyPhrase(bodyEdit(before, after))).toBe(bodyChange(before, after));
+    }
+  });
+
+  it('spends a repeated line once, so three copies against two is one surplus', () => {
+    const edit = bodyEdit('x\nx', 'x\nx\nx');
+    expect(edit.added).toEqual(['x']);
+    expect(edit.removed).toEqual([]);
+  });
+
+  it('has nothing to show for lines that only moved', () => {
+    const edit = bodyEdit('een\ntwee', 'twee\neen');
+    expect(edit.added).toEqual([]);
+    expect(edit.removed).toEqual([]);
+  });
+});
+
+describe('bodyLines', () => {
+  it('carries ten lines a side and says when it cut', () => {
+    const after = Array.from({ length: 14 }, (_, i) => `regel ${i}`).join('\n');
+    const lines = bodyLines(bodyEdit('', after));
+    expect(lines.added).toHaveLength(10);
+    expect(lines.removed).toEqual([]);
+    expect(lines.clipped).toBe(true);
+  });
+
+  it('shortens one very long line at a word rather than in the middle of one', () => {
+    const long = 'woord '.repeat(80).trim();
+    const lines = bodyLines(bodyEdit('', long));
+    expect(lines.added[0].length).toBeLessThanOrEqual(240);
+    expect(lines.added[0].endsWith('…')).toBe(true);
+    expect(lines.added[0]).not.toContain('woor…');
+    expect(lines.clipped).toBe(false);
   });
 });
 

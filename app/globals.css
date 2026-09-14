@@ -1237,6 +1237,111 @@ a.card:hover {
   color: var(--ink-muted);
 }
 
+/*
+ * §68: een verwijzing die je léést is een link, geen etiket.
+ *
+ * Het chipje — kadertje, vulling, vette letter en een gekleurde stip ervoor —
+ * is gebouwd voor de hand die het net neergezet heeft: het staat als één ding
+ * in de tekst, je ziet waar het begint en waar het ophoudt, en de stip zegt van
+ * welke soort het is. In een alinea die je zít te lezen doet datzelfde chipje
+ * het omgekeerde van wat een verwijzing hoort te doen: drie ervan in één zin
+ * hakken de zin in stukken, en het oog blijft aan elke stip haken. Wikipedia
+ * doet het al twintig jaar met niets meer dan blauw, en dat is genoeg.
+ *
+ * Dus: **een `<a>` is blauw, een `<span>` blijft papier.** Dat onderscheid is
+ * niet cosmetisch en niet willekeurig — het is precies het verschil tussen een
+ * verwijzing en een etiket. Een `<a>` gaat ergens heen (§48's `MentionChip`
+ * tekent een `<span>` zodra hij ín een link staat, en een dode naam
+ * (`.entry-chip-missing`), een gekozen Meerkeuze-antwoord en een dossier dat je
+ * niet mag inzien zijn alle drie een `<span>` omdat je er niet heen kúnt). Die
+ * blijven staan zoals ze stonden.
+ *
+ * `var(--link)` en geen nieuwe kleur: §45 geeft elk van de vier schema's al een
+ * blauw dat op zijn eigen papier leest — #1f4e79 op licht, #8fb8dd op donker,
+ * en de Keeperkant heeft zijn eigen twee. Een vijfde blauw hier zou het enige
+ * zijn dat niet meedraait als de Keeper de kleuren verzet.
+ *
+ * Geen onderstreping tot je erover gaat: de rest van het archief onderstreept
+ * zijn links wél (de kale `a`-regel bovenaan), maar dat zijn er één of twee per
+ * blok, en dit zijn er tien per alinea.
+ */
+a.entry-chip {
+  /* `inline` en niet `inline-flex`: zonder kader is er geen doos meer om de
+     naam heen, en een naam die als tekst meeloopt hoort ook als tekst gemeten
+     te worden. Het **afbreken** verandert daarmee niet: `white-space: nowrap`
+     blijft staan zoals het stond, want een naam is in dit archief nog steeds
+     één woord dat niet doormidden mag — met de ene uitzondering die §67 al
+     maakte, binnen `.fields-compact`. */
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--link);
+  font-weight: inherit;
+  text-decoration: none;
+}
+a.entry-chip::before {
+  content: none;
+}
+/* De `gap` van het chipje valt met `display: inline` weg; een dossier- of
+   stamboom-verwijzing draagt wél een icoontje en heeft die ruimte nodig. */
+a.entry-chip > svg {
+  margin-right: 0.15em;
+  vertical-align: -0.12em;
+}
+a.entry-chip:hover,
+a.entry-chip:focus-visible {
+  text-decoration: underline;
+}
+
+/*
+ * §68: en de drie plekken waar het chipje juist wél het goede ding is.
+ *
+ * 1. **In schrijfbare tekst.** Precies wat hierboven staat, omgedraaid: met de
+ *    caret in de tekst is het chipje één ondeelbaar teken dat je met één
+ *    Backspace weghaalt, en dat moet je kunnen zien. `contenteditable` is de
+ *    eerlijke vraag — ProseMirror schrijft hem op de `.prose` zelf, dus de
+ *    leesknop van een artikel (§22) en de leesknop van een dossier krijgen
+ *    allebei blauw zonder dat er ergens een tweede vlag bij moet.
+ * 2. **Met een kruisje ernaast.** Een chipje met een verwijderknop erachter
+ *    staat in een kiezer (`EntryPicker`, `CasePicker`, `FamilyTreePicker`, de
+ *    lijst in `FieldsEditor`) en is daar geen zin maar een rijtje dingen dat je
+ *    aan het samenstellen bent — het kruisje hoort zichtbaar bij dít chipje en
+ *    niet bij het volgende. `:has(+ button)` is letterlijk die vraag, en hij
+ *    slaat vanzelf om zodra `readOnly` het kruisje weglaat.
+ * 3. **Op een kaartje.** §45/§66: een kaart is papier *op* de pagina en leest
+ *    nooit de inkt van de pagina. `--card-face` is in elk schema licht, dus
+ *    `--link` uit een donker schema zou lichtblauw op licht beige zijn.
+ */
+.ProseMirror[contenteditable='true'] a.entry-chip,
+a.entry-chip:has(+ button),
+.board-card-text a.entry-chip {
+  display: inline-flex;
+  padding: 0.02em 0.35em;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper-dark);
+  color: var(--ink);
+  font-weight: 600;
+}
+.ProseMirror[contenteditable='true'] a.entry-chip::before,
+a.entry-chip:has(+ button)::before,
+.board-card-text a.entry-chip::before {
+  content: '';
+}
+.ProseMirror[contenteditable='true'] a.entry-chip > svg,
+a.entry-chip:has(+ button) > svg,
+.board-card-text a.entry-chip > svg {
+  margin-right: 0;
+  vertical-align: baseline;
+}
+.ProseMirror[contenteditable='true'] a.entry-chip:hover,
+a.entry-chip:has(+ button):hover,
+.board-card-text a.entry-chip:hover {
+  text-decoration: none;
+}
+
 /* ------------------------------------------------------------ editor shell */
 .editor-toolbar {
   display: flex;
@@ -2308,6 +2413,72 @@ details.section[open] > summary::before {
 .rev-changes strong {
   color: var(--ink);
   font-weight: 600;
+}
+
+/*
+ * §68: het dichtgevouwen blokje onder een regel in de geschiedenis.
+ *
+ * §65 gaf elke regel de zelfstandige naamwoorden en een zin per ding ("Tekst —
+ * 3 regels erbij"), wat zegt waaraan gewerkt is en niet wat er kwam te staan.
+ * Dit is de tweede helft, en hij hoort dicht: honderd versies met hun zinnen
+ * eronder is geen lijst meer die je van boven naar beneden kunt lezen. Klein en
+ * grijs als de regels erboven — het driehoekje is dezelfde die `details.section`
+ * en de feed gebruiken, want er hoort in dit archief maar één ding te zijn dat
+ * "hier zit meer onder" betekent.
+ */
+.rev-more {
+  margin: 0.1rem 0 0.15rem 0.65rem;
+}
+.rev-more > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+.rev-more > summary::-webkit-details-marker {
+  display: none;
+}
+.rev-more > summary::before {
+  content: '▸';
+  transition: transform 120ms ease;
+}
+.rev-more[open] > summary::before {
+  transform: rotate(90deg);
+}
+.rev-more > summary:hover {
+  color: var(--ink);
+}
+.rev-changes-open {
+  margin: 0.1rem 0 0.4rem;
+}
+/*
+ * De regels zelf. Een blok papier binnen het lijstje, met de weggehaalde regels
+ * boven de toegevoegde en allebei met hun teken ervoor: `−` en `+` staan er
+ * omdat kleur alleen niets zegt tegen wie hem niet ziet. Dezelfde twee kleuren
+ * als het vergelijkingsvenster achter *Bekijken*, want het is hetzelfde soort
+ * antwoord op een kleinere schaal.
+ */
+.rev-lines {
+  margin: 0.3rem 0 0.1rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rev-line-off {
+  color: var(--stamp-red);
+  text-decoration: line-through;
+}
+.rev-line-on {
+  color: var(--link);
 }
 
 /*

@@ -72,11 +72,24 @@ export type ChangeKind =
   | 'keeperNotes';
 
 /**
+ * §68: the lines one revision put in and took out of the prose.
+ *
+ * `clipped` is true when there were more of either than `BODY_LINES`; the
+ * sentence beside it (`detail`) already carries the real totals, so the box
+ * only has to say that it is showing a part.
+ */
+export type BodyLines = { added: string[]; removed: string[]; clipped: boolean };
+
+/**
  * One thing that changed. `label` is the noun ("Naam", "Factie", "Tekst") and
  * `detail` is what happened to it, already a finished Dutch phrase — the caller
  * prints them and never composes.
+ *
+ * §68: `lines` hangs off the one `body` change and is the *words themselves*.
+ * It is absent — not empty — wherever rule 2 of this module's header says the
+ * prose may not be quoted, so the page has nothing left to decide.
  */
-export type Change = { kind: ChangeKind; label: string; detail?: string };
+export type Change = { kind: ChangeKind; label: string; detail?: string; lines?: BodyLines };
 
 export type DescribeOptions = {
   /** The soort's field definitions, for a key's label and its kind. */
@@ -195,42 +208,107 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /**
- * How much prose moved, in one phrase.
+ * §68: how many lines of a revision's prose travel with the history, and how
+ * much of one line.
+ *
+ * Both caps are about the page rather than the reader: a history holds a
+ * hundred revisions and every one of them renders its box into the HTML whether
+ * a reader opens it or not, so a save that pasted a chapter in may not put that
+ * chapter into every visitor's download. Ten lines and a couple of sentences of
+ * each is enough to recognise *which* edit this was, which is the question the
+ * box answers; `?rev=` is still there for the whole of it.
+ */
+const BODY_LINES = 10;
+const BODY_LINE_CHARS = 240;
+
+/** The non-empty lines of a text, trimmed, counted. */
+function lineCounts(text: string): Map<string, number> {
+  const seen = new Map<string, number>();
+  for (const line of text.split('\n')) {
+    const key = line.trim();
+    if (!key) continue;
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  return seen;
+}
+
+/**
+ * The lines of `text` that `other` has not got a copy of, **in the order they
+ * stand in `text`**. Each line of `other` is spent once, so three copies of one
+ * sentence against two is one surplus copy and not three.
+ */
+function surplusLines(text: string, other: Map<string, number>): string[] {
+  const spare = new Map(other);
+  const out: string[] = [];
+  for (const line of text.split('\n')) {
+    const key = line.trim();
+    if (!key) continue;
+    const left = spare.get(key) ?? 0;
+    if (left > 0) spare.set(key, left - 1);
+    else out.push(key);
+  }
+  return out;
+}
+
+/** What one revision did to the prose: the lines themselves, and the words. */
+export type BodyEdit = { added: string[]; removed: string[]; words: number };
+
+/**
+ * The prose of one step, as two lists of lines.
  *
  * Deliberately **not** `diffLines`: that is an LCS with a quadratic table, and
- * a page draws this for up to a hundred revisions at once. Lines as two
- * multisets is linear and answers the only question a summary line asks — how
- * many lines came and went. The real diff is still there, one click away, on
- * the revision a reader actually opens.
+ * a page works this out for up to a hundred revisions at once. Lines as two
+ * multisets is linear, and since §68 it answers both questions off one pass —
+ * *how many* lines came and went, for the sentence on the row, and *which*
+ * ones, for the box under it. One pass on purpose: two ways of counting the
+ * same edit is two answers that can disagree, and they would disagree in the
+ * one place a reader can see both at once.
+ *
+ * What it gives up against a real diff is the pairing: a line with one word
+ * changed reads here as one line off and one line on, not as a line edited.
+ * That is honest — both halves are printed — and the whole prose diff against
+ * *now* is still one click away under `?rev=`.
  */
-export function bodyChange(before: string, after: string): string {
-  const count = (text: string) => {
-    const seen = new Map<string, number>();
-    for (const line of text.split('\n')) {
-      const key = line.trim();
-      if (!key) continue;
-      seen.set(key, (seen.get(key) ?? 0) + 1);
-    }
-    return seen;
+export function bodyEdit(before: string, after: string): BodyEdit {
+  const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
+  return {
+    added: surplusLines(after, lineCounts(before)),
+    removed: surplusLines(before, lineCounts(after)),
+    words: words(after) - words(before),
   };
-  const a = count(before);
-  const b = count(after);
-  let added = 0;
-  let removed = 0;
-  for (const [line, n] of b) added += Math.max(0, n - (a.get(line) ?? 0));
-  for (const [line, n] of a) removed += Math.max(0, n - (b.get(line) ?? 0));
+}
 
-  if (added || removed) {
+/** `bodyEdit` in one Dutch phrase — what the row itself says. */
+export function bodyPhrase(edit: BodyEdit): string {
+  if (edit.added.length || edit.removed.length) {
     const parts: string[] = [];
-    if (added) parts.push(`${plural(added, 'regel', 'regels')} erbij`);
-    if (removed) parts.push(`${plural(removed, 'regel', 'regels')} eraf`);
+    if (edit.added.length) parts.push(`${plural(edit.added.length, 'regel', 'regels')} erbij`);
+    if (edit.removed.length) parts.push(`${plural(edit.removed.length, 'regel', 'regels')} eraf`);
     return parts.join(', ');
   }
-  const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
-  const delta = words(after) - words(before);
-  if (delta > 0) return `${plural(delta, 'woord', 'woorden')} erbij`;
-  if (delta < 0) return `${plural(-delta, 'woord', 'woorden')} eraf`;
+  if (edit.words > 0) return `${plural(edit.words, 'woord', 'woorden')} erbij`;
+  if (edit.words < 0) return `${plural(-edit.words, 'woord', 'woorden')} eraf`;
   return 'regels verplaatst';
+}
+
+/** How much prose moved, in one phrase. */
+export function bodyChange(before: string, after: string): string {
+  return bodyPhrase(bodyEdit(before, after));
+}
+
+/** One line of prose, short enough to stand in a list under a history row. */
+function clipLine(line: string): string {
+  if (line.length <= BODY_LINE_CHARS) return line;
+  return `${line.slice(0, BODY_LINE_CHARS - 1).replace(/\s\S*$/, '')}…`;
+}
+
+/** `bodyEdit` cut down to what a history row carries. */
+export function bodyLines(edit: BodyEdit): BodyLines {
+  return {
+    added: edit.added.slice(0, BODY_LINES).map(clipLine),
+    removed: edit.removed.slice(0, BODY_LINES).map(clipLine),
+    clipped: edit.added.length > BODY_LINES || edit.removed.length > BODY_LINES,
+  };
 }
 
 /** Everything a field value can be, as a list of strings, for comparing. */
@@ -346,7 +424,21 @@ export function describeRevision(
     });
   }
   if (before.bodyText !== after.bodyText) {
-    out.push({ kind: 'body', label: 'Tekst', detail: bodyChange(before.bodyText, after.bodyText) });
+    /*
+     * §68: the sentence and the lines under it come off one `bodyEdit`, and the
+     * lines are dropped entirely where rule 2 forbids quoting — the phrase
+     * ("3 regels erbij") stays, because a count is not a quotation and the row
+     * says as much by existing. Nothing is carried for a step where only the
+     * order moved: an empty box under an open row reads as a broken one.
+     */
+    const edit = bodyEdit(before.bodyText, after.bodyText);
+    const quotable = mayQuote && (edit.added.length > 0 || edit.removed.length > 0);
+    out.push({
+      kind: 'body',
+      label: 'Tekst',
+      detail: bodyPhrase(edit),
+      ...(quotable ? { lines: bodyLines(edit) } : {}),
+    });
   }
 
   // The infobox, one line per answer that moved — in the soort's own order, so

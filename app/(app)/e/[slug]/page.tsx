@@ -47,6 +47,7 @@ import {
   describeRevision,
   revisionFacts,
   revisionFactsFromRow,
+  type BodyLines,
   type Change,
 } from '@/lib/entries/revisionDiff';
 import { getWords } from '@/lib/admin/words';
@@ -68,6 +69,32 @@ export const dynamic = 'force-dynamic';
  * happens, and twenty lines under one row would bury the ten rows beneath it.
  */
 const HISTORY_DETAIL_LIMIT = 8;
+
+/**
+ * §68: de regels die één bewerking aan de lopende tekst toevoegde en eraf haalde.
+ *
+ * Eraf boven erbij, zoals een diff het al veertig jaar zet, en allebei met hun
+ * teken ervoor — een kleur alleen zegt het niet tegen wie hem niet ziet. Wat
+ * hier staat is door `describeRevision` al langs regel 2 van §65 gehaald: is er
+ * niets te citeren, dan is `lines` er niet en wordt dit niet getekend.
+ */
+function RevisionLines({ lines }: { lines: BodyLines }) {
+  return (
+    <div className="rev-lines">
+      {lines.removed.map((line, i) => (
+        <div key={`off-${i}`} className="rev-line-off">
+          − {line}
+        </div>
+      ))}
+      {lines.added.map((line, i) => (
+        <div key={`on-${i}`} className="rev-line-on">
+          + {line}
+        </div>
+      ))}
+      {lines.clipped && <div className="muted">… de rest staat onder Bekijken</div>}
+    </div>
+  );
+}
 
 export default async function EntryPage({
   params,
@@ -693,6 +720,31 @@ export default async function EntryPage({
                           <li className="muted">en nog {hidden} {hidden === 1 ? 'ding' : 'dingen'}</li>
                         )}
                       </ul>
+                    )}
+                    {/*
+                      * §68: en eronder, dichtgevouwen, de hele bewerking.
+                      *
+                      * De regel erboven zegt *waaraan* gewerkt is; dit zegt wát
+                      * er kwam te staan — de lijst onafgekapt, en onder "Tekst"
+                      * de zinnen zelf. Het staat er voor elke versie en het is
+                      * dicht: honderd open blokken is geen geschiedenis meer.
+                      * Een `<details>` en geen knop, want dit is een pagina die
+                      * op de server gemaakt wordt en dit hoeft geen javascript
+                      * te kosten.
+                      */}
+                    {details.length > 0 && (
+                      <details className="rev-more">
+                        <summary>Wat er veranderde</summary>
+                        <ul className="rev-changes rev-changes-open">
+                          {details.map((change, i) => (
+                            <li key={i}>
+                              <strong>{change.label}</strong>
+                              {change.detail ? <> — {change.detail}</> : null}
+                              {change.lines ? <RevisionLines lines={change.lines} /> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
                     )}
                   </li>
                 );

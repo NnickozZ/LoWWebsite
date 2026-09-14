@@ -436,7 +436,10 @@ test('two windows of one account write as two onderzoekers, and the geschiedenis
   await expect(page.locator('.prose').first()).toContainText('Wat de tweede zag.');
 
   const history = page.locator('details.section').filter({ hasText: 'Geschiedenis' }).first();
-  await history.locator('summary').click();
+  // `> summary`, en niet zomaar `summary`: sinds §68 heeft elke regel in de
+  // geschiedenis zijn eigen dichtgevouwen *Wat er veranderde* eronder, dus een
+  // ongebonden `summary` binnen dit blok is er zoveel als er versies zijn.
+  await history.locator('> summary').click();
   await expect(history.getByText(first, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
   await expect(history.getByText(second, { exact: false }).first()).toBeVisible();
 

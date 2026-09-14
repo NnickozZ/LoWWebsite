@@ -1172,3 +1172,21 @@ náást een naam, niet boven een kolom.
 | **Weghalen** | de knop onder die vraag | (§67) |
 | **{n} kaartjes uit de {stamboom} gehaald.** + **Ongedaan maken** | de melding erna | Eén commit, dus één stap terug (§67). |
 | **· sleep een kaartje om het vast te zetten · shift-klik of shift-sleep om er meer te kiezen** | de staart van de regel onder het doek | Alleen voor wie mag bewerken, en niet op een telefoon: een vinger heeft geen shift-toets (§8, §67). |
+
+## Ronde 34 — de verwijzing, het wiel en het logboek (§68)
+
+Een ronde met bijna geen tekst erin: vier van de vijf punten veranderen hoe iets
+zich gedraagt of hoe het eruitziet, niet wat het zegt. Twee zinnen zijn nieuw,
+allebei in de geschiedenis onder een {artikel}.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Wat er veranderde** | het dichtgevouwen blokje onder elke regel in de geschiedenis van een {artikel} | Klapt de hele bewerking open: de lijst onafgekapt, en onder *Tekst* de regels die er bij kwamen en af gingen. §65 zei wáár aan gewerkt is; dit zegt wat er kwam te staan. Dicht, want honderd open blokken zijn geen lijst meer (§68). |
+| **… de rest staat onder Bekijken** | onderaan dat blokje, als er meer dan tien regels bij kwamen of af gingen | Het blokje reist in de HTML van elke bezoeker mee, open of niet, dus een opslag die een heel hoofdstuk plakte stuurt dat hoofdstuk niet honderd keer mee. Wie alles wil, heeft *Bekijken* (§68). |
+
+En één ding dat verdwijnt in plaats van dat er iets bij komt: een verwijzing die
+je **leest** draagt geen kadertje en geen kleurstip meer. Hij is blauw, zoals op
+wikipedia — in elk van de vier kleurschema's het blauw dat daar op zijn eigen
+papier leest. Het chipje zelf is er nog op de drie plekken waar het werk doet:
+in tekst waar je in kunt typen, naast een verwijderkruisje, en op een
+prikbordkaartje (§68).

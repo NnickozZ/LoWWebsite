@@ -729,7 +729,26 @@ export function TimelineCanvas({
       if (event.ctrlKey || event.metaKey) {
         zoomAt(Math.exp(-event.deltaY * 0.0015), event.clientX - rect.left);
       } else {
-        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+        /*
+         * §68: the wheel drags the paper, the hand's way round.
+         *
+         * There are two gestures here and only one of them had a direction of
+         * its own. A **sideways** wheel — a trackpad swipe, a tilt wheel, shift
+         * and a wheel — already means what it means everywhere else, and the
+         * prikbord answers it as a scrollbar does (`x - deltaX`), so this one
+         * is left exactly as it was. A **vertical** wheel on a horizontal axis
+         * is the borrowed one: nothing about "down" says which way a century
+         * goes, and the axis had it reading as a scrollbar too — wheel down
+         * walked the window forward and the paper slid away to the left.
+         *
+         * The axis is a sheet under the hand, and `onPointerMove` has always
+         * said so: dragging it right is `startOrigin - dx`, the paper following
+         * the hand. The vertical wheel now agrees with the drag, which is the
+         * whole of this change — one sign, and the two ways of moving along an
+         * axis stop contradicting each other.
+         */
+        const sideways = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+        const delta = sideways ? event.deltaX : -event.deltaY;
         moveView((current) => (current ? { ...current, origin: current.origin + delta / current.pxPerSecond } : current));
       }
     };

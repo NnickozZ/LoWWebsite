@@ -60,24 +60,48 @@ function ToolbarButton({ label, active, onClick, children }: ToolbarButtonProps)
 }
 
 /**
- * Whether a press on a reference is the *browser's* to answer rather than ours.
+ * Whether a press on a reference asks for a *second* place to read in.
  *
  * A plain left click on a chip is the archive's: it walks you to the artikel in
  * the tab you are already reading in, which is what a wiki does and what this
- * has always done. Every other press is a reader asking for a *second* place to
- * read in — ctrl or cmd for a tab, shift for a window, alt for a saved copy, and
- * the middle button for a tab as well — and not one of those may be answered by
- * taking the tab they are standing in.
+ * has always done. Ctrl or cmd asks for a tab, shift for a window, alt for a
+ * saved copy — and not one of those may be answered by taking the tab the
+ * reader is standing in.
  *
- * The two must diverge, because handling them alike is exactly the bug: a chip
- * whose click was `window.location.href` took the tab you were standing in with
- * it however you pressed, so ctrl+click *lost* the page you were reading
- * instead of opening a second one, and the middle button did nothing at all —
- * or, inside a contenteditable on X11, pasted the primary selection into the
- * prose.
+ * The two must diverge, because handling them alike was the first half of this
+ * bug: a chip whose click was `window.location.href` took the tab you were
+ * standing in with it however you pressed, so ctrl+click *lost* the page you
+ * were reading instead of opening a second one.
+ *
+ * §68: the **button** is deliberately not asked here any more — `mineToAnswer`
+ * is where that question belongs, and the difference is the other half of the
+ * bug. See it for why.
  */
 function opensElsewhere(event: MouseEvent) {
-  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
+/**
+ * §68: whether this press is the archive's to answer at all.
+ *
+ * **Only the left button is ever ours.** ProseMirror does not hand
+ * `handleClickOn` a `click`: it opens a `MouseDown` on the way down and asks on
+ * the way *up*, from `mouseup` — and `mouseup` fires for every button there is.
+ * So the middle button and the **right** button both arrived at a handler that
+ * had been written as though only a left one could, and `opensElsewhere` said
+ * yes to both because it read `button !== 0`. The middle button therefore
+ * opened a tab *twice* — once from `auxclick` below and once from this, which
+ * is why one of the two was swallowed by the popup blocker — and a right click
+ * opened the artikel in a tab instead of putting the browser's own menu up,
+ * which is the one thing a right click on a link anywhere means.
+ *
+ * A chip is a real `<a href>` (see `EntryLink`), and a browser already knows
+ * every one of these gestures. So the rule is the smallest one that works: the
+ * left button is the archive's, every other button is the browser's, and we
+ * neither answer nor cancel it.
+ */
+function mineToAnswer(event: MouseEvent) {
+  return event.button === 0;
 }
 
 /** The chip under the pointer, for the events ProseMirror hands us raw. */
@@ -250,41 +274,65 @@ export function RichEditor({
       /*
        * Clicking a chip while editing should still take you to the entry — and
        * a chip is a reference, so it owes the reader everything a hyperlink
-       * owes them. The press's own event decides which: see `opensElsewhere`.
+       * owes them.
        *
-       * `window.open` rather than letting the anchor follow itself, because
-       * this surface is a contenteditable for most of its life and a browser
-       * does not reliably follow a link the caret is allowed to sit in. So the
-       * new tab is opened by hand, and `return true` tells ProseMirror the
+       * `window.location.href` rather than letting the anchor follow itself,
+       * because this surface is a contenteditable for most of its life and a
+       * browser does not reliably follow a link the caret is allowed to sit in.
+       * So the walk is taken by hand, and `return true` tells ProseMirror the
        * press is answered — otherwise it would also put the caret on the chip.
+       *
+       * §68: and this is now the *plain left press only*. ProseMirror asks this
+       * from `mouseup`, which every button fires (see `mineToAnswer`), so a
+       * press this handler is not sure of is given back rather than answered:
+       * the middle and the right button below, and a modified left press to the
+       * `click` handler, where a `preventDefault` still means something.
        */
       handleClickOn: (_view, _pos, node, _nodePos, event) => {
         if (node.type.name !== 'entryLink' || !node.attrs.slug) return false;
-        const url = `/e/${node.attrs.slug}`;
-        if (opensElsewhere(event)) {
-          event.preventDefault();
-          window.open(url, '_blank', 'noopener');
-          return true;
-        }
-        window.location.href = url;
+        if (!mineToAnswer(event) || opensElsewhere(event)) return false;
+        window.location.href = `/e/${node.attrs.slug}`;
         return true;
       },
       handleDOMEvents: {
         /*
-         * The middle button never reaches `handleClickOn`: a browser reports it
-         * as `auxclick` and ProseMirror's click handling is built on `click`. So
-         * the chip is found the other way round, from the element under the
-         * pointer, and opened by hand.
+         * §68: a left press with ctrl, cmd, shift or alt down — a second tab, a
+         * window, a saved copy.
+         *
+         * It is answered *here* rather than in `handleClickOn` for one reason:
+         * `handleClickOn` runs on `mouseup`, and `preventDefault` on a mouseup
+         * cancels nothing a link does. So opening a tab by hand up there left
+         * the browser free to follow the anchor as well and the reader got two.
+         * On `click` the cancel bites, so exactly one tab opens — and it is
+         * opened by hand, for the contenteditable reason above.
+         */
+        click: (_view, event) => {
+          if (!mineToAnswer(event) || !opensElsewhere(event)) return false;
+          const slug = chipSlugAt(event.target);
+          if (!slug) return false;
+          event.preventDefault();
+          window.open(`/e/${slug}`, '_blank', 'noopener');
+          return true;
+        },
+        /*
+         * The middle button never reaches `handleClickOn` as itself: a browser
+         * reports it as `auxclick`. So the chip is found the other way round,
+         * from the element under the pointer, and opened by hand.
          *
          * `preventDefault` earns its place twice over here — it stops the
          * middle button from pasting the X11 primary selection into the prose,
          * which is what that button means inside a contenteditable, and it
          * stops a browser from reading the press as the start of an autoscroll.
          *
+         * §68: this was never the whole of the middle button, and that was the
+         * bug. Its `mouseup` reached `handleClickOn` too, which opened a second
+         * tab — see `mineToAnswer`. This one is the whole of it now.
+         *
          * Right-click is deliberately not handled at all, here or anywhere
          * else in this file. The chip is a real `<a>` with a real href (see
          * `EntryLink`), so the browser's own menu already offers to open it on
-         * a new tab; swallowing `contextmenu` is the one way to lose that.
+         * a new tab; swallowing `contextmenu` is the one way to lose that — and
+         * so, it turns out, is answering its `mouseup`.
          */
         auxclick: (_view, event) => {
           if (event.button !== 1) return false;

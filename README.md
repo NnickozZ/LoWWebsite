@@ -3371,3 +3371,94 @@ Sixty-seven rules worth knowing before changing anything:
     heeft voor iets anders houdt zijn veld. `surname` is uit de graaf, de knoop
     en het kaartje verdwenen; de marker valt hoe dan ook, want dit is een
     eenmalige opruiming en geen regel die elke start opnieuw langsloopt.
+
+68. **Een verwijzing is een link, en de browser is de baas over elke knop
+    behalve de linker.** §68. Vier kleine dingen aan het *lezen* van een
+    archief, en drie ervan zijn dezelfde zin van drie kanten bekeken. Een
+    chipje in een artikel is een `<a href>` met een echt adres — dat was het al
+    sinds ronde 6 — maar het archief antwoordde op drukken die nooit van hem
+    waren, en zag eruit als een etiket op plekken waar niemand aan het typen
+    was.
+
+    **De middelste knop opende twee tabbladen, en de rechter opende er één die
+    niemand vroeg.** Eén oorzaak, en hij zit in ProseMirror: `handleClickOn`
+    wordt niet vanaf `click` gevraagd maar vanaf `mouseup` — de `MouseDown` die
+    op de weg naar beneden gemaakt wordt, vraagt het op de weg omhoog — en
+    `mouseup` komt van *elke* knop. `RichEditor` las die gebeurtenis als
+    `button !== 0 → dit is een tweede tabblad` en deed een `window.open`. Dus:
+    de middelste knop opende er één via `auxclick` (waar hij hoort) en nog één
+    via `mouseup`, waarvan de popup-blocker er meestal één opat — dát was de
+    melding — en de rechterknop, die alleen maar het menu van de browser wilde
+    laten zien, opende het artikel in een tabblad. Sinds deze ronde is
+    `mineToAnswer(event)` (`event.button === 0`) de eerste vraag die
+    `handleClickOn` stelt: **alleen de linkerknop is van het archief.** De
+    middelste blijft van `auxclick`, de rechter raakt het archief niet aan, en
+    er wordt geen `contextmenu` afgevangen — nergens in dat bestand. En een
+    linkerdruk *mét* ctrl, cmd, shift of alt wordt nu op `click` beantwoord in
+    plaats van op `mouseup`, want een `preventDefault` op een mouseup annuleert
+    niets van wat een link doet: bij het openen mét de hand bleef de browser
+    vrij om de anker óók te volgen. Dat was hetzelfde tweede tabblad, langs een
+    andere weg.
+
+    Dit gold **overal**, ook op de leesknop van een artikel — `handlers.mousedown`
+    in ProseMirror is geen `editHandler`, dus hij loopt ook zonder caret.
+    "Het is in artikelen al gerepareerd" klopte niet; er was één tabblad te veel
+    dat niemand geteld had. `tests/e2e/round-34.spec.ts` telt ze, want met een
+    selector is dit niet te zien.
+
+    **Wat je léést draagt geen kadertje.** Het chipje — kader, vulling, vette
+    letter, gekleurde stip — is gebouwd voor de hand die het net neerzette: met
+    de caret erin is het één ondeelbaar teken dat met één Backspace weggaat, en
+    dat moet je kunnen zien. In een alinea die je zit te lezen doet datzelfde
+    chipje het omgekeerde van wat een verwijzing hoort te doen: drie in een zin
+    hakken de zin in stukken. Dus **een `<a class="entry-chip">` is `var(--link)`
+    en verder niets**, en het chipje blijft staan op precies drie plekken: in
+    schrijfbare tekst (`.ProseMirror[contenteditable='true']` — ProseMirror
+    schrijft die vlag zelf, dus de leesknop van §22 en die van een dossier
+    krijgen blauw zonder een tweede vlag), naast een verwijderkruisje
+    (`a.entry-chip:has(+ button)`, oftewel: je bent een rijtje aan het
+    samenstellen en het kruisje moet zichtbaar bij dít chipje horen), en op een
+    kaartje (`.board-card-text` — §45/§66: een kaart leest nooit de inkt van de
+    pagina, en `--card-face` is in elk schema licht). Een `<span class="entry-chip">`
+    blijft altijd papier, en dat onderscheid is het hele punt: een `<span>` is
+    wat §48 tekent binnen een link, wat een dode naam krijgt, wat een gekozen
+    Meerkeuze-antwoord is en wat een dossier krijgt dat je niet mag inzien — vier
+    dingen waar je niet heen kúnt. Geen nieuw blauw: §45 geeft elk van de vier
+    schema's al een `--link` dat op zijn eigen papier leest, en een vijfde zou
+    het enige zijn dat niet meedraait als de Keeper de kleuren verzet.
+
+    **De geschiedenis klapt uit tot de zinnen zelf.** §65 gaf elke regel de
+    zelfstandige naamwoorden en een zin per ding ("Tekst — 3 regels erbij"), wat
+    zegt wáár aan gewerkt is en niet wat er kwam te staan; de echte tekstdiff
+    stond alleen achter *Bekijken*, en die vergelijkt met **nu** en niet met de
+    versie eronder. Onder elke regel staat nu een dichtgevouwen *Wat er
+    veranderde* met de hele lijst — onafgekapt, `HISTORY_DETAIL_LIMIT` geldt
+    alleen voor wat open op de regel staat — en onder "Tekst" de regels die er
+    bij kwamen en af gingen. Dichtgevouwen omdat honderd open blokken geen lijst
+    meer zijn die je van boven naar beneden leest, en een `<details>` in plaats
+    van een knop omdat de pagina op de server gemaakt wordt en dit geen
+    javascript hoeft te kosten.
+
+    Het rekenwerk is **geen tweede diff**. `bodyEdit` is dezelfde lineaire pas
+    die §65 al gebruikte om te tellen — twee multisets van regels — alleen geeft
+    hij nu ook de regels zelf terug, in de volgorde waarin ze staan, en
+    `bodyPhrase` maakt er de zin van. Eén pas met opzet: twee manieren om
+    dezelfde bewerking te tellen zijn twee antwoorden die het oneens kunnen
+    worden, en ze zouden het oneens worden op de enige plek waar een lezer ze
+    allebei tegelijk ziet. Wat het opgeeft tegenover een echte LCS is het
+    koppelen — een regel waarin één woord veranderde leest als één regel eraf en
+    één erbij — en dat is eerlijk, want allebei de helften worden afgedrukt; een
+    LCS voor honderd versies per paginabezoek is dat niet. **Regel 2 van §65
+    geldt onverkort**: uit een tijdvak dat dicht stond reist er geen regel mee
+    (`lines` is er dan niet, de *telling* blijft staan), en er reizen er hoogstens
+    tien per kant mee, elk hoogstens 240 tekens — het blokje staat in de HTML van
+    elke bezoeker, of hij het openklapt of niet.
+
+    **En het wiel op een tijdlijn sleept de as mee met de hand.** Het verticale
+    wiel las als een scrollbalk — omlaag liep de tijd vooruit en schoof het
+    papier naar links weg — terwijl de ás met de hand slepen altijd het
+    omgekeerde deed (`origin: startOrigin - dx`, het papier volgt je hand). Eén
+    teken omgedraaid en de twee manieren om langs een tijdlijn te bewegen spreken
+    elkaar niet meer tegen. Een **zijwaarts** wiel blijft precies zoals het was:
+    dat gebaar heeft een eigen richting die overal hetzelfde betekent, en het
+    prikbord beantwoordt het als een scrollbalk (`x - deltaX`).

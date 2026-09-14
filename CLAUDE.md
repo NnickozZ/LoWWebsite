@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 88 files, 1409 tests as of round 33 (round 32: 82 / 1290)
+npx vitest run         # 88 files, 1419 tests as of round 34 (round 33: 88 / 1409)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -153,9 +153,12 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is §67 / rule 67 (round 33: §67 de stamboom,
-  tweede pas — één potlood, één manier van kiezen, en broers en zussen die
-  afgeleid worden). **Round 32 added no number**:
+  choosing a number — the latest is §68 / rule 68 (round 34: §68 een verwijzing
+  is een link — elke muisknop behalve de linker is van de browser, wat je leest
+  draagt geen kadertje, de geschiedenis klapt uit tot de zinnen zelf, en het
+  wiel op een tijdlijn sleept het papier de kant van de hand op; round 33: §67
+  de stamboom, tweede pas — één potlood, één manier van kiezen, en broers en
+  zussen die afgeleid worden). **Round 32 added no number**:
   it is a follow-up that extends §66 (a Familie points at its stamboom) and §45
   (five colours, so a kaartje is readable in every scheme), and its code markers
   say `§66` and `§45/§66` for that reason. (Round 31: §66 de stamboom —
@@ -957,8 +960,9 @@ If a spec fails once and passes on a re-run, it is the "not yet listening" race
 
 ## 7. How work reaches the user
 
-The user's working copy is `D:\LoWWebsite` on a linked Windows machine. There is
-no shell on that machine, so the loop is:
+The user's working copy is `D:\GithubProjects\LoWWebsite` on a linked Windows
+machine (it was `D:\LoWWebsite` up to round 33 — check `device_list_dir` rather
+than trusting this line). There is no shell on that machine, so the loop is:
 
 1. `git clone https://github.com/NnickozZ/LoWWebsite.git` into the sandbox and
    work there with normal tools.

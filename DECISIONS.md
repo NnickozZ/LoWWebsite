@@ -4635,3 +4635,140 @@ stonden zijn nu één ding. Nick vroeg acht dingen, in zijn eigen volgorde:
 - vitest: 88 bestanden / 1409 tests (ronde 32: 82 / 1290). Playwright volledig: 299 passed / 62 skipped / 1 failed (`per-place-crops`, rood sinds ronde 19).
 - `tsc --noEmit` stil.
 - Playwright: door de orkestrator gedraaid en daar genoteerd.
+
+## Ronde 34 — 14 September 2026: de verwijzing, het wiel en het logboek (§68)
+
+Vijf punten van Nick, na een avond lezen in zijn eigen archief. Geen nieuwe
+tabel, geen migratie, geen nieuw pakket — vier bestanden code en één nieuwe
+spec. In zijn woorden:
+
+1. **De scroll in de tijdlijn is omgekeerd, moet andersom.**
+2. **De middelste muisknop opent twee tabbladen in plaats van één** — de
+   popup-blocker at er één op, "that might be why I logged it initially". "Ik
+   zie dat het in artikelen gerepareerd is maar niet in dossiers."
+3. **Het logboek van een artikel laat nog steeds niet zien wát ik bewerkt heb.**
+   Het zou mooi zijn om erop te kunnen klikken en er een dichtgevouwen blokje
+   onder open te krijgen. "Maar misschien is het er wel en zie ik het niet?"
+4. **De rechtermuisknop op een verwijzing hoort hem niet in een nieuw tabblad te
+   openen**, maar het gewone venster te laten zien dat je op wikipedia ook
+   krijgt als je rechts klikt op een verwijzing.
+5. **Het chipje is mooi tijdens het bewerken, maar bij het lézen halen het
+   kadertje en de stip de leesbaarheid van een artikel omlaag.** Misschien
+   gewoon blauw, net als wikipedia — en in het donkere thema een blauw dat daar
+   goed tegen afsteekt.
+
+### Drie vragen, en Nicks antwoorden
+
+1. **Hoe ver draaien we de scroll om?** *Alleen het verticale wiel.* Een echt
+   zijwaarts gebaar blijft doen wat het op het prikbord doet.
+2. **Waar wordt een verwijzing blauw?** *Overal buiten de editor* — dus ook in
+   de infobox, de tijdlijn-vensters en de "Verwijst naar"-rijen, niet alleen in
+   de lopende tekst.
+3. **Wat klapt er in het logboek uit?** *Alles van die bewerking* — de hele
+   lijst én de tekst die er bij kwam en af ging.
+
+### De beslissingen
+
+1. **Punt 2 en punt 4 waren één bug, en hij zat niet waar Nick dacht.**
+   ProseMirror vraagt `handleClickOn` niet vanaf `click` maar vanaf `mouseup`,
+   en `mouseup` komt van elke knop. `RichEditor` las dat als
+   `button !== 0 → tweede tabblad` en deed een `window.open`: de middelste knop
+   opende er daardoor twee (één via `auxclick`, waar hij hoort, en één via
+   `mouseup`), en de rechterknop opende het artikel in plaats van het menu van
+   de browser te laten staan. `mineToAnswer(event)` — `event.button === 0` — is
+   nu de eerste vraag die die haak stelt.
+2. **"In artikelen is het al gerepareerd" klopte niet.** `handlers.mousedown` is
+   in ProseMirror geen `editHandler`, dus hij loopt ook op een leesknop zonder
+   caret. De twee muistesten in `tests/e2e/round-34.spec.ts` zijn tegen de oude
+   `RichEditor` gedraaid en vallen daar allebei om — op de **leesknop** van een
+   artikel. Er was daar één tabblad te veel dat niemand geteld had; het dossier
+   was niet bijzonder, het was alleen de plek waar het opviel.
+3. **Een gemodificeerde linkerdruk wordt op `click` beantwoord, niet op
+   `mouseup`.** Een `preventDefault` op een mouseup annuleert niets van wat een
+   link doet, dus het met de hand geopende tabblad kwam bovenop dat van de
+   browser. Dat was hetzelfde tweede tabblad langs een andere weg, en het is de
+   reden dat er nu een `click`-haak naast de `auxclick`-haak staat.
+4. **`<a>` wordt blauw, `<span>` blijft papier.** Dat is geen opmaaktruc maar
+   precies het verschil tussen een verwijzing en een etiket: §48 tekent binnen
+   een link een `<span>`, en een dode naam, een gekozen Meerkeuze-antwoord en een
+   dossier dat je niet mag inzien zijn alle drie een `<span>` omdat je er niet
+   heen kúnt. Die blijven dus staan zoals ze stonden, en er hoefde geen enkel
+   aanroeppunt verbouwd te worden.
+5. **Drie plekken houden het chipje**: schrijfbare tekst
+   (`.ProseMirror[contenteditable='true']`), een chipje met een verwijderkruisje
+   ernaast (`a.entry-chip:has(+ button)` — dat is letterlijk de vraag "hoort er
+   een kruis bij dít chipje", en hij slaat vanzelf om zodra `readOnly` het kruis
+   weglaat), en een prikbordkaartje (`.board-card-text`). Dat laatste is §45/§66
+   en geen smaak: `--card-face` is in elk schema licht papier, dus het lichte
+   `--link` van een donker schema zou lichtblauw op licht beige zijn.
+6. **Geen vijfde blauw.** `var(--link)` bestaat al in alle vier de schema's
+   (#1f4e79 licht, #8fb8dd donker, en de Keeperkant heeft zijn eigen twee). Een
+   eigen kleur hier zou het enige zijn dat niet meedraait als de Keeper Beheer →
+   Kleuren openzet.
+7. **Het logboek krijgt een tweede helft, geen tweede diff.** `bodyEdit` is
+   dezelfde lineaire pas die §65 al deed om te tellen; hij geeft nu ook de regels
+   zelf terug en `bodyPhrase` maakt er de zin van. Eén pas met opzet: twee
+   manieren om dezelfde bewerking te tellen zijn twee antwoorden die het oneens
+   kunnen worden, en dat zou gebeuren op de enige plek waar een lezer ze allebei
+   tegelijk ziet. Een echte LCS is hier niet gedaan omdat een pagina dit voor
+   honderd versies tegelijk uitrekent — dat is precies de reden die §65 al
+   opschreef, en die reden is niet veranderd.
+8. **Regel 2 van §65 geldt onverkort.** Uit een tijdvak dat dicht stond reist er
+   geen regel mee: `lines` is er dan niet en de *telling* blijft staan, want een
+   telling is geen citaat en de regel zegt door te bestaan al dat er iets
+   gebeurd is. Dat wordt in twee unittests vastgezet, één per kant.
+9. **Tien regels per kant en 240 tekens per regel.** Het blokje staat dicht,
+   maar het staat wél in de HTML van elke bezoeker — een opslag die een hoofdstuk
+   plakte mag dat hoofdstuk niet honderd keer meesturen. Wie de hele tekst wil,
+   heeft *Bekijken* nog steeds.
+10. **Het wiel op een tijdlijn sleept het papier, de kant van de hand op.** De
+    as met de hand slepen deed dat altijd al (`origin: startOrigin - dx`); het
+    verticale wiel las als een scrollbalk en sprak dat tegen. Eén teken. Een
+    zijwaarts wiel blijft ongemoeid: dat gebaar heeft een eigen richting en het
+    prikbord beantwoordt hem als een scrollbalk (`x - deltaX`).
+
+### Wat er bewust niet in zit
+
+- **Het chipje is niet omgedraaid in de CSS.** De basis (`.entry-chip`) is nog
+  steeds het chipje en het blauw staat erbovenop op `a.entry-chip`; de nettere
+  vorm — blauw als basis en een klasse voor het chipje — zou ruim twintig
+  aanroeppunten raken en zou niets veranderen aan wat er op het scherm staat.
+- **De kleurstip is bij het lezen verdwenen en komt niet ergens anders terug.**
+  Hij zei van welke soort een verwijzing was zonder hem aan te wijzen, en dat is
+  een echt verlies; het staat hier zodat het een keuze blijft en geen ongeluk.
+  De weg terug, als Nick hem mist, is een stip die alleen in de infobox blijft
+  staan — daar is het geen zin maar een rijtje.
+- **`alt`+klik opent nog steeds een tabblad in plaats van iets op te slaan.**
+  Dat deed het vóór deze ronde ook; het staat in `opensElsewhere` en het is niet
+  aangeraakt, want binnen een contenteditable doet de browser er uit zichzelf
+  niets mee.
+- **Het uitklapblokje herhaalt de eerste acht regels die al open op de rij
+  staan.** "Klap open en je ziet alles van deze bewerking op één plek" is een
+  betere belofte dan "klap open en je ziet de stukjes die er niet bij pasten",
+  en acht korte regels dubbel is geen probleem.
+- **Er is niets aan de tijdlijn-scroll instelbaar gemaakt.** Eén richting, in de
+  code, zoals elk ander gebaar in dit archief.
+- **De dossierpagina is niet apart aangeraakt.** Hij deelt `RichEditor` met het
+  artikel, dus hij is met dezelfde vier regels mee gerepareerd.
+
+### De cijfers
+
+- vitest: 88 bestanden / 1419 tests (ronde 33: 88 / 1409) — tien erbij in
+  `tests/unit/revision-diff.test.ts`.
+- `tsc --noEmit` stil, `npm run build` groen.
+- Playwright volledig: 304 passed / 64 skipped / 2 failed. Eén spec erbij
+  (`round-34.spec.ts`, vier tests waarvan twee alleen op desktop — een telefoon
+  heeft geen middelste en geen rechter muisknop). De twee muistesten zijn tegen
+  de **oude** `RichEditor` gedraaid en vallen daar allebei om, op de leesknop
+  van een artikel.
+- De twee rode zijn niet van deze ronde. `per-place-crops` is rood op onaangeroerd
+  `main` sinds ronde 19 (CLAUDE.md §8). `keeper-side.spec.ts:59` op de telefoon
+  bleef één keer op `?gewisseld=1` in de adresbalk staan en was groen in de ronde
+  ervoor en erna; deze ronde raakt het omklappen niet aan. In de eerste volledige
+  draai viel `phase3-keeper-tools.spec.ts:345` ook één keer om (de welkomsttekst
+  die nog niet geland was) en was daarna twee keer groen.
+- Twee specs zijn wél door deze ronde aangepast, allebei omdat er een tweede
+  `<summary>` in de geschiedenis bij kwam: `characters.spec.ts:439` scoopt nu
+  `> summary`, en de nieuwe spec leest het uitklapblokje met `toContainText` —
+  de twee projecten delen één archief, en twee bewerkingen van dezelfde hand
+  binnen vijf minuten worden één versie.
