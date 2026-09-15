@@ -351,7 +351,27 @@ export function recomputeCaseMentions(caseId: string): void {
     .from(schema.cases)
     .where(eq(schema.cases.id, caseId))
     .get();
-  const targets = row ? extractEntryLinks(row.notes).map((toEntryId) => ({ toEntryId })) : [];
+  const targets: MentionTarget[] = row
+    ? extractEntryLinks(row.notes).map((toEntryId) => ({ toEntryId }))
+    : [];
+
+  // §70: a dossier carries secties now, and a sectie is text — so what it
+  // names is counted under "Genoemd in" exactly as an artikel's secties are.
+  // The title travels as the detail, which is what the read side matches the
+  // sectie back up by; an untitled sectie is indistinguishable from the
+  // Dossiernotities in the row, and `listMentions` accepts either as the
+  // source for such a row on purpose.
+  const sections = db
+    .select({ title: schema.sections.title, body: schema.sections.body })
+    .from(schema.sections)
+    .where(and(eq(schema.sections.ownerKind, 'case'), eq(schema.sections.ownerId, caseId)))
+    .all();
+  for (const section of sections) {
+    for (const toEntryId of extractEntryLinks(section.body)) {
+      targets.push({ toEntryId, detail: section.title });
+    }
+  }
+
   recomputeMentions('case', caseId, targets);
 }
 
@@ -375,12 +395,17 @@ export function recomputeFieldMentions(entryId: string): void {
  * section has to rebuild all of them or the ones it did not touch would be
  * wiped. Which section a title belongs to is settled again at read time,
  * behind `canSeeSection`.
+ *
+ * §70: `sections` holds a dossier's secties too, so this asks for the
+ * artikel-owned ones by name. A dossier's go through `recomputeCaseMentions`,
+ * because a mention row is filed under the *thing*, and for a dossier that
+ * thing is the dossier.
  */
 export function recomputeSectionMentions(entryId: string): void {
   const sections = db
-    .select({ title: schema.entrySections.title, body: schema.entrySections.body })
-    .from(schema.entrySections)
-    .where(eq(schema.entrySections.entryId, entryId))
+    .select({ title: schema.sections.title, body: schema.sections.body })
+    .from(schema.sections)
+    .where(and(eq(schema.sections.ownerKind, 'entry'), eq(schema.sections.ownerId, entryId)))
     .all();
   const targets = sections.flatMap((section) =>
     extractEntryLinks(section.body).map((toEntryId) => ({ toEntryId, detail: section.title })),
@@ -644,11 +669,72 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
         .all()
         .map((row) => [row.id, row] as const),
     );
+
+    /*
+     * §70: a dossier says a name in two places now — the Dossiernotities, which
+     * everyone who may open the dossier may read, and a *sectie*, whose
+     * visibility is finer than the dossier's. So a `case` row is resolved the
+     * way an artikel's section row is (see the note further down): the source
+     * has to still *say* it, through `canSeeSection`, or a keeper-only sectie
+     * would speak through the dossier's name.
+     *
+     * The row carries the sectie's title as its detail and nothing else, so an
+     * untitled sectie is indistinguishable from the notes. Either source
+     * counts for such a row, which is the safe direction: the notes are
+     * readable by definition to anybody who got this far.
+     */
+    const openCaseIds = [...found.keys()];
+    const caseNotes = openCaseIds.length
+      ? db
+          .select({ id: schema.cases.id, notes: schema.cases.notes })
+          .from(schema.cases)
+          .where(inArray(schema.cases.id, openCaseIds))
+          .all()
+      : [];
+    const notesSay = new Set(
+      caseNotes
+        .filter((row) => extractEntryLinks(row.notes).includes(entryId))
+        .map((row) => row.id),
+    );
+    const caseSections = openCaseIds.length
+      ? db
+          .select({
+            id: schema.sections.id,
+            ownerId: schema.sections.ownerId,
+            title: schema.sections.title,
+            body: schema.sections.body,
+            visibility: schema.sections.visibility,
+          })
+          .from(schema.sections)
+          .where(
+            and(eq(schema.sections.ownerKind, 'case'), inArray(schema.sections.ownerId, openCaseIds)),
+          )
+          .all()
+      : [];
+    const revealed = caseSections.length ? revealedSectionIds(viewer) : new Set<string>();
+
     for (const row of rows) {
       const source = row.kind === 'case' ? found.get(row.fromId) : undefined;
-      if (source) {
-        out.push({ kind: 'case', id: source.id, href: `/c/${source.slug}`, name: source.name, detail: row.detail });
+      if (!source) continue;
+      if (!row.detail && notesSay.has(source.id)) {
+        out.push({ kind: 'case', id: source.id, href: `/c/${source.slug}`, name: source.name, detail: '' });
+        continue;
       }
+      const section = caseSections.find(
+        (candidate) =>
+          candidate.ownerId === source.id &&
+          candidate.title === row.detail &&
+          canSeeSection(candidate, viewer, revealed, candidate.id) &&
+          extractEntryLinks(candidate.body).includes(entryId),
+      );
+      if (!section) continue;
+      out.push({
+        kind: 'case',
+        id: source.id,
+        href: `/c/${source.slug}#section-${section.id}`,
+        name: source.name,
+        detail: row.detail,
+      });
     }
   }
 
@@ -836,14 +922,22 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
     if (sectionSources.length) {
       const sections = db
         .select({
-          id: schema.entrySections.id,
-          entryId: schema.entrySections.entryId,
-          title: schema.entrySections.title,
-          body: schema.entrySections.body,
-          visibility: schema.entrySections.visibility,
+          id: schema.sections.id,
+          entryId: schema.sections.ownerId,
+          title: schema.sections.title,
+          body: schema.sections.body,
+          visibility: schema.sections.visibility,
         })
-        .from(schema.entrySections)
-        .where(inArray(schema.entrySections.entryId, [...new Set(sectionSources.map((row) => row.fromId))]))
+        .from(schema.sections)
+        // §70: a sectie belongs to a thing, so an artikel's pass asks for the
+        // artikel-owned ones. Without this a dossier sectie whose owner id
+        // happened to be an artikel id could speak through that artikel.
+        .where(
+          and(
+            eq(schema.sections.ownerKind, 'entry'),
+            inArray(schema.sections.ownerId, [...new Set(sectionSources.map((row) => row.fromId))]),
+          ),
+        )
         .all();
       const revealed = revealedSectionIds(viewer);
 

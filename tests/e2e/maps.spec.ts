@@ -583,3 +583,147 @@ test('§69: een landkaart is ter plekke om te dopen', async ({ page }, info) => 
   await page.goto('/maps');
   await expect(page.getByRole('link', { name: now })).toBeVisible({ timeout: 20_000 });
 });
+
+/**
+ * §71 — de laag van een speld, en het kluitje dat één speld met een cijfertje wordt.
+ *
+ * Nick, ronde 36: "met een soort weight systeem werken (bijvb stad, dorp, huis,
+ * kamer) dat een dorp speld altijd boven een huis speld wordt weergegeven, en
+ * als er meerdere markers dichtbij elkaar zijn komt er een nummertje hoeveel
+ * markers zich daar bevinden. Doe bijvb Middelharnis (+10)."
+ *
+ * Drie dingen worden hier gevraagd, en ze hangen aan elkaar:
+ *
+ *  1. twee spelden op vrijwel dezelfde plek worden er één, met een `+1`;
+ *  2. de vier laagknoppen in het blad bepalen wie van de twee dat is;
+ *  3. één druk op het cijfertje zoomt in tot precies die twee — en dan staan ze
+ *     weer los, want er verdwijnt nooit iets.
+ *
+ * De coördinaten zijn breuken van `.map-world`, niet van `.map-stage` (§6):
+ * de stage is groter dan de plaat en een tik naast de plaat zet niets.
+ */
+test('§71: twee spelden op één plek worden er één met een +1, en de laag zegt wie', async ({ page }, info) => {
+  // Ruim, want onder `E2E_DEV=1` compileert de pagina onder je handen.
+  test.setTimeout(300_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const eerst = `Middelharnis ${stamp}`;
+  const daarna = `Het huis ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const mapUrl = await hangMap(page, `Kluitje ${stamp}`);
+  expect(mapUrl).toContain('/maps/');
+  await page.waitForTimeout(500);
+
+  /*
+   * Een notitie-speld op een breuk van de pláát.
+   *
+   * §6: "Speld zetten" en de tik erna kunnen in stilte landen op een pagina die
+   * nog niet luistert, en dan zet `placeAt` niets — waarna de rest van deze test
+   * over één speld gaat in plaats van twee. Onder `E2E_DEV=1`, waar de pagina
+   * onder je handen nog gecompileerd wordt, is dat precies wat er gebeurde: de
+   * teller zei "1 van 1 speld". Dus drukken tot het vraagblad er is, en daarna
+   * pas verder.
+   */
+  const note = async (name: string, fx: number, fy: number) => {
+    const ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await page
+        .getByRole('button', { name: 'Speld zetten' })
+        .click({ timeout: 10_000 })
+        .catch(() => undefined);
+      await placeAt(page, fx, fy);
+      if (await ask.isVisible().catch(() => false)) break;
+      await page.waitForTimeout(500);
+    }
+    await expect(ask).toBeVisible();
+    await fillWhenReady(ask.getByPlaceholder('Zoek een artikel…'), name);
+
+    /*
+     * De rij 'Notitie … zetten' is `disabled={busy}`, en `busy` blijft staan tot
+     * de `router.refresh()` van de *vorige* speld terug is (§5: een tekenvlak op
+     * een servergetekende pagina verst zich na elke schrijf). Onder een
+     * dev-build duurt dat langer dan de klik wil wachten, en de knop is dan geen
+     * moment lang uitgeschakeld maar tientallen seconden. Dus: wachten tot hij
+     * aan gaat — en intussen het vak opnieuw vullen als de lijst onder onze
+     * handen opnieuw is opgebouwd en de tekst kwijt is.
+     *
+     * Er wordt hierna **één keer** geklikt, buiten de lus: elke klik zet een
+     * speld, dus een klik die opnieuw geprobeerd wordt zet er twee (§6).
+     */
+    const zetten = ask.getByRole('button', { name: new RegExp(`Notitie .${name}. zetten`) });
+    await expect(async () => {
+      const box = ask.getByPlaceholder('Zoek een artikel…');
+      if ((await box.inputValue()) !== name) await fillWhenReady(box, name);
+      await expect(zetten).toBeEnabled({ timeout: 2000 });
+    }).toPass({ timeout: 120_000 });
+    await zetten.click();
+
+    // Zetten opent het blad en kiest de speld; leg allebei weg.
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+  };
+
+  // Twee spelden, achttien plaatpixels uit elkaar: bij de openingszoom van een
+  // plaat van 900 × 600 op welk scherm dan ook binnen één speldenkop.
+  await note(eerst, 0.5, 0.5);
+  await note(daarna, 0.52, 0.5);
+
+  /* ---- 1. Eén speld op het glas, met een +1 ernaast ---- */
+  // Eerst: staan ze er echt allebei? Niets is wég — de teller onder de kaart
+  // telt ze allebei nog, en dit is ook de wacht waar de twee schrijfacties
+  // binnen moeten zijn voordat er iets over het kluitje te zeggen valt.
+  await expect(page.getByText(/2 van 2 /)).toBeVisible({ timeout: 20_000 });
+
+  const badge = page.getByTestId('map-cluster-badge');
+  await expect(page.locator('.map-pin')).toHaveCount(1);
+  await expect(badge).toHaveText('+1');
+  // Gelijke laag: de nieuwste ligt vóór zijn gelijken, dus die draagt het.
+  await expect(page.locator('.map-pin')).toHaveText(new RegExp(daarna));
+
+  /* ---- 3. Eén druk op het cijfertje zet die twee op het glas ---- */
+  const zoomLevel = page
+    .getByRole('group', { name: 'Zoomen', exact: true })
+    .locator('.canvas-zoom-level');
+  const zoomBefore = Number((await zoomLevel.textContent())?.replace(/\D/g, '') ?? '0');
+  await badge.click();
+  await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 15_000 });
+  await expect(badge).toHaveCount(0);
+  const zoomAfter = Number((await zoomLevel.textContent())?.replace(/\D/g, '') ?? '0');
+  expect(zoomAfter, 'de klik zoomt in, hij opent geen lijstje').toBeGreaterThan(zoomBefore);
+
+  /* ---- 2. De laag zegt wie het kluitje draagt ---- */
+  await page.locator('.map-pin', { hasText: eerst }).click();
+  const blad = page.getByRole('dialog', { name: eerst });
+  await expect(blad).toBeVisible();
+  await expect(blad.getByTestId('pin-layer')).toHaveText('0');
+  await blad.getByRole('button', { name: 'Voorgrond' }).click();
+  await expect(blad.getByTestId('pin-layer')).toHaveText('1', { timeout: 15_000 });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  // Weer uitzoomen: hetzelfde kluitje, een andere kop.
+  await page.getByRole('button', { name: 'Alles in beeld' }).click();
+  await expect(page.locator('.map-pin')).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.getByTestId('map-cluster-badge')).toHaveText('+1');
+  await expect(page.locator('.map-pin')).toHaveText(new RegExp(eerst));
+
+  // En het is bewaard, niet alleen op dit scherm: de plank is servergetekend.
+  await page.reload();
+  await expect(page.getByRole('application')).toBeVisible();
+  await expect(page.locator('.map-pin')).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.locator('.map-pin')).toHaveText(new RegExp(eerst));
+
+  /* ---- Naar achter zet hem weer onder de ander ---- */
+  await page.getByTestId('map-cluster-badge').click();
+  await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 15_000 });
+  await page.locator('.map-pin', { hasText: eerst }).click();
+  const weer = page.getByRole('dialog', { name: eerst });
+  await expect(weer).toBeVisible();
+  await weer.getByRole('button', { name: 'Achtergrond' }).click();
+  await expect(weer.getByTestId('pin-layer')).toHaveText('-1', { timeout: 15_000 });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Alles in beeld' }).click();
+  await expect(page.locator('.map-pin')).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator('.map-pin')).toHaveText(new RegExp(daarna));
+});

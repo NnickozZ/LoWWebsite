@@ -30,8 +30,8 @@ type Deps = {
   updateCase: typeof import('@/lib/cases/service').updateCase;
   createBoard: typeof import('@/lib/boards/service').createBoard;
   saveBoard: typeof import('@/lib/boards/service').saveBoard;
-  createSection: typeof import('@/lib/entries/secrets').createSection;
-  updateSection: typeof import('@/lib/entries/secrets').updateSection;
+  createSection: typeof import('@/lib/sections/service').createSection;
+  updateSection: typeof import('@/lib/sections/service').updateSection;
   listMentions: typeof import('@/lib/entries/mentions').listMentions;
   recomputeMentions: typeof import('@/lib/entries/mentions').recomputeMentions;
   rebuildAllMentions: typeof import('@/lib/entries/mentions').rebuildAllMentions;
@@ -75,7 +75,7 @@ beforeAll(async () => {
   const entries = await import('@/lib/entries/service');
   const cases = await import('@/lib/cases/service');
   const boards = await import('@/lib/boards/service');
-  const secrets = await import('@/lib/entries/secrets');
+  const sections = await import('@/lib/sections/service');
   const mentions = await import('@/lib/entries/mentions');
   deps = {
     sqlite: dbModule.sqlite,
@@ -84,8 +84,8 @@ beforeAll(async () => {
     updateCase: cases.updateCase,
     createBoard: boards.createBoard,
     saveBoard: boards.saveBoard,
-    createSection: secrets.createSection,
-    updateSection: secrets.updateSection,
+    createSection: sections.createSection,
+    updateSection: sections.updateSection,
     listMentions: mentions.listMentions,
     recomputeMentions: mentions.recomputeMentions,
     rebuildAllMentions: mentions.rebuildAllMentions,
@@ -194,6 +194,65 @@ describe('a dossier the reader may not open', () => {
   });
 });
 
+/**
+ * §70: a dossier carries secties now, and a sectie is text — so what one names
+ * is counted under "Genoemd in" exactly as an artikel's secties are. Which
+ * means the *finer* dial comes with it: a dossier the whole table may open can
+ * carry a sectie only the Keeper may read, and that sectie may not speak
+ * through the dossier's name (rule 1, the same leak `canSeeSection` exists to
+ * stop on an artikel).
+ */
+describe('a sectie on a dossier', () => {
+  beforeAll(() => {
+    const open = deps.createSection('case', 'c-open', BRAM);
+    deps.updateSection(open, { title: 'Wat dinsdag opleverde', body: linking(jan, 'Jan Vermeer') }, BRAM);
+    const prep = deps.createSection('case', 'c-open', KEEPER);
+    deps.updateSection(prep, { title: 'Wat de Keeper weet', body: linking(reliek, 'De reliek') }, KEEPER);
+  });
+
+  it('is counted, with the sectie\'s title after the dossier', () => {
+    const mention = deps
+      .listMentions(jan, BRAM)
+      .find((m) => m.kind === 'case' && m.detail === 'Wat dinsdag opleverde');
+    expect(mention?.name).toBe('Zaak Vlissingen');
+    expect(mention?.href).toContain('#section-');
+  });
+
+  it('and a keeper-only one reaches the Keeper and nobody else', () => {
+    expect(
+      deps.listMentions(reliek, KEEPER).some((m) => m.kind === 'case' && m.detail === 'Wat de Keeper weet'),
+    ).toBe(true);
+    const his = deps.listMentions(reliek, BRAM);
+    expect(his.some((m) => m.kind === 'case')).toBe(false);
+    // Not hidden in the payload either: the title is a sentence about prep.
+    expect(JSON.stringify(his)).not.toContain('Wat de Keeper weet');
+  });
+
+  it('and the Dossiernotities still count beside it, with no detail', () => {
+    // The notes keep the lighthouse they already named — a later describe
+    // still reads it — and gain Jan beside it.
+    deps.updateCase(
+      'c-open',
+      {
+        notes: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'entryLink', attrs: { id: vuurtoren, label: 'De Vuurtoren' } }] },
+            { type: 'paragraph', content: [{ type: 'entryLink', attrs: { id: jan, label: 'Jan Vermeer' } }] },
+          ],
+        },
+      },
+      KEEPER,
+    );
+    const details = deps
+      .listMentions(jan, BRAM)
+      .filter((m) => m.kind === 'case' && m.name === 'Zaak Vlissingen')
+      .map((m) => m.detail)
+      .sort();
+    expect(details).toEqual(['', 'Wat dinsdag opleverde']);
+  });
+});
+
 describe('an infobox that points at somebody', () => {
   beforeAll(() => {
     deps.updateEntry(
@@ -224,11 +283,11 @@ describe('a section only some people have been shown', () => {
   let sectionId = '';
 
   beforeAll(() => {
-    sectionId = deps.createSection(reliek, KEEPER.id);
+    sectionId = deps.createSection('entry', reliek, KEEPER);
     deps.updateSection(
       sectionId,
       { title: 'Wat de dokter wist', body: linking(vuurtoren, 'De Vuurtoren') },
-      KEEPER.id,
+      KEEPER,
     );
   });
 
@@ -244,9 +303,9 @@ describe('a section only some people have been shown', () => {
   });
 
   it('until it is turned on, and then everybody has it', () => {
-    deps.updateSection(sectionId, { visibility: 'all' }, KEEPER.id);
+    deps.updateSection(sectionId, { visibility: 'all' }, KEEPER);
     expect(deps.listMentions(vuurtoren, BRAM).map((m) => m.kind)).toContain('section');
-    deps.updateSection(sectionId, { visibility: 'keeper' }, KEEPER.id);
+    deps.updateSection(sectionId, { visibility: 'keeper' }, KEEPER);
   });
 });
 

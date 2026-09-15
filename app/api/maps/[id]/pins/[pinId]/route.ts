@@ -5,6 +5,7 @@ import {
   convertPinToEntry,
   PIN_IS_SOMEONE_ELSE_S,
   removePin,
+  setPinLayer,
   updatePin,
   viewerCanEditPin,
 } from '@/lib/maps/service';
@@ -24,6 +25,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       name?: unknown;
       text?: unknown;
       entryId?: unknown;
+      layer?: unknown;
     };
 
     /*
@@ -39,6 +41,17 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
         return json({ error: PIN_IS_SOMEONE_ELSE_S }, { status: 403 });
       }
       return json({ pin: convertPinToEntry(pinId, body.entryId, user) });
+    }
+
+    /*
+     * §71: Naar voren / Naar achter / Voorgrond / Achtergrond. Zijn eigen tak,
+     * om dezelfde reden als `entryId` hierboven: het is een ander soort schrijf
+     * (geen veldkamer, geen hertelling), en het recht wordt in de dienst
+     * gevraagd — `setPinLayer` gaat door `ownPin`, dus dit is dezelfde regel als
+     * bij het verschuiven van een speld: wie hem zette, of een Keeper.
+     */
+    if (typeof body.layer === 'number' && Number.isFinite(body.layer)) {
+      return json({ pin: setPinLayer(pinId, body.layer, user) });
     }
 
     const patch: { x?: number; y?: number; name?: string; text?: string } = {};

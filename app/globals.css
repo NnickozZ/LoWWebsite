@@ -1753,31 +1753,33 @@ details.section[open] > summary::before {
 }
 
 /* ------------------------------------------------------------- case tabs */
+/*
+ * Round 36: the row wraps; it does not scroll. A dossier with many soorten
+ * filed grew a horizontal scrollbar and hid half its own shelves behind a
+ * drag, so `overflow-x` and the scrollbar classes are gone and the tabs take
+ * a second and a third line instead.
+ *
+ * Wrapping breaks the file-tab trick, so the trick moved. A tab used to have
+ * no bottom border at all and was pulled a pixel down over the *row's*
+ * border-bottom — which is the panel edge, and therefore only ever sits under
+ * the last line. Now every tab carries its own 1px bottom rule and is still
+ * pulled down over the row's: on the last line the two coincide exactly and
+ * nothing looks different, and on the lines above the tabs draw the shelf they
+ * stand on themselves. The active tab paints that rule in `--paper-raised` —
+ * its own paper, opaque, over whatever is beneath it — so the notch that
+ * merges a tab into what is below it appears on whichever line it lands.
+ *
+ * `column-gap: 0` is part of the shelf: a gap between tabs would be a gap in
+ * the rule on every line but the last. The tabs keep their distance by their
+ * padding and their 1px transparent side borders, and `row-gap` is the air
+ * between lines.
+ */
 .case-tabs {
   display: flex;
-  gap: 0.15rem;
+  flex-wrap: wrap;
+  column-gap: 0;
+  row-gap: 0.3rem;
   border-bottom: 1px solid var(--rule);
-  overflow-x: auto;
-  /* `overflow-x: auto` alone makes overflow-y auto too, and the active tab is
-     a pixel taller than the row: a vertical scrollbar over five tabs. */
-  overflow-y: hidden;
-  /* No bar until the tabs really do not fit — see useOverflowing(). */
-  scrollbar-width: none;
-}
-.case-tabs::-webkit-scrollbar {
-  display: none;
-}
-.case-tabs-scrollable {
-  scrollbar-width: thin;
-  padding-bottom: 2px;
-}
-.case-tabs-scrollable::-webkit-scrollbar {
-  display: block;
-  height: 6px;
-}
-.case-tabs-scrollable::-webkit-scrollbar-thumb {
-  background: var(--rule);
-  border-radius: 3px;
 }
 .case-tab {
   display: inline-flex;
@@ -1786,7 +1788,8 @@ details.section[open] > summary::before {
   min-height: var(--tap);
   padding: 0 0.75rem;
   border: 1px solid transparent;
-  border-bottom: none;
+  /* Round 36: its own shelf, so a tab on a wrapped line stands on a rule too. */
+  border-bottom: 1px solid var(--rule);
   background: none;
   cursor: pointer;
   white-space: nowrap;
@@ -1802,6 +1805,8 @@ details.section[open] > summary::before {
 .case-tab-active {
   background: var(--paper-raised);
   border-color: var(--rule);
+  /* The notch: the tab's own paper over the rule, on whichever line it is. */
+  border-bottom-color: var(--paper-raised);
   color: var(--ink);
   box-shadow: inset 0 2px 0 var(--stamp-red);
 }
@@ -6619,4 +6624,67 @@ details.section[open] > summary::before {
   font-size: 0.58rem;
   font-weight: 700;
   line-height: 1.6;
+}
+
+/* §71 — het cijfertje bij een kluitje spelden, en de vier laagknoppen.
+   Achteraan de stylesheet met opzet: een regel die vóór de regel staat die hij
+   overschrijft verliest bij gelijke specificiteit (zie CLAUDE.md §8), en
+   `.map-pin` staat een paar duizend regels hierboven. Deze blokken overschrijven
+   niets — het zijn nieuwe klassen — maar ze moeten wel wínnen van de 44 px
+   raakdoelen van §69, die één klasse diep zijn; vandaar dat de maat hieronder
+   op de knop zelf staat. */
+.map-cluster-badge {
+  position: absolute;
+  /* Naast de kop van de speld, rechtsboven. De speld zelf hangt met zijn punt
+     aan het punt (`translate(-50%, -100%)`), zijn kop is 28 px hoog en zijn
+     naamstrookje staat eronder — dus de kop eindigt zo'n 48 px boven de punt. */
+  transform: translate(8px, -58px);
+  z-index: 5;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 0.28rem;
+  border: 1px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--stamp-face);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  cursor: zoom-in;
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.3);
+}
+.map-cluster-badge:hover,
+.map-cluster-badge:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+}
+.map-cluster-badge:focus-visible {
+  outline: 3px solid var(--stamp-red);
+  outline-offset: 1px;
+}
+/* Op een telefoon is het een raakdoel en geen speldenprikje (§69 6.1). */
+@media (max-width: 767px) {
+  .map-pins .map-cluster-badge {
+    min-width: 28px;
+    height: 26px;
+    font-size: 0.66rem;
+    transform: translate(10px, -64px);
+  }
+}
+/* De vier bevelen in het blad van een speld. Ze mogen wikkelen op 390 px —
+   vier knoppen naast elkaar passen daar niet. */
+.map-layer-row {
+  gap: 0.3rem;
+  align-items: center;
+}
+.map-layer-value {
+  margin-left: auto;
+  font-family: var(--stamp-face);
+  font-variant-numeric: tabular-nums;
 }

@@ -200,11 +200,11 @@ beforeAll(async () => {
 
   // Two sections on the journaal: one still prep, one everyone has.
   run(
-    `INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order) VALUES ('s-prep', 'e-journaal', 'Wat de dokter wist', ?, '', 'keeper', 0)`,
+    `INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES ('s-prep', 'entry', 'e-journaal', 'Wat de dokter wist', ?, '', 'keeper', 0)`,
     linking('e-plek', 'Walcheren'),
   );
   run(
-    `INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order) VALUES ('s-open', 'e-journaal', 'Openbaar', ?, '', 'all', 1)`,
+    `INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES ('s-open', 'entry', 'e-journaal', 'Openbaar', ?, '', 'all', 1)`,
     linking('e-plek', 'Walcheren'),
   );
 
@@ -354,10 +354,26 @@ beforeAll(async () => {
   run(`UPDATE maps SET description = 'Het eiland, getekend.' WHERE id = 'm-eiland'`);
   run(`UPDATE timelines SET description = 'Zeven dagen.' WHERE id = 't-week'`);
 
-  // §27: the derived table, from every source at once; the dossier's notes by hand.
+  /*
+   * §70: a dossier's own writing, which the graph reads back per viewer — the
+   * Dossiernotities *and* a sectie, because a sectie's dial is finer than the
+   * dossier's and a keeper-only one may not speak through the dossier's name.
+   * Written for real rather than poked into `entry_mentions` by hand, because
+   * `buildWebGraph` now asks the source whether it still says it.
+   */
+  run(`UPDATE cases SET notes = ? WHERE id = 'c-open'`, linking('e-jan', 'Jan Vermeer'));
+  run(`UPDATE cases SET notes = ? WHERE id = 'c-prive'`, linking('e-toren', 'De toren'));
+  run(
+    `INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES ('cs-open', 'case', 'c-open', 'Wat we vonden', ?, '', 'all', 0)`,
+    linking('e-plek', 'Walcheren'),
+  );
+  run(
+    `INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES ('cs-prep', 'case', 'c-open', 'Wat de Keeper weet', ?, '', 'keeper', 1)`,
+    linking('e-geheim', 'Het geheim'),
+  );
+
+  // §27: the derived table, from every source at once.
   deps.rebuildAllMentions();
-  deps.recomputeMentions('case', 'c-open', [{ toEntryId: 'e-jan' }]);
-  deps.recomputeMentions('case', 'c-prive', [{ toEntryId: 'e-toren' }]);
 });
 
 afterAll(() => {
@@ -429,6 +445,9 @@ describe('the Keeper sees every kind of tie', () => {
     expect(hasEdge(graph, 'filed', 'case:c-open', 'entry:e-toren')).toBe(true);
     expect(hasEdge(graph, 'filed', 'case:c-prive', 'entry:e-jan')).toBe(true);
     expect(hasEdge(graph, 'caseNotes', 'case:c-open', 'entry:e-jan', '')).toBe(true);
+    // §70: and what a sectie of the dossier says, with its title as the label.
+    expect(hasEdge(graph, 'caseNotes', 'case:c-open', 'entry:e-plek', 'Wat we vonden')).toBe(true);
+    expect(hasEdge(graph, 'caseNotes', 'case:c-open', 'entry:e-geheim', 'Wat de Keeper weet')).toBe(true);
     expect(hasEdge(graph, 'inCase', 'case:c-open', 'board:b-open')).toBe(true);
     expect(hasEdge(graph, 'inCase', 'case:c-open', 'timeline:t-week')).toBe(true);
     expect(hasEdge(graph, 'investigator', 'entry:e-jan', 'case:c-open')).toBe(true);

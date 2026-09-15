@@ -1015,6 +1015,135 @@ the end. Five new rules — 38, 39, 40, 41, 42 — see `README.md`, and
       post-fix run: **177 passed / 27 skipped / 0 failed**, desktop and phone,
       against a production build (round 12: 162 / 26 / 0)
 
+## Round 36 — 15 September 2026: een sectie voor iedereen, een laag op een speld, een tabrij die wikkelt, en een deur voor de stamboom (§70, §71)
+
+Four items from Nick's feedback. Two became binding rules — 70 and 71, see
+`README.md` — and two are repairs. `DECISIONS.md` Ronde 36 carries the why of
+each, and says which decisions were Nick's and which the builder's.
+
+### §70 — een sectie hoort bij een ding
+
+- [x] `entry_sections` → `sections`, with `owner_kind` + `owner_id`
+      (`0025_sections_and_pin_layer`). **Ids carried across unchanged**, so
+      every `section:{id}` live room and Yjs document survived;
+      `entry_section_reveals` keeps its name, being keyed by section id alone
+- [x] A dossier carries secties with their own headings, under its
+      **Dossiernotities**, which stays — it is the dossier's body, the working
+      theory a sectie hangs beneath. Literally the artikel's component, with the
+      same classes and the same per-sectie rooms
+- [x] Making, writing, reordering and removing asks the **thing's** §17 edit
+      right (`canEditSections` → `viewerCanEdit`), not `requireKeeper()`. The
+      geheimhouding dial and the reveals stayed the Keeper's, in the route as
+      well as on the screen
+- [x] A new sectie's visibility follows from who made it (`startingVisibility`):
+      a Keeper's starts `keeper`, anybody else's `all` — a player has no button
+      to reveal it later, and a note nobody can read is not a note
+- [x] `canEditSections` also asks **§10's lock**: a sectie does not go through
+      `updateEntry`, so without it a bolted artikel's secties stayed writable
+- [x] `sectionAdmission` in `lib/live/rooms.ts` asks three questions in order —
+      may you see the owner, may you see the sectie (`canSeeSection`), may you
+      write — and the dial is not reachable from the room at all
+- [x] A dossier's secties count under "Genoemd in" (§27) and are drawn in the
+      web, and a `case` row is re-verified against its source through
+      `canSeeSection` in **both** `listMentions` and `buildWebGraph`
+- [x] `lib/sections/service.ts` is the only road to a sectie;
+      `app/api/cases/[id]/sections/route.ts` is the dossier's door. The section
+      half left `lib/entries/secrets.ts` and **nothing is re-exported** from
+      there
+- [ ] Known and deliberate: an **untitled** dossier sectie is indistinguishable
+      from the Dossiernotities in `entry_mentions` (the row carries only the
+      title), so both readers accept either source for a detail-less row — the
+      safe direction
+- [ ] `countHiddenSections` still has no caller in the UI. It had none before
+      this round either
+- [ ] **Open, and it is the other half of Nick's second sentence:** a dossier
+      still has no *geschiedenis* in §65's shape — no revisions, no *Wat er
+      veranderde*, no per-edit log. What it got is the artikel's **writing**
+      side. `cases` has no revision table and there is no `updateCase` for a
+      history to hang off, so that is a round of its own
+
+### §71 — een speld heeft een laag
+
+- [x] `map_pins.layer`, an integer; higher draws in front, ties broken by
+      `createdAt` then id, so the order is total and identical on every screen
+- [x] The rang is **per speld, not per soort** (Nick: "it might be different per
+      map how the ranking works"), so nothing is derived from `entry_types`.
+      Set with **Naar voren / Naar achter / Voorgrond / Achtergrond** in the
+      speld's blad, the one screen that is about one speld
+- [x] The same number decides the draw order **and** which speld represents a
+      bunch once they are within a speldenkop of each other at this zoom,
+      wearing a `+n` — Middelharnis (+10), not the tenth house
+- [x] **Nothing ever disappears.** No zoom bands; spelden only merge, and one
+      press on the badge zooms to fit exactly that group, centred
+- [x] `lib/maps/cluster.ts` is the whole arithmetic, pure and unit tested
+      (`compareDrawOrder`, `clusterPins`, `viewForCluster`, `layerAfter`).
+      `tx`/`ty` are deliberately not inputs, or a bunch would flicker under a pan
+- [x] The landkaart passes its **own** floor, ceiling and step, because
+      `clampZoom`/`fitViewport` clamp to 0.25–2.5 and here zoom 1 is one picture
+      pixel per screen pixel — a different unit, so a different clamp (§69)
+- [x] **A new speld starts on layer 0, not `max + 1`** — the builder's call, and
+      it reverses the instruction it was given. Nick's own example is the reason:
+      a huis set inside Middelharnis would immediately outrank the dorp and wear
+      the `+10`. The tiebreak buys what `max + 1` was for
+- [ ] Deliberate: choosing does not break a bunch open (only *carrying* a speld
+      exempts it), the `+n` does not say which spelden are under it, a selected
+      speld under a badge gets no ring, and a group on exactly one point never
+      separates — the press does its one step and stops
+
+### De tabrij van een dossier wikkelt
+
+- [x] Nick chose wrapping explicitly, over an overflow menu and a restructured
+      tab set. `.case-tabs` is `flex-wrap: wrap` with `row-gap` and
+      **`column-gap: 0`**; the `overflow-x`, the scrollbar rules,
+      `.case-tabs-scrollable` and `useOverflowing` in `CaseDossier` are gone
+- [x] Every tab now carries its own 1 px bottom rule and the active one paints
+      it in `--paper-raised`, so the file-tab notch appears on whichever line the
+      tab lands on. `column-gap: 0` is load-bearing: a gap would be a hole in
+      the shelf on every line but the last
+- [ ] `components/useOverflowing.ts` has no caller and is **left on disk on
+      purpose** — a deleted file cannot be delivered over the device bridge
+      (CLAUDE.md §7) and nothing imports it. Nick's option:
+      `git rm components/useOverflowing.ts`
+
+### De bug: je kon geen stambomen verwijderen
+
+- [x] True, and true **only of the stamboom**: `DELETE /api/family-trees/[id]`,
+      `softDeleteFamilyTree` and `lib/admin/trash.ts`'s family_tree handling all
+      existed and no screen called them. The other three canvases each had their
+      own delete (`BoardCanvas.removeBoard`, `TimelineCanvas.deleteTimeline` via
+      the Instellingen sheet, `MapKeeperTools.takeDown`)
+- [x] One shared `components/ui/BinSlot.tsx` — the dossier's folded `<details>`
+      drawer with the noun passed in — put on the stamboom page **only**: a
+      second door to the same bin on the other three would be worse than the gap
+      it closed
+- [x] On a full-screen canvas it sits **outside** `.page-canvas`, below the
+      fold, or it costs the stage its own height (§34)
+- [x] `DELETE` on a prikbord and on a stamboom now also `publishChange`, so an
+      open canvas hears it on the line it is already listening to (§60)
+- [ ] Open: the landkaart's only delete lives in the Keeper block, so a *player*
+      with edit rights passes `viewerCanEditMap` and `DELETE /api/maps/[id]` and
+      still has no door
+- [ ] Open: real uniformity means moving all four onto `BinSlot` and removing
+      their bespoke buttons. A round, not a repair
+
+### Verification
+
+- [x] `npx tsc --noEmit` silent; `npx vitest run` **96 files / 1555 tests, 0
+      failing** (round 35: 94 / 1499). Two new unit files —
+      `map-cluster.test.ts` and `sections-service.test.ts` — beside the five
+      existing ones this round extended (`entry-mentions`, `live-docs`,
+      `live-everywhere`, `trash-destroy`, `web-graph`)
+- [x] One migration (`0025_sections_and_pin_layer`), two new modules
+      (`lib/sections/service.ts`, `lib/maps/cluster.ts`), one new shared
+      component (`components/ui/BinSlot.tsx`), no new dependency
+- [x] Full Playwright run: **368 passed / 3 failed / 87 skipped**. The three:
+      `per-place-crops.spec.ts` (the pre-existing red documented in CLAUDE.md
+      §8) and two cases of the new `round-36-sections.spec.ts`, which were an
+      account name one character over §4's 32-character limit and now pass
+- [x] Nothing on the wire an older client cannot read: a speld with no `layer`
+      reads as 0 (the column is `NOT NULL DEFAULT 0`), and a sectie keeps its id,
+      so every open room survived the migration
+
 ## Not started (later phases)
 
 - [ ] Obsidian import, handout PDFs

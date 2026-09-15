@@ -70,7 +70,7 @@ beforeAll(async () => {
     .run();
   sqlite
     .prepare(
-      `INSERT INTO entry_sections (id, entry_id, title, visibility, sort_order) VALUES ('s1', 'e-weg', 'Geheim', 'keeper', 0)`,
+      `INSERT INTO sections (id, owner_kind, owner_id, title, visibility, sort_order) VALUES ('s1', 'entry', 'e-weg', 'Geheim', 'keeper', 0)`,
     )
     .run();
   sqlite
@@ -104,6 +104,16 @@ beforeAll(async () => {
     .run();
   sqlite
     .prepare(`INSERT INTO case_revisions (id, case_id, snapshot, edited_by) VALUES ('cr1', 'c-weg', '{}', 'keeper-1')`)
+    .run();
+  // §70: a dossier carries secties too, so destroying it has to take them —
+  // and the reveals that named them.
+  sqlite
+    .prepare(
+      `INSERT INTO sections (id, owner_kind, owner_id, title, visibility, sort_order) VALUES ('cs1', 'case', 'c-weg', 'Wat het onderzoek opleverde', 'all', 0)`,
+    )
+    .run();
+  sqlite
+    .prepare(`INSERT INTO entry_section_reveals (section_id, user_id) VALUES ('cs1', 'keeper-1')`)
     .run();
   sqlite
     .prepare(
@@ -220,7 +230,9 @@ describe('destroying an artikel', () => {
 
     expect(count(`SELECT count(*) n FROM entries WHERE id = 'e-weg'`)).toBe(0);
     expect(count(`SELECT count(*) n FROM entries_fts WHERE entry_id = 'e-weg'`)).toBe(0);
-    expect(count(`SELECT count(*) n FROM entry_sections WHERE entry_id = 'e-weg'`)).toBe(0);
+    expect(
+      count(`SELECT count(*) n FROM sections WHERE owner_kind = 'entry' AND owner_id = 'e-weg'`),
+    ).toBe(0);
     expect(count(`SELECT count(*) n FROM entry_section_reveals WHERE section_id = 's1'`)).toBe(0);
     expect(count(`SELECT count(*) n FROM entry_revisions WHERE entry_id = 'e-weg'`)).toBe(0);
     expect(count(`SELECT count(*) n FROM entry_links WHERE to_entry_id = 'e-weg'`)).toBe(0);
@@ -252,6 +264,11 @@ describe('destroying a dossier', () => {
     expect(count(`SELECT count(*) n FROM cases WHERE id = 'c-weg'`)).toBe(0);
     expect(count(`SELECT count(*) n FROM case_entries WHERE case_id = 'c-weg'`)).toBe(0);
     expect(count(`SELECT count(*) n FROM case_revisions WHERE case_id = 'c-weg'`)).toBe(0);
+    // §70: the dossier's secties, and their reveals, went with it.
+    expect(
+      count(`SELECT count(*) n FROM sections WHERE owner_kind = 'case' AND owner_id = 'c-weg'`),
+    ).toBe(0);
+    expect(count(`SELECT count(*) n FROM entry_section_reveals WHERE section_id = 'cs1'`)).toBe(0);
 
     // The artikel that was filed in it is untouched…
     expect(count(`SELECT count(*) n FROM entries WHERE id = 'e-blijft'`)).toBe(1);

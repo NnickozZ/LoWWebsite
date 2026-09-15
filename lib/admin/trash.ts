@@ -3,6 +3,7 @@ import { db, schema } from '@/lib/db';
 import { logActivity, logAudit, reindexEntry } from '@/lib/entries/service';
 import { entryIdsInCase, reconcileOrigin } from '@/lib/entries/origin';
 import { forgetStoredState } from '@/lib/live/docs';
+import type { SectionOwnerKind } from '@/lib/db/schema';
 
 /**
  * §2.6 and §11: nothing is deleted by accident. Everything soft-deleted is
@@ -13,8 +14,7 @@ import { forgetStoredState } from '@/lib/live/docs';
  * §18b: nothing in this file carries a `characterId`, and that is the rule
  * rather than an omission — every act here is a Keeper's, and a Keeper is
  * always the Keeper. The same holds for `lib/admin/types.ts` and
- * `lib/admin/words.ts`, and for the section and reveal work in
- * `lib/entries/secrets.ts`.
+ * `lib/admin/words.ts`, and for the reveal work in `lib/entries/secrets.ts`.
  *
  * The bin does now have a bottom (`destroyFromTrash`). A Keeper who has to be
  * able to throw something away for good — a page written by mistake, a name
@@ -223,17 +223,40 @@ export function restoreFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
  */
 export type DestroyEffect = { label: string; count: number };
 
+/**
+ * §70: a sectie belongs to a *thing*, so both the count shown before the
+ * confirm and the destruction itself ask the same question of the same table.
+ * One helper, so a dossier can never be counted by one rule and swept by
+ * another.
+ */
+function sectionIdsOf(ownerKind: SectionOwnerKind, ownerId: string): string[] {
+  return db
+    .select({ id: schema.sections.id })
+    .from(schema.sections)
+    .where(and(eq(schema.sections.ownerKind, ownerKind), eq(schema.sections.ownerId, ownerId)))
+    .all()
+    .map((row) => row.id);
+}
+
+/** Every sectie of one thing, and the reveals that named them. */
+function destroySectionsOf(ownerKind: SectionOwnerKind, ownerId: string): void {
+  const sectionIds = sectionIdsOf(ownerKind, ownerId);
+  if (sectionIds.length) {
+    db.delete(schema.entrySectionReveals)
+      .where(inArray(schema.entrySectionReveals.sectionId, sectionIds))
+      .run();
+  }
+  db.delete(schema.sections)
+    .where(and(eq(schema.sections.ownerKind, ownerKind), eq(schema.sections.ownerId, ownerId)))
+    .run();
+}
+
 export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffect[] {
   const count = (n: number | undefined) => Number(n ?? 0);
   const rows = <T,>(list: T[]) => list.length;
 
   if (kind === 'entry') {
-    const sectionIds = db
-      .select({ id: schema.entrySections.id })
-      .from(schema.entrySections)
-      .where(eq(schema.entrySections.entryId, id))
-      .all()
-      .map((row) => row.id);
+    const sectionIds = sectionIdsOf('entry', id);
     return [
       { label: 'verborgen stukken', count: rows(sectionIds) },
       {
@@ -301,6 +324,8 @@ export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffe
 
   if (kind === 'case') {
     return [
+      // §70: a dossier carries secties now, so they are part of what goes.
+      { label: 'verborgen stukken', count: rows(sectionIdsOf('case', id)) },
       {
         label: 'artikelen die eruit gehaald worden (de artikelen zelf blijven)',
         count: rows(
@@ -404,15 +429,14 @@ export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffe
 /** The rooms of shared text a record owns, so nothing is left typing into a ghost. */
 function roomsOf(kind: TrashItem['kind'], id: string): string[] {
   if (kind === 'entry') {
-    const sections = db
-      .select({ id: schema.entrySections.id })
-      .from(schema.entrySections)
-      .where(eq(schema.entrySections.entryId, id))
-      .all()
-      .map((row) => `section:${row.id}`);
+    const sections = sectionIdsOf('entry', id).map((sectionId) => `section:${sectionId}`);
     return [`entry:${id}:body`, `entry:${id}:fields`, ...sections];
   }
-  if (kind === 'case') return [`case:${id}:notes`, `case:${id}:fields`];
+  // §70: a dossier carries secties too, and each one is a room of its own.
+  if (kind === 'case') {
+    const sections = sectionIdsOf('case', id).map((sectionId) => `section:${sectionId}`);
+    return [`case:${id}:notes`, `case:${id}:fields`, ...sections];
+  }
   if (kind === 'map') {
     const pins = db
       .select({ id: schema.mapPins.id })
@@ -471,19 +495,7 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
   const rooms = roomsOf(kind, id);
 
   if (kind === 'entry') {
-    const sectionIds = db
-      .select({ id: schema.entrySections.id })
-      .from(schema.entrySections)
-      .where(eq(schema.entrySections.entryId, id))
-      .all()
-      .map((row) => row.id);
-
-    if (sectionIds.length) {
-      db.delete(schema.entrySectionReveals)
-        .where(inArray(schema.entrySectionReveals.sectionId, sectionIds))
-        .run();
-    }
-    db.delete(schema.entrySections).where(eq(schema.entrySections.entryId, id)).run();
+    destroySectionsOf('entry', id);
     db.delete(schema.entryReveals).where(eq(schema.entryReveals.entryId, id)).run();
     db.delete(schema.entryRevisions).where(eq(schema.entryRevisions.entryId, id)).run();
     db.delete(schema.entryLinks)
@@ -525,6 +537,10 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
       .set({ originPinned: false })
       .where(eq(schema.entries.originCaseId, id))
       .run();
+    // §70: and so do its secties, with the reveals that named them. A sectie
+    // exists nowhere but on the thing it hangs off, so it goes with it — the
+    // same rule an artikel's secties have always followed.
+    destroySectionsOf('case', id);
     db.delete(schema.caseEntries).where(eq(schema.caseEntries.caseId, id)).run();
     db.delete(schema.caseMembers).where(eq(schema.caseMembers.caseId, id)).run();
     db.delete(schema.caseRevisions).where(eq(schema.caseRevisions.caseId, id)).run();

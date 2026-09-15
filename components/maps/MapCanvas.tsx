@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { cameraKey } from '@/components/canvas/cameraKeys';
@@ -20,6 +20,13 @@ import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
+import {
+  CLUSTER_RADIUS,
+  clusterPins,
+  layerAfter,
+  viewForCluster,
+  type LayerCommand,
+} from '@/lib/maps/cluster';
 import { InkCanvas } from '@/components/ink/InkCanvas';
 import { InkShell } from '@/components/ink/InkShell';
 import { UnderFold } from '@/components/ink/UnderFold';
@@ -1127,7 +1134,9 @@ export function MapCanvas({
    */
   const makeOnEmpty = useMakeOnEmpty({
     enabled: mayType && !ink.ink.enabled && !placing,
-    ignore: '.map-pin, .map-legend, .map-legend-toggle, .map-panel',
+    /* §71: het cijfertje is een knop, geen kaal papier — een dubbelklik erop
+       vraagt geen nieuwe speld, hij zoomt in. */
+    ignore: '.map-pin, .map-cluster-badge, .map-legend, .map-legend-toggle, .map-panel',
     busy: () => Boolean(gesture.current?.moved),
     onMake: ({ clientX, clientY }) => {
       const point = stagePoint({ clientX, clientY });
@@ -1402,6 +1411,96 @@ export function MapCanvas({
     [map.id, map.name, ui, words.mapPin],
   );
 
+  /* --------------------------------------------------------------- §71 */
+
+  /**
+   * §71: de laag van één speld verzetten.
+   *
+   * De rekensom staat in `lib/maps/cluster.ts` en gebeurt hier, want hier
+   * liggen alle spelden al op tafel — "Voorgrond" is "één boven de hoogste die
+   * er verder ligt", en dat is een vraag over de hele landkaart. De server
+   * krijgt dus een getal, geen bevel: `PATCH … { layer }`.
+   */
+  const changeLayer = useCallback(
+    async (pin: MapPin, command: LayerCommand) => {
+      const next = layerAfter(command, pin, pinsRef.current);
+      if (next === pin.layer) return;
+      // Meteen op het glas; de server bevestigt hem zo.
+      setPins((current) => current.map((p) => (p.id === pin.id ? { ...p, layer: next } : p)));
+      setBusy(true);
+      try {
+        const response = await fetch(`/api/maps/${map.id}/pins/${pin.id}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ layer: next }),
+        });
+        const data = (await response.json()) as { pin?: MapPin; error?: string };
+        if (!response.ok || !data.pin) {
+          ui.toast(data.error ?? 'Opslaan is niet gelukt.');
+          router.refresh();
+          return;
+        }
+        const saved = data.pin;
+        setPins((current) => current.map((p) => (p.id === saved.id ? saved : p)));
+        // §5: een canvas op een servergetekende pagina ververst na élke schrijf.
+        router.refresh();
+      } catch {
+        ui.toast('Geen verbinding.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [map.id, router, ui],
+  );
+
+  /**
+   * §71: wie hoort er bij wie, bij deze zoom.
+   *
+   * Nooit iemand die op dit moment gedrágen wordt — deze hand of die van een
+   * ander. Een speld die halverwege een sleep onder een `+3` verdwijnt omdat
+   * hij langs een andere kwam, is een speld die je kwijt bent, en de hele groep
+   * gaat mee omdat de hele groep meereist.
+   *
+   * **Kiezen telt hier niet mee**, en dat is een keuze: een speld aanwijzen zou
+   * anders het kluitje uit elkaar laten springen terwijl je ernaar kijkt. Een
+   * speld die onder een `+n` ligt bereik je door op dat cijfertje te drukken —
+   * dat is waar het voor is.
+   */
+  const keepApart = useMemo(() => {
+    const keep = new Set<string>();
+    if (dragging) {
+      keep.add(dragging);
+      for (const id of selectedIds) keep.add(id);
+    }
+    for (const id of carried.keys()) keep.add(id);
+    return keep;
+  }, [carried, dragging, selectedIds]);
+
+  const clusters = useMemo(
+    () =>
+      clusterPins(shown, {
+        zoom: view.zoom,
+        picture: { width: map.width, height: map.height },
+        radius: CLUSTER_RADIUS,
+        keep: keepApart,
+      }),
+    [keepApart, map.height, map.width, shown, view.zoom],
+  );
+
+  /** §71: één klik op een `+n` zet precies díe spelden op het glas. */
+  const zoomToCluster = useCallback(
+    (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => {
+      setView((current) =>
+        viewForCluster(bounds, { width: map.width, height: map.height }, { w: stageSize.w, h: stageSize.h }, current, {
+          step: ZOOM_STEP,
+          minZoom: fitZoomRef.current * MIN_ZOOM_FACTOR,
+          maxZoom: MAX_ZOOM,
+        }),
+      );
+    },
+    [map.height, map.width, stageSize.h, stageSize.w],
+  );
+
   /* ------------------------------------------------------------ render */
 
   const selected = selectedId ? (pins.find((p) => p.id === selectedId) ?? null) : null;
@@ -1439,6 +1538,7 @@ export function MapCanvas({
       onSave={(patch) => void savePin(selected.id, patch)}
       onRemove={() => void removePin(selected)}
       onConvert={(seed) => convertToEntry(selected, seed)}
+      onLayer={(command) => void changeLayer(selected, command)}
       liveUser={liveUser}
     />
   ) : null;
@@ -1697,39 +1797,78 @@ export function MapCanvas({
 
         {/* The pins: stage pixels, never scaled — see the note at the top. */}
         <div className="map-pins">
-          {shown.map((pin) => {
+          {/*
+            §71: getekend per groepje, van achter naar voren.
+
+            `clusterPins` geeft de koppen al in tekenvolgorde terug, dus de laag
+            doet hier geen `z-index` nodig: wie later in de lijst staat, staat
+            later in de DOM en ligt dus bovenop. Staat er iemand achter de kop,
+            dan komt er een `+n` naast, en die `+n` is het enige wat erover
+            vertelt — niets verdwijnt, en er verschijnt geen zwevend lijstje.
+          */}
+          {clusters.map(({ lead: pin, count, bounds }) => {
             const colour = pinColour(pin);
             const isSelected = selectedIds.has(pin.id);
             // A pin in someone else's hand is drawn where their hand has it.
             const hand = dragging === pin.id ? undefined : carried.get(pin.id);
             const px = hand ? hand[0] : pin.x;
             const py = hand ? hand[1] : pin.y;
+            const left = view.tx + px * map.width * view.zoom;
+            const top = view.ty + py * map.height * view.zoom;
             return (
-              <button
-                key={pin.id}
-                type="button"
-                className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}${hand ? ' map-pin-carried' : ''}`}
-                style={{
-                  left: view.tx + px * map.width * view.zoom,
-                  top: view.ty + py * map.height * view.zoom,
-                  ['--pin-colour' as string]: colour,
-                }}
-                data-pin-id={pin.id}
-                aria-label={pin.name}
-                aria-pressed={isSelected}
-                onPointerDown={(event) => onPinPointerDown(event, pin)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setSelectedId(pin.id);
-                  }
-                }}
-              >
-                <span className="map-pin-head">
-                  <Icon name={pinIcon(pin)} size={13} />
-                </span>
-                <span className="map-pin-label">{pin.name}</span>
-              </button>
+              <Fragment key={pin.id}>
+                <button
+                  type="button"
+                  className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}${hand ? ' map-pin-carried' : ''}`}
+                  style={{ left, top, ['--pin-colour' as string]: colour }}
+                  data-pin-id={pin.id}
+                  aria-label={pin.name}
+                  aria-pressed={isSelected}
+                  onPointerDown={(event) => onPinPointerDown(event, pin)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(pin.id);
+                    }
+                  }}
+                >
+                  <span className="map-pin-head">
+                    <Icon name={pinIcon(pin)} size={13} />
+                  </span>
+                  <span className="map-pin-label">{pin.name}</span>
+                </button>
+                {count > 0 && (
+                  /*
+                    §71: het cijfertje. Middelharnis (+10).
+
+                    Een knop op zichzelf, en niet een hoekje van de speld: hij doet
+                    iets anders (inzoomen in plaats van het blad openen) en hij
+                    moet op een telefoon een eigen raakdoel hebben. Hij stopt zijn
+                    eigen pointer-events, want de stage pakt op de drempel de
+                    pointer capture en zou de klik erna naar zich toe trekken — een
+                    zwevende knop die dat niet doet is niet ingedrukt te krijgen
+                    (§6).
+                  */
+                  <button
+                    type="button"
+                    className="map-cluster-badge"
+                    style={{ left, top }}
+                    data-cluster-for={pin.id}
+                    data-testid="map-cluster-badge"
+                    aria-label={`Nog ${count} ${count === 1 ? words.mapPin : words.mapPinPlural} hier — inzoomen`}
+                    title={`Nog ${count} ${count === 1 ? words.mapPin : words.mapPinPlural} hier`}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      zoomToCluster(bounds);
+                    }}
+                  >
+                    +{count}
+                  </button>
+                )}
+              </Fragment>
             );
           })}
           {/*
@@ -1954,6 +2093,7 @@ function PinSheet({
   onSave,
   onRemove,
   onConvert,
+  onLayer,
   liveUser,
 }: {
   pin: MapPin;
@@ -1964,6 +2104,8 @@ function PinSheet({
   onRemove: () => void;
   /** §8: turn this notitie into an artikel, in place. */
   onConvert: (seed: { name: string; text: string }) => void;
+  /** §71: Naar voren / Naar achter / Voorgrond / Achtergrond. */
+  onLayer: (command: LayerCommand) => void;
   liveUser: LiveUser;
 }) {
   // §21: a note pin's name and text are shared fields — typed into by whoever
@@ -1980,6 +2122,7 @@ function PinSheet({
           onSave={onSave}
           onRemove={onRemove}
           onConvert={onConvert}
+          onLayer={onLayer}
         />
       </LiveFields>
     );
@@ -1993,6 +2136,7 @@ function PinSheet({
       onSave={onSave}
       onRemove={onRemove}
       onConvert={onConvert}
+      onLayer={onLayer}
     />
   );
 }
@@ -2005,6 +2149,7 @@ function PinSheetBody({
   onSave,
   onRemove,
   onConvert,
+  onLayer,
 }: {
   pin: MapPin;
   busy: boolean;
@@ -2013,6 +2158,7 @@ function PinSheetBody({
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
   onConvert: (seed: { name: string; text: string }) => void;
+  onLayer: (command: LayerCommand) => void;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -2111,6 +2257,48 @@ function PinSheetBody({
         ) : (
           pin.text && <p className="small" style={{ margin: 0, whiteSpace: 'pre-wrap' }}><MentionText text={pin.text} /></p>
         ))}
+
+      {/*
+        §71 — de laag, in het blad van de speld zelf.
+
+        Hier en niet in de legenda of in een eigen menu: dit is een eigenschap
+        van één speld, en het blad is het enige scherm dat over één speld gaat.
+        Het is ook waar de hand al is — je klikt (of dubbelklikt) een speld aan,
+        het blad gaat open, en de vier knoppen staan onder wat de speld zegt.
+
+        De rang is per speld en niet per soort (Nick, ronde 36): op de ene
+        landkaart hoort een dorp boven een huis, op de andere is de kamer het
+        onderwerp en hoort díe bovenaan. Er wordt dus niets afgeleid; de hand
+        zegt het.
+      */}
+      {mayEdit && (
+        <>
+          <p className="label" style={{ margin: '0.2rem 0 0' }} id="pin-layer-label">
+            Laag
+          </p>
+          <div className="row-wrap map-layer-row" role="group" aria-labelledby="pin-layer-label">
+            <button type="button" className="btn btn-small" disabled={busy} onClick={() => onLayer('backward')}>
+              Naar achter
+            </button>
+            <button type="button" className="btn btn-small" disabled={busy} onClick={() => onLayer('forward')}>
+              Naar voren
+            </button>
+            <button type="button" className="btn btn-small" disabled={busy} onClick={() => onLayer('back')}>
+              Achtergrond
+            </button>
+            <button type="button" className="btn btn-small" disabled={busy} onClick={() => onLayer('front')}>
+              Voorgrond
+            </button>
+            <span className="tiny muted map-layer-value" data-testid="pin-layer">
+              {pin.layer}
+            </span>
+          </div>
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Hoe hoger de laag, hoe meer naar voren. Staan er meer {words.mapPinPlural} op één plek, dan is de hoogste
+            degene die je ziet — met een cijfertje erbij voor de rest.
+          </p>
+        </>
+      )}
 
       {mayEdit ? (
         <p className="tiny muted" style={{ margin: 0 }}>

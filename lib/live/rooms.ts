@@ -4,7 +4,7 @@ import { updateCase } from '@/lib/cases/service';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
 import { liveFieldValues, updateEntry } from '@/lib/entries/service';
-import { updateSection } from '@/lib/entries/secrets';
+import { canEditSections, updateSection } from '@/lib/sections/service';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { getPin, updateMap, updatePin, viewerCanEditMap } from '@/lib/maps/service';
 import { visibleMapCondition } from '@/lib/maps/visibility';
@@ -21,7 +21,8 @@ import { caseFieldsRoomKey, entryFieldsRoomKey, eventFieldsRoomKey, keeperNotesR
  * A room key names one piece of shared text:
  *
  *   entry:{id}:body   a fiche's main text
- *   section:{id}      one titled section of a fiche (§9), with its own gate
+ *   section:{id}      one titled section of an artikel *or* a dossier (§70),
+ *                     with its own gate — see `sectionAdmission`
  *   case:{id}:notes   a dossier's working notes — the theory of the case
  *
  * and, since §21, the *fields* rooms — the short texts of one record, each a
@@ -278,28 +279,71 @@ function entryAdmission(entryId: string, viewer: Viewer, fields = false): Admiss
   };
 }
 
+/**
+ * §70: a sectie belongs to a *thing*, so its room is gated on that thing.
+ *
+ * Three questions, in this order, and none of them may be skipped:
+ *
+ *  1. **May this viewer see the owner at all?** An artikel through
+ *     `visibleEntryCondition` (and not in the bin), a dossier through
+ *     `visibleCaseCondition` — the very rule each page uses. An owner this
+ *     viewer may not open has no room for them to stand in, and they are not
+ *     told the difference between "no such room" and "not for you".
+ *  2. **May they see the sectie?** `canSeeSection` on top of that, because a
+ *     sectie's visibility is *finer* than its owner's: a dossier the whole
+ *     table may read can carry a sectie only the Keeper may. This is the half
+ *     that stops the room being a way round §9.
+ *  3. **May they write?** That is the §70 gate and no longer `isKeeper`:
+ *     anyone who may edit the thing may write a sectie on it
+ *     (`canEditSections`, the thing's own §17 dials). §10's lock is asked on
+ *     top of it for an artikel, exactly as the artikel's own body room does —
+ *     a bolted artikel is the Keeper's alone, secties included.
+ *
+ * The geheimhouding dial is *not* reachable from here at all: the room carries
+ * a body and nothing else, so `persist` passes only `body`. Turning the dial is
+ * `updateSection` from a route, where it stays the Keeper's.
+ */
 function sectionAdmission(sectionId: string, viewer: Viewer): Admission | null {
   if (!viewer) return null;
   const section = db
     .select({
-      id: schema.entrySections.id,
-      entryId: schema.entrySections.entryId,
-      body: schema.entrySections.body,
-      visibility: schema.entrySections.visibility,
+      id: schema.sections.id,
+      ownerKind: schema.sections.ownerKind,
+      ownerId: schema.sections.ownerId,
+      body: schema.sections.body,
+      visibility: schema.sections.visibility,
     })
-    .from(schema.entrySections)
-    .where(eq(schema.entrySections.id, sectionId))
+    .from(schema.sections)
+    .where(eq(schema.sections.id, sectionId))
     .get();
   if (!section) return null;
 
-  // The section's fiche has to be visible first; then the section's own rule.
-  const entry = db
-    .select({ id: schema.entries.id })
-    .from(schema.entries)
-    .where(and(eq(schema.entries.id, section.entryId), isNull(schema.entries.deletedAt), visibleEntryCondition(viewer)))
-    .get();
-  if (!entry) return null;
+  // (1) The thing it hangs off has to be visible first.
+  let ownerLocked = false;
+  if (section.ownerKind === 'case') {
+    const record = db
+      .select({ id: schema.cases.id })
+      .from(schema.cases)
+      .where(and(eq(schema.cases.id, section.ownerId), visibleCaseCondition(viewer)))
+      .get();
+    if (!record) return null;
+  } else {
+    const entry = db
+      .select({ id: schema.entries.id, isLocked: schema.entries.isLocked })
+      .from(schema.entries)
+      .where(
+        and(
+          eq(schema.entries.id, section.ownerId),
+          isNull(schema.entries.deletedAt),
+          visibleEntryCondition(viewer),
+        ),
+      )
+      .get();
+    if (!entry) return null;
+    ownerLocked = entry.isLocked;
+  }
 
+  // (2) Then the sectie's own rule, which is finer than the owner's.
   const revealed = new Set(
     db
       .select({ sectionId: schema.entrySectionReveals.sectionId })
@@ -310,14 +354,22 @@ function sectionAdmission(sectionId: string, viewer: Viewer): Admission | null {
   );
   if (!canSeeSection(section, viewer, revealed, section.id)) return null;
 
+  // (3) And only then, who may type.
+  const mayEdit =
+    canEditSections(section.ownerKind, section.ownerId, viewer) &&
+    (!ownerLocked || Boolean(viewer.isKeeper));
+
   return {
-    // §9: a section is the Keeper's to write; a player only ever reads one.
-    canEdit: Boolean(viewer.isKeeper),
+    canEdit: mayEdit,
     spec: {
       key: sectionRoomKey(sectionId),
       seed: () => section.body,
       persist: (json, actor) => {
-        if (actor.isKeeper) updateSection(sectionId, { body: json }, actor.id, { live: true });
+        // Asked again against the actor, because the person typing is not
+        // necessarily the person the room was opened for.
+        if (!canEditSections(section.ownerKind, section.ownerId, actor)) return;
+        if (ownerLocked && !actor.isKeeper) return;
+        updateSection(sectionId, { body: json }, actor, { live: true });
       },
     },
   };

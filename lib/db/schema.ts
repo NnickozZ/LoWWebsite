@@ -321,19 +321,45 @@ export const entryReveals = sqliteTable(
   (t) => [primaryKey({ columns: [t.entryId, t.userId] })],
 );
 
-export const entrySections = sqliteTable(
-  'entry_sections',
+/**
+ * §70, round 36: a sectie — a titled block of shared text — belongs to a
+ * *thing*, not to an artikel. `owner_kind` is 'entry' or 'case' today; a fifth
+ * kind of owner is this column and nothing else.
+ *
+ * It was `entry_sections` until round 36, and it was the Keeper's prep (§9):
+ * only a Keeper could make one, and a new one started keeper-only. Both halves
+ * moved. Anyone who may edit the thing may add a sectie to it, because that is
+ * what a player asking "where do I write down what this onderzoek turned up?"
+ * is asking for; and what a *new* sectie starts as now depends on who made it —
+ * a Keeper's is prep, a player's is for everybody (`startingVisibility`).
+ * Changing that dial afterwards, and revealing to named players, stayed the
+ * Keeper's (`lib/sections/service.ts`).
+ *
+ * The ids did not change in the migration, so `section:{id}` — the room its
+ * text lives in (§20) — is the same room it always was.
+ */
+export const sections = sqliteTable(
+  'sections',
   {
     id: text('id').primaryKey(),
-    entryId: text('entry_id').notNull(),
+    ownerKind: text('owner_kind').$type<SectionOwnerKind>().notNull().default('entry'),
+    ownerId: text('owner_id').notNull(),
     title: text('title').notNull().default(''),
     body: text('body', { mode: 'json' }).$type<unknown>(),
     bodyText: text('body_text').notNull().default(''),
     visibility: text('visibility').$type<Visibility>().notNull().default('keeper'),
     sortOrder: integer('sort_order').notNull().default(0),
+    createdBy: text('created_by'),
+    /** §18: the karakter whoever wrote it was wearing. NULL: before §70. */
+    characterId: text('character_id'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
   },
-  (t) => [index('entry_sections_entry_idx').on(t.entryId)],
+  (t) => [index('sections_owner_idx').on(t.ownerKind, t.ownerId)],
 );
+
+/** §70: what a sectie can hang from. A new one is this union and its gate. */
+export type SectionOwnerKind = 'entry' | 'case';
 
 export const entrySectionReveals = sqliteTable(
   'entry_section_reveals',
@@ -675,6 +701,17 @@ export const mapPins = sqliteTable(
     text: text('text').notNull().default(''),
     x: real('x').notNull().default(0.5),
     y: real('y').notNull().default(0.5),
+    /**
+     * §71, round 36: which speld is on top. Higher is nearer the reader, ties
+     * broken by `createdAt` so the order is total and stable on every screen.
+     *
+     * It is *not* derived from the artikel's soort, and that was a decision
+     * rather than an omission: what outranks what differs from map to map, so
+     * the hand that sets the speld says it, with Naar voren / Naar achter /
+     * Voorgrond / Achtergrond. The same number decides who represents a bunch
+     * of spelden at low zoom — see `clusterPins` in `lib/maps/cluster.ts`.
+     */
+    layer: integer('layer').notNull().default(0),
     createdBy: text('created_by'),
     /** §18: the karakter whoever set it was wearing. NULL: before §18b. */
     characterId: text('character_id'),

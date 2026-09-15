@@ -15,7 +15,10 @@ import { presenceColour } from '@/lib/boards/live';
 import { attributed, charactersWorn, displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { snapshot } from '@/lib/live/docs';
-import { admit, caseRoomKey } from '@/lib/live/rooms';
+import { admit, caseRoomKey, sectionRoomKey } from '@/lib/live/rooms';
+// §70: a dossier carries secties too, and this is the one road to one.
+import { listSections } from '@/lib/sections/service';
+import { listCasesWithMembers, listRevealableUsers } from '@/lib/entries/secrets';
 import { listBoards, listBoardsForCase } from '@/lib/boards/service';
 import { listFamilyTrees, listFamilyTreesForCase } from '@/lib/families/service';
 import { listTimelinesForCase } from '@/lib/timelines/service';
@@ -152,6 +155,28 @@ export default async function CasePage({
         }
       : null;
 
+  /*
+   * §70: the dossier's secties. Only the ones this viewer may see leave the
+   * service, so a keeper-only sectie is not in a player's HTML at all (rule 1);
+   * and each gets its own room, behind the same gate the line will apply — the
+   * artikel page's shape, one kind of owner over.
+   */
+  const sections = listSections('case', record.id, user);
+  const isKeeperHere = Boolean(user?.isKeeper);
+  const revealUsers = isKeeperHere ? listRevealableUsers() : [];
+  const revealCases = isKeeperHere ? listCasesWithMembers() : [];
+  const liveSections = new Map<string, { room: string; state: string; canEdit: boolean }>();
+  for (const section of sections) {
+    const sectionAdmission = admit(sectionRoomKey(section.id), user);
+    if (sectionAdmission) {
+      liveSections.set(section.id, {
+        room: sectionAdmission.spec.key,
+        state: snapshot(sectionAdmission.spec).state,
+        canEdit: sectionAdmission.canEdit,
+      });
+    }
+  }
+
   // Build one candidate tab per §7 group, then let §30 say which of them the
   // file actually has and in what order. Everything with something filed in it
   // survives either way, so this can only ever *add* shelves.
@@ -265,6 +290,17 @@ export default async function CasePage({
       }))}
       activity={activity}
       liveNotes={liveNotes}
+      /* §70: the dossier's secties, each with its room, exactly as an artikel's. */
+      sections={sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        body: section.body,
+        visibility: section.visibility,
+        revealedTo: section.revealedTo,
+        live: liveSections.get(section.id) ?? null,
+      }))}
+      revealUsers={revealUsers}
+      revealCases={revealCases}
       lastSeenAt={user?.lastSeenAt ?? null}
       isKeeper={Boolean(user?.isKeeper)}
       access={access}

@@ -1190,3 +1190,40 @@ wikipedia — in elk van de vier kleurschema's het blauw dat daar op zijn eigen
 papier leest. Het chipje zelf is er nog op de drie plekken waar het werk doet:
 in tekst waar je in kunt typen, naast een verwijderkruisje, en op een
 prikbordkaartje (§68).
+
+## Ronde 36 — een sectie voor iedereen, en een laag op een speld (§70, §71)
+
+**Geen nieuw hernoembaar woord.** *Sectie* / *secties* (`section`,
+`sectionPlural`) en *speld* / *spelden* (`mapPin`, `mapPinPlural`) stonden al in
+`lib/words.ts`, dus waar hieronder **{sectie}** of **{speld}** staat, staat op
+het scherm het woord van de Keeper. Wat er wél bij komt is vast: vier bevelen
+voor de laag van een speld, en een handvol zinnen om een sectie heen die nu ook
+door iemand anders dan de Keeper gelezen wordt.
+
+Het woord **sectie** zelf staat op twee manieren op het scherm, en dat is niet
+netjes maar het is wel hoe het er staat: het kopje boven de lijst is
+`{secties}`, de Keeper z'n woord, en de knop eronder zegt letterlijk
+*Sectie toevoegen*.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **{secties}** | het kopje boven de lijst, op het schrijfgezicht van een {artikel} **en nu ook van een {dossier}** | Onder de **Dossiernotities**, want die zijn de werktheorie — het equivalent van de tekst van een artikel — en een sectie is wat één onderzoek opleverde (§70). |
+| **Sectie toevoegen** | de knop naast dat kopje | Staat er nu voor iedereen die het ding mag bewerken, niet alleen voor de Keeper (§70). |
+| **Een sectie is een stuk tekst met een eigen kop — zet erin wat dit onderzoek opleverde, zonder het vorige te overschrijven.** | de grijze regel als er nog geen enkele sectie is, voor wie geen Keeper is | De Keeper ziet daar zijn eigen, oudere regel: *Een sectie is een stuk tekst met een eigen zichtbaarheid — wat er écht in de kelder ligt, klaargezet en later aangezet.* Twee zinnen, want het zijn twee dingen: klaarzetten en opschrijven (§70). |
+| **Wat leverde dit op?** | de lege-vak-tekst in het tekstvak van een sectie, voor wie geen Keeper is | De Keeper houdt *Wat weet de Keeper hier nog meer over?* (§70). |
+| **Titel van de sectie** | de lege-vak-tekst én de voorgelezen naam van het titelvakje | Ongewijzigd, nu ook op een {dossier}. |
+| **Zonder titel** | het kopje van een sectie waar niemand een titel in zette, op het leesgezicht | Ongewijzigd (§9). Let op: onder "Genoemd in" is een titelloze sectie van een dossier niet van de Dossiernotities te onderscheiden — de rij draagt alleen de titel (§70). |
+| **Zichtbaar voor** · **Alleen de Keeper** · **Gekozen spelers** · **Iedereen** | de chipjes boven een sectie | **Alleen voor de Keeper te zien.** Wie geen Keeper is ziet deze rij helemaal niet: schrijven is van wie het ding mag bewerken, bepalen wie er bij mag is voorbereiding (§70). |
+| **Alleen de Keeper bepaalt wie een sectie mag lezen.** | melding, als de knop toch geprobeerd wordt | De route weigert het ook en niet alleen het scherm (§70). |
+| **Je mag hier geen secties bewerken.** | melding | Het ding zelf mag je niet bewerken, dus zijn secties ook niet (§17, §70). Op een gebout {artikel} is dat ook het antwoord: §10's slot geldt voor de kopjes net zo goed als voor de tekst. |
+| **Sectie niet gevonden.** | melding | Wat er niet is, en wat niet voor jou is, zeggen hetzelfde (§46, §70). |
+| **Je mag dit dossier niet bewerken.** · **Dossier niet gevonden.** · **Je mag dit artikel niet bewerken.** · **Artikel niet gevonden.** | meldingen bij *Sectie toevoegen* | Dezelfde twee vragen in dezelfde orde als op de houder zelf (§70). |
+| **Sectie toevoegen is niet gelukt.** · **Opslaan is niet gelukt.** | meldingen | Ongewijzigd. |
+| **Laag** | het kopje boven de vier knoppen in het blad van een {speld} | Alleen voor wie de speld mag bewerken. Eén getal per speld: hoger ligt voor (§71). |
+| **Naar achter** · **Naar voren** · **Achtergrond** · **Voorgrond** | de vier knoppen eronder, in die volgorde | Eén stap is één; *Voorgrond* en *Achtergrond* gaan één voorbij wat er nu het hoogste respectievelijk het laagste ligt, en halen nooit de verkeerde kant op — wie al bovenaan ligt, blijft liggen (§71). Het getal zelf staat er rechts naast. |
+| **Hoe hoger de laag, hoe meer naar voren. Staan er meer {spelden} op één plek, dan is de hoogste degene die je ziet — met een cijfertje erbij voor de rest.** | de grijze regel onder die vier knoppen | Het zegt allebei de klussen van hetzelfde getal in één zin, want het is één getal (§71). |
+| **+3** | het cijfertje naast een {speld} waar er meer op één plek staan | Voorgelezen als **Nog 3 {spelden} hier — inzoomen**; bij één staat er *Nog 1 {speld} hier*. Als tooltip hetzelfde zonder het staartje. Eén druk zoomt precies zo ver in dat die groep het glas vult. Niets verdwijnt ooit — spelden gaan alleen samen (§71). |
+| **{Stamboom} verwijderen** | de dichtgevouwen lade onderaan een {stamboom}, onder de vouw | Er was geen deur: *"Je kunt geen stambomen verwijderen"* klopte. De kop is het woord van de Keeper met een hoofdletter, dus wie *stamboom* omdoopte ziet zijn eigen woord (§11, §70-ronde). |
+| **Niets wordt echt gewist — een {Keeper} kan dit terughalen uit de prullenbak. De {artikelen} erin blijven staan.** | de grijze regel in die lade | Twee zinnen: de eerste staat in elke lade, de tweede komt van de pagina die de lade neerzet — een stamboom is een venster, dus de leden blijven bestaan (§66). |
+| **Naar de prullenbak** | de rode knop in die lade | Dezelfde knop als in een {dossier}, nu uit één bestand (§11). |
+| **Geen verbinding.** · **Deze {stamboom} is niet verwijderd.** | meldingen uit die lade | De tweede is de terugval als de server geen eigen zin meegaf. |

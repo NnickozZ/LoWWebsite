@@ -15,7 +15,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
   ssr: false,
   loading: () => <div className="editor-body" aria-busy="true" />,
 });
-import type { Visibility } from '@/lib/db/schema';
+import type { SectionOwnerKind, Visibility } from '@/lib/db/schema';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 
 export type SectionLite = {
@@ -91,22 +91,41 @@ const VISIBILITY_LABELS: Record<Visibility, string> = {
  * §9: extra titled sections with their own visibility — how the Keeper preps
  * "what is really in the cellar" and flips it on mid-session from a phone.
  *
+ * §70, round 36: and how everybody else writes down what one onderzoek turned
+ * up without wiping out the last one. Two things changed and they are the whole
+ * of this component's split:
+ *
+ *  - A sectie belongs to a **thing** — an artikel *or* a dossier — so this
+ *    component takes `ownerKind` + `ownerId` and posts to the owner's own
+ *    route. Nothing else here knows which kind it is looking at.
+ *  - **Making, writing and removing** hangs off `canEdit` (the thing's §17
+ *    dials); **the geheimhouding dial and the reveals** stay behind `isKeeper`.
+ *    A player gets "Sectie toevoegen", a title box, the text and the bin, and
+ *    no control that decides who may read it.
+ *
  * A player is only ever handed the sections they may read; the ones they may
  * not never reach this component, so there is nothing to hide in the DOM.
  */
 export function SectionsEditor({
-  entryId,
+  ownerKind,
+  ownerId,
   sections: initial,
   isKeeper,
+  canEdit = isKeeper,
   users,
   cases,
   liveUser,
   readOnly: locked = false,
   onOutlineChange,
 }: {
-  entryId: string;
+  /** §70: an artikel or a dossier — which route a new sectie is posted to. */
+  ownerKind: SectionOwnerKind;
+  ownerId: string;
   sections: SectionLite[];
+  /** §70: the dial and the reveals only. Not the right to write. */
   isKeeper: boolean;
+  /** §70: may this hand make, write and remove a sectie here (§17)? */
+  canEdit?: boolean;
   users: RevealableUser[];
   cases: RevealableCase[];
   /** §20: this person's name and ink in the shared text; null when not signed in. */
@@ -157,7 +176,8 @@ export function SectionsEditor({
   async function add() {
     setBusy(true);
     try {
-      const response = await fetch(`/api/entries/${entryId}/sections`, { method: 'POST' });
+      const base = ownerKind === 'case' ? 'cases' : 'entries';
+      const response = await fetch(`/api/${base}/${ownerId}/sections`, { method: 'POST' });
       if (!response.ok) {
         ui.toast('Sectie toevoegen is niet gelukt.');
         return;
@@ -165,7 +185,19 @@ export function SectionsEditor({
       const data = await response.json();
       setSections((current) => [
         ...current,
-        { id: data.sectionId, title: '', body: null, visibility: 'keeper', revealedTo: [] },
+        {
+          id: data.sectionId,
+          title: '',
+          body: null,
+          /*
+           * §70: the same answer `startingVisibility` gives on the server —
+           * a Keeper making a sectie is preparing, anybody else is writing in
+           * the open. Spelled out here rather than imported, because that
+           * module reaches the database and this is a browser.
+           */
+          visibility: isKeeper ? 'keeper' : 'all',
+          revealedTo: [],
+        },
       ]);
     } finally {
       setBusy(false);
@@ -180,7 +212,9 @@ export function SectionsEditor({
     router.refresh();
   }
 
-  if (!isKeeper || readOnly) {
+  // §70: the writing face is for anyone who may edit the thing — not for a
+  // Keeper only. Everybody else gets the reading face below.
+  if (!canEdit || readOnly) {
     // Read-only: the sections this person may see, in order, as part of the entry.
     if (!sections.length) return null;
     return (
@@ -214,8 +248,9 @@ export function SectionsEditor({
 
       {!sections.length && (
         <p className="tiny muted" style={{ margin: 0 }}>
-          Een sectie is een stuk tekst met een eigen zichtbaarheid — wat er écht in de kelder ligt,
-          klaargezet en later aangezet.
+          {isKeeper
+            ? 'Een sectie is een stuk tekst met een eigen zichtbaarheid — wat er écht in de kelder ligt, klaargezet en later aangezet.'
+            : 'Een sectie is een stuk tekst met een eigen kop — zet erin wat dit onderzoek opleverde, zonder het vorige te overschrijven.'}
         </p>
       )}
 
@@ -244,6 +279,9 @@ export function SectionsEditor({
             </button>
           </div>
 
+          {/* §70: wie een sectie mag lezen blijft van de Keeper. Voor iedereen
+              anders staat de knop er niet — en de route weigert hem ook. */}
+          {isKeeper && (
           <div className="row-wrap" style={{ marginBottom: '0.5rem' }}>
             <span className="tiny muted">Zichtbaar voor</span>
             {(['keeper', 'players', 'all'] as Visibility[]).map((value) => (
@@ -261,8 +299,9 @@ export function SectionsEditor({
               </button>
             ))}
           </div>
+          )}
 
-          {section.visibility === 'players' && (
+          {isKeeper && section.visibility === 'players' && (
             <div style={{ marginBottom: '0.5rem' }}>
               <RevealPicker
                 users={users}
@@ -281,7 +320,9 @@ export function SectionsEditor({
             section={section}
             user={liveUser}
             editable
-            placeholder="Wat weet de Keeper hier nog meer over?"
+            placeholder={
+              isKeeper ? 'Wat weet de Keeper hier nog meer over?' : 'Wat leverde dit op?'
+            }
             onChange={(doc) => void patch(section.id, { body: doc })}
           />
         </div>

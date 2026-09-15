@@ -175,6 +175,31 @@ describe('keysOfStatement: what a write means', () => {
     expect(grant).toEqual(expect.arrayContaining(['family_trees', 'family_tree:tree-1']));
   });
 
+  it('§70: a sectie names the *thing* it hangs off, whichever kind that is', () => {
+    const onEntry = keysOfStatement(
+      'insert into "sections" ("id", "owner_kind", "owner_id", "title", "visibility") values (?, ?, ?, ?, ?)',
+      ['s1', 'entry', 'entry-7', '', 'all'],
+    );
+    expect(onEntry).toEqual(['entry:entry-7']);
+    const onCase = keysOfStatement(
+      'insert into "sections" ("id", "owner_kind", "owner_id", "title", "visibility") values (?, ?, ?, ?, ?)',
+      ['s2', 'case', 'case-7', '', 'all'],
+    );
+    expect(onCase).toEqual(['case:case-7']);
+    // A kind nobody configured names nothing — the same guard the grants have.
+    expect(
+      keysOfStatement(
+        'insert into "sections" ("id", "owner_kind", "owner_id") values (?, ?, ?)',
+        ['s3', 'board', 'board-7'],
+      ),
+    ).toEqual([]);
+    // And a body save binds only the sectie's own id, exactly as it did when
+    // this table was `entry_sections` — so it moves no page key.
+    expect(
+      keysOfStatement('update "sections" set "body" = ? where "sections"."id" = ?', ['{}', 's1']),
+    ).toEqual([]);
+  });
+
   it('an unknown table is nothing; a non-id value is not a key', () => {
     expect(keysOfStatement('update "schema_migrations" set "x" = ? where "id" = ?', [1, 'a'])).toEqual([]);
     const keys = keysOfStatement('update "entries" set "name" = ? where "entries"."id" = ?', ['n', 'has spaces']);

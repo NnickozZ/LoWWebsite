@@ -24,8 +24,10 @@ import {
   listCasesWithMembers,
   listEntryReveals,
   listRevealableUsers,
-  listSections,
 } from '@/lib/entries/secrets';
+// §70: a sectie belongs to a thing — an artikel or a dossier — and this is the
+// one road to one.
+import { listSections } from '@/lib/sections/service';
 import { listDerivedEntries, resolveFieldRefs, scrubUnseenRefs } from '@/lib/entries/derived';
 // §67: broers en zussen die uit de ouders volgen, per lezer op de server.
 import { siblingsOf } from '@/lib/families/service';
@@ -269,7 +271,7 @@ export default async function EntryPage({
 
   // §9: a player is handed only the sections they may read, and neither the
   // reveal lists nor the pickers — none of it reaches their HTML.
-  const sections = listSections(entry.id, user);
+  const sections = listSections('entry', entry.id, user);
   const revealUsers = isKeeper ? listRevealableUsers() : [];
   const revealCases = isKeeper ? listCasesWithMembers() : [];
 

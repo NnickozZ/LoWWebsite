@@ -52,9 +52,12 @@ test('case dossier, and a confidential case stays invisible', async ({ page, bro
 
   await expect(page.getByText(newEntryName).first()).toBeVisible();
 
-  // -- the tab row has no scrollbar until the tabs really overflow ----------
+  // -- round 36: the tab row wraps, so it never scrolls sideways ------------
   if (testInfo.project.name === 'desktop') {
-    await expect(page.locator('.case-tabs')).not.toHaveClass(/case-tabs-scrollable/);
+    const tabs = page.locator('.case-tabs');
+    expect(
+      await tabs.evaluate((element) => element.scrollWidth - element.clientWidth),
+    ).toBeLessThanOrEqual(1);
   }
 
   // -- a case note on one card ----------------------------------------------

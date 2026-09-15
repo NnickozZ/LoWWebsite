@@ -104,15 +104,26 @@ beforeAll(async () => {
   entry('geheim', 'Geheime fiche', 'keeper-1', para('Niet voor jou'), { visibility: 'keeper' });
   entry('vanbram', 'Van Bram', 'bram', para('Alleen Bram schrijft'), { editMode: 'private' });
   entry('opslot', 'Op slot', 'bram', para('Vergrendeld'), { isLocked: 1 });
-  sqlite
-    .prepare(`INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order) VALUES ('s1', 'open', 'Kelder', ?, '', 'keeper', 0)`)
-    .run(JSON.stringify(para('Wat er echt ligt')));
+  const section = (id: string, ownerKind: string, ownerId: string, title: string, visibility: string) =>
+    sqlite
+      .prepare(
+        `INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES (?, ?, ?, ?, ?, '', ?, 0)`,
+      )
+      .run(id, ownerKind, ownerId, title, JSON.stringify(para('Wat er echt ligt')), visibility);
+  section('s1', 'entry', 'open', 'Kelder', 'keeper');
+  // §70: three more, for the three things the gate now has to say about who
+  // may *write* a sectie — the thing's edit dial, §10's lock, and a dossier.
+  section('s-open', 'entry', 'open', 'Wat we vonden', 'all');
+  section('s-vanbram', 'entry', 'vanbram', 'Wat Bram vond', 'all');
+  section('s-slot', 'entry', 'opslot', 'Wat er op slot zit', 'all');
   sqlite
     .prepare(`INSERT INTO cases (id, name, slug, notes, created_by, view_mode, edit_mode) VALUES ('zaak', 'De zaak', 'de-zaak', ?, 'bram', 'some', 'some')`)
     .run(JSON.stringify(para('Werktheorie: ')));
   sqlite
     .prepare(`INSERT INTO access_grants (target_type, target_id, user_id, can_view, can_edit) VALUES ('case', 'zaak', 'aagje', 1, 0)`)
     .run();
+  section('s-zaak', 'case', 'zaak', 'Wat dit onderzoek opleverde', 'all');
+  section('s-zaak-geheim', 'case', 'zaak', 'Wat de Keeper weet', 'keeper');
 });
 
 afterAll(() => {
@@ -222,13 +233,63 @@ describe('the gate', () => {
     // A Keeper never has one, and is never stopped by this.
     expect(rooms.admit('entry:vanbram:body', { id: 'keeper-1', isKeeper: true })?.canEdit).toBe(true);
   });
-  it('a hidden section is nobody\'s room but the Keeper\'s; revealed, it opens read-only', () => {
+  it('a hidden section is nobody\'s room but the Keeper\'s until somebody is shown it', () => {
     expect(rooms.admit('section:s1', BRAM)).toBeNull();
     expect(rooms.admit('section:s1', KEEPER)?.canEdit).toBe(true);
-    sqlite.prepare(`UPDATE entry_sections SET visibility = 'players' WHERE id = 's1'`).run();
+    sqlite.prepare(`UPDATE sections SET visibility = 'players' WHERE id = 's1'`).run();
     sqlite.prepare(`INSERT INTO entry_section_reveals (section_id, user_id) VALUES ('s1', 'bram')`).run();
-    expect(rooms.admit('section:s1', BRAM)?.canEdit).toBe(false);
+    // Shown to Bram, still nothing at all to Aagje — a sectie's dial is finer
+    // than its artikel's, and that is the half §70 did not open up.
+    expect(rooms.admit('section:s1', BRAM)).not.toBeNull();
     expect(rooms.admit('section:s1', AAGJE)).toBeNull();
+  });
+
+  /*
+   * §70: making, writing and removing a sectie is the *thing's* edit right, not
+   * `isKeeper`. Four cases, because the room is the one place where getting it
+   * wrong is silent — an artikel anybody may edit, an artikel only its owner
+   * may edit, an artikel §10 has bolted, and a dossier.
+   */
+  it('§70: a sectie on an artikel anybody may edit is a player\'s to write', () => {
+    expect(rooms.admit('section:s-open', BRAM)?.canEdit).toBe(true);
+    expect(rooms.admit('section:s-open', AAGJE)?.canEdit).toBe(true);
+    expect(rooms.admit('section:s-open', KEEPER)?.canEdit).toBe(true);
+  });
+
+  it('§70: but only the artikel\'s own editors — looking is still not typing', () => {
+    expect(rooms.admit('section:s-vanbram', AAGJE)?.canEdit).toBe(false);
+    expect(rooms.admit('section:s-vanbram', BRAM)?.canEdit).toBe(true);
+    expect(rooms.admit('section:s-vanbram', KEEPER)?.canEdit).toBe(true);
+  });
+
+  it('§70 under §10: a bolted artikel\'s secties are the Keeper\'s alone', () => {
+    expect(rooms.admit('section:s-slot', BRAM)?.canEdit).toBe(false);
+    expect(rooms.admit('section:s-slot', KEEPER)?.canEdit).toBe(true);
+  });
+
+  it('§70: a dossier\'s sectie rides the dossier\'s dials, and its own on top', () => {
+    // Not on the dossier at all: no room, and no hint that one exists.
+    expect(rooms.admit('section:s-zaak', { id: 'nobody', isKeeper: false })).toBeNull();
+    // Aagje may view the dossier but not edit it (`can_edit` 0 above).
+    expect(rooms.admit('section:s-zaak', AAGJE)?.canEdit).toBe(false);
+    // Bram owns it, so he writes.
+    expect(rooms.admit('section:s-zaak', BRAM)?.canEdit).toBe(true);
+    // And the sectie's own dial is finer than the dossier's: a keeper-only
+    // sectie on a dossier Bram owns is still not Bram's room.
+    expect(rooms.admit('section:s-zaak-geheim', BRAM)).toBeNull();
+    expect(rooms.admit('section:s-zaak-geheim', KEEPER)?.canEdit).toBe(true);
+  });
+
+  it('§70: what a player types in a dossier\'s sectie lands in the archive', () => {
+    const admission = rooms.admit('section:s-zaak', BRAM)!;
+    const owner = tab(admission.spec, 'tab-s70', 'bram');
+    owner.type(' — de sleutel');
+    docs.persistAll();
+    const row = sqlite.prepare(`SELECT body_text FROM sections WHERE id = 's-zaak'`).get() as {
+      body_text: string;
+    };
+    expect(row.body_text).toContain('de sleutel');
+    owner.leave();
   });
   it('a dossier\'s notes: the case dials decide, and the notes land in the dossier', () => {
     expect(rooms.admit('case:zaak:notes', { id: 'nobody', isKeeper: false })).toBeNull();

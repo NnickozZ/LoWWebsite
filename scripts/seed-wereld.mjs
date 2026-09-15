@@ -211,7 +211,7 @@ if (CLEAN) {
       for (const id of old.entries ?? []) {
         db.prepare('DELETE FROM entry_links WHERE from_entry_id = ? OR to_entry_id = ?').run(id, id);
         db.prepare('DELETE FROM entry_mentions WHERE to_entry_id = ? OR from_id = ?').run(id, id);
-        db.prepare('DELETE FROM entry_sections WHERE entry_id = ?').run(id);
+        db.prepare("DELETE FROM sections WHERE owner_kind = 'entry' AND owner_id = ?").run(id);
         db.prepare('DELETE FROM entry_revisions WHERE entry_id = ?').run(id);
         db.prepare('DELETE FROM pending_edits WHERE entry_id = ?').run(id);
         db.prepare('DELETE FROM case_entries WHERE entry_id = ?').run(id);
@@ -818,7 +818,7 @@ const insertLink = db.prepare("INSERT OR IGNORE INTO entry_links (from_entry_id,
 const insertMention = db.prepare('INSERT OR IGNORE INTO entry_mentions (to_entry_id, from_kind, from_id, detail) VALUES (?, ?, ?, ?)');
 const insertActivity = db.prepare('INSERT INTO activity (id, actor_id, verb, entry_id, case_id, board_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
 const insertRevision = db.prepare('INSERT INTO entry_revisions (id, entry_id, snapshot, edited_by, note, created_at) VALUES (?, ?, ?, ?, ?, ?)');
-const insertSection = db.prepare('INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+const insertSection = db.prepare("INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES (?, 'entry', ?, ?, ?, ?, ?, ?)");
 
 /** De klok loopt van februari tot september, zodat "laatst bewerkt" ergens op slaat. */
 const START = Math.floor(Date.UTC(2026, 1, 14) / 1000);

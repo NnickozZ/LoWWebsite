@@ -158,6 +158,14 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     if (!getFamilyTreeById(id, user)) return json({ error: NOT_FOUND }, { status: 404 });
     if (!viewerCanEditFamilyTree(id, user)) return json({ error: FAMILY_TREE_NOT_YOURS }, { status: 403 });
     softDeleteFamilyTree(id, user);
+    /*
+     * §60/§66: tell everyone else. §21 already puts `family_tree:{id}` and
+     * `family_trees` on the wire (the soft delete is an UPDATE through the
+     * ORM), but a canvas that is open pulls on *this* sentence — the one its
+     * saves use — so a hand that is drawing hears it at once and stops
+     * autosaving into a tree that is in the bin.
+     */
+    publishChange(id, null);
     return json({ ok: true });
   } catch (err) {
     return apiError(err);

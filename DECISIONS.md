@@ -4925,3 +4925,202 @@ verliest**. De raakdoelen van 44 px stonden op `.ink-tool` en `.tree-handle`
 zonder effect, omdat `.ink-tool` duizend regels verderop staat en `.tree-handle`
 in een ander bestand. Twee klassen diep lost het op; de contract-spec op het
 `phone`-project vond het, en geen mens.
+
+## Ronde 36 — 15 September 2026: een sectie voor iedereen, een laag op een speld, een tabrij die wikkelt, en een deur voor de stamboom (§70, §71)
+
+Vier punten van Nicks lijst. Twee ervan zijn een regel geworden, twee zijn
+reparaties — en één van die twee reparaties is een bug die er al vier rondes
+zat en waar niemand omheen kon werken.
+
+### §70 — een sectie hoort bij een *ding*, en dit draait de helft van §9 om
+
+**Dit spreekt een eerdere beslissing tegen, en dat staat er met opzet.** §9
+bouwde een sectie als *de voorbereiding van de Keeper*: een stuk tekst met een
+eigen kop en een eigen zichtbaarheid, aan een artikel, door een Keeper. De
+eerste helft daarvan blijft staan — een sectie is nog steeds tekst met een kop,
+en wie hem mag lézen wordt nog steeds door de Keeper bepaald. De tweede helft
+is omgedraaid: **maken, schrijven, ordenen en weghalen is nu het bewerkrecht
+van het ding zelf** (§17), en een sectie hangt niet meer aan een artikel maar
+aan een *ding* — een artikel of een dossier.
+
+Nick vroeg twee dingen die er één blijken te zijn: *"just like in articles,
+dossiers should have extra sections you can add with different headers"* en
+*"the dossier logboek is still not the same as article logboek and very
+barebones, can we get them the same?"*. Een dossier had precies één vak tekst
+(`cases.notes`, **Dossiernotities**) waar een artikel een lichaam had én zoveel
+secties als iemand erbij zette. En wie geen Keeper was kon nergens opschrijven
+wat één onderzoek opleverde zonder het vorige te overschrijven — het enige vak
+dat een speler had, was het vak dat de vorige speler al gebruikt had.
+
+Waarom dat één beslissing is en niet twee: als een dossier secties krijgt en
+alleen de Keeper ze mag maken, dan is het nieuwe vak leeg voor precies de
+mensen die erom vroegen.
+
+**De migratie.** `entry_sections` → `sections`, met `owner_kind` + `owner_id`
+(`0025_sections_and_pin_layer`). De ids reizen ongewijzigd mee, en dat was de
+voorwaarde: de tekst van een sectie leeft in de kamer `section:{id}` (§20), dus
+elke kamer en elk Yjs-document staat er na de migratie nog. Als de ids
+vernummerd waren, was elke openstaande sectie in het archief een leeg vak
+geworden, en dat had niemand gemerkt tot het eerste tabblad herlaadde.
+`entry_section_reveals` houdt zijn naam: die tabel hangt aan een sectie-id
+alleen, dus hij had niets nodig, en een tabelkopie om een voorvoegsel netjes te
+maken is een risico dat je neemt voor een woord.
+
+**Wat wél en wat niet van de Keeper blijft.** Schrijven is van het ding; de
+geheimhoudingsknop en de onthullingen blijven van de Keeper. De reden is de
+scheidslijn die §9 al trok: opschrijven wat een onderzoek opleverde is spelen,
+beslissen wie er aan tafel bij mag is voorbereiden. De route weigert het ook en
+niet alleen het scherm — *"Alleen de Keeper bepaalt wie een sectie mag
+lezen."* — want een knop weghalen is geen poort.
+
+**En daarom hangt af van wie hem maakte, wat een nieuwe sectie is.**
+`startingVisibility`: die van een Keeper begint op `keeper` (klaarzetten), die
+van ieder ander op `all`. Dat is het enige antwoord dat klopt: een speler heeft
+geen knop om zijn sectie later aan te zetten, dus een sectie die op `keeper`
+begint zou door de schrijver zelf niet meer te lezen zijn. Een aantekening die
+niemand kan lezen is geen aantekening.
+
+**Het slot van §10 moest erbij, en dat was bijna een lek.** Een sectie gaat niet
+door `updateEntry` heen, en dáár wordt het slot van een artikel afgedwongen.
+Zonder een eigen vraag in `canEditSections` bleven de secties van een gebout
+artikel beschrijfbaar voor iedereen die het artikel vóór het bouten mocht
+bewerken — het slot hield de tekst tegen en de kopjes eronder niet. Een dossier
+heeft geen slot van zichzelf, dus voor `case` zijn het alleen de §17-knoppen.
+
+**"Genoemd in" moest twee keer dezelfde vraag gaan stellen.** Een dossier zegt
+een naam nu in zijn notities *of* in een sectie, en de knop van een sectie is
+*fijner* dan die van zijn dossier. Dus wordt een `case`-rij bij het teruglezen
+opnieuw tegen zijn bron gehouden met `canSeeSection` — in `listMentions` én in
+`buildWebGraph`, want de telling op het artikel, het paneel eronder en de lijn
+in het web moeten naar dezelfde verzameling kijken. Dat is dezelfde reden
+waarom `collapseMentions` bij het bouwen loopt en niet in de browser.
+
+**Eén rafelrand, en die is de veilige kant op.** De rij in `entry_mentions`
+draagt alleen de *titel* van de bron, dus een sectie **zonder titel** is niet
+van de Dossiernotities te onderscheiden. Beide lezers laten voor zo'n rij
+allebei de bronnen gelden. Dat kan hoogstens een mention laten staan die uit een
+titelloze keeper-sectie kwam terwijl de notities hem ook zeggen — en de notities
+zijn per definitie leesbaar voor wie zover gekomen is. De andere kant op zou een
+mention *weghalen* die er hoort te staan, en dat is erger.
+
+**Wat níet gebouwd is, en het is de helft van Nicks tweede zin.** Een dossier
+heeft nog steeds **geen geschiedenis** in de vorm die §65 een artikel gaf: geen
+versies, geen *Wat er veranderde*, geen logboekregels per bewerking. Wat het nu
+wel heeft is de schríjfkant van een artikel — hetzelfde component, dezelfde
+kopjes, dezelfde kamers per sectie. De leeskant is een ronde op zich: `cases`
+heeft geen revisietabel, en er is geen `updateCase` waar `updateEntry`'s
+geschiedenis aan hangt. Het staat als open punt in `PLAN.md` en niet als
+gedaan.
+
+### §71 — een speld heeft een laag, en dat getal doet twee klussen
+
+Nicks punt was de tekenvolgorde: een dorp kon onder een huis belanden en daar
+was niets aan te doen. De beslissing die het karakter van de regel bepaalt is
+**zijn** beslissing, en hij gaf zijn reden: *"it might be different per map how
+the ranking works"* — dus de rang staat **per speld** en wordt niet afgeleid uit
+de soort. Op de ene landkaart hoort een dorp boven een huis, op de andere is de
+kamer het onderwerp en hoort díe bovenaan. Een `entry_types`-rang zou op precies
+de landkaart fout staan waar het uitmaakt.
+
+Datzelfde getal is meteen het antwoord op de tweede vraag, en dat is de enige
+vondst van de ronde die niemand gevraagd had: als spelden op een kluitje staan,
+wie van hen mag dan de groep vertegenwoordigen? De hoogste laag.
+**Middelharnis (+10), niet het tiende huis.** Eén getal, twee klussen, en geen
+tweede knop om uit te leggen.
+
+**Niets verdwijnt ooit, en dat is de grens van de functie.** Er is geen
+zoomband waarop een soort wegvalt. Een speld die er gewoon niet is leest als een
+storing, en een lezer die weet dat er een huis staat gaat zoeken in plaats van
+klikken. Spelden gaan alleen samen; het cijfertje zegt hoeveel; één druk zoomt
+precies zo ver in dat die groep het glas vult. Je ziet ze uit elkaar gaan, en
+dat is een beter antwoord op "hoeveel zijn het er" dan een lijstje.
+
+**De beslissing van de bouwer, en die draait de opdracht om.** De opdracht was:
+een nieuwe speld begint op `max + 1`. Dat is niet gebouwd — een nieuwe speld
+begint op **0**, net als alle andere. Nicks eigen voorbeeld is de reden: een
+huis dat je *in* Middelharnis zet zou met `max + 1` onmiddellijk boven het dorp
+uitkomen en zelf de `+10` gaan dragen, dus je zou de ordening elke keer met de
+hand terugzetten. Wat `max + 1` moest opleveren — de nieuwste ligt bovenop —
+komt uit de tiebreak: bij gelijke laag ligt de nieuwste vóór. Dat is dezelfde
+uitkomst zonder de schade.
+
+**Drie dingen die met opzet niet gebeuren.**
+
+- **Kiezen breekt een kluitje niet open.** Alleen *dragen* zet een speld buiten
+  de indeling — deze hand of die van iemand anders — want een speld die
+  halverwege een sleep onder een `+3` verdwijnt is een speld die je kwijt bent.
+  Een speld alleen maar aanwijzen zou het kluitje uit elkaar laten springen
+  terwijl je ernaar kijkt, en de `+n` van zijn buren veranderen; de weg naar wat
+  eronder ligt is het cijfertje, en daar is het voor.
+- **De `+n` zegt niet welke spelden eronder liggen.** Dat zou een tweede lijstje
+  zijn over iets waar je heen kunt zoomen. Om dezelfde reden krijgt een gekozen
+  speld onder een cijfertje geen ring: de ring hoort bij het kaartje dat je ziet.
+- **Een groep die op precies één punt ligt gaat nooit uit elkaar.** `fit` heeft
+  daar geen antwoord (het vakje is nul bij nul), dus de druk doet zijn ene stap
+  en houdt op. Er beweegt iets, en dat is het eerlijkste dat er is; een klik waar
+  niets van beweegt leest als stuk.
+
+**En één ding dat uit §69 volgde.** De landkaart geeft `viewForCluster` zijn
+eigen vloer, plafond en stap mee in plaats van `clampZoom`/`fitViewport` te
+gebruiken. Die klemmen op 0,25–2,5, en op een landkaart betekent zoom 1 één
+plaatpixel per schermpixel — een andere eenheid, dus een andere klem. Dat is
+precies het restant dat ronde 35 opschreef: elk canvas heeft zijn eigen wereld,
+en wat *rondt* of *klemt* is nooit te delen.
+
+### De tabrij van een dossier wikkelt, en dat was Nicks keuze uit drie
+
+Nick: veel soorten in een dossier gaf de tabrij een horizontale scrollbalk, *"I
+think this is ugly"*. Er lagen drie antwoorden — een overloopmenu, een andere
+indeling van de tabs, of wikkelen — en hij koos **wikkelen**, expliciet. Dus
+`flex-wrap: wrap` met een `row-gap`, en de `overflow-x`, de scrollbalkregels,
+`.case-tabs-scrollable` en `useOverflowing` zijn weg.
+
+Wat dat kostte is het stukje waar de aandacht heen moest. Een tab was een
+mapje: **geen** onderrand, en een pixel omlaag getrokken over de rand van de
+*rij*. Die rij-rand is de bovenkant van het paneel, en die zit dus alleen onder
+de láátste regel — op elke regel erboven zweefde een tab boven niets. Nu draagt
+elke tab zijn eigen 1 px onderrand en schildert de actieve die rand in
+`--paper-raised`, zodat het kerfje op de regel staat waar de tab landt.
+**`column-gap: 0` is dragend en geen opruiming**: een gat tussen twee tabs zou
+een gat in de plank zijn op elke regel behalve de laatste. De tabs houden hun
+afstand met hun padding en hun 1 px doorzichtige zijranden.
+
+`components/useOverflowing.ts` heeft nu geen aanroeper meer en blijft **met
+opzet op de schijf staan**: een verwijderd bestand is niet te bezorgen over de
+brug naar Nicks machine (CLAUDE.md §7, stap 4), en niets importeert het — dus
+het kost een dood bestand in plaats van een gebroken build. `git rm
+components/useOverflowing.ts` is de opruiming, wanneer hij hem wil.
+
+### De bug: je kon geen stambomen verwijderen
+
+*"Je kunt geen stambomen verwijderen."* Klopte, en klopte **alleen van de
+stamboom**. `DELETE /api/family-trees/[id]` bestond, `softDeleteFamilyTree`
+bestond, `lib/admin/trash.ts` kon een stamboom terugzetten en vernietigen — er
+was nooit een scherm dat een van die drie aanriep. De andere drie tekenvlakken
+hadden elk hun eigen knop: `BoardCanvas.removeBoard`,
+`TimelineCanvas.deleteTimeline` in het Instellingen-blad, en
+`MapKeeperTools.takeDown`.
+
+De beslissing die de bouwer daar nam: **één gedeeld component bouwen en het op
+één plek zetten.** `components/ui/BinSlot.tsx` is de lade van het dossier met
+het zelfstandig naamwoord eruit gehaald — dichtgevouwen, met de ene zin dat
+niets echt gewist wordt, en de rode knop erin. Die staat *alleen* op de
+stamboompagina. Een tweede deur naar dezelfde prullenbak op de andere drie zou
+erger zijn dan het gat dat hier gedicht werd: twee knoppen die hetzelfde doen en
+anders heten is precies wat §69 een ronde lang aan het weghalen was. Echte
+eenheid betekent alle vier op `BinSlot` zetten en hun eigen knoppen weghalen, en
+dat is een ronde en geen reparatie.
+
+Twee dingen die erbij hoorden. Op een tekenvlak van schermbreedte staat de lade
+**buiten** `.page-canvas`, onder de vouw, waar `#tree-underfold` de
+tekenlaag-schakelaar heeft — een dichtgevouwen `<details>` in de canvaskolom kost
+de tekening zijn eigen hoogte (§34). En `DELETE` op een prikbord en op een
+stamboom doet nu ook `publishChange`, want dat zijn de twee waar een canvas op
+die zin trekt: een hand die aan het tekenen is hoort het meteen en gaat niet
+verder met opslaan in iets dat in de bak ligt.
+
+**Wat open blijft.** De enige deur van een landkaart zit in het Keeper-blok, dus
+een *speler* met bewerkrechten op een landkaart komt door `viewerCanEditMap` en
+door `DELETE /api/maps/[id]` heen en heeft geen knop. Genoemd, niet gedicht:
+het is dezelfde soort scheefheid als de rest van de vier en hoort in dezelfde
+opruimronde.

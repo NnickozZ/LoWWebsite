@@ -393,8 +393,9 @@ const run = db.transaction(() => {
   if (lighthouse) {
     db.prepare('UPDATE entries SET is_locked = 1 WHERE id = ?').run(lighthouse.id);
     db.prepare(
-      `INSERT INTO entry_sections (id, entry_id, title, body, body_text, visibility, sort_order)
-       VALUES (?, ?, 'Wat er in de lampkamer staat', ?, ?, 'keeper', 10)`,
+      // §70: a sectie belongs to a thing — same row, same id, new address.
+      `INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order)
+       VALUES (?, 'entry', ?, 'Wat er in de lampkamer staat', ?, ?, 'keeper', 10)`,
     ).run(
       newId(),
       lighthouse.id,

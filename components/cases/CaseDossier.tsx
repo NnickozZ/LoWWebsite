@@ -19,7 +19,6 @@ import { LiveField, LiveFields } from '@/components/live/LiveFields';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useIsPhone } from '@/components/useIsPhone';
-import { useOverflowing } from '@/components/useOverflowing';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
@@ -37,6 +36,10 @@ import { PreferredCases } from '@/components/entry/PreferredCases';
 import { CaseAddSearch } from './CaseAddSearch';
 import { CaseTabsButton, type CaseTabSoort } from './CaseTabsButton';
 import { CaseEntryCard } from './CaseEntryCard';
+// §70: a dossier carries secties under its notities, the same component an
+// artikel uses — same markup, same classes, same per-sectie rooms.
+import { SectionsEditor, type SectionLite } from '@/components/entry/SectionsEditor';
+import type { RevealableCase, RevealableUser } from '@/components/entry/RevealPicker';
 
 export type CaseGroup = {
   key: string;
@@ -119,6 +122,9 @@ export function CaseDossier({
   access,
   liveNotes,
   liveFields,
+  sections,
+  revealUsers,
+  revealCases,
   openAddMore,
   binSlot,
   keeperSlot,
@@ -149,6 +155,16 @@ export function CaseDossier({
   liveNotes: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
   /** §21: the name and the one-liner as shared fields. */
   liveFields: { room: string; state: string; canEdit: boolean; user: LiveUser } | null;
+  /**
+   * §70: the dossier's secties — only the ones this viewer may see, each with
+   * its own room, exactly as an artikel's arrive. They hang under
+   * Dossiernotities, which is the dossier's body: the notities are the working
+   * theory, a sectie is what one onderzoek turned up.
+   */
+  sections: SectionLite[];
+  /** §9: who a sectie may be revealed to. Keeper-only, so empty for anyone else. */
+  revealUsers: RevealableUser[];
+  revealCases: RevealableCase[];
   /**
    * §22: a dossier made this second (`?new=1`). Everybody lands on the reading
    * face, a Keeper included — except on the dossier they have just made, which
@@ -225,9 +241,6 @@ export function CaseDossier({
   const [fieldsLive, setFieldsLive] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const summaryRef = useRef<HTMLTextAreaElement>(null);
-  const tabsRef = useRef<HTMLDivElement>(null);
-  // The tab row only gets a scrollbar once there are more tabs than fit.
-  const tabsOverflow = useOverflowing(tabsRef);
 
   const save = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -366,6 +379,30 @@ export function CaseDossier({
             />
           )}
         </div>
+      </div>
+
+      {/*
+        §70: de secties van dit dossier, onder de notities.
+        Nick: "just like in articles, dossiers should have extra sections you
+        can add with different headers." De notities zijn de werktheorie — het
+        equivalent van de tekst van een artikel — dus staan de secties eronder,
+        in dezelfde volgorde en met dezelfde opmaak als op een artikel: dat is
+        letterlijk hetzelfde component, met dezelfde klassen.
+        Wie het dossier mag bewerken mag er een sectie bij zetten (§17); wie er
+        mag lezen bepaalt alleen de Keeper.
+      */}
+      <div style={{ marginBottom: '1.2rem' }}>
+        <SectionsEditor
+          ownerKind="case"
+          ownerId={data.id}
+          sections={sections}
+          isKeeper={isKeeper}
+          canEdit={mayEdit}
+          readOnly={reading}
+          users={revealUsers}
+          cases={revealCases}
+          liveUser={liveNotes?.user ?? null}
+        />
       </div>
 
       {recent.length > 0 && (
@@ -1007,8 +1044,10 @@ export function CaseDossier({
       {header}
 
       <div
-        ref={tabsRef}
-        className={`case-tabs${tabsOverflow ? ' case-tabs-scrollable' : ''}`}
+        // Round 36: the row wraps rather than scrolls — a dossier with many
+        // soorten filed showed half its shelves behind a horizontal drag. See
+        // `.case-tabs` in globals.css for how a tab stays a tab on line two.
+        className="case-tabs"
         role="tablist"
         aria-label="Onderdelen van het dossier"
       >

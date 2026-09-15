@@ -196,6 +196,9 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     }
 
     softDeleteBoard(id, user);
+    // §60: the same sentence the wall's saves use, so an open prikbord hears
+    // it on the line it is already listening to (§21 moves the list keys).
+    publishChange(id, null);
     return json({ ok: true });
   } catch (err) {
     return apiError(err);

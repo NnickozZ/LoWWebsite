@@ -483,7 +483,9 @@ export function EntryView({
         // Nobody without sections has anything to jump to here — and while
         // reading that includes a Keeper, who is not being offered the
         // "Sectie toevoegen" button either.
-        if ((!isKeeper || reading) && sectionTitles.length === 0) continue;
+        // §70: "who is offered the button" is the artikel's edit right now,
+        // not the Keeper's badge.
+        if ((!access.canEdit || reading) && sectionTitles.length === 0) continue;
         items.push({ id: `block-${block.id}`, label: heading || capitalise(words.sectionPlural), icon: 'book' });
         for (const section of sectionTitles) {
           items.push({ id: `section-${section.id}`, label: section.title || 'Zonder titel', level: 1 });
@@ -498,7 +500,7 @@ export function EntryView({
     }
     if (showManage) items.push({ id: 'block-manage', label: words.manage, icon: 'shield' });
     return items;
-  }, [entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
+  }, [access.canEdit, entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
 
   /** On a phone the infobox is one more thing to jump to. */
   const phoneOutline = useMemo<OutlineItem[]>(
@@ -701,9 +703,13 @@ export function EntryView({
           <div key={block.id} id={anchor} className="entry-block">
             {note}
             <SectionsEditor
-              entryId={entry.id}
+              ownerKind="entry"
+              ownerId={entry.id}
               sections={sections}
               isKeeper={isKeeper}
+              /* §70: anyone who may edit the artikel may add a sectie; the
+                 geheimhouding dial stays behind `isKeeper` inside. */
+              canEdit={access.canEdit}
               readOnly={reading}
               users={revealUsers}
               cases={revealCases}

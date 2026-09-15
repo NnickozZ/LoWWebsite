@@ -522,7 +522,8 @@ lib/
                      the one exception, `requireAuthorOrFirstCharacter`)
   db/                schema, migrations, seeds, the connection
   entries/           the entry service, the document helpers, visibility,
-                     sections and reveals (secrets.ts), the review queue,
+                     an artikel's own reveals (secrets.ts — the *sectie* half
+                     of it moved to lib/sections/ in §70), the review queue,
                      the wiki's filter vocabulary, caseFields.ts and
                      caseName.ts — the dossier a clue was made in, stored as an
                      id and printed in front of its name — origin.ts, which
@@ -549,9 +550,17 @@ lib/
                      retry.ts (the schedule a failed save follows and the four
                      flavours of failure it reads) and place.ts (`freeSpotNear`
                      — where a new card lands when the spot is taken)
-  maps/              maps, pins, the artikel a map is a map *of*, and
+  sections/          §70: a sectie — a titled block of shared text belonging to
+                     an artikel *or* a dossier. service.ts is the only road to
+                     one: the two rights (the thing's §17 dials to write,
+                     the Keeper's alone for the dial and the reveals),
+                     startingVisibility and canEditSections
+  maps/              maps, pins, the artikel a map is a map *of*,
                      visibility.ts (§40: a landkaart's own view rule, written
-                     the way `lib/cases/visibility.ts` writes a dossier's)
+                     the way `lib/cases/visibility.ts` writes a dossier's) and
+                     cluster.ts (§71, pure: the total draw order of spelden,
+                     who bunches with whom at this zoom, the view one press on
+                     a `+n` lands on, and the four laag commands)
   timelines/         §32: time.ts (pure: a moment as one integer, precision,
                      the ruling of the axis, where the tags go, and §35's
                      snapping and anchor), the service (tijdlijnen behind the
@@ -914,6 +923,25 @@ Sixty-seven rules worth knowing before changing anything:
     the archive makes now soft-deletes into the bin, is restorable, and can be
     destroyed from there. Anything new that can be *made* needs all three.
 
+    Round 36 added the fourth thing, which is the one nobody counts: **a door.**
+    "Je kunt geen stambomen verwijderen" was true, and true of the stamboom
+    alone — `DELETE /api/family-trees/[id]`, `softDeleteFamilyTree` and the
+    `family_tree` half of `lib/admin/trash.ts` all existed, and no screen ever
+    called any of them. The other three canvases each had their own button
+    (`BoardCanvas`'s `removeBoard`, `TimelineCanvas`'s `deleteTimeline` in the
+    Instellingen sheet, `MapKeeperTools`'s `takeDown`). So the dossier's folded
+    bin drawer became one shared component — `components/ui/BinSlot.tsx`, with
+    the noun passed in and the Keeper's word read from `useUi().words` — and it
+    was put on the stamboom page **only**: a second door to the same bin on the
+    other three would be worse than the gap it closed. On a full-screen canvas
+    it goes *outside* `.page-canvas`, below the fold, beside where
+    `#tree-underfold` puts the tekenlaag switch, or a folded `<details>` inside
+    the canvas column costs the stage its own height (§34). And `DELETE` on a
+    prikbord and a stamboom now also `publishChange`, so a canvas that is open
+    hears it on the line it is already listening to (§60) and stops autosaving
+    into something that is in the bin. Anything that gets a maker gets a door on
+    the day it is built — that is §40's rule about dials, one shelf along.
+
 22. **A soort can be one that only exists inside a dossier.** §24. *Reversed by
     §49: every soort is makeable everywhere again, and `case_only` is no longer
     a gate. What is below is history.*
@@ -985,6 +1013,21 @@ Sixty-seven rules worth knowing before changing anything:
     migration 0019 empties the walls' rows so `ensureMentionsBackfilled()`
     rewrites them at the next start-up.
 
+    Round 36 gave a dossier a second mouth. Since §70 it speaks through its
+    **Dossiernotities *and* through each of its secties**, and a sectie's dial
+    is *finer* than the dossier's — a dossier the whole table may open can carry
+    a sectie only the Keeper may read. So a `case` row is no longer resolved by
+    `visibleCaseCondition` alone: the source has to still *say* it, through
+    `canSeeSection`, exactly as an artikel's `section` row has always been
+    checked. That re-verification lives in **both** readers, `listMentions` and
+    `buildWebGraph`, because the count on the artikel, the panel under it and
+    the line in the web must look at the same set — the same reason
+    `collapseMentions` runs at build time and not in the browser. One rough
+    edge, and it is the safe direction: the row carries only the sectie's title,
+    so a sectie **without** a title is indistinguishable from the notities, and
+    both readers let either source count for a detail-less row. The notities are
+    readable by definition to anybody who got that far.
+
 27. **A dossier's tabs are a decision, not a report.** §28. `cases.tab_types` is
     null for every dossier that has never been told otherwise, and null means
     what the archive always did: one tab per soort with something filed in it. A
@@ -997,6 +1040,27 @@ Sixty-seven rules worth knowing before changing anything:
     mind cannot hide what is in a file — and it is never a permission; who may
     see what is still §17 and §25. The order is the Keeper's own list first, then
     `TAB_ORDER`, then the soort's place in Beheer → Soorten.
+
+    **And the row wraps; it does not scroll** (round 36). A dossier with many
+    soorten filed grew a horizontal scrollbar and hid half its own shelves
+    behind a drag — Nick: *"I think this is ugly."* He was offered an overflow
+    menu and a restructured tab set, and chose wrapping. `.case-tabs` is
+    `flex-wrap: wrap` now, with a `row-gap` and **`column-gap: 0`**; the
+    `overflow-x`, the scrollbar rules, `.case-tabs-scrollable` and
+    `useOverflowing` in `CaseDossier` are gone. The file-tab trick had to move
+    for it: a tab used to carry **no** bottom border and be pulled a pixel down
+    over the *row's* border-bottom, which is the panel edge and therefore only
+    ever sits under the last line. Every tab now carries its own 1 px bottom
+    rule and the active one paints that rule in `--paper-raised`, so the notch
+    that merges a tab into the panel appears on whichever line the tab lands on.
+    The `column-gap: 0` is load-bearing and not a tidy-up: a gap between tabs
+    would be a hole in the shelf on every line but the last. Tabs keep their
+    distance by their padding and their 1 px transparent side borders.
+    `components/useOverflowing.ts` now has no caller and is left on disk on
+    purpose — a deleted file cannot be delivered over the device bridge
+    (CLAUDE.md §7), and nothing imports it, so it costs a dead file rather than
+    a broken build. `git rm components/useOverflowing.ts` is the tidy-up,
+    whenever somebody wants it.
 
 28. **A reference box offers the desk you are standing at first.** §31. With an
     artikel or a dossier open, every dropdown that picks an artikel —
@@ -3684,3 +3748,120 @@ Sixty-seven rules worth knowing before changing anything:
     zweeft: het houdt zijn eigen pointer-events tegen, want de stage pakt de
     capture op de heenweg en een knop die dat niet doet is niet onhandig maar
     **onindrukbaar**.
+
+70. **Een sectie hoort bij een *ding*, en wie het ding mag bewerken mag er een
+    sectie bij zetten.** §70. Een sectie was sinds §9 de voorbereiding van de
+    Keeper: een stuk tekst met een eigen kop en een eigen zichtbaarheid, alleen
+    aan een artikel, alleen door een Keeper te maken. Een dossier had daar
+    tegenover precies één vak tekst — de **Dossiernotities** — waar een artikel
+    een lichaam had *en* zoveel secties als iemand erbij zette. Nick vroeg wat
+    uit die twee dingen volgt: *"just like in articles, dossiers should have
+    extra sections you can add with different headers"*, en een plek om op te
+    schrijven wat één onderzoek opleverde zonder het vorige te overschrijven.
+
+    Dus `entry_sections` heet nu `sections`, met `owner_kind` + `owner_id` in
+    plaats van `entry_id` (migratie `0025_sections_and_pin_layer`). De **ids
+    reizen ongewijzigd mee**, en dat weegt zwaarder dan het lijkt: de tekst van
+    een sectie leeft in de kamer `section:{id}` (§20), dus elke kamer en elk
+    Yjs-document staat er na de migratie nog. `entry_section_reveals` houdt zijn
+    naam — die tabel hangt aan een sectie-id en had niets nodig, en een
+    tabelkopie om een voorvoegsel te repareren is een risico dat je neemt voor
+    een woord.
+
+    **Twee rechten, niet één, en dat is de hele regel.** Maken, schrijven,
+    ordenen en weghalen vraagt `canEditSections` → `viewerCanEdit(ownerKind,
+    ownerId, viewer)`: de eigen §17-knoppen van het ding, niet meer
+    `requireKeeper()`. **De geheimhoudingsknop en de onthullingen bleven van de
+    Keeper**: een speler mag opschrijven wat een onderzoek opleverde, maar wie
+    er aan tafel bij mag is voorbereiding, en voorbereiding is §9's. De route
+    weigert het ook — *"Alleen de Keeper bepaalt wie een sectie mag lezen."*,
+    403 — want de knop wegnemen is geen poort.
+
+    Wat een **nieuwe** sectie dan is, volgt uit die splitsing en staat in
+    `startingVisibility`: die van een Keeper begint op `keeper`, want een Keeper
+    die er een maakt is aan het klaarzetten; die van ieder ander begint op
+    `all`, want een speler heeft geen knop om hem later aan te zetten, en een
+    aantekening die niemand kan lezen is geen aantekening.
+
+    `canEditSections` vraagt ook **§10's slot**, en dat moet daar gevraagd
+    worden in plaats van geërfd: het slot van een artikel wordt binnen
+    `updateEntry` afgedwongen en een sectie gaat niet door `updateEntry` heen —
+    zonder die regel bleven de secties van een gebout artikel beschrijfbaar door
+    iedereen die het vóór het bouten mocht bewerken. Een dossier heeft geen slot
+    van zichzelf, dus voor `case` zijn het alleen de knoppen. De kamer stelt
+    dezelfde drie vragen in dezelfde orde (`sectionAdmission` in
+    `lib/live/rooms.ts`): mag je de houder zien, mag je de sectie zien
+    (`canSeeSection` — de knop van een sectie is *fijner* dan die van zijn
+    houder, en dit is de helft die de kamer geen omweg om §9 maakt), en mag je
+    schrijven.
+
+    `lib/sections/service.ts` is de enige weg naar een sectie. De sectie-helft
+    verhuisde daarheen uit `lib/entries/secrets.ts` en er wordt **niets**
+    heruitgevoerd vanaf daar, want één weg is beter dan twee; alleen de
+    onthullingen van een *artikel* bleven achter. En omdat de secties van een
+    dossier meetellen onder "Genoemd in" (§27) en in het web getekend worden,
+    wordt een `case`-rij bij het teruglezen opnieuw tegen zijn bron gehouden —
+    `canSeeSection`, in **`listMentions` én `buildWebGraph`**, want de telling,
+    het paneel en de tekening moeten naar dezelfde verzameling kijken.
+
+    Eén ding dat bekend en bewust is: een sectie **zonder titel** is in
+    `entry_mentions` niet te onderscheiden van de Dossiernotities, want de rij
+    draagt alleen de titel. Beide lezers laten voor zo'n rij allebei de bronnen
+    gelden, en dat is de veilige kant op: de notities zijn per definitie
+    leesbaar voor wie zover gekomen is.
+
+71. **Een speld heeft een laag, en een kluitje heeft een cijfertje.** §71. Een
+    landkaart tekende zijn spelden in de volgorde waarin de tabel ze teruggaf,
+    dus een dorp kon onder een huis belanden en daar was niets aan te doen.
+    `map_pins.layer` is er nu: een geheel getal, hoger ligt voor, en de
+    volgorde wordt volledig gemaakt door `createdAt` en daarna het id
+    (`compareDrawOrder`), zodat twee spelden uit dezelfde seconde op **elk**
+    scherm dezelfde kant op liggen. Een volgorde die per browser verschilt is
+    een `+n` die ergens anders een andere naam draagt.
+
+    **De rang is per speld, niet per soort.** Dat was Nicks beslissing en zijn
+    reden staat erbij: *"it might be different per map how the ranking works"* —
+    op de ene landkaart hoort een dorp boven een huis, op de andere is de kamer
+    het onderwerp en hoort díe bovenaan. Er wordt dus niets afgeleid uit
+    `entry_types`; de hand zegt het, met **Naar voren / Naar achter /
+    Voorgrond / Achtergrond** in het blad van de speld zelf — het enige scherm
+    dat over één speld gaat, en de plek waar de hand al is.
+
+    Datzelfde getal doet **twee klussen**. De tekenvolgorde, en: wie het kluitje
+    vertegenwoordigt. Staan er bij deze zoom spelden binnen een speldenkop van
+    elkaar, dan wordt er één getekend met een `+n` ernaast, en dat is degene met
+    de hoogste laag. Middelharnis (+10), niet het tiende huis.
+
+    **Niets verdwijnt ooit.** Er is geen zoomband waarop een soort wegvalt: een
+    speld die er gewoon niet is leest als een storing, en een lezer die weet dat
+    er een huis staat gaat zoeken in plaats van klikken. Spelden gaan alleen
+    samen, en één druk op het cijfertje zoomt precies zo ver in dat díe groep
+    het glas vult, gecentreerd — daarna staan ze los.
+
+    `lib/maps/cluster.ts` is het hele rekenwerk en het is zuiver en getest
+    (`compareDrawOrder`, `clusterPins`, `viewForCluster`, `layerAfter`;
+    `tests/unit/map-cluster.test.ts`). Meetkunde hoort in een zuiver bestand,
+    dezelfde regel waar het web, de tijdlijn en de stamboom van leven. Twee
+    dingen aan die module zijn dragend. **`tx`/`ty` doen niet mee**: schuiven
+    verandert niets aan wie bij wie hoort, en een rooster dat met de pan
+    meeschuift laat groepen knipperen onder je hand. En de landkaart geeft zijn
+    **eigen** vloer, plafond en stap mee aan `viewForCluster`, want
+    `clampZoom`/`fitViewport` in `lib/canvas/view.ts` klemmen op 0,25–2,5 en
+    hier betekent zoom 1 één plaatpixel per schermpixel — een andere eenheid,
+    dus een andere klem (§69: elk canvas heeft zijn eigen wereld).
+
+    **Een nieuwe speld begint op laag 0, niet op `max + 1`.** Dat draait de
+    opdracht om waarmee dit gebouwd werd, en Nicks eigen voorbeeld is de reden:
+    een huis dat je *in* Middelharnis zet zou met `max + 1` meteen boven het
+    dorp uitkomen en zelf de `+10` gaan dragen — je zou de ordening elke keer
+    met de hand terug moeten zetten. Wat `max + 1` moest opleveren komt uit de
+    tiebreak: bij gelijke laag ligt de nieuwste vóór.
+
+    Drie dingen die bewust níet gebeuren. **Kiezen breekt een kluitje niet
+    open** — alleen een speld *dragen* zet hem erbuiten, want een speld
+    aanwijzen zou het kluitje uit elkaar laten springen terwijl je ernaar kijkt,
+    en de weg naar wat eronder ligt is het cijfertje. De `+n` zegt **niet** welke
+    spelden eronder liggen (dat is een tweede lijstje over iets waar je heen
+    kunt zoomen), een gekozen speld onder een cijfertje krijgt geen ring, en een
+    groep die op precies één punt ligt gaat nooit uit elkaar: de druk doet zijn
+    ene stap en houdt op, want een klik waar niets van beweegt leest als stuk.

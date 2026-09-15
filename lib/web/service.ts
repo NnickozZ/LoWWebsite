@@ -381,14 +381,17 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
   const sections = sectionSources.length
     ? db
         .select({
-          id: schema.entrySections.id,
-          entryId: schema.entrySections.entryId,
-          title: schema.entrySections.title,
-          body: schema.entrySections.body,
-          visibility: schema.entrySections.visibility,
+          id: schema.sections.id,
+          entryId: schema.sections.ownerId,
+          title: schema.sections.title,
+          body: schema.sections.body,
+          visibility: schema.sections.visibility,
         })
-        .from(schema.entrySections)
-        .where(inArray(schema.entrySections.entryId, sectionSources))
+        .from(schema.sections)
+        // §70: a sectie belongs to a thing now, so this pass names the kind it
+        // means. Without the filter a dossier's sectie could be read as an
+        // artikel's and drawn as a line out of the wrong knot.
+        .where(and(eq(schema.sections.ownerKind, 'entry'), inArray(schema.sections.ownerId, sectionSources)))
         .all()
     : [];
   const revealed = sectionSources.length ? revealedSectionIds(viewer) : new Set<string>();
@@ -404,6 +407,46 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
         extractEntryLinks(section.body).includes(target),
     );
 
+  /*
+   * §70's other half: the same two questions for a dossier. The notes are one
+   * source and every sectie of the dossier is another, and a sectie is asked
+   * through `canSeeSection` exactly as an artikel's is.
+   */
+  const caseSources = [
+    ...new Set(mentionRows.filter((row) => row.fromKind === 'case' && has('case', row.fromId)).map((row) => row.fromId)),
+  ];
+  const caseNotes = caseSources.length
+    ? db
+        .select({ id: schema.cases.id, notes: schema.cases.notes })
+        .from(schema.cases)
+        .where(inArray(schema.cases.id, caseSources))
+        .all()
+    : [];
+  const caseSections = caseSources.length
+    ? db
+        .select({
+          id: schema.sections.id,
+          ownerId: schema.sections.ownerId,
+          title: schema.sections.title,
+          body: schema.sections.body,
+          visibility: schema.sections.visibility,
+        })
+        .from(schema.sections)
+        .where(and(eq(schema.sections.ownerKind, 'case'), inArray(schema.sections.ownerId, caseSources)))
+        .all()
+    : [];
+  const caseRevealed = caseSections.length ? revealedSectionIds(viewer) : new Set<string>();
+  const caseNotesSay = (caseId: string, target: string) =>
+    caseNotes.some((row) => row.id === caseId && extractEntryLinks(row.notes).includes(target));
+  const caseSectionSays = (caseId: string, title: string, target: string) =>
+    caseSections.some(
+      (section) =>
+        section.ownerId === caseId &&
+        section.title === title &&
+        canSeeSection(section, viewer, caseRevealed, section.id) &&
+        extractEntryLinks(section.body).includes(target),
+    );
+
   for (const row of mentionRows) {
     const to = webNodeId('entry', row.toEntryId);
     switch (row.fromKind) {
@@ -416,7 +459,21 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
         }
         break;
       case 'case':
-        if (has('case', row.fromId)) add('caseNotes', webNodeId('case', row.fromId), to, '');
+        /*
+         * §70: a dossier says a name in its Dossiernotities *or* in a sectie,
+         * and a sectie's visibility is finer than the dossier's. So this asks
+         * the same question the artikel's section pass does, and it has to be
+         * the same answer — the count, the panel and the drawing must look at
+         * the same set (`listMentions` resolves a `case` row the same way).
+         * A row with no detail is the notes, or an untitled sectie; either
+         * counts, because the notes are readable to anybody who got this far.
+         */
+        if (!has('case', row.fromId)) break;
+        if (!row.detail && caseNotesSay(row.fromId, row.toEntryId)) {
+          add('caseNotes', webNodeId('case', row.fromId), to, '');
+        } else if (caseSectionSays(row.fromId, row.detail, row.toEntryId)) {
+          add('caseNotes', webNodeId('case', row.fromId), to, row.detail);
+        }
         break;
       case 'board':
         // An empty detail is an entry card, which the `board` edge below draws.

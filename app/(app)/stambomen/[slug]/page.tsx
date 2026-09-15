@@ -14,6 +14,7 @@ import { FamilyTreeCanvas } from '@/components/families/FamilyTreeCanvas';
 import { TreeTitle } from '@/components/families/TreeTitle';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { BinSlot } from '@/components/ui/BinSlot';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -193,6 +194,23 @@ export default async function FamilyTreePage({
           */}
           <div id="tree-underfold" />
           <KeeperPanelServer kind="family_tree" id={tree.id} user={user} />
+        </div>
+      )}
+      {/*
+       * §11: de prullenbak-lade. Below the fold like everything else on this
+       * page, and *outside* `.page-canvas`, so §34's "the stage gets the
+       * screen" still holds — a folded `<details>` inside the canvas column
+       * would cost the drawing its own height.
+       */}
+      {mayEdit && (
+        <div className="keeper-underfold">
+          <BinSlot
+            endpoint={`/api/family-trees/${tree.id}`}
+            noun={words.familyTree}
+            redirectTo="/stambomen"
+            note={`De ${words.entryPlural} erin blijven staan.`}
+            testId="tree-bin"
+          />
         </div>
       )}
     </div>

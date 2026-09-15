@@ -12,6 +12,8 @@ import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { visibleMapCondition } from '@/lib/maps/visibility';
+// §71: één plafond voor de laag, en de tekening rekent met dezelfde module.
+import { LAYER_LIMIT } from '@/lib/maps/cluster';
 import { uniqueSlug } from '@/lib/slug';
 
 /**
@@ -84,6 +86,13 @@ export type MapPin = {
    */
   name: string;
   text: string;
+  /**
+   * §71, ronde 36: hoe ver naar voren deze speld staat. Hoger ligt over lager
+   * heen, en bij een kluitje spelden is de hoogste degene die getekend wordt
+   * met een `+n` ernaast — zie `lib/maps/cluster.ts`. Per speld, niet per
+   * soort: welke rang waar hoort verschilt van landkaart tot landkaart.
+   */
+  layer: number;
   createdBy: string | null;
   createdAt: number;
   updatedAt: number;
@@ -394,6 +403,8 @@ const PIN_COLUMNS = {
   y: schema.mapPins.y,
   name: schema.mapPins.name,
   text: schema.mapPins.text,
+  // §71: de laag reist mee met elke speld — de tekening leest hem elke render.
+  layer: schema.mapPins.layer,
   createdBy: schema.mapPins.createdBy,
   createdAt: schema.mapPins.createdAt,
   updatedAt: schema.mapPins.updatedAt,
@@ -420,6 +431,7 @@ function shapePin(row: {
   y: number;
   name: string;
   text: string;
+  layer: number;
   createdBy: string | null;
   createdAt: number;
   updatedAt: number;
@@ -474,6 +486,9 @@ function shapePin(row: {
     y: row.y,
     name: entry ? entry.name : target ? target.name : row.name,
     text: row.text,
+    // §71: geen normalisering nodig — de kolom is NOT NULL DEFAULT 0, dus een
+    // rij van vóór 0025 leest terug als 0 en staat tussen zijn gelijken.
+    layer: row.layer,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -594,6 +609,18 @@ export type NewPin =
 export const PIN_ON_ITSELF = 'Een speld kan niet naar de landkaart wijzen waar hij op staat.';
 
 export function addPin(mapId: string, input: NewPin, actor: Author): MapPin {
+  /*
+   * §71: een nieuwe speld krijgt géén laag mee — hij begint op 0, de kolom zijn
+   * eigen standaard, samen met alles wat nog nooit gerangschikt is.
+   *
+   * De voor de hand liggende keuze was `max(layer) + 1`, "het nieuwste ligt
+   * bovenop", en die is hier verkeerd: zet je een huis in Middelharnis, dan zou
+   * dat huis meteen bóven het dorp liggen en dus de `+10` gaan dragen — precies
+   * de rangorde die de Keeper net had ingesteld, elke keer weer stuk. Wat er
+   * wél moet gelden ("wat ik net zette moet ik zien") is gratis: gelijke lagen
+   * worden gebroken op `createdAt`, en de nieuwste ligt vóór zijn gelijken. Zie
+   * `compareDrawOrder` in `lib/maps/cluster.ts`.
+   */
   // §17: a landkaart this writer may not see is a landkaart that is not there.
   if (!getMapById(mapId, actor)) throw new Error('Landkaart niet gevonden');
   const id = newId();
@@ -767,6 +794,29 @@ export function updatePin(
   }
   // §27: a renamed or rewritten speld says something else about the artikelen.
   recomputeMapMentions(pin.mapId);
+  return getPin(pinId, actor)!;
+}
+
+/**
+ * §71: welke speld ligt voor?
+ *
+ * Een eigen weg naast `updatePin`, met opzet. Een laag is geen tekst en geen
+ * plek: er hoeft geen veldkamer voor teruggezet te worden (§21) en er hoeft
+ * niets herteld te worden over wat de speld noemt (§27) — hij zegt precies
+ * hetzelfde, hij ligt alleen hoger. Het recht is wél hetzelfde als bij
+ * verschuiven: wie hem zette, of een Keeper (§10, `ownPin`).
+ *
+ * Het getal komt van de hand die drukt — de vier bevelen worden in de tekening
+ * uitgerekend met `layerAfter` uit `lib/maps/cluster.ts`, omdat die alle
+ * spelden al in handen heeft. Twee mensen die tegelijk "Voorgrond" drukken
+ * kunnen dus op hetzelfde getal uitkomen; dat is geen botsing maar een
+ * gelijkstand, en `compareDrawOrder` breekt die met `createdAt`.
+ */
+export function setPinLayer(pinId: string, layer: number, actor: Author): MapPin {
+  const pin = ownPin(pinId, actor);
+  const value = Math.round(Math.min(LAYER_LIMIT, Math.max(-LAYER_LIMIT, Number.isFinite(layer) ? layer : 0)));
+  db.update(schema.mapPins).set({ layer: value, updatedAt: now() }).where(eq(schema.mapPins.id, pinId)).run();
+  db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
   return getPin(pinId, actor)!;
 }
 

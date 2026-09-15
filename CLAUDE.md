@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 94 files, 1499 tests as of round 35 (round 34: 88 / 1419)
+npx vitest run         # 97 files, 1560 tests as of round 36 (round 35: 94 / 1499)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -38,6 +38,16 @@ With one known exception, as of round 22: `tests/e2e/per-place-crops.spec.ts`
 fails on untouched `main` too. It is a spec for a feature round 19 removed —
 see §8. Do not spend an hour diagnosing it, and do not let it hide a real
 failure either: check the rest of the run.
+
+**And one spec file is flaky, as of round 36: `tests/e2e/keeper-side.spec.ts`.**
+Round 36 ran the whole suite twice and lost a *different* case out of that one
+file each time — `:214` ("de spiegel klapt om") on the way in, `:59` ("een
+artikel krijgt een Keeperversie, en die deelt één tekst") on the way out — while
+all five tests in it pass when the file is run alone
+(`--project=desktop`, 5 passed). That is §6's "not yet listening" race, not
+anybody's damage, and it is the first thing that will look like damage. Fix it
+with the helpers in §6 the next time somebody is in that file; until then, a
+single red case in `keeper-side` is worth re-running alone before believing it.
 
 The Playwright run takes about twenty minutes and rebuilds the app each time.
 That is not a reason to skip it — it is a reason to run it *early*, while it is
@@ -153,7 +163,12 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is §69 / rule 69 (round 35: §69 één hand op
+  choosing a number — the latest is §71 / rule 71 (round 36 added two: §70 een
+  sectie hoort bij een ding — een sectie hangt aan een artikel *of* aan een
+  dossier en wie het ding mag bewerken mag er een bij zetten, terwijl de
+  geheimhouding van de Keeper blijft; §71 een speld heeft een laag — één getal
+  per speld dat de tekenvolgorde bepaalt én wie een kluitje vertegenwoordigt met
+  een `+n`. Round 35: §69 één hand op
   elk canvas — de camera, het lege papier, het weghalen en de ongedaan-knop
   zijn op alle vier de tekenvlakken hetzelfde, en elk verschil dat blijft staat
   met een reden in `docs/canvas-contract.md`; round 34: §68 een verwijzing
@@ -187,7 +202,8 @@ freely there.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
   `0024_soft_delete_pins_events` (§69: a `deleted_at` on `map_pins` and
   `timeline_events`, so the *Ongedaan maken* in a toast gives back the same
-  row), so the next is `0025_` (rounds 27 and 28 added none: a
+  row) — round 36 added `0025_sections_and_pin_layer`, so the next is `0026_`
+  (rounds 27 and 28 added none: a
   new soort, a reverse veld and even a **slug rename** arrive through the
   seed's `INSERT OR IGNORE` and a marker — §55, §58; round 31 added a *table*
   but not a column, because its seven new **fields** came through the same
@@ -1052,12 +1068,31 @@ to know about, because getting them wrong is silent:
 
 And the leftovers:
 
-- **`maps.spec.ts:61` flakes under `E2E_DEV=1`**, in a different place each run
+- **`maps.spec.ts` flakes under `E2E_DEV=1`**, in a different place each run
   (a speld that has not appeared within the 10 s expect, an undo that has not
   landed). It passes alone and it fails the same way on `0dc8ed5`, i.e. before
-  any of this round's second half — verified with a stash. Same family as
+  any of round 35's second half — verified with a stash. Same family as
   `board-live.spec.ts:150`: a dev build compiling on the way in. Not anybody's
   damage, but it is the first thing that will look like it.
+
+  **Round 36 measured it, and the mechanism is worth writing down.** One
+  `E2E_DEV=1` run of that file lost `:78`, `:456`, `:562` *and* the new `:605`
+  (§71) while the whole file passes in about a tenth of the time against a
+  production build (9.8 s vs 1.6 min for `:78` alone). The reason is not the
+  assertions: half the controls on a landkaart are `disabled={busy}`, and `busy`
+  is held for the whole of a write **plus** the `router.refresh()` behind it (§5
+  — a canvas on a server-rendered page refreshes after every write). Against a
+  dev build that refresh recompiles the page, so a row like "Notitie … zetten"
+  stays disabled not for a moment but for minutes, and *any* spec that sets two
+  spelden in a row runs out of patience on the second. Two spec-side repairs
+  round 36 made that are worth copying rather than rediscovering: wait for the
+  row to be **enabled** (re-filling the box if the list rebuilt under you) and
+  then click exactly **once** outside the retry loop — every click sets a speld,
+  so a retried click sets two; and never read a count with a bare
+  `expect(await locator.count())` where the number arrives with an RSC payload —
+  `expect.poll(() => locator.count())` is the version that survives a dev build
+  (that one is how `round-36-tabs.spec.ts` failed: the sheet said
+  "Tabbladen: 17" while the row still held five).
 - **The prikbord has no `description` column**, so §69 (4.8)'s one shape of
   description field reached the tijdlijn and the stamboom and not the wall. That
   is a migration, and it was out of an S-sized item's scope.

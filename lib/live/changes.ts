@@ -32,7 +32,11 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   entries: { row: 'entry', lists: ['entries', 'feed'] },
   entry_types: { lists: ['types', 'entries'] },
   entry_reveals: { refs: { entry_id: 'entry' }, lists: ['entries'] },
-  entry_sections: { refs: { entry_id: 'entry' }, lists: [] },
+  // §70: `sections` is polymorphic, so its owner key is worked out below
+  // beside `access_grants`'s — `owner_id` alone cannot say which prefix it
+  // wants. An UPDATE binds only the sectie's own id, exactly as it did when
+  // this table was `entry_sections`, so a body save moves no page key.
+  sections: { lists: [] },
   entry_section_reveals: { lists: ['entries'] },
   entry_revisions: { refs: { entry_id: 'entry' }, lists: [] },
   entry_links: { refs: { from_entry_id: 'entry', to_entry_id: 'entry' }, lists: [] },
@@ -162,6 +166,14 @@ export function keysOfStatement(sql: string, params: unknown[]): string[] {
 
   for (const [column, prefix] of Object.entries(wanted)) {
     for (const id of found.get(column) ?? []) keys.add(`${prefix}:${id}`);
+  }
+  // §70: so is a sectie's owner — an artikel or a dossier, named by the row.
+  if (table === 'sections') {
+    const kinds = found.get('owner_kind') ?? [];
+    const ids = found.get('owner_id') ?? [];
+    kinds.forEach((kind, i) => {
+      if ((kind === 'entry' || kind === 'case') && ids[i]) keys.add(`${kind}:${ids[i]}`);
+    });
   }
   // Grants are polymorphic: the target names its own kind.
   if (table === 'access_grants') {

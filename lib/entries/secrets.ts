@@ -1,228 +1,26 @@
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { charactersWorn } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
-import { resetRoom } from '@/lib/live/docs';
-import { newId } from '@/lib/ids';
-import { docToText } from '@/lib/entries/doc';
-import { recomputeSectionMentions } from '@/lib/entries/mentions';
-import { logActivity, logAudit } from '@/lib/entries/service';
-import { canSeeSection, type Viewer } from '@/lib/entries/visibility';
-import type { Visibility } from '@/lib/db/schema';
+import { logAudit } from '@/lib/entries/service';
 
 /**
- * §9: the Keeper's half of an entry — who may see it at all, and the extra
- * titled sections that get flipped on mid-session.
+ * §9: the Keeper's half of an artikel — who may see it at all — and the two
+ * pickers that both reveal dials are drawn from.
  *
- * Everything here reads through `canSeeSection` / the entry's own visibility
- * rule. A section a player may not see never leaves this file: it is dropped
- * before the props are built, so it is not in their HTML either.
+ * The *sectie* half of this file moved out in round 36 (§70). A sectie is no
+ * longer part of the Keeper's prep on an artikel: it belongs to a *thing*, an
+ * artikel or a dossier, and anyone who may edit the thing may add one. It lives
+ * in `lib/sections/service.ts`, which is the only road to one — nothing is
+ * re-exported from here, because one road beats two (CLAUDE.md §5). Only the
+ * reveals stayed behind, and only the *entry* ones: a sectie's reveals are
+ * `setSectionReveals` over there, next to the dial they belong to.
+ *
+ * Everything here reads through the artikel's own visibility rule. What a
+ * player may not see never leaves this file: it is dropped before the props are
+ * built, so it is not in their HTML either (rule 1).
  */
 
-export type EntrySection = {
-  id: string;
-  entryId: string;
-  title: string;
-  body: unknown;
-  bodyText: string;
-  visibility: Visibility;
-  sortOrder: number;
-  /** Only ever populated for a Keeper. */
-  revealedTo: string[];
-};
-
-/** Section ids this viewer has been revealed. Empty for a Keeper (they see all). */
-function revealedSectionIds(viewer: Viewer): Set<string> {
-  if (!viewer) return new Set();
-  return new Set(
-    db
-      .select({ sectionId: schema.entrySectionReveals.sectionId })
-      .from(schema.entrySectionReveals)
-      .where(eq(schema.entrySectionReveals.userId, viewer.id))
-      .all()
-      .map((row) => row.sectionId),
-  );
-}
-
-export function listSections(entryId: string, viewer: Viewer): EntrySection[] {
-  const rows = db
-    .select()
-    .from(schema.entrySections)
-    .where(eq(schema.entrySections.entryId, entryId))
-    .orderBy(asc(schema.entrySections.sortOrder))
-    .all();
-
-  const revealed = viewer?.isKeeper ? new Set<string>() : revealedSectionIds(viewer);
-  const visible = rows.filter((row) => canSeeSection(row, viewer, revealed, row.id));
-  if (!visible.length) return [];
-
-  // Who a section is revealed to is the Keeper's business only.
-  const revealsBySection = new Map<string, string[]>();
-  if (viewer?.isKeeper) {
-    for (const row of db
-      .select()
-      .from(schema.entrySectionReveals)
-      .where(
-        inArray(
-          schema.entrySectionReveals.sectionId,
-          visible.map((section) => section.id),
-        ),
-      )
-      .all()) {
-      const list = revealsBySection.get(row.sectionId) ?? [];
-      list.push(row.userId);
-      revealsBySection.set(row.sectionId, list);
-    }
-  }
-
-  return visible.map((row) => ({
-    id: row.id,
-    entryId: row.entryId,
-    title: row.title,
-    body: row.body,
-    bodyText: row.bodyText,
-    visibility: row.visibility,
-    sortOrder: row.sortOrder,
-    revealedTo: revealsBySection.get(row.id) ?? [],
-  }));
-}
-
-export function createSection(entryId: string, keeperId: string): string {
-  const last = db
-    .select({ sortOrder: schema.entrySections.sortOrder })
-    .from(schema.entrySections)
-    .where(eq(schema.entrySections.entryId, entryId))
-    .orderBy(asc(schema.entrySections.sortOrder))
-    .all()
-    .at(-1);
-
-  const id = newId();
-  db.insert(schema.entrySections)
-    .values({
-      id,
-      entryId,
-      title: '',
-      body: null,
-      bodyText: '',
-      // §9: a section is prep until the Keeper says otherwise.
-      visibility: 'keeper',
-      sortOrder: (last?.sortOrder ?? 0) + 10,
-    })
-    .run();
-  logAudit({ actorId: keeperId, action: 'section.created', targetType: 'entry', targetId: entryId });
-  return id;
-}
-
-export type SectionPatch = Partial<{
-  title: string;
-  body: unknown;
-  visibility: Visibility;
-  sortOrder: number;
-}>;
-
-export function updateSection(
-  sectionId: string,
-  patch: SectionPatch,
-  keeperId: string,
-  options: { live?: boolean } = {},
-) {
-  const existing = db
-    .select()
-    .from(schema.entrySections)
-    .where(eq(schema.entrySections.id, sectionId))
-    .get();
-  if (!existing) throw new Error('Sectie niet gevonden');
-
-  const values: Record<string, unknown> = {};
-  if (patch.title !== undefined) values.title = patch.title.slice(0, 200);
-  if (patch.body !== undefined) {
-    values.body = patch.body;
-    values.bodyText = docToText(patch.body);
-  }
-  if (patch.sortOrder !== undefined) values.sortOrder = patch.sortOrder;
-  if (patch.visibility !== undefined && patch.visibility !== existing.visibility) {
-    values.visibility = patch.visibility;
-    logAudit({
-      actorId: keeperId,
-      action: 'section.visibility_changed',
-      targetType: 'entry_section',
-      targetId: sectionId,
-      meta: { from: existing.visibility, to: patch.visibility, title: existing.title },
-    });
-    // A section going live for *everyone* is news the feed can carry. A reveal
-    // to named players is not: the feed has no per-section rule, so a row there
-    // would tell the rest of the table that a secret exists.
-    if (patch.visibility === 'all') {
-      logActivity({
-        actorId: keeperId,
-        verb: 'entry.section_revealed',
-        entryId: existing.entryId,
-        meta: { title: existing.title },
-      });
-    }
-  }
-  if (!Object.keys(values).length) return;
-
-  db.update(schema.entrySections)
-    .set(values)
-    .where(eq(schema.entrySections.id, sectionId))
-    .run();
-  // §27: what this artikel's sections name. The whole artikel is recomputed
-  // rather than this one section, because a mention row is filed under the
-  // artikel and its title — see `recomputeSectionMentions`. Hung off the
-  // service so a save from the room counts as much as a plain PATCH (rule 13),
-  // and off a title change as much as a body one, since the title is what the
-  // mention prints.
-  if (patch.body !== undefined || patch.title !== undefined) {
-    recomputeSectionMentions(existing.entryId);
-  }
-  // §20: a body written around the room rewrites the shared document.
-  if (patch.body !== undefined && !options.live) resetRoom(`section:${sectionId}`, patch.body);
-}
-
-export function deleteSection(sectionId: string, keeperId: string) {
-  const existing = db
-    .select()
-    .from(schema.entrySections)
-    .where(eq(schema.entrySections.id, sectionId))
-    .get();
-  if (!existing) return;
-  db.delete(schema.entrySectionReveals)
-    .where(eq(schema.entrySectionReveals.sectionId, sectionId))
-    .run();
-  db.delete(schema.entrySections).where(eq(schema.entrySections.id, sectionId)).run();
-  // §27: a section that is gone mentions nothing.
-  recomputeSectionMentions(existing.entryId);
-  logAudit({
-    actorId: keeperId,
-    action: 'section.deleted',
-    targetType: 'entry',
-    targetId: existing.entryId,
-    meta: { title: existing.title },
-  });
-}
-
-export function setSectionReveals(sectionId: string, userIds: string[], keeperId: string) {
-  const unique = [...new Set(userIds)].filter(Boolean);
-  db.delete(schema.entrySectionReveals)
-    .where(eq(schema.entrySectionReveals.sectionId, sectionId))
-    .run();
-  if (unique.length) {
-    db.insert(schema.entrySectionReveals)
-      .values(unique.map((userId) => ({ sectionId, userId })))
-      .onConflictDoNothing()
-      .run();
-  }
-  logAudit({
-    actorId: keeperId,
-    action: 'section.revealed',
-    targetType: 'entry_section',
-    targetId: sectionId,
-    meta: { count: unique.length },
-  });
-}
-
 /* --------------------------------------------------------- entry reveals */
-
 export function listEntryReveals(entryId: string): string[] {
   return db
     .select({ userId: schema.entryReveals.userId })
@@ -305,13 +103,4 @@ export function listRevealableUsers(): {
     .all();
   const worn = charactersWorn(accounts.map((a) => a.id));
   return accounts.map((a) => ({ ...a, character: worn.get(a.id) ?? null }));
-}
-
-/** True when this entry has a section the viewer may not see. Keeper-only UI hint. */
-export function countHiddenSections(entryId: string): number {
-  return db
-    .select()
-    .from(schema.entrySections)
-    .where(and(eq(schema.entrySections.entryId, entryId), eq(schema.entrySections.visibility, 'keeper')))
-    .all().length;
 }
