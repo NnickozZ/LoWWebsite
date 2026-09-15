@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editArticle, inviteCode, newBoard, signIn } from './helpers';
 
 /**
  * §17: who may look, and who may touch.
@@ -144,7 +144,7 @@ test('a private board is created private, and a chosen person may look but not p
 
   await signUpWriting(page, `Eigenaar ${stamp}`);
   await page.goto('/boards');
-  await page.getByRole('button', { name: /Privé prikbord/ }).click();
+  await newBoard(page, { private: true });
   await page.waitForURL('**/b/**');
   const boardUrl = page.url();
   await page.getByLabel('Naam van het prikbord').fill(`Muur ${stamp}`);

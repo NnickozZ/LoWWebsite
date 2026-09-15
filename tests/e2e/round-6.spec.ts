@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, newCaseBoard, newEntryButton, signIn } from './helpers';
+import { editArticle, newBoard, newCaseBoard, newEntryButton, signIn } from './helpers';
 
 /**
  * §23: Nick's round of 5 September, evening.
@@ -155,7 +155,7 @@ test('a dossier goes on a wall as a card', async ({ page }, info) => {
   await openCase(page, caseName);
 
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
 
   const search = page.getByLabel('Kaart toevoegen');
@@ -267,7 +267,7 @@ test('a landkaart is the map of a place, and goes on a wall as a card', async ({
 
   // And the landkaart itself goes on a wall, as a card that says what it is.
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
   await page.getByLabel('Kaart toevoegen').fill(mapName);
   await page.locator('.suggest-item').filter({ hasText: 'Landkaart' }).first().click();

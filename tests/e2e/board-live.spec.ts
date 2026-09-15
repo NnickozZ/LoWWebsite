@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, signIn, signUp } from './helpers';
+import { becomeInvestigator, newBoard as makeBoardOnShelf, signIn, signUp } from './helpers';
 
 /**
  * §8, live: two people at one wall.
@@ -13,7 +13,7 @@ import { becomeInvestigator, signIn, signUp } from './helpers';
 
 async function newBoard(page: Page): Promise<string> {
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await makeBoardOnShelf(page);
   await page.waitForURL('**/b/**');
   return page.url();
 }

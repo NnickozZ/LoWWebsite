@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, newEntryButton, signIn } from './helpers';
+import { editArticle, newBoard, newEntryButton, signIn } from './helpers';
 
 /**
  * §24/§25: Nick's round of 5 September, late.
@@ -39,7 +39,7 @@ test('a prikbord can be thrown away, and put back', async ({ page }, info) => {
 
   await signIn(page, ...KEEPER);
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
   await page.locator('#board-name').fill(boardName);
   await page.locator('#board-name').blur();

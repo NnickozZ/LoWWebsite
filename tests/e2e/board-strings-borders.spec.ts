@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { newCaseBoard, signIn } from './helpers';
+import { newBoard as makeBoardOnShelf, newCaseBoard, signIn } from './helpers';
 
 /**
  * The second pass over the board: bare pins for leads with no card, string
@@ -12,7 +12,7 @@ import { newCaseBoard, signIn } from './helpers';
 
 async function newBoard(page: Page) {
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await makeBoardOnShelf(page);
   await page.waitForURL('**/b/**');
 }
 

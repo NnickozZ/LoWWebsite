@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { editArticle, signIn } from './helpers';
+import { editArticle, newBoard, signIn } from './helpers';
 
 /**
  * Golden flow 4 (§15): open a board, add three entry cards via search, add a
@@ -19,7 +19,7 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   // A board of its own, so the test is repeatable and cannot collide with a
   // board another spec is working on.
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
   const boardUrl = page.url();
 
@@ -198,7 +198,7 @@ test('board: a long punaise label is shown in full', async ({ page }) => {
 
   await signIn(page, 'Keeper', 'abbeytower34');
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
 
   // A bare punaise comes up selected, so its label field is already in the bar.

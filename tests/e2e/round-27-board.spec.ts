@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, fillWhenReady, newEntryButton, signIn } from './helpers';
+import { editArticle, fillWhenReady, newBoard as makeBoardOnShelf, newEntryButton, signIn } from './helpers';
 
 /**
  * §52, round 27: the wall's half.
@@ -19,7 +19,7 @@ const stamp = Date.now().toString(36);
 
 async function newBoard(page: Page) {
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await makeBoardOnShelf(page);
   await page.waitForURL('**/b/**');
 }
 

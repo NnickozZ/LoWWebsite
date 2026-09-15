@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { newBoard, signIn } from './helpers';
 
 /**
  * §69 — the contract, asserted rather than written down.
@@ -49,7 +49,7 @@ const SURFACES: Surface[] = [
     emptyAt: { x: 0.78, y: 0.72 },
     open: async (page) => {
       await page.goto('/boards');
-      await page.getByRole('button', { name: /Openbaar prikbord/ }).click();
+      await newBoard(page);
       await page.waitForURL('**/b/**');
       await expect(page.locator('.board-viewport')).toBeVisible();
     },

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { join, resolve } from 'node:path';
-import { editArticle, imageMenu, signIn } from './helpers';
+import { editArticle, imageMenu, newBoard, signIn } from './helpers';
 
 const root = resolve(__dirname, '../..');
 const fixturePhoto = join(root, 'data-e2e', 'fixture-photo.png');
@@ -132,7 +132,7 @@ test('an artikel sets three crops once, and every list draws the one for its sha
 
   // -- a board card starts from the artikel's staand crop as well ----------------
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
   await page.getByLabel('Kaart toevoegen').fill(entryName);
   await page

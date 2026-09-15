@@ -68,12 +68,18 @@ test.describe('§48 geboren op een kant', () => {
     if (await tab.isVisible().catch(() => false)) await tab.click();
     const makeBoard = page.getByRole('button', { name: /Maak nieuw prikbord voor dit dossier/ });
     await makeBoard.scrollIntoViewIfNeeded();
-    // Scoped to that button's own row: a phone has the tijdlijn's switch on
-    // the same page, and `.first()` would be a coin toss between them.
-    const choice = page.locator('span.row-wrap', { has: makeBoard }).getByTestId('side-choice');
+    await makeBoard.click();
+    /*
+     * §69: the switch is *inside* the sheet now, which is what this block used
+     * to have to work around — it scoped the locator to the button's own
+     * `span.row-wrap` because on a phone the tijdlijn's switch sat on the same
+     * page and `.first()` was a coin toss. A sheet has only its own.
+     */
+    const boardSheet = page.getByRole('dialog', { name: /Nieuw prikbord/ });
+    const choice = boardSheet.getByTestId('side-choice');
     await expect(choice.locator('input')).toBeChecked();
     await expect(choice.locator('input')).toBeDisabled();
-    await makeBoard.click();
+    await boardSheet.getByRole('button', { name: /Prikbord aanmaken|Openbaar prikbord/ }).click();
     await page.waitForURL('**/b/**', { timeout: 20_000 });
     await expect(page.getByTestId('keeper-stamp')).toBeVisible({ timeout: 20_000 });
 

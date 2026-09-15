@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join, resolve } from 'node:path';
-import { pasteImage, signIn } from './helpers';
+import { newBoard, pasteImage, signIn } from './helpers';
 
 const fixturePhoto = join(resolve(__dirname, '../..'), 'data-e2e', 'fixture-photo.png');
 
@@ -20,7 +20,7 @@ test.describe('board editing', () => {
   test('a string can be relabelled, recoloured and removed', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
-    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+    await newBoard(page);
     await page.waitForURL('**/b/**');
 
     const search = page.getByLabel('Kaart toevoegen');
@@ -101,7 +101,7 @@ test.describe('board editing', () => {
 
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
-    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+    await newBoard(page);
     await page.waitForURL('**/b/**');
 
     // Nothing selected, so the paste makes a card of its own rather than
@@ -143,7 +143,7 @@ test.describe('board editing', () => {
   test('a note gains a photo, keeps it over a reload, and opens full size', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
-    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+    await newBoard(page);
     await page.waitForURL('**/b/**');
 
     await page.getByLabel('Kaart toevoegen').fill('Ledger fragment');
@@ -208,7 +208,7 @@ test.describe('board editing', () => {
   test('a card can be made bigger, and is still bigger after a reload', async ({ page }) => {
     await signIn(page, 'Keeper', 'abbeytower34');
     await page.goto('/boards');
-    await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+    await newBoard(page);
     await page.waitForURL('**/b/**');
 
     const noteName = `Groot geschreven ${Date.now().toString(36)}`;

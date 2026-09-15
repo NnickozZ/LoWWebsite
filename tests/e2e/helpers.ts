@@ -178,15 +178,41 @@ export async function openRights(page: Page) {
 }
 
 /**
+ * §69: a wall, from the prikborden-pagina.
+ *
+ * Since round 35 the wall is made through a sheet like the other three
+ * containers — press "Nieuw prikbord", type a name if you want one, then
+ * "Openbaar" or "Privé". Seventeen specs used to press the openbare button on
+ * the shelf directly; they go through here now, so the next time that road
+ * changes it is one line rather than seventeen.
+ */
+export async function newBoard(page: Page, options: { name?: string; private?: boolean } = {}) {
+  await page.getByRole('button', { name: /^Nieuw prikbord$/ }).click();
+  const sheet = page.getByRole('dialog', { name: /Nieuw prikbord/ });
+  await expect(sheet).toBeVisible();
+  // §6: a sheet that has just opened is not yet listening, and a name wiped by
+  // the render behind it makes a wall called "Nieuw prikbord".
+  if (options.name) await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), options.name);
+  await sheet
+    .getByRole('button', { name: options.private ? /Privé prikbord/ : /Openbaar prikbord/ })
+    .click();
+  await page.waitForURL('**/b/**');
+}
+
+/**
  * §25: inside a dossier the button that makes a wall says what it does —
  * "Maak nieuw prikbord voor dit dossier" — rather than what its rights are.
- * On the prikborden-pagina, where the choice really is openbaar or privé, it
- * still says "Openbaar prikbord". This is the one inside a dossier.
+ * §69: and it opens the same sheet, whose openbare button is called
+ * "Prikbord aanmaken" there, exactly as the tijdlijn's and the stamboom's are.
  */
-export async function newCaseBoard(page: Page) {
+export async function newCaseBoard(page: Page, name?: string) {
   const tab = page.getByRole('tab', { name: 'Prikbord' });
   if (await tab.isVisible().catch(() => false)) await tab.click();
   await page.getByRole('button', { name: /Maak nieuw prikbord voor dit dossier/ }).click();
+  const sheet = page.getByRole('dialog', { name: /Nieuw prikbord/ });
+  await expect(sheet).toBeVisible();
+  if (name) await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
+  await sheet.getByRole('button', { name: /Prikbord aanmaken|Openbaar prikbord/ }).click();
   await page.waitForURL('**/b/**');
 }
 

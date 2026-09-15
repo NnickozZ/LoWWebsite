@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join, resolve } from 'node:path';
-import { signIn } from './helpers';
+import { newBoard, signIn } from './helpers';
 
 const fixturePhoto = join(resolve(__dirname, '../..'), 'data-e2e', 'fixture-photo.png');
 
@@ -81,7 +81,7 @@ test('a case crops a cover for itself without touching the entry', async ({ page
 
   // -- and a board card starts from the entry's, not the case's -------------
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await newBoard(page);
   await page.waitForURL('**/b/**');
   await page.getByLabel('Kaart toevoegen').fill(entryName);
   await page

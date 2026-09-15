@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { newBoard as makeBoardOnShelf, signIn } from './helpers';
 
 /**
  * §61 — een muur die nooit opgeeft.
@@ -25,7 +25,7 @@ const SAVED = 'Opgeslagen';
 
 async function newBoard(page: Page): Promise<{ url: string; id: string }> {
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await makeBoardOnShelf(page);
   await page.waitForURL('**/b/**');
   const url = page.url();
   return { url, id: url.split('/b/')[1].split(/[?#]/)[0] };

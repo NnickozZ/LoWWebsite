@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, fillWhenReady, signIn, signUp } from './helpers';
+import { becomeInvestigator, fillWhenReady, newBoard as makeBoardOnShelf, signIn, signUp } from './helpers';
 
 /**
  * §33: the tekenlaag — free-hand drawing on a prikbord, a landkaart and a
@@ -89,7 +89,7 @@ async function sweep(page: Page, x: number, y: number) {
 
 async function newBoard(page: Page): Promise<string> {
   await page.goto('/boards');
-  await page.getByRole('button', { name: 'Openbaar prikbord' }).click();
+  await makeBoardOnShelf(page);
   await page.waitForURL('**/b/**');
   await expect(page.locator('.board-viewport')).toBeVisible();
   return page.url();
