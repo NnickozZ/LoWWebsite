@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 88 files, 1419 tests as of round 34 (round 33: 88 / 1409)
+npx vitest run         # 94 files, 1499 tests as of round 35 (round 34: 88 / 1419)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -153,7 +153,10 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is §68 / rule 68 (round 34: §68 een verwijzing
+  choosing a number — the latest is §69 / rule 69 (round 35: §69 één hand op
+  elk canvas — de camera, het lege papier, het weghalen en de ongedaan-knop
+  zijn op alle vier de tekenvlakken hetzelfde, en elk verschil dat blijft staat
+  met een reden in `docs/canvas-contract.md`; round 34: §68 een verwijzing
   is een link — elke muisknop behalve de linker is van de browser, wat je leest
   draagt geen kadertje, de geschiedenis klapt uit tot de zinnen zelf, en het
   wiel op een tijdlijn sleept het papier de kant van de hand op; round 33: §67
@@ -182,7 +185,9 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0023_family_trees`, so the next is `0024_` (rounds 27 and 28 added none: a
+  `0024_soft_delete_pins_events` (§69: a `deleted_at` on `map_pins` and
+  `timeline_events`, so the *Ongedaan maken* in a toast gives back the same
+  row), so the next is `0025_` (rounds 27 and 28 added none: a
   new soort, a reverse veld and even a **slug rename** arrive through the
   seed's `INSERT OR IGNORE` and a marker — §55, §58; round 31 added a *table*
   but not a column, because its seven new **fields** came through the same
@@ -227,7 +232,8 @@ freely there.
   out against the *padding* box while `getBoundingClientRect()` gives the
   *border* box, so `clientLeft`/`clientTop` come off too or every stroke lands a
   pixel up and to the left of the hand that drew it.
-- **Kiezen is one gesture and it lives in two files** (§67). Shift-click
+- **Kiezen is one gesture and it lives in two files** (§67) — and since §69, on
+  all four canvases rather than two. Shift-click
   toggles, shift-drag on bare paper sweeps a box that selects everything it
   *touches* and replaces what was chosen, a plain drag pans, Escape clears —
   and a plain press on something already chosen leaves the whole group standing,
@@ -265,8 +271,8 @@ freely there.
   `components/maps/MapCanvas.tsx` now does this after a pin is **created** and
   after one is **removed** (§39 made it load-bearing: walking down a landkaart
   speld and coming back up the chip landed on a payload without the speld in
-  it). A pin **move** still does not refresh — the known gap is that narrow one
-  now, not the whole file.
+  it). **§69 closed the last third**: a pin **move** refreshes too, so the whole
+  file is now consistent and this is no longer a gap.
 - **`lib/assets.ts` loads sharp and the database**, so nothing client-side may
   import it. Pure, client-safe helpers belong in `lib/upload.ts`. Same shape and
   same reason at the front door: `lib/auth/password.mjs` loads `@node-rs/argon2`
@@ -1006,7 +1012,7 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32 and 33
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33 and 35
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself
@@ -1017,6 +1023,64 @@ in a worktree at `1d67f5c`, round 22's base. It is pre-existing red, not
 anybody's damage — retire the spec (or rewrite it for the three-crop road) the
 next time somebody is in that file, and until then do not spend an hour
 diagnosing it.
+
+**Round 35 (§69) is finished — every item of `docs/canvas-contract.md`'s phase-2
+list is built.** What it leaves is below, and it is all deliberate.
+
+Three shapes this round introduced that a fifth canvas (or the next round) has
+to know about, because getting them wrong is silent:
+
+- **Each canvas's "world" is a different unit, on purpose.** A prikbord counts in
+  board units, a stamboom in world units, a landkaart in **fractions of the
+  picture**, a tijdlijn in **stage pixels**. `useMarqueeSelect` is shared, its
+  arithmetic is unit-agnostic — but anything that *rounds* is not: the hook
+  rounds the broadcast box to whole numbers, which is right in pixels and turns
+  every fraction into 0 or 1. The landkaart therefore does not use
+  `onBroadcast`; it sends the box itself, unrounded. A fifth canvas must decide
+  which unit it is before it copies either.
+- **A CSS rule that comes *before* the rule it overrides loses at equal
+  specificity.** The 44 px tap targets (§69 6.1) sit near the top of
+  `globals.css` and had no effect on `.ink-tool` (a thousand lines below) or
+  `.tree-handle` (in `stambomen.css`). Two classes deep fixes it. The contract
+  spec on the `phone` project found this; reading did not.
+- **A modal `Sheet` over a canvas makes the canvas unreachable.** The contract
+  asked for bottom sheets on the phone for the tijdlijn's window and the
+  prikbord's inspector; both were built, both broke the spec suite for the right
+  reason, and both are now **docked, non-modal** panels instead. The map's
+  legend stayed a `Sheet` — a filter is a moment when you are doing nothing
+  else. Anything docked over a canvas must stop its own pointer events (§6).
+
+And the leftovers:
+
+- **`maps.spec.ts:61` flakes under `E2E_DEV=1`**, in a different place each run
+  (a speld that has not appeared within the 10 s expect, an undo that has not
+  landed). It passes alone and it fails the same way on `0dc8ed5`, i.e. before
+  any of this round's second half — verified with a stash. Same family as
+  `board-live.spec.ts:150`: a dev build compiling on the way in. Not anybody's
+  damage, but it is the first thing that will look like it.
+- **The prikbord has no `description` column**, so §69 (4.8)'s one shape of
+  description field reached the tijdlijn and the stamboom and not the wall. That
+  is a migration, and it was out of an S-sized item's scope.
+- **Strings, the resize grip and the marquee are still desktop-only on the
+  prikbord.** §69 (6.2) split `interactive` in two: a finger may now carry a
+  *card*, because a card is the biggest thing on the cork. The other three hang
+  off a few pixels or off a key a phone does not have.
+- **The long press has no e2e**, for the reason in
+  `tests/unit/make-on-empty.test.ts`: Playwright taps and drags but cannot
+  press-and-hold. The timer's rules are unit-tested and the wiring is asserted
+  through the double-click.
+- **`restorePin` / `restoreEvent` measure against the actor, not the deleter.**
+  A Keeper can dig up a speld somebody else buried, which is right; but a player
+  who may edit the landkaart cannot undo their *own* removal of a speld they did
+  not set, because `removePin` refused it in the first place. Consistent, and
+  worth knowing.
+- **A buried row is swept at start-up, not on a timer.** A server that stays up
+  for a month sweeps once. That is on purpose (see `lib/db/sweep.ts`) and it
+  means a long-running instance keeps buried rows longer than a day.
+- **The prikbord and the stamboom still push a whole snapshot** where the other
+  two push an action. That is the right split — see rule 69 — but it does mean
+  `undoStack<T>` carries two quite different `T`s, and a fifth canvas has to
+  decide which kind it is before it picks one.
 
 Round 33 (§67) leaves these, all named on purpose:
 
@@ -1076,8 +1140,14 @@ Round 31 (§66) leaves ten, all named on purpose — the eleventh is **closed**:
   and partner are complete, because the mirror writes them on both pages.)
 - **Undo of an *add* on a stamboom does not delete server-side**, exactly as on
   a prikbord (round 29's leftover, same reasoning).
-- **The floating picker clamps itself inside the stage; the node menu does
-  not**, so near the bottom edge `.tree-stage`'s `overflow` clips the menu.
+- ~~**The floating picker clamps itself inside the stage; the node menu does
+  not.**~~ **Closed in round 35 (§69, 3.4).** Both are measured now rather than
+  guessed: `lib/canvas/clamp.ts` holds the arithmetic (pure, unit-tested),
+  `clampFloat` places the kiezer in stage coordinates on the height it actually
+  has, and `flipsNeeded` + three `.tree-menu-*` classes open the knoopmenu
+  upward or to one side when downward is off the glass. The menu could not be
+  clamped the kiezer's way because it hangs off an anchor inside the *world*,
+  which is under a CSS transform and has no honest stage coordinates.
 - **The partner double line is offset 2 px in *world* units**, so below about
   25 % the two strokes merge into one.
 - **`prefers-reduced-motion` makes a carried card jump between frames** instead
@@ -1230,8 +1300,8 @@ nowhere near, because it was seven features and about twenty-seven hours.
   the old magic heights. Round 13 made cards resizable on that same wall without
   touching it, so the two do not block each other — but a wall of 250% cards is
   a better argument for the full-screen shell than it was.
-- `MapCanvas` does not `router.refresh()` after a pin **move**. Create and remove
-  do since round 13 (see §5), so this is now one gesture, not a whole file.
+- ~~`MapCanvas` does not `router.refresh()` after a pin **move**.~~ **Closed in
+  round 35 (§69).**
 - Six places open a sheet from inside a sheet (`MapCanvas`, `TimelineCanvas`,
   `EventSheets`, `BoardCanvas`). `lib/sheetStack.ts` makes them survive it; they
   are not correct by design. Round 13 added a seventh road into `MapCanvas`'s

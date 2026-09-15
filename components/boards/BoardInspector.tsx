@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useIsPhone } from '@/components/useIsPhone';
 import { Icon } from '@/components/Icon';
 import { BORDER_OPTIONS } from '@/components/borders';
 import { useUi } from '@/components/ui/UiProvider';
@@ -20,6 +21,67 @@ import {
   type StringColour,
   type StringStyle,
 } from '@/lib/boards/merge';
+
+/**
+ * §69 (6.4) — op een telefoon is de inspector één ding met echte raakdoelen.
+ *
+ * Hij stond al onderaan vastgeprikt, maar als een los balkje dat de onderste
+ * strook deelde met de tabbalk én met de zwevende `+`, met knoppen van 26 px
+ * ertussen. Op 390 px was dat de drukste strook van het archief.
+ *
+ * Het contract zei "bottom `Sheet`", en dat is geprobeerd en teruggedraaid, om
+ * dezelfde reden als bij het venster van de tijdlijn (zie `TimelineCanvas.tsx`):
+ * een `Sheet` is modaal, en een modale laag over de kurk betekent dat je niets
+ * meer kunt aanwijzen zolang er iets gekozen is — terwijl "kies het volgende
+ * kaartje" precies is wat je hierna doet. Dus: nog steeds gedokt en niet
+ * modaal, maar over de volle breedte, met een kop die zegt wat er gekozen is,
+ * een kruisje om de keuze los te laten (een telefoon heeft geen Escape) en
+ * raakdoelen van 44 px (§69 6.1).
+ *
+ * Hoe hoog hij mag worden is geen smaak maar een gemeten grens — twee specs
+ * trekken er elk de andere kant op aan. Zie `.board-inspector-row` in
+ * `app/globals.css`.
+ *
+ * Eén omhulsel voor alle drie de gedaanten (een draad, een punaise, kaarten),
+ * want anders zou elke gedaante het zelf moeten weten — en dan weet er vroeg of
+ * laat één het niet.
+ */
+function InspectorShell({
+  label,
+  onClose,
+  children,
+}: {
+  label: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const isPhone = useIsPhone();
+  if (!isPhone) {
+    return (
+      <div className="board-inspector" role="group" aria-label={label}>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className="board-inspector board-inspector-phone" role="group" aria-label={label}>
+      <div className="board-inspector-head">
+        <span className="board-inspector-title">{label}</span>
+        <span className="spacer" />
+        <button
+          type="button"
+          className="btn btn-small btn-ghost"
+          aria-label="Selectie loslaten"
+          title="Selectie loslaten"
+          onClick={onClose}
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <div className="board-inspector-row">{children}</div>
+    </div>
+  );
+}
 
 /** What each stored colour key is called on screen. */
 const COLOUR_NAMES: Record<StringColour, string> = {
@@ -193,7 +255,7 @@ export function BoardInspector({
 
   if (line) {
     return (
-      <div className="board-inspector" role="group" aria-label="Geselecteerde draad">
+      <InspectorShell label="Geselecteerde draad" onClose={onClose}>
         <span className="board-inspector-title">
           <Icon name="link" size={15} />
           Draad
@@ -290,7 +352,7 @@ export function BoardInspector({
         >
           <Icon name="close" size={16} />
         </button>
-      </div>
+      </InspectorShell>
     );
   }
 
@@ -298,7 +360,7 @@ export function BoardInspector({
 
   if (pin) {
     return (
-      <div className="board-inspector" role="group" aria-label={`Geselecteerde ${words.pin}`}>
+      <InspectorShell label={`Geselecteerde ${words.pin}`} onClose={onClose}>
         <span className="board-inspector-title">
           <span className="board-pin board-pin-inline" aria-hidden="true" />
           {capitalise(words.pin)}
@@ -343,7 +405,7 @@ export function BoardInspector({
         >
           <Icon name="close" size={16} />
         </button>
-      </div>
+      </InspectorShell>
     );
   }
 
@@ -352,7 +414,7 @@ export function BoardInspector({
   const single = cards.length === 1 ? cards[0] : null;
 
   return (
-    <div className="board-inspector" role="group" aria-label="Geselecteerde kaarten">
+    <InspectorShell label="Geselecteerde kaarten" onClose={onClose}>
       <span className="board-inspector-title">
         <Icon name="board" size={15} />
         {single ? subjectName || single.name || 'Kaart' : `${cards.length} kaarten`}
@@ -426,6 +488,6 @@ export function BoardInspector({
       >
         <Icon name="close" size={16} />
       </button>
-    </div>
+    </InspectorShell>
   );
 }

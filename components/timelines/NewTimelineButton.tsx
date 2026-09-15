@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
+import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { SCALES, SCALE_HINTS, SCALE_LABELS, type Scale } from '@/lib/timelines/time';
@@ -25,6 +26,9 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [scale, setScale] = useState<Scale>('day');
+  /* §69 (4.8): de omschrijving, in de vorm van de landkaart. */
+  const [description, setDescription] = useState('');
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState<'public' | 'private' | null>(null);
   /*
    * §69: the refusal stays in the sheet, beside the button that caused it. A
@@ -52,6 +56,8 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
           caseId,
           scale,
           isPrivate,
+          // §69 (4.8): the route already took one; only the maker never asked.
+          description: description.trim(),
           // §48: ignored for anyone who is not a Keeper.
           keeperOnly: ui.isKeeper ? sideLocked || keeperSide : undefined,
         }),
@@ -106,6 +112,33 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
                   }
                 }}
               />
+            </div>
+            {/*
+              §69 (4.8): één omschrijvingsveld, in de vorm die de landkaart al
+              had. Een `label`, een `textarea` van twee regels, en de drie
+              `@`-delen die overal bij elkaar horen: de lijst terwijl je typt,
+              de chip over de letters in het vak zelf (§56), en de rij eronder
+              die klikbaar is (§54). Drie van de vier makers vroegen hier
+              helemaal niets, terwijl de kolom er al was — een tijdlijn kon dus
+              alleen een omschrijving krijgen door hem ergens anders te gaan
+              bewerken.
+            */}
+            <div>
+              <label className="label" htmlFor="new-timeline-description">
+                Omschrijving
+              </label>
+              <textarea
+                id="new-timeline-description"
+                ref={descriptionRef}
+                className="input"
+                rows={2}
+                value={description}
+                placeholder="Waar gaat deze tijdlijn over?"
+                onChange={(event) => setDescription(event.target.value)}
+              />
+              <MentionPopover forRef={descriptionRef} />
+              <MentionOverlay forRef={descriptionRef} value={description} />
+              <MentionRow text={description} />
             </div>
             <fieldset className="timeline-scale-picker">
               <legend className="label">Gemeten in</legend>

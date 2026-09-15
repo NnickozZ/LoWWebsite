@@ -44,6 +44,23 @@ async function openLegend(page: Page) {
 }
 
 /**
+ * §69 (5.7): op een telefoon is de legenda een blad, en een blad ligt eróver.
+ *
+ * It used to stand in the flow above the stage, so it could simply be left
+ * open; on 390 px it is a bottom `Sheet` now, which is the point — it covers
+ * the map instead of shrinking it. So a spec that goes back to the spelden has
+ * to put it away first, exactly as a person does. On a desk it is still the
+ * floating panel and this is a no-op.
+ */
+async function closeLegend(page: Page) {
+  const sheet = page.getByRole('dialog', { name: 'Legenda' });
+  if (await sheet.isVisible().catch(() => false)) {
+    await sheet.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(sheet).toHaveCount(0);
+  }
+}
+
+/**
  * A fraction of the *picture*, not of the stage.
  *
  * §34: the stage fills the screen now, so it is a good deal taller than the
@@ -131,6 +148,7 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await expect(page.locator('.map-pin')).toHaveCount(1);
   await (await openLegend(page)).getByRole('checkbox', { name: /Notities/ }).check();
   await expect(page.locator('.map-pin')).toHaveCount(2);
+  await closeLegend(page);
 
   // The artikel knows where it is.
   await page.locator('.map-pin', { hasText: 'Pier Boone' }).click();
@@ -182,7 +200,11 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await expect(other.locator('.map-pin')).toHaveCount(2);
   await expect(ownPin).toHaveCount(0);
 
-  await other.getByRole('button', { name: 'Ongedaan maken' }).click();
+  /*
+   * §69: scoped to the toast. The landkaart's toolbar has a button of the same
+   * name since this round, so a bare locator matches two things.
+   */
+  await other.locator('.toast').getByRole('button', { name: 'Ongedaan maken' }).click();
   await expect(other.locator(`.map-pin[data-pin-id="${ownId}"]`)).toBeVisible();
   await expect(other.locator('.map-pin')).toHaveCount(3);
   await otherCtx.close();
@@ -342,7 +364,33 @@ test('a landkaart hangs on a landkaart, and there is a way back up', async ({ pa
   const pinSheet = page.getByRole('dialog', { name: small });
   await expect(pinSheet).toBeVisible();
   await expect(pinSheet.getByRole('button', { name: 'Speld weghalen' })).toBeVisible();
+
+  /*
+   * §69 (3.3): on a desk that blad is **docked**, not modal — the landkaart
+   * goes on living behind it, as the cork does behind `BoardInspector`. Two
+   * halves of the one claim: the panel says it is not modal, and the camera
+   * behind it still answers a press, which under the `Sheet` this replaced was
+   * impossible because the backdrop swallowed it. On a phone it is still a
+   * sheet and there is no `.map-panel` at all — the deliberate difference, for
+   * the reason written above `pinPanel` in `MapCanvas.tsx`.
+   */
+  if (info.project.name === 'desktop') {
+    await expect(page.locator('.map-panel')).toBeVisible();
+    await expect(pinSheet).not.toHaveAttribute('aria-modal', 'true');
+    const zoom = page.getByRole('group', { name: 'Zoomen', exact: true });
+    const level = zoom.locator('.canvas-zoom-level');
+    const before = await level.textContent();
+    await zoom.getByRole('button', { name: 'Inzoomen' }).click();
+    await expect(level, 'the camera answers while the blad is open').not.toHaveText(before ?? '');
+    await expect(pinSheet, 'and the blad stays open while it does').toBeVisible();
+    await zoom.getByRole('button', { name: 'Alles in beeld' }).click();
+  } else {
+    await expect(page.locator('.map-panel')).toHaveCount(0);
+  }
+
+  // Escape puts it away on both roads.
   await page.keyboard.press('Escape');
+  await expect(pinSheet).toBeHidden();
 
   // The legend gets a row of its own for nothing, and it switches off like
   // any other kind.
@@ -352,6 +400,7 @@ test('a landkaart hangs on a landkaart, and there is a way back up', async ({ pa
   await expect(page.locator('.map-pin')).toHaveCount(0);
   await legend.getByRole('checkbox', { name: /Landkaarten/ }).check();
   await expect(page.locator('.map-pin')).toHaveCount(1);
+  await closeLegend(page);
 
   // The way down: the sheet, not the tap. A speld that navigated on one tap
   // could never be dragged to another spot on a telephone.
@@ -389,4 +438,148 @@ test('a player cannot hang a map', async ({ page }, info) => {
     multipart: { name: 'x', file: { name: 'x.png', mimeType: 'image/png', buffer: await picture() } },
   });
   expect(refused.status()).toBe(403);
+});
+
+/**
+ * §69 (2.1 + 3.2 + 4.9) — de landkaart kiest, sleept, wist en heet iets.
+ *
+ * Tafel 1 van het contract had voor de landkaart één rij die nog `TOEVAL` zei:
+ * er kon precies één speld tegelijk gekozen worden. Niet omdat dat zo besloten
+ * was — het was er nooit van gekomen. Dus geen shift, geen kader, geen manier
+ * om er drie te verplaatsen of vier weg te halen, en geen Escape om iets los te
+ * laten.
+ *
+ * De wereld is hier de plaat in bréuken (een speld staat zo opgeslagen), dus
+ * het kader wordt in `.map-world`-coördinaten getrokken — precies zoals
+ * `placeAt` hierboven al doet, en om dezelfde reden.
+ */
+test('§69: spelden kiezen met shift en een kader, samen slepen, en Delete haalt ze weg', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === 'phone', '§67: shift en een kader willen een toetsenbord en een muis');
+  test.setTimeout(180_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  const mapUrl = await hangMap(page, `Kiezen ${stamp}`);
+  expect(mapUrl).toContain('/maps/');
+  await page.waitForTimeout(500);
+
+  /** Een notitie-speld op een plek in de plaat. */
+  const note = async (name: string, fx: number, fy: number) => {
+    await page.getByRole('button', { name: 'Speld zetten' }).click();
+    await placeAt(page, fx, fy);
+    const ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
+    await expect(ask).toBeVisible();
+    await fillWhenReady(ask.getByPlaceholder('Zoek een artikel…'), name);
+    await ask.getByRole('button', { name: new RegExp(`Notitie .${name}. zetten`) }).click();
+    await expect(page.locator('.map-pin', { hasText: name })).toBeVisible();
+    // Zetten opent het blad; leg het weg voor de volgende.
+    await page.keyboard.press('Escape');
+  };
+
+  await note(`Een ${stamp}`, 0.25, 0.3);
+  await note(`Twee ${stamp}`, 0.45, 0.3);
+  await note(`Drie ${stamp}`, 0.75, 0.75);
+  await expect(page.locator('.map-pin')).toHaveCount(3);
+  await page.keyboard.press('Escape');
+
+  const one = page.locator('.map-pin', { hasText: `Een ${stamp}` });
+  const two = page.locator('.map-pin', { hasText: `Twee ${stamp}` });
+  const three = page.locator('.map-pin', { hasText: `Drie ${stamp}` });
+
+  /* ---- shift-klik wisselt, Escape wist ---- */
+  await one.click();
+  await expect(one).toHaveAttribute('aria-pressed', 'true');
+  await two.click({ modifiers: ['Shift'] });
+  await expect(two).toHaveAttribute('aria-pressed', 'true');
+  await expect(one, 'shift voegt toe, het vervangt niet').toHaveAttribute('aria-pressed', 'true');
+  // Met twee gekozen is er geen blad: dat hoort bij precies één.
+  await expect(page.locator('.map-panel')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(one).toHaveAttribute('aria-pressed', 'false');
+  await expect(two).toHaveAttribute('aria-pressed', 'false');
+
+  /* ---- shift-slepen veegt een kader, en dat kiest wat het raakt ---- */
+  const world = (await page.locator('.map-world').boundingBox())!;
+  const at = (fx: number, fy: number) => ({
+    x: world.x + world.width * fx,
+    y: world.y + world.height * fy,
+  });
+  const from = at(0.12, 0.15);
+  const to = at(0.6, 0.45);
+  await page.keyboard.down('Shift');
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  await expect(page.getByTestId('map-marquee'), 'het kader staat er terwijl je veegt').toBeVisible();
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await expect(page.getByTestId('map-marquee')).toHaveCount(0);
+
+  // Twee geraakt, de derde niet — het kader vervángt, en raken is genoeg.
+  await expect(one).toHaveAttribute('aria-pressed', 'true');
+  await expect(two).toHaveAttribute('aria-pressed', 'true');
+  await expect(three).toHaveAttribute('aria-pressed', 'false');
+
+  /* ---- de groep sleept in één gebaar, en gaat in één stap terug ---- */
+  const before = { one: (await one.boundingBox())!, two: (await two.boundingBox())! };
+  const grab = { x: before.one.x + before.one.width / 2, y: before.one.y + before.one.height / 2 };
+  await page.mouse.move(grab.x, grab.y);
+  await page.mouse.down();
+  await page.mouse.move(grab.x, grab.y + 90, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const after = { one: (await one.boundingBox())!, two: (await two.boundingBox())! };
+  expect(after.one.y, 'de opgepakte speld reist').toBeGreaterThan(before.one.y + 40);
+  expect(
+    after.two.y,
+    'en de andere gekozene reist even ver mee — dat is wat een groep is',
+  ).toBeGreaterThan(before.two.y + 40);
+
+  // Eén Ctrl+Z voor het hele gebaar, niet één per speld.
+  await page.keyboard.press('Control+z');
+  await expect(async () => {
+    const back = (await two.boundingBox())!;
+    expect(Math.abs(back.y - before.two.y)).toBeLessThan(6);
+  }).toPass({ timeout: 15_000 });
+
+  /* ---- Delete haalt de keuze weg, en de melding geeft ze terug ---- */
+  await expect(one).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.map-pin')).toHaveCount(1);
+  await page.locator('.toast').getByRole('button', { name: 'Ongedaan maken' }).click();
+  await expect(page.locator('.map-pin')).toHaveCount(3);
+});
+
+/**
+ * §69 (4.9): de naam van een landkaart is de kop zelf, en de kop is het vak.
+ *
+ * De stamboom vond dit uit in §66; tot deze ronde kon een landkaart alleen
+ * omgedoopt worden door een nieuwe op te hangen, wat geen omdopen is. Eén
+ * component nu (`components/canvas/CanvasTitle.tsx`), drie tekenvlakken.
+ */
+test('§69: een landkaart is ter plekke om te dopen', async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const was = `Oude naam ${stamp}`;
+  const now = `Nieuwe naam ${stamp}`;
+
+  await signIn(page, 'Keeper', 'abbeytower34');
+  await hangMap(page, was);
+
+  const box = page.locator('#map-title-name');
+  await expect(box).toHaveValue(was);
+  await box.click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type(now);
+  // Enter laat los, en loslaten bewaart.
+  await page.keyboard.press('Enter');
+
+  // De plank is server-gerenderd, dus de hernoeming moet er ook staan na een
+  // herlaadbeurt — anders was het alleen op dit scherm waar.
+  await page.reload();
+  await expect(page.locator('#map-title-name')).toHaveValue(now, { timeout: 20_000 });
+  await page.goto('/maps');
+  await expect(page.getByRole('link', { name: now })).toBeVisible({ timeout: 20_000 });
 });

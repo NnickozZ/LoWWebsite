@@ -4772,3 +4772,156 @@ spec. In zijn woorden:
   `> summary`, en de nieuwe spec leest het uitklapblokje met `toContainText` —
   de twee projecten delen één archief, en twee bewerkingen van dezelfde hand
   binnen vijf minuten worden één versie.
+
+---
+
+## Ronde 35 — 15 September 2026: één hand op elk canvas (§69)
+
+Geen nieuwe functie. Vier tekenvlakken die los gegroeid waren, naast elkaar
+gelegd en het toeval eruit gehaald — met, per verschil dat blijft, de reden
+opgeschreven. De tafel is `docs/canvas-contract.md` (fase 1, geen regel code);
+wat hieronder staat zijn de keuzes die fase 2 gemaakt heeft.
+
+### De ronde begon met een tafel, en dat was de helft van het werk
+
+Fase 1 leverde geen code: drie tafels, canvassen als kolommen, gebaren als
+rijen, **een bestand en een regelnummer in elk vakje**, en 46 vakjes waar de
+code niet eenduidig was met de hand nagemeten op 1440 px en 390 px en gemerkt
+*gemeten*. Elk verschil kreeg een stempel: **TOEVAL** (87), **BEWUST** (14, elk
+met de regel die het beschermt) of **OPEN** (11, Nick beslist).
+
+Dat is waarom deze ronde niet over smaak ging. "De landkaart zegt *Passend
+maken* en de rest *Alles in beeld*" is geen mening als er een tafel ligt waarin
+staat wie wat zegt; het is een TOEVAL-vakje, en de vraag is alleen nog welke van
+de vier het wordt. De vuistregel die het beslist staat in het contract en is
+bewust saai: **de meerderheid wint, tenzij aantoonbaar fout — en dan staat er
+waarom, in die woorden.**
+
+### Weghalen: geen vraag vooraf, een melding erna — en dat is een terugkeer
+
+Nick koos "weghalen met een ongedaan-melding" boven "altijd vragen". Dat is de
+grotere helft van de ronde en het is géén nieuwe gedachte: bovenaan dit bestand
+staat, uit de eerste week, *"No 'Save' button anywhere, and no confirm dialog on
+delete — autosave plus an undo-able soft delete. Fewer taps."* De canvassen
+waren daar van afgedreven, één blad tegelijk, en het prikbord — dat een kaartje
+altijd zonder vragen van de muur haalde — was al die tijd de enige die zich aan
+de afspraak hield.
+
+De prijs was dat de afspraak alleen eerlijk is als er iets terug te halen valt,
+en voor twee van de vier viel dat er niet. Vandaar migratie
+`0024_soft_delete_pins_events`: een `deleted_at` op `map_pins` en
+`timeline_events`, zodat *Ongedaan maken* dezelfde speld teruggeeft en niet een
+tweede die erop lijkt. Drie dingen die een nieuwe `addPin`/`addEvent` niet kon:
+het id blijft, de schrijver blijft (een remake leest hem af van wie op undo
+drukt), en het plaatje blijft — de aanmaakroute van een gebeurtenis kan niet
+eens een `assetId` dragen.
+
+**Wat we niet gedaan hebben:** dit is geen prullenbak geworden. `lib/admin/trash.ts`
+is voor de zes soorten houder die een Keeper bij naam terugzet; niemand bladert
+door een bak op zoek naar één speld. Het is het geheugen achter één melding, en
+`sweepDeletedRows()` ruimt het na een dag op — bij het opstarten, niet op een
+timer, want het archief draait op één kleine machine en een interval is een ding
+dat een proces wakker houdt en in tests afgebroken moet worden.
+
+**En een houder vraagt nog wél.** Een heel prikbord, een hele tijdlijn: die gaan
+naar de prullenbak, en de vraag daar is een andere vraag — niet "meende je dat?"
+maar "weet je wat erin hangt?".
+
+### De stapel van undo is niet overal hetzelfde ding, en dat is het punt
+
+Het prikbord en de stamboom bezitten een *document*: een momentopname erop
+leggen klopt. Een landkaart en een tijdlijn bezitten **rijen in een tabel waar
+twee handen tegelijk in schrijven**, en daar zou een momentopname stilletjes de
+speld van iemand anders terugzetten samen met de jouwe. Daar gaat dus een
+*handeling om terug te draaien* op de stapel: waar deze speld stond, of welke
+speld op te graven. §29 blijft overeind — undo verwijdert nooit aan de
+serverkant, want één Ctrl+Z mag niet weghalen wat een andere hand net maakte.
+
+### Elf vragen, acht antwoorden, en waar ze vandaan komen
+
+Fase 1 eindigde met elf OPEN-vakjes. Nick beantwoordde er acht; de andere drie
+waren in fase 1 al beantwoord en verwerkt.
+
+| Vraag | Antwoord | Wat het meebracht |
+|---|---|---|
+| Weghalen: vragen of melden? | **Melden, met ongedaan** | migratie `0024`, twee herstelroutes, negentien gefilterde lezingen |
+| Undo van een *verwijdering* erbij? | **Ja**, ook al wordt de ronde groter | hetzelfde |
+| De 48 px lucht op de landkaart | **Landkaart vult het glas** | één constante terug; genoteerd als BEWUST met de reden |
+| Dubbelklikken | **Overal iets maken** | `useMakeOnEmpty`, incl. de lange druk voor een telefoon |
+| Vastklikken op een tijdlijn | **Vrij laten** | niets gebouwd; het vakje is nu BEWUST in plaats van OPEN |
+| Aanmaak-rij in `FamilyTreePicker` | **Erbij** | `NewFamilyTreeSheet`, die de boom teruggeeft in plaats van ernaartoe te lopen |
+| Ring voor "gekozen" | **`--link`, blauw** | de vloer in vier paletten nagemeten vóór de keuze |
+| Prikbord via een blad? | **Ja** | zeventien specs door één helper |
+
+De vraag over vastklikken is de moeite waard om te bewaren omdat het antwoord
+*niets bouwen* was. Het vakje stond OPEN omdat de code er niet over besliste;
+nu staat er dat een gebeurtenis op de pixel landt en waarom dat mag.
+
+### Wat er onderweg gevonden is, en door wat
+
+Drie afwijkingen die niemand gekozen had, alle drie gevonden door
+`tests/e2e/canvas-contract.spec.ts` — en dat is het argument voor die spec:
+
+- de maker van het prikbord hing aan `interactive` (`!isPhone && !readOnly`),
+  wat de poort is op het **slepen** van een kaartje en niet op het maken ervan,
+  dus een telefoon kon niets neerleggen;
+- de tijdlijn beantwoordde de cameratoetsen alleen met focus op de stage, waar
+  de andere drie op het venster luisteren;
+- en een inkt-bewering las de eerste tekening ná een herlaadbeurt in plaats van
+  de tekening die klaar was — één keer rood in een volle run, groen alleen.
+
+Daarnaast liep de spec zelf in de eerste val van CLAUDE.md §6: een naam matcht
+als **deelreeks**, en de stage van een stamboom is zélf een `role="group"` met
+het woord *zoomen* in zijn label. `exact: true` is daar dragend, en er staat nu
+bij waarom.
+
+### Wat bewust niet gedaan is
+
+- **De marquee van het web** blijft met rust gelaten, zoals in §67: het web is
+  één `<canvas>` en een zak muteerbare toestand, en zijn kader leeft in
+  schermruimte. Dat zou een herschrijving zijn, geen hergebruik.
+- **De lange druk heeft geen e2e.** Playwright kan tikken en slepen, niet
+  drukken-en-vasthouden — de reden dat §62's eigen lange druk vier rondes zonder
+  spec stond. De regels van de timer staan in
+  `tests/unit/make-on-empty.test.ts`; de e2e bewijst de bedrading via de
+  dubbelklik, wat dezelfde hook en dezelfde poort is.
+- **Drie gedempte kaartkleuren** in `app/globals.css` blijven hard-coded
+  (ronde 32's restant). Deze ronde raakte de ring aan, niet het kaartje.
+
+### De tweede helft van fase 2 (15 september, dezelfde ronde)
+
+Het bovenstaande is wat er lag toen regel 69 geschreven werd. Daarna is de rest
+van `docs/canvas-contract.md` afgebouwd. Vier beslissingen daaruit die het
+waard zijn om op te schrijven, want ze wijken af van wat de tafel voorstelde:
+
+- **Het speld-blad is `role="dialog"` zónder `aria-modal`, rechtsboven.** Het
+  contract zei `role="group"`, linksonder, zoals `BoardInspector`. Vier specs
+  zoeken dat blad op zijn naam, en een kolom met een kop en knoppen ís een
+  dialoog — alleen geen modale. En linksonder kon niet: de legenda heeft de
+  linkerbovenhoek van een landkaart en het potlood de linkeronderhoek (§67).
+- **Het knoopmenu van de stamboom wordt niet geklemd, het wordt omgeklapt.**
+  Het hangt aan een anker *in de wereld*, geschaald en verschoven onder een
+  CSS-transform, en heeft dus geen eerlijke stage-coördinaten om mee te rekenen.
+  Gemeten waar het landde, en met een klasse de andere kant op gestuurd. De
+  kiezer wél met rekenwerk — die stáát in stage-coördinaten — maar op zijn
+  gemeten hoogte in plaats van op de gok van 200 px die vier rondes bleef staan.
+- **Shift wisselt op een tijdlijn op de stip en de steel, niet op de naam.**
+  Nicks keuze, gevraagd omdat er geen goed antwoord vanzelf uit volgde: de naam
+  van een tag is een `<a>`, en shift-klik op een link is van de browser (§68).
+  Die weg afpakken zou een echte weg kwijtmaken; de stip en het steeltje zijn
+  van de tijdlijn, en het kader over de as doet de rest.
+- **De panelen die op een telefoon van onderen opkomen zijn géén `Sheet`.** Het
+  contract zei "bottom `Sheet`" voor het venster van de tijdlijn en de inspector
+  van het prikbord. Dat is gebouwd en teruggedraaid: een `Sheet` is modaal, en
+  een modale laag over een canvas betekent dat je niets meer kunt aanwijzen
+  zolang er iets openstaat — op precies de twee vlakken waar "kies het volgende"
+  is wat je hierna doet. Ze zijn nu gedokt en niet modaal, zoals het speld-blad
+  op een bureau. De legenda van de landkaart is wél een `Sheet` gebleven: dat is
+  een filterpaneel, en een filter is een moment waarop je even niets anders doet.
+
+En één ding dat niet gekozen maar gevonden werd, en dat een volgende ronde zal
+tegenkomen: **een mediaregel die vóór de basisregel staat die hij overschrijft,
+verliest**. De raakdoelen van 44 px stonden op `.ink-tool` en `.tree-handle`
+zonder effect, omdat `.ink-tool` duizend regels verderop staat en `.tree-handle`
+in een ander bestand. Twee klassen diep lost het op; de contract-spec op het
+`phone`-project vond het, en geen mens.

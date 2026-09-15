@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Icon } from '@/components/Icon';
 import { popoverIsOpen } from '@/lib/popoverStack';
 import {
   SHEET_BASE_Z,
@@ -174,7 +175,47 @@ export function Sheet({
         ref={panelRef}
       >
         <div className="sheet-handle" />
-        {children}
+        {/*
+         * §69 (4.6): één kruisje, en het zit hier.
+         *
+         * Eight sheets drew their own, in a header row of their own, with the
+         * same six lines of JSX each; the other dozen drew none, so whether a
+         * blad could be closed with the pointer depended on which blad it was.
+         * A phone has no Escape key and the backdrop is a thin strip beside a
+         * sheet that is nearly full width, so "none" meant *stuck* for anyone
+         * who did not know to swipe at the edge.
+         *
+         * It is `onCloseRef`, not `onClose`: the handler is stable for the life
+         * of the sheet and reads the newest one, the same way the key handler
+         * above does, and for the same reason (every caller passes an inline
+         * arrow).
+         *
+         * On a confirm sheet the cross is simply the same answer as *Nee* —
+         * Nick's call, and the honest one: a question you may not walk away
+         * from is a question that has to be asked differently, not a dialog
+         * with the exit taken off.
+         */}
+        <button
+          type="button"
+          className="sheet-close"
+          aria-label="Sluiten"
+          title="Sluiten (Esc)"
+          onClick={() => onCloseRef.current()}
+        >
+          <Icon name="close" size={18} />
+        </button>
+        {/*
+         * `display: contents`, dus dit vakje bestaat niet voor de opmaak — en
+         * wél voor een selector. Het kruisje hierboven zweeft in de hoek, en
+         * een blad waarvan de bovenste rij rechts een knop heeft (het
+         * Filters-paneel heeft er een die `Klaar` heet) kreeg het kruisje
+         * bovenop die knop: onindrukbaar, en op een telefoon waar het kruisje
+         * 44 px is helemaal. Ruimte reserveren met `:first-child` op `.sheet`
+         * zelf kán niet — de greep en het kruisje zijn daar de eerste kinderen
+         * — dus krijgt de inhoud één omhulsel dat niets doet behalve gevonden
+         * worden. (Gevonden door `sort-filter` op het phone-project.)
+         */}
+        <div className="sheet-body">{children}</div>
       </div>
     </div>,
     document.body,

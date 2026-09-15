@@ -198,10 +198,6 @@ export function PinSelectionButton({
             <h2 id="web-pin-title" style={{ margin: 0, fontSize: '1.2rem' }}>
               {pinnable.length} {pinnable.length === 1 ? ui.words.card : `${ui.words.card}en`} prikken
             </h2>
-            <div className="spacer" />
-            <button className="btn btn-ghost btn-small" type="button" onClick={() => setOpen(false)} aria-label="Sluiten">
-              <Icon name="close" size={18} />
-            </button>
           </div>
           <p className="tiny muted" style={{ margin: '0 0 0.6rem' }}>
             {pinnable.map((n) => n.name).join(' · ')}

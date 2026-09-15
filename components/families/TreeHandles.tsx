@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Icon } from '@/components/Icon';
+import { flipsNeeded } from '@/lib/canvas/clamp';
 
 /**
  * §66/§67 — the four `+`s and the `…` round the card a hand has chosen.
@@ -179,6 +180,62 @@ function TreeCornerMenu({
   menuOpen: boolean;
   onMenu: (open: boolean) => void;
 }) {
+  /*
+   * §69 (3.4): the little list opens whichever way it fits.
+   *
+   * Round 31's leftover, word for word: "the floating picker clamps itself
+   * inside the stage; the node menu does not, so near the bottom edge
+   * `.tree-stage`'s `overflow` clips the menu." A card near the bottom had a
+   * `…` that appeared to do nothing at all.
+   *
+   * The kiezer could be clamped with arithmetic because it is placed in the
+   * stage's own coordinates. This one cannot: it hangs off an anchor **inside
+   * the world**, which is scaled and translated under a CSS transform, so it
+   * has no honest stage coordinates to clamp. So it is measured where it
+   * landed and, if that is outside the glass, told to open the other way with
+   * a class — the browser does the arithmetic, in the space it is already in.
+   *
+   * Measured every time it opens rather than once: the menu's height depends
+   * on how many items this card offers, and the glass's size changes with the
+   * window.
+   */
+  const menuBoxRef = useRef<HTMLDivElement>(null);
+  const [flip, setFlip] = useState({ up: false, start: false, end: false });
+  useLayoutEffect(() => {
+    if (!menuOpen) {
+      setFlip((current) => (current.up || current.start || current.end ? { up: false, start: false, end: false } : current));
+      return;
+    }
+    const measure = () => {
+      const el = menuBoxRef.current;
+      const stage = el?.closest('.tree-stage');
+      if (!el || !stage) return;
+      /*
+       * Measured in the *unflipped* position every time, so the answer never
+       * depends on the answer before it — a flip worked out from an already
+       * flipped box oscillates.
+       */
+      const FLIPS = ['tree-menu-up', 'tree-menu-start', 'tree-menu-end'];
+      const had = FLIPS.filter((name) => el.classList.contains(name));
+      el.classList.remove(...FLIPS);
+      const next = flipsNeeded(el.getBoundingClientRect(), stage.getBoundingClientRect());
+      /*
+       * Put back what React believes it rendered. Without this, a measurement
+       * that answers the same as last time sets no state, so no render follows
+       * to restore the classes this function just stripped — and the menu
+       * silently un-flips itself.
+       */
+      el.classList.add(...had);
+      setFlip((current) =>
+        current.up === next.up && current.start === next.start && current.end === next.end ? current : next,
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (menuBoxRef.current) observer.observe(menuBoxRef.current);
+    return () => observer.disconnect();
+  }, [menuOpen]);
+
   return (
     <div ref={anchorRef} className="tree-menu-anchor" style={style}>
       <button
@@ -201,7 +258,15 @@ function TreeCornerMenu({
        * the same thing.
        */}
       {menuOpen && (
-        <div className="tree-menu" role="menu" aria-label={label} data-testid="tree-menu">
+        <div
+          ref={menuBoxRef}
+          className={`tree-menu${flip.up ? ' tree-menu-up' : ''}${flip.end ? ' tree-menu-end' : ''}${
+            flip.start ? ' tree-menu-start' : ''
+          }`}
+          role="menu"
+          aria-label={label}
+          data-testid="tree-menu"
+        >
           {menu.map((item) => (
             <button
               key={item.key}

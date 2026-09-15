@@ -635,23 +635,23 @@ aangeraakte plekken, en `E2E_DEV=1` na elke golf die pointer-code raakt (as 1,
 
 | # | Item | Plekken | Maat |
 |---|---|---|---|
-| 2.1 | Landkaart op `useMarqueeSelect`: spelden kiesbaar, shift-klik, shift-sleep, Escape, druk-op-gekozen laat de groep staan, groepssleep via `groupDelta`, `holding` + `.map-held`-ring, kader als `s`, `Delete`/`Backspace` | landkaart | L (2,5–3 u) — vereist 3.3 |
-| 2.2 | Tijdlijn op `useMarqueeSelect`: tags kiesbaar (klik kiest én klapt het venster open), shift-klik, shift-sleep, Escape, groepssleep langs de as, `holding`, `Delete` | tijdlijn | L (3 u) |
+| 2.1 | Landkaart op `useMarqueeSelect`: spelden kiesbaar, shift-klik, shift-sleep, Escape, druk-op-gekozen laat de groep staan, groepssleep via `groupDelta`, `holding` + `.map-held`-ring, kader als `s`, `Delete`/`Backspace` | landkaart | L (2,5–3 u) — vereist 3.3 — **gebouwd**. De wereld is hier de plaat in **breuken**, niet in pixels, en daarom gebruikt deze kiezer géén `onBroadcast`: de hook rondt het kader af voor de lijn, wat in pixels verstandig is en in breuken elk kader 0 of 1 maakt. Het gaat mee in `reportHand`, ongerond. `boxOf` geeft een vakje ter grootte van de speldenkop bij deze zoom, want een punt van nul bij nul wordt door `boxesTouch` (streng, met opzet) nooit geraakt |
+| 2.2 | Tijdlijn op `useMarqueeSelect`: tags kiesbaar (klik kiest én klapt het venster open), shift-klik, shift-sleep, Escape, groepssleep langs de as, `holding`, `Delete` | tijdlijn | L (3 u) — **gebouwd**, met twee dingen die alleen hier spelen. Een gewone klik op een tag kiest hém én klapt zijn venster uit (er ging niets af), en **shift wisselt op de stip en de steel, niet op de naam**: die naam is een `<a>`, en shift-klik op een link is van de browser (§68). Een shift-druk kiest en klapt niets uit. De wereld is stage-pixels, en `boxesRef` wordt tijdens het **tekenen** gevuld — het kader meet tegen wat een lezer ziet staan |
 | 2.3 | Luie pointer capture bij `DRAG_SLOP` op de landkaart (`MC:492, 519`) en de tijdlijn (`TC:856`); prikbord capture op de stage bij de drempel i.p.v. window-listeners (`BC:1751`); `router.refresh()` na een speld-verplaatsing | landkaart, tijdlijn, prikbord | M (1–1,5 u, `E2E_DEV`) |
 | 2.4 | Shift-druk op een gekozen kaart toggelt pas op de up zonder beweging (`pressSelection`) — als `D-B4`/`D-S7` het bevestigen | prikbord, stamboom (één plek: `sel`/`marq`) | S (30 min) |
 | 2.5 | Klik op een schim kiest hem niet (`FC:1158` achter de `member`-check) | stamboom | S (15 min) |
 | 2.6 | Eén ring-token voor "gekozen" en één voor "vastgehouden", in `globals.css`/`stambomen.css`; `tree-contrast.test.ts` nalopen | 4 | S (30 min) |
-| 2.7 | Contract-spec, tweede helft: Escape wist, shift-klik wisselt, shift-sleep veegt, gewone sleep pant, druk op gekozen laat staan | spec | M (1 u) |
+| 2.7 | Contract-spec, tweede helft: Escape wist, shift-klik wisselt, shift-sleep veegt, gewone sleep pant, druk op gekozen laat staan | spec | M (1 u) — **gebouwd**: shift-slepen veegt een kader en een gewone sleep niet, het kader is weg zodra de hand loslaat, en Escape laat los. Per tekenvlak, in dezelfde lus als de eerste helft |
 
 ### As 3 — Ongedaan, weghalen, het paneel bij een ding (rijen 9–12) — ± 6–8 u
 
 | # | Item | Plekken | Maat |
 |---|---|---|---|
 | 3.1 | Undo van een verplaatsing op de landkaart en de tijdlijn over `undoStack` (een `PATCH` terug), Ctrl+Z + knop `Ongedaan maken` (icoon + woord, `title`, `disabled` bij lege stack) — ook de bestaande twee knoppen `disabled` maken en het prikbord een `aria-label`/icoon geven | 4 | M + M (2–2,5 u) |
-| 3.2 | `Delete`/`Backspace` op de landkaart en de tijdlijn (na 2.1/2.2); één bevestigingsregel (vraag 6); `Lijn verwijderen` volgt die regel | 4 | S (30 min) |
-| 3.3 | Het speld-blad wordt een niet-modaal paneel op desktop (als `BoardInspector`: linksonder in de stage, `role="group"`, kruisje `Sluiten`, Escape, klik op leeg papier) en een `Sheet` op de telefoon; `Openen`/velden/`Speld weghalen` erin | landkaart | L (2–3 u) |
-| 3.4 | Knoopmenu van de stamboom klemmen zoals de kiezer; kiezer klemmen op gemeten hoogte; potlood-aan sluit het menu; klik op een andere kaart sluit de kiezer | stamboom | S–M (45 min) |
-| 3.5 | Verwijderknop één klik diep in het paneel op de tijdlijn (nu venster → `Bewerken` → blad) | tijdlijn | S (30 min) — na 3.3-vorm |
+| 3.2 | `Delete`/`Backspace` op de landkaart en de tijdlijn (na 2.1/2.2); één bevestigingsregel (vraag 6); `Lijn verwijderen` volgt die regel | 4 | S (30 min) — **gebouwd** op allebei: `Delete`/`Backspace` begraaft de hele keuze, één stap op de stapel, één melding met *Ongedaan maken*. Wat niet van deze hand is blijft staan, stil — het getal in de toast zegt wat er écht gebeurd is |
+| 3.3 | Het speld-blad wordt een niet-modaal paneel op desktop (als `BoardInspector`: linksonder in de stage, `role="group"`, kruisje `Sluiten`, Escape, klik op leeg papier) en een `Sheet` op de telefoon; `Openen`/velden/`Speld weghalen` erin | landkaart | L (2–3 u) — **gebouwd**, met twee afwijkingen van deze regel, en beide staan in de code: het paneel is `role="dialog"` **zonder** `aria-modal` in plaats van `role="group"` (vier specs zoeken het blad op zijn naam, en een kolom met een kop en knoppen ís een dialoog — alleen geen modale), en het staat **rechtsboven** in plaats van linksonder, omdat op een landkaart de legenda de linkerbovenhoek heeft en het potlood de linkeronderhoek (§67 `corner="bottom-left"`). Klik op leeg papier sloot de keuze al (`onStagePointerUp`), dus dat was geen werk |
+| 3.4 | Knoopmenu van de stamboom klemmen zoals de kiezer; kiezer klemmen op gemeten hoogte; potlood-aan sluit het menu; klik op een andere kaart sluit de kiezer | stamboom | S–M (45 min) — **gebouwd**. Eén afwijking: het knoopmenu wordt *niet* geklemd zoals de kiezer, want het hangt aan een anker **in de wereld** (geschaald en verschoven onder een CSS-transform) en heeft dus geen eerlijke stage-coördinaten. Het wordt gemeten waar het terechtkwam en met een klasse de andere kant op gestuurd (`flipsNeeded` + `.tree-menu-up/-start/-end`); de kiezer wél, op zijn gemeten hoogte (`clampFloat` + `useFloatBox`, in plaats van de gok van 200 px) |
+| 3.5 | Verwijderknop één klik diep in het paneel op de tijdlijn (nu venster → `Bewerken` → blad) | tijdlijn | S (30 min) — na 3.3-vorm — **gebouwd**: een prullenbakknop in het venster zelf, met het woord van het blad (§64: één handeling, één naam), langs dezelfde weg (`removeEvent` begraaft de rij en zet *Ongedaan maken* in een toast). Niets asserteerde het weghalen van een gebeurtenis vóór dit item; nu wel, inclusief het terugzetten na een herlaadbeurt |
 | 3.6? | Undo van een verwijdering met tombstone/herstel op landkaart en tijdlijn (vraag 8) | landkaart, tijdlijn | XL (3 u+, eigen sessie) |
 
 ### As 4 — De makers (tafel 2) — ± 3–4 u
@@ -662,38 +662,38 @@ aangeraakte plekken, en `E2E_DEV=1` na elke golf die pointer-code raakt (as 1,
 | 4.2 | Inline `error-note` in het blad voor tijdlijn en stamboom; prikbord leest `data.error` | 3 | S (30 min) |
 | 4.3 | Landkaart: Enter in `Naam` maakt; `Naam` krijgt focus | landkaart | S (15 min) |
 | 4.4 | `router.refresh()` na de `push` bij prikbord, tijdlijn, stamboom | 3 | S (10 min) |
-| 4.5 | Artikel- en dossierblad bewaren de getypte waarden na Escape (state in `UiProvider` of het blad gemonteerd laten) | artikel, dossier | M (45 min) |
-| 4.6 | Kruisje `Sluiten` in `Sheet` zelf; de acht eigen kruisjes en `Annuleren` (landkaart) weg | alle bladen | M (45 min) |
+| 4.5 | Artikel- en dossierblad bewaren de getypte waarden na Escape (state in `UiProvider` of het blad gemonteerd laten) | artikel, dossier | M (45 min) — **gebouwd**: `lib/sheetDraft.ts`, modulestaat met de levensduur van de pagina (geen `sessionStorage`, zie de noot in dat bestand). Een prefill wint van een klad en wist het |
+| 4.6 | Kruisje `Sluiten` in `Sheet` zelf; de acht eigen kruisjes en `Annuleren` (landkaart) weg | alle bladen | M (45 min) — **gebouwd**, ook op de ja/nee-bladen (Nicks keuze). Acht eigen kruisjes weg, plus de `Annuleren` van de landkaart en de tweede `Sluiten` van het weggehaald-blad |
 | 4.7 | De vier container-knoppen door `askThen`/`ensureAuthor` (geen dubbele melding) | 4 | S (30 min) |
-| 4.8 | Eén beschrijvingsveld (vorm) met `@` op alle bladen; woorden → ronde 36 | 4 | S (30 min) |
-| 4.9 | Naam ter plekke te wijzigen na het maken op de tijdlijn en de landkaart (`TreeTitle`-vorm in de §34-kop) | tijdlijn, landkaart | M + M (1,5–2 u) — mag apart |
-| 4.10 | Contract-spec: de primaire knop van het maakblad heeft op alle plekken dezelfde naam-vorm | spec | S (30 min) |
+| 4.8 | Eén beschrijvingsveld (vorm) met `@` op alle bladen; woorden → ronde 36 | 4 | S (30 min) — **gebouwd** voor de tijdlijn (de kolom bestond al, de maker vroeg er niets) en de stamboom (een `<input>` van één regel met een vraag als label werd dezelfde `textarea` met `@`). Het prikbord heeft geen kolom om in te schrijven — dat is een migratie en dus ronde 36 |
+| 4.9 | Naam ter plekke te wijzigen na het maken op de tijdlijn en de landkaart (`TreeTitle`-vorm in de §34-kop) | tijdlijn, landkaart | M + M (1,5–2 u) — mag apart — **gebouwd**: `components/canvas/CanvasTitle.tsx`, één component voor drie tekenvlakken. `TreeTitle` is er een dun laagje over geworden. Eén botsing onderweg: de Keeper-lade onder de vouw heeft al een `Naam`, en twee elementen met één `id` knoopt de browser aan het eerste vak |
+| 4.10 | Contract-spec: de primaire knop van het maakblad heeft op alle plekken dezelfde naam-vorm | spec | S (30 min) — **gebouwd**, en de landkaart bewoog: `Ophangen` werd `Landkaart ophangen`, want de andere drie noemden het ding al |
 
 ### As 5 — De bladen en de kiezers (tafel 3) — ± 4–5 u
 
 | # | Item | Plekken | Maat |
 |---|---|---|---|
 | 5.1 | `useDismiss` (Escape + pointerdown buiten + focus terug naar de opener) voor alles wat zweeft: de drie inline kiezers, balk-`BoardPicker`, knoopmenu, kiezer stamboom, Filters, legenda landkaart, `@`-lijst | 9 | M (1,5 u) |
-| 5.2 | `useSuggestKeys`: Enter kiest de eerste rij, ↑↓ lopen de lijst (als de `@`-lijst) in `EntryPicker`, `CasePicker`, `FamilyTreePicker`, `BoardPicker`, blad a | 5 | M (1–1,5 u) |
+| 5.2 | `useSuggestKeys`: Enter kiest de eerste rij, ↑↓ lopen de lijst (als de `@`-lijst) in `EntryPicker`, `CasePicker`, `FamilyTreePicker`, `BoardPicker`, blad a | 5 | M (1–1,5 u) — **gebouwd**: `lib/search/suggestKeys.ts` (puur, veertien tests) en `components/ui/useSuggestKeys.ts`. De hook verft de rij opnieuw na élke commit, want React zet `className` terug — gevonden door de e2e-spec, niet door te lezen |
 | 5.3 | Namen en rollen: `aria-label` op het knoopmenu, `role="dialog"` + `aria-labelledby` op de kiezer, `aria-label="Legenda"` op beide `aside`s, `id` in `FieldsEditor`, `aria-expanded` op de web-legendaknop | 5 | S (30 min) |
-| 5.4 | Klemmen: knoopmenu (3.4), kiezer op gemeten hoogte, zwevende `BoardPicker` 320, `@`-lijst hermeten bij scrollen | 4 | S–M (45 min) |
+| 5.4 | Klemmen: knoopmenu (3.4), kiezer op gemeten hoogte, zwevende `BoardPicker` 320, `@`-lijst hermeten bij scrollen | 4 | S–M (45 min) — **gebouwd**: het knoopmenu klapt om, de kiezer klemt op zijn gemeten hoogte, de zwevende `BoardPicker` op zijn gemeten maat (hij klemde tegen een geraden 336×90 voor een vak van 320×~300), en de `@`-lijst hermeet zich bij scrollen en resize |
 | 5.5 | Escape met een `@`-lijst open sluit eerst de lijst (volgorde `Sheet:116` / `MP:165`) | `@` in bladen | S (30 min) |
 | 5.6 | `CasePicker` aanmaak-rij alleen als er getypt is; één `SUGGEST_DEBOUNCE_MS` | 2 | S (15 min) |
-| 5.7 | Legenda landkaart op de telefoon als `Sheet`; open-staat niet onthouden | landkaart | M (45 min) |
+| 5.7 | Legenda landkaart op de telefoon als `Sheet`; open-staat niet onthouden | landkaart | M (45 min) — **gebouwd**: op een telefoon een `Sheet`. Anders dan de twee panelen van as 6, en met reden — een filter is een moment waarop je even niets anders doet |
 | 5.8 | Legenda web → deze as raakt het web alleen via 5.3 (naam) en 4.6 (kruisje) | web | — |
 
 ### As 6 — De telefoon (rij 14), op 390 px gemeten — ± 4–5 u
 
 | # | Item | Plekken | Maat |
 |---|---|---|---|
-| 6.1 | `.btn-small` en de andere raakdoelen ≥ 44 px onder 768 px (`--tap`); swatches, handgrepen, potloodje, `Erbij`, menu-items | site-breed | M (1 u incl. kijken op elke pagina) |
-| 6.2 | Vingersleep van kaarten op het prikbord (`interactive` los van `isPhone`, luie capture, tweede tik blijft openen) | prikbord | M–L (1,5 u, `E2E_DEV`) |
-| 6.3 | Stamboom op één breekpunt (767) | stamboom | S (20 min) |
-| 6.4 | Paneel bij een ding als bottom `Sheet` op de telefoon (prikbord-inspector, stamboom-menu/kiezer, tijdlijn-venster) — landkaart via 3.3 | 3 | M–L (2 u) |
-| 6.5 | Eén hoek voor de inktbalk op de telefoon (`InkShell` beslist, niet één CSS-klasse) | 4 | S (20 min) |
-| 6.6 | Werkbalken die wikkelen: op basis van `P-B1/M1/T1/S1` — waar de stage onder zijn minimum komt, iconen zonder woord (zoals `.tree-tool-word`) | 4 | S–M (45 min) |
-| 6.7 | Lege staat op het glas van de landkaart (rij 15) | landkaart | S (20 min) |
-| 6.8 | Contract-spec op het `phone`-project: dezelfde beweringen, plus raakdoel ≥ 44 op de zoomknoppen en de inktbalk | spec | M (1 u) |
+| 6.1 | `.btn-small` en de andere raakdoelen ≥ 44 px onder 768 px (`--tap`); swatches, handgrepen, potloodje, `Erbij`, menu-items | site-breed | M (1 u incl. kijken op elke pagina) — **gebouwd**, alleen op de vier tekenvlakken (Nicks keuze). Eén blok in `globals.css`, twee klassen diep: deze regels staan vóór de basisregels die ze overschrijven, en bij gelijke specificiteit wint dan 34 van 44 |
+| 6.2 | Vingersleep van kaarten op het prikbord (`interactive` los van `isPhone`, luie capture, tweede tik blijft openen) | prikbord | M–L (1,5 u, `E2E_DEV`) — **gebouwd**: `interactive` is in tweeën geknipt (`mayDrag` voor een kaartje, `interactive` voor draden, hoekjes en kaders). Onderweg gevonden: een druk die niets bewoog deed een `markDirty`, en de merge die terugkwam viel tussen de twee tikken van een dubbeltik door |
+| 6.3 | Stamboom op één breekpunt (767) | stamboom | S (20 min) — **gebouwd**: 767 in plaats van 600 |
+| 6.4 | Paneel bij een ding als bottom `Sheet` op de telefoon (prikbord-inspector, stamboom-menu/kiezer, tijdlijn-venster) — landkaart via 3.3 | 3 | M–L (2 u) — **gebouwd**, maar **niet als `Sheet`** (zie `DECISIONS.md`): een modale laag over een canvas maakt het canvas onaanraakbaar zolang er iets openstaat. Gedokt en niet modaal dus, met de volle breedte en fatsoenlijke raakdoelen. Alle open vensters van de tijdlijn staan onder elkaar in de lade — "alles tonen" hoort ook op een telefoon alles te tonen |
+| 6.5 | Eén hoek voor de inktbalk op de telefoon (`InkShell` beslist, niet één CSS-klasse) | 4 | S (20 min) — **gebouwd**: `InkShell` kiest de hoek op een telefoon, en de mediaregel die de balk per canvas verplaatste is weg |
+| 6.6 | Werkbalken die wikkelen: op basis van `P-B1/M1/T1/S1` — waar de stage onder zijn minimum komt, iconen zonder woord (zoals `.tree-tool-word`) | 4 | S–M (45 min) — **gebouwd**: de letters mogen weg op 390 px, de toegankelijke naam nooit (§64), dus elke knop die zijn woord verbergt kreeg een `aria-label` |
+| 6.7 | Lege staat op het glas van de landkaart (rij 15) | landkaart | S (20 min) — **gebouwd**, in de vorm van `.tree-empty` en `.timeline-empty`, met het gebaar dat op een telefoon een ander is |
+| 6.8 | Contract-spec op het `phone`-project: dezelfde beweringen, plus raakdoel ≥ 44 op de zoomknoppen en de inktbalk | spec | M (1 u) — **gebouwd**: 44 px op de camera, de ongedaan-knop en de inktbalk, en de inktbalk linksonder op alle drie |
 
 ### Afsluiting (docs-agent, na alle golven)
 

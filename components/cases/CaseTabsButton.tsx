@@ -150,15 +150,6 @@ export function CaseTabsButton({
             <h2 id="case-tabs-title" style={{ margin: 0, fontSize: '1.2rem' }}>
               Welke soorten horen in dit dossier?
             </h2>
-            <div className="spacer" />
-            <button
-              className="btn btn-ghost btn-small"
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Sluiten"
-            >
-              <Icon name="close" size={18} />
-            </button>
           </div>
 
           <p className="small muted" style={{ marginTop: 0 }}>

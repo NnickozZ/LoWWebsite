@@ -3,6 +3,7 @@ import { mapKey } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
 import { notFound, redirect } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { CanvasTitle } from '@/components/canvas/CanvasTitle';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
@@ -12,6 +13,7 @@ import { sideOf } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canManageAccess } from '@/lib/access';
+import { viewerCanEditMap } from '@/lib/maps/service';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
@@ -73,6 +75,12 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
   // §17: may this viewer turn the landkaart's dials — the owner (unbolted), or
   // a Keeper. Only a Keeper ever hangs one, so in practice this is the Keepers.
   const mayManage = canManageAccess(map, user);
+  /*
+   * §69 (4.9): mag deze hand de naam wijzigen? Precies wat `PATCH /api/maps/[id]`
+   * zelf vraagt, hier nog eens gesteld zodat een lezer die het niet mag geen
+   * vak te zien krijgt dat hij niet kan gebruiken (`viewerCanEditMap`).
+   */
+  const mayEditMap = Boolean(user) && viewerCanEditMap(map.id, user);
 
   // §23: the artikel this map is a map *of*, if it is of one — read behind the
   // ordinary entry visibility rule, so a map of a Keeper-only place does not
@@ -130,7 +138,17 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {words.navMaps}
             </Link>
           </p>
-          <h1>{map.name}</h1>
+          {/* §69 (4.9): de naam is het vak, zoals op de stamboom sinds §66. Een
+              landkaart kon tot deze ronde alleen omgedoopt worden door een
+              nieuwe op te hangen, wat geen omdopen is. */}
+          <CanvasTitle
+            name={map.name}
+            canEdit={mayEditMap}
+            endpoint={`/api/maps/${map.id}`}
+            noun={`de ${words.map}`}
+            inputId="map-title-name"
+            testId="map-title"
+          />
           {ofEntry && (
             <p className="small canvas-head-of">
               De {words.map} van <Link href={`/e/${ofEntry.slug}`}>{ofEntry.name}</Link>

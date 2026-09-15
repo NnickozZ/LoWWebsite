@@ -13,6 +13,7 @@ import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFiel
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import { mapKey, pinFieldsRoomKey } from '@/lib/live/keys';
+import { popoverIsOpen } from '@/lib/popoverStack';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
@@ -27,6 +28,10 @@ import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import type { InkLayerView } from '@/lib/ink/types';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
+import { groupDelta, normaliseRect } from '@/lib/canvas/select';
+import { UNDO_LIMIT, createUndoStack, type UndoStack } from '@/components/canvas/undoStack';
+import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 
 /**
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
@@ -71,6 +76,27 @@ const MAP_COLOUR = 'var(--link)';
 export type Legend = { key: string; label: string; icon: string; colour: string; count: number };
 
 type View = { zoom: number; tx: number; ty: number };
+
+/**
+ * §69: one step back on a landkaart. See the note on `undoStackRef` for why
+ * this is an action rather than a snapshot.
+ */
+type MapUndo =
+  | { kind: 'move'; pinId: string; x: number; y: number }
+  /* §69 (2.1): een groep die in één gebaar verplaatst is, gaat in één stap terug. */
+  | { kind: 'moveMany'; at: Record<string, { x: number; y: number }> }
+  | { kind: 'remove'; pinId: string }
+  /* §69 (3.2): Delete op een keuze van zes is één stap, niet zes. */
+  | { kind: 'removeMany'; pinIds: string[] };
+
+/**
+ * §69 (2.1): hoe groot een speldenkop is op het scherm, in pixels, gedeeld door
+ * twee. Een kader raakt een speld als het zijn kop raakt — niet zijn punt, want
+ * een punt van nul bij nul wordt door `boxesTouch` (streng, met opzet) nooit
+ * geraakt. Bij elke zoom omgerekend naar breuken van de plaat, want de kop
+ * groeit níet mee (dat is de hele reden dat spelden in een eigen laag staan).
+ */
+const PIN_HALF_PX = 14;
 
 type Placing =
   | { mode: 'pick' }
@@ -212,7 +238,88 @@ export function MapCanvas({
   const fitZoomRef = useRef(1);
 
   const [pins, setPins] = useState<MapPin[]>(initialPins);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  /*
+   * §69 (2.1) — de landkaart kiest zoals het prikbord en de stamboom.
+   *
+   * Tot deze ronde kon een landkaart precies één speld tegelijk aan: één
+   * `selectedId`, geen shift, geen kader, en dus geen manier om er drie te
+   * verplaatsen of vier weg te halen. Dat was de laatste rij van tafel 1 die
+   * nog `TOEVAL` zei — het was niet zo besloten, het was er nooit van gekomen.
+   *
+   * **De wereld is hier de plaat, in breuken.** Een speld staat opgeslagen als
+   * een breuk van de afbeelding (0–1), niet in pixels, want de plaat schaalt en
+   * de speld moet meeschuiven maar niet meegroeien. Dus is dát de ruimte waarin
+   * geveegd en geraakt wordt: `toWorld` is `toPicture`, en `boxOf` geeft een
+   * vakje rond het punt zo groot als de kop op het scherm — bij deze zoom, want
+   * dát is wat de hand ziet aanwijzen.
+   *
+   * `selectedId` bestaat nog als *de speld van het blad*: precies één gekozen.
+   * Twee bronnen van waarheid zijn er één te veel, dus het is afgeleid en niet
+   * bewaard.
+   */
+  /*
+   * Twee spiegels voor de hook: hij leest ze in een `pointerdown`, lang nadat
+   * deze render voorbij is, dus ze mogen verderop in het bestand gevuld worden.
+   */
+  const shownRef = useRef<MapPin[]>([]);
+  /** `selection.clear` bestaat pas verderop; een toets leest hem hierdoor. */
+  const clearSelectionRef = useRef<() => void>(() => {});
+  /** Wat er nu gekozen is, voor een pointer-handler die geen render afwacht. */
+  const selectionRef = useRef<Set<string>>(new Set());
+  /** Het openstaande kader, zoals het de lijn op gaat (§8: zicht, geen staat). */
+  const boxRef = useRef<[number, number, number, number] | null>(null);
+  const stagePointRef = useRef<(event: { clientX: number; clientY: number }) => Pointer>(() => ({
+    x: 0,
+    y: 0,
+  }));
+  const selection = useMarqueeSelect<MapPin>({
+    items: () => shownRef.current,
+    boxOf: (pin) => {
+      const v = viewRef.current;
+      const half = PIN_HALF_PX / v.zoom;
+      return {
+        x: pin.x - half / map.width,
+        y: pin.y - half / map.height,
+        width: (half * 2) / map.width,
+        height: (half * 2) / map.height,
+      };
+    },
+    toWorld: (clientX, clientY) => {
+      const point = stagePointRef.current({ clientX, clientY });
+      return toPicture(point.x, point.y);
+    },
+    /* Geen kader op een telefoon (geen shift), niet met het potlood uit, en
+       niet terwijl er een speld geplaatst wordt: dan is een tik een plek. */
+    enabled: !isPhone,
+    mode: 'replace',
+    /*
+     * **Geen `onBroadcast` hier**, en dat is geen vergetelheid.
+     *
+     * De hook rondt het kader af op hele getallen voor de lijn — verstandig op
+     * een prikbord en een stamboom, waar de wereld in pixels telt, en fataal
+     * hier: een landkaart telt in bréuken van de plaat, dus `Math.round` maakt
+     * van elk kader 0 of 1. Het kader gaat daarom hieronder mee in `reportHand`,
+     * rechtstreeks uit `selection.marquee`, ongerond.
+     */
+  });
+  const selectedIds = selection.selected;
+  selectionRef.current = selectedIds;
+  clearSelectionRef.current = selection.clear;
+  /* Zie hierboven: ongerond, want dit zijn breuken van de plaat. */
+  boxRef.current = selection.marquee
+    ? [selection.marquee.x0, selection.marquee.y0, selection.marquee.x1, selection.marquee.y1]
+    : null;
+  /** Het blad hoort bij een keuze van precies één. */
+  const selectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
+  const selectOnly = useCallback(
+    (id: string | null) => {
+      if (id === null) selection.clear();
+      else selection.setSelected(new Set([id]));
+    },
+    [selection],
+  );
+  /** Waar de oude code `setSelectedId(x)` zei. */
+  const setSelectedId = selectOnly;
   const [placing, setPlacing] = useState<Placing | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [onlyMine, setOnlyMine] = useState(false);
@@ -378,6 +485,9 @@ export function MapCanvas({
     () => pins.filter((pin) => !hidden.has(legendKey(pin)) && (!onlyMine || pin.createdBy === viewerId)),
     [hidden, onlyMine, pins, viewerId],
   );
+  /* §69 (2.1): een kader veegt alleen op wat te zien is — een speld die de
+     legenda heeft uitgezet hoort niet stilletjes in een keuze te belanden. */
+  shownRef.current = shown;
 
   const found = useMemo(() => {
     const q = find.trim().toLowerCase();
@@ -419,6 +529,12 @@ export function MapCanvas({
     /** False for someone else's pin: a drag on it pans the map instead. */
     movable?: boolean;
     pinStart?: { x: number; y: number };
+    /*
+     * §69 (2.1): waar élke meegenomen speld stond toen de druk begon. Een
+     * groepssleep rekent altijd vanaf dáár en nooit vanaf waar iets nu staat,
+     * anders telt de sleep zichzelf frame na frame op (`groupDelta`).
+     */
+    groupStart?: Map<string, { x: number; y: number }>;
     pinchDist?: number;
     pinchMid?: Pointer;
   } | null>(null);
@@ -460,6 +576,36 @@ export function MapCanvas({
       if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
       if (onInkKey(event)) return;
       // §69: `+`, `−` and `0` move the camera here too.
+      /*
+       * §69: Ctrl+Z, as on the prikbord and the stamboom. Below `onInkKey`,
+       * which answers first while the potlood is out — with the pencil in hand
+       * the stage belongs to the tekenlaag and its own Ctrl+Z takes back a
+       * stroke (§33).
+       */
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        void undoRef.current();
+        return;
+      }
+      /*
+       * §69 (2.1/3.2): Escape wist de keuze, Delete haalt hem weg. Allebei de
+       * gewoonte van het prikbord en de stamboom; de landkaart kende geen van
+       * beide, want er viel niets te wissen zolang er maar één speld tegelijk
+       * gekozen kon worden.
+       */
+      if (event.key === 'Escape') {
+        if (selectionRef.current.size === 0) return;
+        event.preventDefault();
+        selectionRef.current = new Set();
+        clearSelectionRef.current();
+        return;
+      }
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (selectionRef.current.size === 0) return;
+        event.preventDefault();
+        void removeSelectedRef.current();
+        return;
+      }
       const camera = cameraKey(event);
       if (!camera) return;
       event.preventDefault();
@@ -470,8 +616,46 @@ export function MapCanvas({
     return () => window.removeEventListener('keydown', onKey);
   }, [onInkKey, fit, zoomBy]);
 
+  /*
+   * §69 (3.3): Escape closes the docked speld-blad.
+   *
+   * The `Sheet` this replaced on the desktop brought Escape with it, and four
+   * specs in `maps.spec.ts` press it to put a speld away — but the reason to
+   * keep it is not the specs. A panel that can only be closed by finding a
+   * small cross with the mouse is worse than the sheet it replaces, and Escape
+   * is what every other floating thing in this archive answers to.
+   *
+   * Two differences from the effect above. It listens on `document` in the
+   * **capture** phase, as `Sheet` does, so it hears the press before whatever
+   * has focus inside the panel; and it does **not** bail on an `INPUT` target,
+   * because the panel's own name and text boxes are exactly where the caret
+   * usually is when somebody wants it gone. What it does defer to is an open
+   * popover — the `@`-list of the notitie's text box — so one press peels one
+   * layer, the same rule `Sheet` follows.
+   */
+  useEffect(() => {
+    if (isPhone || !selectedId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (popoverIsOpen()) return;
+      event.stopPropagation();
+      setSelectedId(null);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [isPhone, selectedId]);
+
+  /*
+   * §69: the keydown listener is bound once for the life of the canvas, so it
+   * reaches `undo` through a ref rather than closing over the one that existed
+   * when it was bound.
+   */
+  const undoRef = useRef<() => Promise<void>>(async () => {});
   const draggingRef = useRef<string | null>(null);
   draggingRef.current = dragging;
+  /** §69: undo runs from a keystroke and from a toast, both outside a render. */
+  const pinsRef = useRef(pins);
+  pinsRef.current = pins;
   useLiveChanges([mapKey(map.id)], () => {
     void (async () => {
       try {
@@ -492,16 +676,39 @@ export function MapCanvas({
       }
     })();
   });
+  /*
+   * §67/§69 (2.1): wat déze hand vasthoudt gaat de lijn op, zodat iedereen
+   * anders er een ring omheen ziet (`.map-held`). Het was alleen de speld die
+   * op dat moment gesleept werd; nu is het de hele keuze, want een keuze is
+   * precies het ding dat je "vasthoudt" — de hub kapt af op zestig.
+   */
+  const holdingKey = [...selectedIds].sort().join(',');
   useEffect(() => {
-    live.setHolding(dragging ? [dragging] : []);
+    live.setHolding(holdingKey ? holdingKey.split(',') : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging]);
+  }, [holdingKey]);
   /**
    * Where other people's pins are right now, before their drop is saved. A
    * position sticks after the hand lets go, until the pins are pulled again —
    * otherwise the pin would jump back to its old place for the moment between
    * the drop and the save reaching this screen.
    */
+  /**
+   * §69 (2.1): wie wat vasthoudt. Eén ring per speld — zie de tekening beneden.
+   * De roster van de site-lijn laat deze tab er zelf al uit, maar niet elke
+   * bron doet dat, dus het wordt hier nog eens gezegd.
+   */
+  const heldByOthers = useMemo(() => {
+    const held = new Map<string, { name: string; colour: string }>();
+    for (const person of live.people) {
+      if (person.clientId === live.clientId) continue;
+      for (const id of person.holding ?? []) {
+        if (!held.has(id)) held.set(id, { name: person.name, colour: person.colour });
+      }
+    }
+    return held;
+  }, [live.people, live.clientId]);
+
   const [carried, setCarried] = useState<Map<string, [number, number]>>(new Map());
   useEffect(() => {
     setCarried((current) => {
@@ -524,8 +731,12 @@ export function MapCanvas({
     const rect = stageRef.current?.getBoundingClientRect();
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   };
+  stagePointRef.current = stagePoint;
 
   const mayMove = (pin: MapPin) => mayType && (isKeeper || pin.createdBy === viewerId);
+  /* Voor een toetsaanslag, die buiten een render om gebeurt. */
+  const mayMoveRef = useRef(mayMove);
+  mayMoveRef.current = mayMove;
 
   const onStagePointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0 && event.pointerType === 'mouse') return;
@@ -553,6 +764,17 @@ export function MapCanvas({
       return;
     }
     if (gesture.current?.kind === 'pin') return;
+    /*
+     * §67/§69 (2.1): shift op kaal papier veegt een kader; een gewone sleep
+     * pant, zoals op alle vier. Het kader vervángt wat er gekozen was — een
+     * veeg die begint met zes spelden nog omlijnd leest als "voeg toe aan
+     * deze".
+     */
+    if (event.shiftKey && selection.beginMarquee(event)) {
+      selection.clear();
+      gesture.current = { kind: 'pan', moved: true, start: point, view: viewRef.current };
+      return;
+    }
     gesture.current = { kind: 'pan', moved: false, start: point, view: viewRef.current };
   };
 
@@ -570,6 +792,27 @@ export function MapCanvas({
      * its own events, which is what lets a press that goes nowhere stay a
      * press on the speld rather than a press on the stage.
      */
+    /*
+     * §67/§69 (2.1): shift wisselt, een gewone druk op iets dat al gekozen is
+     * laat de hele groep staan (`pressSelection`) — want de volgende
+     * millimeter is een groepssleep.
+     */
+    const already = selectionRef.current.has(pin.id);
+    selection.select(pin.id, event.shiftKey, already);
+
+    /*
+     * Wie er meegaat: de gekozen spelden die deze hand ook mág verplaatsen. Een
+     * speld van iemand anders in de keuze blijft staan in plaats van de sleep
+     * te weigeren — je hebt hem niet aangeraakt, je hebt hem aangewezen.
+     */
+    const group = new Map<string, { x: number; y: number }>();
+    if (!event.shiftKey && already && selectionRef.current.size > 1) {
+      for (const one of pinsRef.current) {
+        if (selectionRef.current.has(one.id) && mayMove(one)) group.set(one.id, { x: one.x, y: one.y });
+      }
+    }
+    if (!group.has(pin.id) && mayMove(pin)) group.set(pin.id, { x: pin.x, y: pin.y });
+
     gesture.current = {
       kind: 'pin',
       moved: false,
@@ -578,13 +821,22 @@ export function MapCanvas({
       pinId: pin.id,
       movable: mayMove(pin),
       pinStart: { x: pin.x, y: pin.y },
+      groupStart: group,
     };
   };
 
-  const reportHand = (point: Pointer, moving?: { id: string; x: number; y: number }) => {
+  const reportHand = (point: Pointer, moving?: Record<string, [number, number]>) => {
     const at = toPicture(point.x, point.y);
     const inside = at.x >= 0 && at.x <= 1 && at.y >= 0 && at.y <= 1;
-    live.reportPointer(inside ? { x: at.x, y: at.y, m: moving ? { [moving.id]: [moving.x, moving.y] } : {} } : null);
+    /*
+     * §69 (2.1): `m` draagt nu een hele groep in plaats van één speld, en `s`
+     * het kader. Een frame is een *staat*, geen telegram (§67), dus `s` gaat
+     * expliciet als `null` mee zodra het kader dicht is — anders blijft er op
+     * het andere scherm een rechthoek staan die hier allang weg is.
+     */
+    live.reportPointer(
+      inside ? { x: at.x, y: at.y, m: moving ?? {}, s: boxRef.current } : null,
+    );
   };
 
   const onStagePointerMove = (event: React.PointerEvent) => {
@@ -612,6 +864,12 @@ export function MapCanvas({
       return;
     }
 
+    /* §69 (2.1): het kader eet de beweging op; het frame gaat mee via `reportHand`. */
+    if (selection.onPointerMove(event)) {
+      if (event.pointerType !== 'touch') reportHand(point);
+      return;
+    }
+
     const dx = point.x - g.start.x;
     const dy = point.y - g.start.y;
     // §69: one threshold, one shape of sum, on all four canvases.
@@ -630,10 +888,25 @@ export function MapCanvas({
       setView({ zoom: g.view.zoom, tx: g.view.tx + dx, ty: g.view.ty + dy });
     } else if (g.kind === 'pin' && g.pinId && g.pinStart) {
       setDragging(g.pinId);
-      const x = Math.min(1, Math.max(0, g.pinStart.x + dx / (map.width * g.view.zoom)));
-      const y = Math.min(1, Math.max(0, g.pinStart.y + dy / (map.height * g.view.zoom)));
-      setPins((current) => current.map((p) => (p.id === g.pinId ? { ...p, x, y } : p)));
-      if (event.pointerType !== 'touch') reportHand(point, { id: g.pinId, x, y });
+      /*
+       * §69 (2.1): de hele groep, in één som. `groupDelta` rondt niet af hier —
+       * een speld staat in breuken van de plaat, en afronden op hele getallen
+       * zou elke speld naar de hoek 0,0 of 1,1 gooien. (Dat is precies waarom
+       * die schakelaar bestaat.)
+       */
+      const ddx = dx / (map.width * g.view.zoom);
+      const ddy = dy / (map.height * g.view.zoom);
+      const moved = groupDelta(g.groupStart ?? new Map(), ddx, ddy, false);
+      const clamped: Record<string, { x: number; y: number }> = {};
+      for (const [id, at] of Object.entries(moved)) {
+        clamped[id] = { x: Math.min(1, Math.max(0, at.x)), y: Math.min(1, Math.max(0, at.y)) };
+      }
+      setPins((current) => current.map((p) => (clamped[p.id] ? { ...p, ...clamped[p.id] } : p)));
+      if (event.pointerType !== 'touch') {
+        const hands: Record<string, [number, number]> = {};
+        for (const [id, at] of Object.entries(clamped)) hands[id] = [at.x, at.y];
+        reportHand(point, hands);
+      }
       return;
     }
     if (event.pointerType !== 'touch') reportHand(point);
@@ -652,12 +925,36 @@ export function MapCanvas({
 
     if (g.kind === 'pin' && g.pinId) {
       setDragging(null);
+      boxRef.current = null;
+      /*
+       * §69 (2.1): het einde van de druk. Een shift-druk op iets dat al gekozen
+       * was wisselt hier pas — als de hand niet gereisd heeft (`endPress`); een
+       * druk die wél reisde was een sleep en laat de keuze met rust.
+       */
+      selection.endPress(g.moved);
       if (!g.moved) {
-        setSelectedId(g.pinId);
-      } else if (g.movable) {
-        const pin = pins.find((p) => p.id === g.pinId);
-        if (pin) void savePin(pin.id, { x: pin.x, y: pin.y });
+        // De keuze is al gezet in `onPinPointerDown`; hier valt niets meer te
+        // kiezen. Het blad volgt uit "precies één gekozen".
+      } else if (g.movable && g.groupStart) {
+        const moving = [...g.groupStart.keys()];
+        const now = pinsRef.current.filter((p) => g.groupStart!.has(p.id));
+        if (now.length) {
+          /* Eén stap terug voor het hele gebaar, niet één per speld. */
+          if (moving.length === 1) {
+            const only = g.groupStart.get(moving[0])!;
+            rememberUndo({ kind: 'move', pinId: moving[0], x: only.x, y: only.y });
+          } else {
+            rememberUndo({ kind: 'moveMany', at: Object.fromEntries(g.groupStart) });
+          }
+          for (const pin of now) void savePin(pin.id, { x: pin.x, y: pin.y });
+        }
       }
+      return;
+    }
+
+    /* §69 (2.1): een kader dat dichtgaat kiest wat het raakte. */
+    if (selection.onPointerUp(event)) {
+      boxRef.current = null;
       return;
     }
 
@@ -721,7 +1018,8 @@ export function MapCanvas({
     const stage = stageRef.current;
     if (!stage) return;
     const block = (event: WheelEvent) => {
-      if ((event.target as HTMLElement | null)?.closest('.map-legend')) return;
+      // §69 (3.3): the docked speld-blad scrolls on its own, like the legend.
+      if ((event.target as HTMLElement | null)?.closest('.map-legend, .map-panel')) return;
       event.preventDefault();
     };
     stage.addEventListener('wheel', block, { passive: false });
@@ -829,7 +1127,7 @@ export function MapCanvas({
    */
   const makeOnEmpty = useMakeOnEmpty({
     enabled: mayType && !ink.ink.enabled && !placing,
-    ignore: '.map-pin, .map-legend, .map-legend-toggle',
+    ignore: '.map-pin, .map-legend, .map-legend-toggle, .map-panel',
     busy: () => Boolean(gesture.current?.moved),
     onMake: ({ clientX, clientY }) => {
       const point = stagePoint({ clientX, clientY });
@@ -847,6 +1145,36 @@ export function MapCanvas({
    * else may have moved it, renamed it, or turned the note into an artikel.
    * The undo is "un-remove", not "restore my snapshot".
    */
+  /**
+   * §69: Ctrl+Z on a landkaart.
+   *
+   * The prikbord and the stamboom have had an undo since §61 and §66; the
+   * landkaart and the tijdlijn had none at all, which is the last row of the
+   * contract's "Ongedaan" block that still read TOEVAL.
+   *
+   * What goes on the stack here is **not a snapshot of the canvas**, the way it
+   * is on the other two. Those own a document; this one owns rows in a table
+   * that other people are writing to at the same time, so a snapshot would
+   * quietly put back somebody else's speld along with yours. An *action to
+   * reverse* is the honest unit: where this speld was, or which speld to dig up.
+   *
+   * §29's rule stands and is why there is no `'add'` here: undo never deletes
+   * server-side, because one person's Ctrl+Z must not take away a speld another
+   * hand set meanwhile.
+   */
+  const undoStackRef = useRef<UndoStack<MapUndo> | null>(null);
+  if (!undoStackRef.current) undoStackRef.current = createUndoStack<MapUndo>(UNDO_LIMIT);
+  const undoStack = undoStackRef.current;
+  /** Only so the button can go grey; the stack itself is the truth. */
+  const [undoDepth, setUndoDepth] = useState(0);
+  const rememberUndo = useCallback(
+    (step: MapUndo) => {
+      undoStack.push(step);
+      setUndoDepth(undoStack.size());
+    },
+    [undoStack],
+  );
+
   const undoRemovePin = useCallback(
     async (pinId: string) => {
       try {
@@ -899,6 +1227,9 @@ export function MapCanvas({
         // Not `cap` — that is declared further down the component, so naming it
         // in the dep list below would read it in its own temporal dead zone.
         const what = pin.name || words.mapPin.charAt(0).toUpperCase() + words.mapPin.slice(1);
+        // §69: the toast and Ctrl+Z are the same step, so it goes on the stack
+        // too — a hand that missed the toast has four seconds *and* a keystroke.
+        rememberUndo({ kind: 'remove', pinId: pin.id });
         ui.toast(`${what} is van de ${words.map} gehaald.`, {
           label: 'Ongedaan maken',
           onAction: () => void undoRemovePin(pin.id),
@@ -909,8 +1240,110 @@ export function MapCanvas({
         setBusy(false);
       }
     },
-    [map.id, router, ui, undoRemovePin, words.map, words.mapPin],
+    [map.id, rememberUndo, router, ui, undoRemovePin, words.map, words.mapPin],
   );
+
+  /**
+   * §69 (3.2) — Delete haalt de hele keuze weg, in één stap en met één melding.
+   *
+   * Dezelfde regel als overal sinds deze ronde: geen bevestiging vooraf, de
+   * vraag zit in de toast erna, en de rij wordt *begraven* zodat *Ongedaan
+   * maken* dezelfde spelden teruggeeft — met hun id, hun hand en hun karakter.
+   *
+   * Wat er niet van deze hand is, blijft staan. Stil, en dat is met opzet: je
+   * hebt die speld niet aangeraakt, je hebt hem aangewezen, en een melding
+   * "vier weggehaald, twee geweigerd" bij elke veeg over een drukke plaat is
+   * lawaai. Het aantal in de toast zegt wat er écht gebeurd is.
+   */
+  const removeSelected = useCallback(async () => {
+    const mine = pinsRef.current.filter((p) => selectionRef.current.has(p.id) && mayMoveRef.current(p));
+    if (!mine.length) return;
+    setBusy(true);
+    const gone: string[] = [];
+    try {
+      for (const pin of mine) {
+        const response = await fetch(`/api/maps/${map.id}/pins/${pin.id}`, { method: 'DELETE' });
+        if (response.ok) gone.push(pin.id);
+      }
+      if (!gone.length) {
+        ui.toast('Weghalen is niet gelukt.');
+        return;
+      }
+      const dead = new Set(gone);
+      setPins((current) => current.filter((p) => !dead.has(p.id)));
+      selection.clear();
+      router.refresh();
+      rememberUndo({ kind: 'removeMany', pinIds: gone });
+      const what =
+        gone.length === 1
+          ? (mine.find((p) => p.id === gone[0])?.name ?? cap(words.mapPin))
+          : `${gone.length} ${words.mapPinPlural}`;
+      ui.toast(`${what} ${gone.length === 1 ? 'is' : 'zijn'} van de ${words.map} gehaald.`, {
+        label: 'Ongedaan maken',
+        onAction: () => void Promise.all(gone.map((id) => undoRemovePin(id))),
+      });
+    } catch {
+      ui.toast('Geen verbinding.');
+    } finally {
+      setBusy(false);
+    }
+  }, [map.id, rememberUndo, router, selection, ui, undoRemovePin, words.map, words.mapPin, words.mapPinPlural]);
+  const removeSelectedRef = useRef(removeSelected);
+  removeSelectedRef.current = removeSelected;
+
+  /**
+   * §69: one step back.
+   *
+   * Reverses the action rather than restoring a picture of the canvas, so two
+   * hands on one landkaart do not undo each other's work — the whole reason the
+   * stack holds actions (see `undoStackRef`).
+   *
+   * A step that cannot be taken says so instead of failing quietly: a speld
+   * somebody else has since pulled, or one swept after a day
+   * (`sweepDeletedRows`), answers with a toast rather than a silent no-op.
+   */
+  const undo = useCallback(async () => {
+    const step = undoStack.pop();
+    setUndoDepth(undoStack.size());
+    if (!step) return;
+    if (step.kind === 'move') {
+      const pin = pinsRef.current.find((p) => p.id === step.pinId);
+      if (!pin) {
+        ui.toast('Die speld is er niet meer.');
+        return;
+      }
+      // Put it back on the glass first, then tell the archive — the same order
+      // a drag uses, so the picture never waits on the round trip.
+      setPins((current) => current.map((p) => (p.id === step.pinId ? { ...p, x: step.x, y: step.y } : p)));
+      await savePin(step.pinId, { x: step.x, y: step.y });
+      return;
+    }
+    if (step.kind === 'moveMany') {
+      /* §69 (2.1): één gebaar, één stap terug — ook al waren het zes spelden. */
+      const here = new Set(pinsRef.current.map((p) => p.id));
+      const back = Object.entries(step.at).filter(([id]) => here.has(id));
+      if (!back.length) {
+        ui.toast(`Die ${words.mapPinPlural} zijn er niet meer.`);
+        return;
+      }
+      setPins((current) =>
+        current.map((p) => (step.at[p.id] ? { ...p, x: step.at[p.id].x, y: step.at[p.id].y } : p)),
+      );
+      for (const [id, at] of back) await savePin(id, { x: at.x, y: at.y });
+      return;
+    }
+    if (step.kind === 'removeMany') {
+      /*
+       * §69 (3.2): alle begraven rijen weer omhoog. Elke `restore` kan op
+       * zichzelf mislukken — iemand anders kan er één definitief hebben
+       * opgeruimd — en dat is geen reden om de rest te laten liggen.
+       */
+      for (const id of step.pinIds) await undoRemovePin(id);
+      return;
+    }
+    await undoRemovePin(step.pinId);
+  }, [savePin, ui, undoRemovePin, undoStack, words.mapPinPlural]);
+  undoRef.current = undo;
 
   /**
    * §8: a note speld becomes the speld of an artikel, without moving.
@@ -972,6 +1405,44 @@ export function MapCanvas({
   /* ------------------------------------------------------------ render */
 
   const selected = selectedId ? (pins.find((p) => p.id === selectedId) ?? null) : null;
+
+  /**
+   * §69 (3.3) — the speld's blad is one component with two chromes.
+   *
+   * It was a modal `Sheet` on every screen, and that was the last thing on the
+   * landkaart that made the surface unusable while something was open: a scrim
+   * over the picture, focus trapped in the panel, and no way to look at where
+   * the speld actually stands while reading what it says. The prikbord has not
+   * worked that way since §52 — `BoardInspector` is docked to the cork and the
+   * wall goes on living behind it — and the contract's axis 3 says the four
+   * surfaces answer this the same way.
+   *
+   * So: on a desk the panel is docked inside the stage (`.map-panel`), the
+   * picture pans and zooms behind it, and a press on another speld simply moves
+   * the panel to that one. On a phone it stays a `Sheet`, because 390 px has no
+   * room to dock anything beside a picture — that is the "bewust anders" cell,
+   * and it is the same answer the plan gives for every panel in axis 6.
+   *
+   * Two things the desktop panel keeps from the sheet on purpose:
+   * `role="dialog"` (without `aria-modal`, which would be a lie) so the panel
+   * still says what it is and the four specs that find it by name still do, and
+   * Escape, which closes it — four specs press Escape to put a speld away and,
+   * more to the point, a panel you can only close with the mouse is a step
+   * backwards from the sheet it replaces.
+   */
+  const pinPanel = selected ? (
+    <PinSheet
+      pin={selected}
+      busy={busy}
+      mayEdit={mayMove(selected)}
+      setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
+      onSave={(patch) => void savePin(selected.id, patch)}
+      onRemove={() => void removePin(selected)}
+      onConvert={(seed) => convertToEntry(selected, seed)}
+      liveUser={liveUser}
+    />
+  ) : null;
+
   const mapWord = words.map;
   const pinWord = words.mapPin;
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -1095,9 +1566,13 @@ export function MapCanvas({
               setSelectedId(null);
               setPlacing({ mode: 'pick' });
             }}
+            /* §64/§69 (6.6): de letters mogen weg op 390 px, de naam nooit —
+               en vier specs zoeken deze knop op zijn naam. */
+            aria-label={`${cap(pinWord)} zetten`}
+            title={`${cap(pinWord)} zetten`}
           >
             <Icon name="mapPin" size={15} />
-            {cap(pinWord)} zetten
+            <span className="canvas-tool-word">{cap(pinWord)} zetten</span>
           </button>
         )}
         <div className="spacer" />
@@ -1106,10 +1581,12 @@ export function MapCanvas({
             type="button"
             className={`btn btn-small${legendOpen ? ' btn-primary' : ''}`}
             aria-expanded={legendOpen}
+            aria-label="Legenda"
+            title="Legenda"
             onClick={toggleLegend}
           >
             <Icon name="filter" size={14} />
-            Legenda
+            <span className="canvas-tool-word">Legenda</span>
           </button>
         )}
         {/* §69: the shared block. The third button was called "Passend maken"
@@ -1122,9 +1599,30 @@ export function MapCanvas({
           onIn={() => zoomBy(ZOOM_STEP)}
           onFit={() => fit()}
         />
+        {/* §69: a landkaart had no undo at all before this round. */}
+        {mayType && <CanvasUndoButton onUndo={() => void undo()} canUndo={undoDepth > 0} />}
       </div>
 
-      {isPhone && legendOpen && <div className="map-legend map-legend-phone">{legendPanel}</div>}
+      {/*
+        §69 (5.7): op een telefoon is de legenda een blad dat van onderen opkomt.
+
+        Het stond in de stroom *boven* het glas, en dat is op 390 px het duurste
+        dat er is: §34 geeft de stage het scherm, en een opengeklapte legenda
+        met zes soorten, een zoekvak en een vinkje nam er de helft van af — je
+        kon dus de filters zien óf de landkaart waarop ze werken. Een blad ligt
+        eróver, met een raakdoel per rij, en gaat weg als je het dichtdoet.
+
+        Het `.map-legend`-omhulsel blijft, want de helper in `maps.spec.ts`
+        zoekt de legenda daarop en de rijen eronder zijn dezelfde rijen.
+      */}
+      {isPhone && legendOpen && (
+        <Sheet onClose={toggleLegend} labelledBy="map-legend-title">
+          <h2 id="map-legend-title" className="label" style={{ margin: '0 0 0.5rem' }}>
+            Legenda
+          </h2>
+          <div className="map-legend map-legend-phone">{legendPanel}</div>
+        </Sheet>
+      )}
 
       <div
         ref={stageRef}
@@ -1172,11 +1670,36 @@ export function MapCanvas({
           height={stageSize.h}
         />
 
+        {/*
+          §69 (2.1): het kader, terwijl het getrokken wordt.
+
+          Getekend in stage-pixels als een gewoon vlak, want de spelden staan
+          ook in stage-pixels — het kader en wat het raakt moeten op hetzelfde
+          scherm hetzelfde beeld geven. De rekenkunde blijft in breuken van de
+          plaat (daar hoort hij, want een speld staat zo opgeslagen); dit is
+          alleen de weg terug naar het glas.
+        */}
+        {selection.marquee && (
+          <div
+            className="map-marquee"
+            data-testid="map-marquee"
+            style={(() => {
+              const box = normaliseRect(selection.marquee);
+              return {
+                left: view.tx + box.x * map.width * view.zoom,
+                top: view.ty + box.y * map.height * view.zoom,
+                width: box.width * map.width * view.zoom,
+                height: box.height * map.height * view.zoom,
+              };
+            })()}
+          />
+        )}
+
         {/* The pins: stage pixels, never scaled — see the note at the top. */}
         <div className="map-pins">
           {shown.map((pin) => {
             const colour = pinColour(pin);
-            const isSelected = pin.id === selectedId;
+            const isSelected = selectedIds.has(pin.id);
             // A pin in someone else's hand is drawn where their hand has it.
             const hand = dragging === pin.id ? undefined : carried.get(pin.id);
             const px = hand ? hand[0] : pin.x;
@@ -1209,6 +1732,56 @@ export function MapCanvas({
               </button>
             );
           })}
+          {/*
+            §69 (2.1): een ring om een speld die iemand anders vasthoudt.
+
+            Het prikbord en de stamboom tekenen die al sinds §67; de landkaart
+            kon niets vasthouden en had hem dus niet nodig. Eén ring per speld:
+            twee mensen op dezelfde speld is zeldzaam en gestapelde ringen zijn
+            soep.
+          */}
+          {shown.map((pin) => {
+            const holder = heldByOthers.get(pin.id);
+            if (!holder) return null;
+            const hand = carried.get(pin.id);
+            return (
+              <div
+                key={`held-${pin.id}`}
+                className="map-held map-pin"
+                aria-hidden="true"
+                style={{
+                  left: view.tx + (hand ? hand[0] : pin.x) * map.width * view.zoom,
+                  top: view.ty + (hand ? hand[1] : pin.y) * map.height * view.zoom,
+                  ['--held-colour' as string]: holder.colour,
+                }}
+              >
+                <span className="map-pin-head" />
+              </div>
+            );
+          })}
+
+          {/*
+            §69 (2.1): het kader dat iemand anders trekt. Zicht, geen staat
+            (§67): het staat er zolang hun frame het noemt en het is weg zodra
+            hun frame `null` zegt.
+          */}
+          {live.pointers.map((pointer) =>
+            !pointer.s ? null : (
+              <div
+                key={`box-${pointer.clientId}`}
+                className="map-marquee map-marquee-other"
+                aria-hidden="true"
+                style={{
+                  left: view.tx + Math.min(pointer.s[0], pointer.s[2]) * map.width * view.zoom,
+                  top: view.ty + Math.min(pointer.s[1], pointer.s[3]) * map.height * view.zoom,
+                  width: Math.abs(pointer.s[2] - pointer.s[0]) * map.width * view.zoom,
+                  height: Math.abs(pointer.s[3] - pointer.s[1]) * map.height * view.zoom,
+                  ['--marquee-colour' as string]: pointer.colour,
+                }}
+              />
+            ),
+          )}
+
           {/* §21: everyone else's hand, in picture coordinates under this viewer's pan and zoom. */}
           {live.pointers.map((pointer) =>
             pointer.x === null || pointer.y === null ? null : (
@@ -1234,6 +1807,34 @@ export function MapCanvas({
         {/* §33: the sheet and the bar, in that order — bottom-left, because the
             legend has the top-left corner. */}
         <InkShell shell={ink} corner="bottom-left" toolbar={!placing} />
+
+        {/*
+          §69 (6.7) — een lege landkaart zegt het op het glas.
+
+          De stamboom (§66) en de tijdlijn (§62) doen dit allebei: een vlak
+          zonder inhoud zegt op de plek waar de inhoud zou staan wat je moet
+          doen om er iets op te krijgen. De landkaart zei niets — hij hing een
+          plaat op en verder was het aan de lezer om te raden dat een dubbelklik
+          (of op een telefoon een halve seconde drukken) een speld vraagt. Dat is
+          precies de aanwijzing die je op 390 px het hardst mist, waar het
+          gebaar ook nog eens een ander is dan op een bureau.
+
+          Niet tijdens het tekenen en niet tijdens het zetten van een speld:
+          dan staat er al iets anders om aandacht te vragen.
+        */}
+        {!pins.length && !ink.ink.enabled && !placing && (
+          <div className="map-empty">
+            <p className="small muted">
+              {mayType
+                ? `Nog geen ${words.mapPinPlural} op deze ${mapWord}. ${
+                    isPhone
+                      ? `Houd de ${mapWord} ingedrukt om hier een ${pinWord} te zetten`
+                      : `Dubbelklik op de ${mapWord}`
+                  }, of gebruik '${cap(pinWord)} zetten'.`
+                : `Nog geen ${words.mapPinPlural} op deze ${mapWord}.`}
+            </p>
+          </div>
+        )}
 
         {!isPhone &&
           (legendOpen ? (
@@ -1269,6 +1870,44 @@ export function MapCanvas({
               {onlyMine && <span className="map-legend-badge">alleen de mijne</span>}
             </button>
           ))}
+
+        {/*
+          §69 (3.3): the speld's blad, docked, on a desk only.
+
+          Inside the stage rather than beside it, so it is positioned against
+          the picture and moves with nothing — and, like the legend above it,
+          it stops its own pointer events from reaching the stage: §6's rule
+          about anything floating over a canvas. The stage takes the capture on
+          the way down, so a control that does not stop the press here is not
+          merely panned under, it is unpressable.
+        */}
+        {!isPhone && pinPanel && (
+          <aside
+            className="map-panel"
+            /* Not `aria-modal`: the picture behind it is live, and saying
+               otherwise would tell a screen reader to ignore the map. */
+            role="dialog"
+            aria-labelledby="pin-title"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            onWheel={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="map-panel-close"
+              aria-label="Sluiten"
+              title="Sluiten (Esc)"
+              onClick={() => setSelectedId(null)}
+            >
+              <Icon name="close" size={14} />
+            </button>
+            {/* The panel is a column: the cross stays put and only what is
+                under it scrolls, so a long notitie never scrolls its own way
+                out of the panel. */}
+            <div className="map-panel-body">{pinPanel}</div>
+          </aside>
+        )}
       </div>
 
       <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
@@ -1279,18 +1918,10 @@ export function MapCanvas({
 
       {isKeeper && <UnderFold slotId={UNDER_FOLD_ID}>{ink.keeperControls}</UnderFold>}
 
-      {selected && (
+      {/* §69 (3.3): a phone keeps the sheet. See `pinPanel` above for why. */}
+      {isPhone && pinPanel && (
         <Sheet onClose={() => setSelectedId(null)} labelledBy="pin-title">
-          <PinSheet
-            pin={selected}
-            busy={busy}
-            mayEdit={mayMove(selected)}
-            setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
-            onSave={(patch) => void savePin(selected.id, patch)}
-            onRemove={() => void removePin(selected)}
-            onConvert={(seed) => convertToEntry(selected, seed)}
-            liveUser={liveUser}
-          />
+          {pinPanel}
         </Sheet>
       )}
 

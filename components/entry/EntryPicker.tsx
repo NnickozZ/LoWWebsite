@@ -7,6 +7,7 @@ import { entryDisplayName } from '@/lib/entries/caseName';
 import { AdriftChip } from '@/components/entry/AdriftChip';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 import { useDismiss } from '@/components/ui/useDismiss';
+import { useSuggestKeys } from '@/components/ui/useSuggestKeys';
 import { preferredCasesParam, usePreferredCases } from './PreferredCases';
 
 export type EntryRef = {
@@ -105,6 +106,12 @@ export function EntryPicker({
    * to hand back.
    */
   useDismiss({ open: listShown, onDismiss: closeList, ref: boxRef });
+  /*
+   * §69 (5.2): ↑ ↓ lopen de lijst en Enter kiest de rij — hetzelfde als de
+   * `@`-lijst, en om dezelfde reden: de eerste rij is `'X' aanmaken`, dus een
+   * haastige hand die niet kan kiezen zonder de muis maakt een tweede artikel.
+   */
+  const keys = useSuggestKeys({ open: listShown, ref: boxRef });
 
   if (value) {
     return (
@@ -131,6 +138,8 @@ export function EntryPicker({
           setQuery(event.target.value);
           setOpen(true);
         }}
+        /* §69 (5.2): de pijltjes en Enter. */
+        onKeyDown={keys.onKeyDown}
       />
       {open && query.trim() && (
         <ul className="suggest-list" style={{ position: 'absolute', zIndex: 30, left: 0, right: 0 }}>

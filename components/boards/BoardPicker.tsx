@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useSuggestKeys } from '@/components/ui/useSuggestKeys';
+import { useFloatBox } from '@/components/canvas/useFloatBox';
+import { clampInside } from '@/lib/canvas/clamp';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
@@ -96,6 +99,12 @@ export function BoardPicker({
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestedEntry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  /*
+   * §69 (5.2/5.4): de wortel van de kiezer. Twee dingen hangen eraan — de
+   * pijltjes moeten de rijen kunnen vinden, en de zwevende variant moet zich
+   * aan het glas kunnen klemmen.
+   */
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (variant === 'float') inputRef.current?.focus();
@@ -196,14 +205,58 @@ export function BoardPicker({
     </li>
   );
 
+  /* §69 (5.2): ↑ ↓ en Enter, zoals in de andere vier kiezers. */
+  const keys = useSuggestKeys({ open: Boolean(typed), ref: rootRef });
+
+  /*
+   * §69 (5.4): de zwevende kiezer klemt zich op zijn **gemeten** maat.
+   *
+   * `BoardCanvas` kiest waar hij hoort te staan — naast de punaise, zodat de
+   * kop en zijn labeltje blijven waar de hand ze liet — en klemde dat tegen
+   * twee getallen die het raadde: een breedte van 336 waar de stylesheet 320
+   * zegt, en een hoogte van 90 voor een vak dat met zes suggesties erin ruim
+   * 300 is. De kurk knipt af (`overflow: hidden`), dus dat was een kiezer
+   * waarvan de onderste rijen er domweg niet waren. Hier is de maat bekend, en
+   * hier wordt hij dus gemeten.
+   *
+   * Alleen de zwevende: de vaste variant staat in de werkbalk, in de stroom
+   * van de pagina, en heeft niets te klemmen.
+   */
+  const floating = variant === 'float';
+  const box = useFloatBox(rootRef, { width: 320, height: 300 });
+  const [placed, setPlaced] = useState<{ left: number; top: number } | null>(null);
+  const wish = style as { left?: number; top?: number } | undefined;
+  const wishLeft = wish?.left;
+  const wishTop = wish?.top;
+  useLayoutEffect(() => {
+    if (!floating || typeof wishLeft !== 'number' || typeof wishTop !== 'number') {
+      setPlaced(null);
+      return;
+    }
+    const glass = rootRef.current?.offsetParent as HTMLElement | null;
+    if (!glass) return;
+    const next = clampInside(
+      { x: wishLeft, y: wishTop },
+      box,
+      { width: glass.clientWidth, height: glass.clientHeight },
+    );
+    setPlaced((current) =>
+      current && current.left === next.left && current.top === next.top ? current : next,
+    );
+  }, [floating, wishLeft, wishTop, box]);
+
   return (
     <div
+      ref={rootRef}
       className={variant === 'float' ? 'board-picker board-picker-float' : 'board-picker'}
-      style={style}
+      style={placed ? { ...style, ...placed } : style}
       onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !onCancel) return;
-        event.stopPropagation();
-        onCancel();
+        if (event.key === 'Escape' && onCancel) {
+          event.stopPropagation();
+          onCancel();
+          return;
+        }
+        keys.onKeyDown(event);
       }}
     >
       {/*

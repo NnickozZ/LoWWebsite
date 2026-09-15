@@ -47,6 +47,90 @@
   }
 }
 
+/* §69 (6.4): het venster binnen een blad op een telefoon. Het blad brengt zijn
+   eigen papier, rand, schaduw en kruisje mee, dus hier blijft alleen de inhoud
+   over — op de volle breedte, want dat is de hele winst. */
+/* §69 (6.4): de lade onderaan het glas, op een telefoon. Niet modaal — de as
+   blijft eronder te bedienen; zie de noot in `TimelineCanvas.tsx` voor waarom
+   het géén `Sheet` is. Hij neemt hoogstens de helft van het glas en scrollt
+   daarna zelf, zodat er altijd as zichtbaar blijft om naartoe te gaan. */
+.timeline-popout-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  max-height: 55%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+  box-shadow: 0 -4px 14px rgba(31, 27, 22, 0.16);
+  padding: 0.5rem 0.7rem calc(0.7rem + env(safe-area-inset-bottom));
+  touch-action: auto;
+}
+.timeline-popout-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  padding-bottom: 0.4rem;
+}
+.timeline-popout-dock .timeline-popout-stack {
+  overflow: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* De stapel: één kolom, met een streep tussen de vensters zodat twee
+   gebeurtenissen onder elkaar niet in elkaar overlopen. */
+.timeline-popout-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.timeline-popout-stack > * + * {
+  border-top: 1px solid var(--rule);
+  padding-top: 0.8rem;
+}
+.timeline-popout-phone {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+/*
+   §69 (2.2) — kiezen op een tijdlijn.
+
+   Dezelfde streepjes en dezelfde kleur als het kader van het prikbord, de
+   stamboom en de landkaart: het is hetzelfde gebaar, dus het hoort er hetzelfde
+   uit te zien. In stage-pixels geplaatst, boven de as en onder de vensters.
+*/
+.timeline-marquee {
+  position: absolute;
+  z-index: 3;
+  border: 1px dashed var(--link);
+  background: rgba(31, 78, 121, 0.12);
+  pointer-events: none;
+}
+.timeline-marquee-other {
+  border: 1px solid var(--marquee-colour, var(--ink-muted));
+  background: color-mix(in srgb, var(--marquee-colour, #1f4e79) 12%, transparent);
+}
+/* Een gekozen gebeurtenis: de ring van §67, om de stip en om het labeltje. Niet
+   om de hele gebeurtenis — die is een steel van soms honderd pixels hoog, en
+   een omlijning daaromheen leest als een vak in plaats van als een keuze. */
+.timeline-event-chosen .timeline-marker,
+.timeline-event-chosen .timeline-tag {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
 /*
    §62: a tag with no lane left. The mark stays on the axis — the gebeurtenis
    is still *there*, and its window still opens — and the name goes, because

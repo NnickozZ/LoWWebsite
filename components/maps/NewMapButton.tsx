@@ -199,11 +199,17 @@ export function NewMapButton() {
             {error && <p className="error-note">{error}</p>}
             <div className="row-wrap">
               <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void submit()}>
-                {busy ? 'Bezig…' : 'Ophangen'}
+                {/* §69 (4.10): de primaire knop van een maakblad noemt het
+                    díng, niet alleen het werkwoord — `Openbaar prikbord`,
+                    `Openbare tijdlijn`, `Openbare stamboom`, en nu ook hier.
+                    Een blad dat drie vragen stelt heeft onderaan een knop
+                    nodig die zegt wat er van komt, niet een die zegt wat je
+                    doet. */}
+                {busy ? 'Bezig…' : `${cap(words.map)} ophangen`}
               </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
-                Annuleren
-              </button>
+              {/* §69 (4.6): geen `Annuleren` meer — het kruisje van het blad is
+                  de ene weg naar buiten, op alle bladen dezelfde. De landkaart
+                  was de enige maker die er ook nog een knop voor had. */}
             </div>
           </div>
         </Sheet>

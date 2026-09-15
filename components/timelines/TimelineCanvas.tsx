@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { MentionText } from '@/components/ui/MentionPopover';
@@ -48,7 +48,11 @@ import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
+import { normaliseRect, type Box } from '@/lib/canvas/select';
 import { openSheetCount } from '@/lib/sheetStack';
+import { UNDO_LIMIT, createUndoStack, type UndoStack } from '@/components/canvas/undoStack';
+import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import {
   EditEventSheet,
   NewEventSheet,
@@ -93,6 +97,13 @@ import {
  */
 const UNMEASURED_STAGE_H = 420;
 /** Distance from the axis to the nearest lane of tags, and between lanes. */
+/**
+ * §69 (2.2): hoe breed een gebeurtenis meetelt voor een kader, in pixels, ge-
+ * deeld door twee. Een stip op de as is een punt, en `boxesTouch` is streng
+ * (met opzet), dus een punt van nul bij nul wordt nooit geraakt.
+ */
+const TAG_HIT_HALF = 9;
+
 const LANE_0 = 46;
 const LANE_STEP = 34;
 const TAG_H = 24;
@@ -105,6 +116,18 @@ const POPOUT_HEADROOM = 8;
  * takes the capture with it, and the drag ends where nobody let go.
  */
 const CULL_PX = 400;
+
+/**
+ * §69: one step back on a tijdlijn. An action, not a snapshot — see
+ * `components/maps/MapCanvas.tsx` for the argument.
+ */
+type TimelineUndo =
+  | { kind: 'move'; eventId: string; at: number }
+  /* §69 (2.2): een groep die in één gebaar langs de as schoof. */
+  | { kind: 'moveMany'; at: Record<string, number> }
+  | { kind: 'remove'; eventId: string }
+  /* §69 (3.2): Delete op een keuze van zes is één stap, niet zes. */
+  | { kind: 'removeMany'; eventIds: string[] };
 /**
  * §62: how far a pointer may travel before a press on a gebeurtenis is a drag
  * rather than a click. One number asked in two places on purpose — the drag
@@ -485,7 +508,12 @@ export function TimelineCanvas({
    */
   const [handDown, setHandDown] = useState(false);
   const reportHand = useCallback(
-    (point: { clientX: number; clientY: number } | null, moving?: { id: string; at: number }) => {
+    (
+      point: { clientX: number; clientY: number } | null,
+      moving?: { id: string; at: number },
+      /* §69 (2.2): een hele groep tegelijk, en het kader dat openstaat. */
+      group?: Record<string, number>,
+    ) => {
       const el = stageRef.current;
       const current = viewRef.current;
       if (!point || !el || !current) {
@@ -499,10 +527,19 @@ export function TimelineCanvas({
         live.reportPointer(null);
         return;
       }
+      const carriedNow: Record<string, [number, number]> = {};
+      if (group) for (const [id, at] of Object.entries(group)) carriedNow[id] = [at, 0];
+      else if (moving) carriedNow[moving.id] = [moving.at, 0];
       live.reportPointer({
         x: current.origin + x / current.pxPerSecond,
         y: rect.height > 0 ? y / rect.height : 0,
-        m: moving ? { [moving.id]: [moving.at, 0] } : {},
+        m: carriedNow,
+        /*
+         * §69 (2.2): het kader, in stage-pixels. Een frame is een *staat* en
+         * geen telegram (§67), dus `null` gaat expliciet mee zodra het dicht is
+         * — anders blijft er op het andere scherm een rechthoek staan.
+         */
+        s: boxOnWire.current,
       });
     },
     // §60: the stable callback, not the whole live value — see the effect below.
@@ -564,6 +601,31 @@ export function TimelineCanvas({
    */
   const eventsRef = useRef(events);
   eventsRef.current = events;
+
+  /**
+   * §69: Ctrl+Z on a tijdlijn.
+   *
+   * The landkaart's shape and the landkaart's reasoning — see `undoStackRef` in
+   * `components/maps/MapCanvas.tsx`. An *action to reverse*, not a snapshot,
+   * because a tijdlijn is rows in a table two hands write to at once; and no
+   * `'add'`, because §29 says undo never deletes server-side.
+   */
+  /*
+   * §69: the keydown listener is bound once, so it reaches `undo` through a ref
+   * rather than closing over the one that existed when it was bound.
+   */
+  const undoRef = useRef<() => Promise<void>>(async () => {});
+  const undoStackRef = useRef<UndoStack<TimelineUndo> | null>(null);
+  if (!undoStackRef.current) undoStackRef.current = createUndoStack<TimelineUndo>(UNDO_LIMIT);
+  const undoStack = undoStackRef.current;
+  const [undoDepth, setUndoDepth] = useState(0);
+  const rememberUndo = useCallback(
+    (step: TimelineUndo) => {
+      undoStack.push(step);
+      setUndoDepth(undoStack.size());
+    },
+    [undoStack],
+  );
   const widthRef = useRef(width);
   widthRef.current = width;
   const stageHRef = useRef(stageH);
@@ -606,6 +668,9 @@ export function TimelineCanvas({
     stopPropagation: true,
   });
   const inkActive = ink.inkActive;
+  /** §69: the once-bound keydown asks this rather than closing over the flag. */
+  const inkActiveRef = useRef(inkActive);
+  inkActiveRef.current = inkActive;
   const onInkKey = ink.onKeyDown;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -802,6 +867,20 @@ export function TimelineCanvas({
      * is the axis's however it is modified, because those are not links.
      */
     onLink: boolean;
+    /**
+     * §69 (2.2): waar élke meereizende gebeurtenis stond toen de druk begon —
+     * in seconden, want dat is wat een tijdlijn opslaat. Altijd vanaf dáár
+     * gerekend, nooit vanaf waar iets nu staat, anders telt een sleep zichzelf
+     * frame na frame op.
+     */
+    group: Map<string, number>;
+    /**
+     * §69 (2.2): of deze druk een shift-druk op de stip of de steel was. Zo'n
+     * druk is puur kiezen: hij klapt géén venster uit. Anders zou "voeg deze
+     * toe aan mijn keuze" ook nog een venster openen, en zes erbij kiezen zou
+     * zes vensters opleveren die niemand vroeg.
+     */
+    additive: boolean;
   };
   const eventDrag = useRef<EventDrag | null>(null);
   /**
@@ -816,6 +895,52 @@ export function TimelineCanvas({
    */
   const pressTravelled = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  /*
+   * §69 (2.2) — de tijdlijn kiest zoals de andere drie, en dat was het
+   * riskantste stuk van de ronde.
+   *
+   * Op een prikbord is een druk op een kaartje niets anders dan kiezen. Hier
+   * betékende een druk op een tag al iets — het venster klapt uit — en de tag
+   * van een artikel **is een link** (§68: elke muisknop behalve de linker is
+   * van de browser). Dus:
+   *
+   *  - een gewone klik op een tag kiest hém *en* klapt zijn venster uit, zoals
+   *    altijd. Niets verdwijnt;
+   *  - **shift wisselt op de stip en de steel, niet op de naam.** Nicks keuze,
+   *    en de enige die §68 heel laat: shift-klik op een link is van de browser
+   *    en opent een venster, en dat afpakken zou een echte weg kwijtmaken;
+   *  - shift-slepen over de as veegt een kader, en dat is de weg om er veel
+   *    tegelijk te pakken.
+   *
+   * De wereld is hier **stage-pixels**: een tijdlijn heeft geen wereld die je
+   * kunt pannen en zoomen zoals een plaat — hij heeft een as met een oorsprong
+   * en een schaal, en waar een tag staat rekent `placeTags` al uit in pixels.
+   * `boxesRef` wordt tijdens het tekenen gevuld met precies die dozen, dus het
+   * kader raakt wat een lezer ziet staan en niet wat een tweede berekening
+   * denkt dat er staat.
+   */
+  const boxesRef = useRef<Map<string, Box>>(new Map());
+  const eventsForSweep = useRef<TimelineEvent[]>([]);
+  const selection = useMarqueeSelect<TimelineEvent>({
+    items: () => eventsForSweep.current,
+    boxOf: (event) => boxesRef.current.get(event.id) ?? null,
+    toWorld: (clientX, clientY) => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
+    },
+    enabled: !isPhone,
+    mode: 'replace',
+    onBroadcast: (rect) => {
+      /* §67/§8: het kader reist mee op de lijn, in stage-pixels. */
+      if (rect) boxOnWire.current = rect;
+      else boxOnWire.current = null;
+    },
+  });
+  const selectedIds = selection.selected;
+  const selectedRef = useRef<Set<string>>(new Set());
+  selectedRef.current = selectedIds;
+  const boxOnWire = useRef<[number, number, number, number] | null>(null);
   /** One place says "this hand has a tag", so nothing can forget half of it. */
   const holdTag = useCallback((id: string | null) => {
     draggingIdRef.current = id;
@@ -880,6 +1005,31 @@ export function TimelineCanvas({
      * own `click`. The stamboom learned this from a spec rather than from a
      * person (§66); the tijdlijn was still doing it the old way.
      */
+    /*
+     * §69 (2.2): kiezen, en wie er meegaat als deze druk een sleep wordt.
+     *
+     * Shift telt hier alleen mee als de druk **niet** op de naam landde: die
+     * naam is een `<a>`, en shift-klik op een link is van de browser (§68).
+     * Nicks keuze in deze ronde: de stip en de steel zijn van de tijdlijn, en
+     * daar wisselt shift; over de naam gaat de browser.
+     */
+    const onLink = Boolean((event.target as HTMLElement).closest('a.timeline-tag'));
+    const additive = event.shiftKey && !onLink;
+    const already = selectedRef.current.has(item.id);
+    selection.select(item.id, additive, already);
+
+    /*
+     * Wie er meereist. Alleen bij een gewone druk op iets dat al gekozen was —
+     * dat is precies "een groep bij één van zijn leden pakken" (`pressSelection`).
+     */
+    const group = new Map<string, number>();
+    if (!additive && already && selectedRef.current.size > 1) {
+      for (const one of eventsRef.current) {
+        if (selectedRef.current.has(one.id)) group.set(one.id, one.at);
+      }
+    }
+    if (!group.has(item.id)) group.set(item.id, item.at);
+
     eventDrag.current = {
       id: item.id,
       pointerId: event.pointerId,
@@ -888,7 +1038,9 @@ export function TimelineCanvas({
       startAt: item.at,
       unit: item.precision,
       moved: false,
-      onLink: Boolean((event.target as HTMLElement).closest('a.timeline-tag')),
+      onLink,
+      group,
+      additive,
     };
     // §62: a hand is on the wall. Nothing lands until it comes off.
     handOn.current = true;
@@ -925,10 +1077,22 @@ export function TimelineCanvas({
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
       holdTag(drag.id);
     }
-    const at = onAxis(drag.startAt + dx / view.pxPerSecond, drag.unit);
-    moveOne(drag.id, at);
+    /*
+     * §69 (2.2): de hele groep schuift even ver op, in seconden. Elk lid houdt
+     * zijn eigen maat (`unit`) — een gebeurtenis die op een dag staat mag niet
+     * op een seconde landen omdat de opgepakte tag toevallig fijner is.
+     */
+    const seconds = dx / view.pxPerSecond;
+    const at = onAxis(drag.startAt + seconds, drag.unit);
+    const moved: Record<string, number> = {};
+    for (const [id, from] of drag.group) {
+      const one = eventsRef.current.find((e) => e.id === id);
+      const landed = id === drag.id ? at : onAxis(from + seconds, one?.precision ?? drag.unit);
+      moved[id] = landed;
+      moveOne(id, landed);
+    }
     // §62: the other screen sees the tag travel, not jump when it lands.
-    reportHand({ clientX: event.clientX, clientY: event.clientY }, { id: drag.id, at });
+    reportHand({ clientX: event.clientX, clientY: event.clientY }, { id: drag.id, at }, moved);
   }
 
   function onEventPointerUp(event: React.PointerEvent) {
@@ -951,22 +1115,48 @@ export function TimelineCanvas({
        * axis answers the press however it is modified, because there is nowhere
        * for the browser to go.
        */
-      if (!(drag.onLink && opensElsewhere(event))) toggle(drag.id);
+      /*
+       * §69 (2.2): en de wissel die `select` ophield. Een shift-druk op iets
+       * dat al gekozen was wisselt pas hier — als de hand niet gereisd heeft.
+       */
+      selection.endPress(false);
+      /* §69 (2.2): een shift-druk kiest, en verder niets. Zie `additive`. */
+      if (!drag.additive && !(drag.onLink && opensElsewhere(event))) toggle(drag.id);
       if (owed.current) void pull();
       return;
     }
-    const dropped = events.find((e) => e.id === drag.id);
-    if (!dropped || dropped.at === drag.startAt) {
+    selection.endPress(true);
+    /*
+     * §69 (2.2): de hele groep, in één stap terug en met één opslag per lid.
+     * Wat niet echt bewogen is gaat er niet in — een groep waarvan er één op
+     * zijn plek bleef (omdat zijn maat grover is) moet niet als verplaatst
+     * geboekt worden.
+     */
+    const landed: { id: string; at: number; was: number }[] = [];
+    for (const [id, was] of drag.group) {
+      const now = events.find((e) => e.id === id);
+      if (now && now.at !== was) landed.push({ id, at: now.at, was });
+    }
+    if (!landed.length) {
       if (owed.current) void pull();
       return;
     }
     // The carry is kept on the other screens until their pull lands (`m`), so
-    // the frame goes out once more with the moment it was dropped on.
-    reportHand({ clientX: event.clientX, clientY: event.clientY }, { id: drag.id, at: dropped.at });
-    void patchEvent(drag.id, { at: dropped.at }, { quiet: true }).then((ok) => {
-      if (!ok) moveOne(drag.id, drag.startAt);
-      if (owed.current) void pull();
-    });
+    // the frame goes out once more with the moments they were dropped on.
+    reportHand(
+      { clientX: event.clientX, clientY: event.clientY },
+      { id: drag.id, at: landed.find((one) => one.id === drag.id)?.at ?? drag.startAt },
+      Object.fromEntries(landed.map((one) => [one.id, one.at])),
+    );
+    // §69: where they sat before this drag, so Ctrl+Z can put them back.
+    if (landed.length === 1) rememberUndo({ kind: 'move', eventId: landed[0].id, at: landed[0].was });
+    else rememberUndo({ kind: 'moveMany', at: Object.fromEntries(landed.map((one) => [one.id, one.was])) });
+    for (const one of landed) {
+      void patchEvent(one.id, { at: one.at }, { quiet: true }).then((ok) => {
+        if (!ok) moveOne(one.id, one.was);
+        if (owed.current) void pull();
+      });
+    }
   }
 
   /* ---------------------------------------------------------------- pan */
@@ -1003,6 +1193,16 @@ export function TimelineCanvas({
     abortEventDrag();
     const el = stageRef.current;
     if (!el) return;
+    /*
+     * §67/§69 (2.2): shift op de kale as veegt een kader; een gewone sleep
+     * schuift de as, zoals altijd. Het kader vervángt wat er gekozen was.
+     */
+    if (event.shiftKey && selection.beginMarquee(event)) {
+      selection.clear();
+      el.setPointerCapture(event.pointerId);
+      setGrabbing(false);
+      return;
+    }
     el.setPointerCapture(event.pointerId);
     const rect = el.getBoundingClientRect();
     const p = { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -1043,6 +1243,8 @@ export function TimelineCanvas({
       reportHand({ clientX: event.clientX, clientY: event.clientY });
     }
     makeOnEmpty.onPointerMove(event);
+    /* §69 (2.2): het kader eet de beweging op; de as schuift dan niet mee. */
+    if (selection.onPointerMove(event)) return;
     const g = gesture.current;
     if (!g || !el || !g.pointers.has(event.pointerId)) return;
     const rect = el.getBoundingClientRect();
@@ -1065,6 +1267,16 @@ export function TimelineCanvas({
 
   function onPointerUp(event: React.PointerEvent) {
     makeOnEmpty.cancel();
+    /*
+     * §69 (2.2): een kader dat dichtgaat kiest wat het raakte — en het is geen
+     * klik op de kale as, dus de vensters blijven staan.
+     */
+    if (selection.onPointerUp(event)) {
+      boxOnWire.current = null;
+      gesture.current = null;
+      setGrabbing(false);
+      return;
+    }
     const g = gesture.current;
     if (!g) return;
     g.pointers.delete(event.pointerId);
@@ -1108,6 +1320,17 @@ export function TimelineCanvas({
         target &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
       if (typing || openSheetCount() > 0) return;
+      /*
+       * §69: Ctrl+Z. The potlood's own Ctrl+Z answers first while the pencil is
+       * out — `onStageKey` has that branch, and with the pencil in hand the
+       * stage belongs to the tekenlaag (§33).
+       */
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        if (inkActiveRef.current) return;
+        event.preventDefault();
+        void undoRef.current();
+        return;
+      }
       const camera = cameraKey(event);
       if (!camera) return;
       event.preventDefault();
@@ -1181,9 +1404,31 @@ export function TimelineCanvas({
       }
       case 'Escape':
         if (inkActive) return;
+        /*
+         * §69 (2.2): eerst de keuze loslaten, dán het bovenste venster sluiten.
+         * Eén druk pelt één laag — dezelfde regel als de popover-stapel, en de
+         * volgorde die een lezer verwacht: wat je zojuist koos gaat het eerst
+         * weer los.
+         */
+        if (selectedRef.current.size) {
+          event.preventDefault();
+          selection.clear();
+          return;
+        }
         if (!open.length) return;
         event.preventDefault();
         setOpen((current) => current.slice(0, -1));
+        return;
+      /*
+       * §69 (3.2): Delete haalt de keuze van de as, met een ongedaan-melding —
+       * dezelfde regel als op de landkaart en het prikbord.
+       */
+      case 'Delete':
+      case 'Backspace':
+        if (inkActive) return;
+        if (!selectedRef.current.size) return;
+        event.preventDefault();
+        void removeSelectedRef.current();
         return;
       default:
     }
@@ -1474,6 +1719,45 @@ export function TimelineCanvas({
   );
 
   /**
+   * §69: one step back. The landkaart's shape — reverse the action, and say so
+   * when it cannot be reversed rather than failing quietly.
+   */
+  const undo = useCallback(async () => {
+    const step = undoStack.pop();
+    setUndoDepth(undoStack.size());
+    if (!step) return;
+    if (step.kind === 'move') {
+      const still = eventsRef.current.find((e) => e.id === step.eventId);
+      if (!still) {
+        ui.toast(`Die ${words.event} is er niet meer.`);
+        return;
+      }
+      moveOne(step.eventId, step.at);
+      const ok = await patchEvent(step.eventId, { at: step.at }, { quiet: true });
+      if (!ok) moveOne(step.eventId, still.at);
+      return;
+    }
+    if (step.kind === 'moveMany') {
+      /* §69 (2.2): één gebaar, één stap terug — ook al waren het er zes. */
+      for (const [id, at] of Object.entries(step.at)) {
+        const still = eventsRef.current.find((e) => e.id === id);
+        if (!still) continue;
+        moveOne(id, at);
+        const ok = await patchEvent(id, { at }, { quiet: true });
+        if (!ok) moveOne(id, still.at);
+      }
+      return;
+    }
+    if (step.kind === 'removeMany') {
+      /* §69 (3.2): alle begraven rijen weer omhoog; elk kan op zichzelf falen. */
+      for (const id of step.eventIds) await undoRemoveEvent(id);
+      return;
+    }
+    await undoRemoveEvent(step.eventId);
+  }, [moveOne, patchEvent, ui, undoRemoveEvent, undoStack, words.event]);
+  undoRef.current = undo;
+
+  /**
    * §69: it comes off the axis without being asked about, and the question is
    * in the toast afterwards. See `removePin` on the landkaart for the whole
    * argument; here the old confirm even said *"dit is definitief"* about a
@@ -1496,6 +1780,8 @@ export function TimelineCanvas({
         setEvents((current) => current.filter((e) => e.id !== event.id));
         setSheet(null);
         refreshArchive();
+        // §69: the toast and Ctrl+Z are the same step.
+        rememberUndo({ kind: 'remove', eventId: event.id });
         const what = event.name || words.event.charAt(0).toUpperCase() + words.event.slice(1);
         ui.toast(`${what} is van de ${words.timeline} gehaald.`, {
           label: 'Ongedaan maken',
@@ -1507,8 +1793,65 @@ export function TimelineCanvas({
         setSaving(false);
       }
     },
-    [timeline.id, ui, words.event, words.timeline, refreshArchive, undoRemoveEvent],
+    [timeline.id, ui, words.event, words.timeline, refreshArchive, rememberUndo, undoRemoveEvent],
   );
+
+  /**
+   * §69 (3.2) — Delete haalt de hele keuze van de as, in één stap en met één
+   * melding. De vorm van `removeSelected` op de landkaart, woord voor woord:
+   * geen bevestiging vooraf, de vraag zit in de toast erna, en de rijen worden
+   * *begraven* zodat *Ongedaan maken* dezelfde gebeurtenissen teruggeeft — met
+   * hun woorden en hun afbeelding, wat opnieuw maken nooit zou kunnen.
+   */
+  const removeSelected = useCallback(async () => {
+    const mine = eventsRef.current.filter((e) => selectedRef.current.has(e.id));
+    if (!mine.length || !canEdit) return;
+    setSaving(true);
+    const gone: string[] = [];
+    try {
+      for (const one of mine) {
+        const response = await fetch(`/api/timelines/${timeline.id}/events/${one.id}`, { method: 'DELETE' });
+        if (response.ok) gone.push(one.id);
+      }
+      if (!gone.length) {
+        ui.toast('Weghalen is niet gelukt.');
+        return;
+      }
+      const dead = new Set(gone);
+      setEvents((current) => current.filter((e) => !dead.has(e.id)));
+      setOpen((current) => current.filter((id) => !dead.has(id)));
+      selection.clear();
+      setSheet(null);
+      refreshArchive();
+      rememberUndo({ kind: 'removeMany', eventIds: gone });
+      const what =
+        gone.length === 1
+          ? (mine.find((e) => e.id === gone[0])?.name ??
+              words.event.charAt(0).toUpperCase() + words.event.slice(1))
+          : `${gone.length} ${words.eventPlural}`;
+      ui.toast(`${what} ${gone.length === 1 ? 'is' : 'zijn'} van de ${words.timeline} gehaald.`, {
+        label: 'Ongedaan maken',
+        onAction: () => void Promise.all(gone.map((id) => undoRemoveEvent(id))),
+      });
+    } catch {
+      ui.toast('Geen verbinding.');
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    canEdit,
+    refreshArchive,
+    rememberUndo,
+    selection,
+    timeline.id,
+    ui,
+    undoRemoveEvent,
+    words.event,
+    words.eventPlural,
+    words.timeline,
+  ]);
+  const removeSelectedRef = useRef(removeSelected);
+  removeSelectedRef.current = removeSelected;
 
   /** §8: a note becomes the gebeurtenis of an artikel, in place. */
   const convertToEntry = useCallback(
@@ -1707,9 +2050,10 @@ export function TimelineCanvas({
     <div className="timeline-frame" {...gate}>
       <div className="row-wrap timeline-toolbar" style={{ gap: '0.4rem' }}>
         {canEdit && (
-          <button type="button" className="btn btn-primary btn-small" onClick={() => setSheet({ mode: 'add', at: null, entry: null })} data-testid="timeline-add">
+          <button type="button" className="btn btn-primary btn-small" onClick={() => setSheet({ mode: 'add', at: null, entry: null })} data-testid="timeline-add" aria-label={`${cap(words.event)} toevoegen`} title={`${cap(words.event)} toevoegen`}>
             <Icon name="plus" size={15} />
-            {cap(words.event)} toevoegen
+            {/* §69 (6.6): de letters mogen weg op 390 px, de naam nooit (§64). */}
+            <span className="canvas-tool-word">{cap(words.event)} toevoegen</span>
           </button>
         )}
         {events.length > 0 && (
@@ -1718,9 +2062,14 @@ export function TimelineCanvas({
             className="btn btn-small"
             onClick={() => setOpen(allOpen ? [] : events.map((e) => e.id))}
             data-testid="timeline-toggle-all"
+            /* §64: de naam verandert wél met de staat, en dat mag hier — hij
+               beschrijft wat de knop nú doet, en geen spec zoekt hem op naam.
+               Wat niet verandert is dát hij een naam heeft. */
+            aria-label={allOpen ? 'Alles inklappen' : 'Alles tonen'}
+            title={allOpen ? 'Alles inklappen' : 'Alles tonen'}
           >
             <Icon name={allOpen ? 'close' : 'eye'} size={14} />
-            {allOpen ? 'Alles inklappen' : 'Alles tonen'}
+            <span className="canvas-tool-word">{allOpen ? 'Alles inklappen' : 'Alles tonen'}</span>
           </button>
         )}
         <span className="spacer" />
@@ -1733,10 +2082,12 @@ export function TimelineCanvas({
           onIn={() => zoomAt(ZOOM_STEP, width / 2)}
           onFit={() => fit(events, width)}
         />
+        {/* §69: a tijdlijn had no undo at all before this round. */}
+        {canEdit && <CanvasUndoButton onUndo={() => void undo()} canUndo={undoDepth > 0} />}
         {canEdit && (
-          <button type="button" className="btn btn-ghost btn-small" onClick={() => setSheet({ mode: 'settings' })} data-testid="timeline-settings">
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => setSheet({ mode: 'settings' })} data-testid="timeline-settings" aria-label="Instellingen" title="Instellingen">
             <Icon name="gear" size={16} />
-            Instellingen
+            <span className="canvas-tool-word">Instellingen</span>
           </button>
         )}
       </div>
@@ -1779,6 +2130,46 @@ export function TimelineCanvas({
           </div>
         ))}
 
+        {/* §69 (2.2): het kader, terwijl het getrokken wordt. Stage-pixels, want
+            dat is de wereld van dit tekenvlak. */}
+        {selection.marquee && (
+          <div
+            className="timeline-marquee"
+            data-testid="timeline-marquee"
+            style={(() => {
+              const box = normaliseRect(selection.marquee);
+              return { left: box.x, top: box.y, width: box.width, height: box.height };
+            })()}
+          />
+        )}
+        {/* §8: en het kader van iemand anders, in hun inkt. */}
+        {live.pointers.map((pointer) =>
+          !pointer.s ? null : (
+            <div
+              key={`box-${pointer.clientId}`}
+              className="timeline-marquee timeline-marquee-other"
+              aria-hidden="true"
+              style={{
+                left: Math.min(pointer.s[0], pointer.s[2]),
+                top: Math.min(pointer.s[1], pointer.s[3]),
+                width: Math.abs(pointer.s[2] - pointer.s[0]),
+                height: Math.abs(pointer.s[3] - pointer.s[1]),
+                ['--marquee-colour' as string]: pointer.colour,
+              }}
+            />
+          ),
+        )}
+
+        {/*
+          §69 (2.2): de dozen waar het kader tegen meet, gevuld tijdens het
+          tekenen. Precies waar de lezer iets ziet staan — een tweede berekening
+          zou vroeg of laat iets anders zeggen dan de tekening.
+        */}
+        {(() => {
+          boxesRef.current = new Map();
+          eventsForSweep.current = placed.map((one) => one.event);
+          return null;
+        })()}
         {placed.map(({ event, at, x, side, lane, hidden }) => {
           // §62: a tag a hand is carrying is never culled — unmounting the
           // element under the pointer takes the capture, the move and the drop
@@ -1790,6 +2181,18 @@ export function TimelineCanvas({
           const reach = LANE_0 + lane * LANE_STEP;
           const when = formatWhen(at, event.precision);
           /*
+           * §69 (2.2): de doos van deze gebeurtenis, in stage-pixels — van de
+           * stip op de as tot en met het labeltje aan het eind van zijn steel.
+           * Een veeg over de as raakt de stip; een veeg over de tags raakt de
+           * tags. Allebei horen te werken, dus het is de hele reikwijdte.
+           */
+          boxesRef.current.set(event.id, {
+            x: x - TAG_HIT_HALF,
+            y: side === 'up' ? axisY - reach - TAG_HIT_HALF : axisY - TAG_HIT_HALF,
+            width: TAG_HIT_HALF * 2,
+            height: reach + TAG_HIT_HALF * 2,
+          });
+          /*
            * Where the tag sends a reader who asks the browser instead of the
            * axis. A gebeurtenis that stands for an artikel has an address; a
            * losse gebeurtenis is writing on the axis itself and has none, and
@@ -1799,7 +2202,7 @@ export function TimelineCanvas({
           return (
             <div
               key={event.id}
-              className={`timeline-event timeline-event-${side} timeline-event-${event.kind}${shown ? ' timeline-event-open' : ''}${dragging ? ' timeline-event-dragging' : ''}${hidden ? ' timeline-event-packed' : ''}${carried.has(event.id) && !dragging ? ' timeline-event-carried' : ''}`}
+              className={`timeline-event timeline-event-${side} timeline-event-${event.kind}${shown ? ' timeline-event-open' : ''}${dragging ? ' timeline-event-dragging' : ''}${hidden ? ' timeline-event-packed' : ''}${carried.has(event.id) && !dragging ? ' timeline-event-carried' : ''}${selectedIds.has(event.id) ? ' timeline-event-chosen' : ''}`}
               style={{ left: x, top: axisY, ['--event-colour' as string]: colour, ['--reach' as string]: `${reach}px` }}
               data-testid="timeline-event"
               data-event-id={event.id}
@@ -1929,7 +2332,9 @@ export function TimelineCanvas({
 
         {/* §33: the sheet and the bar, in that order. §62: a stroke is a hand
             on the axis — nothing lands under it. */}
-        <InkShell shell={ink} corner="top-left" />
+        {/* §69 (6.5/6.4): op een telefoon staat de balk linksonder — behalve
+            terwijl de lade met de vensters daar ligt. */}
+        <InkShell shell={ink} corner="top-left" bottomTaken={openWindows.length > 0} />
 
         {!events.length && !inkActive && (
           <p className="timeline-empty small muted">
@@ -1951,8 +2356,89 @@ export function TimelineCanvas({
           window's whole contents at a screen reader whenever anybody on the
           tijdlijn opened one; each window is a `role="dialog"` with a name,
           which is what a reader actually needs. */}
+      {/*
+        §69 (6.4) — op een telefoon komen de vensters van onderen op, maar
+        **niet als `Sheet`**.
+
+        Ze zweefden naast hun tag, in banen waarvan `placeWindows` de breedte en
+        de hoogte uitrekent voor een glas dat op 390 px eenvoudigweg niet
+        bestaat: een venster van 250 px naast een tag op driekwart van de as
+        valt half buiten beeld, en de as eronder is dan al niet meer te lezen.
+        Dus onderaan, over de volle breedte.
+
+        Het contract zei "bottom `Sheet`", en dat is geprobeerd en teruggedraaid:
+        een `Sheet` is modaal, en een modale laag over een tijdlijn betekent dat
+        je de as niet meer kunt aanraken zolang er iets openstaat — je moet
+        eerst het venster wegleggen om de volgende tag aan te wijzen. Op het ene
+        tekenvlak waar je juist van tag naar tag leest is dat erger dan het
+        probleem. Dus: gedokt en **niet modaal**, precies zoals het speld-blad
+        op een bureau (§69 3.3), met dezelfde regel eromheen — wat over een
+        canvas zweeft houdt zijn eigen pointer-events tegen (§6).
+
+        Alle open vensters staan er, onder elkaar: "alles tonen" hoort ook op
+        een telefoon alles te tonen, en onder elkaar lezen is precies wat een
+        telefoon wél kan. Elk venster houdt zijn eigen kruisje (dat sluit dát
+        venster); de knop bovenaan legt ze allemaal weg.
+      */}
+      {isPhone && openWindows.length > 0 && (
+        <aside
+          className="timeline-popout-dock"
+          role="dialog"
+          aria-label={
+            openWindows.length === 1
+              ? openWindows[0].event.name
+              : `${openWindows.length} ${words.eventPlural}`
+          }
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+        >
+          <div className="timeline-popout-dock-head">
+            <span className="label" style={{ margin: 0 }}>
+              {openWindows.length === 1
+                ? openWindows[0].event.name
+                : `${openWindows.length} ${words.eventPlural}`}
+            </span>
+            <span className="spacer" />
+            <button
+              type="button"
+              className="btn btn-small btn-ghost"
+              aria-label="Alles inklappen"
+              title="Alles inklappen"
+              onClick={() => setOpen([])}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </div>
+          <div className="timeline-popout-stack">
+            {openWindows.map(({ event, side }) => (
+              <Popout
+                key={event.id}
+                event={event}
+                side={side}
+                left={0}
+                top={0}
+                z={1}
+                ready
+                phone
+                canEdit={canEdit}
+                setBy={event.createdBy ? (peopleNames[event.createdBy] ?? null) : null}
+                onHeight={() => undefined}
+                onRaise={() => undefined}
+                onClose={() => toggle(event.id)}
+                onEdit={() => setSheet({ mode: 'edit', eventId: event.id })}
+                onRemove={() => void removeEvent(event)}
+                onShowImage={() => void patchEvent(event.id, { showImage: true })}
+                onHideImage={() => void patchEvent(event.id, { showImage: false })}
+                onViewFull={(assetId) => setLightbox({ assetId, name: event.name })}
+              />
+            ))}
+          </div>
+        </aside>
+      )}
+
       <div className="timeline-popouts">
-        {openWindows.map(({ event, side, left, top, z, ready }) => (
+        {!isPhone &&
+          openWindows.map(({ event, side, left, top, z, ready }) => (
           <Popout
             key={event.id}
             event={event}
@@ -1967,11 +2453,13 @@ export function TimelineCanvas({
             onRaise={() => raise(event.id)}
             onClose={() => toggle(event.id)}
             onEdit={() => setSheet({ mode: 'edit', eventId: event.id })}
+            /* §69 (3.5): weghalen is één klik vanaf het venster. */
+            onRemove={() => void removeEvent(event)}
             onShowImage={() => void patchEvent(event.id, { showImage: true })}
             onHideImage={() => void patchEvent(event.id, { showImage: false })}
             onViewFull={(assetId) => setLightbox({ assetId, name: event.name })}
           />
-        ))}
+          ))}
       </div>
       </div>
 
@@ -2021,12 +2509,9 @@ export function TimelineCanvas({
             <p className="small" data-testid="event-gone">
               Deze {words.event} is weggehaald.
             </p>
-            <p style={{ margin: 0 }}>
-              <button type="button" className="btn btn-small" onClick={() => setSheet(null)}>
-                <Icon name="close" size={14} />
-                Sluiten
-              </button>
-            </p>
+            {/* §69 (4.6): het kruisje van het blad zégt al Sluiten, en twee
+                knoppen met dezelfde naam in één dialoog is er één te veel —
+                voor een lezer én voor een spec. */}
           </div>
         </Sheet>
       )}
@@ -2097,12 +2582,14 @@ function Popout({
   top,
   z,
   ready,
+  phone = false,
   canEdit,
   setBy,
   onHeight,
   onRaise,
   onClose,
   onEdit,
+  onRemove,
   onShowImage,
   onHideImage,
   onViewFull,
@@ -2116,16 +2603,26 @@ function Popout({
   z: number;
   /** §62: the page has this window's real height; before that it is not shown. */
   ready: boolean;
+  /**
+   * §69 (6.4): inside a phone's `Sheet` instead of floating beside its tag. The
+   * sheet owns the placing, the paper and the closing, so the window drops its
+   * own `left`/`top`/`z`, its own measuring and its own cross.
+   */
+  phone?: boolean;
   canEdit: boolean;
   setBy: string | null;
   onHeight: (height: number) => void;
   onRaise: () => void;
   onClose: () => void;
   onEdit: () => void;
+  /** §69 (3.5): the same road the blad's button takes — bury, and a toast that gives it back. */
+  onRemove: () => void;
   onShowImage: () => void;
   onHideImage: () => void;
   onViewFull: (assetId: string) => void;
 }) {
+  /* §69 (3.5): the window names the archive's own word for a tijdlijn. */
+  const words = useUi().words;
   const ref = useRef<HTMLDivElement>(null);
   const onHeightRef = useRef(onHeight);
   onHeightRef.current = onHeight;
@@ -2151,20 +2648,47 @@ function Popout({
   const colour = event.kind === 'entry' ? (event.entry?.typeColour ?? 'var(--ink-muted)') : NOTE_COLOUR;
   const framed = event.showImage;
 
-  return (
-    <div
-      ref={ref}
-      className={`timeline-popout timeline-popout-${side} timeline-popout-${event.kind}`}
-      style={{ left, top, width: POPOUT_W, zIndex: z, visibility: ready ? undefined : 'hidden', ['--event-colour' as string]: colour }}
-      role="dialog"
-      aria-label={event.name}
-      data-testid="timeline-popout"
-      data-event-id={event.id}
-      onPointerDown={onRaise}
-    >
-      <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
-        <Icon name="close" size={14} />
-      </button>
+  /*
+   * §69 (6.4): binnen een blad op een telefoon. Het blad plaatst het, geeft het
+   * papier, en heeft zijn eigen kruisje (§69 4.6) — dus dit venster laat zijn
+   * baan, zijn meting, zijn stapelvolgorde en zijn eigen kruisje vallen, en
+   * blijft precies wat het is: de inhoud van één gebeurtenis.
+   */
+  const shell = (children: ReactNode) =>
+    phone ? (
+      <div
+        className={`timeline-popout timeline-popout-phone timeline-popout-${event.kind}`}
+        style={{ ['--event-colour' as string]: colour }}
+        role="dialog"
+        aria-label={event.name}
+        data-testid="timeline-popout"
+        data-event-id={event.id}
+      >
+        <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
+          <Icon name="close" size={14} />
+        </button>
+        {children}
+      </div>
+    ) : (
+      <div
+        ref={ref}
+        className={`timeline-popout timeline-popout-${side} timeline-popout-${event.kind}`}
+        style={{ left, top, width: POPOUT_W, zIndex: z, visibility: ready ? undefined : 'hidden', ['--event-colour' as string]: colour }}
+        role="dialog"
+        aria-label={event.name}
+        data-testid="timeline-popout"
+        data-event-id={event.id}
+        onPointerDown={onRaise}
+      >
+        <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
+          <Icon name="close" size={14} />
+        </button>
+        {children}
+      </div>
+    );
+
+  return shell(
+    <>
       {/*
         The picture runs the full width of the window, as a liggend 3:2 frame
         (round 19) drawn with the artikel's own liggend crop — the same crop
@@ -2237,12 +2761,38 @@ function Popout({
             <Icon name={framed ? 'eyeOff' : 'camera'} size={13} />
           </button>
         )}
+        {/*
+          §69 (3.5): weghalen, één klik diep.
+
+          It was three — venster → `Bewerken` → het blad → de rode knop — on the
+          one surface of the four where taking something off is the commonest
+          thing a Keeper does mid-session. The prikbord takes a card off in one
+          press and the landkaart has since §69's 3.1; this is the tijdlijn
+          catching up, and it is the *same* road, not a second one: `removeEvent`
+          buries the row and puts *Ongedaan maken* in a toast, so one click is
+          honest rather than merely fast.
+
+          The word is the blad's word, not a shorter one. §64: one action has
+          one accessible name, whichever of the two places you reach it from.
+        */}
+        {canEdit && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-small"
+            data-testid="timeline-remove-event"
+            title={`Van de ${words.timeline} halen`}
+            aria-label={`Van de ${words.timeline} halen`}
+            onClick={onRemove}
+          >
+            <Icon name="trash" size={13} />
+          </button>
+        )}
       </div>
       {setBy && (
         <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
           gezet door {setBy}
         </p>
       )}
-    </div>
+    </>,
   );
 }

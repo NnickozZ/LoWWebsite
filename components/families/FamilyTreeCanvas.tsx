@@ -19,6 +19,8 @@ import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
+import { useFloatBox } from '@/components/canvas/useFloatBox';
+import { clampFloat } from '@/lib/canvas/clamp';
 import type { AccessSettings } from '@/lib/access';
 import { groupDelta, pressSelection } from '@/lib/canvas/select';
 import { passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
@@ -64,6 +66,7 @@ import type { InkLayerView } from '@/lib/ink/types';
 import { entryKey, familyTreeKey } from '@/lib/live/keys';
 import { capitalise } from '@/lib/words';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import {
   TreeHandles,
   TreeSelectionMenu,
@@ -281,6 +284,8 @@ export function FamilyTreeCanvas({
   const clientId = clientIdRef.current;
 
   const undoStack = useRef(createUndoStack<FamilyTreeState>(UNDO_LIMIT));
+  /** §69: only so the shared button can go grey; the stack itself is the truth. */
+  const [undoDepth, setUndoDepth] = useState(0);
 
   /* ---------------------------------------------------------- the stage */
 
@@ -391,6 +396,13 @@ export function FamilyTreeCanvas({
       clearSelection();
       setSelectedEdge(null);
       setPicker(null);
+      /*
+       * §69 (3.4): and the `…` menu with it. It was the one floating thing on
+       * this canvas the potlood did not put away, so taking the pencil out with
+       * a menu open left a list of buttons lying over the paper being drawn on
+       * — and the press that closed it drew a dot.
+       */
+      setMenuOpen(false);
     },
     stopPropagation: true,
   });
@@ -485,7 +497,10 @@ export function FamilyTreeCanvas({
       if (!canEdit) return;
       const prev = stateRef.current;
       const change = make(prev);
-      if (options.undo !== false) undoStack.current.push(prev);
+      if (options.undo !== false) {
+        undoStack.current.push(prev);
+        setUndoDepth(undoStack.current.size());
+      }
 
       const buried = {
         members: new Set(change.deletedMembers ?? []),
@@ -524,6 +539,7 @@ export function FamilyTreeCanvas({
   const undo = useCallback(() => {
     if (!canEdit) return;
     const previous = undoStack.current.pop();
+    setUndoDepth(undoStack.current.size());
     if (!previous) return;
     setState(previous);
     clearSelection();
@@ -1188,6 +1204,14 @@ export function FamilyTreeCanvas({
     pressTravelled.current = false;
     setSelectedEdge(null);
     setMenuOpen(false);
+    /*
+     * §69 (3.4): and the kiezer. It is anchored to the card it was opened from,
+     * so a press on another card left it hanging over a stamboom that had moved
+     * on — and its "los kaartje" field would then have written a relative of the
+     * card you were no longer looking at. Bare paper already closed it
+     * (`onStagePointerUp`); a card did not.
+     */
+    setPicker(null);
     /*
      * §69: a schim is not selectable, and now it is not selectable *either
      * way*. `boxOf` has answered `null` for one since §67, so a sweep has
@@ -2263,17 +2287,10 @@ export function FamilyTreeCanvas({
               <Icon name="fit" size={14} />
               <span className="tree-tool-word">Opnieuw schikken</span>
             </button>
-            <button
-              type="button"
-              className="btn btn-small btn-ghost"
-              onClick={undo}
-              data-testid="tree-undo"
-              aria-label="Ongedaan maken"
-              title="Ongedaan maken (Ctrl+Z)"
-            >
-              <Icon name="undo" size={14} />
-              <span className="tree-tool-word">Ongedaan maken</span>
-            </button>
+            {/* §69: the shared button. This one was already the right shape —
+                icon, name, title, and the word hidden on a phone — so what it
+                gains is the grey: it was pressable with an empty stack. */}
+            <CanvasUndoButton onUndo={undo} canUndo={undoDepth > 0} testId="tree-undo" />
           </>
         )}
         {!canEdit && (
@@ -2814,8 +2831,20 @@ function TreePickerBox({
   const [looseName, setLooseName] = useState('');
   const skipRef = useRef<HTMLButtonElement>(null);
   const width = 280;
-  const left = Math.max(8, Math.min(stage.width - width - 8, at.x - width / 2));
-  const top = Math.max(8, Math.min(Math.max(8, stage.height - 200), at.y + 12));
+  /*
+   * §69 (3.4): clamped on the height it **has**, not on a guessed 200.
+   *
+   * Round 31 left this as a named leftover, and the guess is why: a kiezer with
+   * two ghosts, a search box and a "los kaartje" field is well past 200 px, so
+   * near the bottom of the glass it was clamped to a spot it still did not fit
+   * in and `.tree-stage`'s `overflow: hidden` took the rest. `boxRef` is
+   * measured after the first paint (`useFloatBox`), and until then the guess
+   * below stands — one frame, in the place the old code would have put it
+   * anyway, so nothing jumps that was not already wrong.
+   */
+  const boxRef = useRef<HTMLDivElement>(null);
+  const size = useFloatBox(boxRef, { width, height: 200 });
+  const { left, top } = clampFloat(at, size, stage);
   const heading = field ? field.label : ROLE_LABELS[role === 'child' ? 'child' : role];
 
   /*
@@ -2831,6 +2860,7 @@ function TreePickerBox({
   if (child) {
     return (
       <div
+        ref={boxRef}
         className="tree-picker"
         data-testid="tree-picker-second-parent"
         /*
@@ -2907,6 +2937,7 @@ function TreePickerBox({
 
   return (
     <div
+      ref={boxRef}
       className="tree-picker"
       data-testid="tree-picker"
       /* §69: a dialog, as above. */

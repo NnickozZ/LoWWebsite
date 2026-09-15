@@ -877,3 +877,119 @@ test('§67h: een ouder die je niet mag zien staat er niet, en je kunt hem ook ni
 
   await context.close();
 });
+
+/**
+ * §69 (3.4): het knoopmenu en de kiezer blijven op het glas, en gaan weg als er
+ * iets anders gebeurt.
+ *
+ * Three of round 31's named leftovers, closed together because they are one
+ * complaint: a floating thing on this canvas that nobody had told where the
+ * edges are, or when it is no longer wanted.
+ *
+ *  - The `…` menu did not clamp at all, so on a card near the bottom
+ *    `.tree-stage`'s `overflow: hidden` ate it and the button appeared dead.
+ *    It is measured now and opens upward when it must (`flipsNeeded`).
+ *  - The kiezer is anchored to the card it was opened from, and a press on
+ *    another card left it hanging over a stamboom that had moved on.
+ *  - Taking the potlood out put every other floating thing away and left the
+ *    menu lying over the paper being drawn on.
+ *
+ * The clamp's arithmetic is asked properly in `tests/unit/canvas-clamp.test.ts`;
+ * what is asked here is that the wiring reaches it — that this menu, on this
+ * glass, really is inside it.
+ */
+test('§69 (3.4): het menu blijft op het glas, en het potlood en een ander kaartje ruimen op', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === 'phone', '§66: a handle, a drag and a picker want a pointer');
+  test.setTimeout(180_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const one = `Menno ${stamp}`;
+  const two = `Rieke ${stamp}`;
+
+  await signIn(page, ...KEEPER);
+  await newTree(page, `Klemmen ${stamp}`);
+  await addNewPerson(page, one);
+  await addNewPerson(page, two);
+  await fit(page);
+
+  /* ---- de kiezer gaat dicht als je een ander kaartje aanraakt ---- */
+  await chooseCard(page, cardOf(page, one));
+  await page.getByTestId('tree-handle-child').click();
+  await expect(page.getByTestId('tree-picker')).toBeVisible();
+  await chooseCard(page, cardOf(page, two));
+  await expect(page.getByTestId('tree-picker')).toHaveCount(0);
+
+  /* ---- het menu klapt om in plaats van onder de rand te verdwijnen ---- */
+  const stage = (await page.getByTestId('tree-stage').boundingBox())!;
+  const card = cardOf(page, two);
+  const before = (await card.boundingBox())!;
+  // Carry it down to the bottom edge. A card is pinned where it is dropped
+  // (§66), so this is a stable place to ask the question from.
+  await page.mouse.move(before.x + 6, before.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 6, stage.y + stage.height - 46, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+
+  await chooseCard(page, card);
+  await page.getByTestId('tree-handle-menu').click();
+  const menu = page.getByTestId('tree-menu');
+  await expect(menu).toBeVisible();
+  const menuBox = (await menu.boundingBox())!;
+  expect(menuBox.height, 'the menu has a real height to be clipped').toBeGreaterThan(20);
+  // It really did flip, rather than fitting by luck — without which the two
+  // assertions below would pass on a stamboom that never needed clamping.
+  await expect(menu, 'it opened upward because downward was off the glass').toHaveClass(/tree-menu-up/);
+  expect(
+    menuBox.y + menuBox.height,
+    'the menu ends inside the glass rather than under its edge',
+  ).toBeLessThanOrEqual(stage.y + stage.height + 1);
+  expect(menuBox.y, 'and it did not run off the top instead').toBeGreaterThanOrEqual(stage.y - 1);
+
+  /* ---- en het potlood ruimt het op ---- */
+  await page.getByTestId('ink-pen').click();
+  await expect(page.getByTestId('ink-capture')).toBeVisible();
+  await expect(menu, 'the pencil puts the menu away with everything else').toHaveCount(0);
+});
+
+/**
+ * §69 (5.2): Enter kiest de eerste rij, en de pijltjes lopen de lijst.
+ *
+ * The `@`-list has walked with the arrows since round 18. The five pickers
+ * that draw the same `.suggest-item` rows answered no key at all, so the only
+ * way to take the name you had just typed was to let go of the keyboard and
+ * aim at it — and the row a hurried hand lands on is often "'X' aanmaken",
+ * which makes a *second* artikel with the same name. That is the trap
+ * `CLAUDE.md` §6 tells every spec to write around; this is the same trap, for
+ * a person.
+ *
+ * Asserted here on the stamboom's own box because the seeded archive has a
+ * name in it that matches (`scripts/seed-demo.mjs`), so there is a real row
+ * above the create row to land on.
+ */
+test('§69 (5.2): Enter pakt de eerste rij van een kiezer, niet de aanmaak-rij', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === 'phone', 'a keyboard walking a list wants a keyboard');
+  test.setTimeout(120_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+  await signIn(page, ...KEEPER);
+  await newTree(page, `Toetsen ${stamp}`);
+
+  await fillWhenReady(page.locator('#tree-add-person'), 'Jacob');
+  const list = page.locator('.tree-tools .suggest-item');
+  // The real rows wait on a debounce and a fetch; the create row does not.
+  await expect(list.filter({ hasNotText: 'aanmaken' }).first()).toBeVisible({ timeout: 15_000 });
+
+  // ↓ marks the first row, and says so where a reader can hear it.
+  await page.locator('#tree-add-person').press('ArrowDown');
+  await expect(list.first()).toHaveAttribute('aria-current', 'true');
+
+  // Enter takes it — the seeded Jacob, not a second one by that name.
+  await page.locator('#tree-add-person').press('Enter');
+  await expect(cardOf(page, 'Jacob den Hollander')).toBeVisible({ timeout: 20_000 });
+  // And no sheet opened, which is what the create row would have done.
+  await expect(page.getByRole('dialog', { name: 'Nieuw artikel' })).toHaveCount(0);
+});

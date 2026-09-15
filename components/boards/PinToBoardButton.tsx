@@ -140,15 +140,6 @@ export function PinToBoardButton({
             <h2 id="pin-to-board-title" style={{ margin: 0, fontSize: '1.2rem' }}>
               {ui.words.pinToBoard}
             </h2>
-            <div className="spacer" />
-            <button
-              className="btn btn-ghost btn-small"
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Sluiten"
-            >
-              <Icon name="close" size={18} />
-            </button>
           </div>
 
           <label className="visually-hidden" htmlFor="board-search">

@@ -858,6 +858,34 @@ a.card:hover {
   line-height: 1.2;
   margin: 0;
 }
+/* §69 (4.9): de naam van een tekenvlak is de kop zelf, en de kop is het vak.
+   De stamboom vond dit uit in §66 (`.tree-name-input`); sinds deze ronde doen
+   de landkaart en de tijdlijn het ook, met dezelfde regel — vandaar hier en
+   niet in `stambomen.css`. `font: inherit` is het hele idee: één plek bepaalt
+   hoe groot een titel is, en het vak kan er niet vanaf drijven. */
+.canvas-head h1:has(> .canvas-name-input) {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+.canvas-name-input {
+  width: 100%;
+  min-width: 0;
+  margin: -0.1rem -0.3rem;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  padding: 0.1rem 0.3rem;
+  font: inherit;
+  color: inherit;
+}
+.canvas-name-input:hover,
+.canvas-name-input:focus {
+  border-color: var(--rule);
+  background: var(--paper-raised);
+  outline: none;
+}
 .canvas-head .canvas-head-of {
   white-space: nowrap;
 }
@@ -1011,6 +1039,8 @@ a.card:hover {
   justify-content: center;
 }
 .sheet {
+  /* §69 (4.6): the sheet's own cross hangs in its top-right corner. */
+  position: relative;
   background: var(--paper);
   border: 1px solid var(--rule);
   border-bottom: none;
@@ -1043,6 +1073,77 @@ a.card:hover {
   border-radius: 2px;
   background: var(--rule);
   margin: 0 auto 0.7rem;
+}
+/* §69 (4.6): the one cross, in the corner every sheet has. It floats over the
+   panel's first row rather than sitting in a header row of its own — eight
+   sheets used to spend a whole line on it, which on a phone is a line of the
+   thing you opened the sheet to read. 44 px on a phone (§69 as 6): this is the
+   control somebody reaches for in a hurry. */
+.sheet-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  z-index: 1;
+}
+.sheet-close:hover {
+  border-color: var(--rule);
+  color: var(--ink);
+}
+/*
+ * Ruimte voor het kruisje in de hoek, op de eerste regel van een blad.
+ *
+ * Meestal is dat de `<h2>` met de naam, en dan gaat het om een lange naam die
+ * er anders onder doorloopt. Maar een blad mag bovenaan ook een *rij* hebben
+ * met een knop aan het eind — het Filters-paneel heeft er een die `Klaar` heet
+ * — en dan ligt het kruisje er bovenop en is die knop niet meer te raken.
+ * (Gevonden door `sort-filter` op het phone-project; op een bureau viel het
+ * niet op, want daar is het kruisje kleiner en de knop verder naar links.)
+ *
+ * Eén getal, aan de maat van het kruisje zelf: 44 px plus de inspringing op een
+ * telefoon (§69 6.1), 34 plus de inspringing op een bureau.
+ */
+:root {
+  --sheet-close-gap: 3.4rem;
+}
+@media (min-width: 768px) {
+  :root {
+    --sheet-close-gap: 2.7rem;
+  }
+}
+/*
+ * `.sheet-body` is het omhulsel met `display: contents` (zie `Sheet.tsx`): het
+ * bestaat niet voor de opmaak, alleen om hier aangewezen te kunnen worden. Wat
+ * bovenaan een blad staat — de kop, of een rij met een knop aan het eind —
+ * blijft uit de hoek waar het kruisje hangt.
+ */
+.sheet-body {
+  display: contents;
+}
+.sheet-body > .stack > h2:first-child,
+.sheet-body > h2:first-child,
+.sheet-body > .stack > :first-child > h2,
+.sheet-body > .row:first-child,
+.sheet-body > :first-child > .row:first-child {
+  padding-right: var(--sheet-close-gap);
+}
+@media (min-width: 768px) {
+  .sheet-close {
+    width: 34px;
+    height: 34px;
+    top: 0.5rem;
+    right: 0.6rem;
+  }
 }
 @media (min-width: 768px) {
   .sheet-backdrop {
@@ -1096,6 +1197,13 @@ a.card:hover {
 }
 .suggest-item[aria-selected='true'],
 .suggest-item:hover {
+  background: var(--paper-dark);
+}
+/* §69 (5.2): waar de pijltjes staan. The `@`-list says it with
+   `aria-selected` (its rows are options in a listbox); a picker's rows are
+   plain buttons, so they say `aria-current` and wear this class — the same
+   background either way, because to a reader it is the same list. */
+.suggest-item-active {
   background: var(--paper-dark);
 }
 /* Round 21: a name typed into a plain box wears `.entry-chip`, the same chip
@@ -2081,15 +2189,11 @@ details.section[open] > summary::before {
 
 /* ------------------------------------------------------- board inspector */
 .board-inspector {
-  /* Fixed on a phone: the board viewport clips its overflow, and the bar has to
-     clear the bottom tabs and the floating "+" rather than hide under them. */
-  position: fixed;
-  left: 8px;
-  right: 8px;
-  bottom: calc(var(--tabs-h) + 8px + env(safe-area-inset-bottom));
-  /* Room on the right for the floating "+", which draws over this bar. */
-  padding-right: 68px;
-  z-index: 44;
+  /* §69 (6.4): op een telefoon zit dit blok in een `Sheet` (zie
+     `InspectorShell`), dus het hoeft daar niets meer te ontwijken — geen
+     tabbalk, geen zwevende `+`, geen eigen `position: fixed`. Wat hier
+     overblijft is de rij zelf; de vaste plaatsing hieronder is die van een
+     bureau. */
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -2106,7 +2210,7 @@ details.section[open] > summary::before {
     left: 10px;
     bottom: 10px;
     right: auto;
-    padding-right: 0.55rem;
+    padding: 0.45rem 0.55rem;
     z-index: 30;
     /* Leave the tray's column alone: an inspector under the drawer is an
        inspector you cannot reach. */
@@ -2125,6 +2229,65 @@ details.section[open] > summary::before {
   .board-inspector {
     flex-wrap: wrap;
   }
+}
+/*
+ * §69 (6.4/6.1) — op een telefoon dezelfde gedokte balk, met duimmaat.
+ *
+ * Niet modaal (zie de noot bij `InspectorShell`), over de volle breedte, met
+ * een kop die zegt wat er gekozen is en een kruisje om het los te laten — want
+ * een telefoon heeft geen Escape.
+ *
+ * **En kort.** Twee specs trekken aan dat ene getal, elk de andere kant op, en
+ * samen bepalen ze het:
+ *
+ *  - te hoog en hij ligt over de kaartjes in het midden van de kurk; een
+ *    dubbeltik op een notitie landt dan op de inspector (`flow-4-board`);
+ *  - te smal en de bedieningen staan buiten beeld naar rechts, waar een duim ze
+ *    niet haalt (`board-live`, op de maat `Extra groot`).
+ *
+ * Dus: de knoppen wikkelen (nooit opzij weg), en de rij geeft mee na ongeveer
+ * twee regels en scrollt zichzelf verticaal. Alles te bereiken, en de kurk
+ * houdt zijn midden.
+ */
+.board-inspector-phone {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom));
+  z-index: 44;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  padding: 0.4rem 0.6rem 0.5rem;
+}
+.board-inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.board-inspector-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+  /*
+   * Eén rij hoog, en de rest is er door verticaal te schuiven.
+   *
+   * Dat getal is de uitkomst van twee specs die er elk de andere kant op aan
+   * trekken, en het is krapper dan het lijkt: bij twee zichtbare rijen ligt de
+   * balk al over het midden van de kurk en landt een dubbeltik op een notitie
+   * op de inspector (`flow-4-board`). Wikkelen is wél nodig, want een rij die
+   * alleen opzij schuift zet bedieningen buiten beeld naar rechts, waar een
+   * duim ze niet haalt (`board-live`, op de maat `Extra groot`) — verticaal
+   * schuiven binnen een gewikkelde rij haalt ze wel.
+   */
+  max-height: 3rem;
+  overflow-y: auto;
+  /* Ruimte rechts voor de zwevende `+`, die over deze balk tekent. */
+  padding-right: 60px;
 }
 .board-inspector-title {
   display: inline-flex;
@@ -4433,6 +4596,30 @@ details.section[open] > summary::before {
 .map-pin-selected {
   z-index: 3;
 }
+/* §69 (2.1): het kader op de landkaart. Dezelfde streepjes en dezelfde kleur
+   als op het prikbord en de stamboom — het is hetzelfde gebaar, dus het hoort
+   er hetzelfde uit te zien. Geplaatst in stage-pixels, boven de plaat en onder
+   de spelden. */
+.map-marquee {
+  position: absolute;
+  z-index: 2;
+  border: 1px dashed var(--link);
+  background: rgba(31, 78, 121, 0.12);
+  pointer-events: none;
+}
+/* §8, live: het kader van iemand anders, in hun inkt — vol in plaats van
+   gestreept, zodat je bij één blik ziet welk kader van jou is. */
+.map-marquee-other {
+  z-index: 2;
+  border: 1px solid var(--marquee-colour, var(--ink-muted));
+  background: color-mix(in srgb, var(--marquee-colour, #1f4e79) 12%, transparent);
+}
+/* §69 (2.1): een speld die iemand anders vasthoudt. De ring van het prikbord
+   (`.board-held`) en de stamboom (`.tree-held`), op de derde plek. */
+.map-held .map-pin-head {
+  outline: 3px solid var(--held-colour, var(--ink-muted));
+  outline-offset: 1px;
+}
 .map-pin-dragging {
   z-index: 4;
   opacity: 0.85;
@@ -4501,17 +4688,20 @@ details.section[open] > summary::before {
   touch-action: auto;
   user-select: text;
 }
+/* §69 (5.7): inside the phone's `Sheet` now, which brings its own paper, its
+   own border and its own scrolling — so this only has to stop being a floating
+   panel. It used to sit in the flow above the stage and take half of a 390 px
+   screen with it. */
 .map-legend-phone {
   position: static;
   width: auto;
   max-height: none;
   box-shadow: none;
-  margin-bottom: 0.5rem;
-  /* §34: in flow above the stage, in a column that is exactly as tall as the
-     screen — so a long legend gives way and scrolls itself rather than
-     pushing the stage off the bottom. */
+  border: none;
+  padding: 0;
+  margin: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
 }
 /* Folded: one small button in the corner the panel would have covered. */
 .map-legend-toggle {
@@ -4596,6 +4786,86 @@ details.section[open] > summary::before {
   background: var(--paper);
   flex: 0 0 auto;
 }
+/* §69 (6.7): een lege landkaart zegt het op het glas — de vorm van `.tree-empty`
+   en `.timeline-empty`, want het is dezelfde mededeling op dezelfde plek. */
+.map-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: 1rem;
+  z-index: 1;
+}
+.map-empty p {
+  max-width: 26rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  text-align: center;
+}
+
+/* ------------------------------------------- §69 (3.3) het speld-blad, gedokt
+   Only ever drawn above 768 px: on a phone the same component is a `Sheet`,
+   because 390 px has no room to dock a column beside a picture. The legend has
+   the top-left corner (and the potlood the bottom-left), so this takes the
+   right-hand side, and it is as tall as it needs to be up to the glass. */
+.map-panel {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 320px;
+  max-width: calc(100% - 1.2rem);
+  max-height: calc(100% - 1.2rem);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.18);
+  padding: 0.7rem 0.8rem;
+  /* Above the legend: two panels never overlap here, but a speld set under the
+     legend's corner would otherwise open behind it. */
+  z-index: 6;
+  cursor: default;
+  touch-action: auto;
+  user-select: text;
+}
+/* The cross sits in the panel's own top-right, over the title's line, so the
+   heading keeps the full width it has in the sheet. */
+.map-panel-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.map-panel-close:hover {
+  border-color: var(--rule);
+  color: var(--ink);
+}
+.map-panel-body {
+  overflow: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.map-panel-body > .stack {
+  /* Room for the cross, which floats over this column's first row. */
+  padding-right: 1.6rem;
+}
+
 .map-card-picture {
   aspect-ratio: 4 / 3;
   overflow: hidden;
@@ -4606,6 +4876,78 @@ details.section[open] > summary::before {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* ==========================================================================
+   §69 (6.1) — raakdoelen op een telefoon, op de vier tekenvlakken.
+
+   Tafel 1 van het contract is op 390 px gemeten, en dit is de rij die daar het
+   hardst uitkwam: bijna alles wat op een tekenvlak *gedrukt* wordt is 32 of 34
+   px, en de vuistregel is al twintig jaar 44. Op een muis is 34 ruim genoeg —
+   een cursor is één pixel breed — maar een vinger is dat niet, en een canvas is
+   precies de plek waar een misser duur is: je verschuift iets in plaats van het
+   aan te wijzen.
+
+   **Alleen onder 768 px, en alleen op de tekenvlakken.** Nicks keuze in deze
+   ronde: de rest van het archief blijft er precies zo uitzien als nu. Een
+   `.btn-small` in een lijst of een blad is geen canvas-knop en heeft de ruimte
+   niet nodig die hij op een glas wél nodig heeft.
+
+   Eén blok, niet negen plaatsen. Een tiende knop die morgen op een canvas
+   verschijnt hoort hier vanzelf bij als hij de klassen draagt die de andere
+   negen al dragen — en dat is precies waarom §67 en §69 die klassen gedeeld
+   hebben gemaakt.
+   ========================================================================== */
+@media (max-width: 767px) {
+  /* De camera, de ongedaan-knop en de rest van de werkbalk van elk vlak. */
+  .canvas-zoom .btn-small,
+  .map-toolbar .btn-small,
+  /* Het prikbord heeft er twee: de balk met de naam en de rechten (`board-bar`)
+     en de werkbalk met de kiezer eronder (`board-tools`). De ongedaan-knop
+     staat in de eerste. */
+  .board-bar .btn-small,
+  .board-tools .btn-small,
+  .tree-tools .btn-small,
+  .timeline-toolbar .btn-small,
+  .board-inspector .btn-small {
+    min-height: var(--tap);
+  }
+  /*
+   * Twee klassen diep, en dat is geen sier.
+   *
+   * Deze regels staan in dit bestand vóór de basisregels die ze overschrijven
+   * (`.ink-tool` staat duizend regels verderop, `.tree-handle` staat in
+   * `stambomen.css`, dat als los bestand geladen wordt). Bij gelijke
+   * specificiteit wint dan de laatste, en dat is de basisregel — dus won 34 px
+   * het van 44 zonder dat er iets aan de mediaregel mankeerde. (Gevonden door
+   * de contract-spec op het phone-project, niet door te lezen.)
+   */
+  .ink-toolbar .ink-tool {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  /* De vier `+`-handgrepen en de `…` van de stamboom. Ze staan ín de wereld en
+     worden tegen de zoom in geschaald, dus dit is hun maat op het glas. */
+  .tree-stage .tree-handle {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  /* Een rij in het knoopmenu, en een rij in de legenda van de landkaart. */
+  .tree-menu .tree-menu-item,
+  .map-legend .map-legend-item {
+    min-height: var(--tap);
+  }
+  /* De kleurstalen van de prikbord-inspector. */
+  .board-inspector .board-swatch {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  /* De kruisjes die over een canvas zweven. */
+  .map-panel-close,
+  .timeline-popout-close {
+    width: var(--tap);
+    height: var(--tap);
+  }
 }
 
 /* ------------------------------------------------------ §8 live: other hands */
@@ -5524,14 +5866,14 @@ details.section[open] > summary::before {
   bottom: 0.5rem;
   justify-content: flex-end;
 }
-@media (max-width: 767px) {
-  .ink-toolbar-board {
-    top: 0.5rem;
-    left: 0.5rem;
-    right: auto;
-    bottom: auto;
-  }
-}
+/*
+ * §69 (6.5): hier stond een mediaregel die deze balk op een telefoon naar
+ * linksboven verhuisde, omdat de inspector daar de onderrand innam. Twee dingen
+ * hebben dat achterhaald: de inspector is sinds §69 (6.4) een lade die de balk
+ * niet meer in de weg zit, en welke hoek een telefoon krijgt wordt nu één keer
+ * beslist, in `InkShell` — niet in een regel per canvas, want dan weten er weer
+ * twee plekken iets wat er maar één hoort te weten.
+ */
 
 /* ------------------------------------------------------------ §43: het web
    The archive drawn as what points at what. The drawing itself is a canvas

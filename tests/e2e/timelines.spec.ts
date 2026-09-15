@@ -37,7 +37,12 @@ async function newTimeline(page: Page, name: string, scaleLabel = 'Dagen') {
   await sheet.getByRole('radio', { name: scaleLabel, exact: true }).check();
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');
-  await expect(page.getByTestId('timeline-title')).toHaveText(name);
+  /*
+   * §69 (4.9): de kop *is* het vak sinds deze ronde, dus de naam staat in een
+   * `value` en niet in de tekst — de tekst van de `h1` is nu het verborgen
+   * label. Dezelfde vorm als `family-trees.spec.ts` al had voor de stamboom.
+   */
+  await expect(page.getByTestId('timeline-title').locator('#timeline-title-name')).toHaveValue(name);
 }
 
 async function fillDate(page: Page, prefix: string, parts: { year: string; month?: string; day?: string }) {
@@ -356,6 +361,64 @@ test('a plain click on a tag still only folds its window out', async ({ page }, 
   expect(Math.abs(after.x - before.x)).toBeLessThan(2);
 });
 
+/**
+ * §69 (3.5): weghalen is één klik vanaf het venster — en het komt terug.
+ *
+ * It was three presses (venster → `Bewerken` → het blad → de rode knop) on the
+ * one surface where taking something off the axis is the commonest thing a
+ * Keeper does mid-session. Two halves here, and the second is the one that
+ * makes the first honest: the row is **buried**, not deleted (§69,
+ * `0024_soft_delete_pins_events`), so *Ongedaan maken* in the toast gives back
+ * the same gebeurtenis with its words rather than minting a fresh one. Nothing
+ * asserted this road before this item — neither the removal nor the restore.
+ */
+test('een gebeurtenis gaat er in één klik af, en komt terug', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+  const name = `Weghalen ${stamp}`;
+  const what = `Een misverstand ${stamp}`;
+
+  await signIn(page, ...KEEPER);
+  await page.goto('/timelines');
+  await newTimeline(page, name);
+
+  await page.getByTestId('timeline-add').click();
+  const add = page.getByRole('dialog', { name: /Gebeurtenis op/ });
+  await add.locator('#new-event-query').fill(what);
+  await add.getByRole('button', { name: /Losse gebeurtenis/ }).click();
+  await fillDate(page, 'new-event', { year: '1931', month: '3', day: '12' });
+  await add.locator('#new-event-text').fill('Dit had er nooit moeten staan.');
+  await add.getByTestId('new-event-submit').click();
+
+  // It folds out when it is made, so the window is already the thing on screen.
+  const popout = page.getByTestId('timeline-popout');
+  await expect(popout).toContainText(what);
+
+  // One press. No confirm: the question is in the toast afterwards (§69).
+  await popout.getByTestId('timeline-remove-event').click();
+  await expect(page.getByTestId('timeline-event')).toHaveCount(0);
+
+  /*
+   * And back. Scoped to the toast for the same reason `maps.spec.ts` scopes
+   * it: the tijdlijn's own toolbar carries a button of that name since this
+   * round, so a bare locator matches two things.
+   */
+  await page.locator('.toast').getByRole('button', { name: 'Ongedaan maken' }).click();
+  await expect(page.getByTestId('timeline-event')).toHaveCount(1);
+
+  /*
+   * And it is back in the archive, not merely on this screen: reload, which
+   * also shuts every window, then fold this one out and read it. Its **words**
+   * came back with it — the whole point of burying the row rather than
+   * deleting it and re-making one.
+   */
+  await page.reload();
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
+  await page.locator('.timeline-tag').first().click();
+  await expect(page.getByTestId('timeline-popout')).toContainText(what);
+  await expect(page.getByTestId('timeline-popout')).toContainText('Dit had er nooit moeten staan.');
+});
+
 test('a tijdlijn that speelt op one day fills it in and will not leave it', async ({ page }, info) => {
   test.setTimeout(90_000);
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
@@ -470,4 +533,113 @@ test('een geplakte afbeelding wordt een losse gebeurtenis met die afbeelding', a
   await page.reload();
   await page.getByTestId('timeline-event').first().locator('.timeline-tag').click();
   await expect(page.getByTestId('timeline-popout').locator('img')).toHaveCount(1);
+});
+
+/**
+ * §69 (2.2 + 3.2): kiezen op een tijdlijn, waar een klik al iets betekende.
+ *
+ * Dit was het riskantste stuk van de ronde, en om twee redenen die nergens
+ * anders spelen. Een druk op een tag betékende al iets — het venster klapt uit
+ * — en de tag van een artikel **is een link**, dus shift-klik erop is van de
+ * browser (§68: elke muisknop behalve de linker is van hem). Nicks antwoord:
+ * shift wisselt op de **stip en de steel**, niet op de naam, en het kader over
+ * de as doet de rest.
+ *
+ * Wat hier dus vastgehouden wordt, is precies dat er niets verloren ging: de
+ * gewone klik klapt nog steeds uit, en kiezen kwam erbij.
+ */
+test('§69: tags kiezen met een kader en met shift op de stip, samen slepen, en Delete', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === 'phone', '§67: een kader en shift willen een muis en een toetsenbord');
+  test.setTimeout(180_000);
+  const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+  await signIn(page, ...KEEPER);
+  await page.goto('/timelines');
+  await newTimeline(page, `Kiezen ${stamp}`);
+
+  /** Een losse gebeurtenis op een dag in maart. */
+  const put = async (name: string, day: number) => {
+    await page.getByTestId('timeline-add').click();
+    const add = page.getByRole('dialog', { name: /Gebeurtenis op/ });
+    await add.locator('#new-event-query').fill(name);
+    await add.getByRole('button', { name: /Losse gebeurtenis/ }).click();
+    await fillDate(page, 'new-event', { year: '1931', month: '3', day: String(day) });
+    await add.getByTestId('new-event-submit').click();
+    /*
+     * §6: `.timeline-event` is een wrapper van nul bij nul — hij plaatst zijn
+     * stip en zijn steel en heeft zelf geen afmeting — dus `toBeVisible` zegt
+     * er nooit ja op. Tellen, zoals de rest van deze spec al doet, en meten aan
+     * de stip.
+     */
+    await expect(page.getByTestId('timeline-event').filter({ hasText: name })).toHaveCount(1);
+  };
+
+  await put(`Een ${stamp}`, 10);
+  await put(`Twee ${stamp}`, 12);
+  await put(`Drie ${stamp}`, 25);
+  await expect(page.getByTestId('timeline-event')).toHaveCount(3);
+  // Elke gebeurtenis klapte bij het maken uit; leg ze weg.
+  await page.getByTestId('timeline-toggle-all').click();
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
+
+  const ev = (name: string) => page.getByTestId('timeline-event').filter({ hasText: `${name} ${stamp}` });
+
+  /* ---- een gewone klik op een tag kiest én klapt uit: niets ging verloren ---- */
+  await ev('Een').locator('.timeline-tag').click();
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(1);
+  await expect(ev('Een')).toHaveClass(/timeline-event-chosen/);
+
+  /* ---- shift op de stip wisselt, en laat de vensters met rust ---- */
+  await ev('Twee').locator('.timeline-marker').click({ modifiers: ['Shift'] });
+  await expect(ev('Twee')).toHaveClass(/timeline-event-chosen/);
+  await expect(ev('Een'), 'shift voegt toe, het vervangt niet').toHaveClass(/timeline-event-chosen/);
+  await expect(page.getByTestId('timeline-popout'), 'en het klapt niets uit').toHaveCount(1);
+
+  /* ---- Escape laat eerst de keuze los, dan pas een venster ---- */
+  await page.keyboard.press('Escape');
+  await expect(ev('Een')).not.toHaveClass(/timeline-event-chosen/);
+  await expect(page.getByTestId('timeline-popout'), 'het venster staat er nog').toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
+
+  /* ---- een kader over de as ---- */
+  const stage = (await page.getByTestId('timeline-stage').boundingBox())!;
+  const one = (await ev('Een').locator('.timeline-marker').boundingBox())!;
+  const two = (await ev('Twee').locator('.timeline-marker').boundingBox())!;
+  await page.keyboard.down('Shift');
+  await page.mouse.move(Math.min(one.x, two.x) - 20, stage.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(Math.max(one.x, two.x) + 20, stage.y + stage.height - 12, { steps: 10 });
+  await expect(page.getByTestId('timeline-marquee')).toBeVisible();
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await expect(page.getByTestId('timeline-marquee')).toHaveCount(0);
+
+  await expect(ev('Een')).toHaveClass(/timeline-event-chosen/);
+  await expect(ev('Twee')).toHaveClass(/timeline-event-chosen/);
+  await expect(ev('Drie'), 'buiten het kader, dus niet gekozen').not.toHaveClass(/timeline-event-chosen/);
+  // Een kader is geen klik op de kale as: er ging niets open en niets dicht.
+  await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
+
+  /* ---- samen slepen langs de as ---- */
+  const beforeTwo = (await ev('Twee').locator('.timeline-marker').boundingBox())!;
+  const grab = (await ev('Een').locator('.timeline-marker').boundingBox())!;
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grab.x + grab.width / 2 + 120, grab.y + grab.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  const afterTwo = (await ev('Twee').locator('.timeline-marker').boundingBox())!;
+  expect(
+    afterTwo.x - beforeTwo.x,
+    'de andere gekozene reist even ver mee — dat is wat een groep is',
+  ).toBeGreaterThan(40);
+
+  /* ---- Delete haalt de keuze weg, en de melding geeft ze terug ---- */
+  await page.keyboard.press('Delete');
+  await expect(page.getByTestId('timeline-event')).toHaveCount(1);
+  await page.locator('.toast').getByRole('button', { name: 'Ongedaan maken' }).click();
+  await expect(page.getByTestId('timeline-event')).toHaveCount(3);
 });

@@ -3462,3 +3462,225 @@ Sixty-seven rules worth knowing before changing anything:
     elkaar niet meer tegen. Een **zijwaarts** wiel blijft precies zoals het was:
     dat gebaar heeft een eigen richting die overal hetzelfde betekent, en het
     prikbord beantwoordt het als een scrollbalk (`x - deltaX`).
+
+69. **Eén hand op elk canvas.** §69. Het archief heeft vier tekenvlakken — het
+    prikbord, de landkaart, de tijdlijn en de stamboom — en ze zijn stuk voor
+    stuk los gegroeid, in de volgorde waarin ze gebouwd werden. Dat is te zien:
+    hetzelfde gebaar deed vier dingen, dezelfde knop heette drie dingen, en wie
+    van de een naar de ander liep moest opnieuw leren wat zijn handen deden.
+    Deze ronde is geen nieuwe functie maar één afspraak, en de afspraak is:
+    **wat op één canvas waar is, is op alle vier waar — tenzij er een reden
+    opgeschreven staat waarom niet.**
+
+    Die uitzondering is het halve werk. `docs/canvas-contract.md` is de tafel
+    waarin elk vakje een bestand en een regelnummer draagt, en elk verschil een
+    stempel: **TOEVAL** (niemand koos dit), **BEWUST** (dit hoort zo, en hier
+    staat welke regel het beschermt) of **OPEN** (Nick beslist). Wat hieronder
+    staat is wat er van de TOEVAL-vakjes geworden is. Een vijfde canvas begint
+    bij die tafel; een vakje dat er niet in staat, bestaat niet.
+
+    **De camera is overal dezelfde.** `lib/canvas/view.ts` draagt nu ook de
+    wielkromme (`wheelFactor`, `exp(−deltaY × 0.0015)` — het wiel van een muis
+    en dat van een trackpad melden heel verschillende getallen, en een
+    vermenigvuldiging per streepje is het enige wat voor allebei klopt), de
+    knopstap (`ZOOM_STEP` 1,25 — hij was 1,6, 1,25, 1,25 en 1,4), de
+    sleepdrempel (`DRAG_SLOP`, schuin gemeten met `passedSlop`) en de lucht bij
+    "alles in beeld" (`FIT_PADDING` 48). `components/canvas/CanvasZoomControls.tsx`
+    is het ene blok knoppen, met één stel namen — *Uitzoomen · Inzoomen · Alles
+    in beeld*, waar de landkaart "Passend maken" zei — en het staat **ook op een
+    telefoon**: het prikbord verstopte het onder 768 px, wat knijpen de enige
+    weg naar binnen maakte en "alles in beeld" helemaal onbereikbaar. De drie
+    cameratoetsen `+ − 0` leest `components/canvas/cameraKeys.ts`, één keer,
+    voor alle vier — en ze worden op het *venster* beantwoord, niet op een
+    stage die eerst focus moet hebben, want dat was de tijdlijn's stille
+    afwijking. Een toets mét ctrl, cmd of alt is van de browser (§68's zin, een
+    verdieping lager).
+
+    **Twee getallen blijven van de landkaart, en dat is een beslissing.** Zoom 1
+    betekent daar *één beeldpixel per schermpixel*, dus het gedeelde plafond van
+    2,5 zou een tekening van 400 px een postzegel laten en de gedeelde vloer van
+    0,25 een stafkaart van 4000 px nog steeds leesbaar. `MIN_ZOOM_FACTOR` 0,4 en
+    `MAX_ZOOM` 8 blijven. En een landkaart neemt **`FIT_PADDING` niet**: de
+    andere drie zijn tekeningen met dingen erover verspreid, waar een kaartje
+    tegen het glas gelezen wordt als afgesneden, maar een landkaart is één
+    rechthoek waar je *in* kijkt — en 48 px aan weerskanten van een telefoon van
+    390 px is een kwart van het scherm weggegeven aan niets.
+
+    **Leeg papier maakt waar dit vlak voor is.** Dubbelklikken op het prikbord
+    en op de landkaart deed niets; de tijdlijn had het gebaar én de lange druk
+    die een telefoon ervoor in de plaats krijgt, uitgeschreven in zijn eigen
+    bestand. `components/canvas/useMakeOnEmpty.ts` is het nu één keer, want de
+    lange druk is het lastige deel: hij mag niet afgaan tijdens een knijp, niet
+    na een pan, en niet met het potlood in de hand (§33 — twee snelle stipjes
+    zijn twee stipjes). Wat per plek verschilt is precies één ding, de
+    `ignore`-selector: wat op dít vlak geen leeg papier is.
+
+    **Weghalen vraagt niets meer, en de vraag staat in de melding erna.** Vier
+    canvassen waren het hierover oneens — het prikbord haalde een kaartje van de
+    muur zonder één vraag, de andere drie zetten er een blad voor — en van de
+    twee antwoorden kost dít er niets als je het meende en één druk als je het
+    niet meende. Wat het eerlijk maakt in plaats van alleen sneller: een speld
+    en een gebeurtenis worden sindsdien **begraven en niet gewist**
+    (`deleted_at`, migratie `0024_soft_delete_pins_events`), zodat *Ongedaan
+    maken* dezelfde speld teruggeeft — zelfde id, zelfde hand, zelfde karakter,
+    zelfde plaatje. Een nieuwe `addPin`/`addEvent` kon dat geen van alle: die
+    munt een nieuw id, leest de schrijver af van wie op undo drukt, en de
+    aanmaakroute van een gebeurtenis kan niet eens een `assetId` dragen.
+
+    De prijs van een rij bewaren is dat **elke lezing moet zeggen dat hij hem
+    niet wil**. `livePinCondition` en `liveEventCondition` staan er bij
+    negentien leesplekken in, elk met een `§69`-commentaar — de vorm die
+    `sideCondition` sinds §46 heeft — en `tests/unit/buried-rows.test.ts` vraagt
+    ze allemaal na tegen een echte SQLite-file, want een vergeten filter valt
+    nergens in de buurt van zichzelf op: de speld is van de landkaart en staat
+    nog in het web, nog onder "Genoemd in", nog in de telling op de plank. Twee
+    plekken kijken met opzet *wel* naar begraven rijen, allebei in
+    `lib/admin/trash.ts`: wat een vernietiging gaat weghalen, en wat hij weghaalt.
+    Dit is **niet de prullenbak** — die is voor de zes soorten houder die een
+    Keeper bij naam terugzet — maar het geheugen achter één melding, en
+    `sweepDeletedRows()` veegt het na een dag op.
+
+    **Een houder vraagt nog wél.** Een heel prikbord, een hele tijdlijn: die
+    gaan naar de prullenbak, en de vraag daar is niet "meende je dat?" maar
+    "weet je wat erin hangt?".
+
+    **Ongedaan maken bestaat op alle vier, en is grijs als er niets is.**
+    `components/canvas/CanvasUndoButton.tsx`. De landkaart en de tijdlijn hadden
+    er geen; het prikbord's knop droeg geen icoon en geen `aria-label`, dus op
+    een telefoon — waar het woord wegvalt — was het een leeg vierkantje; en alle
+    vier waren ze indrukbaar met een lege stapel, wat een mens leert de knop
+    niet te vertrouwen. Wat er op de stapel gaat verschilt wél per plek, en dat
+    is de kern: het prikbord en de stamboom bezitten een *document* en leggen er
+    een momentopname op; een landkaart en een tijdlijn bezitten **rijen in een
+    tabel waar twee handen tegelijk in schrijven**, dus daar gaat een *handeling
+    om terug te draaien* op de stapel — waar deze speld stond, of welke speld op
+    te graven. Een momentopname zou daar stilletjes het werk van de ander
+    terugzetten. §29 staat overeind: undo verwijdert nooit aan de serverkant.
+
+    **Wat zweeft, gaat op één manier dicht.** `components/ui/useDismiss.ts` —
+    Escape, een druk buiten het paneel, en de caret terug naar de knop die het
+    opende. Zes kopieën van dezelfde luisteraar, waarvan er drie Escape
+    helemaal niet beantwoordden en driekwart zijn luisteraar bij de *montage*
+    ophing in plaats van bij het opengaan. Vier van de negen zwevende dingen
+    staan er met opzet niet op, elk om een reden die in dat bestand staat: de
+    `@`-lijst zit in een portal, en drie panelen hangen boven een canvas dat de
+    pointer capture pakt, waar een `pointerdown` op documentniveau vóór de
+    allowlist loopt en dus de klik op de eigen rijen zou doden.
+
+    **En één druk pelt één laag.** `lib/popoverStack.ts`, de vorm van
+    `lib/sheetStack.ts` (§18b) een verdieping lager. Een kiezer die openstaat
+    *in* een blad kon de Escape niet winnen hoe hij ook geschreven was, want
+    `Sheet` luistert in de **capture**-fase op `document` en staat daarmee
+    stroomopwaarts van alles: "Nieuw artikel" sloot met de half getypte naam
+    erin omdat iemand de suggesties weg wilde hebben. Het blad *vraagt* het nu
+    in plaats van te luisteren. Alleen Escape — Tab blijft van het bovenste
+    blad, want een popover vangt geen focus, en een tik op de achtergrond sluit
+    terecht allebei.
+
+    **De vier makers vragen één keer wie er schrijft.** `ui.openMaker` in
+    `UiProvider`: §18b's vraag hoort *vóór* het blad, want het antwoord is zelf
+    een blad. De vier containerknoppen stelden hem helemaal niet, dus een
+    venster zonder onderzoeker kreeg het twee keer te horen — de banner op de
+    heenweg en de weigering van de server na een POST die nooit ging landen. De
+    fout blijft nu in het blad staan (`error-note`) in plaats van als melding
+    over een blad dat er nog staat, Enter maakt overal, en er is overal een
+    `router.refresh()` na de `push`. En het **prikbord wordt ook via een blad
+    gemaakt**, met een naam vooraf zoals de andere drie; de twee knoppen van §17
+    verhuisden mee naar binnen en werden níét één knop met een vinkje, want het
+    moment waarop je een muur maakt is het moment waarop je weet voor wie hij is.
+
+    **Eén ring voor "gekozen", en dat is `--link`.** Blauw is in dit archief al
+    de kleur van een weg naar iets anders (§39); `--stamp-red` is de stempel en
+    leest als een waarschuwing, en een selectie is geen waarschuwing.
+    `tests/unit/tree-contrast.test.ts` houdt de vloer vast in alle vier de
+    paletten — 3:1 tegen het kaartje én tegen het paneel, want de ring ligt half
+    op allebei — en dát is waarom dit een keuze was en geen hernoeming.
+
+    **De contract-spec is de helft die een machine vasthoudt.**
+    `tests/e2e/canvas-contract.spec.ts` stelt elk canvas dezelfde vragen uit één
+    lijst, zodat een vijfde vlak een rij is en geen nieuw bestand, en zodat een
+    vlak dat stilletjes stopt met antwoorden *daar* omvalt en niet in de eerste
+    functie die er toevallig op leunt. Hij vond meteen drie afwijkingen die
+    niemand gekozen had: de maker van het prikbord hing aan `interactive`
+    (`!isPhone && !readOnly`, de poort op het *slepen* van een kaartje) zodat een
+    telefoon niets kon neerleggen; de tijdlijn beantwoordde de cameratoetsen
+    alleen met focus op de stage; en een inkt-bewering las de eerste tekening ná
+    een herlaadbeurt in plaats van de tekening die klaar was.
+
+    **Kiezen is één gebaar, op alle vier.** `components/canvas/useMarqueeSelect.ts`
+    en `lib/canvas/select.ts` bestonden al sinds §67 voor het prikbord en de
+    stamboom; deze ronde kwamen de landkaart en de tijdlijn erbij, en dat was
+    het laatste vakje van tafel 1 dat nog TOEVAL zei. Shift-klik wisselt,
+    shift-slepen over kaal papier veegt een kader, een gewone sleep pant,
+    Escape laat los, een druk op iets dat al gekozen is laat de groep staan, en
+    `Delete` haalt de hele keuze weg met één ongedaan-melding. **De wereld
+    verschilt per vlak en dat is geen slordigheid**: een speld staat opgeslagen
+    als een *breuk van de plaat*, een tag als *stage-pixels*, een kaartje als
+    bordeenheden. Daarom rondt de landkaart het kader niet af voor de lijn zoals
+    de hook doet — `Math.round` is verstandig in pixels en fataal in breuken —
+    en daarom vult de tijdlijn zijn trefdozen tijdens het *tekenen*, zodat het
+    kader meet tegen wat een lezer ziet staan.
+
+    Twee dingen die op de tijdlijn anders moesten, allebei omdat een klik daar
+    al iets betékende. Een gewone klik op een tag kiest hem én klapt zijn venster
+    uit — er ging niets af. En **shift wisselt op de stip en de steel, niet op
+    de naam**: die naam is een `<a>`, en shift-klik op een link is van de browser
+    (§68). Een shift-druk kiest en klapt niets uit, want zes erbij kiezen hoort
+    geen zes vensters op te leveren.
+
+    **Wat over een canvas zweeft, kent de rand van het glas.**
+    `lib/canvas/clamp.ts` — puur, en dus te bevragen, wat precies de reden is
+    dat twee restjes van ronde 31 vier rondes bleven liggen: het rekenwerk stond
+    in een `style={{}}`. `clampFloat` plaatst een paneel dat in stage-coördinaten
+    staat op zijn **gemeten** hoogte (de kiezer van de stamboom werkte met een
+    gok van 200 px, de zwevende `BoardPicker` met 90), en klapt liever bóven het
+    punt dan eroverheen te schuiven — schuiven legt het paneel over het kaartje
+    dat je aan het bekijken bent. `flipsNeeded` is voor een paneel dat aan een
+    anker **in de wereld** hangt: dat staat onder een CSS-transform en heeft geen
+    eerlijke stage-coördinaten, dus het wordt gemeten waar het landde en met een
+    klasse de andere kant op gestuurd.
+
+    **Een blad heeft één kruisje, en het zit in `Sheet`.** Acht bladen tekenden
+    hun eigen in een kopregel van zichzelf; de andere twaalf tekenden er geen,
+    dus of een blad met een aanwijzer te sluiten was hing af van wélk blad het
+    was — en op een telefoon, zonder Escape en met een achtergrond van een paar
+    pixels naast een blad van schermbreedte, betekende "geen" *vast*. Ook op de
+    ja/nee-bladen: daar is het kruisje hetzelfde antwoord als *Nee*. Een vraag
+    waar je niet van weg mag lopen is een vraag die anders gesteld moet worden,
+    niet een dialoog met de uitgang eraf.
+
+    **Wat je typte blijft staan.** `lib/sheetDraft.ts`: het artikel- en het
+    dossierblad onthouden hun half getypte inhoud zolang de pagina leeft — geen
+    `sessionStorage`, want een klad dat een herlaadbeurt overleeft komt terug in
+    een ander archief, aan de andere kant van de Keeperkant, of nadat het artikel
+    allang ergens anders gemaakt is. Een prefill wint van een klad en wist het:
+    dat is een ander onderwerp, en terugkomen in een half getypt formulier onder
+    iemand anders' naam is erger dan een leeg formulier.
+
+    **↑ ↓ lopen elke suggestielijst, Enter kiest de rij.**
+    `lib/search/suggestKeys.ts` en `components/ui/useSuggestKeys.ts`. De
+    `@`-lijst kon dat sinds ronde 18; de vijf kiezers die dezelfde
+    `.suggest-item`-rijen tekenen beantwoordden geen enkele toets, en de rij waar
+    een haastige hand op landt is vaak `'X' aanmaken` — precies de val waar
+    CLAUDE.md §6 elke spec omheen laat schrijven, en dezelfde val voor een mens.
+    Enter pakt de eerste rij als er nog niets gemarkeerd is: iemand die een naam
+    typt en Enter drukt bedoelt het ding bovenaan.
+
+    **Een tekenvlak heet iets, en de kop ís het vak.**
+    `components/canvas/CanvasTitle.tsx` — §66's vondst voor de stamboom, nu op
+    alle drie. Een landkaart en een tijdlijn konden tot deze ronde alleen
+    omgedoopt worden door een nieuwe te maken, wat geen omdopen is.
+
+    **En de telefoon is gemeten, niet geraden.** Alle vier de vlakken hebben op
+    390 px raakdoelen van 44 px (alleen dáár: de rest van het archief blijft
+    zoals het was), het potlood staat overal in dezelfde hoek en `InkShell`
+    beslist dat — niet een mediaregel per canvas — een vinger mag een kaartje
+    dragen op het prikbord, en de panelen die naast hun ding zweefden komen van
+    onderen op. **Die panelen zijn met opzet géén `Sheet`**: een `Sheet` is
+    modaal, en een modale laag over een canvas betekent dat je niets meer kunt
+    aanwijzen zolang er iets openstaat — op de twee vlakken waar "kies het
+    volgende" is wat je hierna doet, is dat erger dan het probleem. Gedokt en
+    niet modaal dus, met de regel die overal geldt voor wat over een canvas
+    zweeft: het houdt zijn eigen pointer-events tegen, want de stage pakt de
+    capture op de heenweg en een knop die dat niet doet is niet onhandig maar
+    **onindrukbaar**.

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Icon } from '@/components/Icon';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { MentionOverlay, MentionPopover, MentionRow } from './MentionPopover';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { useUi } from './UiProvider';
 import { Sheet } from './Sheet';
+import { clearDraft, readDraft, writeDraft, DRAFT_CASE } from '@/lib/sheetDraft';
 
 export type CreatedCase = {
   id: string;
@@ -33,8 +33,18 @@ export function NewCaseSheet({
   onClose: () => void;
   onCreated: (created: CreatedCase) => void;
 }) {
-  const [name, setName] = useState(prefill.name ?? '');
-  const [summary, setSummary] = useState(prefill.summary ?? '');
+  /* §69 (4.5): as in `NewEntrySheet` — a prefill wins over a draft and clears it. */
+  const seeded = Boolean(prefill.name || prefill.summary);
+  const draft = useMemo(() => {
+    if (seeded) {
+      clearDraft(DRAFT_CASE);
+      return {};
+    }
+    return readDraft(DRAFT_CASE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [name, setName] = useState(prefill.name ?? draft.name ?? '');
+  const [summary, setSummary] = useState(prefill.summary ?? draft.summary ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -55,6 +65,11 @@ export function NewCaseSheet({
     nameRef.current?.focus();
     nameRef.current?.select();
   }, []);
+
+  /* §69 (4.5): every keystroke into the page-lived draft. */
+  useEffect(() => {
+    writeDraft(DRAFT_CASE, { name, summary });
+  }, [name, summary]);
 
   async function create() {
     if (!name.trim() || busy) return;
@@ -77,6 +92,8 @@ export function NewCaseSheet({
         setBusy(false);
         return;
       }
+      // §69 (4.5): it exists now, so the draft of it is done.
+      clearDraft(DRAFT_CASE);
       onCreated(data.case as CreatedCase);
     } catch {
       setError('Geen verbinding met het archief.');
@@ -90,10 +107,6 @@ export function NewCaseSheet({
         <h2 id="new-case-title" style={{ margin: 0, fontSize: '1.3rem' }}>
           Dossier openen
         </h2>
-        <div className="spacer" />
-        <button className="btn btn-ghost btn-small" type="button" onClick={onClose} aria-label="Sluiten">
-          <Icon name="close" size={18} />
-        </button>
       </div>
 
       <div className="field">

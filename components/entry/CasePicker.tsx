@@ -6,6 +6,7 @@ import { useUi } from '@/components/ui/UiProvider';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { CaseRef } from '@/lib/cases/service';
 import { useDismiss } from '@/components/ui/useDismiss';
+import { useSuggestKeys } from '@/components/ui/useSuggestKeys';
 
 /**
  * §21: names one or more dossiers in an infobox field — the working half of
@@ -65,6 +66,12 @@ export function CasePicker({
    * to hand back.
    */
   useDismiss({ open, onDismiss: closeList, ref: boxRef });
+  /*
+   * §69 (5.2): ↑ ↓ lopen de lijst en Enter kiest de rij — hetzelfde als de
+   * `@`-lijst, en om dezelfde reden: de eerste rij is `'X' aanmaken`, dus een
+   * haastige hand die niet kan kiezen zonder de muis maakt een tweede artikel.
+   */
+  const keys = useSuggestKeys({ open: open, ref: boxRef });
 
   const chosen = useMemo(() => new Set(ids), [ids]);
 
@@ -137,6 +144,8 @@ export function CasePicker({
               setQuery(event.target.value);
               setOpen(true);
             }}
+            /* §69 (5.2): de pijltjes en Enter. */
+            onKeyDown={keys.onKeyDown}
           />
 
           {open && (

@@ -33,7 +33,18 @@ type Suggestion = { id: string; name: string; typeIcon?: string; typeColour?: st
 /** The trigger before the caret: `@jan` or `[[jan`, and where it starts. */
 function triggerBefore(value: string, caret: number): { start: number; query: string } | null {
   const head = value.slice(0, caret);
-  const m = /(^|[\s(“"'])(@|\[\[)([^\n@[\]]{0,60})$/.exec(head);
+  /*
+   * §69: `]` hoort ook bij de grens.
+   *
+   * Een `@` mag beginnen aan het begin van de tekst, na witruimte of na een
+   * haakje — en sinds deze ronde ook **direct na een andere vermelding**:
+   * `[[Jan]]@Piet` is precies wat je typt als je twee namen achter elkaar zet
+   * zonder spatie ertussen, en dat leverde helemaal geen lijst op. Het is geen
+   * nieuwe wens maar een oud gat; het viel deze ronde op omdat §69 (4.5) een
+   * half getypte beschrijving bewaart, zodat een vak vaker al met `]]` eindigt
+   * op het moment dat er een naam achter komt.
+   */
+  const m = /(^|[\s(“"'\]])(@|\[\[)([^\n@[\]]{0,60})$/.exec(head);
   if (!m) return null;
   const start = caret - m[2].length - m[3].length;
   return { start, query: m[3] };
@@ -127,7 +138,28 @@ export function MentionPopover({
         return;
       }
       const r = el.getBoundingClientRect();
-      setOpen({ start: hit.start, query: hit.query, rect: { left: r.left, top: r.bottom, width: r.width } });
+      /*
+       * §69 (5.4): dezelfde staat is geen nieuwe staat.
+       *
+       * `look` draaide alleen op een toets of een klik, dus een nieuw object
+       * teruggeven kostte niets. Sinds het ook op scrollen en resizen draait
+       * wél: het ophaal-effect hieronder hangt aan `open` zelf, dus elk nieuw
+       * object leegde de lijst en begon de fetch opnieuw — en een pagina die
+       * onder een suggestielijst scrollt (een blad dat openschuift, een veld dat
+       * in beeld gebracht wordt) vuurt tientallen keren. De lijst kwam dan
+       * nooit tot stand. (Gevonden door `round-27-web` in de volle suite, en
+       * daarna door niets kleiners.)
+       */
+      setOpen((current) =>
+        current &&
+        current.start === hit.start &&
+        current.query === hit.query &&
+        current.rect.left === r.left &&
+        current.rect.top === r.bottom &&
+        current.rect.width === r.width
+          ? current
+          : { start: hit.start, query: hit.query, rect: { left: r.left, top: r.bottom, width: r.width } },
+      );
     };
     const close = () => setOpen(null);
     const pick = (item: Suggestion) => {
@@ -173,11 +205,33 @@ export function MentionPopover({
       // After the click on an item has had its chance (it uses mousedown).
       setTimeout(close, 120);
     };
+    /*
+     * §69 (5.4): hermeten als er iets schuift.
+     *
+     * The list is `position: fixed` at the box's rect, and that rect was read
+     * once, when the `@` was typed. Anything that moved the box afterwards —
+     * a sheet scrolling under a long form, the page scrolling behind it, a
+     * window resize, a canvas panning under a floating field — left the list
+     * hanging where the box *used to be*, sometimes halfway up the screen. The
+     * `MentionOverlay` further down this file has had exactly this treatment
+     * since §56; this is the list catching up with its own mirror.
+     *
+     * Only while a list is open, and only a re-measure: `look` re-reads the
+     * caret too, which is right — if the thing under the caret is no longer an
+     * `@`-run, the list should not be standing there at all.
+     */
+    const remeasure = () => {
+      if (openRef.current) look();
+    };
     el.addEventListener('input', look);
     el.addEventListener('click', look);
     el.addEventListener('keyup', look);
     el.addEventListener('keydown', onKey, true);
     el.addEventListener('blur', onBlur);
+    // Capture, so a scroll inside any ancestor (a sheet, a panel) is heard —
+    // scroll does not bubble.
+    window.addEventListener('scroll', remeasure, true);
+    window.addEventListener('resize', remeasure);
     (el as MentionBox & { __mentionPick?: (item: Suggestion) => void }).__mentionPick = pick;
     return () => {
       el.removeEventListener('input', look);
@@ -185,6 +239,8 @@ export function MentionPopover({
       el.removeEventListener('keyup', look);
       el.removeEventListener('keydown', onKey, true);
       el.removeEventListener('blur', onBlur);
+      window.removeEventListener('scroll', remeasure, true);
+      window.removeEventListener('resize', remeasure);
     };
   }, [target, disabled]);
 

@@ -58,24 +58,9 @@
   flex: 0 0 auto;
   max-width: 100%;
 }
-.tree-name-input {
-  width: 100%;
-  min-width: 0;
-  margin: -0.1rem -0.3rem;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  background: transparent;
-  padding: 0.1rem 0.3rem;
-  /* Inherited from the h1, so a change to `.canvas-head h1` carries. */
-  font: inherit;
-  color: inherit;
-}
-.tree-name-input:hover,
-.tree-name-input:focus {
-  border-color: var(--rule);
-  background: var(--paper-raised);
-  outline: none;
-}
+/* §69 (4.9): het vak zelf staat nu in `globals.css` als `.canvas-name-input`,
+   want de landkaart en de tijdlijn dragen hetzelfde. Wat hier blijft is de
+   breedteregel van déze kop. */
 
 /* --------------------------------------------------------- who else is here */
 
@@ -646,6 +631,23 @@ a.tree-node-name:focus-visible {
   box-shadow: 0 2px 6px rgba(31, 27, 22, 0.28);
   overflow: hidden;
 }
+/* §69 (3.4): three ways out from under the glass's edge. The menu is measured
+   in the position above and told, with one of these, to open the other way —
+   see `flipsNeeded` in `lib/canvas/clamp.ts` for which and why. */
+.tree-menu-up {
+  top: auto;
+  bottom: 26px;
+}
+.tree-menu-end {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.tree-menu-start {
+  left: 0;
+  right: auto;
+  transform: none;
+}
 .tree-menu-item {
   display: flex;
   align-items: center;
@@ -830,7 +832,18 @@ a.tree-node-name:focus-visible {
    is not renaming a control; renaming one on a condition is what breaks four
    specs, and it is not done here.
 */
-@media (max-width: 600px) {
+/*
+   §69 (6.3): 767, niet 600.
+
+   Dit blok stond op 600 terwijl de rest van het archief de telefoon op 767
+   afbakent (`useIsPhone`, `.sidenav`, de tabbalk, en sinds deze ronde de
+   raakdoelen in `globals.css`). Tussen die twee getallen lag een strook van
+   167 px waarin een stamboom zijn werkbalk nog als een bureau opmaakte terwijl
+   de pagina eromheen al een telefoon was — precies het soort verschil dat
+   CLAUDE.md §5 over breekpunten noemt: één getal, twee bestanden, en geen van
+   beide weet van de ander.
+*/
+@media (max-width: 767px) {
   .tree-tools {
     gap: 0.25rem;
   }

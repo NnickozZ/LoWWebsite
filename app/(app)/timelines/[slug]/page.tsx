@@ -9,6 +9,7 @@ import '@/app/timelines.css';
 import { inArray } from 'drizzle-orm';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
+import { CanvasTitle } from '@/components/canvas/CanvasTitle';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { TimelineCanvas } from '@/components/timelines/TimelineCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
@@ -126,7 +127,15 @@ export default async function TimelinePage({
               </>
             )}
           </p>
-          <h1 data-testid="timeline-title">{timeline.name}</h1>
+          {/* §69 (4.9): idem — de kop is het vak. */}
+          <CanvasTitle
+            name={timeline.name}
+            canEdit={mayEdit}
+            endpoint={`/api/timelines/${timeline.id}`}
+            noun={`de ${words.timeline}`}
+            inputId="timeline-title-name"
+            testId="timeline-title"
+          />
           {timeline.description && <p className="small muted canvas-head-desc">{timeline.description}</p>}
           {/* §43: the web, with this tijdlijn in the middle. */}
           <ConnectionsLink kind="timeline" id={timeline.id} />

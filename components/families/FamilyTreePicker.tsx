@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { StoredTreeRef } from '@/lib/entries/fieldValues';
 import { useDismiss } from '@/components/ui/useDismiss';
+import { useSuggestKeys } from '@/components/ui/useSuggestKeys';
 import { NewFamilyTreeSheet } from './NewFamilyTreeSheet';
 
 /**
@@ -68,6 +69,12 @@ export function FamilyTreePicker({
    * to hand back.
    */
   useDismiss({ open, onDismiss: closeList, ref: boxRef });
+  /*
+   * §69 (5.2): ↑ ↓ lopen de lijst en Enter kiest de rij — hetzelfde als de
+   * `@`-lijst, en om dezelfde reden: de eerste rij is `'X' aanmaken`, dus een
+   * haastige hand die niet kan kiezen zonder de muis maakt een tweede artikel.
+   */
+  const keys = useSuggestKeys({ open: open, ref: boxRef });
 
   const matches = useMemo(() => {
     const free = all.filter((row) => row.id !== value?.id);
@@ -132,6 +139,8 @@ export function FamilyTreePicker({
               setQuery(event.target.value);
               setOpen(true);
             }}
+            /* §69 (5.2): de pijltjes en Enter. */
+            onKeyDown={keys.onKeyDown}
           />
 
           {open && (

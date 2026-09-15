@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
+import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 
@@ -56,6 +57,7 @@ export function NewFamilyTreeSheet({
   const words = ui.words;
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState('');
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   /* §69: the refusal stays in the sheet — see `NewTimelineButton` for why. */
   const [error, setError] = useState<string | null>(null);
@@ -134,17 +136,31 @@ export function NewFamilyTreeSheet({
             }}
           />
         </div>
+        {/*
+          §69 (4.8): één omschrijvingsveld, in de vorm die de landkaart al had.
+          Het was hier een `<input>` van één regel met een vraag als label, en
+          op de landkaart een `<textarea>` met `@` — dezelfde kolom in de
+          database, twee verschillende dingen op het scherm. Het label heet nu
+          overal `Omschrijving`, en de drie `@`-delen horen erbij: de lijst
+          terwijl je typt, de chip over de letters zelf (§56), en de klikbare
+          rij eronder (§54).
+        */}
         <div>
           <label className="label" htmlFor="new-family-tree-description">
-            Waar gaat het over?
+            Omschrijving
           </label>
-          <input
+          <textarea
             id="new-family-tree-description"
+            ref={descriptionRef}
             className="input"
+            rows={2}
             value={description}
             placeholder="Eén regel, om hem terug te vinden"
             onChange={(event) => setDescription(event.target.value)}
           />
+          <MentionPopover forRef={descriptionRef} />
+          <MentionOverlay forRef={descriptionRef} value={description} />
+          <MentionRow text={description} />
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           Wie familie van wie is staat op de {words.entryPlural} zelf, in velden als Ouders en Partner. Een{' '}

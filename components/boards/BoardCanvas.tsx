@@ -89,6 +89,7 @@ import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import { useElementSize } from '@/components/ink/useElementSize';
 import type { InkLayerView } from '@/lib/ink/types';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 
 /*
  * §67: the wall's zoom floor and ceiling, and its undo depth, are the shared
@@ -422,8 +423,31 @@ export function BoardCanvas({
   const gate = useAuthorGate();
   const readOnly = locked || !mayType;
 
-  // §8: no dragging or string-drawing on screens under 768 px. Selecting and
-  // editing still work, or the inspector would be unreachable on a phone.
+  /*
+   * §8 — en §69 (6.2), dat het in tweeën knipt.
+   *
+   * Tot deze ronde was dit één vlag: onder 768 px kon je op een prikbord niets
+   * verslepen, geen draad trekken, geen kaartje groter maken en geen kader
+   * vegen. Kiezen en bewerken werkten wél, anders was de inspector onbereikbaar.
+   *
+   * Dat maakte het prikbord het énige tekenvlak waar een vinger niets kon
+   * neerleggen: een landkaart laat je een speld verslepen, een stamboom een
+   * kaartje, een tijdlijn een tag. Nicks keuze in deze ronde is dat de muur de
+   * vierde wordt.
+   *
+   * Dus twee vlaggen, en het verschil is de **reden** waarom iets niet op een
+   * telefoon kan:
+   *
+   *  - `mayDrag` — een vinger mag een kaartje dragen. Daar is niets kleins aan
+   *    om te mikken: een kaartje is het grootste ding op de kurk.
+   *  - `interactive` — draden trekken, een kaartje aan zijn hoekje groter maken
+   *    en een kader vegen. Alle drie hangen ze aan iets van een paar pixels of
+   *    aan een toets die een telefoon niet heeft, en die blijven van het bureau.
+   *
+   * Het papier schuif je met een vinger op **kale kurk**, en één tik op een
+   * kaartje opent het nog steeds (`canOpenOnTap`).
+   */
+  const mayDrag = !readOnly;
   const interactive = !isPhone && !readOnly;
   const [accessOpen, setAccessOpen] = useState(false);
   // §43, round 18: the wall's own say in whether it is a line in the web.
@@ -693,9 +717,13 @@ export function BoardCanvas({
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
 
+  /** §69: only so the shared button can go grey; the stack itself is the truth. */
+  const [undoDepth, setUndoDepth] = useState(0);
+
   const pushUndo = useCallback(
     (snapshot: Snapshot) => {
       undoStack.push(snapshot);
+      setUndoDepth(undoStack.size());
     },
     [undoStack],
   );
@@ -732,6 +760,7 @@ export function BoardCanvas({
   const undo = useCallback(() => {
     if (readOnly) return;
     const previous = undoStack.pop();
+    setUndoDepth(undoStack.size());
     if (!previous) return;
     const current: Snapshot = { cards: cardsRef.current, strings: stringsRef.current };
     /*
@@ -1220,7 +1249,8 @@ export function BoardCanvas({
     setSelectedStringId(null);
     selection.select(cardId, additive, alreadySelected);
 
-    if (!interactive) return;
+    /* §69 (6.2): een vinger mag dit — zie `mayDrag` hierboven. */
+    if (!mayDrag) return;
 
     const chosen = new Set(additive || alreadySelected ? selected : []);
     chosen.add(cardId);
@@ -1503,10 +1533,22 @@ export function BoardCanvas({
       // The drop is the one save everyone else is waiting on: they have been
       // watching this card travel, and its final place should not lag behind
       // the hand by a debounce.
-      if (!readOnly) {
-        if (moved) sync.saveNow({ cards: ids });
-        else sync.markDirty({ cards: ids });
-      }
+      /*
+       * §69 (6.2): alleen een sleep die écht iets verplaatste is een opslag.
+       *
+       * Hier stond `markDirty` voor een druk die niets bewoog, en dat was
+       * onschadelijk zolang een vinger geen kaartje kón oppakken: op een
+       * telefoon bestond `drag.current` niet. Sinds deze ronde wel, en toen
+       * werd elke tik op een kaartje een vuile-markering, een opslag en een
+       * merge die terugkomt — en die merge kwam tussen de twee tikken van een
+       * dubbeltik door, zodat het tekstvak nooit meer openging. (Gevonden door
+       * `flow-4-board` op het phone-project.)
+       *
+       * Een druk die onder `DRAG_SLOP` bleef heeft geen enkele coördinaat
+       * aangeraakt — de beweeghandler schrijft pas ná de drempel — dus er valt
+       * niets te bewaren.
+       */
+      if (!readOnly && moved) sync.saveNow({ cards: ids });
       return;
     }
 
@@ -1540,7 +1582,10 @@ export function BoardCanvas({
       );
       if (twin) {
         // Nothing changed, so the grip's undo entry has nothing to undo.
-        if (drawing.editing) undoStack.pop();
+        if (drawing.editing) {
+          undoStack.pop();
+          setUndoDepth(undoStack.size());
+        }
         setSelectedStringId(twin.id);
         setDrawing(null);
         ui.toast('Die twee zijn al met elkaar verbonden.');
@@ -2528,14 +2573,10 @@ export function BoardCanvas({
           onIn={() => zoomAround(ZOOM_STEP)}
           onFit={fitAll}
         />
-        <button
-          type="button"
-          className="btn btn-small btn-ghost"
-          onClick={undo}
-          title="Ongedaan maken (Ctrl+Z)"
-        >
-          Ongedaan maken
-        </button>
+        {/* §69: the shared button. This one carried no icon and no
+            `aria-label`, so on a phone — where the word is hidden — it was a
+            blank square; and it was pressable with an empty stack. */}
+        <CanvasUndoButton onUndo={undo} canUndo={undoDepth > 0} />
         {!readOnly && (
           <button
             type="button"
@@ -3008,6 +3049,7 @@ export function BoardCanvas({
           {marquee && (
             <div
               className="board-marquee"
+              data-testid="board-marquee"
               style={{
                 left: Math.min(marquee.x0, marquee.x1),
                 top: Math.min(marquee.y0, marquee.y1),
@@ -3232,15 +3274,6 @@ export function BoardCanvas({
             <h2 id="board-access-title" style={{ margin: 0, fontSize: '1.3rem' }}>
               Wie mag hier aan
             </h2>
-            <div className="spacer" />
-            <button
-              className="btn btn-ghost btn-small"
-              type="button"
-              onClick={() => setAccessOpen(false)}
-              aria-label="Sluiten"
-            >
-              <Icon name="close" size={18} />
-            </button>
           </div>
           <AccessEditor
             target="board"

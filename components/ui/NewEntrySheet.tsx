@@ -9,6 +9,7 @@ import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
 import { capitalise } from '@/lib/words';
+import { clearDraft, readDraft, writeDraft, DRAFT_ENTRY } from '@/lib/sheetDraft';
 import type { EntryTypeLite } from './UiProvider';
 
 export type CreatedEntry = {
@@ -97,9 +98,23 @@ export function NewEntrySheet({
    * voorwerp made in the Keeper's dossier cannot be born on the players' side).
    */
   const here = ui.caseHere && ui.caseHere.id === prefill.caseId ? ui.caseHere : null;
+  /*
+   * §69 (4.5): what was typed here survives an Escape. A prefill wins over a
+   * draft and throws it away — see `lib/sheetDraft.ts` for why that is the
+   * honest order.
+   */
+  const seeded = Boolean(prefill.name || prefill.shortDescription);
+  const draft = useMemo(() => {
+    if (seeded) {
+      clearDraft(DRAFT_ENTRY);
+      return {};
+    }
+    return readDraft(DRAFT_ENTRY);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [typeSlug, setTypeSlug] = useState(initialType);
-  const [name, setName] = useState(prefill.name ?? '');
-  const [description, setDescription] = useState(prefill.shortDescription ?? '');
+  const [name, setName] = useState(prefill.name ?? draft.name ?? '');
+  const [description, setDescription] = useState(prefill.shortDescription ?? draft.description ?? '');
   const [similar, setSimilar] = useState<Suggestion[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +146,16 @@ export function NewEntrySheet({
     nameRef.current?.focus();
     nameRef.current?.select();
   }, []);
+
+  /*
+   * §69 (4.5): every keystroke, into the page-lived draft. On unmount rather
+   * than on close, because there are three ways out of this sheet (Escape, the
+   * backdrop, the cross) and only one of them is a handler this component
+   * owns.
+   */
+  useEffect(() => {
+    writeDraft(DRAFT_ENTRY, { name, description });
+  }, [name, description]);
 
   /*
    * §18b: opening this sheet *is* an act of writing — there is nothing else it
@@ -203,6 +228,9 @@ export function NewEntrySheet({
         return;
       }
       window.localStorage.setItem(LAST_TYPE_KEY, typeSlug);
+      // §69 (4.5): it exists now, so the draft of it is done. Without this the
+      // next `+` opens pre-filled with the artikel that was just made.
+      clearDraft(DRAFT_ENTRY);
       onCreated({ ...(data.entry as CreatedEntry), filed: Boolean(data.filed) });
     } catch {
       setError('Geen verbinding met het archief.');
@@ -216,10 +244,6 @@ export function NewEntrySheet({
         <h2 id="new-entry-title" style={{ margin: 0, fontSize: '1.3rem' }}>
           {words.newEntry}
         </h2>
-        <div className="spacer" />
-        <button className="btn btn-ghost btn-small" type="button" onClick={onClose} aria-label="Sluiten">
-          <Icon name="close" size={18} />
-        </button>
       </div>
 
       <div

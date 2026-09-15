@@ -85,15 +85,6 @@ export function AddToCaseButton({
             <h2 id="add-to-case-title" style={{ margin: 0, fontSize: '1.2rem' }}>
               {ui.words.addToCase}
             </h2>
-            <div className="spacer" />
-            <button
-              className="btn btn-ghost btn-small"
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Sluiten"
-            >
-              <Icon name="close" size={18} />
-            </button>
           </div>
 
           <label className="visually-hidden" htmlFor="case-search">
