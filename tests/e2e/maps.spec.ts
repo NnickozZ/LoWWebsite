@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, fillWhenReady, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editCanvas, fillWhenReady, inviteCode, signIn } from './helpers';
 
 /**
  * §19: maps.
@@ -61,6 +61,21 @@ async function closeLegend(page: Page) {
 }
 
 /**
+ * §73: Bewerken on this landkaart, and proof that it took.
+ *
+ * A phone opens a landkaart in Lezen, where "Speld zetten" is not there. The
+ * server draws the switch as a desk's (§6), so a first look can find Bewerken
+ * already checked a moment before the phone turns it to Lezen — pressed until
+ * the button it unlocks is on the glass. A no-op on a desk.
+ */
+async function editMap(page: Page) {
+  await expect(async () => {
+    await editCanvas(page);
+    await expect(page.getByRole('button', { name: 'Speld zetten' })).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
+}
+
+/**
  * A fraction of the *picture*, not of the stage.
  *
  * §34: the stage fills the screen now, so it is a good deal taller than the
@@ -104,6 +119,8 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await expect(page.getByRole('heading', { name: mapName })).toBeVisible();
   await expect(page.getByRole('application')).toBeVisible();
   await page.waitForTimeout(500);
+  // §73: a phone opens a landkaart in Lezen; setting spelden is Bewerken.
+  await editMap(page);
 
   // A note, in the middle.
   await page.getByRole('button', { name: 'Speld zetten' }).click();
@@ -178,6 +195,8 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   expect(refused.ok()).toBe(false);
   // …but may set one of their own, and pull that.
   await other.keyboard.press('Escape');
+  // §73: the player may set one, so they get the switch — and on a phone they are reading.
+  await editMap(other);
   await other.getByRole('button', { name: 'Speld zetten' }).click();
   await placeAt(other, 0.3, 0.7);
   const ask2 = other.getByRole('dialog', { name: 'Wat komt hier?' });
@@ -228,6 +247,9 @@ async function hangMap(page: Page, name: string): Promise<string> {
   await page.waitForURL('**/maps/**');
   await expect(page.getByRole('heading', { name })).toBeVisible();
   await expect(page.getByRole('application')).toBeVisible();
+  // §73: a landkaart you just hung is one you are about to put spelden on —
+  // the same step `newBoard` takes. A no-op on a desk, which opens in Bewerken.
+  await editMap(page);
   return new URL(page.url()).pathname;
 }
 
@@ -712,6 +734,8 @@ test('§71: twee spelden op één plek worden er één met een +1, en de laag ze
   await expect(page.getByRole('application')).toBeVisible();
   await expect(page.locator('.map-pin')).toHaveCount(1, { timeout: 20_000 });
   await expect(page.locator('.map-pin')).toHaveText(new RegExp(eerst));
+  // §73: nothing is remembered, so a phone is back in Lezen — and the laag is Bewerken's.
+  await editMap(page);
 
   /* ---- Naar achter zet hem weer onder de ander ---- */
   await page.getByTestId('map-cluster-badge').click();

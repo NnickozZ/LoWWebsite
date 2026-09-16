@@ -178,6 +178,45 @@ export async function openRights(page: Page) {
 }
 
 /**
+ * §73: put the canvas on this page into Bewerken.
+ *
+ * A phone opens every canvas in Lezen (a desk opens it in Bewerken), so a spec
+ * that drags, makes or draws on the `phone` project says so first — the same
+ * thing a person does. A no-op where there is no switch (a reader, or a page
+ * without a canvas) and where Bewerken is already on. Pressed until it answers,
+ * because a canvas that has just arrived is not yet listening (§6).
+ */
+export async function editCanvas(page: Page) {
+  const group = page.getByTestId('canvas-mode').first();
+  // The switch may arrive a beat after the canvas: it waits on the author gate
+  // (§18b) to know this hand may edit at all. A page with no switch is a no-op.
+  await group.waitFor({ state: 'visible', timeout: 4000 }).catch(() => undefined);
+  if (!(await group.isVisible().catch(() => false))) return;
+  // The server's switch always says Bewerken; wait for the client's own.
+  await expect(group).toHaveAttribute('data-ready', 'true', { timeout: 15_000 });
+  const edit = group.getByRole('radio', { name: 'Bewerken', exact: true });
+  await expect(async () => {
+    if ((await edit.getAttribute('aria-checked')) !== 'true') await edit.click();
+    await expect(edit).toHaveAttribute('aria-checked', 'true', { timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
+}
+
+/** §73: and back to Lezen. */
+export async function readCanvas(page: Page) {
+  const group = page.getByTestId('canvas-mode').first();
+  // The switch may arrive a beat after the canvas: it waits on the author gate
+  // (§18b) to know this hand may edit at all. A page with no switch is a no-op.
+  await group.waitFor({ state: 'visible', timeout: 4000 }).catch(() => undefined);
+  if (!(await group.isVisible().catch(() => false))) return;
+  await expect(group).toHaveAttribute('data-ready', 'true', { timeout: 15_000 });
+  const read = group.getByRole('radio', { name: 'Lezen', exact: true });
+  await expect(async () => {
+    if ((await read.getAttribute('aria-checked')) !== 'true') await read.click();
+    await expect(read).toHaveAttribute('aria-checked', 'true', { timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
+}
+
+/**
  * §69: a wall, from the prikborden-pagina.
  *
  * Since round 35 the wall is made through a sheet like the other three
@@ -197,6 +236,8 @@ export async function newBoard(page: Page, options: { name?: string; private?: b
     .getByRole('button', { name: options.private ? /Privé prikbord/ : /Openbaar prikbord/ })
     .click();
   await page.waitForURL('**/b/**');
+  // §73: a wall you just made is one you are about to put things on.
+  await editCanvas(page);
 }
 
 /**
@@ -214,6 +255,8 @@ export async function newCaseBoard(page: Page, name?: string) {
   if (name) await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
   await sheet.getByRole('button', { name: /Prikbord aanmaken|Openbaar prikbord/ }).click();
   await page.waitForURL('**/b/**');
+  // §73: a wall you just made is one you are about to put things on.
+  await editCanvas(page);
 }
 
 /**
@@ -241,6 +284,8 @@ export async function newCaseFamilyTree(page: Page, name?: string) {
   if (name) await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
   await sheet.getByRole('button', { name: /Stamboom aanmaken|Openbare stamboom/ }).click();
   await page.waitForURL('**/stambomen/**');
+  // §73: likewise a tree.
+  await editCanvas(page);
 }
 
 /**

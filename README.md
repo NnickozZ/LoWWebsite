@@ -3865,3 +3865,110 @@ Sixty-seven rules worth knowing before changing anything:
     kunt zoomen), een gekozen speld onder een cijfertje krijgt geen ring, en een
     groep die op precies één punt ligt gaat nooit uit elkaar: de druk doet zijn
     ene stap en houdt op, want een klik waar niets van beweegt leest als stuk.
+
+72. **Twee vingers zijn één knijp, en een knijp springt nooit.** §72. Nick,
+    ronde 37: *"Zooming in and out with the pinching gesture sometimes teleports
+    the camera somewhere else."* Het deed het op vier tekenvlakken om vier
+    redenen, en alle vier waren dezelfde fout: **een gebaar dat iets onthield
+    over een vinger dat niet meer waar was.** Het prikbord startte voor de
+    tweede vinger óók een pan, zonder te vragen van wie die was, dus de eerste
+    beweging van de eerste vinger werd gemeten vanaf waar de tweede neerkwam —
+    gemeten: een sprong van 105 px nog vóór de knijp begon. De landkaart hield
+    een vinger in zijn lijst wiens `pointerup` nooit terugkwam (een speld die
+    onder de zoom in een kluitje opging, §71, nam hem mee) en las de volgende
+    enkele vinger als een knijp tegen een geest; en een tweede vinger óp een
+    speld verving de knijp door een speld-druk. De tijdlijn pakte na een knijp
+    de pan weer op vanaf de laatste *render* in plaats van de laatste beweging.
+
+    `lib/canvas/pinch.ts` is nu de hele knijp, zuiver en getest
+    (`tests/unit/canvas-pinch.test.ts`), en `components/canvas/usePinch.ts` de
+    bedrading. Drie regels. **De knijp is absoluut**: het beeld wordt altijd
+    uitgerekend vanaf het beeld, het midden en de spreiding op het moment dat
+    het paar ontstond, nooit door het vorige frame te vermenigvuldigen — dus
+    een gemist of dubbel event telt niet op, en het punt van de tekening dat
+    tussen de vingers lag blijft daar (twee vingers die samen schuiven, pannen
+    dus ook). **Elke verandering in het aantal vingers begint opnieuw** vanaf
+    het beeld zoals het nú is. **Een vinger waarvan niets meer gehoord wordt is
+    vergeten, niet vertrouwd**: `window` luistert in de capture-fase naar
+    `pointerup`/`pointercancel`, waar geen `stopPropagation` en geen verdwenen
+    element tussen kan komen.
+
+    De hook zit in de **capture-fase** op het glas (`onPointerDownCapture`), zodat
+    de tweede vinger een knijp is vóór een kaartje, speld of kaartje in de
+    stamboom eronder er een sleep van kan maken; wat de eerste vinger begonnen
+    was — een pan, een sleep, een lange druk — wordt losgelaten
+    (`onStart`), en een half verplaatst ding gaat terug. **Na een knijp blijft de
+    laatste vinger stil** tot hij loslaat: zo doet elke foto-app het, en zo kan
+    de laatste vinger van het glas het beeld niet wegslingeren. Een vinger op
+    `.ink-capture` wordt niet tegengehouden, want het potlood moet de tweede
+    vinger zien om zijn streek af te breken (§33). De tijdlijn is 1-D en houdt
+    zijn eigen `zoomAt`, met dezelfde drie regels met de hand toegepast; het web
+    is één `<canvas>` met zijn eigen knijp en was niet stuk.
+    `tests/e2e/round-37-pinch.spec.ts` knijpt via de echte touch-pijplijn (CDP)
+    en faalt op de code van ronde 36 met precies die 105 px.
+
+73. **Lezen of Bewerken — op een telefoon begint alles in Lezen.** §73. Nick,
+    ronde 37: *"Moving things accidentally is very easy. I think we need a Read
+    and Edit mode on all things. Things that have a camera should start in
+    editing mode on pc but reading mode on phone."* Elk glas — prikbord,
+    landkaart, tijdlijn, stamboom en het web — heeft vooraan in zijn werkbalk
+    `CanvasModeToggle`: twee radio's, **Lezen** en **Bewerken**, in één rand.
+    `useCanvasMode(canEdit)` beslist: een bureau begint in Bewerken, een
+    telefoon in Lezen, en **niets wordt onthouden** (Nicks keuze) — een ongeluk
+    kan nooit van gisteren meekomen.
+
+    Wat Lezen uitzet is op elke plek dezelfde lijst (Nicks keuze): **verplaatsen**
+    (een kaartje, een speld, een gebeurtenis, een kaartje in de stamboom, een
+    knoop van het web — en wat verplaatsen onder een andere naam is: het hoekje
+    om te vergroten, een draad trekken, de laag van een speld, de `+`-handgrepen,
+    Opnieuw schikken), **maken** (dubbelklik en lang drukken op leeg papier, de
+    knoppen die iets nieuws op het glas zetten, plakken) en **het potlood**. Ook
+    Delete/Backspace en Ctrl+Z zijn van Bewerken. Wat blijft: de camera, kiezen,
+    en openen — een tik opent wat hij opende. De knoppen in een paneel blijven
+    ook: dat is een bewuste druk, geen duim die ergens landt. **Een sleep die in
+    Lezen op een ding begint schuift het papier**, op alle vier: op een vol
+    prikbord of een dichte stamboom landt een duim bijna altijd op iets, en een
+    camera die je dan niet kunt bereiken is erger dan het ongeluk.
+
+    Twee regels. **Recht gaat voor stand**: wie het glas niet mag bewerken krijgt
+    geen schakelaar en leest altijd; de stand vernauwt een recht, hij geeft er
+    nooit een. En wie alleen mag kijken **houdt het potlood** — §33 geeft de
+    tekenlaag ook aan kijkers, en die hebben geen schakelaar om hem terug te
+    krijgen. De namen van de radio's veranderen nooit (§64), en het zijn radio's
+    en geen knoppen, zodat ze nooit botsen met de vele `Bewerken`-*knoppen* in
+    een paneel. De server tekent elk glas als een bureau; een telefoon draait
+    op zijn eerste render naar Lezen, en `data-ready` op de schakelaar zegt
+    wanneer dat gebeurd is (`editCanvas` in `tests/e2e/helpers.ts` wacht erop).
+    Een link met `?place=` (landkaart, tijdlijn) zet Bewerken zelf aan, want
+    daarmee vraag je om iets te zetten.
+
+74. **Wat een tik opent komt op een telefoon van onderen op, en laat het glas
+    staan.** §74. Nick, ronde 37: *"Opening some cards and images and timeline
+    events is way too big on phone — if you open one it just covers the
+    screen."* De ergste twee waren modale `Sheet`s (een speld op een landkaart,
+    een knoop van het web: tot 92 % van het scherm, met een scrim die de
+    tekening eronder onaanraakbaar maakte); de lade van de tijdlijn lag wel
+    gedokt maar gaf vier vijfde van zichzelf aan een foto zonder maximale
+    hoogte. `components/canvas/CanvasPeek.tsx` is nu de vorm, en alleen op een
+    telefoon. **Klein eerst**: hoogstens ongeveer een derde van het scherm
+    (`--peek-h`), met eerst wat het ding *is* (kop, soort, een paar regels, de
+    hoofdknop) en daaronder de rest in hetzelfde scrollende lijf — er is geen
+    tweede scherm. **Groter op verzoek**: een tik op de greep of een veeg omhoog
+    geeft bijna het hele scherm, een veeg omlaag geeft het terug en sluit vanuit
+    klein. **Nooit modaal**: geen scrim, geen focusval, en het glas erboven
+    blijft pannen en de volgende speld is één tik — wat §69 al leerde over
+    panelen boven een canvas. `role="dialog"` zonder `aria-modal`, genoemd naar
+    de kop, dus `getByRole('dialog', { name })` vindt hem zoals het het
+    bureaupaneel vindt; Escape sluit, tenzij een `Sheet` of popover erboven
+    ligt. Een plaatje erin is een voorproefje (140 px, 45dvh als hij groot is);
+    de zwevende `+` van de schil gaat weg zolang er een peek ligt.
+
+    Waar hij staat: het blad van een **speld** (`.map-peek`), het paneel van het
+    **web** (`.web-peek`, dat daarbij voor het eerst een naam kreeg — er was
+    geen element met `id="web-panel-title"`), de open vensters van een
+    **tijdlijn** (`.timeline-peek`, met *Alles inklappen* in de greeprij en de
+    foto als duimnagel van 96 px) en de **foto van een prikbordkaartje**, die op
+    een telefoon eerst als peek komt met *Groot bekijken* naar de volledige
+    lightbox. Niet: de inspector van het prikbord en het knoopmenu van de
+    stamboom (al klein), de legenda (een filter is een moment waarop je even
+    niets anders doet) en de bewerkbladen (een formulier is een bewuste stap).

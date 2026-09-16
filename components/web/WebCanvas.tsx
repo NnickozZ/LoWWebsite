@@ -68,6 +68,13 @@ export type WebCanvasProps = {
   /** Changing this re-fits the view (a new focus, a new mode). */
   fitKey: string;
   phone?: boolean;
+  /**
+   * §73: may the hand move knots right now? In Lezen (`false`) a press-drag on
+   * a knot pans the camera and a tap on a speld chooses the knot under it
+   * instead of letting it go. Read through `propsRef` in the pointer handlers,
+   * so switching never restarts the frame loop. Defaults to `true`.
+   */
+  editing?: boolean;
   /** How many knots are pinned right now (organic) — for a "losmaken" button. */
   onPinsChange?: (count: number) => void;
 };
@@ -2051,7 +2058,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
       // the browser.
       if (e.button !== 0) return;
       // A tap on a speld lets that knot go; nothing else happens.
-      const pinned = hitPin(p.x, p.y);
+      // §73: only in Bewerken — in Lezen the press falls through to the knot.
+      const pinned = propsRef.current.editing !== false ? hitPin(p.x, p.y) : null;
       if (pinned) {
         const f = s.sim.get(pinned);
         if (f) {
@@ -2116,7 +2124,8 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
         g.moved = true;
         if (g.shift) {
           g.kind = 'marquee';
-        } else if (g.node && propsRef.current.mode === 'organic') {
+        } else if (g.node && propsRef.current.mode === 'organic' && propsRef.current.editing !== false) {
+          // §73: moving a knot is Bewerken's; in Lezen the same drag pans.
           g.kind = 'node';
           const f = s.sim.get(g.node);
           if (f) f.fixed = true;

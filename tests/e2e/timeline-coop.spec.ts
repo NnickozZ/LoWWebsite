@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { editCanvas, signIn } from './helpers';
 
 /**
  * §62: de tijdlijn met z'n tweeën.
@@ -215,7 +215,15 @@ test('a gebeurtenis taken away under an open blad says so', async ({ page, brows
 
   await expect(other.page.getByTestId('event-gone')).toBeVisible({ timeout: 20_000 });
   await expect(other.page.getByTestId('event-gone')).toHaveText('Deze gebeurtenis is weggehaald.');
-  await other.page.getByRole('button', { name: 'Sluiten' }).click();
+  /*
+   * Scoped to the blad: a window on the axis carries a `Sluiten` of its own,
+   * and on a phone (§74) the peek round the windows carries another.
+   */
+  await other.page
+    .getByRole('dialog')
+    .filter({ has: other.page.getByTestId('event-gone') })
+    .getByRole('button', { name: 'Sluiten' })
+    .click();
   await expect(other.page.getByTestId('event-gone')).toHaveCount(0);
 
   await other.context.close();
@@ -299,6 +307,8 @@ test('a long press on the axis puts a gebeurtenis there', async ({ page, isMobil
   await page.goto(`/timelines/${line.slug}`);
   const stage = page.getByTestId('timeline-stage');
   await expect(stage).toBeVisible();
+  // §73: a phone opens in Lezen, where a long press makes nothing.
+  await editCanvas(page);
   // The line under the axis says what to do, in the phone's own words.
   await expect(page.locator('.timeline-count')).toContainText('Houd de as ingedrukt');
 

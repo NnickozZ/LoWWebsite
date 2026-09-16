@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 97 files, 1560 tests as of round 36 (round 35: 94 / 1499)
+npx vitest run         # 98 files, 1570 tests as of round 37 (round 36: 97 / 1560)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -163,7 +163,12 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is §71 / rule 71 (round 36 added two: §70 een
+  choosing a number — the latest is §74 / rule 74 (round 37 added three: §72 twee
+  vingers zijn één knijp en een knijp springt nooit — `lib/canvas/pinch.ts` +
+  `components/canvas/usePinch.ts`; §73 Lezen of Bewerken — een telefoon begint
+  elk glas in Lezen, `useCanvasMode` + `CanvasModeToggle`; §74 wat een tik opent
+  komt op een telefoon van onderen op en laat het glas staan — `CanvasPeek`.
+  Round 36 added two: §70 een
   sectie hoort bij een ding — een sectie hangt aan een artikel *of* aan een
   dossier en wie het ding mag bewerken mag er een bij zetten, terwijl de
   geheimhouding van de Keeper blijft; §71 een speld heeft een laag — één getal
@@ -863,6 +868,26 @@ freely there.
   that must survive 390 px hides each button's `.tree-tool-word` and keeps its
   icon, its `aria-label` and its `title` — hiding the letters is allowed, §64
   forbids changing the accessible *name*.
+- **A knijp is `usePinch`, in the capture phase, and nothing else** (§72). A
+  canvas does not count fingers of its own any more: the stage carries
+  `onPointerDownCapture` / `onPointerMoveCapture` / `onPointerUpCapture` from the
+  hook and stops the event when the hook says it was the knijp's, so a second
+  finger never reaches a card's own drag. `read` must answer the view *now* (a
+  ref that `write` updates too), never render state — the tijdlijn's jump was
+  exactly a pan picked up from `view`. `onStart` lets go of whatever the first
+  finger had begun. Do not stop a second finger that lands on `.ink-capture`:
+  the potlood needs to see it to abandon its stroke.
+- **Every moving, making or drawing road on a canvas asks the mode, not just the
+  rights** (§73). `useCanvasMode(canEdit)` gives `editing`; `canEdit` (or
+  `readOnly`) keeps meaning *rights* and still decides saves, chips and who gets
+  a switch at all. Do not fold the mode into `readOnly` — on the prikbord that
+  would also hide "Alleen kijken" and stop viewport saves. A new gesture that
+  changes the drawing gets `&& editing` on the day it is built; a new thing that
+  only *opens* does not.
+- **On a phone, what a tap opens over a canvas is a `CanvasPeek`, never a
+  `Sheet`** (§74). It is non-modal, fixed above the tab bar, one scrolling body
+  (the thing first, its tools below), `role="dialog"` named by its heading. A
+  `Sheet` is still right for a *form* someone chose to open (bewerken, a legend).
 - **Take a canvas's pointer capture lazily, at the drag threshold — never on
   `pointerdown`** (§66). Chromium retargets the compatibility mouse events at
   the *capture element*, so a stage that captures on the way down means the
@@ -975,6 +1000,25 @@ mistakes. Check yours against these before declaring a spec finished.
   on bare paper. See the `target.closest('.tree-node, .tree-handle, …')` list in
   `FamilyTreeCanvas.tsx`; add to it whenever you add a floating control.
 
+- **A phone opens every canvas in Lezen** (§73), and a reload is Lezen again —
+  nothing is remembered. A spec on the `phone` project that drags, makes, draws,
+  deletes or presses Ctrl+Z calls `editCanvas(page)` after **every** `goto` and
+  `reload`. `newBoard`, `newCaseBoard` and `newCaseFamilyTree` already do. The
+  server renders the switch as Bewerken; `editCanvas` waits for `data-ready` on
+  it, which is the client's own answer — a spec that reads `aria-checked`
+  before that reads the server's guess and returns just before the phone turns
+  to Lezen. Some specs also wait for a Bewerken-only control to appear
+  (`tree-add-loose`, `Speld zetten`), which is the belt to that pair of braces.
+- **Fingers go through CDP, and a released finger is named.**
+  `Input.dispatchTouchEvent`: `touchStart`/`touchMove` list every finger that
+  is down, and `touchEnd` lists **the finger that leaves** — leaving it out of a
+  `touchMove` does not release it, and an empty `touchEnd` releases all.
+  `tests/e2e/round-37-pinch.spec.ts` is the worked example. And put the fingers
+  on bare paper with `elementFromPoint` first: a finger that lands on a docked
+  inspector is a scroll, and the browser answers it with `pointercancel`.
+- **On a phone a canvas's panel is a `.canvas-peek` with its own `Sluiten`**
+  (§74), so scope any `Sluiten` locator to the dialog you mean.
+
 If a spec fails once and passes on a re-run, it is the "not yet listening" race
 — fix it with the helpers above rather than shrugging at it.
 
@@ -1028,7 +1072,30 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33 and 35
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35 and 37
+
+**Round 37 (§72–§74) leaves these, all named on purpose:**
+
+- **The undo button behaves three ways in Lezen**: grey on the prikbord and the
+  landkaart, still pressable on the tijdlijn (only Ctrl+Z is off), gone with the
+  whole making group on the stamboom. One thing, three answers — the first to
+  straighten out next time someone is in the toolbars.
+- **A canvas you just made opens in Lezen on a phone.** The spec helpers press
+  Bewerken for you; the app does not. Whether a fresh canvas should land in
+  Bewerken (like an artikel on `?new=1`) is an open question for Nick.
+- **A notitie-speld's Naam and Tekst are still input boxes in Lezen**, so its
+  peek opens on two fields rather than on its words. The panel's own controls
+  were kept on purpose; showing the text read-only in Lezen is a small follow-up.
+- **The edit sheets are still modal `Sheet`s** on a phone (gebeurtenis
+  bewerken, los kaartje) — a form is a deliberate step.
+- **A tijdlijn window in the peek has its own `Sluiten`** beside the peek's.
+  With one window open the two do the same thing.
+- **Two flakes seen once in round 37's final run, both green alone and in the
+  run before it**: `canvas-contract.spec.ts:442` (prikbord, a fresh card never
+  "stable" for the corner click; then 14/14 green with `--repeat-each`) and
+  `maps.spec.ts:627` on the phone. Re-run alone before believing either.
+- **The web's own knijp was not moved onto `usePinch`.** It had none of the four
+  bugs and it is one `<canvas>` (§5).
 
 **One spec is red on untouched `main`, and has been since round 19.**
 `tests/e2e/per-place-crops.spec.ts:13` ("a case crops a cover for itself

@@ -2445,6 +2445,23 @@ details.section[open] > summary::before {
   object-fit: contain;
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
+/* §74: the same picture on a phone, first as a peek (`CanvasPeek`). The
+   height cap — 140px small, 45dvh grown — is `.canvas-peek-body img`'s; this
+   only says the whole picture shows inside it, never a crop. */
+.board-photo-peek-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+.board-photo-peek-img {
+  display: block;
+  width: 100%;
+  object-fit: contain;
+  margin: 0 0 0.6rem;
+  background: var(--paper-dark);
+  border-radius: var(--radius);
+}
 
 .board-marquee {
   position: absolute;
@@ -4871,6 +4888,27 @@ details.section[open] > summary::before {
   padding-right: 1.6rem;
 }
 
+/* ------------------------------------------- §74 het speld-blad als peek
+   A phone's speld opens in `CanvasPeek` (`.canvas-peek.map-peek`), which is
+   about a third of the screen. The blad's own order does most of the work
+   (`PinSheetBody`: head, summary, the way through, then the tools); these only
+   keep that first view small — a tighter title and a summary of three lines
+   while small, the whole text once the peek is grown. */
+.map-peek .stack {
+  gap: 0.55rem;
+}
+.map-peek #pin-title {
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+.map-peek:not(.is-full) .map-pin-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
 .map-card-picture {
   aspect-ratio: 4 / 3;
   overflow: hidden;
@@ -4953,6 +4991,156 @@ details.section[open] > summary::before {
     width: var(--tap);
     height: var(--tap);
   }
+}
+
+/* ==========================================================================
+   §73 — Lezen of Bewerken (`components/canvas/CanvasModeToggle.tsx`).
+
+   Twee segmenten in één rand, zoals `.canvas-zoom`: je ziet in welke je staat
+   zonder iets in te drukken. Bewerken kleurt in de stempelkleur, want dat is
+   de stand waarin een duim iets kan verschuiven.
+   ========================================================================== */
+.canvas-mode {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  padding: 0.1rem;
+  gap: 0.1rem;
+  flex: none;
+}
+.canvas-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 34px;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.canvas-mode button:hover {
+  color: var(--ink);
+}
+.canvas-mode button[aria-checked='true'] {
+  background: var(--paper-dark);
+  color: var(--ink);
+  font-weight: 600;
+}
+.canvas-mode.is-editing button[data-mode='edit'][aria-checked='true'] {
+  background: var(--stamp-red);
+  color: var(--paper);
+}
+.canvas-mode button:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+@media (max-width: 767px) {
+  .canvas-mode button {
+    min-height: var(--tap);
+  }
+}
+
+/* ==========================================================================
+   §74 — het kaartje dat van onderen opkomt (`components/canvas/CanvasPeek.tsx`).
+
+   Alleen op een telefoon gerenderd. Niet modaal: geen scrim, en het glas
+   erboven blijft aanraakbaar. Klein is ongeveer een derde van het scherm,
+   groot bijna alles; de inhoud scrolt in beide.
+   ========================================================================== */
+.canvas-peek {
+  --peek-h: min(36dvh, 300px);
+  --peek-h-full: calc(100dvh - var(--tabs-h, 60px) - env(safe-area-inset-bottom, 0px) - 3.5rem);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tabs-h, 60px) + env(safe-area-inset-bottom, 0px));
+  z-index: 46;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--peek-h);
+  background: var(--paper-raised);
+  color: var(--ink);
+  border-top: 1px solid var(--rule);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
+  transition: max-height 0.18s ease;
+  touch-action: pan-y;
+}
+.canvas-peek.is-full {
+  max-height: var(--peek-h-full);
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-peek {
+    transition: none;
+  }
+}
+.canvas-peek-grip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.25rem 0 0;
+  min-height: var(--tap);
+  flex: none;
+  touch-action: none;
+}
+.canvas-peek-handle {
+  flex: 1 1 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  min-height: var(--tap);
+}
+.canvas-peek-handle span {
+  display: block;
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--rule);
+}
+.canvas-peek-close {
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  border-radius: var(--radius);
+}
+.canvas-peek-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 1rem 1rem;
+  min-height: 0;
+}
+/* Een plaatje in een kaartje is een voorproefje, geen poster. */
+.canvas-peek-body img,
+.canvas-peek-body .cover-landscape,
+.canvas-peek-body .cover-portrait,
+.canvas-peek-body .cover-square {
+  max-height: 140px;
+}
+.canvas-peek.is-full .canvas-peek-body img,
+.canvas-peek.is-full .canvas-peek-body .cover-landscape,
+.canvas-peek.is-full .canvas-peek-body .cover-portrait,
+.canvas-peek.is-full .canvas-peek-body .cover-square {
+  max-height: 45dvh;
+}
+/* De zwevende `+` van de schil zou op de knoppen van het kaartje staan. */
+body:has(.canvas-peek) .fab {
+  display: none;
 }
 
 /* ------------------------------------------------------ §8 live: other hands */
@@ -6134,6 +6322,37 @@ details.section[open] > summary::before {
   display: block;
   width: 100%;
   height: 100%;
+}
+/* §74: the phone's peek — a thumbnail beside the name, not a banner above it. */
+.web-panel-head {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+.web-panel-head-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.web-panel-thumb {
+  flex: none;
+  display: block;
+  width: 80px;
+  height: 80px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+}
+.web-panel-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.web-peek .web-panel-compact .web-panel-name {
+  font-size: 1.1rem;
+}
+.web-peek .web-panel-compact .web-panel-summary {
+  -webkit-line-clamp: 3;
 }
 .web-panel-name {
   margin: 0.1rem 0 0;

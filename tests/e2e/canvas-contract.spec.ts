@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { newBoard, signIn } from './helpers';
+import { editCanvas, newBoard, signIn } from './helpers';
 
 /**
  * §69 — the contract, asserted rather than written down.
@@ -77,6 +77,13 @@ const SURFACES: Surface[] = [
       await sheet.getByRole('button', { name: /Openbare stamboom/ }).click();
       await page.waitForURL('**/stambomen/**');
       await expect(page.locator('.tree-stage')).toBeVisible();
+      // §73: a phone opens it in Lezen; the undo, the potlood and the paper
+      // that makes a kaartje are Bewerken's. Pressed until `Los kaartje` is
+      // there, because the server draws the switch as a desk's (§6).
+      await expect(async () => {
+        await editCanvas(page);
+        await expect(page.getByTestId('tree-add-loose')).toBeVisible({ timeout: 1500 });
+      }).toPass({ timeout: 20_000 });
     },
   },
   {
@@ -93,6 +100,12 @@ const SURFACES: Surface[] = [
       await sheet.getByRole('button', { name: /Openbare tijdlijn/ }).click();
       await page.waitForURL('**/timelines/**');
       await expect(page.locator('.timeline-stage')).toBeVisible();
+      // §73: a phone opens it in Lezen, where the potlood and the add button
+      // are away (the stamboom's surface above does the same).
+      await expect(async () => {
+        await editCanvas(page);
+        await expect(page.getByTestId('timeline-add')).toBeVisible({ timeout: 1500 });
+      }).toPass({ timeout: 20_000 });
     },
   },
 ];

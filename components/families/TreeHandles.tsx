@@ -147,14 +147,18 @@ export function TreeHandles({
         </button>
       ))}
 
-      <TreeCornerMenu
-        anchorRef={menuRef}
-        style={pin(box.x + box.width, box.y)}
-        label={`Meer bij ${nodeName}`}
-        menu={menu}
-        menuOpen={menuOpen}
-        onMenu={onMenu}
-      />
+      {/* §73: a los kaartje in Lezen has nothing left in its `…` (an artikel
+          keeps `Openen`), and a `…` that opens an empty list is no control. */}
+      {menu.length > 0 && (
+        <TreeCornerMenu
+          anchorRef={menuRef}
+          style={pin(box.x + box.width, box.y)}
+          label={`Meer bij ${nodeName}`}
+          menu={menu}
+          menuOpen={menuOpen}
+          onMenu={onMenu}
+        />
+      )}
     </>
   );
 }

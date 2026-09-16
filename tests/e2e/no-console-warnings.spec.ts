@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { signIn } from './helpers';
+import { editCanvas, signIn } from './helpers';
 
 /**
  * A page that renders correctly can still be wrong.
@@ -68,6 +68,8 @@ test('no console errors or warnings while walking the archive', async ({ page })
   if (timelineHref) {
     await page.goto(timelineHref);
     await page.waitForTimeout(300);
+    // §73: a phone opens the tijdlijn in Lezen; this walk adds and draws.
+    await editCanvas(page);
     const toggle = page.getByTestId('timeline-toggle-all');
     if (await toggle.count()) {
       await toggle.click();
@@ -104,6 +106,7 @@ test('no console errors or warnings while walking the archive', async ({ page })
   if (boardHref) {
     await page.goto(boardHref);
     await page.waitForTimeout(300);
+    await editCanvas(page);
     await page.getByTestId('ink-pen').click();
     const wall = (await page.locator('.board-viewport').boundingBox())!;
     await page.mouse.move(wall.x + 120, wall.y + 100);
@@ -129,6 +132,11 @@ test('no console errors or warnings while walking the archive', async ({ page })
   await treeSheet.getByRole('button', { name: 'Openbare stamboom' }).click();
   await page.waitForURL('**/stambomen/**');
   await page.waitForTimeout(300);
+  // §73: a phone opens the tree in Lezen, where the toolbar has no search box.
+  await expect(async () => {
+    await editCanvas(page);
+    await expect(page.locator('#tree-add-person')).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
   await page.locator('#tree-add-person').fill('Jacob');
   const suggestion = page
     .locator('.tree-tools .suggest-item')

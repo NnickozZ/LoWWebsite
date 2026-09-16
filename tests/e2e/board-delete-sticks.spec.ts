@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { newBoard as makeBoardOnShelf, signIn } from './helpers';
+import { editCanvas, newBoard as makeBoardOnShelf, signIn } from './helpers';
 
 /**
  * §8: a deletion has to survive the other people at the wall.
@@ -45,6 +45,8 @@ test('a card deleted on one screen stays deleted, even mid-drag on another', asy
   await signIn(second, 'Keeper', 'abbeytower34');
   await second.goto(url);
   await expect(second.locator('.board-card')).toHaveCount(3);
+  // §73: a wall opened on a phone is in Lezen, where a press does not lift a card.
+  await editCanvas(second);
   await second.waitForTimeout(1200);
 
   // The second screen picks a card up and holds it: `paused`, so anything that

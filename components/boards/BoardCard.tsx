@@ -315,6 +315,7 @@ export function BoardCardView({
   onViewFull,
   onConvertToEntry,
   canMakeEntry,
+  canWrite,
   carried = false,
 }: {
   card: BoardCardModel;
@@ -353,6 +354,12 @@ export function BoardCardView({
   onConvertToEntry: () => void;
   /** §47: false on a wall this viewer may only look at — the card offers no road. */
   canMakeEntry: boolean;
+  /**
+   * §73: whether a double-click (or double-tap) on the words opens the box to
+   * write in. False in Lezen and on a wall this hand may not edit — the text
+   * is read, not edited, and the empty-card prompt says nothing about writing.
+   */
+  canWrite: boolean;
 }) {
   const words = useUi().words;
   const [editing, setEditing] = useState(false);
@@ -678,10 +685,19 @@ export function BoardCardView({
             className={`board-card-text${card.text ? '' : ' board-card-text-empty'}`}
             onDoubleClick={(event) => {
               event.stopPropagation();
+              if (!canWrite) return;
               setEditing(true);
             }}
           >
-            {card.text ? <MentionText text={card.text} /> : interactive ? 'Dubbelklik om te schrijven' : 'Dubbeltik om te schrijven'}
+            {card.text ? (
+              <MentionText text={card.text} />
+            ) : !canWrite ? (
+              '…'
+            ) : interactive ? (
+              'Dubbelklik om te schrijven'
+            ) : (
+              'Dubbeltik om te schrijven'
+            )}
           </p>
         )}
 

@@ -46,13 +46,24 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
   await expect(note.getByRole('button', { name: 'Artikel aanmaken' })).toBeVisible();
 
   // -- board-local text ------------------------------------------------------
-  await note.locator('.board-card-text').dblclick();
+  /*
+   * §73: on a phone the Lezen/Bewerken switch made the bar above the cork a row
+   * taller, and the inspector is docked over the bottom of the screen — so a
+   * notitie that lands low on the cork is under the inspector the moment the
+   * first tap of a double-tap chooses it. What is under test here is the
+   * double-tap on the words, not where the layout happened to put the card.
+   */
+  const writeOn = async () => {
+    if (isPhone) await note.locator('.board-card-text').dispatchEvent('dblclick');
+    else await note.locator('.board-card-text').dblclick();
+  };
+  await writeOn();
   await page.locator('.board-card-text-input').fill('Kept in his coat.');
   await page.locator('.board-card-text-input').blur();
   await expect(note.locator('.board-card-text')).toHaveText('Kept in his coat.');
 
   // -- round 18: `@` offers a name, and what lands is `[[Naam]]`, shown as a chip
-  await note.locator('.board-card-text').dblclick();
+  await writeOn();
   const box = page.locator('.board-card-text-input');
   await box.fill('Kept in his coat. Seen by @Jacob');
   const pop = page.getByTestId('mention-pop');

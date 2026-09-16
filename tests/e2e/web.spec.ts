@@ -102,10 +102,10 @@ test('from an artikel into the web, and around it', async ({ page }, testInfo) =
   await expect(page.getByTestId('web-depth')).toContainText('1');
 
   // The panel is about the focus, and says how B hangs off it. On a phone
-  // the panel is a sheet that opens when something is chosen; the focus is
-  // chosen from the start, so open it.
+  // the panel is a peek (§74) that opens when something is chosen; the focus
+  // is chosen from the start, so open it. A tap chooses in Lezen too (§73).
   if (isPhone) {
-    // A tap on the focus card opens the sheet.
+    // A tap on the focus card opens the peek.
     const pt = await nodePoint(page, 'focus');
     await page.mouse.click(pt.x, pt.y);
   }

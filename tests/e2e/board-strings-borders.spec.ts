@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { newBoard as makeBoardOnShelf, newCaseBoard, signIn } from './helpers';
+import { editCanvas, newBoard as makeBoardOnShelf, newCaseBoard, signIn } from './helpers';
 
 /**
  * The second pass over the board: bare pins for leads with no card, string
@@ -353,6 +353,8 @@ test.describe('board strings and borders', () => {
     // Asked once. Pinning the same entry again says nothing, because it is
     // already in the file.
     await page.goBack();
+    // §73: back on the wall is a fresh visit; the bar's search is Bewerken's.
+    await editCanvas(page);
     await pinEntry(page, 'Pier Boone');
     await expect(page.getByRole('dialog', { name: /zit nog niet in/ })).toHaveCount(0);
   });
@@ -436,6 +438,8 @@ test.describe('the case tray on a board', () => {
 
     await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
     await page.reload();
+    // §73: the lade is Bewerken's, and a reloaded wall on a phone opens in Lezen.
+    await editCanvas(page);
     await expect(page.locator('.board-tray-card')).toHaveCount(1);
     await expect(page.locator('.board-card', { hasText: 'Pier Boone' }).first()).toBeVisible();
 

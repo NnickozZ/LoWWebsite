@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editCase, signIn } from './helpers';
+import { editCanvas, editCase, signIn } from './helpers';
 
 /**
  * §47, round 24 — three small repairs, each with the failure it was reported as.
@@ -78,6 +78,7 @@ test.describe('round 24', () => {
     expect(board.ok()).toBe(true);
     const { board: made2 } = await board.json();
     await page.goto(`/b/${made2.id}`);
+    await editCanvas(page);
 
     // Pin the artikel on the wall the ordinary way.
     const search = page.getByLabel('Kaart toevoegen');

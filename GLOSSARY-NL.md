@@ -1227,3 +1227,22 @@ netjes maar het is wel hoe het er staat: het kopje boven de lijst is
 | **Niets wordt echt gewist — een {Keeper} kan dit terughalen uit de prullenbak. De {artikelen} erin blijven staan.** | de grijze regel in die lade | Twee zinnen: de eerste staat in elke lade, de tweede komt van de pagina die de lade neerzet — een stamboom is een venster, dus de leden blijven bestaan (§66). |
 | **Naar de prullenbak** | de rode knop in die lade | Dezelfde knop als in een {dossier}, nu uit één bestand (§11). |
 | **Geen verbinding.** · **Deze {stamboom} is niet verwijderd.** | meldingen uit die lade | De tweede is de terugval als de server geen eigen zin meegaf. |
+
+## Ronde 37 — lezen, bewerken, en een kaartje van onderen (§72, §73, §74)
+
+**Geen nieuw hernoembaar woord.** Twee vaste woorden voor de stand van een glas,
+en een handvol zinnen die in Lezen zeggen hoe je bij Bewerken komt in plaats van
+een gebaar aan te prijzen dat daar niets doet. Waar **{speld}**, **{gebeurtenissen}**
+of **{stamboom}** staat, staat op het scherm het woord van de Keeper.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Lezen** · **Bewerken** | twee radio's vooraan in de werkbalk van elk glas (prikbord, landkaart, tijdlijn, stamboom, web); groep voorgelezen als *Lezen of bewerken* | Een bureau begint in Bewerken, een telefoon in Lezen, en niets wordt onthouden (§73). Radio's, geen knoppen, zodat ze nooit botsen met een `Bewerken`-knop in een paneel. Wie het glas niet mag bewerken ziet ze niet. |
+| **Lezen — niets verschuift per ongeluk** · **Bewerken — slepen, maken en tekenen** | de tooltips van die twee | Zegt in één regel wat de stand doet (§73). |
+| **Nog geen {spelden} op deze {landkaart}. Kies Bewerken om er een te zetten.** | de lege landkaart, in Lezen | In Bewerken blijft de oude zin met *Speld zetten* (§73). |
+| **Nog geen {gebeurtenissen}. Kies Bewerken om er een te zetten.** | de lege tijdlijn, in Lezen | Idem (§73). |
+| **· kies Bewerken om {gebeurtenissen} te verzetten of te zetten** | het staartje van de telregel onder een tijdlijn op een telefoon, in Lezen | In Bewerken blijft *Houd de as ingedrukt…* (§73). |
+| **Deze {stamboom} is nog leeg. Kies Bewerken om iemand erbij te zetten.** | de lege stamboom, in Lezen | Idem (§73). |
+| **Groter of kleiner** | de greep bovenaan een kaartje dat op een telefoon van onderen opkomt | Eén naam in beide standen (§64); `aria-expanded` zegt welke. De tooltip zegt *Groter* of *Kleiner* (§74). |
+| **Sluiten** | het kruisje rechts in die greep | Dezelfde naam als het kruisje in een `Sheet` (§74). |
+| **Groot bekijken** | de knop onder de foto van een prikbordkaartje, in het kaartje van onderen op een telefoon | Opent de volledige lightbox; een bureau opent die meteen (§74). |

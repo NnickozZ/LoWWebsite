@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillWhenReady, signIn } from './helpers';
+import { editCanvas, fillWhenReady, signIn } from './helpers';
 
 /**
  * Ronde 36: "Je kunt geen stambomen verwijderen."
@@ -39,6 +39,11 @@ async function newTree(page: Page, name: string) {
   await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
   await sheet.getByRole('button', { name: 'Openbare stamboom' }).click();
   await page.waitForURL('**/stambomen/**');
+  // §73: on a phone the heading is only a box in Bewerken.
+  await expect(async () => {
+    await editCanvas(page);
+    await expect(page.getByTestId('tree-add-loose')).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
   await expect(page.locator('#tree-name')).toHaveValue(name);
   await expect(page.getByTestId('tree-stage')).toBeVisible();
   return page.url();
