@@ -100,7 +100,7 @@ export function CanvasTitle({
   };
 
   if (!canEdit) {
-    return <h1 data-testid={testId}>{name}</h1>;
+    return <h1 data-testid={testId} className={className}>{name}</h1>;
   }
 
   return (

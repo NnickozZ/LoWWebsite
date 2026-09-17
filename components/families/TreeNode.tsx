@@ -45,6 +45,11 @@ export type TreeNodeProps = {
   /** True while this hand — or somebody else's — is carrying it. */
   dragging?: boolean;
   carried?: boolean;
+  /**
+   * §73: whether this hand may change the drawing *right now* — the canvas
+   * passes its mode (`editOn`), not the bare right, so the pencil on a los
+   * kaartje and a ghost's `Erbij` are gone in Lezen.
+   */
   canEdit: boolean;
   /** Somebody else's hand has it: their colour, for the ring round it. */
   carriedColour?: string | null;

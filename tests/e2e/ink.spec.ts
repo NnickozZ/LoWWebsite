@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, fillWhenReady, newBoard as makeBoardOnShelf, signIn, signUp } from './helpers';
+import { becomeInvestigator, editCanvas, fillWhenReady, newBoard as makeBoardOnShelf, signIn, signUp } from './helpers';
 
 /**
  * §33: the tekenlaag — free-hand drawing on a prikbord, a landkaart and a
@@ -119,6 +119,7 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
   await becomeInvestigator(other, `Onderzoeker Tekenaar ${stamp}`);
   await other.goto(boardUrl);
   await expect(other.locator('.board-viewport')).toBeVisible();
+  await editCanvas(other);
   await expect(other.getByTestId('ink-pen')).toBeVisible();
   expect((await ink(other)).count).toBe(0);
 
@@ -143,6 +144,8 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
   const drawn = await settled(other);
   await other.reload();
   await expect(other.locator('.board-viewport')).toBeVisible();
+  // §73: a reload is a fresh visit, and a phone reads again.
+  await editCanvas(other);
   const afterReload = await waitForInk(other, (i) => i.count > 0);
   expect(Math.abs(afterReload.count - drawn.count)).toBeLessThan(drawn.count * 0.1);
 
@@ -171,6 +174,8 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
 
   await page.reload();
   await expect(page.locator('.board-viewport')).toBeVisible();
+  // §73: a reload is a fresh visit, and a phone reads again.
+  await editCanvas(page);
   const erasedOnDisk = await waitForInk(page, (i) => i.count > 0);
   expect(erasedOnDisk.count).toBeLessThan(afterReload.count);
 
@@ -251,6 +256,7 @@ test('the Keeper turns drawing off for everyone, and wipes the layer', async ({ 
   // Keeper's switch and not about who is holding the pencil.
   await becomeInvestigator(other, `Onderzoeker Speler ${stamp}`);
   await other.goto(boardUrl);
+  await editCanvas(other);
   await expect(other.getByTestId('ink-pen')).toBeVisible();
   await other.getByTestId('ink-pen').click();
   const obox = await stageBox(other, '.board-viewport');
@@ -302,6 +308,13 @@ test('a landkaart takes ink under its spelden and keeps it', async ({ page }) =>
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
   await page.waitForURL('**/maps/**');
   await expect(page.getByRole('application')).toBeVisible();
+  // §73: the potlood is Bewerken's, and a phone opens a landkaart in Lezen.
+  // Pressed until the pencil is there, because the server draws the switch as
+  // a desk's (§6).
+  await expect(async () => {
+    await editCanvas(page);
+    await expect(page.getByTestId('ink-pen')).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
   await page.waitForTimeout(500);
 
   await page.getByTestId('ink-pen').click();
@@ -351,6 +364,8 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');
   await expect(page.getByTestId('timeline-stage')).toBeVisible();
+  // §73: the potlood is Bewerken's, and a phone opens in Lezen.
+  await editCanvas(page);
   await page.waitForTimeout(500);
 
   await page.getByTestId('ink-pen').click();
@@ -429,6 +444,11 @@ test('a stamboom draws, and with the pencil out the gum and the undo are still b
   await sheet.getByRole('button', { name: 'Openbare stamboom' }).click();
   await page.waitForURL('**/stambomen/**');
   await expect(page.getByTestId('tree-stage')).toBeVisible();
+  // §73: the potlood is Bewerken's, and a phone opens the tree in Lezen.
+  await expect(async () => {
+    await editCanvas(page);
+    await expect(page.getByTestId('tree-add-loose')).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
   await page.waitForTimeout(500);
 
   const box = await stageBox(page, '.tree-stage');
@@ -511,6 +531,8 @@ test('a gum on a tijdlijn stays over what it took away when the axis is zoomed',
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');
   await expect(page.getByTestId('timeline-stage')).toBeVisible();
+  // §73: the potlood is Bewerken's, and a phone opens in Lezen.
+  await editCanvas(page);
   await page.waitForTimeout(500);
 
   const box = await stageBox(page, '.timeline-stage');

@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   becomeInvestigator,
   editArticle,
+  editCanvas,
   editCase,
   fillWhenReady,
   newCaseFamilyTree,
@@ -57,12 +58,30 @@ async function newTree(page: Page, name: string) {
   await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
   await sheet.getByRole('button', { name: 'Openbare stamboom' }).click();
   await page.waitForURL('**/stambomen/**');
+  // §73: a phone opens a stamboom in Lezen, where the heading is plain text
+  // and the toolbar makes nothing. Every test here goes on to put somebody in.
+  await editTree(page);
   // §6: `?new=1`'s lesson, one door along — the name of a stamboom *is* the
   // §34 heading, and for a hand that may edit it the heading is a box
   // (`TreeTitle`), so it is asserted with `toHaveValue`.
   await expect(page.locator('#tree-name')).toHaveValue(name);
   await expect(page.getByTestId('tree-stage')).toBeVisible();
   return page.url();
+}
+
+/**
+ * §73: Bewerken, and wait until the canvas has heard it.
+ *
+ * `editCanvas` reads the switch once, and the server renders every canvas as a
+ * desk — Bewerken already checked — so on a phone that has not hydrated yet it
+ * can find the right answer a moment before the page turns to Lezen. The
+ * toolbar's `Los kaartje` only exists in Bewerken, so it is the proof.
+ */
+async function editTree(page: Page) {
+  await expect(async () => {
+    await editCanvas(page);
+    await expect(page.getByTestId('tree-add-loose')).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
 }
 
 /** Every card on the glass, by the name printed on it. */

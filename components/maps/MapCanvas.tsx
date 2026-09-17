@@ -35,10 +35,14 @@ import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import type { InkLayerView } from '@/lib/ink/types';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { usePinch } from '@/components/canvas/usePinch';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
 import { groupDelta, normaliseRect } from '@/lib/canvas/select';
 import { UNDO_LIMIT, createUndoStack, type UndoStack } from '@/components/canvas/undoStack';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
+import { useCanvasMode } from '@/components/canvas/useCanvasMode';
+import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
+import { CanvasPeek } from '@/components/canvas/CanvasPeek';
 
 /**
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
@@ -236,6 +240,18 @@ export function MapCanvas({
   // close over the answer as it was then.
   const mayTypeRef = useRef(mayType);
   mayTypeRef.current = mayType;
+  /*
+   * §73: Lezen of Bewerken. Everything this glas lets a hand change — setting a
+   * speld, moving one, its laag, the potlood — asks an onderzoeker first
+   * (§18b), so that is the right the switch narrows: a hand that could never
+   * set a speld here has one mode and no switch. A phone opens in Lezen, a desk
+   * in Bewerken, and nothing is remembered.
+   */
+  const mode = useCanvasMode(mayType);
+  const editing = mode.editing;
+  /* Read by the keydown listener, which is bound once. */
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
@@ -328,6 +344,16 @@ export function MapCanvas({
   /** Waar de oude code `setSelectedId(x)` zei. */
   const setSelectedId = selectOnly;
   const [placing, setPlacing] = useState<Placing | null>(null);
+  /*
+   * §73: leaving Bewerken puts the crosshair down (the potlood is put down
+   * next to `useCanvasInk` below). Declared *before* the `?place=` effect on
+   * purpose: effects run in the order they are written, and a phone that
+   * hydrates into Lezen in the same commit that link turns Bewerken back on
+   * must cancel first and set the crosshair second, not the other way round.
+   */
+  useEffect(() => {
+    if (!editing) setPlacing(null);
+  }, [editing]);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [onlyMine, setOnlyMine] = useState(false);
   const [find, setFind] = useState('');
@@ -520,7 +546,13 @@ export function MapCanvas({
     const placeName = search.get('name');
     // §18b: "Zet op de landkaart" arrives as a URL; without an onderzoeker
     // there is nothing to set, so the crosshair never comes up.
-    if (place && mayTypeRef.current) setPlacing({ mode: 'entry', entryId: place, entryName: placeName ?? words.entry });
+    if (place && mayTypeRef.current) {
+      // §73: the person pressed "Zet op de landkaart" to set a speld — that is
+      // a hand asking for Bewerken, even on a phone that opens in Lezen.
+      mode.setMode('edit');
+      setPlacing({ mode: 'entry', entryId: place, entryName: placeName ?? words.entry });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centreOn, pins, search, stageSize.w, words.entry]);
 
   /* ----------------------------------------------------------- pointer */
@@ -528,7 +560,7 @@ export function MapCanvas({
   type Pointer = { x: number; y: number };
   const pointers = useRef(new Map<number, Pointer>());
   const gesture = useRef<{
-    kind: 'pan' | 'pinch' | 'pin';
+    kind: 'pan' | 'pin';
     moved: boolean;
     start: Pointer;
     view: View;
@@ -542,8 +574,6 @@ export function MapCanvas({
      * anders telt de sleep zichzelf frame na frame op (`groupDelta`).
      */
     groupStart?: Map<string, { x: number; y: number }>;
-    pinchDist?: number;
-    pinchMid?: Pointer;
   } | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
@@ -577,6 +607,15 @@ export function MapCanvas({
     stopPropagation: true,
   });
   const onInkKey = ink.onKeyDown;
+  /*
+   * §73: leaving Bewerken puts the potlood down too (the crosshair went at
+   * `placing`). An open capture sheet would otherwise go on drawing in Lezen.
+   */
+  const setInkActive = ink.inkTool.setActive;
+  const inkToolActive = ink.inkTool.active;
+  useEffect(() => {
+    if (!editing && inkToolActive) setInkActive(false);
+  }, [editing, inkToolActive, setInkActive]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -590,6 +629,8 @@ export function MapCanvas({
        * stroke (§33).
        */
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        // §73: a step back moves or digs up a speld — that is Bewerken's.
+        if (!editingRef.current) return;
         event.preventDefault();
         void undoRef.current();
         return;
@@ -608,7 +649,8 @@ export function MapCanvas({
         return;
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (selectionRef.current.size === 0) return;
+        // §73: in Lezen a key is never a way to lose a speld.
+        if (selectionRef.current.size === 0 || !editingRef.current) return;
         event.preventDefault();
         void removeSelectedRef.current();
         return;
@@ -639,6 +681,10 @@ export function MapCanvas({
    * usually is when somebody wants it gone. What it does defer to is an open
    * popover — the `@`-list of the notitie's text box — so one press peels one
    * layer, the same rule `Sheet` follows.
+   *
+   * §74: not on a phone. There the blad is a `CanvasPeek`, which answers
+   * Escape itself on `window` — after the canvas's own listener above, which
+   * clears the choice and marks the press handled, so one press closes it once.
    */
   useEffect(() => {
     if (isPhone || !selectedId) return;
@@ -740,7 +786,14 @@ export function MapCanvas({
   };
   stagePointRef.current = stagePoint;
 
-  const mayMove = (pin: MapPin) => mayType && (isKeeper || pin.createdBy === viewerId);
+  /** §18b: the right — this hand may move and pull this speld at all. */
+  const mayTouch = (pin: MapPin) => mayType && (isKeeper || pin.createdBy === viewerId);
+  /*
+   * §73: and whether it may *now*. In Lezen a press on your own speld is a
+   * press on someone else's: it pans the map (`movable: false`), and a tap
+   * still opens the blad.
+   */
+  const mayMove = (pin: MapPin) => editing && mayTouch(pin);
   /* Voor een toetsaanslag, die buiten een render om gebeurt. */
   const mayMoveRef = useRef(mayMove);
   mayMoveRef.current = mayMove;
@@ -758,18 +811,8 @@ export function MapCanvas({
      * still doing it the old way.
      */
 
-    if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
-      gesture.current = {
-        kind: 'pinch',
-        moved: true,
-        start: point,
-        view: viewRef.current,
-        pinchDist: Math.hypot(a.x - b.x, a.y - b.y),
-        pinchMid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-      };
-      return;
-    }
+    // §72: a second finger never gets this far — `pinchHand` took it in the
+    // capture phase and stopped it, so everything below is one hand.
     if (gesture.current?.kind === 'pin') return;
     /*
      * §67/§69 (2.1): shift op kaal papier veegt een kader; een gewone sleep
@@ -855,22 +898,6 @@ export function MapCanvas({
     }
     pointers.current.set(event.pointerId, point);
 
-    if (g.kind === 'pinch' && pointers.current.size >= 2) {
-      const [a, b] = [...pointers.current.values()];
-      const dist = Math.hypot(a.x - b.x, a.y - b.y);
-      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      const factor = dist / (g.pinchDist || dist);
-      const zoom = clampZoom(g.view.zoom * factor);
-      const ratio = zoom / g.view.zoom;
-      const start = g.pinchMid ?? mid;
-      setView({
-        zoom,
-        tx: mid.x - (start.x - g.view.tx) * ratio,
-        ty: mid.y - (start.y - g.view.ty) * ratio,
-      });
-      return;
-    }
-
     /* §69 (2.1): het kader eet de beweging op; het frame gaat mee via `reportHand`. */
     if (selection.onPointerMove(event)) {
       if (event.pointerType !== 'touch') reportHand(point);
@@ -923,11 +950,6 @@ export function MapCanvas({
     const g = gesture.current;
     pointers.current.delete(event.pointerId);
     if (!g) return;
-    if (g.kind === 'pinch') {
-      if (pointers.current.size === 0) gesture.current = null;
-      else gesture.current = { kind: 'pan', moved: true, start: [...pointers.current.values()][0], view: viewRef.current };
-      return;
-    }
     gesture.current = null;
 
     if (g.kind === 'pin' && g.pinId) {
@@ -1133,7 +1155,8 @@ export function MapCanvas({
    * double-click on nothing.
    */
   const makeOnEmpty = useMakeOnEmpty({
-    enabled: mayType && !ink.ink.enabled && !placing,
+    /* §73: making is Bewerken's; in Lezen a long press on the map is just a press. */
+    enabled: mayType && editing && !ink.ink.enabled && !placing,
     /* §71: het cijfertje is een knop, geen kaal papier — een dubbelklik erop
        vraagt geen nieuwe speld, hij zoomt in. */
     ignore: '.map-pin, .map-cluster-badge, .map-legend, .map-legend-toggle, .map-panel',
@@ -1143,6 +1166,41 @@ export function MapCanvas({
       const at = toPicture(point.x, point.y);
       if (at.x < 0 || at.x > 1 || at.y < 0 || at.y > 1) return;
       setPlacing({ mode: 'ask', x: at.x, y: at.y });
+    },
+  });
+
+  /*
+   * §72: the knijp. It used to live in this file's own pointer list, which
+   * kept a finger whose `pointerup` never came back — a speld that folded into
+   * a kluitje under the zoom (§71) took its up with it — and then read the next
+   * single finger as a knijp against that ghost. And a second finger that
+   * landed *on* a speld replaced the knijp with a speld-press.
+   */
+  const viewNow = useRef(view);
+  viewNow.current = view;
+  const pinchHand = usePinch({
+    stageRef,
+    clamp: clampZoom,
+    read: () => ({ x: viewNow.current.tx, y: viewNow.current.ty, zoom: viewNow.current.zoom }),
+    write: (next) => {
+      const v = { zoom: next.zoom, tx: next.x, ty: next.y };
+      viewNow.current = v;
+      viewRef.current = v;
+      setView(v);
+    },
+    onStart: () => {
+      makeOnEmpty.cancel();
+      const g = gesture.current;
+      gesture.current = null;
+      pointers.current.clear();
+      boxRef.current = null;
+      if (g?.kind === 'pin' && g.moved && g.groupStart) {
+        // A speld half-way across the picture goes back where it stood: the
+        // hand changed its mind into a knijp, not into a drop.
+        const back = g.groupStart;
+        setPins((current) => current.map((p) => (back.has(p.id) ? { ...p, ...back.get(p.id)! } : p)));
+      }
+      setDragging(null);
     },
   });
 
@@ -1518,9 +1576,12 @@ export function MapCanvas({
    *
    * So: on a desk the panel is docked inside the stage (`.map-panel`), the
    * picture pans and zooms behind it, and a press on another speld simply moves
-   * the panel to that one. On a phone it stays a `Sheet`, because 390 px has no
-   * room to dock anything beside a picture — that is the "bewust anders" cell,
-   * and it is the same answer the plan gives for every panel in axis 6.
+   * the panel to that one. On a phone there is no room to dock anything beside
+   * a picture, so it comes up from below — since §74 as a `CanvasPeek`, not a
+   * modal `Sheet`: at most a third of the screen, no scrim, the map above it
+   * still pans and the next speld is one tap away. What the speld *is* comes
+   * first in `PinSheetBody` (head, a clamped line of text, the way through),
+   * and what you can do to it scrolls below.
    *
    * Two things the desktop panel keeps from the sheet on purpose:
    * `role="dialog"` (without `aria-modal`, which would be a lie) so the panel
@@ -1531,9 +1592,15 @@ export function MapCanvas({
    */
   const pinPanel = selected ? (
     <PinSheet
+      /* A different speld is a different blad: its name and text boxes must
+         not keep the last one's typing (the peek swaps in place, §74). */
+      key={selected.id}
       pin={selected}
       busy={busy}
-      mayEdit={mayMove(selected)}
+      /* §73: the blad's own fields and buttons are a deliberate press and stay
+         in Lezen; only arranging (the laag) and the drag hint are Bewerken's. */
+      mayEdit={mayTouch(selected)}
+      arranging={mayMove(selected)}
       setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
       onSave={(patch) => void savePin(selected.id, patch)}
       onRemove={() => void removePin(selected)}
@@ -1645,6 +1712,8 @@ export function MapCanvas({
   return (
     <div className="map-page" {...gate}>
       <div className="row-wrap map-toolbar">
+        {/* §73: first in the row, as on every glas; nothing for a hand that may not set a speld. */}
+        <CanvasModeToggle mode={mode} />
         {placing ? (
           <>
             <span className="small">
@@ -1658,6 +1727,9 @@ export function MapCanvas({
             </button>
           </>
         ) : (
+          /* §73: gone in Lezen. A hand with no onderzoeker still sees it
+             greyed, so the author gate can ask for one on the press (§18b). */
+          (!mode.canEdit || editing) && (
           <button
             type="button"
             className="btn btn-primary btn-small"
@@ -1674,6 +1746,7 @@ export function MapCanvas({
             <Icon name="mapPin" size={15} />
             <span className="canvas-tool-word">{cap(pinWord)} zetten</span>
           </button>
+          )
         )}
         <div className="spacer" />
         {isPhone && (
@@ -1700,7 +1773,8 @@ export function MapCanvas({
           onFit={() => fit()}
         />
         {/* §69: a landkaart had no undo at all before this round. */}
-        {mayType && <CanvasUndoButton onUndo={() => void undo()} canUndo={undoDepth > 0} />}
+        {/* §73: greyed in Lezen rather than gone, so the row keeps its width. */}
+        {mayType && <CanvasUndoButton onUndo={() => void undo()} canUndo={editing && undoDepth > 0} />}
       </div>
 
       {/*
@@ -1728,6 +1802,18 @@ export function MapCanvas({
         ref={stageRef}
         className={`map-stage${placing ? ' map-stage-placing' : ''}`}
         onDoubleClick={makeOnEmpty.onDoubleClick}
+        onPointerDownCapture={(event) => {
+          // §72: a second finger is a knijp, before a speld under it can start a press.
+          if (pinchHand.onPointerDown(event) && !(event.target as HTMLElement).closest('.ink-capture')) {
+            event.stopPropagation();
+          }
+        }}
+        onPointerMoveCapture={(event) => {
+          if (pinchHand.onPointerMove(event)) event.stopPropagation();
+        }}
+        onPointerUpCapture={(event) => {
+          if (pinchHand.onPointerUp(event)) event.stopPropagation();
+        }}
         onPointerDown={(event) => {
           onStagePointerDown(event);
           makeOnEmpty.onPointerDown(event);
@@ -1945,7 +2031,14 @@ export function MapCanvas({
 
         {/* §33: the sheet and the bar, in that order — bottom-left, because the
             legend has the top-left corner. */}
-        <InkShell shell={ink} corner="bottom-left" toolbar={!placing} />
+        {/* §73: the potlood is Bewerken's. §74: on a phone the peek has the
+            bottom edge while a speld is open, so the bar goes up for as long. */}
+        <InkShell
+          shell={ink}
+          corner="bottom-left"
+          toolbar={!placing && (editing || !mode.canEdit)}
+          bottomTaken={isPhone && Boolean(pinPanel)}
+        />
 
         {/*
           §69 (6.7) — een lege landkaart zegt het op het glas.
@@ -1964,7 +2057,10 @@ export function MapCanvas({
         {!pins.length && !ink.ink.enabled && !placing && (
           <div className="map-empty">
             <p className="small muted">
-              {mayType
+              {mayType && !editing
+                ? /* §73: in Lezen the gestures below do nothing, so do not offer them. */
+                  `Nog geen ${words.mapPinPlural} op deze ${mapWord}. Kies Bewerken om er een te zetten.`
+                : mayType
                 ? `Nog geen ${words.mapPinPlural} op deze ${mapWord}. ${
                     isPhone
                       ? `Houd de ${mapWord} ingedrukt om hier een ${pinWord} te zetten`
@@ -2057,11 +2153,21 @@ export function MapCanvas({
 
       {isKeeper && <UnderFold slotId={UNDER_FOLD_ID}>{ink.keeperControls}</UnderFold>}
 
-      {/* §69 (3.3): a phone keeps the sheet. See `pinPanel` above for why. */}
-      {isPhone && pinPanel && (
-        <Sheet onClose={() => setSelectedId(null)} labelledBy="pin-title">
+      {/*
+        §74: a phone gets the peek. See `pinPanel` above for why. Keyed by the
+        speld, so a tap on the next one starts small and at the top again. It
+        is `position: fixed` and stops its own presses, so it lives out here
+        beside the stage rather than in it, and the map above it stays live.
+      */}
+      {isPhone && pinPanel && selected && (
+        <CanvasPeek
+          key={selected.id}
+          labelledBy="pin-title"
+          onClose={() => setSelectedId(null)}
+          className="map-peek"
+        >
           {pinPanel}
-        </Sheet>
+        </CanvasPeek>
       )}
 
       {placing?.mode === 'ask' && (
@@ -2089,6 +2195,7 @@ function PinSheet({
   pin,
   busy,
   mayEdit,
+  arranging,
   setBy,
   onSave,
   onRemove,
@@ -2098,7 +2205,10 @@ function PinSheet({
 }: {
   pin: MapPin;
   busy: boolean;
+  /** §18b: this hand may rename, convert and pull this speld. */
   mayEdit: boolean;
+  /** §73: …and may arrange it right now — Bewerken, not Lezen. */
+  arranging: boolean;
   setBy: string | null;
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
@@ -2118,6 +2228,7 @@ function PinSheet({
           pin={pin}
           busy={busy}
           mayEdit={mayEdit}
+          arranging={arranging}
           setBy={setBy}
           onSave={onSave}
           onRemove={onRemove}
@@ -2132,6 +2243,7 @@ function PinSheet({
       pin={pin}
       busy={busy}
       mayEdit={mayEdit}
+      arranging={arranging}
       setBy={setBy}
       onSave={onSave}
       onRemove={onRemove}
@@ -2145,6 +2257,7 @@ function PinSheetBody({
   pin,
   busy,
   mayEdit,
+  arranging,
   setBy,
   onSave,
   onRemove,
@@ -2154,6 +2267,7 @@ function PinSheetBody({
   pin: MapPin;
   busy: boolean;
   mayEdit: boolean;
+  arranging: boolean;
   setBy: string | null;
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
@@ -2168,6 +2282,13 @@ function PinSheetBody({
   const [text, setText] = useState(pin.text);
   const dirty = !shared && (name !== pin.name || text !== pin.text);
 
+  /*
+   * §74: the order is the peek's. On a phone this opens in about a third of the
+   * screen, so the first ~250 px hold what the speld *is* — its head, a line or
+   * three of what it says (clamped in the peek, `.map-pin-summary`), and the
+   * way through to its artikel or landkaart. What you can *do* to it (the
+   * fields, the laag, convert, pull) follows, in the same scrolling body.
+   */
   return (
     <div className="stack">
       <div className="row" style={{ alignItems: 'flex-start' }}>
@@ -2194,7 +2315,11 @@ function PinSheetBody({
 
       {pin.kind === 'entry' && pin.entry && (
         <>
-          {pin.entry.shortDescription && <p className="small" style={{ margin: 0 }}>{pin.entry.shortDescription}</p>}
+          {pin.entry.shortDescription && (
+            <p className="small map-pin-summary" style={{ margin: 0 }}>
+              {pin.entry.shortDescription}
+            </p>
+          )}
           <p style={{ margin: 0 }}>
             <Link className="btn btn-small btn-primary" href={`/e/${pin.entry.slug}`}>
               <Icon name="file" size={14} />
@@ -2255,7 +2380,11 @@ function PinSheetBody({
             )}
           </>
         ) : (
-          pin.text && <p className="small" style={{ margin: 0, whiteSpace: 'pre-wrap' }}><MentionText text={pin.text} /></p>
+          pin.text && (
+            <p className="small map-pin-summary" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+              <MentionText text={pin.text} />
+            </p>
+          )
         ))}
 
       {/*
@@ -2270,8 +2399,11 @@ function PinSheetBody({
         landkaart hoort een dorp boven een huis, op de andere is de kamer het
         onderwerp en hoort díe bovenaan. Er wordt dus niets afgeleid; de hand
         zegt het.
+
+        §73: de laag is schikken, en schikken is verplaatsen onder een andere
+        naam — dus alleen in Bewerken.
       */}
-      {mayEdit && (
+      {arranging && (
         <>
           <p className="label" style={{ margin: '0.2rem 0 0' }} id="pin-layer-label">
             Laag
@@ -2301,9 +2433,12 @@ function PinSheetBody({
       )}
 
       {mayEdit ? (
-        <p className="tiny muted" style={{ margin: 0 }}>
-          Sleep de {words.mapPin} om hem te verplaatsen.
-        </p>
+        // §73: in Lezen a drag pans, so the hint would be a lie.
+        arranging && (
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Sleep de {words.mapPin} om hem te verplaatsen.
+          </p>
+        )
       ) : (
         <p className="tiny muted" style={{ margin: 0 }}>
           Deze {words.mapPin} is van iemand anders: alleen wie hem zette, of een {words.keeper}, kan hem verplaatsen of

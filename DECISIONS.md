@@ -5124,3 +5124,78 @@ een *speler* met bewerkrechten op een landkaart komt door `viewerCanEditMap` en
 door `DELETE /api/maps/[id]` heen en heeft geen knop. Genoemd, niet gedicht:
 het is dezelfde soort scheefheid als de rest van de vier en hoort in dezelfde
 opruimronde.
+
+## Ronde 37 — 16 September 2026: de knijp, lezen of bewerken, en een kaartje van onderen (§72, §73, §74)
+
+Drie punten uit Nicks eigen telefoon-feedback, in één ronde. Vóór het bouwen
+vier keuzes van Nick: Lezen zet **verplaatsen, maken en het potlood** uit (niet
+alleen verplaatsen, en niet alles wat bewerken is); de stand is **elke keer
+vers** (niet per apparaat onthouden); wat een tik opent wordt op een telefoon een
+**klein kaartje dat groter kan** (geen zwevende kaart naast het ding, en niet
+alleen de bestaande bladen afknippen); en het geldt voor **alle vier plus het
+web**.
+
+### §72 — waarom een eigen module en niet vier reparaties
+
+Elk van de vier fouten was met één regel te dichten (een `pointerId` op de pan
+van het prikbord, een `pointercancel` op de landkaart, `viewRef` in plaats van
+`view` op de tijdlijn). Gedaan is iets anders: één zuivere `PinchTracker` en één
+hook, omdat de vier fouten dezelfde vorm hadden — onthouden wat niet meer waar
+is — en die vorm terugkomt zodra er een vijfde glas bij komt. De knijp is nu
+**absoluut vanaf het moment dat het paar ontstond**; de stamboom en het prikbord
+vermenigvuldigden per frame en pannen dus niet mee met twee schuivende vingers.
+Dat is een gedragswijziging die elke foto-app al heeft.
+
+**Na een knijp blijft de laatste vinger stil.** Ronde 35 liet de landkaart en de
+tijdlijn met die vinger verder pannen. Omgedraaid, omdat precies die overgang
+waar de tijdlijn zijn sprong vandaan had, en omdat een vinger die van het glas
+gaat het beeld anders een zet geeft die niemand vroeg.
+
+**Het web is niet omgezet.** Het is één `<canvas>` met zijn eigen knijp, neemt
+de pointer capture op de heenweg en had geen van de vier fouten. Niets aan
+aangeraakt behalve de §73-poorten.
+
+### §73 — keuzes die de bouwers maakten
+
+- **Een sleep op een ding schuift in Lezen het papier**, op prikbord, landkaart,
+  tijdlijn, stamboom en web. Het alternatief (niets doen) laat op een vol glas
+  de camera onbereikbaar. Ook wie helemaal geen bewerkrecht heeft krijgt dat
+  nu: tot deze ronde deed een sleep op een kaartje voor een kijker niets, en op
+  de tijdlijn opende hij na het loslaten het venster.
+- **Wie alleen mag kijken houdt het potlood** (§33) en krijgt geen schakelaar.
+- **De ongedaan-knop** wordt op prikbord en landkaart grijs in Lezen in plaats
+  van te verdwijnen (de werkbalk verspringt niet); op de tijdlijn blijft hij
+  staan (alleen Ctrl+Z gaat uit, `canvas-contract` vraagt de knop op de
+  telefoon); op de stamboom verdwijnt de hele maakgroep inclusief de knop. Drie
+  varianten van één ding — genoemd, niet gelijkgetrokken; het is het eerste om
+  recht te zetten als iemand weer in de werkbalken zit.
+- **Een link met `?place=`** zet Bewerken aan: daarmee vraag je om iets te
+  zetten.
+- **De velden in een paneel blijven in Lezen** (de naam en tekst van een
+  notitie-speld, de knoppen van een tijdlijnvenster). Nicks keuze sprak van
+  "de knoppen van een paneel blijven"; een veld is daar de uitgebreide lezing
+  van. Het gevolg is dat een notitie-speld in de peek meteen twee invoervakken
+  toont.
+- **De naam van een stamboom** is in Lezen platte tekst; de kop hoort bij de
+  pagina en niet bij het canvas, dus hoort hij de stand via een window-event
+  (`announceTreeMode` in `TreeTitle.tsx`).
+- **Nieuw gemaakte glazen** komen in de specs via de helpers meteen in
+  Bewerken (`newBoard`, `newCaseFamilyTree`, `newTimeline` in
+  `timelines.spec.ts`); de app zelf doet dat niet — een telefoon die net een
+  prikbord maakte landt in Lezen. Open vraag voor Nick: moet een glas dat je
+  zelf net maakte in Bewerken openen, zoals een nieuw artikel op `?new=1`?
+
+### §74 — waarom een peek en geen `Sheet`
+
+Een `Sheet` op een telefoon is modaal, en §69 leerde al dat een modale laag over
+een canvas het canvas onbruikbaar maakt. Het blad van de landkaart was de laatste
+plek waar dat nog zo was. Het kaartje van onderen houdt **alles in één
+scrollend lijf** in plaats van een samenvatting en een tweede scherm: een duim
+(en een spec) die *Speld weghalen* zoekt scrolt ernaar, en er is geen tweede weg
+naar dezelfde knop. De lade van de tijdlijn (`.timeline-popout-dock`, §69 6.4)
+is weg en opgegaan in dezelfde peek.
+
+**Wat open blijft.** De bewerkbladen (gebeurtenis bewerken, los kaartje) zijn
+nog steeds modale `Sheet`s van tot 92 %: dat is een formulier, een bewuste
+stap. Een tijdlijnvenster in de peek heeft zijn eigen *Sluiten* naast het
+kruisje van de peek; met één venster open doen die twee hetzelfde.

@@ -89,7 +89,11 @@ import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import { useElementSize } from '@/components/ink/useElementSize';
 import type { InkLayerView } from '@/lib/ink/types';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { usePinch } from '@/components/canvas/usePinch';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
+import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
+import { CanvasPeek } from '@/components/canvas/CanvasPeek';
+import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 
 /*
  * §67: the wall's zoom floor and ceiling, and its undo depth, are the shared
@@ -282,10 +286,19 @@ export function BoardCanvas({
   const [familyTreeFacts, setFamilyTreeFacts] =
     useState<Record<string, FamilyTreeFacts>>(initialFamilyTrees);
   const [viewport, setViewport] = useState<Viewport>(initialState.viewport);
+  /** §72: the camera as it is *now*, between renders — what a knijp re-bases on. */
+  const viewportNow = useRef(viewport);
+  viewportNow.current = viewport;
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     assetId: string;
     name: string;
+    /**
+     * §74: on a phone a picture opens as a peek first, and this is set once
+     * "Groot bekijken" asks for the full-screen `.board-lightbox`. A desk never
+     * reads it — there the lightbox is the only way a picture opens.
+     */
+    full?: boolean;
   } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [name, setName] = useState(boardName);
@@ -410,8 +423,14 @@ export function BoardCanvas({
     before: Snapshot;
     moved: boolean;
   } | null>(null);
-  const pan = useRef<{ startX: number; startY: number; from: Viewport } | null>(null);
-  const pinch = useRef<{ distance: number; zoom: number } | null>(null);
+  const pan = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    from: Viewport;
+    /** §73: begun on a kaartje in Lezen — a travelled one must not open it. */
+    fromCard?: boolean;
+  } | null>(null);
 
   /*
    * §18b: a speler with no onderzoeker may look at the wall and touch nothing
@@ -447,8 +466,39 @@ export function BoardCanvas({
    * Het papier schuif je met een vinger op **kale kurk**, en één tik op een
    * kaartje opent het nog steeds (`canOpenOnTap`).
    */
-  const mayDrag = !readOnly;
+  /*
+   * §73 — lezen en bewerken. `readOnly` blijft wat het was: **rechten** (het
+   * "Alleen kijken"-chipje, geen camera die wordt bewaard, geen `commit`). De
+   * stand is iets anders: een hand die hier wél mag, maar nu leest. Die twee
+   * worden dus niet op één hoop gegooid — een OR in `readOnly` zou een lezer
+   * met rechten het chipje geven en zijn camera niet meer bewaren.
+   *
+   * `handsOff` is waar in Lezen, en ook altijd bij `readOnly` (de hook geeft
+   * een hand zonder rechten nooit Bewerken). Wat het dichtzet is de lijst uit
+   * `useCanvasMode`: verplaatsen (een kaartje dragen, het hoekje, een draad uit
+   * een punaise, slepen uit de lade), maken (dubbelklik of lang drukken op kaal
+   * kurk, de knoppen in `.board-tools`, plakken) en het potlood. De camera,
+   * kiezen, openen en de inspector blijven.
+   */
+  const mode = useCanvasMode(!readOnly);
+  const handsOff = !mode.editing;
+  const mayDrag = !handsOff;
+  /*
+   * §73: `interactive` houdt zijn betekenis — een bureau met rechten — omdat hij
+   * ook over *kiezen* (het kader) en *openen* (`canOpenOnTap`: op een bureau
+   * opent één klik nooit) gaat, en die blijven in Lezen hetzelfde. Wat aan
+   * `interactive` hing en wél verplaatsen is — het hoekje, een draad trekken,
+   * een uiteinde verzetten — vraagt `mayArrange`.
+   */
   const interactive = !isPhone && !readOnly;
+  const mayArrange = interactive && !handsOff;
+  /*
+   * §73/§33: het potlood gaat weg in Lezen — maar alleen voor een hand die de
+   * schakelaar hééft. Tekenen was nooit aan de rechten op de muur gebonden
+   * (§33: ook een kijker mag op de tekenlaag), en een kijker krijgt geen
+   * schakelaar, dus zou een kijker het potlood anders voor altijd kwijt zijn.
+   */
+  const inkHandsOff = mode.canEdit && handsOff;
   const [accessOpen, setAccessOpen] = useState(false);
   // §43, round 18: the wall's own say in whether it is a line in the web.
   const [inWeb, setInWeb] = useState(access.inWeb);
@@ -941,20 +991,50 @@ export function BoardCanvas({
    */
   const makeOnEmpty = useMakeOnEmpty({
     /*
-     * `!readOnly`, deliberately **not** `interactive` — which is
+     * `!handsOff` (§73; it was `!readOnly`), deliberately **not** `interactive` — which is
      * `!isPhone && !readOnly` and is the gate on *dragging* a card, for §6.2's
      * separate reason. Making something is not dragging something: a phone
      * that can press the toolbar's "Notitie" can press bare cork for half a
      * second, and the contract spec found this by asking the phone the same
      * question it asks the desk.
      */
-    enabled: !readOnly && !inkActive,
+    // §73: and not in Lezen — a thumb that rests on the cork makes nothing.
+    enabled: !handsOff && !inkActive,
     ignore: '.board-card, .board-string, .board-string-hit, .board-grip, .board-handle, .board-inspector, .board-picker',
     busy: () => dragMoved.current || pan.current !== null,
     onMake: ({ clientX, clientY }) => {
       const at = toBoard(clientX, clientY);
       const spot = freeSpotNear(at.x, at.y, cardSize({ kind: 'note' }));
       addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '', x: spot.x, y: spot.y });
+    },
+  });
+
+  /*
+   * §72: the knijp. Fingers only, absolute from the moment two fingers are
+   * down, and whatever the first finger had begun — a pan, a card lifted, a
+   * long press counting down — is let go of when the second one lands.
+   */
+  const pinchHand = usePinch({
+    stageRef: viewportRef,
+    read: () => viewportNow.current,
+    write: (next) => {
+      viewportNow.current = next;
+      setViewport(next);
+    },
+    onStart: () => {
+      makeOnEmpty.cancel();
+      pan.current = null;
+      resize.current = null;
+      if (drag.current) {
+        const ids = [...drag.current.origin.keys()];
+        const moved = dragMoved.current;
+        drag.current = null;
+        if (!readOnly && moved) sync.saveNow({ cards: ids });
+      }
+      setHandOn(false);
+    },
+    onEnd: () => {
+      if (!readOnly) sync.markDirty({ viewport: true });
     },
   });
 
@@ -1188,8 +1268,9 @@ export function BoardCanvas({
    */
   const pasteImage = useCallback(
     (event: ClipboardEvent) => {
-      // A viewer who may not touch this wall pastes nothing onto it.
-      if (readOnly) return;
+      // A viewer who may not touch this wall pastes nothing onto it — §73: and
+      // nor does a hand in Lezen; a paste puts something new on the glass.
+      if (handsOff) return;
       // One upload at a time: two in flight would race for `photoTarget`.
       if (uploading) return;
       // The clipboard belongs to whoever is typing — a note's text, the search
@@ -1209,7 +1290,7 @@ export function BoardCanvas({
       photoTarget.current = single && single.kind !== 'entry' ? single.id : 'new';
       void uploadPhoto(file, photoTarget.current === 'new' ? pointerAt.current : null);
     },
-    [accessOpen, lightbox, readOnly, selectedCards, uploadPhoto, uploading],
+    [accessOpen, lightbox, handsOff, selectedCards, uploadPhoto, uploading],
   );
 
   useEffect(() => {
@@ -1249,6 +1330,35 @@ export function BoardCanvas({
     setSelectedStringId(null);
     selection.select(cardId, additive, alreadySelected);
 
+    dragMoved.current = false;
+
+    /*
+     * §73: in Lezen kiest een druk op een kaartje, en een sleep die erop begint
+     * schuift het **papier** — niet het kaartje. Op een telefoon is een kaartje
+     * het grootste ding op de kurk, dus een duim die de muur wil verschuiven
+     * begint bijna altijd op een kaartje; die sleep niets laten doen zou de
+     * camera op een volle muur onbereikbaar maken. Het is dezelfde `pan` als op
+     * kaal kurk, met `fromCard` zodat de klik waar hij mee eindigt het kaartje
+     * niet opent (zie `onPointerMove`).
+     *
+     * Een muur zonder rechten viel hier vroeger gewoon uit (`!mayDrag`); die
+     * schuift nu ook, want hij is ook altijd `handsOff`.
+     */
+    if (handsOff) {
+      if (pan.current && pan.current.pointerId !== event.pointerId) {
+        pan.current = null;
+        return;
+      }
+      pan.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        from: viewportNow.current,
+        fromCard: true,
+      };
+      return;
+    }
+
     /* §69 (6.2): een vinger mag dit — zie `mayDrag` hierboven. */
     if (!mayDrag) return;
 
@@ -1258,7 +1368,6 @@ export function BoardCanvas({
     for (const card of cardsRef.current)
       if (chosen.has(card.id)) origin.set(card.id, { x: card.x, y: card.y });
 
-    dragMoved.current = false;
     // Not pushed to undo yet: a click, or the first half of a double-click, is
     // a press too, and undo should not be full of drags that went nowhere.
     drag.current = {
@@ -1281,7 +1390,8 @@ export function BoardCanvas({
    * that point does not move while the card grows: `cardBox` grows about it.
    */
   function onGripPointerDown(event: React.PointerEvent, card: BoardCard) {
-    if (!interactive) return;
+    // §73: the grip and a draad are arranging — Bewerken only.
+    if (!mayArrange) return;
     // §69/§68: only the left button is the archive's. A touch reports 0 too.
     if (event.button !== 0) return;
     // A grip is only ever dragged: no click, no focus, no pan underneath it.
@@ -1302,7 +1412,8 @@ export function BoardCanvas({
   }
 
   function onPinPointerDown(event: React.PointerEvent, cardId: string) {
-    if (!interactive) return;
+    // §73: the grip and a draad are arranging — Bewerken only.
+    if (!mayArrange) return;
     /*
      * §69/§68: only the left button. Without this, a right-press on a pin head
      * started a draad — measured: a `.board-string-drawing` path followed the
@@ -1325,7 +1436,8 @@ export function BoardCanvas({
     line: BoardString,
     end: 'from' | 'to',
   ) {
-    if (!interactive) return;
+    // §73: moving a draad's end is arranging — Bewerken only.
+    if (!mayArrange) return;
     // §69/§68: only the left button.
     if (event.button !== 0) return;
     event.stopPropagation();
@@ -1399,10 +1511,21 @@ export function BoardCanvas({
     // §67: shift-drag on bare cork sweeps a box; a plain drag pans.
     if (event.shiftKey && selection.beginMarquee(event)) return;
 
+    /*
+     * §72: a pan belongs to the finger that started it. Keyed on nothing, a
+     * second finger landing restarted it from *its* spot, and the first
+     * finger's next move was measured from there — the wall jumped by the
+     * distance between the two fingers before the knijp had even begun.
+     */
+    if (pan.current && pan.current.pointerId !== event.pointerId) {
+      pan.current = null;
+      return;
+    }
     pan.current = {
+      pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      from: viewport,
+      from: viewportNow.current,
     };
   }
 
@@ -1478,9 +1601,17 @@ export function BoardCanvas({
     }
 
     if (pan.current) {
+      // §72: another finger's move is not this pan's.
+      if (pan.current.pointerId !== event.pointerId) return;
       // Read the ref here, not inside the updater: React runs updaters later —
       // twice over in Strict Mode — by which time pointerup has cleared it.
-      const { from, startX, startY } = pan.current;
+      const { from, startX, startY, fromCard } = pan.current;
+      // §73: a pan that began on a kaartje and travelled is a drag, not a tap —
+      // the click it ends with must not select-then-open the card underneath
+      // (`onOpen`, `onViewFull` and `pressMoved` all ask this ref).
+      if (fromCard && !dragMoved.current && passedSlop(event.clientX - startX, event.clientY - startY)) {
+        dragMoved.current = true;
+      }
       const nextX = from.x + (event.clientX - startX);
       const nextY = from.y + (event.clientY - startY);
       setViewport((current) => ({ ...current, x: nextX, y: nextY }));
@@ -1553,9 +1684,15 @@ export function BoardCanvas({
     }
 
     if (pan.current) {
+      const { startX, startY } = pan.current;
       pan.current = null;
       // §61: a pan moves the shared viewport and not one card on the wall.
-      if (!readOnly) sync.markDirty({ viewport: true });
+      // §73: and only a pan that *moved* it. In Lezen every tap on a kaartje is
+      // a pan that went nowhere, and a save for each would bring a merge back
+      // between the two taps that open a card — §69 (6.2)'s lesson again.
+      // Measured by the hand, not by `viewportNow`, which is a render behind.
+      const travelled = event.clientX !== startX || event.clientY !== startY;
+      if (!readOnly && travelled) sync.markDirty({ viewport: true });
       return;
     }
 
@@ -1780,36 +1917,6 @@ export function BoardCanvas({
     );
   }
 
-  function onTouchMove(event: React.TouchEvent) {
-    if (event.touches.length !== 2) return;
-    const rect = viewportRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const [a, b] = [event.touches[0], event.touches[1]];
-    const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    /*
-     * §69: a knijp zooms about the point between the two fingers, the way the
-     * landkaart, the tijdlijn and the stamboom already do it.
-     *
-     * This used to set `zoom` and nothing else, which anchors the wall at its
-     * top-left corner rather than under the hand — measured on a 390 px
-     * screen, the y never moved at all and the x drifted fifty pixels. And
-     * both fingers had each started a pan of their own on the way down, so the
-     * wall slid *under* the knijp as well: a second finger ends the pan.
-     */
-    pan.current = null;
-    if (!pinch.current) {
-      pinch.current = { distance, zoom: viewport.zoom };
-      return;
-    }
-    const started = pinch.current;
-    const midX = (a.clientX + b.clientX) / 2 - rect.left;
-    const midY = (a.clientY + b.clientY) / 2 - rect.top;
-    setViewport((current) => {
-      const wanted = clampZoom(started.zoom * (distance / started.distance));
-      return zoomAbout(current, wanted / current.zoom, midX, midY);
-    });
-  }
-
   function fitAll() {
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect || !cardsRef.current.length) return;
@@ -1880,7 +1987,9 @@ export function BoardCanvas({
         return;
       }
 
-      if (readOnly) return;
+      // §73: Delete, Backspace and Ctrl+Z change the wall — Bewerken's keys.
+      // (`handsOff` is also true on a wall this hand may not edit.)
+      if (handsOff) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         undo();
@@ -1906,7 +2015,7 @@ export function BoardCanvas({
     removeCards,
     removeString,
     undo,
-    readOnly,
+    handsOff,
     onInkKey,
     picker,
     zoomAround,
@@ -1943,6 +2052,42 @@ export function BoardCanvas({
       window.removeEventListener('pointercancel', finish);
     };
   }, [sync]);
+
+  /*
+   * §73: leaving Bewerken lets go of whatever the hand was in the middle of.
+   * A card half-way across the wall, a grip, a draad on its way to a card, a
+   * picker a draad opened, a long press counting down, the potlood — none of
+   * them may outlive the switch, or Lezen would still be carrying something.
+   * What had already moved is saved where it stands, the same way the knijp's
+   * `onStart` lets go of a drag (§72); nothing is undone.
+   *
+   * §64: the picker closes but the question it asked (`pendingPin`) does not,
+   * exactly as an Escape leaves it.
+   */
+  const editing = mode.editing;
+  const leaveEditRef = useRef<() => void>(() => {});
+  leaveEditRef.current = () => {
+    makeOnEmpty.cancel();
+    if (drag.current) {
+      const ids = [...drag.current.origin.keys()];
+      drag.current = null;
+      if (!readOnly && dragMoved.current) void sync.saveNow({ cards: ids });
+    }
+    if (resize.current) {
+      const { id, moved } = resize.current;
+      resize.current = null;
+      if (!readOnly && moved) void sync.saveNow({ cards: [id] });
+    }
+    dragging.current = null;
+    setDrawing(null);
+    setPicker(null);
+    setHandOn(false);
+    // §33: only a hand that had the switch loses the potlood (see `inkHandsOff`).
+    if (mode.canEdit && ink.inkTool.active) ink.inkTool.setActive(false);
+  };
+  useEffect(() => {
+    if (!editing) leaveEditRef.current();
+  }, [editing]);
 
   /* ------------------------------------------------------------- search */
 
@@ -2476,6 +2621,9 @@ export function BoardCanvas({
   return (
     <div className="board-page">
       <div className="board-bar">
+        {/* §73: first in the bar, so a 390 px phone sees which hand it has
+            before anything else. Nothing at all for a hand without rights. */}
+        <CanvasModeToggle mode={mode} />
         <label className="visually-hidden" htmlFor="board-name">
           Naam van het prikbord
         </label>
@@ -2576,7 +2724,9 @@ export function BoardCanvas({
         {/* §69: the shared button. This one carried no icon and no
             `aria-label`, so on a phone — where the word is hidden — it was a
             blank square; and it was pressable with an empty stack. */}
-        <CanvasUndoButton onUndo={undo} canUndo={undoDepth > 0} />
+        {/* §73: grey in Lezen rather than gone — undo changes the wall, and the
+            bar should not jump when the switch is pressed. */}
+        <CanvasUndoButton onUndo={undo} canUndo={!handsOff && undoDepth > 0} />
         {!readOnly && (
           <button
             type="button"
@@ -2594,7 +2744,14 @@ export function BoardCanvas({
         )}
       </div>
 
-      {!readOnly && (
+      {/*
+        §73: the whole row is making — the search that hangs a card, Nieuwe
+        notitie, Foto, a losse punaise — so in Lezen it is not there. A phone
+        gets that height back for the cork; a desk sees the row come back when
+        Bewerken is pressed, which is a deliberate press and not a gesture a
+        measured coordinate can be caught in (see `holdingAPin`).
+      */}
+      {!handsOff && (
       <div className="board-tools">
         <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 0 }}>
           {/*
@@ -2693,13 +2850,27 @@ export function BoardCanvas({
       </div>
       )}
 
-      {isPhone && !readOnly && <p className="board-hint">Verschuiven werkt het best op een tablet of computer.</p>}
+      {/* §73: a hint about moving things, so only where things can be moved. */}
+      {isPhone && !handsOff && <p className="board-hint">Verschuiven werkt het best op een tablet of computer.</p>}
 
       <div
         className="board-viewport"
         ref={viewportRef}
         {...gate}
         onDoubleClick={makeOnEmpty.onDoubleClick}
+        onPointerDownCapture={(event) => {
+          (gate as { onPointerDownCapture?: () => void } | null)?.onPointerDownCapture?.();
+          // §72: a second finger is a knijp, before a card under it can start a drag.
+          if (pinchHand.onPointerDown(event) && !(event.target as HTMLElement).closest('.ink-capture')) {
+            event.stopPropagation();
+          }
+        }}
+        onPointerMoveCapture={(event) => {
+          if (pinchHand.onPointerMove(event)) event.stopPropagation();
+        }}
+        onPointerUpCapture={(event) => {
+          if (pinchHand.onPointerUp(event)) event.stopPropagation();
+        }}
         onPointerDown={(event) => {
           onSurfacePointerDown(event);
           makeOnEmpty.onPointerDown(event);
@@ -2732,22 +2903,18 @@ export function BoardCanvas({
           live.reportPointer({ cursor: null });
         }}
         onWheel={onWheel}
-        onTouchMove={onTouchMove}
-        onTouchEnd={() => {
-          pinch.current = null;
-          if (!readOnly) sync.markDirty({ viewport: true });
-        }}
         onDragOver={(event) => {
           // Only say yes to a card from our own tray; a file dropped here is
           // not something the cork knows what to do with.
-          if (!dragging.current) return;
+          if (!dragging.current || handsOff) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = 'copy';
         }}
         onDrop={(event) => {
           const entry = dragging.current;
           dragging.current = null;
-          if (!entry) return;
+          // §73: a drop from the lade is making — Bewerken only.
+          if (!entry || handsOff) return;
           event.preventDefault();
           const point = toBoard(event.clientX, event.clientY);
           placeEntry(entry, { at: point });
@@ -2897,6 +3064,8 @@ export function BoardCanvas({
               pressMoved={() => dragMoved.current}
               onPointerDown={(event) => onCardPointerDown(event, card.id)}
               onPinPointerDown={(event) => onPinPointerDown(event, card.id)}
+              /* §73: writing on a card is editing — no double-tap box in Lezen. */
+              canWrite={!handsOff}
               onTextChange={(text) => !readOnly && patchCard(card.id, { text })}
               onOpen={() => {
                 if (dragMoved.current) return;
@@ -3001,7 +3170,8 @@ export function BoardCanvas({
             another card, or on bare cork, to move that end — the same gesture
             as running a new string, so there is nothing extra to learn.
           */}
-          {interactive &&
+          {/* §73: `mayArrange` — no grips in Lezen. */}
+          {mayArrange &&
             selectedString &&
             (['from', 'to'] as const).map((which) => {
               const at = pointOf(selectedString[which]);
@@ -3026,7 +3196,7 @@ export function BoardCanvas({
             inside the card is being moved — that is the same drag, on the same
             card, meaning something else.
           */}
-          {interactive && singleSelected && !inkActive && (() => {
+          {mayArrange && singleSelected && !inkActive && (() => {
             const box = cardBox(singleSelected);
             return (
               <button
@@ -3107,7 +3277,7 @@ export function BoardCanvas({
           Outside `.board-world` on purpose — that layer carries the wall's
           zoom, and a search box drawn at 40% is not a search box.
         */}
-        {picker && !readOnly && (
+        {picker && !handsOff && (
           <BoardPicker
             variant="float"
             style={{ left: picker.left, top: picker.top }}
@@ -3169,7 +3339,8 @@ export function BoardCanvas({
 
         {/* §33: the sheet and the bar, in that order — bottom-right, because
             every other corner of the cork is taken. */}
-        <InkShell shell={ink} corner="bottom-right" />
+        {/* §73: no potlood in Lezen, for a hand that has the switch. */}
+        <InkShell shell={ink} corner="bottom-right" toolbar={!inkHandsOff} />
 
         {!cards.length && !inkActive && (
           <div className="board-empty">
@@ -3191,7 +3362,9 @@ export function BoardCanvas({
           </div>
         )}
 
-        {caseId && !readOnly && (
+        {/* §73: the lade is a drawer of things to hang up — by a press or by a
+            drag — so it is Bewerken's, like the row of buttons above the wall. */}
+        {caseId && !handsOff && (
           <BoardTray
             entries={trayEntries}
             onAdd={(entry) => placeEntry(entry)}
@@ -3313,7 +3486,42 @@ export function BoardCanvas({
         </Sheet>
       )}
 
-      {lightbox && (
+      {/*
+        §74: op een telefoon komt een foto eerst als kaartje van onderen op.
+        Een tweede tik op een kaartje met een eigen foto gaf hier een zwart
+        scherm van rand tot rand, en de muur was weg tot je "Sluiten" vond. Nu
+        blijft de muur staan: de naam, het plaatje op voorproefjesmaat (de
+        `.canvas-peek-body img`-regel), en "Groot bekijken" voor wie de hele
+        foto wil — dat is dezelfde `.board-lightbox` die een bureau meteen krijgt.
+      */}
+      {lightbox && isPhone && !lightbox.full && (
+        <CanvasPeek
+          labelledBy="board-photo-peek-title"
+          className="board-photo-peek"
+          testId="board-photo-peek"
+          onClose={() => setLightbox(null)}
+        >
+          <h2 id="board-photo-peek-title" className="board-photo-peek-title">
+            {lightbox.name || 'Foto'}
+          </h2>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="board-photo-peek-img"
+            src={assetUrl(lightbox.assetId, 'card')}
+            alt={lightbox.name || ''}
+          />
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => setLightbox((current) => (current ? { ...current, full: true } : current))}
+          >
+            <Icon name="eye" size={15} />
+            Groot bekijken
+          </button>
+        </CanvasPeek>
+      )}
+
+      {lightbox && (!isPhone || lightbox.full) && (
         <div
           className="board-lightbox"
           role="dialog"

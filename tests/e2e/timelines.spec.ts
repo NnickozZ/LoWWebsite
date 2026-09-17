@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, editCase, pasteImage, signIn, signUp } from './helpers';
+import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp } from './helpers';
 
 /**
  * §32: tijdlijnen.
@@ -43,6 +43,13 @@ async function newTimeline(page: Page, name: string, scaleLabel = 'Dagen') {
    * label. Dezelfde vorm als `family-trees.spec.ts` al had voor de stamboom.
    */
   await expect(page.getByTestId('timeline-title').locator('#timeline-title-name')).toHaveValue(name);
+  /*
+   * §73: a phone opens every canvas in Lezen, where there is no "Gebeurtenis
+   * toevoegen", no carrying a tag and no paste. Every caller of this helper
+   * goes on to make or move something, which is what a person switches to
+   * Bewerken for. (A no-op on a desk, which opens in Bewerken.)
+   */
+  await editCanvas(page);
 }
 
 async function fillDate(page: Page, prefix: string, parts: { year: string; month?: string; day?: string }) {

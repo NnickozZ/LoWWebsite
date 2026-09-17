@@ -53,6 +53,9 @@ import { normaliseRect, type Box } from '@/lib/canvas/select';
 import { openSheetCount } from '@/lib/sheetStack';
 import { UNDO_LIMIT, createUndoStack, type UndoStack } from '@/components/canvas/undoStack';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
+import { useCanvasMode } from '@/components/canvas/useCanvasMode';
+import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
+import { CanvasPeek } from '@/components/canvas/CanvasPeek';
 import {
   EditEventSheet,
   NewEventSheet,
@@ -241,6 +244,29 @@ export function TimelineCanvas({
   const gate = useAuthorGate();
   const canEdit = allowed && mayType;
   const isPhone = useIsPhone();
+  /*
+   * §73: lezen of bewerken. `canEdit` is the *right* and stays the gate for
+   * everything a panel offers (Bewerken, Instellingen, Van de tijdlijn halen);
+   * `handsOn` is the mode, and it gates the three things a thumb does by
+   * accident — carrying a tag along the axis, making a gebeurtenis (the button,
+   * a double-click or long press on the axis, a pasted picture) and the
+   * potlood — plus the two keys that change the drawing, Delete and Ctrl+Z.
+   * A phone opens in Lezen, a desk in Bewerken, and nothing is remembered.
+   */
+  const canvasMode = useCanvasMode(canEdit);
+  const handsOn = canvasMode.editing;
+  /** The once-bound keydown asks this rather than closing over the flag. */
+  const handsOnRef = useRef(handsOn);
+  handsOnRef.current = handsOn;
+  /*
+   * An artikel carried here to be put on this axis (`?place=`) is a making
+   * road, so it lands in Bewerken — the gebeurtenis it puts down opens "ready
+   * to be dragged" (§35), and a drag in Lezen would do nothing.
+   */
+  const setCanvasMode = canvasMode.setMode;
+  useEffect(() => {
+    if (placing && canEdit) setCanvasMode('edit');
+  }, [placing, canEdit, setCanvasMode]);
 
   const [events, setEvents] = useState<TimelineEvent[]>(initialEvents);
   /**
@@ -668,6 +694,12 @@ export function TimelineCanvas({
     stopPropagation: true,
   });
   const inkActive = ink.inkActive;
+  /* §73: switching to Lezen puts the potlood away — Lezen has no potlood. */
+  const inkToolActive = ink.inkTool.active;
+  const setInkToolActive = ink.inkTool.setActive;
+  useEffect(() => {
+    if (!handsOn && inkToolActive) setInkToolActive(false);
+  }, [handsOn, inkToolActive, setInkToolActive]);
   /** §69: the once-bound keydown asks this rather than closing over the flag. */
   const inkActiveRef = useRef(inkActive);
   inkActiveRef.current = inkActive;
@@ -1062,7 +1094,17 @@ export function TimelineCanvas({
       TAG_DRAG_SLOP,
     );
     if (travelled) pressTravelled.current = true;
-    if (!view || !canEdit) return;
+    if (!view) return;
+    /*
+     * §73: in Lezen a tag is never carried. A press on it that stays put still
+     * folds its window out (`onEventPointerUp`); a press that travels is the
+     * reader moving along the axis and grabbing a tag on the way, so it becomes
+     * the pan it was meant to be rather than nothing at all.
+     */
+    if (!handsOn) {
+      if (travelled) panFromTag(event, drag);
+      return;
+    }
     const dx = event.clientX - drag.startClientX;
     // The tag only ever moves along the axis; what decides that it is moving at
     // all is the same diagonal travel every other canvas asks about (§69).
@@ -1093,6 +1135,38 @@ export function TimelineCanvas({
     }
     // §62: the other screen sees the tag travel, not jump when it lands.
     reportHand({ clientX: event.clientX, clientY: event.clientY }, { id: drag.id, at }, moved);
+  }
+
+  /**
+   * §73: a press on a tag, in Lezen, that turned out to be a pan. The tag lets
+   * go of the press and the stage takes it over — lazily, at the slop, which is
+   * §66's rule for a capture — from where the finger first came down, so the
+   * axis does not jump by the slop it travelled before anybody knew.
+   */
+  function panFromTag(event: React.PointerEvent, drag: EventDrag) {
+    const el = stageRef.current;
+    eventDrag.current = null;
+    handOn.current = false;
+    setHandDown(false);
+    selection.endPress(true);
+    if (!el || !view || gesture.current) return;
+    try {
+      el.setPointerCapture(event.pointerId);
+    } catch {
+      /* the pointer is already gone; the pan simply does not start */
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    gesture.current = {
+      pointers: new Map([[event.pointerId, { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top }]]),
+      startOrigin: view.origin,
+      startX: drag.startClientX - rect.left,
+      moved: true,
+    };
+    setGrabbing(true);
+    const dx = event.clientX - drag.startClientX;
+    moveView((current) => (current ? { ...current, origin: view.origin - dx / current.pxPerSecond } : current));
+    if (owed.current) void pull();
   }
 
   function onEventPointerUp(event: React.PointerEvent) {
@@ -1169,13 +1243,20 @@ export function TimelineCanvas({
     moved: boolean;
     pinchDist?: number;
     pinchMid?: number;
+    /**
+     * §72: a knijp happened in this gesture. The finger left behind stays
+     * still until it is lifted — picking a pan back up from `view` read the
+     * last *render*, not the last move, and the axis jumped back by however
+     * far the last frames of the knijp had zoomed.
+     */
+    pinched?: boolean;
   };
   const gesture = useRef<Gesture | null>(null);
   const [grabbing, setGrabbing] = useState(false);
   /** The moment the hand was last over, or null before it has been anywhere. */
   const pointerAt = useRef<number | null>(null);
 
-  function onPointerDown(event: React.PointerEvent) {
+  function onPointerDown(event: React.PointerEvent, secondFinger = false) {
     if (!view) return;
     /*
      * §69/§68: only the left button and a finger start a pan. Without this a
@@ -1187,7 +1268,7 @@ export function TimelineCanvas({
     // A press that begins on a tag is that gebeurtenis's, never a pan (§35);
     // the stage has always looked the other way here, which is what lets a
     // finger drag a tag on a phone without the axis sliding away under it.
-    if ((event.target as HTMLElement).closest('.timeline-event, .timeline-popout')) return;
+    if (!secondFinger && (event.target as HTMLElement).closest('.timeline-event, .timeline-popout')) return;
     // A second finger on the stage during a drag abandons it, exactly as a
     // pinch abandons a stroke of ink (§33).
     abortEventDrag();
@@ -1250,16 +1331,20 @@ export function TimelineCanvas({
     const rect = el.getBoundingClientRect();
     const p = { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top };
     g.pointers.set(p.id, p);
-    if (g.pointers.size >= 2 && g.pinchDist) {
+    if (g.pointers.size >= 2) {
       const [a, b] = [...g.pointers.values()];
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       const mid = (a.x + b.x) / 2;
-      if (dist > 0) zoomAt(dist / g.pinchDist, mid);
-      g.pinchDist = dist;
+      // §72: two fingers that landed on one spot have no spread yet; the first
+      // frame that does is the start, rather than a division by nought.
+      if (g.pinchDist && dist > 0) zoomAt(dist / g.pinchDist, mid);
+      if (dist > 0) g.pinchDist = dist;
       g.pinchMid = mid;
       g.moved = true;
+      g.pinched = true;
       return;
     }
+    if (g.pinched) return;
     const dx = p.x - g.startX;
     if (Math.abs(dx) > 3) g.moved = true;
     moveView((current) => (current ? { ...current, origin: g.startOrigin - dx / current.pxPerSecond } : current));
@@ -1289,13 +1374,46 @@ export function TimelineCanvas({
       gesture.current = null;
       setGrabbing(false);
     } else {
-      // One finger left after a pinch: continue as a pan from here.
+      // One finger left after a pinch: it stays still until it is lifted (§72).
       const [rest] = [...g.pointers.values()];
       g.startX = rest.x;
-      g.startOrigin = view?.origin ?? g.startOrigin;
       g.pinchDist = undefined;
+      if (g.pointers.size >= 2) {
+        const [a, b] = [...g.pointers.values()];
+        g.pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || undefined;
+      }
     }
   }
+
+  /*
+   * §72: a finger this gesture never hears leave is forgotten, not trusted.
+   * The stage holds the capture, so this is the rare road — a capture the
+   * browser took back without an up — but a finger left in `pointers` turns
+   * the next single finger into a knijp against a ghost. Checked a tick after
+   * the up, so the stage's own handler has had its turn first.
+   */
+  useEffect(() => {
+    const onLeave = (event: PointerEvent) => {
+      const id = event.pointerId;
+      window.setTimeout(() => {
+        const g = gesture.current;
+        if (!g || !g.pointers.has(id)) return;
+        g.pointers.delete(id);
+        if (g.pointers.size === 0) {
+          gesture.current = null;
+          setGrabbing(false);
+        } else {
+          g.pinchDist = undefined;
+        }
+      }, 0);
+    };
+    window.addEventListener('pointerup', onLeave, true);
+    window.addEventListener('pointercancel', onLeave, true);
+    return () => {
+      window.removeEventListener('pointerup', onLeave, true);
+      window.removeEventListener('pointercancel', onLeave, true);
+    };
+  }, []);
 
   /**
    * §69: the three camera keys, from the window — as the prikbord, the
@@ -1327,6 +1445,8 @@ export function TimelineCanvas({
        */
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
         if (inkActiveRef.current) return;
+        // §73: Lezen changes nothing, and that includes taking a change back.
+        if (!handsOnRef.current) return;
         event.preventDefault();
         void undoRef.current();
         return;
@@ -1354,7 +1474,8 @@ export function TimelineCanvas({
    * anchor's day, so the sheet opens with the date already made.
    */
   const makeOnEmpty = useMakeOnEmpty({
-    enabled: canEdit && Boolean(view) && !inkActive,
+    /* §73: making is Bewerken's; in Lezen the axis only pans. */
+    enabled: handsOn && Boolean(view) && !inkActive,
     ignore: '.timeline-event, .timeline-popout',
     busy: () => Boolean(gesture.current?.moved) || (gesture.current?.pointers.size ?? 0) > 1,
     onMake: ({ clientX }) => {
@@ -1426,6 +1547,8 @@ export function TimelineCanvas({
       case 'Delete':
       case 'Backspace':
         if (inkActive) return;
+        // §73: not in Lezen — a stray Backspace must not empty the axis.
+        if (!handsOn) return;
         if (!selectedRef.current.size) return;
         event.preventDefault();
         void removeSelectedRef.current();
@@ -1630,7 +1753,8 @@ export function TimelineCanvas({
 
   const pasteImage = useCallback(
     (paste: ClipboardEvent) => {
-      if (!canEdit || !view || !width || uploading) return;
+      // §73: a paste makes a gebeurtenis, and making is Bewerken's.
+      if (!canEdit || !handsOn || !view || !width || uploading) return;
       // Somebody typing wants the text on their clipboard, not a gebeurtenis.
       if (pasteIsForTyping(paste.target)) return;
       // A blad is open on top of the axis; a paste there is not the axis's, and
@@ -1683,7 +1807,7 @@ export function TimelineCanvas({
       })();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canEdit, view, width, uploading, sheet, lightbox, inkActive, onAxis, timeline.scale, ui, createEvent, patchEvent],
+    [canEdit, handsOn, view, width, uploading, sheet, lightbox, inkActive, onAxis, timeline.scale, ui, createEvent, patchEvent],
   );
 
   useEffect(() => {
@@ -2049,7 +2173,9 @@ export function TimelineCanvas({
   return (
     <div className="timeline-frame" {...gate}>
       <div className="row-wrap timeline-toolbar" style={{ gap: '0.4rem' }}>
-        {canEdit && (
+        {/* §73: first in the bar, so the switch is where the eye starts. */}
+        <CanvasModeToggle mode={canvasMode} />
+        {handsOn && (
           <button type="button" className="btn btn-primary btn-small" onClick={() => setSheet({ mode: 'add', at: null, entry: null })} data-testid="timeline-add" aria-label={`${cap(words.event)} toevoegen`} title={`${cap(words.event)} toevoegen`}>
             <Icon name="plus" size={15} />
             {/* §69 (6.6): de letters mogen weg op 390 px, de naam nooit (§64). */}
@@ -2096,7 +2222,25 @@ export function TimelineCanvas({
       <div
         ref={stageRef}
         className={`timeline-stage${grabbing ? ' timeline-stage-grabbing' : ''}`}
-        onPointerDown={onPointerDown}
+        onPointerDownCapture={(event) => {
+          /*
+           * §72: a second finger that lands on a tag is still the second
+           * finger of a knijp. Without this the tag took it for a drag of its
+           * own while the first finger went on panning.
+           */
+          const g = gesture.current;
+          if (
+            event.pointerType === 'touch' &&
+            g &&
+            g.pointers.size >= 1 &&
+            !g.pointers.has(event.pointerId) &&
+            (event.target as HTMLElement).closest('.timeline-event')
+          ) {
+            event.stopPropagation();
+            onPointerDown(event, true);
+          }
+        }}
+        onPointerDown={(event) => onPointerDown(event)}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
@@ -2334,18 +2478,24 @@ export function TimelineCanvas({
             on the axis — nothing lands under it. */}
         {/* §69 (6.5/6.4): op een telefoon staat de balk linksonder — behalve
             terwijl de lade met de vensters daar ligt. */}
-        <InkShell shell={ink} corner="top-left" bottomTaken={openWindows.length > 0} />
+        {/* §73: the potlood is Bewerken's; in Lezen there is no bar to reach for.
+            §74: on a phone the peek lies over the bottom of the screen while a
+            window is open, so the bottom is still taken then. */}
+        <InkShell shell={ink} corner="top-left" toolbar={handsOn || !canvasMode.canEdit} bottomTaken={openWindows.length > 0} />
 
         {!events.length && !inkActive && (
           <p className="timeline-empty small muted">
-            {canEdit
+            {canEdit && handsOn
               ? /* §62: a phone has no double-click. The gesture that puts a
                    gebeurtenis on the axis there is a long press, and the empty
                    stage says so in the same words as the line under it. */
                 `Nog geen ${words.eventPlural}. ${
                   isPhone ? `Houd de as ingedrukt om hier een ${words.event} te zetten` : 'Dubbelklik op de as'
                 }, of gebruik '${cap(words.event)} toevoegen'.`
-              : `Nog geen ${words.eventPlural} op deze ${words.timeline}.`}
+              : canEdit
+                ? /* §73: Lezen does not advertise a gesture that does nothing. */
+                  `Nog geen ${words.eventPlural}. Kies Bewerken om er een te zetten.`
+                : `Nog geen ${words.eventPlural} op deze ${words.timeline}.`}
           </p>
         )}
       </div>
@@ -2379,26 +2529,28 @@ export function TimelineCanvas({
         een telefoon alles te tonen, en onder elkaar lezen is precies wat een
         telefoon wél kan. Elk venster houdt zijn eigen kruisje (dat sluit dát
         venster); de knop bovenaan legt ze allemaal weg.
+
+        §74 — en die lade is sinds ronde 37 de gedeelde `CanvasPeek`. De oude
+        lade lag in het glas, nam tot 55 % ervan, en elk venster begon met een
+        liggende foto over de volle breedte: één geopende gebeurtenis bedekte
+        het scherm. Nu staat hij vast boven de tabbalk, is hij klein tot je aan
+        de greep trekt, en is de foto in een venster een duimnagel naast de
+        naam — wat het is eerst, wat je ermee kunt daarna.
       */}
       {isPhone && openWindows.length > 0 && (
-        <aside
-          className="timeline-popout-dock"
-          role="dialog"
-          aria-label={
+        <CanvasPeek
+          className="timeline-peek"
+          label={
             openWindows.length === 1
               ? openWindows[0].event.name
               : `${openWindows.length} ${words.eventPlural}`
           }
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-        >
-          <div className="timeline-popout-dock-head">
-            <span className="label" style={{ margin: 0 }}>
-              {openWindows.length === 1
-                ? openWindows[0].event.name
-                : `${openWindows.length} ${words.eventPlural}`}
-            </span>
-            <span className="spacer" />
+          onClose={() => setOpen([])}
+          /* The full-size picture answers Escape first; one press, one layer. */
+          escape={!lightbox}
+          /* The name is each window's own heading, so the grip row carries no
+             second copy of it — only the button that folds every window away. */
+          headerExtra={
             <button
               type="button"
               className="btn btn-small btn-ghost"
@@ -2406,9 +2558,10 @@ export function TimelineCanvas({
               title="Alles inklappen"
               onClick={() => setOpen([])}
             >
-              <Icon name="close" size={16} />
+              <Icon name="eyeOff" size={16} />
             </button>
-          </div>
+          }
+        >
           <div className="timeline-popout-stack">
             {openWindows.map(({ event, side }) => (
               <Popout
@@ -2433,7 +2586,7 @@ export function TimelineCanvas({
               />
             ))}
           </div>
-        </aside>
+        </CanvasPeek>
       )}
 
       <div className="timeline-popouts">
@@ -2469,7 +2622,9 @@ export function TimelineCanvas({
           <> · speelt op {formatWhen(anchorAt, anchorUnit)}</>
         )}
         {' · '}sleep om te schuiven, Ctrl+scroll of knijp om te zoomen
-        {canEdit && (
+        {/* §73: in Lezen the line says where the moving and making went. */}
+        {canEdit && !handsOn && <> · kies Bewerken om {words.eventPlural} te verzetten of te zetten</>}
+        {canEdit && handsOn && (
           <>
             {' '}· sleep een {words.event} om hem te verzetten ·{' '}
             {/* §62: the gesture that puts a gebeurtenis down is not the same
@@ -2604,9 +2759,10 @@ function Popout({
   /** §62: the page has this window's real height; before that it is not shown. */
   ready: boolean;
   /**
-   * §69 (6.4): inside a phone's `Sheet` instead of floating beside its tag. The
-   * sheet owns the placing, the paper and the closing, so the window drops its
-   * own `left`/`top`/`z`, its own measuring and its own cross.
+   * §69 (6.4)/§74: inside a phone's peek instead of floating beside its tag.
+   * The peek owns the placing and the paper, so the window drops its own
+   * `left`/`top`/`z` and its measuring; it keeps its own cross, which shuts
+   * this one window, and lays its picture out as a duimnagel beside its name.
    */
   phone?: boolean;
   canEdit: boolean;
@@ -2687,46 +2843,67 @@ function Popout({
       </div>
     );
 
-  return shell(
-    <>
-      {/*
-        The picture runs the full width of the window, as a liggend 3:2 frame
-        (round 19) drawn with the artikel's own liggend crop — the same crop
-        every other wide frame of it uses, set once on the artikel. A
-        gebeurtenis's own picture, which has no crops, sits centred in it.
+  /*
+    The picture runs the full width of the window, as a liggend 3:2 frame
+    (round 19) drawn with the artikel's own liggend crop — the same crop
+    every other wide frame of it uses, set once on the artikel. A
+    gebeurtenis's own picture, which has no crops, sits centred in it.
 
-        And it is a button: 250 px is a thumbnail, so a click opens the file
-        over the whole screen — which is where a screenshot with writing on it
-        is read, whole.
-      */}
-      {framed &&
-        (image ? (
-          <button
-            type="button"
-            className={`timeline-popout-picture ${coverClass('landscape')}`}
-            title="Klik om de afbeelding groot te bekijken"
-            aria-label={`${event.name} — afbeelding groot bekijken`}
-            onClick={() => onViewFull(image)}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={assetUrl(image, 'card')} alt="" style={coverStyle(crops, 'landscape')} />
-            <span className="timeline-popout-zoom" aria-hidden="true">
-              <Icon name="zoomIn" size={13} />
-            </span>
-          </button>
-        ) : (
-          <div className="timeline-popout-picture timeline-popout-picture-empty">
-            <span className="timeline-popout-placeholder">
-              <Icon name={event.kind === 'entry' ? (event.entry?.typeIcon ?? 'file') : 'note'} size={30} />
-            </span>
-          </div>
-        ))}
+    And it is a button: 250 px is a thumbnail, so a click opens the file
+    over the whole screen — which is where a screenshot with writing on it
+    is read, whole.
+
+    §74: on a phone the same frame is a duimnagel beside the name (the class
+    `.timeline-popout-phone` shrinks it; the markup is the same button), so a
+    window says what it is before the picture has taken the peek.
+  */
+  const picture = framed ? (
+    image ? (
+      <button
+        type="button"
+        className={`timeline-popout-picture ${coverClass('landscape')}`}
+        title="Klik om de afbeelding groot te bekijken"
+        aria-label={`${event.name} — afbeelding groot bekijken`}
+        onClick={() => onViewFull(image)}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={assetUrl(image, 'card')} alt="" style={coverStyle(crops, 'landscape')} />
+        <span className="timeline-popout-zoom" aria-hidden="true">
+          <Icon name="zoomIn" size={13} />
+        </span>
+      </button>
+    ) : (
+      <div className="timeline-popout-picture timeline-popout-picture-empty">
+        <span className="timeline-popout-placeholder">
+          <Icon name={event.kind === 'entry' ? (event.entry?.typeIcon ?? 'file') : 'note'} size={phone ? 22 : 30} />
+        </span>
+      </div>
+    )
+  ) : null;
+  const heading = (
+    <>
       <p className="timeline-popout-when tiny">{formatWhen(event.at, event.precision)}</p>
       <h3 className="timeline-popout-name">{event.name}</h3>
       {event.kind === 'entry' && event.entry?.typeLabel && (
         <p className="tiny muted" style={{ margin: '0 0 0.3rem' }}>
           {event.entry.typeLabel}
         </p>
+      )}
+    </>
+  );
+
+  return shell(
+    <>
+      {phone ? (
+        <div className="timeline-popout-phone-head">
+          {picture}
+          <div className="timeline-popout-phone-words">{heading}</div>
+        </div>
+      ) : (
+        <>
+          {picture}
+          {heading}
+        </>
       )}
       {event.text ? (
         <p className="small timeline-popout-text"><MentionText text={event.text} /></p>

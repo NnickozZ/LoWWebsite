@@ -10,6 +10,9 @@ import { MentionText } from '@/components/ui/MentionPopover';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
+import { useCanvasMode } from '@/components/canvas/useCanvasMode';
+import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
+import { CanvasPeek } from '@/components/canvas/CanvasPeek';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import { EDGE_GROUPS, EDGE_KIND_ORDER, EDGE_KINDS, NODE_KINDS, edgeColourVar } from '@/lib/web/kinds';
 import { clampDepth, filterGraph, focusSlice } from '@/lib/web/slice';
@@ -76,6 +79,9 @@ export function WebView({
   const words = ui.words;
   const phone = useIsPhone();
   const canvasRef = useRef<WebCanvasHandle>(null);
+  // §73: everyone who sees the web may drag its knots (pins are this page's,
+  // never saved), so the right is always there and only the mode narrows it.
+  const canvasMode = useCanvasMode(true);
 
   const [full, setFull] = useState<WebGraph | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -557,11 +563,12 @@ export function WebView({
       onFocus={(id) => setFocus(id)}
       onCentre={(id) => canvasRef.current?.centreOn(id)}
       words={words}
+      compact={phone}
     />
   ) : selectedNodes.length > 1 ? (
     <div className="web-panel-body">
       <p className="eyebrow">Selectie</p>
-      <h2 className="web-panel-name">{selectedNodes.length} gekozen</h2>
+      <h2 className="web-panel-name" id="web-panel-title">{selectedNodes.length} gekozen</h2>
       <div className="row-wrap" style={{ margin: '0.5rem 0 0.8rem' }}>
         <PinSelectionButton nodes={selectedNodes} filedIn={filedIn} />
         <button type="button" className="btn btn-small btn-ghost" onClick={() => setSelected(new Set())}>
@@ -651,6 +658,7 @@ export function WebView({
   return (
     <div className="web-view" data-testid="web-view" data-scope={focus ? 'focus' : 'all'}>
       <div className="row-wrap web-toolbar">
+        <CanvasModeToggle mode={canvasMode} />
         {search}
         {focus && trail.length > 0 && (
           <button type="button" className="btn btn-small btn-ghost" onClick={goBack} title={`Terug naar ${nodeById.get(trail[trail.length - 1])?.name ?? 'het vorige middelpunt'}`} data-testid="web-back">
@@ -754,6 +762,7 @@ export function WebView({
             showImages={showImages}
             fitKey={fitKey}
             phone={phone}
+            editing={canvasMode.editing}
             onPinsChange={setPins}
           />
           {hint && full && !phone && (
@@ -784,10 +793,16 @@ export function WebView({
           {legend}
         </Sheet>
       )}
+      {/*
+        §74: on a phone the panel is a peek, not a modal sheet — the web above
+        stays pannable and the next knot is one tap away. Its name is the
+        panel's own heading (`#web-panel-title`), which until round 37 no
+        element carried, so the sheet had no name at all.
+      */}
       {phone && panelOpen && selected.size > 0 && (
-        <Sheet onClose={() => setPanelOpen(false)} labelledBy="web-panel-title">
+        <CanvasPeek labelledBy="web-panel-title" onClose={() => setPanelOpen(false)} className="web-peek">
           {panelBody}
-        </Sheet>
+        </CanvasPeek>
       )}
     </div>
   );
@@ -913,7 +928,10 @@ function NodePanel({
   onFocus,
   onCentre,
   words,
+  compact = false,
 }: {
+  /** §74: the phone's peek — a thumbnail beside the name instead of a banner. */
+  compact?: boolean;
   node: WebNode;
   edges: WebEdge[];
   nodeById: Map<WebNodeId, WebNode>;
@@ -980,24 +998,39 @@ function NodePanel({
   );
 
   return (
-    <div className="web-panel-body" data-testid="web-panel">
-      {node.coverAssetId && (
+    <div className={`web-panel-body${compact ? ' web-panel-compact' : ''}`} data-testid="web-panel">
+      {/*
+        §74: in the phone's peek the omslag is a thumbnail beside the name, so
+        what the knot *is* fits in the first third of the screen; the desktop
+        side panel keeps the full-width 3:2 picture.
+      */}
+      {node.coverAssetId && !compact && (
         // eslint-disable-next-line @next/next/no-img-element
         <span className={`web-panel-cover ${coverClass('landscape')}`}>
           <img src={assetUrl(node.coverAssetId, 'card')} alt="" style={coverStyle(node.coverCrop, 'landscape')} />
         </span>
       )}
-      <p className="eyebrow row" style={{ gap: '0.35rem' }}>
-        <NodeGlyph node={node} />
-        {kindLabel}
-        {node.isCharacter && <span className="muted">· {words.character}</span>}
-      </p>
-      <h2 className="web-panel-name">{node.name}</h2>
-      {node.subtitle && node.subtitle !== kindLabel && (
-        <p className="small muted" style={{ margin: '0.1rem 0 0' }}>
-          {node.subtitle}
-        </p>
-      )}
+      <div className="web-panel-head">
+        {node.coverAssetId && compact && (
+          <span className={`web-panel-thumb ${coverClass('square')}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={assetUrl(node.coverAssetId, 'thumb')} alt="" style={coverStyle(node.coverCrop, 'square')} />
+          </span>
+        )}
+        <div className="web-panel-head-text">
+          <p className="eyebrow row" style={{ gap: '0.35rem' }}>
+            <NodeGlyph node={node} />
+            {kindLabel}
+            {node.isCharacter && <span className="muted">· {words.character}</span>}
+          </p>
+          <h2 className="web-panel-name" id="web-panel-title">{node.name}</h2>
+          {node.subtitle && node.subtitle !== kindLabel && (
+            <p className="small muted" style={{ margin: '0.1rem 0 0' }}>
+              {node.subtitle}
+            </p>
+          )}
+        </div>
+      </div>
       {node.summary && (
         <p className="web-panel-summary" data-testid="web-panel-summary">
           <MentionText text={node.summary} />

@@ -66,7 +66,10 @@ import type { InkLayerView } from '@/lib/ink/types';
 import { entryKey, familyTreeKey } from '@/lib/live/keys';
 import { capitalise } from '@/lib/words';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { usePinch } from '@/components/canvas/usePinch';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
+import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
+import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 import {
   TreeHandles,
   TreeSelectionMenu,
@@ -76,6 +79,7 @@ import {
   type TreeMenuItem,
 } from './TreeHandles';
 import { TreeNode } from './TreeNode';
+import { announceTreeMode } from './TreeTitle';
 import { createUndoStack, UNDO_LIMIT } from './treeUndo';
 import { useTreeHolding } from './useTreeHolding';
 import { syncLabel, useTreeSync, type PendingIds } from './useTreeSync';
@@ -240,6 +244,15 @@ export function FamilyTreeCanvas({
   const mayType = useMayType();
   const gate = useAuthorGate();
   const canEdit = allowed && mayType;
+  /**
+   * §73: lezen of bewerken. `canEdit` stays what it was — the *right* — and
+   * `editOn` is whether the hand may change the drawing right now: moving a
+   * kaartje, making one (the `+`s, the toolbar, the empty paper), arranging,
+   * taking a line away, and the potlood. The camera, choosing, and the second
+   * tap that opens an artikel are the same in both.
+   */
+  const mode = useCanvasMode(canEdit);
+  const editOn = mode.editing;
 
   /* --------------------------------------------------------------- state */
 
@@ -408,6 +421,24 @@ export function FamilyTreeCanvas({
   });
   const inkActive = ink.inkActive;
   const onInkKey = ink.onKeyDown;
+
+  /**
+   * §73: turning to Lezen puts away whatever was half-made — the potlood and
+   * the kiezer a `+` opened — so nothing that changes the drawing is left open
+   * under a hand that has just said it is only looking.
+   */
+  const inkToolRef = useRef(ink.inkTool);
+  inkToolRef.current = ink.inkTool;
+  // §73: the heading lives in the page, not here; it is told (`TreeTitle`).
+  useEffect(() => {
+    announceTreeMode(tree.id, editOn);
+  }, [tree.id, editOn]);
+  useEffect(() => {
+    if (editOn) return;
+    if (inkToolRef.current.active) inkToolRef.current.setActive(false);
+    setPicker(null);
+    setMenuOpen(false);
+  }, [editOn]);
 
   /* ---------------------------------------------------------------- save */
 
@@ -1012,12 +1043,24 @@ export function FamilyTreeCanvas({
 
   /* ---------------------------------------------------------------- pan */
 
-  const pan = useRef<{ pointerId: number; startX: number; startY: number; from: TreeView; moved: boolean } | null>(null);
+  /**
+   * `fromCard` (§73): a press on a kaartje by a hand that may not move it right
+   * now pans the paper instead. It takes no capture and moves nothing until it
+   * passes the slop — the capture would swallow the `click` on the name, and a
+   * tap that opens the artikel is left alone in Lezen — and it lets go of
+   * nothing at the end, because the press on the card has just chosen it.
+   */
+  const pan = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    from: TreeView;
+    moved: boolean;
+    fromCard?: boolean;
+  } | null>(null);
   /** §67: which pointer is sweeping a box, so the up that closes it is the right one. */
   const marqueePointer = useRef<number | null>(null);
   const [grabbing, setGrabbing] = useState(false);
-  const pinch = useRef<{ distance: number } | null>(null);
-  const touches = useRef<Map<number, { x: number; y: number }>>(new Map());
 
   const onStagePointerDown = (event: React.PointerEvent) => {
     if (inkActive) return;
@@ -1048,14 +1091,7 @@ export function FamilyTreeCanvas({
     }
     const el = stageRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    touches.current.set(event.pointerId, { x: event.clientX - rect.left, y: event.clientY - rect.top });
-    if (touches.current.size === 2) {
-      const [a, b] = [...touches.current.values()];
-      pinch.current = { distance: Math.hypot(a.x - b.x, a.y - b.y) };
-      pan.current = null;
-      return;
-    }
+    // §72: a second finger never reaches this — `pinchHand` stopped it.
     el.setPointerCapture(event.pointerId);
 
     /*
@@ -1093,19 +1129,6 @@ export function FamilyTreeCanvas({
       onNodePointerMove(event);
       return;
     }
-    if (el && touches.current.has(event.pointerId)) {
-      const rect = el.getBoundingClientRect();
-      touches.current.set(event.pointerId, { x: event.clientX - rect.left, y: event.clientY - rect.top });
-    }
-    if (pinch.current && touches.current.size >= 2) {
-      const [a, b] = [...touches.current.values()];
-      const distance = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch.current.distance > 0 && distance > 0) {
-        zoomBy(distance / pinch.current.distance, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-      }
-      pinch.current = { distance };
-      return;
-    }
     // A finger reports nothing: a touch screen has no hovering hand, and an
     // arrow that appears only while somebody presses is a lie.
     if (event.pointerType !== 'touch') {
@@ -1124,13 +1147,22 @@ export function FamilyTreeCanvas({
     const dx = event.clientX - gesture.startX;
     const dy = event.clientY - gesture.startY;
     // §69: the same threshold a card drag uses, measured on the diagonal.
+    if (gesture.fromCard && !gesture.moved) {
+      if (!passedSlop(dx, dy)) return;
+      // §73: now it is a pan, and the click the press ends with opens nothing.
+      pressTravelled.current = true;
+      try {
+        el?.setPointerCapture(event.pointerId);
+      } catch {
+        /* a pointer that has already gone cannot be captured */
+      }
+      setGrabbing(true);
+    }
     if (passedSlop(dx, dy)) gesture.moved = true;
     moveView(() => ({ ...gesture.from, x: gesture.from.x + dx, y: gesture.from.y + dy }));
   };
 
   const onStagePointerUp = (event: React.PointerEvent, cancelled = false) => {
-    touches.current.delete(event.pointerId);
-    if (touches.current.size < 2) pinch.current = null;
     /*
      * §69: a shift-press the hook held back, answered now the press is over.
      * `pressTravelled` is this canvas's own answer to `DRAG_SLOP`, and it is
@@ -1154,8 +1186,9 @@ export function FamilyTreeCanvas({
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     pan.current = null;
     setGrabbing(false);
-    // A press on bare paper that went nowhere lets everything go.
-    if (!gesture.moved) {
+    // A press on bare paper that went nowhere lets everything go. (§73: a press
+    // on a kaartje in Lezen chose that kaartje, and keeps it.)
+    if (!gesture.moved && !gesture.fromCard) {
       clearSelection();
       setSelectedEdge(null);
       setMenuOpen(false);
@@ -1230,7 +1263,22 @@ export function FamilyTreeCanvas({
      * standing, because the next thing that press does is drag the group.
      */
     selection.select(node.id, additive, alreadySelected);
-    if (!canEdit) return;
+    if (!editOn) {
+      /*
+       * §73: in Lezen — and for a hand that may not edit at all — a finger
+       * dragged across a kaartje moves the paper, not the kaartje. Nothing
+       * else is taken on the way down (see `pan`).
+       */
+      pan.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        from: viewRef.current ?? { x: 0, y: 0, zoom: 1 },
+        moved: false,
+        fromCard: true,
+      };
+      return;
+    }
     const at = layout.positions[node.id];
     if (!at) return;
     /*
@@ -1545,7 +1593,8 @@ export function FamilyTreeCanvas({
    * leaves it exactly there (§66 — a stamboom stores no layout, only the pins).
    */
   const makeOnEmpty = useMakeOnEmpty({
-    enabled: canEdit && !inkActive,
+    // §73: making on bare paper is editing.
+    enabled: editOn && !inkActive,
     ignore: '.tree-node, .tree-handle, .tree-menu, .tree-menu-anchor, .tree-line-menu, .tree-picker, .tree-line-hit',
     busy: () => pressTravelled.current,
     onMake: ({ clientX, clientY }) => {
@@ -1556,6 +1605,33 @@ export function FamilyTreeCanvas({
         ? toWorld(current, clientX - rect.left, clientY - rect.top)
         : toWorld(current, clientX, clientY);
       addLoose('', at);
+    },
+  });
+
+  /*
+   * §72: the knijp. This file multiplied the zoom by the change since the last
+   * frame and never panned with the hand, so two fingers that slid while they
+   * spread left the tree behind them; and a finger whose up was lost stayed in
+   * its list and turned the next single finger into a knijp against a ghost.
+   */
+  const pinchHand = usePinch({
+    stageRef,
+    read: () => viewRef.current ?? { x: 0, y: 0, zoom: 1 },
+    write: (next) => {
+      viewRef.current = next;
+      moveView(() => next);
+    },
+    onStart: () => {
+      makeOnEmpty.cancel();
+      pan.current = null;
+      setGrabbing(false);
+      if (nodeDrag.current) {
+        // A kaartje half-way somewhere goes back: the hand became a knijp, not a drop.
+        nodeDrag.current = null;
+        setDragging(false);
+        dragRef.current = null;
+        setDrag(null);
+      }
     },
   });
 
@@ -2074,6 +2150,8 @@ export function FamilyTreeCanvas({
       // it, the tree's own undo.
       if (onInkKey(event)) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        // §73: in Lezen there is nothing of this hand's to take back.
+        if (!editOn) return;
         event.preventDefault();
         undo();
         return;
@@ -2090,7 +2168,8 @@ export function FamilyTreeCanvas({
         else zoomBy(camera === 'in' ? ZOOM_STEP : 1 / ZOOM_STEP);
         return;
       }
-      if (!canEdit || sheet) return;
+      // §73: Delete and Backspace take something away, so they wait for Bewerken.
+      if (!editOn || sheet) return;
       if (event.key === 'Delete' || event.key === 'Backspace') {
         if (!selected.size) return;
         event.preventDefault();
@@ -2107,7 +2186,7 @@ export function FamilyTreeCanvas({
     menuOpen,
     selectedEdge,
     selected,
-    canEdit,
+    editOn,
     sheet,
     undo,
     removeChosen,
@@ -2173,7 +2252,8 @@ export function FamilyTreeCanvas({
         icon: 'file',
         onSelect: () => router.push(`/e/${node.slug}`),
       });
-      if (canEdit && node.standing === 'member') {
+      // §73: `Openen` is reading and stays; the rest changes the drawing.
+      if (editOn && node.standing === 'member') {
         items.push({
           key: 'out',
           label: `Uit de ${words.familyTree}`,
@@ -2182,12 +2262,12 @@ export function FamilyTreeCanvas({
           onSelect: () => void removeMember(node.entryId, node.name),
         });
       }
-      if (canEdit && node.standing === 'ghost') {
+      if (editOn && node.standing === 'ghost') {
         items.push({ key: 'in', label: 'Erbij', icon: 'plus', onSelect: () => addMember(node.entryId) });
       }
       return items;
     }
-    if (canEdit) {
+    if (editOn) {
       items.push({ key: 'edit', label: 'Bewerken', icon: 'edit', onSelect: () => setSheet({ looseId: node.looseId }) });
       items.push({
         key: 'promote',
@@ -2232,7 +2312,14 @@ export function FamilyTreeCanvas({
         finds "Opnieuw schikken" by name finds it on a phone too.
       */}
       <div className="tree-tools" data-testid="tree-tools">
-        {canEdit && (
+        {/* §73: the switch first, where a thumb looks for it; nothing for a
+            hand that may not edit at all. */}
+        <CanvasModeToggle mode={mode} />
+        {/* §73: every control in this group makes, arranges or takes back, so
+            in Lezen the group is not there. Switching is a deliberate press,
+            so the row changing under it is the answer to that press — not the
+            §64 kind of change that happens to a hand already working. */}
+        {editOn && (
           <>
             <div className="tree-tools-find">
               <label className="visually-hidden" htmlFor="tree-add-person">
@@ -2348,6 +2435,18 @@ export function FamilyTreeCanvas({
         tabIndex={0}
         aria-label={`${capitalise(words.familyTree)} ${tree.name} — sleep om te schuiven, scroll om te zoomen`}
         onDoubleClick={makeOnEmpty.onDoubleClick}
+        onPointerDownCapture={(event) => {
+          // §72: a second finger is a knijp, before a kaartje under it can start a drag.
+          if (pinchHand.onPointerDown(event) && !(event.target as HTMLElement).closest('.ink-capture')) {
+            event.stopPropagation();
+          }
+        }}
+        onPointerMoveCapture={(event) => {
+          if (pinchHand.onPointerMove(event)) event.stopPropagation();
+        }}
+        onPointerUpCapture={(event) => {
+          if (pinchHand.onPointerUp(event)) event.stopPropagation();
+        }}
         onPointerDown={(event) => {
           onStagePointerDown(event);
           makeOnEmpty.onPointerDown(event);
@@ -2458,7 +2557,7 @@ export function FamilyTreeCanvas({
                 dragging={Boolean(drag?.[node.id])}
                 carried={Boolean(held) && !drag?.[node.id]}
                 carriedColour={held?.colour ?? null}
-                canEdit={canEdit}
+                canEdit={editOn}
                 words={{ looseCard: words.looseCard }}
                 onPointerDown={(event) => {
                   onNodePointerDown(event, node);
@@ -2510,7 +2609,8 @@ export function FamilyTreeCanvas({
                 box={box}
                 zoom={glass.zoom}
                 nodeName={selectedNode.name}
-                offers={offersFor(selectedNode)}
+                // §73: in Lezen no `+`, and the `…` keeps only `Openen`.
+                offers={editOn ? offersFor(selectedNode) : []}
                 menu={menuFor(selectedNode)}
                 menuOpen={menuOpen}
                 onMenu={setMenuOpen}
@@ -2520,7 +2620,7 @@ export function FamilyTreeCanvas({
           })()}
 
           {/* §67: two chosen, and one `+` between them. */}
-          {canEdit && bothParents && bothField && !inkActive && (() => {
+          {editOn && bothParents && bothField && !inkActive && (() => {
             const boxA = boxOf(bothParents[0].id);
             const boxB = boxOf(bothParents[1].id);
             if (!boxA || !boxB) return null;
@@ -2543,7 +2643,7 @@ export function FamilyTreeCanvas({
           })()}
 
           {/* §67: the `…` for a whole selection. */}
-          {canEdit && selectionBounds && !inkActive && (
+          {editOn && selectionBounds && !inkActive && (
             <TreeSelectionMenu
               at={selectionBounds}
               zoom={glass.zoom}
@@ -2620,7 +2720,7 @@ export function FamilyTreeCanvas({
         )}
 
         {/* -------------------------------------------------- a line's fate */}
-        {selectedLine && canEdit && (
+        {selectedLine && editOn && (
           <div
             className="tree-line-menu"
             style={{ left: toScreen(selectedLine.at).x, top: toScreen(selectedLine.at).y }}
@@ -2684,14 +2784,18 @@ export function FamilyTreeCanvas({
             the bar was rendered first here once, under a rule of this file's
             own with a z-index below the sheet, and every press on the gum drew
             a line. */}
-        <InkShell shell={ink} corner="bottom-right" />
+        {/* §73: and put away in Lezen. A hand with no right to edit has no
+            switch and keeps the potlood §33 gave everybody who may look. */}
+        <InkShell shell={ink} corner="bottom-right" toolbar={editOn || !canEdit} />
 
         {empty && !inkActive && (
           <div className="tree-empty">
             <p className="small muted">
-              {canEdit
+              {editOn
                 ? `Nog niemand in deze ${words.familyTree}. Zoek een ${words.entry} hierboven, of maak een ${words.looseCard}.`
-                : `Deze ${words.familyTree} is nog leeg.`}
+                : canEdit
+                  ? `Deze ${words.familyTree} is nog leeg. Kies Bewerken om iemand erbij te zetten.`
+                  : `Deze ${words.familyTree} is nog leeg.`}
             </p>
           </div>
         )}
@@ -2702,7 +2806,7 @@ export function FamilyTreeCanvas({
         {state.members.length + state.loose.length === 1 ? 'kaartje' : 'kaartjes'}
         {ghosts.length > 0 && <> · {ghosts.length} verwant{ghosts.length === 1 ? '' : 'en'} erbuiten</>}
         {' · '}sleep om te schuiven, scroll of knijp om te zoomen
-        {canEdit && !isPhone && (
+        {editOn && !isPhone && (
           <>
             {' '}· sleep een kaartje om het vast te zetten · shift-klik of shift-sleep om er meer te kiezen
           </>
