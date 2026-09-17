@@ -152,6 +152,23 @@ export function SectionsEditor({
   const gate = useAuthorGate();
   const readOnly = locked || !mayType;
 
+  /*
+   * §20: a refresh (ours after a removal, or the page's live line) brings the
+   * sections back from the server with their rooms. Local state keeps the
+   * order and the titles being typed, but a sectie still without a room takes
+   * the one the server now offers.
+   */
+  useEffect(() => {
+    const rooms = new Map(initial.map((section) => [section.id, section.live]));
+    setSections((current) =>
+      current.some((section) => !section.live && rooms.get(section.id))
+        ? current.map((section) =>
+            !section.live && rooms.get(section.id) ? { ...section, live: rooms.get(section.id) } : section,
+          )
+        : current,
+    );
+  }, [initial]);
+
   const tell = onOutlineChange;
   useEffect(() => {
     tell?.(sections.map((section) => ({ id: section.id, title: section.title })));
@@ -197,6 +214,8 @@ export function SectionsEditor({
            */
           visibility: isKeeper ? 'keeper' : 'all',
           revealedTo: [],
+          // §20: its room, so the text is shared from the first keystroke.
+          live: data.live ?? null,
         },
       ]);
     } finally {
@@ -323,7 +342,12 @@ export function SectionsEditor({
             placeholder={
               isKeeper ? 'Wat weet de Keeper hier nog meer over?' : 'Wat leverde dit op?'
             }
-            onChange={(doc) => void patch(section.id, { body: doc })}
+            onChange={(doc) => {
+              // Kept here too, so the reading face of a sectie without a room
+              // shows what was just typed rather than what the page was made with.
+              update(section.id, { body: doc });
+              void patch(section.id, { body: doc });
+            }}
           />
         </div>
       ))}
