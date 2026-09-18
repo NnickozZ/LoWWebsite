@@ -88,7 +88,24 @@ test.describe('§44 de Keeperkant', () => {
     // to make a second one.
     await expect(panel.getByTestId('keeper-switch-make')).toHaveCount(0);
     await panel.getByTestId('keeper-switch-link').click();
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toBe(keeperUrl);
+    /*
+     * Het *pad*, niet de hele URL. §50 hangt `?gewisseld=1` aan de landing en
+     * `SideSwitched` haalt dat er met een `replaceState` weer af, dus welke van
+     * die twee er het eerst is verschilt per run — dit was jarenlang “de
+     * flake in keeper-side” (CLAUDE.md §1).
+     */
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 20_000 })
+      .toBe(new URL(keeperUrl).pathname);
+    /*
+     * En het opruimen gebeurt ook echt. Ronde 38 repareerde dat het op een
+     * client-side navigatie nóóit liep: `SideSwitched` hangt in de schil, nam
+     * geen enkele prop die verandert, en werd dus na de eerste documentlading
+     * niet meer gerenderd — waardoor `?gewisseld=1` bleef staan, op een reload,
+     * op een gekopieerde link en op Terug. `useSearchParams()` is het abonnement
+     * dat dat weer laat lopen, en dit is de regel die het bewaakt.
+     */
+    await expect.poll(() => new URL(page.url()).search, { timeout: 20_000 }).toBe('');
   });
 
   test('een touwtje verschijnt aan beide kanten', async ({ page }) => {
@@ -125,12 +142,13 @@ test.describe('§44 de Keeperkant', () => {
      * proof, on the ordinary wiki: on the Keeper's side only "Het complot" is
      * there, on the players' side only "De veerman".
      */
-    await page.goto('/api/keeper/flip?side=keeper&to=/wiki');
+    // §75: de lijst staat sinds ronde 38 op /wiki/alles; /wiki is de voordeur.
+    await page.goto('/api/keeper/flip?side=keeper&to=/wiki/alles');
     const grid = page.locator('.card-grid');
     await expect(grid).toContainText('Het complot', { timeout: 20_000 });
     expect(await grid.innerText()).not.toContain('De veerman');
 
-    await page.goto('/api/keeper/flip?side=player&to=/wiki');
+    await page.goto('/api/keeper/flip?side=player&to=/wiki/alles');
     await expect(grid).toContainText('De veerman', { timeout: 20_000 });
     expect(await grid.innerText()).not.toContain('Het complot');
   });

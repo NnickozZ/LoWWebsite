@@ -9,7 +9,16 @@
 
 import type { Words } from '@/lib/words';
 
-export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
+export type KeeperKind =
+  | 'entry'
+  | 'case'
+  | 'board'
+  | 'map'
+  | 'timeline'
+  | 'family_tree'
+  // §75: an overzicht has a side like everything else — a Keeper preparing a
+  // front door for a part of the archive the table has not reached yet.
+  | 'overzicht';
 
 /**
  * §46: the two sides of the archive. Every list is read from one of them, and
@@ -33,6 +42,8 @@ export const KEEPER_KINDS: KeeperKind[] = [
   'map',
   'timeline',
   'family_tree',
+  // §75
+  'overzicht',
 ];
 
 export function isKeeperKind(value: unknown): value is KeeperKind {
@@ -47,6 +58,8 @@ export const KIND_WORD: Record<KeeperKind, keyof Words> = {
   map: 'map',
   timeline: 'timeline',
   family_tree: 'familyTree',
+  // §75
+  overzicht: 'overzicht',
 };
 
 export const KIND_WORD_PLURAL: Record<KeeperKind, keyof Words> = {
@@ -56,6 +69,8 @@ export const KIND_WORD_PLURAL: Record<KeeperKind, keyof Words> = {
   map: 'mapPlural',
   timeline: 'timelinePlural',
   family_tree: 'familyTreePlural',
+  // §75
+  overzicht: 'overzichtPlural',
 };
 
 export const KIND_ICON: Record<KeeperKind, string> = {
@@ -65,6 +80,8 @@ export const KIND_ICON: Record<KeeperKind, string> = {
   map: 'map',
   timeline: 'timeline',
   family_tree: 'tree',
+  // §75
+  overzicht: 'home',
 };
 
 /**
@@ -86,6 +103,16 @@ export function kindHref(kind: KeeperKind, ref: { id: string; slug?: string | nu
     // §66
     case 'family_tree':
       return `/stambomen/${ref.slug ?? ref.id}`;
+    /*
+     * §75: an overzicht lives inside the wiki, because that is what it is for
+     * — and the home one *is* the wiki's front page, so it has no slug in its
+     * address at all. `overzichtHref` in `lib/overzichten/service.ts` is the
+     * one that knows about home; this asks nothing of the database, so a home
+     * overzicht reached through a ref lands on its own long address, which
+     * works and simply is not the short one.
+     */
+    case 'overzicht':
+      return `/wiki/overzicht/${ref.slug ?? ref.id}`;
   }
 }
 

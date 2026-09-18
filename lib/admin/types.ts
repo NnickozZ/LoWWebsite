@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { db, schema, sqlite } from '@/lib/db';
 import { logAudit } from '@/lib/entries/service';
-import { slugify } from '@/lib/slug';
+import { RESERVED_WIKI_SLUGS, slugify } from '@/lib/slug';
 import { cleanFields } from '@/lib/fieldKinds';
 import { allowedFieldKeys, listBlockKeys, orphanValueCounts } from '@/lib/entries/fieldValues';
 import { cleanBlocks, cleanTypeText, resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
@@ -242,6 +242,16 @@ export function renameTypeSlug(typeId: string, wanted: string, keeperId: string)
   if (!wanted.trim() || (next === 'entry' && !/^\s*entry\s*$/i.test(wanted))) {
     throw new Error('Geef de soort een adres.');
   }
+  /*
+   * §75: the wiki's own addresses are not a soort's to take. `/wiki/alles` is
+   * the browse list and `/wiki/overzicht/…` is where an overzicht lives, so a
+   * soort called "Alles" would sit on top of one of them and the tab row would
+   * quietly stop working. The same list is in `lib/overzichten/service.ts`,
+   * where a new overzicht's slug is kept off it.
+   */
+  if (RESERVED_WIKI_SLUGS.includes(next)) {
+    throw new Error(`Het adres “${next}” is van de wiki zelf.`);
+  }
   if (next === typeId) return typeId;
 
   const existing = db
@@ -373,6 +383,8 @@ export function createType(
       .all()
       .map((row) => row.slug),
   );
+  // §75: and never one of the wiki's own addresses.
+  for (const reserved of RESERVED_WIKI_SLUGS) taken.add(reserved);
   let slug = base;
   let n = 2;
   while (taken.has(slug)) slug = `${base}-${n++}`;

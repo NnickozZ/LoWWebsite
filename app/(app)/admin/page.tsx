@@ -90,6 +90,8 @@ const TRASH_KINDS: Record<string, string> = {
   timeline: 'Tijdlijn',
   // §66
   family_tree: 'Stamboom',
+  // §75
+  overzicht: 'Overzicht',
 };
 
 export default async function AdminPage({

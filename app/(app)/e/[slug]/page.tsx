@@ -813,7 +813,8 @@ export default async function EntryPage({
       <KeeperStamp
         side={sideOf(entry.visibility === 'keeper')}
         flipTo={twinOf('entry', entry.id, user)?.href}
-        flipList="/wiki"
+        /* §75: de lijst met artikelen, die één adres opgeschoven is. */
+        flipList="/wiki/alles"
       />
       {/*
         §31: the dossiers this artikel is filed in — already behind

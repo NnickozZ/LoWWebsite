@@ -411,5 +411,23 @@ function makeOfKind(kind: KeeperKind, sourceId: string, name: string, keeper: { 
         .run();
       return id;
     }
+    /**
+     * §75: an overzicht has no Keeperversie, and this is the one place in the
+     * §44 machinery where it differs from the other six kinds.
+     *
+     * A twin exists so one *thing in the world* can have two faces — what the
+     * table knows about the lighthouse, and what the Keeper knows. An overzicht
+     * is not a thing in the world: it is a signpost inside the wiki, and a
+     * Keeper who wants their own signpost simply makes one on their own side,
+     * where it is already invisible to the table (§46). Two overzichten tied
+     * together would be two front doors claiming to be the same door.
+     *
+     * Thrown rather than silently refused, because `makeOfKind` is only ever
+     * reached from the Keeperkant's own "maak een Keeperversie" button — which
+     * is not drawn for an overzicht — so arriving here at all is a bug, and a
+     * sentence is more use than a null.
+     */
+    case 'overzicht':
+      throw new Error('Een overzicht heeft geen Keeperversie — maak er een op de Keeperkant.');
   }
 }

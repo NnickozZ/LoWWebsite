@@ -26,7 +26,9 @@
 
 export const ID = '[A-Za-z0-9_-]{1,64}';
 
-const RECORD_KEY = new RegExp(`^(entry|case|board|map|pin|timeline|event|family_tree|ink):(${ID})$`);
+const RECORD_KEY = new RegExp(
+  `^(entry|case|board|map|pin|timeline|event|family_tree|overzicht|ink):(${ID})$`,
+);
 const ROOM_KEY = new RegExp(
   `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields|keeper:(?:entry|case|board|map|timeline|family_tree):${ID}:notes)$`,
 );
@@ -40,6 +42,8 @@ export const COLLECTION_KEYS = [
   'timelines',
   // §66
   'family_trees',
+  // §75
+  'overzichten',
   'types',
   'words',
   'site',
@@ -57,6 +61,9 @@ export const PAGE_PLACES = [
   '/',
   '/cases',
   '/wiki',
+  // §75: the wiki's front door is the home overzicht, and `/wiki/alles` is the
+  // list that used to be there.
+  '/wiki/alles',
   '/boards',
   '/maps',
   '/timelines',
@@ -76,6 +83,8 @@ export const timelineKey = (id: string) => `timeline:${id}`;
 export const eventKey = (id: string) => `event:${id}`;
 /** §66: one stamboom. */
 export const familyTreeKey = (id: string) => `family_tree:${id}`;
+/** §75: one overzicht. */
+export const overzichtKey = (id: string) => `overzicht:${id}`;
 /**
  * §44: the Keeper's notes about one thing, as shared text. Keeper-only at the
  * gate (`lib/live/rooms.ts`), and always addressed by the *pair's* side — two
@@ -88,6 +97,12 @@ export const keeperNotesRoomKey = (kind: string, id: string) => `keeper:${kind}:
 export const inkKey = (id: string) => `ink:${id}`;
 /** A wiki soort's list page, as a place. */
 export const typePagePlace = (slug: string) => `page:/wiki/${slug}`;
+/**
+ * §75: one overzicht's page, as a place. Two segments where a soort has one,
+ * which is why `canWatch` has a second pattern for it rather than a wider one:
+ * `/wiki/overzicht/x` must not be readable as a soort called "overzicht".
+ */
+export const overzichtPagePlace = (slug: string) => `page:/wiki/overzicht/${slug}`;
 export const pagePlace = (path: string) => `page:${path}`;
 
 export type RecordKind =
@@ -100,6 +115,8 @@ export type RecordKind =
   | 'event'
   // §66
   | 'family_tree'
+  // §75
+  | 'overzicht'
   | 'ink';
 
 export function parseRecordKey(key: string): { kind: RecordKind; id: string } | null {

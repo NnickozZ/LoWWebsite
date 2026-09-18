@@ -103,7 +103,8 @@ test('wiki: "van mij" is the account, and a player sees only what they may', asy
   await mine.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
 
-  await page.goto('/wiki');
+  // §75: de lijst staat sinds ronde 38 op /wiki/alles; /wiki is de voordeur.
+  await page.goto('/wiki/alles');
   await expect(page.locator('.card', { hasText: `Van de speler ${stamp}` })).toBeVisible();
   await openFilters(page);
   await page.getByRole('group', { name: 'Alleen' }).getByRole('button', { name: 'Van mij' }).click();
@@ -114,7 +115,7 @@ test('wiki: "van mij" is the account, and a player sees only what they may', asy
   // The Keeper's secrecy filter exists for the Keeper…
   await expect(page.getByRole('group', { name: 'Geheimhouding' })).toBeVisible();
   // …and not for a player, who also cannot smuggle it in through the URL.
-  await other.goto('/wiki?visibility=keeper');
+  await other.goto('/wiki/alles?visibility=keeper');
   await openFilters(other);
   await expect(other.getByRole('group', { name: 'Geheimhouding' })).toHaveCount(0);
   await expect(other.locator('.card', { hasText: `Van de speler ${stamp}` })).toBeVisible();

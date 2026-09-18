@@ -3,10 +3,17 @@ import { Icon } from '@/components/Icon';
 import type { ListParams } from '@/lib/listParams';
 
 /**
- * The wiki's soorten as one row of tabs: "Alles", then every soort with how
- * many of it this viewer may see. Navigation, not a filter — each tab is its
- * own page (`/wiki`, `/wiki/[type]`) — but the sort and the filters that are
- * on travel along in the query string, so switching soort keeps them.
+ * The wiki's soorten as one row of tabs. Navigation, not a filter — each tab is
+ * its own page — but the sort and the filters that are on travel along in the
+ * query string, so switching soort keeps them.
+ *
+ * §75 put one tab in front of the rest: **Start**, the wiki's front door
+ * (`/wiki`), with "Alles" — the browse list this row has always led with —
+ * moving one place along to `/wiki/alles`. That order is the whole navigation
+ * idea of round 38 in one line: you land on something written by a person, and
+ * the sorted list of everything is one click away rather than the first thing
+ * you meet. Start carries no count, on purpose: an overzicht counts nothing,
+ * and a number beside it would invite the reader to read it as a soort.
  *
  * On a desktop the row wraps; on a phone it scrolls sideways under the thumb.
  */
@@ -24,14 +31,20 @@ export function TypeTabs({
   allCount,
   query,
   allLabel = 'Alles',
+  startLabel = 'Start',
 }: {
   types: TypeTab[];
-  /** The slug of the current page, or null on the all-soorten page. */
+  /**
+   * Which tab is the page you are on: a soort's slug, `'alles'` for the browse
+   * list, `'start'` for the front door, or null for a page that is in the wiki
+   * but is none of those (an overzicht that is not home).
+   */
   active: string | null;
   allCount: number;
   /** The current search params, carried along to every tab. */
   query: ListParams;
   allLabel?: string;
+  startLabel?: string;
 }) {
   const carried = new URLSearchParams();
   for (const [key, raw] of Object.entries(query)) {
@@ -43,7 +56,20 @@ export function TypeTabs({
 
   return (
     <nav className="type-tabs" aria-label="Soorten">
-      <Link className="type-tab" href={href('/wiki')} aria-current={active === null ? 'page' : undefined}>
+      {/* §75: de voordeur. Geen telling — een overzicht telt niets. */}
+      <Link
+        className="type-tab"
+        href={href('/wiki')}
+        aria-current={active === 'start' ? 'page' : undefined}
+      >
+        <Icon name="home" size={14} />
+        {startLabel}
+      </Link>
+      <Link
+        className="type-tab"
+        href={href('/wiki/alles')}
+        aria-current={active === 'alles' ? 'page' : undefined}
+      >
         <Icon name="book" size={14} />
         {allLabel}
         <span className="type-tab-count">{allCount}</span>

@@ -5199,3 +5199,73 @@ is weg en opgegaan in dezelfde peek.
 nog steeds modale `Sheet`s van tot 92 %: dat is een formulier, een bewuste
 stap. Een tijdlijnvenster in de peek heeft zijn eigen *Sluiten* naast het
 kruisje van de peek; met één venster open doen die twee hetzelfde.
+
+---
+
+## Round 38 — 18 September 2026: het overzicht (§75)
+
+**Een overzicht is een eigen tabel, geen soort artikel met een vinkje.**
+Dit is de beslissing van de ronde en alles hangt eraan. De andere weg — een
+`entry_type` met `is_portal`, of een vlag op `entries` — is korter om te
+bouwen en duurder om te bezitten: een overzicht mag niet in het web, niet
+onder "Genoemd in", niet in een stamboom, niet op een landkaart, niet in een
+dossier, niet in de soortenlijsten en niet in de autocomplete, en elk van die
+uitsluitingen zou een `if` zijn op een plek waar de volgende ronde hem vergeet.
+Als eigen tabel volgen ze allemaal uit één feit (de rij staat niet in
+`entries`), en blijft er precies één regel met de hand geschreven code over:
+`recomputeOwnerMentions` slaat `owner_kind = 'overzicht'` over. De prijs is de
+ruggengraat van een zevende soort ding — ongeveer twintig plekken, opgesomd in
+`tests/unit/overzicht-spine.test.ts` — en die prijs is één keer betaald.
+
+**`/wiki` is de voordeur, de lijst schoof op naar `/wiki/alles`.**
+De alternatieven waren de voordeur op een eigen adres (`/wiki/start`) met
+`/wiki` als lijst, of een blok bovenop de lijst. Het eerste betekent dat het
+menu-item "Wiki" op de lijst blijft uitkomen en dus dat niemand de voordeur ooit
+ziet; het tweede maakt de voordeur een randje van een lijst in plaats van een
+pagina die iemand schreef. Nicks zin — *"the first thing that shows should be an
+intro page"* — is letterlijk de eerste optie. De kosten zijn drie regels die
+verhuisd zijn (`revalidatePath`, de `?deleted=1`-terugkeer en `flipList` op de
+artikelpagina) en één spec die opnieuw gericht moest worden omdat hij anders
+stilletjes niets meer zou testen (`access-rights`, "niet in de wiki te zien").
+
+**`edit_mode` begint op `'all'`, niet op `'private'`.**
+Een landkaart begint op `'private'` (§40) omdat alleen een Keeper er ooit een
+ophangt. Hier is het omgekeerde waar: Nick vroeg expliciet om een wiki die de
+spelers zelf inrichten, dus mag iedereen elkaars wegwijzer opruimen. De Keeper
+houdt twee antwoorden die hij al had — `access_locked` (§17's grendel) voor één
+overzicht, en de prullenbak — dus er is niets nieuws uitgevonden om dit terug te
+draaien.
+
+**De voordeur kan niet weggegooid worden, en leent zijn tekst.**
+`deleteOverzicht` weigert `is_home`: `/wiki` moet ergens op uitkomen, en een
+prullenbakknop die de voorpagina van de wiki opeet is geen functie. En zolang er
+niets geschreven is toont de pagina `defaultIntro()` uit `lib/intro.ts` —
+*getoond*, niet opgeslagen. De migratie schrijft dus geen Nederlandse zin in
+SQL, de tekst blijft de woordenlijst (§11) volgen, en de eerste die typt
+vervangt hem voorgoed. De startpagina (`/`) houdt zijn eigen welkom; dat waren
+Nicks woorden ("both stay").
+
+**Een overzicht heeft geen Keeperversie.**
+De enige uitzondering op §44 die deze ronde maakt. Een tweeling bestaat zodat
+één ding *in de wereld* twee gezichten kan hebben. Een overzicht is geen ding in
+de wereld, dus zouden twee getouwde overzichten twee voordeuren zijn die beweren
+dezelfde deur te zijn. Een Keeper die een eigen wegwijzer wil maakt er een op
+zijn eigen kant, waar de tafel hem sowieso niet ziet (§46). `makeOfKind` gooit,
+in plaats van stil te weigeren, omdat daar alleen de knop uit de Keeperkant
+komt — en die wordt voor deze soort niet getekend.
+
+**Wat deze ronde met opzet niet deed.**
+- **Zoeken.** Een overzicht is niet te vinden via `/search`. De strip onderaan
+  elke overzichtpagina en de Start-tab zijn voorlopig de hele vindbaarheid. Het
+  is een eigen soort in `lib/search/service.ts` plus een chip in `SearchScreen`,
+  en dat is een half uur dat niet in deze ronde paste.
+- **Een blok met kaartjes.** Verwijzingen in een sectie zijn chips in lopende
+  tekst. Een echt *linkraster* (kies artikelen, toon ze als de kaartjes die de
+  wiki al heeft, met een regel context per rij) is de volgende stap en de
+  duidelijkste: het is wat "collect and group things" op een Fandom-wiki er in
+  de praktijk uit laat zien.
+- **Volgorde en pictogram.** `sort_order` en `icon` staan in de tabel en in de
+  PATCH, maar er is geen knop om ze te zetten. De strip staat daarom op naam.
+- **Een telefoonvariant van de spec.** Er is geen canvas, geen gebaar en geen
+  §73-modus in deze ronde, dus de `phone`-variant zou dezelfde klikken op een
+  smaller scherm zijn.

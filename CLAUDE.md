@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 98 files, 1570 tests as of round 37 (round 36: 97 / 1560)
+npx vitest run         # 99 files, 1596 tests as of round 38 (round 37: 98 / 1570)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -163,7 +163,11 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is §74 / rule 74 (round 37 added three: §72 twee
+  choosing a number — the latest is **§75 / rule 75** (round 38: een overzicht is
+  een pagina van de wiki die óver de wiki gaat — `/wiki` is de voordeur,
+  `/wiki/alles` de lijst, en een verwijzing vanaf een overzicht loopt één kant
+  op, wat één regel in `recomputeOwnerMentions` is en verder volgt uit het feit
+  dat een overzicht geen rij in `entries` is). Round 37 added three: §72 twee
   vingers zijn één knijp en een knijp springt nooit — `lib/canvas/pinch.ts` +
   `components/canvas/usePinch.ts`; §73 Lezen of Bewerken — een telefoon begint
   elk glas in Lezen, `useCanvasMode` + `CanvasModeToggle`; §74 wat een tik opent
@@ -205,9 +209,11 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0024_soft_delete_pins_events` (§69: a `deleted_at` on `map_pins` and
-  `timeline_events`, so the *Ongedaan maken* in a toast gives back the same
-  row) — round 36 added `0025_sections_and_pin_layer`, so the next is `0026_`
+  `0026_overzichten` (§75: the `overzichten` table and the one home row the
+  wiki's front door resolves to), so **the next is `0027_`**. Before it: round
+  36's `0025_sections_and_pin_layer` and §69's `0024_soft_delete_pins_events`
+  (a `deleted_at` on `map_pins` and `timeline_events`, so the *Ongedaan maken*
+  in a toast gives back the same row)
   (rounds 27 and 28 added none: a
   new soort, a reverse veld and even a **slug rename** arrive through the
   seed's `INSERT OR IGNORE` and a marker — §55, §58; round 31 added a *table*
@@ -1072,7 +1078,22 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35 and 37
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37 and 38
+
+**Round 38 (§75) leaves four, all named on purpose:**
+
+- **An overzicht is not in `/search`.** The Start tab and the strip at the foot
+  of every overzicht are the whole of its findability. It is a kind of its own
+  in `lib/search/service.ts` plus a chip in `SearchScreen` — half an hour, and
+  the first thing to pick up here.
+- **There is no link *grid*.** References inside a sectie are chips in running
+  prose. A real block of chosen artikelen, drawn as the cards the wiki already
+  has with a line of context each, is the next step and the one that makes
+  "collect and group things" look like it does on a Fandom wiki.
+- **`sort_order` and `icon` are in the table and in the PATCH, with no control
+  to set them.** The strip is therefore ordered by name after the front door.
+- **No `phone` spec.** There is no canvas, no gesture and no §73 mode in this
+  round, so the phone variant would be the same clicks on a narrower screen.
 
 **Round 37 (§72–§74) leaves these, all named on purpose:**
 

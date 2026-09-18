@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useUi } from '@/components/ui/UiProvider';
 import type { Side } from '@/lib/keeper/kinds';
 import { readLanding, SWITCHED_PARAM, switchedMessage, TWINLESS_PARAM } from './flipRoad';
@@ -45,11 +46,57 @@ export function SideSwitched({ side }: { side: Side }) {
    * either runs, what they need is already in a ref.
    */
   const landing = useRef<{ switched: boolean; twinless: boolean } | null>(null);
-  if (landing.current === null) {
-    landing.current =
-      typeof window === 'undefined' ? { switched: false, twinless: false } : readLanding(window.location.search);
-  }
+  const readFor = useRef<string | null>(null);
   const said = useRef(false);
+  /*
+   * Read once **per landing**, not once per mount — round 38's repair.
+   *
+   * This component lives in `AppShell` (§57), which never unmounts while the
+   * browser stays in the archive, so a `useRef` filled on the first render is
+   * filled for the rest of the session. That made the *first* address a browser
+   * ever saw decide, for ever, whether a later `?gewisseld=1` was cleaned off:
+   * land somewhere without the flag first, and the next wissel left it standing
+   * — where, exactly as the note below warns, it survives a reload, a copied
+   * link and a Back.
+   *
+   * It showed up as `keeper-side.spec.ts:59` failing in a full run and passing
+   * alone (CLAUDE.md §1 called it a flake for two rounds), because whether the
+   * first navigation of the run carried the flag is a matter of ordering.
+   *
+   * So the search string it was read for is remembered, and a *new* one that
+   * carries the flag is read afresh. Only a landing that really is one can
+   * reach this: a search string without the flag is not read, so nothing here
+   * can clear the memory of a sentence already said. `said` is released with
+   * it, because a second genuine wissel deserves its own sentence — and
+   * `saidFor` below still holds it to once per page.
+   */
+  /*
+   * The subscription that makes the re-read below possible at all. Without it
+   * this component is rendered once per document load and never again: it takes
+   * no prop that changes, so a *client-side* navigation (a `<Link>` into a
+   * tweeling, which is how §50's detour usually arrives) re-renders the page
+   * under it and leaves this untouched. The shell's copy therefore never saw
+   * the landing, and the address kept `?gewisseld=1` — on a reload, on a copied
+   * link, and on the Back button.
+   */
+  const params = useSearchParams();
+  if (typeof window !== 'undefined') {
+    void params;
+    const search = window.location.search;
+    if (landing.current === null) {
+      landing.current = readLanding(search);
+      readFor.current = search;
+    } else if (readFor.current !== search) {
+      const next = readLanding(search);
+      readFor.current = search;
+      if (next.switched) {
+        landing.current = next;
+        said.current = false;
+      }
+    }
+  } else if (landing.current === null) {
+    landing.current = { switched: false, twinless: false };
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined' || !landing.current?.switched) return;

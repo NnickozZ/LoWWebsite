@@ -36,7 +36,8 @@ test('no console errors or warnings while walking the archive', async ({ page })
 
   await signIn(page, 'Keeper', 'abbeytower34');
 
-  await page.goto('/wiki');
+  // §75: de lijst staat sinds ronde 38 op /wiki/alles; /wiki is de voordeur.
+  await page.goto('/wiki/alles');
   const entryHrefs = await page.locator('a[href^="/e/"]').evaluateAll((anchors) =>
     Array.from(
       new Set(anchors.map((a) => (a as HTMLAnchorElement).getAttribute('href')!).filter(Boolean)),
@@ -56,7 +57,9 @@ test('no console errors or warnings while walking the archive', async ({ page })
 
   // §66: `/stambomen` walks with the other shelves; one tree page is opened
   // below, after there is certain to be one to open.
-  for (const path of ['/', '/wiki', '/cases', '/boards', '/maps', '/timelines', '/stambomen', '/search?q=e', '/you']) {
+  // §75: beide helften van de wiki lopen mee — de voordeur (een overzicht,
+  // met secties en een strip) en de lijst.
+  for (const path of ['/', '/wiki', '/wiki/alles', '/cases', '/boards', '/maps', '/timelines', '/stambomen', '/search?q=e', '/you']) {
     await page.goto(path);
     await page.waitForTimeout(300);
   }

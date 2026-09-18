@@ -214,7 +214,9 @@ export default async function HomePage() {
             <div className="row" style={{ marginTop: '2rem' }}>
               <h2 style={{ margin: 0 }}>Recente {words.entryPlural}</h2>
               <div className="spacer" />
-              <Link className="small" href="/wiki">
+              {/* §75: “alles” is sinds ronde 38 een adres van zichzelf — de
+                  voordeur staat op /wiki en dit knopje bedoelde altijd de lijst. */}
+              <Link className="small" href="/wiki/alles">
                 Alles bekijken
               </Link>
             </div>

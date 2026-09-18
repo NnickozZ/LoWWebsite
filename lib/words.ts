@@ -81,6 +81,14 @@ export const WORD_GROUPS: WordGroup[] = [
       // §66
       { key: 'familyTree', what: 'Eén stamboom', fallback: 'stamboom' },
       { key: 'familyTreePlural', what: 'Meer stambomen', fallback: 'stambomen' },
+      // §75
+      {
+        key: 'overzicht',
+        what: 'Eén overzicht',
+        fallback: 'overzicht',
+        hint: 'De wegwijzer in de wiki: een pagina die over de wiki gaat in plaats van over de wereld.',
+      },
+      { key: 'overzichtPlural', what: 'Meer overzichten', fallback: 'overzichten' },
       {
         key: 'looseCard',
         what: 'Een los kaartje in een stamboom',

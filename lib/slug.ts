@@ -27,3 +27,14 @@ export function uniqueSlug(input: string, taken: (candidate: string) => boolean)
   }
   return `${base}-${Date.now()}`;
 }
+
+/**
+ * §75: addresses inside `/wiki` that the wiki itself has spoken for.
+ *
+ * `/wiki/alles` is the browse list and `/wiki/overzicht/…` is where an
+ * overzicht lives, so neither a soort (`lib/admin/types.ts`) nor an overzicht
+ * (`lib/overzichten/service.ts`) may take one of these as its slug. Kept here,
+ * beside `slugify`, because both of those halves need it and this file opens
+ * nothing.
+ */
+export const RESERVED_WIKI_SLUGS = ['alles', 'overzicht', 'overzichten'];

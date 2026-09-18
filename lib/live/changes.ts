@@ -50,7 +50,7 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   pending_edits: { refs: { entry_id: 'entry' }, lists: ['admin'] },
   audit_log: { lists: ['admin'] },
   activity: { refs: { case_id: 'case' }, lists: ['feed'] },
-  access_grants: { lists: ['entries', 'cases', 'boards', 'timelines', 'family_trees'] },
+  access_grants: { lists: ['entries', 'cases', 'boards', 'timelines', 'family_trees', 'overzichten'] },
   user_characters: { refs: { entry_id: 'entry' }, lists: ['characters', 'users'] },
   maps: { row: 'map', lists: ['maps'] },
   map_pins: { row: 'pin', refs: { map_id: 'map', entry_id: 'entry' }, lists: ['maps'] },
@@ -60,6 +60,8 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   timeline_events: { row: 'event', refs: { timeline_id: 'timeline', entry_id: 'entry' }, lists: ['timelines'] },
   // §66: a stamboom, like a tijdlijn, also moves the dossier it hangs in.
   family_trees: { row: 'family_tree', refs: { case_id: 'case' }, lists: ['family_trees'] },
+  // §75: an overzicht hangs in nothing, so it moves its own key and its list.
+  overzichten: { row: 'overzicht', lists: ['overzichten'] },
   users: { lists: ['users'] },
   // §33: a stroke moves the tekenlaag's own key and nothing else — not the
   // prikbord, landkaart, tijdlijn or stamboom it is drawn on, whose pages would
@@ -172,7 +174,10 @@ export function keysOfStatement(sql: string, params: unknown[]): string[] {
     const kinds = found.get('owner_kind') ?? [];
     const ids = found.get('owner_id') ?? [];
     kinds.forEach((kind, i) => {
-      if ((kind === 'entry' || kind === 'case') && ids[i]) keys.add(`${kind}:${ids[i]}`);
+      // §75: and an overzicht, whose body is nothing but its secties.
+      if ((kind === 'entry' || kind === 'case' || kind === 'overzicht') && ids[i]) {
+        keys.add(`${kind}:${ids[i]}`);
+      }
     });
   }
   // Grants are polymorphic: the target names its own kind.
@@ -180,7 +185,7 @@ export function keysOfStatement(sql: string, params: unknown[]): string[] {
     const types = found.get('target_type') ?? [];
     const ids = found.get('target_id') ?? [];
     types.forEach((type, i) => {
-      if (['entry', 'case', 'board', 'timeline', 'family_tree'].includes(type) && ids[i]) {
+      if (['entry', 'case', 'board', 'timeline', 'family_tree', 'overzicht'].includes(type) && ids[i]) {
         keys.add(`${type}:${ids[i]}`);
       }
     });

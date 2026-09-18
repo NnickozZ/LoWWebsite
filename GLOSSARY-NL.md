@@ -36,6 +36,9 @@ change.
 | loose card / loose cards (in a family tree) | los kaartje / losse kaartjes | *het* kaartje — somebody in a stamboom who has no artikel (yet): "Onbekende vader" (§66) |
 | line (in a family tree) | lijn / lijnen | *de* lijn — ouder, kind, partner or verwant (§66); never "draad", which is on a prikbord |
 | role (of a link field in a family tree) | rol | Ouder · Kind · Partner · Verwant, set in Beheer → Soorten (§66) |
+| overview / portal page (in the wiki) | overzicht / overzichten | *het* overzicht (§75) — een pagina van de wiki die over de wiki gaat: tekst en verwijzingen die de weg wijzen. Wat MediaWiki een *Portal* noemt. Nooit “portaal” of “hoofdpagina” |
+| the wiki's front door | de voordeur / het thuisoverzicht | `/wiki` — het ene overzicht met `is_home`; in de tabrij heet het **Start** (§75) |
+| the browse list | Alles in de wiki | `/wiki/alles` — de gesorteerde lijst met alle artikelen, tot ronde 38 op `/wiki` (§75) |
 | ghost (a relative not in this tree) | schim / schimmen | drawn faint beside the tree with a `+` (§66) |
 | character / characters | karakter / karakters | the artikel a player wears (§18) |
 | (board) card | kaart | |

@@ -71,7 +71,10 @@ test('a private fiche is nobody else\'s, and a Keeper sees it anyway', async ({ 
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
   await signUpAs(other, `Ander ${stamp}`);
-  await other.goto('/wiki');
+  // §75: de lijst staat sinds ronde 38 op /wiki/alles. Op /wiki (de voordeur)
+  // zou deze assertie waar zijn omdat daar helemaal geen artikelen staan, en
+  // dan test hij niets meer.
+  await other.goto('/wiki/alles');
   await expect(other.getByText(entryName)).toHaveCount(0);
   await other.goto('/search');
   await other.getByLabel('Zoeken in het archief').fill(entryName);

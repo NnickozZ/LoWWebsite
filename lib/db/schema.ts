@@ -242,7 +242,16 @@ export type Visibility = 'all' | 'keeper' | 'players';
  * when the Keeper allows it AND the owner allows it.
  */
 export type AccessMode = 'all' | 'some' | 'private';
-export type AccessTargetType = 'entry' | 'case' | 'board' | 'timeline' | 'map' | 'family_tree';
+export type AccessTargetType =
+  | 'entry'
+  | 'case'
+  | 'board'
+  | 'timeline'
+  | 'map'
+  | 'family_tree'
+  // §75: an overzicht wears the same two dials as everything else. Its
+  // `edit_mode` starts at 'all' on purpose — see the table below.
+  | 'overzicht';
 
 export const entries = sqliteTable(
   'entries',
@@ -359,7 +368,7 @@ export const sections = sqliteTable(
 );
 
 /** §70: what a sectie can hang from. A new one is this union and its gate. */
-export type SectionOwnerKind = 'entry' | 'case';
+export type SectionOwnerKind = 'entry' | 'case' | 'overzicht';
 
 export const entrySectionReveals = sqliteTable(
   'entry_section_reveals',
@@ -885,6 +894,65 @@ export const familyTrees = sqliteTable(
 );
 
 /**
+ * §75, round 38: een overzicht — a page of the wiki that is about the wiki.
+ *
+ * It is the front door players write themselves: prose, groupings and links
+ * that say where to start and what belongs together, with a home overzicht at
+ * `/wiki` and as many more as the table cares to make. Wikipedia and every
+ * Fandom wiki have the same thing in a namespace of its own; this is that
+ * namespace, as a table.
+ *
+ * What it *lacks* is the whole idea, and it is why this is a table of its own
+ * rather than a soort artikel with a flag on it:
+ *
+ *   - **no type, no fields, no infobox, no cover, no tags.** An overzicht is
+ *     text and links. Nothing about it is a fact about the world.
+ *   - **it is not in the web, not in "Genoemd in", not in a stamboom, not on a
+ *     landkaart and not in a dossier.** An overzicht is about the archive, not
+ *     about the fiction, so a line from one would be a lie about the world.
+ *     Because it is not a row in `entries`, every one of those exclusions is
+ *     had for free rather than remembered in fourteen places — that is the
+ *     argument for the table. Links go one way, outward: an overzicht names an
+ *     artikel, and the artikel never hears about it (`lib/sections/service.ts`,
+ *     `recomputeOwnerMentions`).
+ *
+ * What it carries is the rest of the archive's spine, because the same rules
+ * have to hold: §17's two dials, §44's `keeper_only` side, §43-style soft
+ * delete into the Keeper's bin, and §70's secties, which are the whole of its
+ * body — an overzicht *is* a title, a lead and its secties.
+ *
+ * `edit_mode` starts at **'all'** rather than at 'private' (which is what a
+ * landkaart does, §40). That is Nick's decision written into the column: the
+ * players decide how the wiki is run, so anybody may tidy anybody's overzicht,
+ * and a Keeper who wants one left alone has `access_locked` (§17's bolt).
+ */
+export const overzichten = sqliteTable(
+  'overzichten',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    /** The paragraph under the title. Plain text; the secties carry the rest. */
+    lead: text('lead').notNull().default(''),
+    /** The one at `/wiki`. Exactly one row has this, and it cannot be binned. */
+    isHome: integer('is_home', { mode: 'boolean' }).notNull().default(false),
+    icon: text('icon').notNull().default('book'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    /** §17 */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('all'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    /** §44: the Keeper's own side, AND-ed onto the dials in `viewableCondition`. */
+    keeperOnly: integer('keeper_only', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+    deletedAt: integer('deleted_at'),
+  },
+  (t) => [uniqueIndex('overzichten_slug_idx').on(t.slug), index('overzichten_home_idx').on(t.isHome)],
+);
+
+/**
  * §20: the CRDT state behind a piece of shared text, keyed by room
  * (`entry:{id}:body`, `section:{id}`). `entries.body` remains what every
  * reader uses; this is the Yjs document's own memory, so a client that was
@@ -952,8 +1020,24 @@ export const counterparts = sqliteTable(
   ],
 );
 
-/** The six kinds of thing that can have a Keeper side (§44, §66). */
-export type KeeperKind = 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
+/**
+ * The kinds of thing that can have a Keeper side (§44, §66, §75).
+ *
+ * This union is the same one `lib/keeper/kinds.ts` exports, restated here
+ * because a column's `$type<>` may not reach for a module that reaches back
+ * for the schema. The two must move together — `tests/unit/overzicht-spine.test.ts`
+ * asserts they are equal, so the next kind cannot be added to one and forgotten
+ * in the other.
+ */
+export type KeeperKind =
+  | 'entry'
+  | 'case'
+  | 'board'
+  | 'map'
+  | 'timeline'
+  | 'family_tree'
+  // §75
+  | 'overzicht';
 
 /**
  * §44: the Keeper's notes, for all five kinds, in one place.

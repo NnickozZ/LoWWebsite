@@ -93,6 +93,9 @@ export function startingVisibility(isKeeper: boolean): Visibility {
  */
 export function canEditSections(ownerKind: SectionOwnerKind, ownerId: string, viewer: Viewer): boolean {
   if (!viewerCanEdit(ownerKind, ownerId, viewer)) return false;
+  // §75: an overzicht has no lock of its own either — §10's bolt is an
+  // artikel's. What holds one still is the Keeper's `access_locked` (§17),
+  // which `viewerCanEdit` has already asked about.
   if (ownerKind !== 'entry' || viewer?.isKeeper) return true;
   const owner = db
     .select({ isLocked: schema.entries.isLocked })
@@ -171,6 +174,20 @@ export function sectionOwner(
  * and its title; a dossier's secties feed the dossier's own pass.
  */
 function recomputeOwnerMentions(ownerKind: SectionOwnerKind, ownerId: string) {
+  /*
+   * §75: an overzicht names things and is never named back. This is the whole
+   * of that rule in code, and it is deliberately a *return* rather than a
+   * missing branch: an overzicht is about the archive, not about the world, so
+   * a row under "Genoemd in" saying that *Start* mentions Middelharnis would be
+   * a claim about the fiction that nobody made. Links from an overzicht go one
+   * way, outward.
+   *
+   * Everything else follows for free, because an overzicht is not a row in
+   * `entries`: `listMentions` and `recomputeCaseMentions` both ask for
+   * `ownerKind` explicitly ('entry' / 'case'), and `buildWebGraph` reads
+   * `entry_mentions`, which this never writes.
+   */
+  if (ownerKind === 'overzicht') return;
   if (ownerKind === 'case') recomputeCaseMentions(ownerId);
   else recomputeSectionMentions(ownerId);
 }

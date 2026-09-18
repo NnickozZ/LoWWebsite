@@ -1,0 +1,47 @@
+/*
+ * §75, ronde 38: het overzicht.
+ *
+ * Een eigen stylesheet, naast `stambomen.css` en `timelines.css`, en om
+ * dezelfde reden: dit is een pagina met een vorm die nergens anders voorkomt,
+ * en `globals.css` is het drukste bestand in de repo.
+ *
+ * Er staat weinig in, en dat is de bedoeling. Een overzicht leent alles van de
+ * artikelpagina — `.entry-title`, `.entry-lead`, `.entry-section` — zodat een
+ * sectie op een overzicht er letterlijk uitziet als een sectie op een artikel
+ * (§70). Wat hier staat is alleen wat een overzicht *anders* maakt: één kolom
+ * zonder infobox, en een leesbreedte, want een regel die over 4K doorloopt is
+ * geen tekst meer maar een lint.
+ */
+
+.overzicht-page {
+  /* Eén kolom. Geen grid, geen rail, geen zijbalk — zie OverzichtView. */
+  max-width: 64rem;
+}
+
+/*
+ * De tekst leest op leesbreedte, de secties ook. `.entry-title` en de rest
+ * komen van de artikelpagina; alleen de breedte is hier van ons, want daar
+ * zorgt op een artikel de kolom naast de infobox voor.
+ */
+.overzicht-page .entry-lead,
+.overzicht-page .entry-section,
+.overzicht-page .entry-sections {
+  max-width: 48rem;
+}
+
+/* Het titelvak op de bewerkkant leest als de titel die het vervangt. */
+.overzicht-page .entry-title-input {
+  font-size: 1.6rem;
+  font-weight: 600;
+  width: 100%;
+}
+
+/*
+ * De strip onderaan: de uitgang van de pagina, niet de inhoud. Een streep
+ * erboven zegt dat wat volgt ergens anders heen gaat.
+ */
+.overzicht-strip {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--paper-dark);
+}

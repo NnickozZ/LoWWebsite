@@ -254,7 +254,9 @@ test('a new artikel reaches the wiki on another screen', async ({ page, browser 
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
 
   await signIn(page, 'Keeper', 'abbeytower34');
-  await page.goto('/wiki');
+  // §75: de lijst staat sinds ronde 38 op /wiki/alles; /wiki is de voordeur. Deze test kijkt of een
+  // nieuw artikel op een ander scherm *in de lijst* verschijnt, dus hij hoort daar.
+  await page.goto('/wiki/alles');
   await expect(page.getByTestId('live-strip')).toHaveClass(/live-strip-live/, { timeout: 15_000 });
 
   const otherCtx = await browser.newContext();

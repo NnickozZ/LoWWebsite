@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
+import { canEdit, canView, grantFor, viewableCondition, viewerCanEdit } from '@/lib/access';
 import { updateCase } from '@/lib/cases/service';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
@@ -325,6 +325,25 @@ function sectionAdmission(sectionId: string, viewer: Viewer): Admission | null {
       .select({ id: schema.cases.id })
       .from(schema.cases)
       .where(and(eq(schema.cases.id, section.ownerId), visibleCaseCondition(viewer)))
+      .get();
+    if (!record) return null;
+  } else if (section.ownerKind === 'overzicht') {
+    /*
+     * §75: an overzicht's own §17 dials, plus the bin. It has no lock of its
+     * own (§10 is an artikel's), so `ownerLocked` stays false and the write
+     * right below is decided by `canEditSections` — which for an overzicht is
+     * "may you edit this overzicht", and that is 'all' out of the box.
+     */
+    const record = db
+      .select({ id: schema.overzichten.id })
+      .from(schema.overzichten)
+      .where(
+        and(
+          eq(schema.overzichten.id, section.ownerId),
+          isNull(schema.overzichten.deletedAt),
+          viewableCondition('overzicht', viewer),
+        ),
+      )
       .get();
     if (!record) return null;
   } else {

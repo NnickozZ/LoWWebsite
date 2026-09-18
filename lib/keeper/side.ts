@@ -37,6 +37,9 @@ const KIND_CONDITION: Record<KeeperKind, (viewer: Viewer) => SQL> = {
   // §66
   family_tree: (viewer) =>
     and(isNull(schema.familyTrees.deletedAt), viewableCondition('family_tree', viewer)) as SQL,
+  // §75
+  overzicht: (viewer) =>
+    and(isNull(schema.overzichten.deletedAt), viewableCondition('overzicht', viewer)) as SQL,
 };
 
 /**
@@ -77,6 +80,9 @@ export function sideCondition(kind: KeeperKind, viewer: Viewer): SQL {
     // §66
     case 'family_tree':
       return sql`${schema.familyTrees.keeperOnly} = ${keeper ? 1 : 0}`;
+    // §75
+    case 'overzicht':
+      return sql`${schema.overzichten.keeperOnly} = ${keeper ? 1 : 0}`;
   }
 }
 
@@ -168,6 +174,20 @@ export function keeperRef(kind: KeeperKind, id: string, viewer: Viewer): KeeperR
         .get();
       return row ? ref(kind, row.id, row.name, row.slug, row.keeperOnly) : null;
     }
+    // §75
+    case 'overzicht': {
+      const row = db
+        .select({
+          id: schema.overzichten.id,
+          name: schema.overzichten.name,
+          slug: schema.overzichten.slug,
+          keeperOnly: schema.overzichten.keeperOnly,
+        })
+        .from(schema.overzichten)
+        .where(and(eq(schema.overzichten.id, id), where))
+        .get();
+      return row ? ref(kind, row.id, row.name, row.slug, row.keeperOnly) : null;
+    }
   }
 }
 
@@ -219,6 +239,15 @@ export function isKeeperSide(kind: KeeperKind, id: string): boolean {
           .select({ k: schema.familyTrees.keeperOnly })
           .from(schema.familyTrees)
           .where(eq(schema.familyTrees.id, id))
+          .get()?.k,
+      );
+    // §75
+    case 'overzicht':
+      return Boolean(
+        db
+          .select({ k: schema.overzichten.keeperOnly })
+          .from(schema.overzichten)
+          .where(eq(schema.overzichten.id, id))
           .get()?.k,
       );
   }
@@ -273,6 +302,13 @@ function writeSide(kind: KeeperKind, id: string, on: boolean) {
       db.update(schema.familyTrees)
         .set({ keeperOnly: on })
         .where(eq(schema.familyTrees.id, id))
+        .run();
+      break;
+    // §75
+    case 'overzicht':
+      db.update(schema.overzichten)
+        .set({ keeperOnly: on })
+        .where(eq(schema.overzichten.id, id))
         .run();
       break;
   }

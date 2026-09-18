@@ -122,7 +122,7 @@ export async function rejectEditAction(formData: FormData) {
  * The kinds the bin holds — one list, so a sixth one (§66's stamboom) is a
  * word here rather than a fifth `&&` in two `if`s that could drift apart.
  */
-const TRASH_KINDS = ['entry', 'case', 'board', 'map', 'timeline', 'family_tree'] as const;
+const TRASH_KINDS = ['entry', 'case', 'board', 'map', 'timeline', 'family_tree', 'overzicht'] as const;
 
 function isTrashKind(value: string): value is (typeof TRASH_KINDS)[number] {
   return (TRASH_KINDS as readonly string[]).includes(value);

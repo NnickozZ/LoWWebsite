@@ -28,7 +28,7 @@ import type { SectionOwnerKind } from '@/lib/db/schema';
 
 export type TrashItem = {
   id: string;
-  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree';
+  kind: 'entry' | 'case' | 'board' | 'map' | 'timeline' | 'family_tree' | 'overzicht';
   name: string;
   /** Where it would come back to, for the link after restoring. */
   href: string;
@@ -128,6 +128,21 @@ export function listTrash(limit = 200): TrashItem[] {
     .limit(limit)
     .all();
 
+  // §75: an overzicht. It hangs in no dossier, so its detail line says what it
+  // is instead of where it was.
+  const overzichten = db
+    .select({
+      id: schema.overzichten.id,
+      name: schema.overzichten.name,
+      slug: schema.overzichten.slug,
+      deletedAt: schema.overzichten.deletedAt,
+    })
+    .from(schema.overzichten)
+    .where(isNotNull(schema.overzichten.deletedAt))
+    .orderBy(desc(schema.overzichten.deletedAt))
+    .limit(limit)
+    .all();
+
   return [
     ...entries.map((row) => ({
       id: row.id,
@@ -177,6 +192,15 @@ export function listTrash(limit = 200): TrashItem[] {
       detail: row.detail ?? '',
       deletedAt: row.deletedAt ?? 0,
     })),
+    // §75
+    ...overzichten.map((row) => ({
+      id: row.id,
+      kind: 'overzicht' as const,
+      name: row.name,
+      href: `/wiki/overzicht/${row.slug}`,
+      detail: 'in de wiki',
+      deletedAt: row.deletedAt ?? 0,
+    })),
   ].sort((a, b) => b.deletedAt - a.deletedAt);
 }
 
@@ -205,6 +229,12 @@ export function restoreFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     // touched, and the kinship lines live on the artikelen.
     db.update(schema.familyTrees).set({ deletedAt: null }).where(eq(schema.familyTrees.id, id)).run();
     logActivity({ actorId: keeperId, verb: 'family_tree.restored', meta: { familyTreeId: id } });
+  } else if (kind === 'overzicht') {
+    // §75: back on the shelf with its secties still on it — they were never
+    // deleted with it, only hidden with it, exactly as a tijdlijn's
+    // gebeurtenissen are.
+    db.update(schema.overzichten).set({ deletedAt: null }).where(eq(schema.overzichten.id, id)).run();
+    logActivity({ actorId: keeperId, verb: 'overzicht.restored', meta: { overzichtId: id } });
   } else {
     // §19: back on the wall, with every speld still where it was — pins are
     // never deleted with the map, only hidden with it.
@@ -395,6 +425,21 @@ export function destroyEffects(kind: TrashItem['kind'], id: string): DestroyEffe
     );
   }
 
+  if (kind === 'overzicht') {
+    /*
+     * §75: what goes with it is its secties, and they exist nowhere else — an
+     * overzicht *is* its secties. Nothing else is counted, because nothing else
+     * only existed because of it: every artikel it named is untouched, and it
+     * never wrote a "Genoemd in" row to begin with (rule 75).
+     */
+    const sections = db
+      .select({ id: schema.sections.id })
+      .from(schema.sections)
+      .where(and(eq(schema.sections.ownerKind, 'overzicht'), eq(schema.sections.ownerId, id)))
+      .all();
+    return [{ label: 'secties erop', count: sections.length }].filter((effect) => count(effect.count) > 0);
+  }
+
   if (kind === 'timeline') {
     return [
       {
@@ -458,6 +503,20 @@ function roomsOf(kind: TrashItem['kind'], id: string): string[] {
   // in the state blob, and a member's words live on its artikel. The one shared
   // text it owns is the Keeper's notes about it (§44).
   if (kind === 'family_tree') return [`keeper:family_tree:${id}:notes`];
+  // §75: an overzicht's shared text is its secties — one room each (§20) — plus
+  // the Keeper's notes about it. A room left behind would hand its words back
+  // to the next thing that happened to be given the same id.
+  if (kind === 'overzicht') {
+    return [
+      ...db
+        .select({ id: schema.sections.id })
+        .from(schema.sections)
+        .where(and(eq(schema.sections.ownerKind, 'overzicht'), eq(schema.sections.ownerId, id)))
+        .all()
+        .map((row) => `section:${row.id}`),
+      `keeper:overzicht:${id}:notes`,
+    ];
+  }
   return [];
 }
 
@@ -604,6 +663,38 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
       .where(sql`json_extract(${schema.activity.meta}, '$.familyTreeId') = ${id}`)
       .run();
     db.delete(schema.familyTrees).where(eq(schema.familyTrees.id, id)).run();
+  } else if (kind === 'overzicht') {
+    /*
+     * §75: its secties and their reveals, its rights, its Keeper notes — and
+     * nothing else. Every artikel it pointed at stays exactly where it was,
+     * which is the whole point of an overzicht: it collects, it does not own.
+     * There is no `entry_mentions` sweep here because an overzicht never wrote
+     * one (`recomputeOwnerMentions`).
+     */
+    const sectionIds = db
+      .select({ id: schema.sections.id })
+      .from(schema.sections)
+      .where(and(eq(schema.sections.ownerKind, 'overzicht'), eq(schema.sections.ownerId, id)))
+      .all()
+      .map((row) => row.id);
+    if (sectionIds.length) {
+      db.delete(schema.entrySectionReveals)
+        .where(inArray(schema.entrySectionReveals.sectionId, sectionIds))
+        .run();
+    }
+    db.delete(schema.sections)
+      .where(and(eq(schema.sections.ownerKind, 'overzicht'), eq(schema.sections.ownerId, id)))
+      .run();
+    db.delete(schema.accessGrants)
+      .where(and(eq(schema.accessGrants.targetType, 'overzicht'), eq(schema.accessGrants.targetId, id)))
+      .run();
+    db.delete(schema.keeperNotes)
+      .where(and(eq(schema.keeperNotes.kind, 'overzicht'), eq(schema.keeperNotes.targetId, id)))
+      .run();
+    db.delete(schema.activity)
+      .where(sql`json_extract(${schema.activity.meta}, '$.overzichtId') = ${id}`)
+      .run();
+    db.delete(schema.overzichten).where(eq(schema.overzichten.id, id)).run();
   } else {
     // §19: the spelden go with the map — they are places *on* it and mean
     // nothing without it. The artikelen those spelden pointed at do not.

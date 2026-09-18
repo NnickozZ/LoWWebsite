@@ -71,6 +71,14 @@ const TABLES = {
   map: schema.maps,
   // §66: and a stamboom, the fourth container, born with its dials (§40).
   family_tree: schema.familyTrees,
+  /*
+   * §75: and an overzicht. Its `edit_mode` ships as 'all' rather than the
+   * landkaart's 'private', because this is the one thing in the archive the
+   * players are meant to run: anybody may tidy anybody's front door. The
+   * Keeper's answer to a front door they want left alone is `access_locked`,
+   * which is already what that bolt is for.
+   */
+  overzicht: schema.overzichten,
 } as const;
 
 /**

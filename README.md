@@ -3972,3 +3972,65 @@ Sixty-seven rules worth knowing before changing anything:
     lightbox. Niet: de inspector van het prikbord en het knoopmenu van de
     stamboom (al klein), de legenda (een filter is een moment waarop je even
     niets anders doet) en de bewerkbladen (een formulier is een bewuste stap).
+
+75. **Een overzicht is een pagina van de wiki die over de wiki gaat, en
+    verwijzingen vanaf zo'n pagina lopen één kant op.** §75. Nick, ronde 38:
+    *"I am currently in need for a main page when you click on 'Wiki' … the
+    first thing that shows should be an intro page that players get to freely
+    fill in … a full page with links to other 'home pages' … These home pages
+    probably shouldn't appear in webs nor in other reference stuff. They are
+    there purely to guide people around the wiki."* Dat is wat MediaWiki een
+    *Portal* noemt en wat elke grote Fandom-wiki met de hand bouwt: een
+    voordeur per onderwerp, náást de artikelen.
+
+    **`/wiki` is de voordeur** (het thuisoverzicht, `is_home`, gemaakt door
+    migratie `0026`) en **`/wiki/alles`** is de gesorteerde lijst die daar tot
+    deze ronde stond. `TypeTabs` begint daarom met **Start**, dan **Alles**, dan
+    de soorten; Start draagt geen telling, want een overzicht telt niets. Elk
+    ander overzicht staat op `/wiki/overzicht/<slug>`, en `alles`, `overzicht`
+    en `overzichten` zijn daarmee adressen die een soort niet meer mag pakken
+    (`RESERVED_WIKI_SLUGS` in `lib/slug.ts`, gevraagd door `createType` én
+    `renameTypeSlug`).
+
+    **Een eigen tabel, geen soort artikel met een vinkje.** Dat is de hele
+    beslissing, en het verschil is niet cosmetisch: een overzicht mag niet in
+    het web staan, niet onder "Genoemd in", niet in een stamboom, niet op een
+    landkaart en niet in een dossier. Als het een rij in `entries` was, moest elk
+    van die uitsluitingen op veertien plekken onthouden worden; nu volgen ze uit
+    het feit dat de rij daar niet staat. **Het enige dat met de hand geschreven
+    is, is één regel in `recomputeOwnerMentions`** (`lib/sections/service.ts`):
+    een sectie op een overzicht rekent geen mentions door. Een overzicht noemt
+    dus artikelen, en die artikelen horen daar nooit iets van terug.
+
+    **Zijn lijf is §70's secties**, ongewijzigd — hetzelfde component, dezelfde
+    kamers (§20), dezelfde rechten, dezelfde geheimhouding per sectie. Wat er
+    verder op staat is een naam en een inleiding, en verder niets: geen velden,
+    geen infobox, geen omslagfoto, geen tags. Eén kolom over de hele breedte
+    (`.overzicht-page`), want er is geen zijbalk om te vullen.
+
+    **Iedereen mag hem schrijven**, en dat staat in een kolom en niet in een
+    `if`: `overzichten.edit_mode` begint op `'all'` (waar een landkaart op
+    `'private'` begint, §40), dus `viewerCanEdit` zegt ja tegen elke ingelogde
+    hand tot iemand de knop terugdraait. De Keeper houdt de grendel
+    (`access_locked`, §17) en de prullenbak (§43). **De voordeur zelf kan niet
+    weg** — `deleteOverzicht` weigert `is_home`, want `/wiki` moet ergens op
+    uitkomen — en zolang niemand er iets schreef stelt hij zich voor met
+    `defaultIntro()` uit `lib/intro.ts`: getoond, nooit opgeslagen, zodat die
+    tekst op één plek staat en de woordenlijst (§11) volgt.
+
+    De rest van de ruggengraat is die van elk ander soort ding, want dezelfde
+    regels gelden: §17's twee knoppen, §44's kant (`keeper_only`,
+    `sideCondition`, `keeperRef`), §46's *een lijst filtert op kant, een
+    opzoeking nooit*, §48's geboren-op-een-kant, §50's omslag vóór het renderen,
+    en §43's zachte verwijdering. `tests/unit/overzicht-spine.test.ts` vraagt ze
+    stuk voor stuk na — inclusief de dingen die een overzicht *met opzet* niet
+    heeft (geen tekenlaag, geen `case_id`, geen mention-rij) en inclusief de ene
+    val die niets anders vangt: `KeeperKind` staat twee keer geschreven, in
+    `lib/keeper/kinds.ts` en in `lib/db/schema.ts`, en die twee moeten samen
+    bewegen.
+
+    Eén uitzondering op §44, met reden: **een overzicht heeft geen
+    Keeperversie.** Een tweeling bestaat zodat één ding *in de wereld* twee
+    gezichten kan hebben; een overzicht is geen ding in de wereld maar een
+    wegwijzer ín de wiki, en een Keeper die een eigen wegwijzer wil maakt er
+    gewoon een op zijn eigen kant. `makeOfKind` gooit daarom voor deze soort.

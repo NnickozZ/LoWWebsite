@@ -34,6 +34,10 @@ export function canWatch(key: string, viewer: Viewer): boolean {
     const path = key.slice('page:'.length);
     if (path === '/admin') return Boolean(viewer.isKeeper);
     if ((PAGE_PLACES as readonly string[]).includes(path)) return true;
+    // §75: one overzicht's page. Checked before the soort pattern, which has
+    // one segment and would never match it anyway — but the order says which
+    // of the two a two-segment address is.
+    if (new RegExp(`^/wiki/overzicht/${ID}$`).test(path)) return true;
     return new RegExp(`^/wiki/${ID}$`).test(path);
   }
 
@@ -92,6 +96,23 @@ export function canWatch(key: string, viewer: Viewer): boolean {
         .get();
       if (!gone || gone.deletedAt) return false;
       return canView(row, viewer, viewer ? grantFor('family_tree', record.id, viewer.id) : null);
+    }
+    /**
+     * §75: an overzicht is gated exactly like a stamboom — its own two dials
+     * (which carry `keeper_only` inside them since §44) and the bin. Spelled
+     * out here rather than asked of the service for the same reason the
+     * stamboom's was: this file may not import a service that imports it back.
+     */
+    case 'overzicht': {
+      const row = loadAccessRow('overzicht', record.id);
+      if (!row) return false;
+      const gone = db
+        .select({ deletedAt: schema.overzichten.deletedAt })
+        .from(schema.overzichten)
+        .where(eq(schema.overzichten.id, record.id))
+        .get();
+      if (!gone || gone.deletedAt) return false;
+      return canView(row, viewer, viewer ? grantFor('overzicht', record.id, viewer.id) : null);
     }
     // §33: a tekenlaag is seen by whoever may see what it is drawn on.
     case 'ink':

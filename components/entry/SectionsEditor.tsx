@@ -117,6 +117,8 @@ export function SectionsEditor({
   liveUser,
   readOnly: locked = false,
   onOutlineChange,
+  emptyHint,
+  bodyPlaceholder,
 }: {
   /** §70: an artikel or a dossier — which route a new sectie is posted to. */
   ownerKind: SectionOwnerKind;
@@ -138,6 +140,14 @@ export function SectionsEditor({
   readOnly?: boolean;
   /** The page's outline follows the titles: told on every add, rename and removal. */
   onOutlineChange?: (sections: { id: string; title: string }[]) => void;
+  /**
+   * §75: what the empty state and the text box say. An overzicht's secties are
+   * groupings rather than findings, so "Wat leverde dit op?" reads wrong on
+   * one. Two optional lines rather than a second component — everything else
+   * about a sectie is identical, and that is the point of §70.
+   */
+  emptyHint?: string;
+  bodyPlaceholder?: string;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -193,7 +203,10 @@ export function SectionsEditor({
   async function add() {
     setBusy(true);
     try {
-      const base = ownerKind === 'case' ? 'cases' : 'entries';
+      // §70/§75: each kind of owner posts to its own route, because each one
+      // asks a different "may I see this?" before it asks "may I write here?".
+      const base =
+        ownerKind === 'case' ? 'cases' : ownerKind === 'overzicht' ? 'overzichten' : 'entries';
       const response = await fetch(`/api/${base}/${ownerId}/sections`, { method: 'POST' });
       if (!response.ok) {
         ui.toast('Sectie toevoegen is niet gelukt.');
@@ -267,9 +280,10 @@ export function SectionsEditor({
 
       {!sections.length && (
         <p className="tiny muted" style={{ margin: 0 }}>
-          {isKeeper
-            ? 'Een sectie is een stuk tekst met een eigen zichtbaarheid — wat er écht in de kelder ligt, klaargezet en later aangezet.'
-            : 'Een sectie is een stuk tekst met een eigen kop — zet erin wat dit onderzoek opleverde, zonder het vorige te overschrijven.'}
+          {emptyHint ??
+            (isKeeper
+              ? 'Een sectie is een stuk tekst met een eigen zichtbaarheid — wat er écht in de kelder ligt, klaargezet en later aangezet.'
+              : 'Een sectie is een stuk tekst met een eigen kop — zet erin wat dit onderzoek opleverde, zonder het vorige te overschrijven.')}
         </p>
       )}
 
@@ -340,7 +354,8 @@ export function SectionsEditor({
             user={liveUser}
             editable
             placeholder={
-              isKeeper ? 'Wat weet de Keeper hier nog meer over?' : 'Wat leverde dit op?'
+              bodyPlaceholder ??
+              (isKeeper ? 'Wat weet de Keeper hier nog meer over?' : 'Wat leverde dit op?')
             }
             onChange={(doc) => {
               // Kept here too, so the reading face of a sectie without a room

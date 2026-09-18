@@ -28,8 +28,10 @@ export async function deleteEntryAction(formData: FormData) {
   requireAuthor(user);
   const entryId = String(formData.get('entryId') ?? '');
   softDeleteEntry(entryId, user);
-  revalidatePath('/wiki');
-  redirect('/wiki?deleted=1');
+  // §75: de lijst waar dit artikel uit verdwijnt is /wiki/alles; op /wiki
+  // staat sinds ronde 38 de voordeur, waar geen artikel in staat.
+  revalidatePath('/wiki/alles');
+  redirect('/wiki/alles?deleted=1');
 }
 
 export async function restoreEntryAction(formData: FormData) {
