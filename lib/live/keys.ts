@@ -12,8 +12,7 @@
  *                   timeline:{id} one tijdlijn · event:{id} one gebeurtenis ·
  *                   family_tree:{id} one stamboom (§66) · ink:{id} the
  *                   tekenlaag on a prikbord, landkaart, tijdlijn or stamboom ·
- *                   room:{id} one kamer (§78 — reserved, nothing answers to it
- *                   yet; see `canWatch`)
+ *                   room:{id} one kamer (§79)
  *   entries, cases, boards, maps, timelines, family_trees, types, words, site,
  *   users, characters, feed
  *                   "something in this collection changed" — a list page's key
@@ -124,7 +123,10 @@ export const pagePlace = (path: string) => `page:${path}`;
  * account.
  */
 export const spelerPagePlace = (slug: string) => `page:/spelers/${slug}`;
-/** §78: one kamer. Reserved — see `canWatch`, which refuses it. */
+/**
+ * §79: one kamer. Gated by `canSeeRoom` — the onderzoeker's artikel must be
+ * visible (§9) and then the kamer's own dial (§17).
+ */
 export const roomKey = (id: string) => `room:${id}`;
 
 export type RecordKind =
@@ -140,7 +142,7 @@ export type RecordKind =
   // §75
   | 'overzicht'
   | 'ink'
-  // §78: reserved. A kamer has no table yet, and `canWatch` refuses it.
+  // §79: one onderzoeker's kamer.
   | 'room';
 
 export function parseRecordKey(key: string): { kind: RecordKind; id: string } | null {

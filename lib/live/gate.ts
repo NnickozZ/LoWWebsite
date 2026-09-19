@@ -7,6 +7,7 @@ import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { getMapById, getPin } from '@/lib/maps/service';
 import { getEvent, getTimelineById } from '@/lib/timelines/service';
 import { inkTargetById } from '@/lib/ink/service';
+import { canSeeRoom } from '@/lib/kamers/service';
 import { COLLECTION_KEYS, ID, KEEPER_KEYS, PAGE_PLACES, parseRecordKey } from './keys';
 
 /**
@@ -143,16 +144,20 @@ export function canWatch(key: string, viewer: Viewer): boolean {
     case 'ink':
       return Boolean(inkTargetById(record.id, viewer));
     /**
-     * §78: a kamer, reserved and refused.
+     * §79: a kamer, and this is the line §78 reserved.
      *
-     * There is no table to ask yet, and the honest answer to "may this person
-     * watch room:abc" with nothing to look at is no. It is spelled out rather
-     * than left to `default` so that the round which builds the kamer finds one
-     * function to change — and so that every roster, label and watch path is
-     * already routed through the gate on the day it starts saying yes.
+     * It used to `return false` — there was no table to ask. Now it asks the
+     * kamer the same question every other kind is asked, and because ronde 39
+     * routed the roster, the labels and the watch list through this switch
+     * before the kamer existed, nothing else in the live layer changed when it
+     * started saying yes.
+     *
+     * `canSeeRoom` is two facts ANDed: the onderzoeker's artikel must be
+     * visible to this viewer (§9 — an onderzoeker you cannot see has no kamer),
+     * and then the kamer's own dial (§17).
      */
     case 'room':
-      return false;
+      return canSeeRoom(record.id, viewer);
     default:
       return false;
   }

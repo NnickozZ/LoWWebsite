@@ -1,0 +1,286 @@
+/*
+ * §79, ronde 40: de kamer.
+ *
+ * Een eigen stylesheet, naast `spelers.css`, `overzichten.css` en
+ * `stambomen.css`, en om dezelfde reden: dit is een pagina met een vorm die
+ * nergens anders voorkomt, en `globals.css` is het drukste bestand in de repo.
+ *
+ * Wat hier staat is alleen wat een kamer *anders* maakt: een raster van
+ * plekken waarin vier toestanden in één oogopslag uit elkaar te houden zijn,
+ * en een grootboek met een regel onderaan. De rest is geleend — `.stamp`,
+ * `.btn`, `.input`, `.small`, `.tiny`, `.muted`, `.suggest-list` en de
+ * omslagen van `components/Cover.tsx` — zodat een plek er letterlijk uitziet
+ * als de rest van het archief.
+ *
+ * Geen enkele kleur staat hier hard. Alles loopt over de tokens uit §45
+ * (`--paper`, `--paper-dark`, `--paper-raised`, `--rule`, `--ink`,
+ * `--ink-muted`, `--stamp-red`, `--radius`, `--shadow`), zodat de kamer in
+ * alle vier de kleurschema's meedraait — en in de Keeperkant, die dezelfde
+ * tokens anders invult.
+ *
+ * **De vier toestanden verschillen in vórm, niet in kleur.** Op slot is
+ * gestreept en ingezonken, leeg is gestreept en licht, gevuld is dicht en
+ * draagt een plaatje, en verhuld is dicht en gearceerd. Dat is met opzet: een
+ * kleur die "op slot" betekent zou vier keer gekozen moeten worden (§45) en
+ * zou in de Keeperkant iets anders betekenen dan ernaast.
+ */
+
+.kamer-page {
+  max-width: 64rem;
+}
+
+.kamer-title {
+  margin: 0.1rem 0 0.4rem;
+}
+/* "Van" staat kleiner voor de naam: de naam is waar de pagina over gaat. */
+.kamer-title-of {
+  color: var(--ink-muted);
+  font-size: 0.7em;
+  font-weight: 400;
+}
+
+.kamer-balance {
+  margin: 0 0 1.2rem;
+}
+
+/* ------------------------------------------------------------- het raster */
+
+/*
+ * `auto-fill` in plaats van `auto-fit`: twaalf plekken horen een raster te
+ * blijven, ook als er maar drie open zijn — een rij van drie die de hele
+ * breedte opeet ziet eruit als een lijst, niet als een kamer. 9.5rem is de
+ * smalste tegel waar een omslag van 3:4 met een naam eronder nog in past.
+ */
+.kamer-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.8rem;
+  align-items: stretch;
+}
+
+.plek {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  min-height: 11rem;
+  padding: 0.6rem;
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+}
+
+/* De soort plek, altijd bovenaan en altijd klein: het is het etiket van het
+   vak, niet de inhoud ervan. */
+.plek-kind {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--stamp-face);
+}
+
+/* Een knop staat onderaan de tegel, hoe hoog de rest ook uitvalt. */
+.plek-action {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* --- op slot -------------------------------------------------------------
+   Ingezonken en gestreept: dit vak is er wel, maar het is nog niet van jou.
+   De prijs staat er voor iedereen, ook voor wie hem nooit gaat betalen — dat
+   is precies wat een kamer iets maakt om naar te kijken. */
+.plek-locked {
+  background: var(--paper-dark);
+  border-style: dashed;
+}
+.plek-price {
+  margin: 0.2rem 0 0;
+}
+.plek-locked-line {
+  margin: 0;
+}
+
+/* --- leeg ----------------------------------------------------------------
+   Gestreept als "op slot", maar licht: het vak staat open en er ligt niets. */
+.plek-empty {
+  border-style: dashed;
+}
+.plek-empty-line {
+  margin: 0;
+}
+
+/* --- gevuld --------------------------------------------------------------
+   Dicht, met een schaduw: hier ligt iets. De hele tegel op één na is een link
+   naar het artikel, want een voorwerp *is* een artikel. */
+.plek-filled {
+  box-shadow: var(--shadow);
+}
+.plek-item {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+/*
+ * De omslag moet knippen: een uitsnede met zoom boven 1 zet een transform op
+ * de <img> en die tekent buiten zijn eigen vak (dezelfde reden als bij
+ * `.feed-thumb` en `.speler-face-cover`).
+ */
+.plek-cover {
+  background: var(--paper-dark);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.plek-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.plek-item-name {
+  display: block;
+  margin-top: 0.3rem;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.plek-item:hover .plek-item-name {
+  text-decoration: underline;
+}
+
+/* --- verhuld -------------------------------------------------------------
+   §76 in een nieuwe plek. Er ligt iets, en je mag niet weten wat. Dicht (het
+   is een gevúlde plek, geen lege) en gearceerd, met één zin in het midden en
+   verder niets: geen naam, geen plaatje, geen link, geen soort, geen prijs.
+   De arcering loopt over `--rule` en heeft dus geen eigen kleur. */
+.plek-veiled {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background-color: var(--paper-dark);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    var(--rule) 6px,
+    var(--rule) 7px
+  );
+}
+.plek-veiled-line {
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------- het grootboek */
+
+.kamer-grootboek {
+  margin-top: 1.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+.kamer-grootboek-title {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+}
+.kamer-grootboek-list {
+  list-style: none;
+  margin: 0 0 0.9rem;
+  padding: 0;
+}
+/*
+ * Een regel is een bedrag, waarvoor, en wanneer. Het bedrag houdt een vaste
+ * breedte zodat de kolom klopt; de reden krijgt de rest.
+ */
+.kamer-grootboek-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.kamer-grootboek-row:last-child {
+  border-bottom: none;
+}
+.kamer-delta {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+  text-align: center;
+}
+/* Eruit in plaats van erin: dezelfde stempel, maar in de inktkleur, zodat het
+   rood van `--stamp-red` blijft betekenen "hier kwam iets bij". */
+.kamer-delta-out {
+  color: var(--ink-muted);
+  border-color: var(--ink-muted);
+}
+.kamer-grootboek-why {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+.kamer-grootboek-when {
+  flex: 0 0 auto;
+}
+
+/* De regel die de Keeper erbij schrijft, onderaan het boek. */
+.kamer-grant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.kamer-grant-amount {
+  flex: 0 0 6rem;
+  text-align: center;
+}
+.kamer-grant-reason {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- telefoon */
+
+@media (max-width: 560px) {
+  /*
+   * Twee kolommen, vast. `auto-fill` met 9.5rem zou op een smalle telefoon op
+   * één kolom uitkomen, en twaalf plekken onder elkaar is een lijst van een
+   * halve meter in plaats van een kamer.
+   */
+  .kamer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+  .plek {
+    min-height: 9.5rem;
+    padding: 0.5rem;
+  }
+  /* Onder elkaar: een bedrag, een reden en een tijd naast elkaar op 320 px
+     duwt de reden tot één woord per regel. */
+  .kamer-grootboek-row {
+    flex-wrap: wrap;
+    gap: 0.3rem 0.5rem;
+  }
+  .kamer-delta {
+    min-width: 0;
+  }
+  .kamer-grootboek-why {
+    flex-basis: 100%;
+  }
+  .kamer-grant-amount,
+  .kamer-grant-reason {
+    flex: 1 1 100%;
+  }
+}

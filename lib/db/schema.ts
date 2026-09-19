@@ -251,7 +251,14 @@ export type AccessTargetType =
   | 'family_tree'
   // §75: an overzicht wears the same two dials as everything else. Its
   // `edit_mode` starts at 'all' on purpose — see the table below.
-  | 'overzicht';
+  | 'overzicht'
+  /**
+   * §79: a kamer. The only one of these whose two dials point in opposite
+   * directions on purpose — `view_mode: 'all'` because the table looks, and
+   * `edit_mode: 'private'` because only the onderzoeker who lives there
+   * arranges it.
+   */
+  | 'room';
 
 export const entries = sqliteTable(
   'entries',
@@ -1061,4 +1068,93 @@ export const keeperNotes = sqliteTable(
     updatedBy: text('updated_by'),
   },
   (t) => [primaryKey({ columns: [t.kind, t.targetId] })],
+);
+
+/**
+ * §79: de kamer.
+ *
+ * One per onderzoeker — `entryId` is that karakter's artikel, and it is unique.
+ * Everything about who may see a kamer is two facts ANDed: the artikel's own
+ * visibility (§9, `visibleEntryCondition` — an onderzoeker you cannot see has
+ * no kamer as far as you are concerned) and the room's own dial (§17).
+ *
+ * Two columns it deliberately does **not** have:
+ *
+ *   `deleted_at`  A kamer follows its onderzoeker into the prullenbak and back
+ *                 out again, because the artikel's bin *is* the kamer's bin.
+ *                 Two flags that can drift apart are worse than one.
+ *   `keeper_only` §44 with the same shape of exception as §75's: a side exists
+ *                 so one thing in the world can have two faces, and a kamer
+ *                 hangs on an onderzoeker — which a Keeper never wears (§18).
+ */
+export const rooms = sqliteTable(
+  'rooms',
+  {
+    id: text('id').primaryKey(),
+    entryId: text('entry_id').notNull(),
+    /** §17: the table looks… */
+    viewMode: text('view_mode').$type<AccessMode>().notNull().default('all'),
+    /** …and the owner arranges. */
+    editMode: text('edit_mode').$type<AccessMode>().notNull().default('private'),
+    accessLocked: integer('access_locked', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+    updatedAt: integer('updated_at').notNull().default(now),
+  },
+  (t) => [uniqueIndex('rooms_entry_idx').on(t.entryId)],
+);
+
+/**
+ * §79: één plek in een kamer.
+ *
+ * Every plek a kamer will ever have exists from the moment the kamer does —
+ * most of them locked, with a price. A room that shows only what you already
+ * own gives you nothing to save up for, and that is the whole reason the rows
+ * are seeded rather than created on purchase.
+ *
+ * `unlockedAt` null means locked; `entryId` null means empty. The partial
+ * unique index on `entry_id` — the whole archive, not per kamer — is what keeps
+ * one voorwerp in one plek: a lantaarn is one thing in the world, which is the
+ * reason it is an artikel in the first place, and two onderzoekers displaying
+ * the same one is a sentence about the fiction that nobody said.
+ */
+export const roomSlots = sqliteTable(
+  'room_slots',
+  {
+    id: text('id').primaryKey(),
+    roomId: text('room_id').notNull(),
+    /** muur, plank, bureau, kist — named in `lib/words.ts`, never in a CHECK. */
+    kind: text('kind').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    price: integer('price').notNull().default(0),
+    unlockedAt: integer('unlocked_at'),
+    /** The voorwerp lying here — an artikel, like everything else in the world. */
+    entryId: text('entry_id'),
+    placedAt: integer('placed_at'),
+  },
+  (t) => [index('room_slots_room_idx').on(t.roomId, t.sortOrder)],
+);
+
+/**
+ * §79: het grootboek.
+ *
+ * The balance is `SUM(delta)` and is stored nowhere. A Keeper's mistake is a
+ * line added, never a line changed, which is also what makes the granting
+ * screen nothing but a list with a form under it.
+ */
+export const roomLedger = sqliteTable(
+  'room_ledger',
+  {
+    id: text('id').primaryKey(),
+    roomId: text('room_id').notNull(),
+    /** Signed. A grant is positive; opening a plek or buying a thing is negative. */
+    delta: integer('delta').notNull(),
+    kind: text('kind').$type<'grant' | 'slot' | 'item'>().notNull(),
+    reason: text('reason').notNull().default(''),
+    actorId: text('actor_id'),
+    slotId: text('slot_id'),
+    entryId: text('entry_id'),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [index('room_ledger_room_idx').on(t.roomId, t.createdAt)],
 );

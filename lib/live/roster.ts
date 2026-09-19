@@ -212,11 +212,29 @@ function resolvePlace(key: string): PlaceLabel | null {
         .get();
       return row ? { label: row.name, href: `/wiki/overzicht/${row.slug}` } : null;
     }
+    /**
+     * §79: the kamer, which ronde 39 reserved a place for and this is it.
+     *
+     * Named after its onderzoeker rather than after itself — "de kamer van Van
+     * Dijk" is what a person would say, and a kamer has no name of its own to
+     * use instead. Gated per viewer like every other place: this function only
+     * decides what a place is *called*, and `rosterFor` has already asked
+     * `canWatch` before it gets here.
+     */
+    case 'room': {
+      const row = db
+        .select({ name: schema.entries.name, slug: schema.entries.slug })
+        .from(schema.rooms)
+        .innerJoin(schema.entries, eq(schema.entries.id, schema.rooms.entryId))
+        .where(eq(schema.rooms.id, record.id))
+        .get();
+      return row ? { label: `${getWords().room} van ${row.name}`, href: `/kamer/${row.slug}` } : null;
+    }
     /*
-     * A speld, a gebeurtenis, a tekenlaag and a kamer are not pages: nothing
-     * stands on them. An unknown kind is *not* a reason to invent a label —
-     * unlabelled becomes the placeholder, which is the safe end of every road
-     * in this file.
+     * A speld, a gebeurtenis and a tekenlaag are not pages: nothing stands on
+     * them. An unknown kind is *not* a reason to invent a label — unlabelled
+     * becomes the placeholder, which is the safe end of every road in this
+     * file.
      */
     default:
       return null;

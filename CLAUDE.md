@@ -922,6 +922,20 @@ the only side that finds them.
    you add a field to that type, add it to the merge in the same commit, and
    let a browser see it work.
 
+### §79: the two mistakes *this* feature invites
+
+1. **Do not add a column that computes.** A `bonus`, a `+2`, a stat name, a dice
+   term. Rule 78 is the boundary and the whole design leans on it: what a
+   voorwerp does is prose on its artikel. The day a number in `room_slots` means
+   something mechanical, every balance change becomes a migration and an
+   argument about whether the site or the Keeper is right.
+2. **A feature only reachable from a unit test does not exist.** §79 asked the
+   artikel for a field with key `plek` — a good design — and no screen in Beheer
+   can set a field's *key*, so no human could make a voorwerp at all. The unit
+   tests were green the whole time, because they write the row with SQL. The
+   browser found it in one run. When a round invents a new way for data to be
+   shaped, walk the road a person would walk before calling it done.
+
 ## 6. Writing e2e specs that pass the first time
 
 Most of the failure triage in past rounds came from a handful of repeatable

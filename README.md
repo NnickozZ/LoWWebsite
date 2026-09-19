@@ -4136,3 +4136,73 @@ Sixty-seven rules worth knowing before changing anything:
     gulden, kristal of scherf is daarmee altijd een hernoeming van tien
     seconden, nooit een naam die in een tabel, een adres of een stylesheet is
     gaan zitten.
+
+79. **Het archief is de plank en het grootboek; de tafel beslist wat een ding
+    doet.** §79. Nick, ronde 40: *"Meta progression will be a currency that they
+    can spend to upgrade their room. every investigator will have a room and
+    there will be 'slots' in that room. And these slots can be filled up with
+    things that provide buffs."* Rule 78 zette de grens en die is niet veranderd:
+    **wat een voorwerp dóét is proza op zijn artikel.** Er staat in deze drie
+    tabellen geen enkel getal dat iets uitrekent, en er is geen kolom waar een
+    +2 in past. Wie er ooit een wil toevoegen leest eerst 78 nog een keer.
+
+    **Een kamer hangt aan een onderzoeker, niet aan een account.** Eén rij per
+    karakter-artikel, en de zichtbaarheid van dát artikel is de zichtbaarheid
+    van de kamer: wie de onderzoeker niet mag zien, ziet de kamer niet. Daarom
+    heeft `rooms` géén `deleted_at` — de prullenbak van het artikel *is* die van
+    de kamer, en twee vlaggen die uit de pas kunnen lopen zijn erger dan één.
+    En géén `keeper_only`: een kant bestaat zodat één ding twee gezichten kan
+    hebben, en een Keeper draagt nooit een onderzoeker (§18). Dat is dezelfde
+    vorm van uitzondering als §75's "een overzicht heeft geen Keeperversie".
+
+    **De twee knoppen staan met opzet tegengesteld**: `view_mode` op `all` omdat
+    een kamer bedoeld is om te laten zien — een munt heeft sociale waarde of
+    geen — en `edit_mode` op `private` omdat alleen wie er woont hem inricht.
+
+    **Het saldo is `SUM(delta)` over het grootboek en staat nergens
+    opgeslagen.** Een vergissing van de Keeper is een regel erbij, nooit een
+    regel die verandert; daarmee is het uitgeefscherm niets anders dan een lijst
+    met een formulier eronder. Er staan tientallen rijen per persoon in: een
+    saldo-kolom "voor de snelheid" is hier een manier om twee waarheden te
+    krijgen.
+
+    **Een aankoop is één transactie, en de controle zit ín de schrijfactie.**
+    De UPDATE landt alleen `WHERE unlocked_at IS NULL`, dus een tweede klik —
+    een dubbele tik, een herhaling na een trage lijn, twee tabbladen — koopt
+    niets. Eerst lezen en dan schrijven is de versie hiervan die op een drukke
+    avond twee keer afschrijft.
+
+    **Elke plek die een kamer ooit krijgt bestaat vanaf dag één**, de meeste op
+    slot met een prijs erop, want een kamer die alleen toont wat je al hebt
+    geeft je niets om voor te sparen. De ladder staat in `lib/kamers/shape.ts`
+    en mag alleen **aangroeien**: een trede herprijzen verandert stilletjes
+    waarvoor iemand aan het sparen was, en ertussen schuiven geeft iemands
+    plank aan een andere trede.
+
+    **Een voorwerp is een artikel**, en dat is de spiegel van §75 om de
+    omgekeerde reden: een overzicht kreeg een eigen tabel omdat het *niet* in
+    het web of op een landkaart hoorde, en een lantaarn in je kamer hoort daar
+    juist wél. Zo krijgt een voorwerp foto's, geheimhouding (§9), een kant
+    (§44), vermeldingen, het web, zoeken en de prullenbak gratis. Wat een
+    artikel tot voorwerp maakt is één **veld** met sleutel `plek` — niet een
+    soort, zodat er later meer soorten in passen. Eén voorwerp ligt op één plek
+    in het hele archief: een lantaarn is één ding in de wereld.
+
+    **Een plek met iets erop dat jij niet mag zien is gevuld en naamloos** —
+    dezelfde ene zin of het nu §9's geheimhouding of §44's andere kant is. Dat
+    is §76's regel op een nieuwe plek, en de reden is dezelfde: het verschil zou
+    het lek zijn. Nooit leeg: een lege plek die in werkelijkheid vol is, is een
+    leugen die de eigenaar niet verteld heeft.
+
+    **Wie de onderzoeker draagt, richt de kamer in** — live gevraagd aan
+    `user_characters`, niet aan `rooms.created_by`. Die kolom is een kopie van
+    dezelfde vraag, één keer opgeschreven, en een karakter dat van hand wisselt
+    is het gewoonste dat een Keeper doet (§18c): met de kopie als antwoord zei
+    één scherm tegelijk *Aagje woont hier* en *Bram mag het herschikken*, en kon
+    Bram haar munten uitgeven.
+
+    **Alleen de Keeper geeft uit, alleen de eigenaar geeft uit, en niemand komt
+    onder nul.** Een negatieve regel mag (een diefstal aan tafel, een correctie);
+    een schuld is een regel over het spel, en dit bestand maakt geen regels over
+    het spel. Weghalen geeft niets terug: een teruggave is een tweede economie
+    en een ruzie over wat dingen op de terugweg waard zijn.

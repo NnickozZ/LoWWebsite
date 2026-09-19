@@ -308,7 +308,7 @@ test.describe('§76 Aanwezig', () => {
     await otherCtx.close();
   });
 
-  test('een spelerspagina staat er, met vijf panelen en een kamer die nog niet bestaat', async ({
+  test('een spelerspagina staat er, met vijf panelen waarvan er geen één een knop draagt', async ({
     page,
     browser,
     isMobile,
@@ -346,10 +346,17 @@ test.describe('§76 Aanwezig', () => {
     // §78 is gereserveerd: één zin, en geen meubilair dat de vorm van iets
     // tekent dat nog niet bestaat.
     const kamer = page.getByTestId('panel-kamer');
-    await expect(kamer).toContainText('Nog niet gebouwd');
+    /*
+     * §79 built the kamer, so this no longer says "nog niet gebouwd" — it says
+     * what is there. What the case still guards is §77's rule, which is the
+     * reason it was ever about this panel: a paneel is a summary with a door,
+     * and never a place to spend. The assertion below is the one that matters.
+     */
+    await expect(kamer).toContainText('Kamer');
     await expect(
       kamer.locator('table, input, select, textarea, progress, meter, [role="progressbar"]'),
     ).toHaveCount(0);
+    await expect(kamer.locator('button, form')).toHaveCount(0);
 
     // En het levende halfje: zolang hun venster open staat, staat het er.
     const nu = page.getByTestId('nu-bezig-live');

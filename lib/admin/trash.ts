@@ -571,6 +571,38 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     // being of anything.
     db.update(schema.maps).set({ entryId: null }).where(eq(schema.maps.entryId, id)).run();
     db.delete(schema.userCharacters).where(eq(schema.userCharacters.entryId, id)).run();
+    /*
+     * §79: and out of every kamer.
+     *
+     * Two directions, and the first one matters more than it looks. A voorwerp
+     * that is destroyed while it lies on somebody's plank leaves `entry_id`
+     * pointing at nothing — and `viewRoomBySlug` reads "a row that does not
+     * come back is veiled", so the plek would say *er ligt iets* for ever, to
+     * the owner and to the Keeper, with no way to tell it from a genuine
+     * secret. That is the one distinction §76's rule is built on, so a dangling
+     * reference does not merely leave litter: it corrupts the signal.
+     *
+     * The other direction is the onderzoeker himself: destroy the artikel and
+     * the kamer, its plekken and its grootboek have nobody to belong to.
+     */
+    db.update(schema.roomSlots)
+      .set({ entryId: null, placedAt: null })
+      .where(eq(schema.roomSlots.entryId, id))
+      .run();
+    const ownRooms = db
+      .select({ id: schema.rooms.id })
+      .from(schema.rooms)
+      .where(eq(schema.rooms.entryId, id))
+      .all()
+      .map((row) => row.id);
+    if (ownRooms.length) {
+      db.delete(schema.roomSlots).where(inArray(schema.roomSlots.roomId, ownRooms)).run();
+      db.delete(schema.roomLedger).where(inArray(schema.roomLedger.roomId, ownRooms)).run();
+      db.delete(schema.rooms).where(inArray(schema.rooms.id, ownRooms)).run();
+      db.delete(schema.accessGrants)
+        .where(and(eq(schema.accessGrants.targetType, 'room'), inArray(schema.accessGrants.targetId, ownRooms)))
+        .run();
+    }
     db.delete(schema.activity).where(eq(schema.activity.entryId, id)).run();
     db.delete(schema.accessGrants)
       .where(and(eq(schema.accessGrants.targetType, 'entry'), eq(schema.accessGrants.targetId, id)))

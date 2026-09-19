@@ -353,7 +353,17 @@ describe('§76: a place is named per viewer, or not at all', () => {
     expect(hers.map((row) => row.id).sort()).toEqual(his.map((row) => row.id).sort());
   });
 
-  it('refuses a kamer to a Keeper too — §78 is reserved, not Keeper-only', () => {
+  /**
+   * §79 built the kamer, so `room:` is no longer a key the gate hard-wires to
+   * false — it resolves one and asks `canSeeRoom`. What this case proves now is
+   * the other half of that: a `room:` key naming a kamer that **does not
+   * exist** is refused to everybody, the Keeper included. There is no kamer
+   * `k-eerste` in this fixture, and a Keeper being above every dial is not a
+   * reason to be told that something is there when nothing is. The gate's own
+   * agreement with `canSeeRoom` for kamers that *do* exist is asserted in
+   * `tests/unit/kamer.test.ts`, which has the table to ask.
+   */
+  it('refuses a room key for a kamer that does not exist — to everybody, Keeper included', () => {
     expect(gate.canWatch('room:k-eerste', KEEPER)).toBe(false);
     expect(whereabouts(ask(KEEPER, [win('bram', 'Van Dijk', 'room:k-eerste')]).rows[0])).toEqual({
       mode: 'hidden',

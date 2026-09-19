@@ -3,13 +3,14 @@ import { and, inArray } from 'drizzle-orm';
 import { BijdragenPanel } from '@/components/spelers/BijdragenPanel';
 import { DossiersPanel } from '@/components/spelers/DossiersPanel';
 import { KaraktersPanel, type KaraktersData } from '@/components/spelers/KaraktersPanel';
-import { KamerPanel } from '@/components/spelers/KamerPanel';
+import { KamerPanel, type KamerPanelData } from '@/components/spelers/KamerPanel';
 import { NuBezigPanel } from '@/components/spelers/NuBezigPanel';
 import { listCases, type CaseSummary } from '@/lib/cases/service';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { recentActivity, type FeedItem } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
+import { roomSummary } from '@/lib/kamers/service';
 import { capitalise, type Words } from '@/lib/words';
 import type { SpelerLite } from './service';
 
@@ -118,6 +119,26 @@ function charactersVisibleTo(viewer: Viewer, speler: SpelerLite): KaraktersData 
 }
 
 /**
+ * §79: the kamers behind this account's fiches, as far as the *reader* may see
+ * them.
+ *
+ * One line per onderzoeker, because a kamer belongs to an onderzoeker and not
+ * to an account (§17/§18). `roomSummary` asks `canSeeRoom`, which is the
+ * karakter's own visibility plus the kamer's dial, and hands back null when the
+ * answer is no — so a fiche the reader may not see contributes no line, exactly
+ * as it contributes no portrait two panels up. A Keeper wears nobody, so their
+ * own page has no lines at all and needs no special case for it.
+ */
+function kamersOf(viewer: Viewer, speler: SpelerLite): KamerPanelData {
+  return {
+    rooms: listCharacters(speler.id).flatMap((character) => {
+      const summary = roomSummary(character.entryId, viewer);
+      return summary ? [{ entryId: character.entryId, name: character.name, ...summary }] : [];
+    }),
+  };
+}
+
+/**
  * How far back the feed is read before it is narrowed to one actor. The Start
  * shows thirty of everybody's; one person's last six are somewhere inside the
  * last couple of hundred or they are not recent enough to be called recent.
@@ -160,9 +181,10 @@ export const SPELER_PANELS: Panel[] = [
   definePanel({
     id: 'kamer',
     title: (words) => capitalise(words.room),
-    // §78 is reserved. There is nothing to read, and that is the point.
-    load: () => null,
-    Component: ({ words }) => <KamerPanel words={words} />,
+    // §79: one line per onderzoeker this account wears. Reserved under §78,
+    // filled in now that the kamer has a page of its own to point at.
+    load: kamersOf,
+    Component: ({ data, words }) => <KamerPanel data={data} words={words} />,
   }),
   definePanel({
     id: 'bijdragen',

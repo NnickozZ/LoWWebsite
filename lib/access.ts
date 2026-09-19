@@ -79,6 +79,14 @@ const TABLES = {
    * which is already what that bolt is for.
    */
   overzicht: schema.overzichten,
+  /*
+   * §79: and a kamer, whose two dials point in opposite directions on purpose.
+   * `view_mode` ships 'all' because a kamer is meant to be shown off — the
+   * munt has social weight or it has none — and `edit_mode` ships 'private'
+   * because only the onderzoeker who lives there arranges it. The Keeper is
+   * above both, as always, and `access_locked` still means what it means.
+   */
+  room: schema.rooms,
 } as const;
 
 /**
@@ -230,15 +238,20 @@ export function loadAccessRow(target: AccessTargetType, id: string): AccessRow |
    * `canEdit`, `viewerCanEdit` and `canManageAccess` are all fed from — the
    * exact shape of gap this file exists to keep shut. `entries` has no such
    * column (§9 says it with `visibility`), so it is asked for only where it is.
+   *
+   * §79: and neither has `rooms`, for a different reason — a kamer hangs on an
+   * onderzoeker and a Keeper wears none, so it has no side to be on. Asking a
+   * table for a column it does not have is not a null here; drizzle throws
+   * while it is still building the SELECT, which is how this was found.
    */
+  const noSide = target === 'entry' || target === 'room';
   const base = {
     createdBy: t.createdBy,
     viewMode: t.viewMode,
     editMode: t.editMode,
     accessLocked: t.accessLocked,
   };
-  const row =
-    target === 'entry'
+  const row = noSide
       ? db.select(base).from(t).where(eq(t.id, id)).get()
       : db
           .select({ ...base, keeperOnly: (t as typeof schema.cases).keeperOnly })

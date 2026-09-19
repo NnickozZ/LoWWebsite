@@ -197,14 +197,26 @@ describe('the panel registry', () => {
     expect(panel('dossiers').title({ ...deps.DEFAULT_WORDS, casePlural: 'zaken' })).toBe('Zaken');
   });
 
-  it('§78 is reserved: the kamer reads nothing at all', () => {
-    expect(panel('kamer').load(BRAM, deps.spelerBySlug('bram')!)).toBeNull();
-    // And there is no table, no currency and no slots on the page: the whole
-    // panel is `roomEmpty`, the one sentence.
+  /**
+   * §79 replaced this case, and what it now guards is the half of it that
+   * survives.
+   *
+   * It used to assert that the kamer panel read *nothing* — no load, no
+   * currency, no slots — because §78 was a reservation and the panel was one
+   * honest sentence. That is no longer true and should not be: the kamer is
+   * built, and the panel is its summary.
+   *
+   * What has not changed is §77's rule, and it is the reason this case is
+   * still here: **a paneel is a summary with a door.** The panel may print a
+   * balance and a count; it may not become a place where you spend. The day
+   * somebody adds "quick spend" to it, a second and worse kamer-editor has
+   * started inside a summary, and this line is what stops it.
+   */
+  it('§77: the kamer panel summarises and links, and is not a place to spend', () => {
     const source = readFileSync(join(ROOT, 'components', 'spelers', 'KamerPanel.tsx'), 'utf8');
-    expect(source).toMatch(/words\.roomEmpty/);
-    expect(source).not.toMatch(/words\.(slot|currency)/);
-    expect(source).not.toMatch(/<table|<progress|<input|<button/);
+    expect(source).not.toMatch(/<table|<progress|<input|<button|<form|<select/);
+    // A door, not a control.
+    expect(source).toMatch(/kamer\/|href/);
   });
 
   it('presence is the live line’s, so the server reads nothing for it', () => {

@@ -300,9 +300,9 @@ export const WORD_GROUPS: WordGroup[] = [
   {
     title: 'De kamer',
     note:
-      '§78: gereserveerd. Er is nog geen kamer, geen tabel en geen munt — deze woorden ' +
-      'staan er zodat het straks een naam is die je hier verandert, en nooit een woord ' +
-      'dat in een tabelnaam, een adres of een stylesheet is gaan zitten.',
+      '§79: de kamer van één onderzoeker, de plekken erin, en waarmee je ze opent en ' +
+      'vult. De munt heet wat jij wilt: verander hem hier en de hele site volgt — hij ' +
+      'staat nergens in een tabelnaam, een adres of een stylesheet.',
     words: [
       { key: 'room', what: 'De kamer van één onderzoeker', fallback: 'kamer' },
       { key: 'roomPlural', what: 'Meer kamers', fallback: 'kamers' },
@@ -315,7 +315,28 @@ export const WORD_GROUPS: WordGroup[] = [
         hint: 'Gulden, kristal, scherf — verander hem hier en de hele site volgt.',
       },
       { key: 'currencyPlural', what: 'Meer daarvan', fallback: 'munten' },
-      { key: 'roomEmpty', what: 'Zolang de kamer nog niet bestaat', fallback: 'Nog niet gebouwd.' },
+      { key: 'roomEmpty', what: 'Een kamer waar nog niets in ligt', fallback: 'Nog niets neergezet.' },
+      { key: 'roomOf', what: 'Tussen "kamer" en de naam', fallback: 'van' },
+      { key: 'slotLocked', what: 'Een plek die nog op slot zit', fallback: 'Op slot' },
+      { key: 'slotOpen', what: 'Een plek openen (de knop)', fallback: 'Openen' },
+      { key: 'slotEmpty', what: 'Een open plek waar niets op ligt', fallback: 'Leeg' },
+      { key: 'slotPlace', what: 'Iets neerzetten (de knop)', fallback: 'Neerzetten' },
+      { key: 'slotClear', what: 'Iets weghalen (de knop)', fallback: 'Weghalen' },
+      {
+        key: 'slotVeiled',
+        what: 'Er ligt iets, maar jij mag niet weten wat',
+        fallback: 'Er ligt iets',
+        hint:
+          'Eén zin voor élke reden dat je het niet mag zien — een Keepervoorwerp en de ' +
+          'andere kant krijgen dezelfde. Het verschil zou zelf het lek zijn (§76).',
+      },
+      { key: 'ledger', what: 'Het grootboek', fallback: 'Grootboek' },
+      { key: 'ledgerGive', what: 'De Keeper geeft iets (de knop)', fallback: 'Uitgeven' },
+      { key: 'ledgerWhy', what: 'Waarvoor, op een regel in het grootboek', fallback: 'Waarvoor?' },
+      { key: 'plekMuur', what: 'Een plek aan de muur', fallback: 'muur' },
+      { key: 'plekPlank', what: 'Een plek op een plank', fallback: 'plank' },
+      { key: 'plekBureau', what: 'Een plek op het bureau', fallback: 'bureau' },
+      { key: 'plekKist', what: 'Een plek in de kist', fallback: 'kist' },
     ],
   },
 ];
