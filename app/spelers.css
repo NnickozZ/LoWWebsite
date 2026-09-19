@@ -1,0 +1,165 @@
+/*
+ * §77, ronde 39: de spelerspagina.
+ *
+ * Een eigen stylesheet, naast `overzichten.css`, `stambomen.css` en
+ * `timelines.css`, en om dezelfde reden: dit is een pagina met een vorm die
+ * nergens anders voorkomt, en `globals.css` is het drukste bestand in de repo.
+ *
+ * Er staat weinig in, en dat is de bedoeling. Een paneel is een samenvatting
+ * met een deur — het leent `.card`, `.feed-item`, `.feed-thumb`, `.chip` en
+ * `.empty` van de rest van het archief, zodat een regel hier er letterlijk
+ * uitziet als dezelfde regel op de Start. Wat hier staat is alleen wat een
+ * spelerspagina *anders* maakt: vijf panelen naast elkaar op een breed scherm
+ * en onder elkaar op een telefoon, en een rijtje portretten.
+ *
+ * Geen enkele kleur staat hier hard. Alles loopt over de tokens uit §45
+ * (`--paper-raised`, `--rule`, `--ink-muted`, `--stamp-red`), zodat de pagina
+ * in alle vier de kleurschema's meedraait — en in de Keeperkant, die
+ * dezelfde tokens anders invult.
+ */
+
+.speler-page {
+  max-width: 64rem;
+}
+
+/*
+ * De panelen. `auto-fit` in plaats van `auto-fill`: bij vier panelen op een
+ * breed scherm mag de rij de ruimte opeten in plaats van een lege kolom open
+ * te laten. 19rem is de smalste breedte waarop een regel uit de feed nog een
+ * miniatuur én twee regels tekst kwijt kan; daaronder valt de grid vanzelf
+ * terug op één kolom, wat op een telefoon de enige juiste vorm is.
+ */
+.speler-panels {
+  margin-top: 1.4rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.speler-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem 0.9rem;
+  min-width: 0;
+}
+
+.speler-panel-title {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* De deur: de uitgang van het paneel, niet de inhoud. Altijd onderaan. */
+.speler-panel-door {
+  margin: 0.7rem 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--rule);
+}
+
+/* --------------------------------------------------------------- portretten */
+
+.speler-faces {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 0.6rem;
+}
+
+.speler-face {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+/*
+ * Het lijstje is een raster van kleine kaartjes; de omslag moet knippen, want
+ * een uitsnede met zoom boven 1 zet een transform op de <img> en die tekent
+ * buiten zijn eigen vak (dezelfde reden als bij `.feed-thumb`).
+ */
+.speler-face-cover {
+  background: var(--paper-dark);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.speler-face-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.speler-face-name {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* Wie er nu gedragen wordt, met de streep die het archief overal voor "dit is
+   het" gebruikt — geen tweede kleur, alleen de stempelkleur. */
+.speler-face-worn .speler-face-cover {
+  border-color: var(--stamp-red);
+  box-shadow: inset 0 0 0 1px var(--stamp-red);
+}
+.speler-face-now {
+  display: block;
+  color: var(--stamp-red);
+}
+
+/* -------------------------------------------------------------- regels */
+
+.speler-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Binnen een paneel is de regel iets krapper dan op de Start, en de laatste
+   regel draagt geen streep — die zou tegen de deur eronder aan liggen. */
+.speler-feed-row {
+  padding: 0.45rem 0;
+  color: inherit;
+  text-decoration: none;
+}
+.speler-feed li:last-child .speler-feed-row {
+  border-bottom: none;
+}
+
+/* ------------------------------------------------------------- telefoon */
+
+@media (max-width: 560px) {
+  .speler-panels {
+    /* Eén kolom, en wat lucht tussen de panelen in plaats van ernaast. */
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+  .speler-faces {
+    grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  }
+}
+
+/*
+ * §76/§77: de regels van "Nu bezig". De schijfjes zijn van het prikbord
+ * (`.board-person`) en de rest leunt op de kleine tekststijlen — dit paneel is
+ * een samenvatting, geen tweede strip.
+ */
+.speler-nu-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+.speler-nu-list .roster-disc {
+  vertical-align: middle;
+}

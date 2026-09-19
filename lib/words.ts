@@ -264,6 +264,60 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'adminAudit', what: 'Logboek', fallback: 'Logboek' },
     ],
   },
+  {
+    title: 'Aanwezig',
+    note:
+      'Wie er is, waar ze zijn en wat ze doen (§76), en de spelerspagina waar dat ' +
+      'naartoe wijst (§77).',
+    words: [
+      { key: 'presence', what: 'Hoe dit heet', fallback: 'Aanwezig' },
+      { key: 'presenceHeading', what: 'De kop boven het lijstje', fallback: 'Wie is er?' },
+      { key: 'presenceAlone', what: 'Als er niemand anders is', fallback: 'Je bent hier alleen.' },
+      {
+        key: 'presenceElsewhere',
+        what: 'Waar iemand is, als jij daar niet bij mag',
+        fallback: 'ergens anders in het archief',
+        hint:
+          'Eén zin voor álle verborgen plekken. Verschil tussen een Keeperartikel en ' +
+          'een privé prikbord is zelf het lek — zie §76.',
+      },
+      { key: 'presenceResting', what: 'Een venster dat even niets doet', fallback: 'even weg' },
+      { key: 'presenceKeeperHere', what: 'De Keeper, gezien door een speler', fallback: 'is er' },
+      { key: 'presenceEarlier', what: 'Boven het staartje van wie net nog er was', fallback: 'Net nog' },
+      { key: 'presenceInvisible', what: 'De Keeper die zich onzichtbaar maakte', fallback: 'onzichtbaar' },
+      { key: 'presenceOtherTabs', what: 'Nog ergens anders open (aantal erachter)', fallback: 'en nog ergens' },
+      { key: 'verbLooking', what: 'Doet niets bijzonders', fallback: 'kijkt' },
+      { key: 'verbTyping', what: 'Typt in een tekst', fallback: 'typt' },
+      { key: 'verbDrawing', what: 'Tekent op een laag', fallback: 'tekent' },
+      { key: 'verbDragging', what: 'Sleept iets', fallback: 'verplaatst iets' },
+      { key: 'nudge', what: 'Iemand hierheen vragen', fallback: 'Kom kijken' },
+      { key: 'nudgeAsks', what: 'Tussen de naam en de plek', fallback: 'vraagt je bij' },
+      { key: 'nudgeRefused', what: 'Als die ander daar niet bij mag', fallback: 'Daar kan die niet bij.' },
+      { key: 'spelerPage', what: 'De pagina van één speler', fallback: 'Spelerspagina' },
+      { key: 'spelerPagePlural', what: 'Meer spelerspaginas', fallback: 'Spelerspaginas' },
+    ],
+  },
+  {
+    title: 'De kamer',
+    note:
+      '§78: gereserveerd. Er is nog geen kamer, geen tabel en geen munt — deze woorden ' +
+      'staan er zodat het straks een naam is die je hier verandert, en nooit een woord ' +
+      'dat in een tabelnaam, een adres of een stylesheet is gaan zitten.',
+    words: [
+      { key: 'room', what: 'De kamer van één onderzoeker', fallback: 'kamer' },
+      { key: 'roomPlural', what: 'Meer kamers', fallback: 'kamers' },
+      { key: 'slot', what: 'Eén plek in een kamer', fallback: 'plek' },
+      { key: 'slotPlural', what: 'Meer plekken', fallback: 'plekken' },
+      {
+        key: 'currency',
+        what: 'Waarmee je een plek opent of vult',
+        fallback: 'munt',
+        hint: 'Gulden, kristal, scherf — verander hem hier en de hele site volgt.',
+      },
+      { key: 'currencyPlural', what: 'Meer daarvan', fallback: 'munten' },
+      { key: 'roomEmpty', what: 'Zolang de kamer nog niet bestaat', fallback: 'Nog niet gebouwd.' },
+    ],
+  },
 ];
 
 export const WORD_DEFS: WordDef[] = WORD_GROUPS.flatMap((group) => group.words);

@@ -8,6 +8,10 @@ import { EntryPreview } from '@/components/EntryPreview';
 import { Icon } from '@/components/Icon';
 import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
+// §76: the roster's own stylesheet, beside the strip that opens it. `globals.css`
+// is the busiest file in the repo (§75 made `overzichten.css` for the same
+// reason); a feature with a panel, a row and a banner belongs in its own.
+import '@/app/aanwezig.css';
 import { UiProvider, useUi, type EntryTypeLite } from '@/components/ui/UiProvider';
 import { CharacterSwitcher, type Me } from '@/components/you/CharacterSwitcher';
 import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
@@ -237,7 +241,7 @@ export function AppShell({
               made the cleaning depend on who was looking. */}
           <SideSwitched side={me.side === 'keeper' ? 'keeper' : 'player'} />
           <main className="main">
-            <LiveStrip />
+            <LiveStrip words={words} />
             {/*
              * §18b: a speler with no onderzoeker may read the whole archive
              * and write none of it. The notice stands at the top of every page

@@ -2,6 +2,7 @@ import { presenceColour } from './colour';
 import { setChangeDelivery } from './changes';
 import type { RoomEvent } from './docs';
 import type { InkFrame } from '@/lib/ink/types';
+import type { NudgeFrame, RosterFrame } from './rosterWire';
 
 /**
  * §21: the site line — one open connection per tab, for everything live.
@@ -26,6 +27,12 @@ import type { InkFrame } from '@/lib/ink/types';
  *               it being drawn. Sight, not state — never stored.
  *   `room`      a frame from a room of shared text this tab has joined,
  *               multiplexed: `{k: room key, e: event, d: data}`.
+ *   `roster`    §76: who is on the archive at all, and where — built *per
+ *               viewer* in `lib/live/roster.ts`, because naming a place out
+ *               loud is a thing only that viewer's own rights can allow.
+ *   `nudge`     §76: somebody asking you to come and look. A fact, not sight:
+ *               never dropped, never stored, and gone from the screen in two
+ *               minutes.
  *
  * Up go ordinary POSTs: what to watch, where the tab stands, a pointer frame,
  * a room to join or leave, a keystroke. Every key a tab asks to watch goes
@@ -66,6 +73,10 @@ export type SiteEvent =
   | { event: 'pointer'; data: { place: string } & SitePointer }
   | { event: 'ink'; data: { place: string; c: string; f: InkFrame[] } }
   | { event: 'room'; data: { k: string; e: RoomEvent['event']; d: unknown } }
+  /** §76: this viewer's own roster. No two connections need be sent the same one. */
+  | { event: 'roster'; data: RosterFrame }
+  /** §76: "kom kijken". Gated on the *recipient* — see `lib/live/roster.ts`. */
+  | { event: 'nudge'; data: NudgeFrame }
   /**
    * §60: a frame for a *carried* tab — one that keeps its own clientId and
    * posts its own watches, but whose stream rides the leader tab's socket.
@@ -138,6 +149,40 @@ globalForHub.__zcfSiteHub = hub;
 // empties into here. Wired from this side so that file need not know the hub.
 setChangeDelivery((keys) => publishChanged(keys));
 
+/**
+ * §76: the roster's two hooks into this file.
+ *
+ * The hub may not import `lib/live/roster.ts`: that module opens the database
+ * (it resolves names, and asks `canWatch` about every place), and this one is
+ * imported by the browser bundle's neighbours and must stay as light as the
+ * wire it describes. So the traffic goes the other way, exactly as
+ * `setChangeDelivery` does — roster.ts registers itself when it is loaded, and
+ * the hub calls a function it knows nothing about.
+ *
+ * `rosterMoved` says only *that* something changed; what the roster then says,
+ * and to whom, is entirely roster.ts's business.
+ */
+type Departure = { clientId: string; userId: string; name: string; colour: string; place: string | null };
+let rosterChanged: (() => void) | null = null;
+let departed: ((who: Departure) => void) | null = null;
+
+export function setRosterDelivery(fn: (() => void) | null) {
+  rosterChanged = fn;
+}
+
+export function setDepartureListener(fn: ((who: Departure) => void) | null) {
+  departed = fn;
+}
+
+/** Something that might change who is where. Never throws into a caller. */
+function rosterMoved() {
+  try {
+    rosterChanged?.();
+  } catch {
+    /* the roster is sight; it never takes the line down with it */
+  }
+}
+
 /** A line that has not been heard from for this long is treated as gone. */
 export const CONNECTION_TTL_MS = 45_000;
 /** How many keys one tab may watch at once. */
@@ -200,6 +245,7 @@ export function connect(input: {
     if (typeof hub.sweeper === 'object' && 'unref' in hub.sweeper) hub.sweeper.unref();
   }
   safeSend(connection, { event: 'hello', data: { connection: connection.id } });
+  rosterMoved();
   return connection;
 }
 
@@ -303,6 +349,20 @@ export function disconnect(connectionId: string) {
     connection.place = null;
     publishPresence(place);
   }
+  // §76: told *after* the line is out of every index, so a roster built from
+  // this call can never include the person who has just left.
+  try {
+    departed?.({
+      clientId: connection.clientId,
+      userId: connection.userId,
+      name: connection.name,
+      colour: connection.colour,
+      place,
+    });
+  } catch {
+    /* as above */
+  }
+  rosterMoved();
 }
 
 /** The line behind a POST. A connection the hub does not know sends the tab back to reconnect. */
@@ -464,10 +524,32 @@ export function setPlace(connection: Connection, place: string | null, holding?:
     }
     publishPresence(place);
   }
+  rosterMoved();
 }
 
 export function peopleAt(place: string): PublicPerson[] {
   return roster(place);
+}
+
+/**
+ * §76: every line the hub is holding, for the roster to read.
+ *
+ * Deliberately the connections themselves and not a copy: roster.ts needs each
+ * one's `send`, and a roster is built and written inside one tick. Nothing may
+ * *write* through this — the hub's own doors are above.
+ */
+export function liveConnections(): Connection[] {
+  return [...hub.connections.values()];
+}
+
+/** §76: every line of one account — a nudge goes to all of them. */
+export function connectionsOfUser(userId: string): Connection[] {
+  return [...hub.connections.values()].filter((connection) => connection.userId === userId);
+}
+
+/** §76: write one frame to one line, with the hub's own tidying on a dead socket. */
+export function sendTo(connection: Connection, event: SiteEvent) {
+  safeSend(connection, event);
 }
 
 /** Somebody's hand moved at their place: everyone else there sees it now, nobody remembers it. */

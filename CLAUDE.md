@@ -905,6 +905,23 @@ freely there.
 
 ---
 
+### §76: the two mistakes this feature invites
+
+Both were made in round 39 and both were found from the other side, which is
+the only side that finds them.
+
+1. **Do not build one roster and fan it out.** It is the obvious optimisation
+   and it is the whole leak: the rows would carry every place name, and the
+   browser would be asked to hide what it may not see — in the one place that
+   cannot check. `rosterFor` runs per account, asks `canWatch` per row, and
+   costs a hundred point lookups at this table's size. Leave it dumb.
+2. **A field on `Outgoing` that nothing merges does not exist.** `nudge`, `rest`
+   and `ghost` were declared on the type, handled by the route, and silently
+   dropped by the merge in `post()` — so the Keeper's *onzichtbaar* checkbox
+   said yes and changed nothing, which is a rights leak that typechecks. When
+   you add a field to that type, add it to the merge in the same commit, and
+   let a browser see it work.
+
 ## 6. Writing e2e specs that pass the first time
 
 Most of the failure triage in past rounds came from a handful of repeatable

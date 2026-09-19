@@ -293,12 +293,36 @@ describe('the live keys', () => {
     expect(deps.canWatch(deps.overzichtKey('o-keeper'), KEEPER)).toBe(true);
   });
 
-  it('lets a page place be watched on both shapes of wiki address', () => {
+  /**
+   * §76 rewrote this one, and it is worth saying why rather than quietly
+   * changing a `true` to a `false`.
+   *
+   * It used to assert that *any* address of the shape `/wiki/overzicht/<slug>`
+   * could be watched — which is what the gate did: it matched the shape and
+   * returned true, without asking whose overzicht it was. So one overzicht had
+   * two keys and two answers: hidden through `overzicht:{id}` (the test above),
+   * open through its own page. Harmless enough while a place key only decided
+   * who saw a ghost cursor; a leak the moment §76 started *naming places out
+   * loud* on a roster, and a §21 leak all along — a player could watch a
+   * private overzicht and be told whenever it moved.
+   *
+   * The rule now is the one the rest of the archive already had: **one thing,
+   * one rule.** The page resolves its slug and asks exactly what the record
+   * key asks.
+   */
+  it('lets an overzicht page be watched by whoever may see the overzicht, and nobody else', () => {
     expect(deps.canWatch('page:/wiki', BRAM)).toBe(true);
     expect(deps.canWatch('page:/wiki/alles', BRAM)).toBe(true);
-    expect(deps.canWatch(`page:${deps.overzichtPagePlace('het-eiland').slice('page:'.length)}`, BRAM)).toBe(
-      true,
-    );
+
+    // The four fixtures answer on their page exactly as they answer on their key.
+    expect(deps.canWatch(deps.overzichtPagePlace('o-eiland'), BRAM)).toBe(true);
+    expect(deps.canWatch(deps.overzichtPagePlace('o-keeper'), BRAM)).toBe(false);
+    expect(deps.canWatch(deps.overzichtPagePlace('o-prive'), BRAM)).toBe(false);
+    expect(deps.canWatch(deps.overzichtPagePlace('o-weg'), BRAM)).toBe(false);
+    expect(deps.canWatch(deps.overzichtPagePlace('o-keeper'), KEEPER)).toBe(true);
+
+    // And a slug nobody answers to is not a place at all — it used to be one.
+    expect(deps.canWatch(deps.overzichtPagePlace('het-eiland'), BRAM)).toBe(false);
   });
 });
 

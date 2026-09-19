@@ -29,6 +29,13 @@ import { isRoomKey, isWellFormedKey } from '@/lib/live/keys';
 import { readInkFrame } from '@/lib/ink/merge';
 import type { InkFrame } from '@/lib/ink/types';
 import { admit } from '@/lib/live/rooms';
+/*
+ * §76: importing this is also what wires it. `lib/live/roster.ts` registers
+ * itself with the hub when it loads (the same road `lib/live/changes.ts`
+ * takes), so the line must be the thing that loads it — the hub may not, and
+ * nothing else on the server has a reason to.
+ */
+import { markResting, noteActivity, nudge, setGhost, verbOfPost } from '@/lib/live/roster';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -208,6 +215,12 @@ type Body = {
   alias?: unknown;
   /** §33: frames of a stroke being drawn, in order. */
   ink?: unknown;
+  /** §76: this tab is giving its socket back (§60) — resting, not leaving. */
+  rest?: unknown;
+  /** §76: a Keeper making himself invisible. Ignored for anybody else. */
+  ghost?: unknown;
+  /** §76: "kom kijken" — `{to: <the row id the roster gave>}`. Gated on the recipient. */
+  nudge?: { to?: unknown } | null;
   join?: unknown;
   leave?: unknown;
   updates?: unknown;
@@ -327,6 +340,22 @@ export async function POST(request: Request) {
       if (frame) publishPointer(line, frame);
     }
 
+    /*
+     * §76: what this tab is doing, read off the body it was already sending.
+     * No page reports anything for the roster's sake — a verb that had its own
+     * road up would be a second source of truth about where somebody is, and
+     * the two would disagree on exactly the days that matter. A POST that only
+     * moves the tab to a new place counts as *looking*, which is what keeps the
+     * "which tab speaks for this window" question answerable.
+     */
+    noteActivity(clientId, verbOfPost(body) ?? (body.place ? 'kijkt' : null));
+
+    // §60 + §76: a tab that is about to close its socket because nobody is
+    // looking says so first, so the roster greys it instead of burying it.
+    if (body.rest === true) markResting(clientId);
+
+    if (typeof body.ghost === 'boolean') setGhost(user, body.ghost);
+
     if (Array.isArray(body.ink)) {
       // Like a pointer frame: let through on the strength of the line, which
       // passed the place's gate when it was opened. Checked number by number.
@@ -385,7 +414,18 @@ export async function POST(request: Request) {
       }
     }
 
-    if (refused.length) return json({ refused });
+    /*
+     * §76: the nudge is last, so it carries the place this same POST may just
+     * have set — "kom kijken" from a tab that has only this moment arrived
+     * somewhere is the commonest way it is used.
+     */
+    let nudged: string | null = null;
+    if (body.nudge && typeof body.nudge === 'object') {
+      const to = typeof body.nudge.to === 'string' ? body.nudge.to : '';
+      nudged = to ? nudge(line, to) : 'gone';
+    }
+
+    if (refused.length || nudged) return json({ ...(refused.length ? { refused } : {}), ...(nudged ? { nudged } : {}) });
     return new Response(null, { status: 204 });
   } catch (err) {
     return apiError(err);

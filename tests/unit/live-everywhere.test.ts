@@ -58,7 +58,9 @@ describe('every page inside the shell is live', () => {
     // §60: with the account it belongs to — a follower tab compares it against
     // the `line` a leader offers, so a stale leader of another login is ignored.
     expect(shell).toMatch(/<LiveProvider userId=\{me\.id\}>/);
-    expect(shell).toMatch(/<LiveStrip \/>/);
+    // §76: the strip takes the word list now — it is the door to "Wie is er?"
+    // and every sentence in there is a Keeper's to rename (§11).
+    expect(shell).toMatch(/<LiveStrip words=\{words\} \/>/);
   });
 
   it('the database layer runs every statement through the change logger', () => {

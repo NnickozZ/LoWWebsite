@@ -11,7 +11,9 @@
  *                   prikbord · map:{id} one landkaart · pin:{id} one speld ·
  *                   timeline:{id} one tijdlijn · event:{id} one gebeurtenis ·
  *                   family_tree:{id} one stamboom (§66) · ink:{id} the
- *                   tekenlaag on a prikbord, landkaart, tijdlijn or stamboom
+ *                   tekenlaag on a prikbord, landkaart, tijdlijn or stamboom ·
+ *                   room:{id} one kamer (§78 — reserved, nothing answers to it
+ *                   yet; see `canWatch`)
  *   entries, cases, boards, maps, timelines, family_trees, types, words, site,
  *   users, characters, feed
  *                   "something in this collection changed" — a list page's key
@@ -27,7 +29,7 @@
 export const ID = '[A-Za-z0-9_-]{1,64}';
 
 const RECORD_KEY = new RegExp(
-  `^(entry|case|board|map|pin|timeline|event|family_tree|overzicht|ink):(${ID})$`,
+  `^(entry|case|board|map|pin|timeline|event|family_tree|overzicht|ink|room):(${ID})$`,
 );
 const ROOM_KEY = new RegExp(
   `^(?:entry:${ID}:(?:body|fields)|section:${ID}|case:${ID}:(?:notes|fields)|map:${ID}:fields|pin:${ID}:fields|event:${ID}:fields|keeper:(?:entry|case|board|map|timeline|family_tree):${ID}:notes)$`,
@@ -71,6 +73,14 @@ export const PAGE_PLACES = [
   '/stambomen',
   '/search',
   '/you',
+  /*
+   * §76 found this one missing. `app/(app)/web/page.tsx` has stood on
+   * `page:/web` since §21 and `canWatch` has refused it every time — the place
+   * was silently never set, so nobody has ever been seen on the web, and the
+   * roster would have shown them as nowhere at all. A place a page actually
+   * stands on belongs in this list.
+   */
+  '/web',
   '/admin',
 ] as const;
 
@@ -104,6 +114,18 @@ export const typePagePlace = (slug: string) => `page:/wiki/${slug}`;
  */
 export const overzichtPagePlace = (slug: string) => `page:/wiki/overzicht/${slug}`;
 export const pagePlace = (path: string) => `page:${path}`;
+/**
+ * §77: one person's spelerspagina, as a place.
+ *
+ * The segment is a *slug* of the account name, never the name itself: §4 lets a
+ * username hold spaces, apostrophes and any unicode letter, and none of those
+ * may be in a key (`isWellFormedKey`) or in a path segment without escaping.
+ * `lib/spelers/service.ts` is the one place that turns a slug back into an
+ * account.
+ */
+export const spelerPagePlace = (slug: string) => `page:/spelers/${slug}`;
+/** §78: one kamer. Reserved — see `canWatch`, which refuses it. */
+export const roomKey = (id: string) => `room:${id}`;
 
 export type RecordKind =
   | 'entry'
@@ -117,7 +139,9 @@ export type RecordKind =
   | 'family_tree'
   // §75
   | 'overzicht'
-  | 'ink';
+  | 'ink'
+  // §78: reserved. A kamer has no table yet, and `canWatch` refuses it.
+  | 'room';
 
 export function parseRecordKey(key: string): { kind: RecordKind; id: string } | null {
   const match = RECORD_KEY.exec(key);

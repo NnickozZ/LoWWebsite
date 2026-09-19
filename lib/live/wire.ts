@@ -130,7 +130,7 @@ export function shouldCloseHidden(hiddenSince: number | null, now: number, after
 /* ------------------------------------------------------ SSE backpressure */
 
 /** Frames that may be dropped when a client cannot keep up. Everything else must arrive. */
-const DROPPABLE = new Set(['pointer', 'ink', 'presence']);
+const DROPPABLE = new Set(['pointer', 'ink', 'presence', 'roster']);
 
 /** A connection whose buffer has been full for this long is closed rather than grown. */
 export const SATURATED_CLOSE_MS = 15_000;
@@ -172,9 +172,9 @@ export function frameKind(event: string, data?: unknown): string {
  *
  * `desiredSize <= 0` means the browser is not reading as fast as we are
  * writing — under `SSE_HIGH_WATER_MARK`, that is sixty-four frames it has not
- * taken. Sight — a hand, a pen, a roster — is only interesting *now*, so it
- * is dropped; a `changed`, a `hello`, a `sync`, an `update` or a `saved` is a
- * fact and is always written, because dropping one leaves a screen wrong for
+ * taken. Sight — a hand, a pen, a roster, the strip — is only interesting
+ * *now*, so it is dropped; a `changed`, a `hello`, a `sync`, an `update`, a
+ * `saved` or a `nudge` is a fact and is always written, because dropping one leaves a screen wrong for
  * ever. Pure, so the policy is the test — pass the frame's real name through
  * `frameKind` first.
  */

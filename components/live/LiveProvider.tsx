@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PublicPerson } from '@/lib/live/hub';
 import type { InkFrame } from '@/lib/ink/types';
+import { NUDGE_TTL_MS, type NudgeFrame, type RosterFrame } from '@/lib/live/rosterWire';
 import { announceAuthorNeeded, isAuthorRefusal } from '@/lib/authorSignal';
 import {
   HIDDEN_CLOSE_MS,
@@ -92,6 +93,9 @@ export function reconnectLive() {
  */
 export type LiveStatus = 'connecting' | 'live' | 'offline' | 'idle';
 
+/** §76: what came back from asking somebody to come and look. */
+export type NudgeResult = 'ok' | 'nowhere' | 'refused' | 'gone' | 'soon' | 'down';
+
 export type LivePointer = {
   clientId: string;
   name: string;
@@ -166,6 +170,22 @@ export type LiveValue = {
   /** Everyone else's hand at this tab's place, freshest first. */
   pointers: LivePointer[];
   joinRoom: (key: string, yClient: number, handlers: RoomHandlers) => RoomHandle;
+  /**
+   * §76: everyone in the archive, as *this* viewer is allowed to see them —
+   * the rows are built per viewer on the server (`lib/live/roster.ts`), so a
+   * place that is not this person's to see arrives as `mode: 'hidden'` and
+   * there is nothing here to filter. Empty while the line is down: a roster is
+   * sight, and stale sight is worse than none.
+   */
+  roster: RosterFrame;
+  /** §76: the invitation on screen, if one is. Expires on its own. */
+  nudge: NudgeFrame | null;
+  dismissNudge: () => void;
+  /** §76: ask the window with this row id to come where this tab stands. */
+  sendNudge: (rowId: string) => Promise<NudgeResult>;
+  /** §76: a Keeper who has made himself invisible. False for everybody else. */
+  invisible: boolean;
+  setInvisible: (on: boolean) => void;
   /** A page that draws its own presence strip turns the shell's off. */
   setStripHidden: (hidden: boolean) => void;
   stripHidden: boolean;
@@ -200,6 +220,10 @@ export const OWN_WRITE_MUTE_MS = 2500;
 type LiveBase = Omit<LiveValue, 'pointers'>;
 
 const LiveBaseContext = createContext<LiveBase | null>(null);
+/** §76: one empty roster, so "nobody" is always the same object. */
+const EMPTY_ROSTER: RosterFrame = { rows: [], tail: [] };
+/** §76: where this browser remembers a Keeper's invisibility. */
+const INVISIBLE_KEY = 'low-onzichtbaar';
 const NO_POINTERS: LivePointer[] = [];
 
 /** Two frames of one hand that would be drawn identically. §60: see `pointers` below. */
@@ -240,6 +264,19 @@ export function useLive(): LiveValue {
   const base = useLiveBase();
   const pointers = useLivePointers();
   return useMemo(() => ({ ...base, pointers }), [base, pointers]);
+}
+
+/**
+ * §76: the line without the hands, or null outside the shell.
+ *
+ * The optional twin of `useLiveBase`, for a component that wants the roster and
+ * must also survive being rendered where there is no provider — a panel on a
+ * page, a preview in a test. It takes the *base* context on purpose (rule 6 of
+ * §21): a panel that subscribed to the pointer context would be rebuilt twelve
+ * times a second because somebody moved a mouse two pages away.
+ */
+export function useLiveBaseOptional(): LiveBase | null {
+  return useContext(LiveBaseContext);
 }
 
 /** The same, or null outside the shell (a component rendered in a test harness). */
@@ -295,9 +332,19 @@ type Outgoing = {
   leave?: string[];
   updates?: { key: string; u: string }[];
   awareness?: { key: string; a: string }[];
+  /** §60 + §76: this tab is about to give its socket back. */
+  rest?: boolean;
+  /** §76: a Keeper making himself invisible. Refused for anybody else, server-side. */
+  ghost?: boolean;
+  /** §76: "kom kijken", addressed to a row id the roster handed out. */
+  nudge?: { to: string };
 };
 
-type Settle = { keys: Set<string>; resolve: (result: { ok: boolean; refused: Set<string> }) => void };
+type Settle = {
+  keys: Set<string>;
+  /** §76: `nudged` is what the server said about a "kom kijken" in this body. */
+  resolve: (result: { ok: boolean; refused: Set<string>; nudged?: string | null }) => void;
+};
 
 export function LiveProvider({ children, userId = '' }: { children: ReactNode; userId?: string }) {
   const clientIdRef = useRef('');
@@ -306,6 +353,20 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
 
   const [status, setStatus] = useState<LiveStatus>('connecting');
   const [people, setPeople] = useState<PublicPerson[]>([]);
+  /*
+   * §76: the roster, and the invitation.
+   *
+   * Both live beside `people` rather than in the pointer context: the popover
+   * must not be rebuilt twelve times a second because somebody moved a mouse
+   * (§60's whole reason for two contexts). `EMPTY_ROSTER` is a constant so that
+   * clearing an already-empty roster does not hand every consumer a new object.
+   */
+  const [roster, setRoster] = useState<RosterFrame>(EMPTY_ROSTER);
+  const [nudge, setNudge] = useState<NudgeFrame | null>(null);
+  const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [invisible, setInvisibleState] = useState(false);
+  const invisibleRef = useRef(false);
+  invisibleRef.current = invisible;
   const [pointerMap, setPointerMap] = useState<Map<string, LivePointer>>(new Map());
   const [stripHidden, setStripHidden] = useState(false);
 
@@ -454,7 +515,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
     settles.current = [];
     if (!connection) {
       // No line: the state is remembered and said in full when one opens.
-      for (const settle of waiting) settle.resolve({ ok: false, refused: new Set() });
+      for (const settle of waiting) settle.resolve({ ok: false, refused: new Set(), nudged: null });
       return;
     }
     if (!Object.keys(body).length && !waiting.length) return;
@@ -474,6 +535,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
     const as = writingAs || undefined;
 
     let ok = true;
+    let nudged: string | null = null;
     const refused = new Set<string>();
     for (let i = 0; i < batches.length; i++) {
       // Everything but the updates rides the first request; the rest are
@@ -503,14 +565,15 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
           // and say everything again. Whatever was in this body is said then.
           // §60: and the leader we were refused through goes with it — a second
           // refusal from the same one is an election, not another question.
-          for (const settle of waiting) settle.resolve({ ok: false, refused: new Set() });
+          for (const settle of waiting) settle.resolve({ ok: false, refused: new Set(), nudged: null });
           reconnectRef.current(carriedBy);
           return;
         }
         if (response.ok && response.status !== 204) {
           try {
-            const data = (await response.json()) as { refused?: string[] };
+            const data = (await response.json()) as { refused?: string[]; nudged?: string };
             for (const key of data.refused ?? []) refused.add(key);
+            if (data.nudged) nudged = data.nudged;
           } catch {
             /* a 204 with no body */
           }
@@ -544,7 +607,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
         }
       }
     }
-    for (const settle of waiting) settle.resolve({ ok, refused });
+    for (const settle of waiting) settle.resolve({ ok, refused, nudged });
   }, [clientId]);
   const sendPostRef = useRef(sendPost);
   sendPostRef.current = sendPost;
@@ -556,7 +619,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
   /** Merge into the next POST. Later values of `watch`/`place`/`cursor` replace earlier; lists concatenate. */
   const post = useCallback(
     (partial: Outgoing, keys: string[] = []) =>
-      new Promise<{ ok: boolean; refused: Set<string> }>((resolve) => {
+      new Promise<{ ok: boolean; refused: Set<string>; nudged?: string | null }>((resolve) => {
         const current = outgoing.current;
         if (partial.alias !== undefined) current.alias = partial.alias;
         if (partial.watch) current.watch = partial.watch;
@@ -567,6 +630,19 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
         if (partial.leave) current.leave = [...(current.leave ?? []), ...partial.leave];
         if (partial.updates) current.updates = [...(current.updates ?? []), ...partial.updates];
         if (partial.awareness) current.awareness = [...(current.awareness ?? []), ...partial.awareness];
+        /*
+         * §76: and the three this round added.
+         *
+         * They were on `Outgoing` and handled by the route, and they were
+         * dropped *here* — so the invisible Keeper was on every roster, the
+         * invitation was never sent, and a resting tab was buried instead of
+         * greyed. A field that is declared and merged nowhere is a field that
+         * does not exist; the browser run found all three at once, which is
+         * what a browser run is for.
+         */
+        if (partial.rest !== undefined) current.rest = partial.rest;
+        if (partial.ghost !== undefined) current.ghost = partial.ghost;
+        if (partial.nudge) current.nudge = partial.nudge;
         settles.current.push({ keys: new Set(keys), resolve });
         schedulePost();
       }),
@@ -589,7 +665,17 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
     const watch = [...watchCounts.current.keys()];
     const place = placeRef.current ? { key: placeRef.current.key, holding: placeRef.current.holding } : null;
     const join = [...rooms.current.entries()].map(([key, room]) => ({ key, y: room.yClient }));
-    void post({ alias: aliasRef.current, watch, place, join });
+    // §76: invisibility is said again on every fresh line, like the alias. It
+    // lives in this browser (and in the hub's memory), never in a column —
+    // which is why a new line has to re-assert it or the Keeper reappears on
+    // everybody's roster the first time his socket blinks.
+    void post({
+      alias: aliasRef.current,
+      watch,
+      place,
+      join,
+      ...(invisibleRef.current ? { ghost: true } : {}),
+    });
   }, [post]);
 
   /* ------------------------------------------------------------ the line */
@@ -693,6 +779,22 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
         } else if (event === 'room') {
           const d = data as { k: string; e: string; d: unknown };
           rooms.current.get(d.k)?.handlers.onEvent(d.e, d.d);
+        } else if (event === 'roster') {
+          // §76: taken as it comes. Every row was decided for this account on
+          // the server; there is nothing to filter here, and anything this
+          // file did to a row would be a second opinion about somebody's
+          // rights held in the one place that cannot check them.
+          const d = data as RosterFrame;
+          if (Array.isArray(d?.rows) && Array.isArray(d?.tail)) setRoster(d);
+        } else if (event === 'nudge') {
+          const d = data as NudgeFrame;
+          if (!d?.label) return;
+          setNudge(d);
+          if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+          // It expires on its own. Nothing about a nudge is stored, here or
+          // there: an invitation that outlives the moment is a notification,
+          // and this round is not building one.
+          nudgeTimer.current = setTimeout(() => setNudge(null), NUDGE_TTL_MS);
         }
       } catch {
         /* a malformed frame is not worth tearing the line down for */
@@ -768,7 +870,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
         }
       });
 
-      for (const name of ['changed', 'presence', 'pointer', 'ink', 'room'] as const) {
+      for (const name of ['changed', 'presence', 'pointer', 'ink', 'room', 'roster', 'nudge'] as const) {
         source.addEventListener(name, (event) => {
           let data: unknown;
           try {
@@ -1020,8 +1122,19 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
           return;
         }
         resting = true;
+        /*
+         * §60 + §76: say so before the socket goes.
+         *
+         * Without this the hub simply loses the line, and everybody else's
+         * roster would bury somebody who is sitting right there with the tab in
+         * the background. The POST is what tells the roster to grey the row
+         * instead — and it must go *first*, because a moment later there is no
+         * connection for it to quote.
+         */
+        void post({ rest: true });
         closeSocket();
         setPeople([]);
+        setRoster(EMPTY_ROSTER);
         setStatus('idle');
         announceDown('rest');
       };
@@ -1476,6 +1589,64 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
     return out;
   }, [pointerMap, peopleById]);
 
+  const dismissNudge = useCallback(() => {
+    if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    nudgeTimer.current = null;
+    setNudge(null);
+  }, []);
+
+  /**
+   * §76: ask a window to come where this tab stands.
+   *
+   * Addressed by the row id the roster handed out, never by an account — so
+   * this can only ever invite somebody the archive has already shown to this
+   * screen. What comes back is the server's own word: `refused` when the other
+   * person may not go there, `soon` when the floor is still warm, `gone` when
+   * their line has closed in the meantime.
+   */
+  const sendNudge = useCallback(
+    async (rowId: string): Promise<NudgeResult> => {
+      const result = await post({ nudge: { to: rowId } });
+      if (!result.ok && !result.nudged) return 'down';
+      return (result.nudged as NudgeResult) ?? 'down';
+    },
+    [post],
+  );
+
+  /**
+   * §76: the Keeper's own door. It lives in this browser and in the hub's
+   * memory — not in a column, because a flag that outlives the evening is a
+   * setting somebody forgets they left on.
+   */
+  const setInvisible = useCallback(
+    (on: boolean) => {
+      setInvisibleState(on);
+      invisibleRef.current = on;
+      try {
+        if (on) window.localStorage.setItem(INVISIBLE_KEY, '1');
+        else window.localStorage.removeItem(INVISIBLE_KEY);
+      } catch {
+        /* a browser with storage turned off still gets the rest of it */
+      }
+      void post({ ghost: on });
+    },
+    [post],
+  );
+
+  // What this browser last chose, read once. A player who somehow has the flag
+  // set is simply refused by the server, every time.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(INVISIBLE_KEY) === '1') {
+        setInvisibleState(true);
+        invisibleRef.current = true;
+        void post({ ghost: true });
+      }
+    } catch {
+      /* as above */
+    }
+  }, [post]);
+
   /**
    * §60: everything but the hands, and its identity holds still while they
    * move. This is the value nearly every consumer actually wants.
@@ -1493,12 +1664,39 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
       reportInk,
       onInk,
       people,
+      roster,
+      nudge,
+      dismissNudge,
+      sendNudge,
+      invisible,
+      setInvisible,
       joinRoom,
       setStripHidden,
       stripHidden,
       ownWriteAt,
     }),
-    [clientId, status, watch, onChanged, setAlias, setPlace, setHolding, reportPointer, reportInk, onInk, people, joinRoom, stripHidden, ownWriteAt],
+    [
+      clientId,
+      status,
+      watch,
+      onChanged,
+      setAlias,
+      setPlace,
+      setHolding,
+      reportPointer,
+      reportInk,
+      onInk,
+      people,
+      roster,
+      nudge,
+      dismissNudge,
+      sendNudge,
+      invisible,
+      setInvisible,
+      joinRoom,
+      stripHidden,
+      ownWriteAt,
+    ],
   );
 
   return (

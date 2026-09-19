@@ -34,10 +34,35 @@ export function canWatch(key: string, viewer: Viewer): boolean {
     const path = key.slice('page:'.length);
     if (path === '/admin') return Boolean(viewer.isKeeper);
     if ((PAGE_PLACES as readonly string[]).includes(path)) return true;
-    // §75: one overzicht's page. Checked before the soort pattern, which has
-    // one segment and would never match it anyway — but the order says which
-    // of the two a two-segment address is.
-    if (new RegExp(`^/wiki/overzicht/${ID}$`).test(path)) return true;
+    /*
+     * §77: a spelerspagina. Every signed-in person may stand on anyone's — what
+     * each *panel* shows is gated by the rules that already govern its own data,
+     * and standing somewhere is not seeing anything. The segment is a slug, so
+     * the pattern is narrower than `ID`: lowercase, digits and hyphens only.
+     */
+    if (/^\/spelers\/[a-z0-9-]{1,64}$/.test(path)) return true;
+    /*
+     * §75: one overzicht's page. Checked before the soort pattern, which has
+     * one segment and would never match it anyway — but the order says which
+     * of the two a two-segment address is.
+     *
+     * §76 found this one open. It used to `return true` on the shape of the
+     * address alone, while the *same* overzicht reached by its record key
+     * (`overzicht:{id}`) went through the dials and the bin below. Two keys for
+     * one thing, two answers — so a player could watch a private overzicht's
+     * page and be told when it moved, and (once there was a roster) be handed
+     * its name and a link to it while somebody else stood there. One thing has
+     * one rule: resolve the slug and ask the same question.
+     */
+    const overzichtPage = new RegExp(`^/wiki/overzicht/(${ID})$`).exec(path);
+    if (overzichtPage) {
+      const row = db
+        .select({ id: schema.overzichten.id })
+        .from(schema.overzichten)
+        .where(eq(schema.overzichten.slug, overzichtPage[1]))
+        .get();
+      return row ? canWatch(`overzicht:${row.id}`, viewer) : false;
+    }
     return new RegExp(`^/wiki/${ID}$`).test(path);
   }
 
@@ -117,6 +142,17 @@ export function canWatch(key: string, viewer: Viewer): boolean {
     // §33: a tekenlaag is seen by whoever may see what it is drawn on.
     case 'ink':
       return Boolean(inkTargetById(record.id, viewer));
+    /**
+     * §78: a kamer, reserved and refused.
+     *
+     * There is no table to ask yet, and the honest answer to "may this person
+     * watch room:abc" with nothing to look at is no. It is spelled out rather
+     * than left to `default` so that the round which builds the kamer finds one
+     * function to change — and so that every roster, label and watch path is
+     * already routed through the gate on the day it starts saying yes.
+     */
+    case 'room':
+      return false;
     default:
       return false;
   }

@@ -1,0 +1,275 @@
+/*
+ * §76, ronde 39: Aanwezig.
+ *
+ * Een eigen stylesheet, naast `overzichten.css` en om dezelfde reden:
+ * `globals.css` is het drukste bestand in de repo, en dit is een paneel met een
+ * vorm die nergens anders voorkomt. Wat er wél in `globals.css` blijft staan is
+ * de strip zelf (§21) en `.board-person` — die schijfjes zijn van het prikbord
+ * en worden hier alleen geleend, zodat iemands inkt overal dezelfde is.
+ *
+ * Geen kleur staat hier hard. Alles komt uit de tokens, want het archief heeft
+ * vier kleurschema's (§22) en een popover die in één ervan onleesbaar is, is
+ * stuk in alle vier.
+ */
+
+/* De strip is nu een knop. Hij mag er niet als een knop uitzien. */
+.live-strip-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.1rem 0.15rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+}
+.live-strip-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Hoeveel mensen er nog meer zijn, buiten deze pagina. */
+.live-strip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--paper-dark);
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/*
+ * Het paneel hangt ónder de strip, in dezelfde sticky doos — geen portal.
+ * `useDismiss` (§69) sluit op een druk buiten `ref`, en dat is een
+ * `contains`-test: een portal zou elke druk op het paneel zelf "buiten"
+ * noemen. Zie de docblock van die hook.
+ */
+.roster-pop {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 30;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  padding: 0.6rem 0.65rem 0.5rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-align: left;
+  cursor: default;
+}
+
+.roster-head {
+  margin: 0 0 0.4rem;
+  font-family: var(--stamp-face);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.roster-alone {
+  margin: 0 0 0.35rem;
+}
+
+.roster-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 45%, transparent);
+}
+.roster-row:first-child {
+  border-top: 0;
+}
+/* §60: even weg is niet weg. Grijs, en onderaan — nooit onzichtbaar. */
+.roster-row-rest {
+  opacity: 0.62;
+}
+
+.roster-disc {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.roster-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  color: inherit;
+  text-decoration: none;
+}
+.roster-who,
+.roster-body-link {
+  color: inherit;
+  text-decoration: none;
+}
+.roster-who:hover,
+.roster-who:focus-visible,
+.roster-body-link:hover,
+.roster-body-link:focus-visible {
+  text-decoration: underline;
+}
+/*
+ * Een rij zonder deur is geen deur. Hij mag niet aanvoelen als iets waar een
+ * klik iets mee doet — §76: een 403 ná een klik zou precies zeggen wat de rij
+ * hierboven weigert te zeggen.
+ */
+.roster-where[aria-disabled='true'] {
+  cursor: default;
+}
+
+.roster-name {
+  font-family: var(--sans);
+  font-size: 0.86rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roster-where {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roster-ask {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  cursor: pointer;
+  /* Hij staat er pas als je er iets mee wilt: een lijst met vijf knoppen leest
+     als een formulier, en dit is een lijst met mensen. */
+  opacity: 0;
+}
+.roster-row:hover .roster-ask,
+.roster-ask:focus-visible,
+.roster-row:focus-within .roster-ask {
+  opacity: 1;
+}
+@media (hover: none) {
+  /* Op een telefoon is er geen hover om hem mee tevoorschijn te halen. */
+  .roster-ask {
+    opacity: 1;
+  }
+}
+
+.roster-rule {
+  margin: 0.5rem 0 0.2rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--stamp-face);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.roster-row-tail {
+  border-top: 0;
+}
+
+.roster-ghost {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+/* De uitnodiging. Twee minuten, en dan is hij weg. */
+.roster-nudge {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 29;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: 0.35rem 0.5rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.roster-nudge-go {
+  font-family: var(--sans);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.roster-nudge-no {
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/*
+ * §76: de strip mag geen `backdrop-filter` hebben zolang er iets uit hangt.
+ *
+ * Een `backdrop-filter` die niet `none` is maakt van het element een
+ * *containing block* voor alles wat `position: fixed` is — net zoals een
+ * `transform` dat doet. De strip heeft er een (§21, `blur(3px)`), dus het
+ * telefoonblad hieronder mat zijn `inset` niet aan het scherm maar aan een
+ * doosje van 26 bij 15 pixels: het paneel werd 23 px breed en liep van y=-163
+ * tot y=13, vrijwel helemaal boven de bovenrand. Gemeten, niet geraden.
+ *
+ * Het blad blijft dus waar het staat (niet geportald — `useDismiss` doet een
+ * `contains`-test, zie §69) en de strip laat zijn blur los zolang er een paneel
+ * of een uitnodiging uit hangt. Niemand kijkt op dat moment naar de blur.
+ */
+.live-strip:has(.roster-pop),
+.live-strip:has(.roster-nudge) {
+  backdrop-filter: none;
+}
+
+/*
+ * Telefoon: het paneel is geen popover meer maar een blad onderaan het scherm.
+ * Het blijft dezelfde component — `useDismiss` sluit hem nog steeds op Escape
+ * en op een druk ernaast — alleen de plek verandert, want 22rem naast een
+ * strip van 40 px past niet op 360.
+ */
+@media (max-width: 767px) {
+  .roster-pop {
+    position: fixed;
+    inset: auto 0.5rem 0.5rem;
+    width: auto;
+    max-height: 60vh;
+  }
+  .roster-nudge {
+    position: fixed;
+    inset: auto 0.5rem calc(var(--tabs-h) + 0.5rem);
+    width: auto;
+    max-width: none;
+  }
+}

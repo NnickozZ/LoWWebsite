@@ -4034,3 +4034,105 @@ Sixty-seven rules worth knowing before changing anything:
     gezichten kan hebben; een overzicht is geen ding in de wereld maar een
     wegwijzer ín de wiki, en een Keeper die een eigen wegwijzer wil maakt er
     gewoon een op zijn eigen kant. `makeOfKind` gooit daarom voor deze soort.
+
+76. **Een plek krijgt een naam per kijker, of helemaal niet.** §76. Nick, ronde
+    39: *"a page/indicator/popup menu where you can see all currently online
+    people and what character they have selected … where they are right now,
+    what they are doing on there, and if you click on it you get transported to
+    the same page."* De strip in de hoek (§21) wist al waar iedereen stond, maar
+    hij liet alleen mensen zien die stonden wáár jij stond — en dan valt er
+    niets af te schermen: wie de pagina mag zien, mag zien wie er nog meer is.
+
+    Een lijstje over het hele archief is het omgekeerde. *"Nick is op Het
+    dagboek van Ysbrand"* beweert dát dat artikel bestaat, hoe het heet, en
+    sinds §44 aan welke kant het staat — tegen iemand aan wie `canWatch` de
+    sleutel geweigerd zou hebben. Daarom wordt het frame **per verbinding
+    gebouwd** (`lib/live/roster.ts`, `rosterFor`) en niet één keer uitgewaaierd:
+    elke rij gaat voor elke kijker langs `gate.ts`, dezelfde functie als de
+    watchlijst, nooit een tweede regel die hier geschreven staat.
+
+    Een plek die daar niet doorheen komt wordt **één vaste zin** —
+    `presenceElsewhere`, standaard *"ergens anders in het archief"* — voor een
+    Keeperartikel, een privé prikbord en de andere kant van een tweeling. Het
+    verschíl is het lek: zeg "op een artikel" voor de één en "ergens anders"
+    voor de ander en je hebt verteld welke verborgen dingen er zijn. En zo'n rij
+    is **geen link**: een klik die in een 403 landt beantwoordt de vraag die de
+    rij net weigerde te beantwoorden.
+
+    Dit is O(mensen × mensen) en dat is goed. Tien vrienden aan één tafel is
+    honderd puntopzoekingen in een synchrone SQLite-file, hooguit een paar keer
+    per seconde. **Maak het niet slim.** De voor de hand liggende optimalisatie —
+    één lijstje bouwen, naar iedereen sturen, de browser laten verbergen wat hij
+    niet mag zien — *is* het lek, en niemand zou het ooit zien.
+
+    Verder: een rij is een **venster** en geen account (§18b — twee onderzoekers
+    in twee vensters zijn twee rijen, drie tabbladen met één karakter zijn er
+    één); het werkwoord komt uit wat de POST tóch al draagt (typen, tekenen,
+    slepen) en **vervalt** na twintig seconden, want anders staat er morgen nog
+    dat je aan het typen bent; een venster dat zijn socket teruggaf (§60) staat
+    er grijs bij met *even weg* en verdwijnt niet; wie wegging staat een half uur
+    in het staartje eronder, zonder plek, want waar iemand wás is nergens meer.
+
+    **De Keeper is stil.** Een speler ziet dát hij er is en niet waar — zijn
+    plek is de vorm van de avond. Hij heeft als enige een schakelaar om
+    helemaal onzichtbaar te zijn, en die woont in het geheugen van de hub en in
+    `localStorage`, niet in een kolom: een vlag die de avond overleeft is een
+    instelling waarvan niemand meer weet dat hij aanstaat.
+
+    **Een uitnodiging ("Kom kijken") wordt gepoort op de ontvánger.** Iemand
+    uitnodigen bij een deur die hij niet open kan krijgen is hetzelfde lek met
+    een vriendelijker gezicht. Ze wordt nergens bewaard, nooit in de wachtrij
+    gezet voor wie weg is, en is na twee minuten van het scherm. En ze wordt
+    geadresseerd aan het **rij-id** dat het lijstje uitdeelde — een hash van
+    account en gedragen naam — nooit aan een account: zo kun je alleen iemand
+    vragen die het archief je al getoond heeft, staat er geen account-id op de
+    lijn (wat `hub.ts` van `userId` belooft), en is een onzichtbare Keeper ook
+    voor dít niet te vinden.
+
+    Twee lekken zijn onderweg gevonden en gedicht, allebei door iemand die het
+    van de andere kant vroeg. `canWatch` liet **elke** `/wiki/overzicht/<slug>`
+    door op de vorm van het adres alleen, terwijl hetzelfde overzicht via zijn
+    recordsleutel netjes langs de knoppen en de prullenbak ging: één ding, twee
+    sleutels, twee antwoorden. En `nudge` antwoordde vrolijk voor een
+    onzichtbare Keeper, wat in één klik verraadde dat hij er was.
+
+77. **Een speler is een adres, en een paneel is een samenvatting met een deur.**
+    §77. `/spelers/<slug>` is de voordeur van één persoon — niet van één
+    onderzoeker: rechten zijn per account (§17, §18 regel 1), en een karakter is
+    een naam die iemand draagt. De slug komt uit `lib/spelers/service.ts` en
+    wordt in één pas over alle accounts berekend, zodat er precies één antwoord
+    is op "wie is `jan-piet`" en twee namen die hetzelfde slugificeren niet om
+    hetzelfde adres kunnen vechten. Er staat geen slug in een kolom: dan zou een
+    hernoeming hem moeten bijwerken, en dat is een tweede ding om te vergeten.
+
+    Wat de pagina toont is een **register** (`lib/spelers/panels.tsx`), en de
+    regel van een paneel staat in dat bestand:
+
+    > Een paneel is een samenvatting met een deur. Het toont het kleinste ware
+    > ding — een saldo, drie portretten, de laatste vier regels — en linkt naar
+    > de pagina die het bezit. Niets op een paneel is bewerkbaar, en niets woont
+    > in een paneel dat geen eigen pagina heeft.
+
+    Zonder die regel is het over een half jaar een la. De eerste die "snel iets
+    uitgeven" aan het kamerpaneel hangt is een tweede, slechtere kamer-editor
+    begonnen in een samenvatting, en die gaat er nooit meer uit. Een zesde
+    paneel is één object in een array.
+
+78. **Het archief onthoudt wat je hebt; de tafel beslist wat het doet.** §78, en
+    er is nog niets van gebouwd. Wat er wél staat is de plek waar het komt: de
+    sleutel `room:{id}` bestaat en `canWatch` **weigert** hem (geen tabel, dus
+    het eerlijke antwoord is nee, en de ronde die de kamer bouwt vindt één
+    functie om te veranderen); de woorden `room`, `slot` en `currency` staan in
+    de woordenlijst zonder dat er iets aan hangt; en er is één leeg paneel.
+
+    De grens waarbinnen dat gebouwd wordt, nu opgeschreven omdat het nu gratis
+    is: **de site onthoudt wat je bezit, wat er in welke plek ligt, en wat dat
+    ding zegt dat het doet. Hij rekent nooit een bonus uit, past er nooit een
+    toe, en spreekt nooit recht over wat mag. Een saldo is de som van een
+    grootboek, nooit een getal dat iemand bijwerkt. Voorwerpen zijn
+    *artikelen* van een soort, geen eigen tabel — zodat iets in een kamer ook
+    iets in de wereld is: foto's, geheimhouding per §9, een kant per §44,
+    vermeldingen en het web, allemaal gratis.** En de munt is één woordsleutel:
+    gulden, kristal of scherf is daarmee altijd een hernoeming van tien
+    seconden, nooit een naam die in een tabel, een adres of een stylesheet is
+    gaan zitten.

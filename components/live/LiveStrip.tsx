@@ -1,6 +1,10 @@
 'use client';
 
+import Link from 'next/link';
+import { useRef, useState } from 'react';
+import type { Words } from '@/lib/words';
 import { useLiveBase } from './LiveProvider';
+import { RosterPopover } from './RosterPopover';
 
 /**
  * §21: the shell's own strip — who else is on this page, and whether the line
@@ -13,16 +17,31 @@ import { useLiveBase } from './LiveProvider';
  * socket back because nobody was looking at it: nobody is shown and the dot
  * goes quiet, but it does not say "geen verbinding", because nothing is wrong
  * and the first glance brings the line straight back.
+ *
+ * §76: and now it is also a door. The discs still mean *ook hier* — the people
+ * standing where you are — and the number beside them is everybody else in the
+ * archive, which is the thing you could not see before. Pressing it opens "Wie
+ * is er?".
+ *
+ * The strip stays the glance. Everything that needs a decision (where somebody
+ * is, whether you may follow them there, asking them over) is in the popover,
+ * because the corner of every page is not the place to read a list.
  */
-export function LiveStrip() {
+export function LiveStrip({ words }: { words: Words }) {
   const live = useLiveBase();
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+
   if (live.stripHidden) return null;
-  const others = live.people;
+  const here = live.people;
   const status = live.status;
+  const elsewhere = live.roster.rows.filter((row) => !row.self).length;
+  const nudge = live.nudge;
+
   const title =
     status === 'live'
-      ? others.length
-        ? `Ook hier: ${others.map((p) => p.name).join(', ')}`
+      ? here.length
+        ? `Ook hier: ${here.map((p) => p.name).join(', ')}`
         : 'Live: wat iemand verandert zie je meteen'
       : status === 'offline'
         ? 'Geen verbinding — wijzigingen van anderen komen zodra de lijn terug is'
@@ -35,20 +54,63 @@ export function LiveStrip() {
 
   return (
     <div className={`live-strip live-strip-${status}`} data-testid="live-strip" title={title}>
-      {others.length > 0 && (
-        <span className="board-people" aria-label={`Ook hier: ${others.map((p) => p.name).join(', ')}`}>
-          {others.slice(0, 6).map((person) => (
-            <span key={person.clientId} className="board-person" style={{ background: person.colour }} title={person.name}>
-              {person.name.slice(0, 1).toUpperCase()}
-            </span>
-          ))}
-          {others.length > 6 && <span className="board-person board-person-more">+{others.length - 6}</span>}
+      <button
+        type="button"
+        ref={button}
+        className="live-strip-open"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={words.presenceHeading}
+        data-testid="roster-open"
+        onClick={() => setOpen((was) => !was)}
+      >
+        {here.length > 0 && (
+          <span className="board-people" aria-label={`Ook hier: ${here.map((p) => p.name).join(', ')}`}>
+            {here.slice(0, 6).map((person) => (
+              <span key={person.clientId} className="board-person" style={{ background: person.colour }} title={person.name}>
+                {person.name.slice(0, 1).toUpperCase()}
+              </span>
+            ))}
+            {here.length > 6 && <span className="board-person board-person-more">+{here.length - 6}</span>}
+          </span>
+        )}
+        {elsewhere > 0 && (
+          <span className="live-strip-count tiny" data-testid="roster-count">
+            {elsewhere}
+          </span>
+        )}
+        <span className={`live-dot live-dot-${status}`}>
+          <span className="live-dot-mark" aria-hidden="true" />
+          <span className="live-strip-word">{word}</span>
         </span>
+      </button>
+
+      {open && <RosterPopover words={words} onClose={() => setOpen(false)} opener={button} />}
+
+      {/*
+       * §76: an invitation. It is on the wire and nowhere else — not stored,
+       * not queued for somebody who is out, and gone in two minutes whether it
+       * is answered or not. Which is why it may live in the corner of the page
+       * rather than in an inbox that would have to be built.
+       */}
+      {nudge && (
+        <div className="roster-nudge" role="status" data-testid="nudge">
+          <span className="board-person roster-disc" style={{ background: nudge.colour }} aria-hidden="true">
+            {nudge.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="small">
+            <strong>{nudge.name}</strong> {words.nudgeAsks} <em>{nudge.label}</em>
+          </span>
+          {nudge.href && (
+            <Link href={nudge.href} className="roster-nudge-go small" onClick={() => live.dismissNudge()}>
+              Ga
+            </Link>
+          )}
+          <button type="button" className="roster-nudge-no" onClick={() => live.dismissNudge()} aria-label="Wegklikken">
+            ×
+          </button>
+        </div>
       )}
-      <span className={`live-dot live-dot-${status}`}>
-        <span className="live-dot-mark" aria-hidden="true" />
-        <span className="live-strip-word">{word}</span>
-      </span>
     </div>
   );
 }

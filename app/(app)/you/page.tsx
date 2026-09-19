@@ -8,6 +8,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
+import { spelerHref } from '@/lib/spelers/service';
 import { ColourSchemeForm } from './ColourSchemeForm';
 import { ReadingFontForm } from './ReadingFontForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
@@ -39,21 +40,34 @@ export default async function YouPage() {
       }
     : null;
   const worn = me?.characters.find((c) => c.entryId === me.activeId) ?? null;
+  // §77: this page is the account — the settings, the password, the wardrobe.
+  // The spelerspagina is the person, and it is the one others can open too.
+  const myPage = spelerHref(user?.id);
 
   return (
     <div className="page">
       <LivePage place="page:/you" watch={['characters', 'users', 'entries']} />
       <p className="eyebrow">Jouw account</p>
       <h1>{user?.username}</h1>
-      {user?.isKeeper && (
-        <p className="row-wrap">
-          <span className="stamp">{words.keeper}</span>
-          <Link className="btn btn-small" href="/admin">
-            <Icon name="shield" size={15} />
-            {words.navAdmin}
+      <p className="row-wrap">
+        {user?.isKeeper && (
+          <>
+            <span className="stamp">{words.keeper}</span>
+            <Link className="btn btn-small" href="/admin">
+              <Icon name="shield" size={15} />
+              {words.navAdmin}
+            </Link>
+          </>
+        )}
+        {/* §77: the door to your own front door — the page the rest of the
+            archive sees you at. */}
+        {myPage && (
+          <Link className="btn btn-small" href={myPage}>
+            <Icon name="person" size={15} />
+            Jouw {words.spelerPage.toLowerCase()}
           </Link>
-        </p>
-      )}
+        )}
+      </p>
       {worn && (
         <p className="small muted" style={{ marginTop: 0 }}>
           {words.playsAs} <strong>{worn.name}</strong>.
