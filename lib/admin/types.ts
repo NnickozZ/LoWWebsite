@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { db, schema, sqlite } from '@/lib/db';
 import { logAudit } from '@/lib/entries/service';
 import { RESERVED_WIKI_SLUGS, slugify } from '@/lib/slug';
@@ -28,6 +28,13 @@ export type TypeRow = {
   sortOrder: number;
   /** §24, kept and unread: this soort used to be made only inside a dossier. */
   caseOnly: boolean;
+  /**
+   * §80: alleen de Keeper maakt hier artikelen van — and the flag `catalogueFor`
+   * asks, so it is also what decides whether a soort can be huisraad at all.
+   */
+  keeperMade: boolean;
+  /** §80: er is er één van in de wereld — what fills `room_slots.claim`. */
+  oneOfAKind: boolean;
   /** §49: a new artikel of this soort starts with the dossier prefix ticked. */
   prefixDefault: boolean;
   /** How many entries are filed under it — a type in use should not vanish quietly. */
@@ -74,6 +81,8 @@ export function listTypesForAdmin(): TypeRow[] {
       pageText: cleanTypeText(type.pageText),
       sortOrder: type.sortOrder,
       caseOnly: Boolean(type.caseOnly),
+      keeperMade: Boolean(type.keeperMade),
+      oneOfAKind: Boolean(type.oneOfAKind),
       prefixDefault: Boolean(type.prefixDefault),
       entryCount: counts.get(type.id) ?? 0,
       // Both sources of the whitelist, or every hand-filled list on the page
@@ -154,7 +163,50 @@ export type TypePatch = Partial<{
    * any more — it gated where a soort could be made, and nothing gates that.
    */
   prefixDefault: boolean;
+  /**
+   * §80: en deze twee *zijn* wél patchbaar — met opzet, en om precies de
+   * reden waarom `caseOnly` het niet is.
+   *
+   * `caseOnly` is een dode kolom: niets leest hem meer, dus een vinkje ervoor
+   * zou een knop zijn die nergens op zit. Deze twee worden juist elke dag
+   * gelezen, en allebei door code die een Keeper niet anders kan bereiken:
+   *
+   *  - `keeperMade` is de vraag die `catalogueFor` stelt (alleen soorten die
+   *    de Keeper zelf maakt staan in de catalogus) én die `createEntry`
+   *    stelt (een speler mag er geen maken). Zonder dit vinkje is de enige
+   *    weg naar een tweede soort huisraad een migratie — wat §79 en §80
+   *    allebei hebben moeten doen, en wat deze ronde juist opheft.
+   *  - `oneOfAKind` is wat `room_slots.claim` vult, en dus het verschil
+   *    tussen een voorwerp (er is er één in de wereld) en huisraad (twee
+   *    onderzoekers mogen dezelfde lamp hebben). Dat verschil hoort bij de
+   *    soort, en de soort hoort van de Keeper te zijn.
+   *
+   * Allebei zijn ze een *regel over wie wat mag*, geen opmaak, dus de patch
+   * eronder vraagt apart of de hand die hem stuurt van een Keeper is. Het
+   * scherm is al alleen voor een Keeper; dit is het slot aan de buitenkant
+   * van diezelfde deur.
+   */
+  keeperMade: boolean;
+  oneOfAKind: boolean;
 }>;
+
+/**
+ * §80: is de hand achter deze patch echt van een Keeper?
+ *
+ * Alleen gevraagd voor de twee vinkjes hierboven, en alleen omdat die twee
+ * over rechten gaan in plaats van over opmaak. Elke andere weg hiernaartoe
+ * komt al langs `requireKeeper()` in de server action; dit is het tweede slot,
+ * op de plek waar de regel zelf staat, zodat een nieuwe aanroeper hem niet per
+ * ongeluk kan overslaan.
+ */
+function assertKeeper(keeperId: string) {
+  const row = db
+    .select({ isKeeper: schema.users.isKeeper })
+    .from(schema.users)
+    .where(eq(schema.users.id, keeperId))
+    .get();
+  if (!row?.isKeeper) throw new Error('Alleen de Keeper past dit aan.');
+}
 
 export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
   const existing = db
@@ -185,9 +237,49 @@ export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
   if (patch.pageText !== undefined) values.pageText = cleanTypeText(patch.pageText);
   if (patch.sortOrder !== undefined) values.sortOrder = patch.sortOrder;
   if (patch.prefixDefault !== undefined) values.prefixDefault = patch.prefixDefault;
+  // §80: de twee vinkjes die over rechten gaan — zie `TypePatch` voor waarom
+  // ze wél patchbaar zijn waar `caseOnly` dat niet is, en waarom ze hun eigen
+  // slot krijgen.
+  if (patch.keeperMade !== undefined || patch.oneOfAKind !== undefined) {
+    assertKeeper(keeperId);
+    if (patch.keeperMade !== undefined) values.keeperMade = patch.keeperMade;
+    if (patch.oneOfAKind !== undefined) values.oneOfAKind = patch.oneOfAKind;
+  }
   if (!Object.keys(values).length) return;
 
   db.update(schema.entryTypes).set(values).where(eq(schema.entryTypes.id, id)).run();
+
+  /*
+   * §82: en als "er is er maar één van" áán gaat, moet wat er al ligt dat ook
+   * zeggen.
+   *
+   * `room_slots.claim` is wat de unieke index bewaakt (§80), en hij wordt
+   * geschreven op het moment dat iets wordt neergelegd — naar de vlag zoals
+   * die dán stond. Zet een Keeper de vlag later om, dan dragen de rijen die er
+   * al liggen wel een `entry_id` maar geen `claim`: de lézers (de catalogus,
+   * de winkel) zouden het ding dan blijven aanbieden terwijl `buyFurnishing`
+   * het weigert, want die kijkt voor een uniek ding naar `entry_id` in het hele
+   * archief. §17's regel 4 nog een keer, nu met de tijd ertussen.
+   *
+   * Sinds ronde 41 is die vlag een vinkje in Beheer, dus dit is bereikbaar
+   * geworden. Aan: de bestaande rijen claimen zichzelf alsnog. Uit: de claims
+   * gaan eraf, want dan is er niets meer uniek aan.
+   */
+  if (patch.oneOfAKind !== undefined) {
+    const placed = db
+      .select({ slotId: schema.roomSlots.id, entryId: schema.roomSlots.entryId })
+      .from(schema.roomSlots)
+      .innerJoin(schema.entries, eq(schema.entries.id, schema.roomSlots.entryId))
+      .where(eq(schema.entries.typeId, id))
+      .all();
+    for (const row of placed) {
+      db.update(schema.roomSlots)
+        .set({ claim: patch.oneOfAKind ? row.entryId : null })
+        .where(eq(schema.roomSlots.id, row.slotId))
+        .run();
+    }
+  }
+
   logAudit({
     actorId: keeperId,
     action: 'entry_type.edited',
@@ -252,8 +344,6 @@ export function renameTypeSlug(typeId: string, wanted: string, keeperId: string)
   if (RESERVED_WIKI_SLUGS.includes(next)) {
     throw new Error(`Het adres “${next}” is van de wiki zelf.`);
   }
-  if (next === typeId) return typeId;
-
   const existing = db
     .select()
     .from(schema.entryTypes)
@@ -261,10 +351,29 @@ export function renameTypeSlug(typeId: string, wanted: string, keeperId: string)
     .get();
   if (!existing) throw new Error('Soort artikel niet gevonden');
 
+  /*
+   * §82: dit vergeleek tot nu toe met het **id** en niet met de slug.
+   *
+   * Voor elke soort die dit bestand zelf maakt is dat hetzelfde — `createType`
+   * zet id en slug allebei op de slug, en de docblock hieronder zegt dan ook
+   * dat `entry_types.id` *is* de slug. Sinds migratie `0028` is dat voor één
+   * rij niet waar: de soort *Huisraad* kwam binnen als `id = 'type-huisraad'`
+   * met `slug = 'huisraad'`. Elke Opslaan op die soort stuurt zijn eigen slug
+   * mee, viel daardoor door deze vergelijking heen, vond in de `taken`-lookup
+   * **zichzelf**, en kreeg "Het adres is al van een andere soort" terug. Geen
+   * enkel vinkje, veld of woord op die soort was te bewaren.
+   *
+   * Twee reparaties, allebei nodig: vergelijk met de slug die er staat, en
+   * laat de lookup de rij zelf niet meetellen. De tweede is de echte vangrail —
+   * die beschermt ook de volgende soort waarvan het id en de slug uit elkaar
+   * lopen, hoe die ook ontstaat.
+   */
+  if (next === existing.slug) return typeId;
+
   const taken = db
     .select({ id: schema.entryTypes.id })
     .from(schema.entryTypes)
-    .where(eq(schema.entryTypes.slug, next))
+    .where(and(eq(schema.entryTypes.slug, next), ne(schema.entryTypes.id, typeId)))
     .get();
   if (taken) throw new Error(`Het adres “${next}” is al van een andere soort.`);
 

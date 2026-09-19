@@ -318,6 +318,8 @@ function makeOfKind(kind: KeeperKind, sourceId: string, name: string, keeper: { 
         .get();
       if (!type) throw new Error('Onbekende soort artikel.');
       return createEntry({
+        // §44: a tweeling is made by a Keeper, by definition of the road here.
+        actorIsKeeper: true,
         typeSlug: type.slug,
         name,
         createdBy: keeper.id,

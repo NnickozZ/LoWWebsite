@@ -312,12 +312,25 @@ describe('what the archive prints', () => {
     deps.sqlite.prepare("UPDATE users SET active_character_id = 'vandijk' WHERE id = 'bram'").run();
   });
 
-  it('a Keeper is the Keeper, whatever a row happens to carry', () => {
-    const [row] = deps.characters.attributed(
-      [{ id: 1, actorId: 'keeper-1', actorName: 'Keeper', actorIsKeeper: true, characterId: 'nel' }],
-      'Spelleider',
-    );
-    expect(row.actorLabel).toBe('Spelleider');
+  /**
+   * §81 turned this one around, and the reason is worth keeping.
+   *
+   * It used to assert that a Keeper is *the word* — pass "Spelleider" and every
+   * act they ever committed was signed "Spelleider". One voice for the table
+   * (§11). Nick asked for the opposite: a log answers **who did this**, and one
+   * shared word is not an answer at a table with two Keepers, or for a Keeper
+   * looking for their own edit back. There is no word to pass any more.
+   *
+   * What did *not* change: a Keeper wears no karakter (§18), so a `characterId`
+   * a row happens to carry is still ignored for them — which is the other half
+   * of this case and the reason it still exists.
+   */
+  it('a Keeper signs with their own account name, and never with a karakter', () => {
+    const [row] = deps.characters.attributed([
+      { id: 1, actorId: 'keeper-1', actorName: 'Keeper', actorIsKeeper: true, characterId: 'nel' },
+    ]);
+    expect(row.actorLabel).toBe('Keeper');
+    expect(row.actorAccount).toBe('Keeper');
   });
 
   it('a fiche in the bin has no name to print, so the account answers', () => {

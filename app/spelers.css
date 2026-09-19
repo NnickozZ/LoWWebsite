@@ -163,3 +163,42 @@
 .speler-nu-list .roster-disc {
   vertical-align: middle;
 }
+
+/*
+ * §81: de hal — de lijst met alle spelerspaginas. Bewust dun: het is een rij
+ * deuren, en wie iemand is staat achter de deur.
+ */
+.spelers-lijst {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+  max-width: 34rem;
+}
+.spelers-deur {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+.spelers-deur:hover,
+.spelers-deur:focus-visible {
+  border-color: var(--accent);
+}
+.spelers-naam {
+  font-family: var(--sans);
+  font-weight: 600;
+}
+.spelers-onder {
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

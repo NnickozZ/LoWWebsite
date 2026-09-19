@@ -427,13 +427,19 @@ describe('§79: wat er op een plek mag liggen', () => {
     expect(plek(ROOM, PAID_PLANK).entryId).toBeNull();
   });
 
-  it('refuses an artikel that is no voorwerp at all', () => {
-    expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'n-persoon', BRAM)).toThrow(/geen voorwerp/);
+  /*
+   * §80 changed this sentence, not this rule. "Dat is geen voorwerp" stopped
+   * being true the moment huisraad existed — a kamer takes both, and what it
+   * asks of either is the same: carry a `plek` field. The refusal now says
+   * what it means.
+   */
+  it('refuses an artikel that belongs in no kamer at all', () => {
+    expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'n-persoon', BRAM)).toThrow(/hoort nergens in een kamer/);
     expect(plek(ROOM, FREE_PLANK).entryId).toBeNull();
   });
 
   it('refuses a plek field that is not a kind of plek', () => {
-    expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'n-onzin', BRAM)).toThrow(/geen voorwerp/);
+    expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'n-onzin', BRAM)).toThrow(/hoort nergens in een kamer/);
     expect(kamers.plekKindOf('n-onzin')).toBeNull();
     expect(kamers.plekKindOf('n-persoon')).toBeNull();
     expect(kamers.plekKindOf('v-lantaarn')).toBe('plank');

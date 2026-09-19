@@ -72,6 +72,11 @@ export const PAGE_PLACES = [
   '/stambomen',
   '/search',
   '/you',
+  // §81: the hall — every spelerspagina in one list. The pages themselves are
+  // `/spelers/<slug>`, which `canWatch` matches with its own pattern.
+  '/spelers',
+  // §82: the shop window — everything that is for sale, in one place.
+  '/winkel',
   /*
    * §76 found this one missing. `app/(app)/web/page.tsx` has stood on
    * `page:/web` since §21 and `canWatch` has refused it every time — the place

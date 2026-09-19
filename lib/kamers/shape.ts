@@ -38,16 +38,35 @@ export function isPlekKind(value: unknown): value is PlekKind {
  * artikel without it fits nowhere, which is what keeps somebody's onderzoeker
  * off a shelf.
  *
- * **One caveat, found by the browser and worth knowing before you rely on it.**
- * A soort's fields get their *keys* from the editor as `veld_1`, `veld_2`, …
- * and there is no box anywhere in Beheer for setting a key — so a Keeper cannot
- * today make a *second* voorwerp-soort that this file would recognise, however
- * they label the field. Migration `0027` therefore ships one soort with the
- * right key in it, and that is the road. The design above is still the right
- * one and costs nothing extra; what it is waiting for is a key box in
- * `components/admin/TypeEditor.tsx`, which is a small round of its own.
+ * §79 shipped with a caveat here: a soort's fields got their *keys* minted as
+ * `veld_1`, `veld_2`, …, and nothing in Beheer could set one — so the design
+ * was true in principle and unreachable in practice, and migration `0027` had
+ * to ship a soort with the right key already in it.
+ *
+ * **§80 closed that.** `components/admin/TypeEditor.tsx` has a key box for a
+ * field that is new in that edit (an existing field's key is shown as text and
+ * never editable — renaming it would orphan every value already stored under
+ * it). So a Keeper can now make *Boeken* or *Relikwieën* that fit a kamer,
+ * with a price and effect lines, without a migration and without asking
+ * anybody. That is the difference between a feature that is theirs and one
+ * that stays the developer's.
  */
 export const VOORWERP_FIELD_KEY = 'plek';
+
+/**
+ * §80: what a stuk huisraad costs, and what it gives.
+ *
+ * Both are fields on the artikel, like `plek`, and for the same reason: the
+ * kamer asks the *thing*, not its soort, so a Keeper who later makes a soort
+ * *Boeken* with these three fields has books that fit a kamer and cost munten,
+ * without a line of code changing.
+ *
+ * `effect` is a longtext with one effect per line, and it is text on purpose.
+ * The moment it is a number, adding the numbers up is a matter of time — and
+ * that is rule 78 over the line. The archief lists; the table decides.
+ */
+export const PRICE_FIELD_KEY = 'prijs';
+export const EFFECT_FIELD_KEY = 'effect';
 
 export type SlotSeed = { kind: PlekKind; price: number };
 

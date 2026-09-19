@@ -281,6 +281,12 @@ export async function saveTypeAction(_prev: AdminState, formData: FormData): Pro
         // the soort's habit ("standaard het dossier voor de naam"), not where
         // the soort may be made: nothing gates that any more.
         prefixDefault: Boolean(String(formData.get('prefixDefault') ?? '')),
+        // §80: de twee vinkjes die van een soort huisraad maken. Een vinkje
+        // dat uit staat komt niet mee in de body, dus de lege string is hier
+        // net zo goed het "nee" als hierboven. `updateType` vraagt voor deze
+        // twee apart of de hand van een Keeper is — zie `TypePatch`.
+        keeperMade: Boolean(String(formData.get('keeperMade') ?? '')),
+        oneOfAKind: Boolean(String(formData.get('oneOfAKind') ?? '')),
         fields,
         blocks,
         pageText,

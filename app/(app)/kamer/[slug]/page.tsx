@@ -1,8 +1,10 @@
 import '@/app/kamer.css';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Icon } from '@/components/Icon';
 import { Grootboek } from '@/components/kamer/Grootboek';
 import { Plek } from '@/components/kamer/Plek';
+import { RoomEffects } from '@/components/kamer/RoomEffects';
 import { munt } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
@@ -63,8 +65,14 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
         </Link>
       </h1>
 
-      <p className="kamer-balance" data-testid="kamer-balance" data-balance={room.balance}>
+      <p className="kamer-balance row-wrap" data-testid="kamer-balance" data-balance={room.balance}>
         <span className="stamp">{munt(room.balance, words)}</span>
+        {/* §82: naast de beurs, want dat is waar je hem uitgeeft — de winkel
+            is de etalage waar deze kamer uit gevuld wordt. */}
+        <Link className="btn btn-small" href="/winkel" data-testid="kamer-winkel">
+          <Icon name="box" size={14} />
+          {words.shop}
+        </Link>
       </p>
 
       <ul className="kamer-grid" data-testid="kamer-grid" aria-label={words.slotPlural}>
@@ -79,6 +87,14 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
           />
         ))}
       </ul>
+
+      {/*
+       * §80: wat er in deze kamer ligt en wat het zegt dat het doet — onder
+       * het raster, want het raster is waar de kamer over gaat en dit is wat
+       * eruit volgt. Een lijst en nooit een optelling (rule 78): zie
+       * `RoomEffects`. Staat er niets, dan staat er ook geen kop.
+       */}
+      <RoomEffects effects={room.effects} words={words} />
 
       {room.canGrant && <Grootboek roomId={room.id} lines={lines} words={words} />}
     </div>

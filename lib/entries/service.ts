@@ -37,6 +37,10 @@ export type EntryTypeRow = {
   caseOnly: boolean;
   /** §49: whether a new artikel of this soort starts with the dossier prefix on. */
   prefixDefault: boolean;
+  /** §80: only a Keeper makes new artikelen of this soort. Not §44's `keeper_only`. */
+  keeperMade: boolean;
+  /** §80: one in the world (a voorwerp), or a listing several people may own (huisraad). */
+  oneOfAKind: boolean;
 };
 
 export type EntrySummary = {
@@ -306,6 +310,16 @@ export type CreateEntryInput = {
   fields?: Record<string, unknown>;
   tags?: string[];
   createdBy: string | null;
+  /**
+   * §80: whether the hand making this is a Keeper's.
+   *
+   * It matters for one thing only: a soort marked `keeper_made` (huisraad, and
+   * whatever the Keeper marks later) may not be made by anybody else. It
+   * defaults to *not* a Keeper on purpose — a caller that forgets is refused
+   * rather than let through, and since no ordinary soort carries the flag,
+   * forgetting costs nothing anywhere else.
+   */
+  actorIsKeeper?: boolean;
   /** §18b: the onderzoeker it is being made as. */
   characterId?: string | null;
   /**
@@ -330,6 +344,18 @@ export type CreateEntryInput = {
 export function createEntry(input: CreateEntryInput): EntrySummary {
   const type = getEntryType(input.typeSlug);
   if (!type) throw new Error(`Onbekende soort artikel: ${input.typeSlug}`);
+
+  /*
+   * §80: a soort the Keeper keeps to himself.
+   *
+   * The sheet already leaves these out of a player's list, and that is the
+   * slot on the outside of the door. This is the lock: "readers use the SQL
+   * condition, writers use the boolean" (§17's rule 4), and a POST is a
+   * writer.
+   */
+  if (type.keeperMade && !input.actorIsKeeper) {
+    throw new Error('Alleen de Keeper maakt deze soort.');
+  }
 
   const name = input.name.trim();
   if (!name) throw new Error('Een artikel heeft een naam nodig.');

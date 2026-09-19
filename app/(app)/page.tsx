@@ -42,7 +42,7 @@ export default async function HomePage() {
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
 
   // §18: every row names the character the person is wearing now.
-  const feed = attributed(recentActivity(user, 30), words.keeper);
+  const feed = attributed(recentActivity(user, 30));
   const recent = browseEntries(user, { limit: 12, sort: 'recent' });
   const openCases = listCases(user, { status: 'open' }).slice(0, 6);
   const counts = countEntriesPerCase(

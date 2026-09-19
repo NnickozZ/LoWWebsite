@@ -9,8 +9,13 @@ import { logActivity } from '@/lib/entries/service';
  *
  * A character is a fiche — usually an Onderzoeker — that a person has tied to
  * their account. They may tie several, and wear one at a time: the *active*
- * character is the name the archive shows for everything they do. A Keeper
- * never wears one; they are the Keeper, in every log, on every wall.
+ * character is the name the archive shows for everything they do.
+ *
+ * A Keeper never wears one. §81: but they are no longer *the word* "Keeper" in
+ * a log either — they sign with their account name, exactly as they have always
+ * appeared on the presence strip. A log answers "who did this", and one shared
+ * word is not an answer at a table with two Keepers, or for a Keeper looking
+ * for their own edit.
  *
  * Nothing about rights lives here. §17 is per account; a character is a name
  * a person wears, and taking it off changes nothing about what they may open.
@@ -280,10 +285,7 @@ export type Named = {
  * `displayName(...)` for a list: the shape every feed and log wants — what to
  * print, and the account behind it for the tooltip.
  */
-export function displayNames(
-  people: Named[],
-  keeperWord = 'Keeper',
-): Map<string, { label: string; account: string }> {
+export function displayNames(people: Named[]): Map<string, { label: string; account: string }> {
   const worn = activeCharacterNames(people.map((p) => p.id));
   // §18b: the karakter each row recorded, resolved in one more query.
   const recorded = characterNames(people.map((p) => p.characterId));
@@ -291,8 +293,21 @@ export function displayNames(
   for (const person of people) {
     const written = person.characterId ? recorded.get(person.characterId) : undefined;
     out.set(person.id, {
-      // A Keeper is always the Keeper's word, whatever a row happens to carry.
-      label: person.isKeeper ? keeperWord : (written ?? worn.get(person.id) ?? person.username),
+      /*
+       * §81: a Keeper signs with their own name.
+       *
+       * This used to print the *word* "Keeper" for every act a Keeper ever
+       * committed — one voice for the table, §11's reasoning. Nick asked for
+       * the opposite and he is right: a log says **who did this**, and at a
+       * table with more than one Keeper, or a Keeper who wants to find their
+       * own edit back, one shared word is not a name. The live layer has
+       * always done it this way (`presenceNames` below); the feeds now agree
+       * with the strip.
+       *
+       * A Keeper still wears no karakter (§18), so a `characterId` a row
+       * happens to carry is still ignored for them — that part did not change.
+       */
+      label: person.isKeeper ? person.username : (written ?? worn.get(person.id) ?? person.username),
       account: person.username,
     });
   }
@@ -300,7 +315,7 @@ export function displayNames(
 }
 
 /** One person's label, for the places that only ever have one. */
-export function displayNameOf(userId: string | null, keeperWord = 'Keeper'): { label: string; account: string } | null {
+export function displayNameOf(userId: string | null): { label: string; account: string } | null {
   if (!userId) return null;
   const user = db
     .select({ id: schema.users.id, username: schema.users.username, isKeeper: schema.users.isKeeper })
@@ -308,7 +323,7 @@ export function displayNameOf(userId: string | null, keeperWord = 'Keeper'): { l
     .where(eq(schema.users.id, userId))
     .get();
   if (!user) return null;
-  return displayNames([user], keeperWord).get(userId) ?? null;
+  return displayNames([user]).get(userId) ?? null;
 }
 
 /**
@@ -417,7 +432,7 @@ export type Attributed = { actorLabel: string | null; actorAccount: string | nul
  * account may appear twice in one feed under two names, which is the whole
  * point — that is two investigators at the same table.
  */
-export function attributed<T extends Actor>(items: T[], keeperWord = 'Keeper'): (T & Attributed)[] {
+export function attributed<T extends Actor>(items: T[]): (T & Attributed)[] {
   const people: Named[] = [];
   const seen = new Set<string>();
   for (const item of items) {
@@ -426,7 +441,7 @@ export function attributed<T extends Actor>(items: T[], keeperWord = 'Keeper'): 
     people.push({ id: item.actorId, username: item.actorName ?? '', isKeeper: item.actorIsKeeper });
   }
   // Whoever they are wearing now, for the rows that recorded nothing…
-  const names = displayNames(people, keeperWord);
+  const names = displayNames(people);
   // …and the names of the karakters the rows themselves name.
   const recorded = characterNames(items.map((item) => item.characterId));
   return items.map((item) => {
@@ -434,7 +449,8 @@ export function attributed<T extends Actor>(items: T[], keeperWord = 'Keeper'): 
     const written = item.characterId ? recorded.get(item.characterId) : undefined;
     return {
       ...item,
-      // A Keeper is always the Keeper's word, whatever a row happens to carry.
+      // §81: a Keeper signs with their own name — `names` now carries it. A
+      // karakter a row recorded is still ignored for them: a Keeper wears none.
       actorLabel: (item.actorIsKeeper ? undefined : written) ?? named?.label ?? item.actorName,
       actorAccount: named?.account ?? item.actorName,
     };

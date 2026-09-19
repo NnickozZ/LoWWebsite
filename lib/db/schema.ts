@@ -162,6 +162,25 @@ export const entryTypes = sqliteTable(
     pageText: text('page_text', { mode: 'json' }).$type<TypeText>().notNull().default({}),
     sortOrder: integer('sort_order').notNull().default(0),
     /**
+     * §80: alleen een Keeper maakt hier nieuwe artikelen van.
+     *
+     * **Niet te verwarren met §44's `keeper_only`**, dat op een *artikel* staat
+     * en zegt aan welke kant het hangt. Deze staat op de *soort* en gaat over
+     * wie er een mag máken. De soort verdwijnt uit de nieuw-artikel-lijst van
+     * een speler, en `createEntry` weigert het ook — een slot op het scherm is
+     * een slot aan de buitenkant van de deur.
+     */
+    keeperMade: integer('keeper_made', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * §80: één in de wereld, of niet.
+     *
+     * Een voorwerp (§24) is uniek: twee onderzoekers kunnen niet allebei
+     * dezelfde lantaarn op hun plank hebben. Huisraad is juist een ding waarvan
+     * er meer zijn. Het verschil hoort bij de *soort* en niet bij de code die
+     * neerzet, en het is wat `room_slots.claim` vult of leeg laat.
+     */
+    oneOfAKind: integer('one_of_a_kind', { mode: 'boolean' }).notNull().default(false),
+    /**
      * §24, and no longer read: this soort was only made inside a dossier.
      *
      * §49 took the gate away — every soort is makeable everywhere again — and
@@ -1131,6 +1150,17 @@ export const roomSlots = sqliteTable(
     /** The voorwerp lying here — an artikel, like everything else in the world. */
     entryId: text('entry_id'),
     placedAt: integer('placed_at'),
+    /**
+     * §80: de claim op een uniek ding.
+     *
+     * §79 hield één voorwerp op één plek met een unieke index op `entry_id`.
+     * Toen kwam huisraad, waarvan er wél meer mogen zijn, en de verleiding was
+     * om die index weg te halen — een garantie inruilen voor een controle die
+     * iemand vergeet. In plaats daarvan staat hij nu hier: gevuld met `entryId`
+     * als de soort `one_of_a_kind` is, en anders `null`. Het schema zegt het
+     * dus nog steeds, en alleen over de dingen waarover het waar is.
+     */
+    claim: text('claim'),
   },
   (t) => [index('room_slots_room_idx').on(t.roomId, t.sortOrder)],
 );

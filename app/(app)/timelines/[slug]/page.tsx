@@ -73,7 +73,7 @@ export default async function TimelinePage({
         .where(inArray(schema.users.id, setters))
         .all()
     : [];
-  const names = displayNames(people, words.keeper);
+  const names = displayNames(people);
   const peopleNames = Object.fromEntries([...names.entries()].map(([id, n]) => [id, n.label]));
 
   /*

@@ -84,7 +84,7 @@ export default async function FamilyTreePage({
         .where(inArray(schema.users.id, accounts))
         .all()
     : [];
-  const names = displayNames(people, words.keeper);
+  const names = displayNames(people);
   const peopleNames = Object.fromEntries([...names.entries()].map(([id, one]) => [id, one.label]));
 
   // §21 vs §11: presence is not attribution — a Keeper standing here is their

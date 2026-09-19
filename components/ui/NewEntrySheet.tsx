@@ -79,7 +79,20 @@ export function NewEntrySheet({
    * until somebody files it.
    */
   const inCase = Boolean(prefill.caseId);
-  const types = allTypes;
+  /*
+   * §80: except the soorten the Keeper keeps to himself.
+   *
+   * `createEntry` refuses these for anybody else, and that is the lock. This is
+   * the slot on the outside of the door: without it a speler is offered
+   * *Huisraad*, types a name, presses Aanmaken and is told off for taking what
+   * they were shown. The browser run found exactly that — the comment in
+   * `lib/entries/service.ts` claimed this filter existed before it did.
+   */
+  const { isKeeper } = useUi();
+  const types = useMemo(
+    () => (isKeeper ? allTypes : allTypes.filter((type) => !type.keeperMade)),
+    [allTypes, isKeeper],
+  );
 
   const initialType = useMemo(() => {
     if (prefill.typeSlug && types.some((t) => t.slug === prefill.typeSlug)) return prefill.typeSlug;

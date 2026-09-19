@@ -42,7 +42,7 @@ export function BijdragenPanel({ rows, words }: { rows: FeedItem[]; words: Words
 
   // §18: every row names the karakter it was written as, exactly as the Start
   // does. The account name stays one tooltip away.
-  const named = attributed(rows, words.keeper);
+  const named = attributed(rows);
 
   return (
     <>

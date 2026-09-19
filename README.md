@@ -4206,3 +4206,133 @@ Sixty-seven rules worth knowing before changing anything:
     een schuld is een regel over het spel, en dit bestand maakt geen regels over
     het spel. Weghalen geeft niets terug: een teruggave is een tweede economie
     en een ruzie over wat dingen op de terugweg waard zijn.
+
+80. **Een voorwerp wordt gevonden; huisraad wordt gekocht.** §80. Nick, ronde
+    41: *"ik heb nieuwe artikelen nodig die alleen Keepers kunnen toevoegen en
+    die gameplay dingen hebben als ze geplaatst worden in de kamer. Niet
+    voorwerpen kapen, maar een nieuw ding."* Dus staat er naast §24's
+    **Voorwerpen** — gevonden tijdens een onderzoek, verhalend, uniek — een
+    tweede soort: **Huisraad**. Alleen de Keeper maakt ze, ze hebben een prijs,
+    en ze zeggen wat ze je geven.
+
+    Allebei dragen ze hetzelfde veld `plek`, en dat is geen toeval maar het hele
+    ontwerp: **de kamer vraagt naar het veld en niet naar de soort**. Daardoor
+    paste huisraad erin zonder één regel te veranderen aan §79, en daardoor kan
+    de Keeper er zelf *Boeken* of *Relikwieën* naast maken.
+
+    **Twee vlaggen op een soort, en de eerste heeft een naam om goed te lezen.**
+    `keeper_made` staat op een *soort* en betekent "alleen een Keeper maakt hier
+    nieuwe artikelen van" — dat is iets anders dan §44's `keeper_only`, dat op
+    een *artikel* staat en zegt aan welke kant het hangt. Het geldt op twee
+    plekken: de soort staat niet in de nieuw-artikel-lijst van een speler, én
+    `createEntry` weigert het. Het scherm alleen is een slot aan de buitenkant
+    van de deur — de browsertest vond precies dat, terwijl er in de code al een
+    comment stond die beweerde dat het scherm het deed.
+
+    `one_of_a_kind` is de subtiele. §79 hield één voorwerp op één plek in het
+    hele archief met een unieke index, want een lantaarn is één ding in de
+    wereld. Huisraad is het omgekeerde: twee onderzoekers mogen dezelfde
+    leesstoel hebben. Dat is geen uitzondering die je in code erbij zet maar een
+    eigenschap van de soort — en de garantie is niet weggehaald maar verhuisd
+    naar `room_slots.claim`, die alleen gevuld wordt voor dingen waarvan er één
+    is. Het schema zegt het dus nog steeds, en alleen over de dingen waarover
+    het waar is.
+
+    **Wat het geeft zijn regels tekst.** Eén effect per regel in een `longtext`,
+    en de kamer zet ze onder elkaar onder de kop *Wat deze kamer je geeft*. Geen
+    getal, geen optelling, geen totaal — zodra er een kolom `bonus: number`
+    staat is optellen een kwestie van tijd, en dan is rule 78 gepasseerd. Het
+    archief somt op; de tafel beslist. **En een versluierd ding draagt niets
+    bij**: anders lekt §76's sluier alsnog — "er ligt iets" op de plek, en drie
+    regels eronder staat wat het doet.
+
+    **Kopen is de eerste schrijver van een grootboekregel die er al was**
+    (`kind: 'item'`, sinds §79, nooit gebruikt). Dezelfde discipline als het
+    openen van een plek: saldo gelezen ín de transactie, en de voorwaarde dat de
+    plek leeg is staat in de UPDATE zelf. En "te koop" is **vijf** dingen —
+    keeper-made, geprijsd, passend, zichtbaar, nog vrij — die de catalogus
+    allemaal vraagt en waarvan de koopfunctie er eerst maar vier vroeg. §17's
+    regel 4 in zijn makkelijkst te vergeten vorm: een lezer gebruikt de
+    SQL-voorwaarde, een schrijver de boolean, en het moeten er evenveel zijn.
+
+    **De Keeper mag nog steeds iets cadeau doen**, met `placeItem`: dat kost
+    niets en schrijft geen regel. Die twee wegen naast elkaar zijn het verschil
+    tussen *verdiend* en *gekocht*, en allebei horen te bestaan.
+
+    Ten slotte sloot deze ronde de val van §79: **een veld kan nu een sleutel
+    krijgen.** Een veld dat in díé bewerking nieuw is heeft een sleutelvakje,
+    voorgevuld vanuit het label; de sleutel van een bestaand veld staat er als
+    tekst en is nooit te wijzigen, want hernoemen zou elke al ingevulde waarde
+    in `entries.fields` wees maken. Zonder dat vakje was elke soort die in een
+    kamer past iets van de ontwikkelaar gebleven in plaats van van de Keeper.
+
+81. **Een Keeper tekent met zijn eigen naam, en alle spelerspaginas staan bij
+    elkaar.** §81. Nick, ronde 42: *"Keepers moeten gewoon hun account naam
+    krijgen als ze een edit maken, niet 'Keeper edit' maar 'KEEPERACCOUNT
+    edit'"* — en: *"is er een pagina waar ik alle speler-profielen kan zien?"*
+
+    **Dit keert regel 5 van §18 om, en dat is met opzet.** Die zei: *een feed
+    drukt `attributed()`-labels af, en een Keeper is altijd het woord van de
+    Keeper.* Eén stem voor de tafel (§11), en verdedigbaar zolang er één Keeper
+    is die nooit zijn eigen bewerking terug hoeft te zoeken. Maar een logboek
+    beantwoordt **wie dit deed**, en een gedeeld woord is daar geen antwoord op.
+    Sinds §21 deed de aanwezigheidsstrip het al andersom (`presenceNames`
+    drukt de accountnaam af, met de redenering: *een kamer vol identieke
+    "Keeper"-pijlen is geen naam*). Nu doen de feeds mee, en staat er één regel
+    in plaats van twee.
+
+    Wat **niet** verandert: een Keeper draagt geen karakter (§18), dus een
+    `character_id` dat een rij toevallig meedraagt blijft voor hem genegeerd. En
+    het woord *Keeper* blijft overal staan waar het een **rol** noemt — "een
+    Keeper kan dit terughalen uit de prullenbak", "dit dossier is van de
+    Keeper", de Keeperkant, Keepernotities. Het onderscheid is precies dat: een
+    rol is geen handtekening.
+
+    De parameter `keeperWord` is uit `displayNames`, `displayNameOf` en
+    `attributed` verdwenen in plaats van ongebruikt te blijven staan. Een dode
+    parameter is een uitnodiging om hem weer te gaan gebruiken.
+
+    **En de hal.** §77 gaf iedereen een voordeur op `/spelers/<slug>` en liet de
+    gang weg: je kwam er alleen via het lijstje (dus terwijl iemand toevallig
+    online was) of via je eigen *Jij*. `/spelers` is nu die gang — bewust dun:
+    een naam, de onderzoeker die diegene draagt, en een deur. Wie iemand is
+    staat achter de deur, en §77's regel over panelen geldt net zo goed voor een
+    lijst ervan. Het blijft de stille helft van dezelfde vraag: het lijstje
+    (§76) zegt wie er *nu* is, de hal zegt wie er *zijn*.
+
+82. **Een etalage: je kunt niet sparen voor wat je niet kunt zien.** §82. Nick,
+    ronde 43: *"Can we get something browseable, something that shows all the
+    things you can buy?"* §80 zette de catalogus ín de plek-kiezer, en dat
+    beantwoordt de goede vraag op het goede moment — *wat past er op déze
+    plank* — maar het is de verkeerde vraag voor wat een speler tussen twee
+    sessies doet: alles bekijken, iets uitkiezen, ervoor sparen.
+
+    `/winkel` toont daarom **alles wat je mag zien**, gegroepeerd per soort plek
+    en per groep goedkoopste eerst. Wat je niet kunt betalen **staat erbij, met
+    de prijs** — dat is precies waar een etalage voor is. Wat je al hebt zegt
+    dat. Wat uniek is en al op andermans plank ligt zegt dát: een lantaarn die
+    weg is, is niet zomaar afwezig uit de wereld.
+
+    **Kopen vanuit de winkel is een gemak, geen tweede weg.** De knop zoekt de
+    eerste vrije open plek van de juiste soort (`landsIn`) en koopt daar; de
+    aankoop zelf gaat door `buyFurnishing` met alle vijf zijn voorwaarden. Een
+    winkel die iets kan kopen wat de kamer zou weigeren is een winkel die liegt.
+    Daarom staat er ook geen knop op een rij die `takenElsewhere` draagt, ook al
+    heb je de munten en een vrije plank.
+
+    **Eén beurs per onderzoeker.** Wie er twee draagt, kiest bovenaan voor wie
+    hij koopt (`?kamer=`), en de twee beurzen raken elkaar nooit. De Keeper
+    draagt niemand (§18) en heeft dus geen beurs en geen knoppen: hij leest een
+    prijslijst, want hij zet dingen zelf neer. Iemand die nog geen onderzoeker
+    draagt krijgt een **andere** zin dan de Keeper — die van hem zegt dat hij
+    dingen zelf neerzet, en dat is voor een speler zonder kamer niet waar.
+
+    Twee dingen gingen pas stuk onder een echte hand, en allebei zijn het §17's
+    regel 4 met tijd ertussen. De soort *Huisraad* bleek **niet op te slaan**:
+    migratie `0028` zette hem neer met een id dat niet zijn slug is — de enige
+    rij in het archief waar dat zo is — en `renameTypeSlug` vergeleek het
+    gewenste adres met het **id**, viel door zijn eigen kortsluiting heen en
+    vond zichzelf als "al bezet". En `one_of_a_kind`, sinds §80 een vinkje in
+    Beheer, liet `room_slots.claim` achter zoals die stond: de winkel bood iets
+    aan dat de kamer weigerde. `updateType` vult die claims nu bij als de vlag
+    aan gaat, en haalt ze weg als hij uit gaat.

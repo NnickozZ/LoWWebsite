@@ -64,6 +64,8 @@ export async function POST(request: Request) {
       originCaseId = parent.id;
     }
     const entry = createEntry({
+      // §80: a soort marked `keeper_made` is refused for anybody else.
+      actorIsKeeper: Boolean(user.isKeeper),
       typeSlug,
       name: body.name,
       shortDescription: body.shortDescription ?? '',

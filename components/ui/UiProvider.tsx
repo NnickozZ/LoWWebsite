@@ -50,6 +50,14 @@ export type EntryTypeLite = {
    * §24's "alleen in een dossier": every soort is offered everywhere now.
    */
   prefixDefault?: boolean;
+  /**
+   * §80: only a Keeper makes new artikelen of this soort (huisraad, and
+   * whatever the Keeper marks later). The list itself stays complete — a
+   * player still needs this soort's icon and colour to read an artikel of it —
+   * and it is the *sheet* that leaves it out. Not §44's `keeper_only`, which
+   * is about a side and lives on an artikel.
+   */
+  keeperMade?: boolean;
 };
 
 type Toast = {

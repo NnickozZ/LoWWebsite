@@ -202,18 +202,26 @@ describe('who hands out an onderzoeker', () => {
 });
 
 describe('what the archive prints', () => {
-  it('names the character worn now, the account otherwise, and the Keeper as the Keeper', () => {
-    const names = deps.displayNames(
-      [
-        { id: 'bram', username: 'Bram', isKeeper: false },
-        { id: 'aagje', username: 'Aagje', isKeeper: false },
-        { id: 'keeper-1', username: 'Keeper', isKeeper: true },
-      ],
-      'Spelleider',
-    );
+  /**
+   * §81: and the Keeper by their own name too.
+   *
+   * This case used to pass the word "Spelleider" in and expect it back out for
+   * the Keeper — one voice for the table (§11). It now takes no word at all:
+   * a log answers *who did this*, and a shared word is not an answer at a table
+   * with two Keepers. The presence strip has always printed the account name
+   * (`presenceNames`, right below); the feeds now agree with it.
+   */
+  it('names the character worn now, and the account otherwise — the Keeper included', () => {
+    const names = deps.displayNames([
+      { id: 'bram', username: 'Bram', isKeeper: false },
+      { id: 'aagje', username: 'Aagje', isKeeper: false },
+      { id: 'keeper-1', username: 'Nick', isKeeper: true },
+    ]);
     expect(names.get('bram')).toEqual({ label: 'Onderzoeker Van Dijk', account: 'Bram' });
     expect(names.get('aagje')).toEqual({ label: 'Aagje', account: 'Aagje' });
-    expect(names.get('keeper-1')).toEqual({ label: 'Spelleider', account: 'Keeper' });
+    // The account name, not a role word — and deliberately not spelled
+    // "Keeper" here, so the assertion cannot pass by coincidence.
+    expect(names.get('keeper-1')).toEqual({ label: 'Nick', account: 'Nick' });
   });
 
   it('re-labels a feed in one go, keeping the account for the tooltip', () => {

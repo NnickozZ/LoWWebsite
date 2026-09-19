@@ -325,7 +325,7 @@ test.describe('§76 Aanwezig', () => {
     const other = await otherCtx.newPage();
     await signUpAs(other, playerName);
     await other.goto('/you');
-    const door = other.getByRole('main').getByRole('link', { name: /spelerspagina/i });
+    const door = other.getByRole('main').getByRole('link', { name: 'Jouw spelerspagina' });
     await expect(door).toBeVisible({ timeout: 20_000 });
     const spelerPath = new URL(await door.getAttribute('href') ?? '', 'http://x').pathname;
     expect(spelerPath).toMatch(/^\/spelers\/[a-z0-9-]+$/);
@@ -364,6 +364,47 @@ test.describe('§76 Aanwezig', () => {
     await expect(nu.getByRole('link', { name: 'Dossiers' })).toBeVisible({ timeout: 30_000 });
 
     await otherCtx.close();
+  });
+
+  /**
+   * §81: de hal.
+   *
+   * §77 gaf iedereen een voordeur en liet de gang weg: je kwam alleen op
+   * iemands spelerspagina via het lijstje (dus terwijl diegene toevallig online
+   * was) of via je eigen *Jij*. Dit is die gang.
+   *
+   * Wat hier *niet* getest wordt is §81's andere helft — dat een Keeper met
+   * zijn eigen accountnaam tekent. Het geseede Keeper-account heet letterlijk
+   * "Keeper", dus in de browser is het woord niet van de naam te onderscheiden;
+   * dat bewijs staat in `tests/unit/characters.test.ts`, waar de naam gekozen
+   * kan worden ("Nick").
+   */
+  test('alle spelerspaginas staan bij elkaar, en de deuren werken', async ({ page, isMobile }, info) => {
+    test.skip(isMobile, '§81 wordt op de desk bewezen');
+    const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+    const naam = `Hal ${stamp}`;
+    const karakter = await signUpWriting(page, naam);
+
+    await page.goto('/spelers');
+    const lijst = page.getByTestId('spelers-lijst');
+    await expect(lijst).toBeVisible({ timeout: 15_000 });
+
+    // Iedereen staat er: deze nieuwe speler, en de Keeper die er altijd is.
+    await expect(lijst).toContainText(naam);
+    await expect(lijst).toContainText('Keeper');
+    // En de onderzoeker die deze speler draagt staat achter zijn naam.
+    await expect(lijst).toContainText(karakter);
+
+    // De deur brengt je op zijn eigen pagina.
+    const deur = lijst.getByTestId('spelers-deur').filter({ hasText: naam }).first();
+    await deur.click();
+    await expect(page.getByTestId('speler-page')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('h1')).toHaveText(naam);
+
+    // En vanaf Jij kom je er ook: de knop staat naast die van je eigen pagina.
+    await page.goto('/you');
+    await page.getByRole('link', { name: 'Spelerspaginas' }).click();
+    await expect(page.getByTestId('spelers-page')).toBeVisible({ timeout: 15_000 });
   });
 
   test('op een telefoon is het lijstje een blad onderaan het scherm', async ({ page, isMobile }) => {

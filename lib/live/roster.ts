@@ -254,6 +254,8 @@ function pageLabel(path: string): PlaceLabel | null {
     '/stambomen': words.navFamilyTrees,
     '/search': words.navSearch,
     '/you': words.navYou,
+    '/spelers': words.spelerPagePlural,
+    '/winkel': words.shop,
     '/web': words.navWeb,
     '/admin': words.navAdmin,
   };

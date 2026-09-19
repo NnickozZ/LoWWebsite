@@ -284,3 +284,265 @@
     flex: 1 1 100%;
   }
 }
+
+/* ------------------------------------------------- §80: de catalogus (blad)
+
+   Het tweede tabblad van het "Neerzetten"-blad. Een rij is een omslagje, een
+   naam met één regel, wat het ding zegt dat het geeft, en rechts de prijs met
+   de knop eronder — in die volgorde, want dat is de volgorde waarin iemand die
+   spaart hem leest.
+
+   Wat te duur is blijft staan. Het verschil is `--ink-muted` en een streep,
+   geen eigen kleur: §45 heeft vier kleurschema's en een Keeperkant, en "te
+   duur" zou daar vier keer gekozen moeten worden. */
+
+.kamer-tabs {
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
+.kamer-catalogus {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.kamer-koop {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+/* Te duur: buiten bereik, niet weg. Gedempt en gestreept, met de prijs er nog
+   gewoon op — dat is het hele punt van hem laten staan. */
+.kamer-koop-dear {
+  background: var(--paper-dark);
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+.kamer-koop-dear .kamer-koop-name {
+  color: var(--ink-muted);
+}
+
+.kamer-koop-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kamer-koop-name {
+  margin: 0;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.kamer-koop-line {
+  margin: 0.15rem 0 0;
+}
+
+/* Wat het ding zégt dat het doet. Onder elkaar, met een streepje, en verder
+   niets: geen getal, geen optelling, geen volgorde die iets betekent. Het
+   archief somt op; de tafel beslist (regel 78). */
+.kamer-koop-effect {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  color: var(--ink-muted);
+}
+.kamer-koop-effect li::before {
+  content: '— ';
+}
+
+.kamer-koop-buy {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  text-align: center;
+}
+.kamer-koop-price {
+  white-space: nowrap;
+}
+
+/* ------------------------------------------ §80: wat deze kamer je geeft */
+
+.kamer-effecten {
+  margin-top: 1.6rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+.kamer-effecten-title {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+}
+/*
+ * Twee kolommen op een breed scherm, want het is een register: je zoekt er een
+ * naam in op. Eén op een smal scherm — zie de telefoonblok onderaan.
+ */
+.kamer-effecten-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 0.7rem 1.2rem;
+}
+.kamer-effect {
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border-left: 2px solid var(--rule);
+}
+.kamer-effect-name {
+  display: block;
+  font-weight: 600;
+  word-break: break-word;
+}
+.kamer-effect-lines {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+}
+.kamer-effect-lines li {
+  padding: 0.1rem 0;
+  color: var(--ink-muted);
+}
+.kamer-effect-lines li::before {
+  content: '— ';
+}
+
+@media (max-width: 560px) {
+  /* Op een telefoon is het blad bijna de hele breedte, maar een omslagje, een
+     naam, een prijs én een knop op één rij is er één te veel: de prijs en de
+     knop gaan naast elkaar onder de tekst staan. */
+  .kamer-koop {
+    flex-wrap: wrap;
+  }
+  .kamer-koop-buy {
+    flex: 1 1 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+  }
+}
+
+/* ------------------------------------------------------ §82: de winkel
+
+   Dezelfde familie als de kamer, en daarom in dit bestand: een rij in de
+   winkel *is* een catalogusrij (`.kamer-koop`), alleen staat hij op een
+   pagina in plaats van in een blad. Wat hier staat is alleen wat de winkel
+   eromheen nodig heeft — de koppen per soort plek, de beurs bovenaan, en de
+   regels die geen knop zijn.
+
+   Geen enkele kleur staat hard: alles loopt over de tokens uit §45, net als
+   de rest van dit bestand. "Te duur" is `--ink-muted` en een streep en nooit
+   een eigen kleur, want dat zou vier keer gekozen moeten worden. */
+
+.winkel-page {
+  max-width: 64rem;
+}
+
+.winkel-title {
+  margin: 0.1rem 0 0.6rem;
+}
+
+/* Het saldo en de deur terug naar de kamer op één regel: het bedrag is waar
+   de pagina over gaat, de deur is waar je hem uitgeeft. */
+.winkel-balance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.6rem 0 1.2rem;
+}
+.winkel-kamer-deur {
+  text-decoration: none;
+}
+
+/* --- voor wie je koopt ---------------------------------------------------
+   Alleen zichtbaar bij meer dan één onderzoeker. Een chip met een naam en de
+   beurs eronder, want dat is het getal waarop je kiest. */
+.winkel-kiezer {
+  margin: 0.2rem 0 0.2rem;
+}
+.winkel-kiezer-label {
+  margin: 0 0 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--stamp-face);
+}
+.winkel-kiezer-saldo {
+  margin-left: 0.35rem;
+  white-space: nowrap;
+}
+
+/* --- per soort plek ------------------------------------------------------
+   Eén kop per soort, in de volgorde van de ladder (`PLEK_KINDS`). Een groep
+   zonder inhoud staat er niet: een kop met een gat eronder is geen etalage. */
+.winkel-groep {
+  margin-top: 1.4rem;
+}
+.winkel-groep-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--stamp-face);
+}
+
+/* Een omslagje in de winkel is smaller dan een tegel in de kamer: de rij is
+   breed en de tekst is waar hij over gaat. `.plek-cover` doet het knippen. */
+.winkel-cover {
+  flex: 0 0 auto;
+  width: 3rem;
+}
+
+/* De naam is een link naar het artikel — een stuk huisraad *is* een artikel
+   (§79, regel 3) — maar draagt in een lijst geen eigen kleurtje. */
+.winkel-rij .kamer-koop-name a {
+  color: inherit;
+  text-decoration: none;
+}
+.winkel-rij .kamer-koop-name a:hover {
+  text-decoration: underline;
+}
+
+/* Wat géén knop is — al in je kamer, een ander heeft hem, geen vrije plek —
+   staat op dezelfde plaats als de knop en neemt dezelfde ruimte in, zodat de
+   kolom rechts niet danst. Eén regel, gedempt, en nooit een knop die niets
+   doet. */
+.winkel-state {
+  display: block;
+  max-width: 9rem;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.winkel-keeper {
+  margin: 0.4rem 0 1.2rem;
+}
+
+@media (max-width: 560px) {
+  /* Op een telefoon staan de prijs en wat eronder hoort naast elkaar onder de
+     tekst (`.kamer-koop` wrapt al), en dan mag de regel de breedte hebben. */
+  .winkel-state {
+    max-width: none;
+    text-align: right;
+  }
+  .winkel-cover {
+    width: 2.5rem;
+  }
+  .winkel-balance {
+    gap: 0.5rem;
+  }
+}

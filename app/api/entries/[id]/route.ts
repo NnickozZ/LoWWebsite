@@ -83,7 +83,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     // §6: "Bram also edited this — refreshed". §18: by the name they wear.
     let previousEditorName: string | null = null;
     if (result.updatedBy && result.updatedBy !== user.id) {
-      previousEditorName = displayNameOf(result.updatedBy, getWords().keeper)?.label ?? null;
+      previousEditorName = displayNameOf(result.updatedBy)?.label ?? null;
     }
 
     return json({

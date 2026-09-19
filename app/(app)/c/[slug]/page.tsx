@@ -125,7 +125,7 @@ export default async function CasePage({
   const looseFamilyTrees = mayEdit ? listFamilyTrees(user, { where: 'loose', sort: 'recent' }) : [];
   const words = getWords();
   // §18: the log names characters; the account stays in the tooltip.
-  const activity = attributed(listCaseActivity(record.id, user), words.keeper);
+  const activity = attributed(listCaseActivity(record.id, user));
 
   const accounts = db
     .select({ id: schema.users.id, username: schema.users.username })

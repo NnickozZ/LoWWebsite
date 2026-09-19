@@ -209,7 +209,6 @@ export default async function EntryPage({
       actorName: r.username,
       actorIsKeeper: Boolean(r.isKeeper),
     })),
-    words.keeper,
   );
 
   // §18: is this fiche one of the viewer's characters, and who else plays it?

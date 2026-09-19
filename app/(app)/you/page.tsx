@@ -67,6 +67,18 @@ export default async function YouPage() {
             Jouw {words.spelerPage.toLowerCase()}
           </Link>
         )}
+        {/* §81: en de hal, waar ze allemaal staan. */}
+        <Link className="btn btn-small" href="/spelers">
+          <Icon name="badge" size={15} />
+          {words.spelerPagePlural}
+        </Link>
+        {/* §82: de etalage. Staat hier omdat het de enige plek is die niet
+            aan één onderzoeker hangt — wie er twee draagt, koopt vanaf hier
+            voor allebei. */}
+        <Link className="btn btn-small" href="/winkel">
+          <Icon name="box" size={15} />
+          {words.shop}
+        </Link>
       </p>
       {worn && (
         <p className="small muted" style={{ marginTop: 0 }}>

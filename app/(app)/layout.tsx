@@ -29,6 +29,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     newButton: cleanTypeText(t.pageText).newButton,
     // §49: does a new one of these start with the dossier in front of its name?
     prefixDefault: t.prefixDefault,
+    // §80: and may anybody but the Keeper make one? The whole list still goes
+    // down — an artikel of this soort is ordinary to read, and its icon and
+    // colour come from here — but the nieuw-artikel sheet leaves it out.
+    keeperMade: t.keeperMade,
   }));
 
   // §11: the Keeper's words, resolved once here so every client component in

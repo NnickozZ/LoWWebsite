@@ -428,7 +428,7 @@ test.describe('§79 De kamer', () => {
     // slug hier niet nagerekend hoeft te worden (`lib/spelers/service.ts` is de
     // enige die hem mag uitrekenen).
     await page.goto('/you');
-    const door = page.getByRole('main').getByRole('link', { name: /spelerspagina/i });
+    const door = page.getByRole('main').getByRole('link', { name: 'Jouw spelerspagina' });
     await expect(door).toBeVisible({ timeout: 20_000 });
     const spelerPath = new URL((await door.getAttribute('href')) ?? '', 'http://x').pathname;
     await page.goto(spelerPath);

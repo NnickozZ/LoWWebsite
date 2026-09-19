@@ -316,12 +316,21 @@ test('the other hand is on the wall: a pointer, and a card that travels before i
  *
  * Every other "Keeper" in this file passes whichever rule the code follows,
  * because the seeded Keeper account is *called* Keeper. So this one renames the
- * word to "Spelleider" first: after that, a feed row that says "Keeper" is
- * reading the account, and an arrow that says "Spelleider" is reading the word,
- * and either is a bug. A log says what the Keeper did; a strip says who is
- * here, and the word is the same for every Keeper in the room.
+ * word to "Spelleider" first: after that, anything reading the *account* says
+ * "Keeper" and anything reading the *word* says "Spelleider", and the two can
+ * finally be told apart.
+ *
+ * §81 turned this case around, and it is the only place in the suite that can
+ * prove it. It used to assert that the feed said the **word** — one voice for
+ * the table (§11), while the strip said the account. Nick asked for the
+ * opposite: a log answers *who did this*, and a shared word is not an answer
+ * at a table with two Keepers, or for a Keeper looking for their own edit
+ * back. So both halves now read the account, and the word "Spelleider" must
+ * appear **nowhere** in either — which is the assertion that would have failed
+ * before this round, and the one that fails again if anybody puts the word
+ * back.
  */
-test('the feed says the Keeper’s word; presence says their account', async ({
+test('a Keeper signs with their account name, in the feed as well as on the strip', async ({
   page,
   browser,
 }, testInfo) => {
@@ -382,17 +391,21 @@ test('the feed says the Keeper’s word; presence says their account', async ({
     await expect(held.locator('.board-held-name')).toHaveText('Keeper');
 
     // One screen, both rules: the start page names the Keeper twice, and the
-    // two names differ on purpose. "Ook hier" is the account…
+    // §81: both read the account now. The strip always did…
     await page.goto('/');
     await player.goto('/');
     await expect(player.getByTestId('live-strip')).toHaveClass(/live-strip-live/, { timeout: 15_000 });
     const alsoHere = player.getByTestId('live-strip').locator('.board-person').first();
     await expect(alsoHere).toHaveAttribute('title', 'Keeper', { timeout: 15_000 });
 
-    // …and the feed under it is the word, with the account in the tooltip.
+    // …and §81: so is the feed under it. Same name, same person, one rule.
     const row = player.locator('.feed-item').filter({ hasText: entryName }).first();
-    await expect(row.locator('strong').first()).toHaveText('Spelleider');
+    await expect(row.locator('strong').first()).toHaveText('Keeper');
     await expect(row.locator('strong').first()).toHaveAttribute('title', 'Keeper');
+    // The renamed *word* is what the old rule printed here. It must not be on
+    // this row at all — not in the label, not in a tooltip, not in the markup.
+    await expect(row).not.toContainText('Spelleider');
+    expect(await row.innerHTML()).not.toContain('Spelleider');
 
     await context.close();
   } finally {

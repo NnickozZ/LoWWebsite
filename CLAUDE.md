@@ -163,7 +163,30 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is **§75 / rule 75** (round 38: een overzicht is
+  choosing a number — the latest is **§82 / rule 82** (round 43: de winkel —
+  `/winkel` toont alles wat te koop is, ook wat je niet kunt betalen, want je
+  kunt niet sparen voor wat je niet ziet; kopen gaat door `buyFurnishing` heen
+  en is dus nooit een tweede weg. Daarbij twee reparaties die alleen een echte
+  hand vond: een soort waarvan het id en de slug verschillen was niet op te
+  slaan, en het omzetten van `one_of_a_kind` liet de bestaande `claim`s staan).
+  Daarvoor **§81 / rule 81** (round 42: een Keeper tekent
+  met zijn eigen accountnaam in plaats van met het woord "Keeper" — dit **keert
+  regel 5 van §18 om** en het woord blijft alleen staan waar het een *rol*
+  noemt; plus `/spelers`, de hal met alle spelerspaginas). Daarvoor: **§80**
+  huisraad — een tweede soort naast Voorwerpen die alleen de Keeper maakt
+  (`keeper_made` op een soort, niet §44's `keeper_only` op een artikel), met een
+  prijs, een catalogus, effectregels die getoond en nooit opgeteld worden, plus
+  `one_of_a_kind` / `room_slots.claim` en het sleutelvakje in de soorten-editor;
+  **§79** de kamer — een raster van plekken per onderzoeker, een grootboek
+  waarvan het saldo de som is, een voorwerp dat een *artikel* is; **§78** de
+  gereserveerde kamer (opgegaan in §79); **§77** de spelerspagina, waar een
+  paneel een samenvatting met een deur is; **§76** Aanwezig — het lijstje wordt
+  per kijker gebouwd, met één vaste zin voor elke verborgen plek.
+
+  *(Deze wegwijzer stond tot ronde 42 nog op §75, drie rondes lang: de
+  bewerking ervan mislukte stil omdat een tekstvervanging die niets vindt ook
+  niets zegt. Wie dit bestand programmatisch bijwerkt: controleer dát er iets
+  veranderd is.)* Ter vergelijking, **§75 / rule 75** (round 38: een overzicht is
   een pagina van de wiki die óver de wiki gaat — `/wiki` is de voordeur,
   `/wiki/alles` de lijst, en een verwijzing vanaf een overzicht loopt één kant
   op, wat één regel in `recomputeOwnerMentions` is en verder volgt uit het feit
@@ -935,6 +958,18 @@ the only side that finds them.
    tests were green the whole time, because they write the row with SQL. The
    browser found it in one run. When a round invents a new way for data to be
    shaped, walk the road a person would walk before calling it done.
+
+### §80: a lock needs a slot on the outside of the door too
+
+`createEntry` refuses a `keeper_made` soort for anybody else — the lock. The
+sheet is supposed to leave that soort out of a player's list — the slot. Round
+41 shipped the lock, wrote a comment in `lib/entries/service.ts` saying the
+sheet already did its half, and it did not: a speler was offered *Huisraad*,
+typed a name, pressed Aanmaken and was told off for taking what they had been
+shown. Unit tests cannot see that; the browser found it in one run.
+
+When you gate a write, walk the screen that leads to it — and never write a
+comment claiming the other half exists without opening it.
 
 ## 6. Writing e2e specs that pass the first time
 

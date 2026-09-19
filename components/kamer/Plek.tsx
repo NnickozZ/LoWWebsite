@@ -29,6 +29,14 @@ export function plekState(slot: SlotView): PlekState {
  *  - **filled** — the voorwerp's own cover and name, linking to its artikel,
  *    because a voorwerp *is* an artikel (rule 3 of the round) and this is not a
  *    second place where it lives.
+ *
+ *    §80 asked whether the price belongs here too, and the answer is **no**.
+ *    What a filled plek cost is already written down twice — once in the
+ *    grootboek, where the spend is a line, and once in the catalogue, where
+ *    the same thing is still for sale to somebody else. A third copy on the
+ *    tile turns a kamer into a price list, and the tile has exactly the room
+ *    for a picture and a name. The price belongs where it is a *decision* (the
+ *    locked plek, the catalogue row), not where it is a memory.
  *  - **veiled** — `words.slotVeiled`, and nothing else.
  *
  * That last one is §76's rule standing in a new place and it is the most
@@ -128,7 +136,8 @@ export function Plek({
               slotId={slot.id}
               kind={slot.kind}
               kindLabel={kind}
-              label={words.slotPlace}
+              balance={balance}
+              words={words}
             />
           )}
         </>
