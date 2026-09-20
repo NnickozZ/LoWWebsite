@@ -1,11 +1,14 @@
 import '@/app/kamer.css';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Icon } from '@/components/Icon';
 import { Uitdeler } from '@/components/kamer/Uitdeler';
+import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { handOutTargets } from '@/lib/kamers/service';
-import { capitalise } from '@/lib/words';
+import { fill } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +50,22 @@ export default async function UitdelenPage() {
        */}
       <LivePage place="page:/uitdelen" watch={['users', 'characters', 'entries']} />
 
-      <p className="eyebrow">{capitalise(words.room)}</p>
-      <h1 className="uitdelen-title">{words.handoutTitle}</h1>
+      {/*
+        §85: de eyebrow zei "Kamer", net als die van de winkel en die van élke
+        kamer — en een kruimelpad dat op drie pagina's hetzelfde zegt zegt
+        niets (§84 haalde dezelfde fout uit de kamer). Dit is het ene scherm in
+        het archief dat alleen van de Keeper is, en dát is waar je bent.
+      */}
+      <p className="eyebrow">{words.keeper}</p>
+      <h1 className="row-wrap uitdelen-title">
+        {words.handoutTitle}
+        {/* En de deur terug. Uitdelen is iets wat je vanaf de hal begint en
+            waar je naar de hal van terugkeert om te zien wat het deed. */}
+        <Link className="btn btn-small" href="/spelers" data-testid="uitdelen-terug">
+          <Icon name={MEANING.onderzoeker} size={13} />
+          {fill(words.toPlayers, { spelers: words.playerPlural })}
+        </Link>
+      </h1>
 
       {targets.length === 0 ? (
         <p className="small muted" data-testid="uitdelen-leeg">

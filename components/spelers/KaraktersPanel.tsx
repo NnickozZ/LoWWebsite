@@ -74,7 +74,7 @@ export function KaraktersPanel({
           </li>
         ))}
       </ul>
-      {isSelf && <PanelDoor href="/you#karakters">{words.yourCharacters}</PanelDoor>}
+      {isSelf && <PanelDoor href="/you#karakters">{words.toCharacters}</PanelDoor>}
     </>
   );
 }

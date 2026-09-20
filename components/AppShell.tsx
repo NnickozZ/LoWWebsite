@@ -8,6 +8,7 @@ import { EntryPreview } from '@/components/EntryPreview';
 import { Icon } from '@/components/Icon';
 import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
+import { ShellBeurs } from '@/components/kamer/ShellBeurs';
 // §76: the roster's own stylesheet, beside the strip that opens it. `globals.css`
 // is the busiest file in the repo (§75 made `overzichten.css` for the same
 // reason); a feature with a panel, a row and a banner belongs in its own.
@@ -174,6 +175,7 @@ export function AppShell({
   types,
   words,
   me,
+  purse,
   uploadLimit,
   siteName,
   tagline,
@@ -185,6 +187,15 @@ export function AppShell({
   words: Words;
   /** §18: this account, and the characters it may wear. */
   me: Me;
+  /**
+   * §84: de beurs van de onderzoeker die deze persoon nú draagt, of null.
+   *
+   * Op de server gelezen (`purseOf` in de layout) omdat de schil een
+   * client-component is en dit een vraag aan de database is. Null voor de
+   * Keeper (draagt niemand, §18) en voor wie nog geen onderzoeker draagt — en
+   * dan staat er niets, geen nul.
+   */
+  purse: { roomId: string; balance: number; slug: string } | null;
   /**
    * How heavy a picture this person may send up — a player's 2 MB or the
    * Keeper's 20 MB, decided on the server (`uploadLimitFor`) because the role
@@ -242,6 +253,18 @@ export function AppShell({
           <SideSwitched side={me.side === 'keeper' ? 'keeper' : 'player'} />
           <main className="main">
             <LiveStrip words={words} />
+            {/*
+             * §84: en links ervan het saldo. Ná de strip in de bron, want twee
+             * dingen die `float: right` doen stapelen van rechts naar links:
+             * de eerste staat het verst naar rechts.
+             *
+             * Dit is de voordeur van de hele meta-progressie geworden. Vóór
+             * ronde 45 hing die aan één menu-item — *Jij* — en was je eigen
+             * kamer drie klikken diep; nu is het er één, vanaf elke pagina.
+             */}
+            {purse && (
+              <ShellBeurs roomId={purse.roomId} balance={purse.balance} slug={purse.slug} words={words} />
+            )}
             {/*
              * §18b: a speler with no onderzoeker may read the whole archive
              * and write none of it. The notice stands at the top of every page

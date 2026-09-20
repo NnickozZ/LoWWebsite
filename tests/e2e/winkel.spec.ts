@@ -228,14 +228,18 @@ test.describe('§82 De winkel', () => {
     await expect(prentRij).toHaveCount(1, { timeout: 20_000 });
     await expect(gobelinRij).toHaveCount(1);
 
-    // Allebei staan ze in de groep van hun soort plek, met hun prijs erop.
-    const muurGroep = owner.locator('[data-testid="winkel-groep"][data-kind="muur"]');
-    await expect(muurGroep.getByTestId('winkel-rij').filter({ hasText: prent.name })).toHaveCount(1);
-    await expect(muurGroep.getByTestId('winkel-rij').filter({ hasText: gobelin.name })).toHaveCount(
-      1,
-    );
+    /*
+     * §84: allebei dragen ze hun soort plek als chip, en het filter erboven
+     * laat ze allebei staan. De kopjes per soort plek zijn weg — zie de zaak
+     * verderop en regel 84 voor waarom.
+     */
+    const muurFilter = owner.locator('[data-testid="winkel-filter-chip"][data-kind="muur"]');
+    await muurFilter.click();
+    await expect(rij(owner, prent.name)).toHaveCount(1);
+    await expect(rij(owner, gobelin.name)).toHaveCount(1);
+    await owner.locator('[data-testid="winkel-filter-chip"][data-kind=""]').click();
 
-    await expect(prentRij).toHaveAttribute('data-kind', 'muur');
+    await expect(prentRij).toHaveAttribute('data-kinds', 'muur');
     await expect(prentRij).toHaveAttribute('data-price', '2');
     await expect(prentRij).toHaveAttribute('data-afford', 'ja');
     await expect(prentRij).toHaveAttribute('data-state', 'buy');
@@ -243,17 +247,18 @@ test.describe('§82 De winkel', () => {
     await expect(prentRij.getByTestId('winkel-effect')).toHaveText([prent.effect[0]]);
     await expect(prentRij.getByTestId('winkel-naam')).toHaveAttribute('href', `/e/${prent.slug}`);
 
-    // En het dure ding: niet weggelaten, niet zonder prijs, wel vastgehouden —
-    // met in de titel van de knop hoeveel er nog aan ontbreekt.
+    /*
+     * En het dure ding: niet weggelaten, niet zonder prijs — en sinds §84 met
+     * de zin erbij in plaats van een dode knop met een `title`, die op een
+     * telefoon niet bestaat.
+     */
     await expect(gobelinRij).toHaveAttribute('data-price', '9');
     await expect(gobelinRij).toHaveAttribute('data-afford', 'nee');
     await expect(gobelinRij).toHaveAttribute('data-state', 'dear');
     await expect(gobelinRij.getByTestId('winkel-prijs')).toHaveText('9 munten');
     await expect(gobelinRij.getByTestId('winkel-effect')).toHaveText([gobelin.effect[0]]);
-    const vast = gobelinRij.getByTestId('winkel-koop');
-    await expect(vast).toHaveCount(1);
-    await expect(vast).toBeDisabled();
-    await expect(vast).toHaveAttribute('title', /nog 6 munten/);
+    await expect(gobelinRij.getByTestId('winkel-koop')).toHaveCount(0);
+    await expect(gobelinRij.getByTestId('winkel-short')).toContainText('6 munten');
 
     /* ------------------------------------ zaak 2: kopen, en het hangt er echt */
 
@@ -271,15 +276,13 @@ test.describe('§82 De winkel', () => {
      */
     await expect(rij(owner, prent.name).getByTestId('winkel-owned')).toBeVisible({ timeout: 20_000 });
     await expect(rij(owner, prent.name)).toHaveAttribute('data-state', 'dear');
-    await expect(rij(owner, prent.name).getByTestId('winkel-koop')).toBeDisabled();
+    // §84: en geen dode knop meer, maar de zin die zegt wat eraan ontbreekt.
+    await expect(rij(owner, prent.name).getByTestId('winkel-short')).toContainText('nodig');
 
     // Het dure ding is nóg duurder geworden ten opzichte van de beurs, en staat
     // er nog steeds — dat is de regel van de etalage, ook ná een koop.
     await expect(rij(owner, gobelin.name)).toHaveAttribute('data-state', 'dear');
-    await expect(rij(owner, gobelin.name).getByTestId('winkel-koop')).toHaveAttribute(
-      'title',
-      /nog 8 munten/,
-    );
+    await expect(rij(owner, gobelin.name).getByTestId('winkel-short')).toContainText('8 munten');
 
     // En dan de kamer: rung 2 is de eerste vrije muur, en daar hangt hij.
     await openKamer(owner, slug);
@@ -558,12 +561,15 @@ test.describe('§82 De winkel', () => {
    * en de knop van elke groep is die van zijn eigen plank.
    *
    * Dit is de zaak die alleen een browser kan stellen: de winkel groepeert per
-   * soort plek, en de vraag is of dezelfde rij twee keer getekend wordt *en*
-   * twee verschillende antwoorden geeft zodra één van de twee soorten vol is.
-   * Eén `landsIn` voor zo'n ding zou de winkel in één van zijn twee groepen
-   * laten liegen.
+   * soort plek, en de vraag is wat er met zo'n ding gebeurt.
+   *
+   * **§84 keerde het antwoord om.** §83 liet het in beide groepen staan, elk
+   * met een eigen knop — en na één koop zeiden die twee rijen tegengestelde
+   * dingen over één voorwerp. Nu staat het er **één keer**, met chips die
+   * zeggen waar het past, en landt de koop op de eerste vrije plek in de
+   * volgorde van de ladder. De groepen zijn een filter geworden.
    */
-  test('een ding dat op twee soorten plek past staat in beide groepen', async ({
+  test('een ding dat op twee soorten plek past staat één keer, met beide plekken erbij', async ({
     page,
     browser,
     isMobile,
@@ -586,40 +592,45 @@ test.describe('§82 De winkel', () => {
     await giveMunten(page, slug, 9, `Sparen ${stamp}`);
 
     await openWinkel(owner);
-    const rijen = rij(owner, klok.name);
-    // Twee keer dezelfde rij, één per groep — en elke groep zegt welke.
-    await expect(rijen).toHaveCount(2, { timeout: 20_000 });
-    const inGroep = (kind: PlekKind) =>
-      owner.locator(`[data-testid="winkel-rij"][data-kind="${kind}"]`).filter({ hasText: klok.name });
-    const aanDeMuur = inGroep('muur');
-    const opHetBureau = inGroep('bureau');
-    await expect(aanDeMuur).toHaveCount(1);
-    await expect(opHetBureau).toHaveCount(1);
-    await expect(aanDeMuur).toHaveAttribute('data-state', 'buy');
-    await expect(opHetBureau).toHaveAttribute('data-state', 'buy');
+    const klokRij = rij(owner, klok.name);
+    // §84: één rij, en die draagt allebei de soorten plek.
+    await expect(klokRij).toHaveCount(1, { timeout: 20_000 });
+    await expect(klokRij).toHaveAttribute('data-kinds', 'muur bureau');
+    await expect(klokRij).toHaveAttribute('data-state', 'buy');
+    await expect(klokRij.getByTestId('winkel-koop')).toHaveCount(1);
 
-    /* ---------------------- de muur vol, en alleen die groep verandert mee */
+    /* -------------- het filter beantwoordt de vraag die de groepen stelden */
 
-    await opHetBureau.getByTestId('winkel-koop').click();
+    const chip = (kind: PlekKind) =>
+      owner.locator(`[data-testid="winkel-filter-chip"][data-kind="${kind}"]`);
+    await chip('muur').click();
+    await expect(rij(owner, klok.name)).toHaveCount(1);
+    await chip('plank').click();
+    await expect(rij(owner, klok.name)).toHaveCount(0);
+    await chip('bureau').click();
+    await expect(rij(owner, klok.name)).toHaveCount(1);
+
+    /* ------------------------------------ kopen landt op de eerste vrije plek */
+
+    await rij(owner, klok.name).getByTestId('winkel-koop').click();
     await expect(owner.getByTestId('winkel-balance')).toHaveAttribute('data-balance', '7', {
       timeout: 20_000,
     });
 
-    // Rung 0 is het gratis bureau: daar staat hij nu.
+    // De ladder loopt bureau (0), plank (1), muur (2): het bureau is het eerst.
     await openKamer(owner, slug);
     await expect(plek(owner, 0)).toHaveAttribute('data-state', 'filled', { timeout: 20_000 });
     await expect(plek(owner, 0)).toHaveAttribute('data-kind', 'bureau');
 
     /*
-     * En nu het hele punt: hetzelfde ding, nog een keer, maar dan aan de muur.
-     * §83 laat dat toe — twee dezelfde klokken mag — en de muurgroep heeft nog
-     * een vrije plek (rung 2), dus dáár staat wél een knop.
+     * En nog een keer, want §83 laat twee dezelfde klokken toe. Het bureau is
+     * nu vol, dus hij landt op de muur — dezelfde ene knop, een andere plek.
      */
     await openWinkel(owner);
-    const muurRij = inGroep('muur');
-    await expect(muurRij.getByTestId('winkel-owned')).toBeVisible({ timeout: 20_000 });
-    await expect(muurRij).toHaveAttribute('data-state', 'buy');
-    await muurRij.getByTestId('winkel-koop').click();
+    const nogEens = rij(owner, klok.name);
+    await expect(nogEens.getByTestId('winkel-owned')).toBeVisible({ timeout: 20_000 });
+    await expect(nogEens).toHaveAttribute('data-state', 'buy');
+    await nogEens.getByTestId('winkel-koop').click();
     await expect(owner.getByTestId('winkel-balance')).toHaveAttribute('data-balance', '5', {
       timeout: 20_000,
     });

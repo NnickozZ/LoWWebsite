@@ -1,72 +1,98 @@
 import Link from 'next/link';
 import { Cover } from '@/components/Cover';
-import { munt } from '@/components/kamer/plekWords';
+import { Icon } from '@/components/Icon';
+import { munt, plekIcon, plekWord, shortfall } from '@/components/kamer/plekWords';
 import type { ShopItem } from '@/lib/kamers/service';
 import type { PlekKind } from '@/lib/kamers/shape';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
 import { BuyButton } from './BuyButton';
 
 /**
- * Which of the five things a row in the shop window is.
+ * §84: welke van de zes dingen een rij in de etalage is — nu één keer per ding.
  *
- * They are asked in this order and the order is the whole rule:
+ * §82 groepeerde de winkel per soort plek, en dat was een goede redenering: een
+ * etalage lees je naar wáár een ding zou gaan. §83 haalde hem onderuit zonder
+ * het te merken — sindsdien mag een ding op meer dan één soort plek passen, en
+ * dus stond het in twee groepen, met twee koopknoppen. Na één koop zei de ene
+ * rij "geen vrije plek van deze soort" en de andere, van hetzelfde ding, "staat
+ * al in je kamer" boven een levende knop. Twee rijen, één ding, tegengestelde
+ * boodschappen.
  *
- *  - `list` — there is no purse at all (the Keeper, §18, who wears nobody).
- *    A price list, and not one button anywhere on it.
- *  - `owned` — there is one of it and it is already lying in the kamer being
- *    shopped for. **Only for a thing there is one of** (§83): since ronde 44
- *    you may own two of the same stoel, so for everything else this is a line
- *    of text beside a live button rather than a state.
- *  - `taken` — there is one of it and somebody else has it. Said out loud,
- *    because a lantaarn that is gone is not simply missing from the world.
- *  - `dear` — you cannot pay for it. **Still listed, still priced**, with a
- *    held button saying how much is missing. That is the whole point of a shop
- *    window, and it is `UnlockButton`'s and the catalogue's rule in a third
- *    place.
- *  - `noslot` — you can pay for it and there is nowhere to put it. A line and
- *    a door back to the kamer, where a plek can be opened.
- *  - `buy` — everything is true at once.
+ * Dus: één rij per ding, met chips die zeggen waar het past, en een filter
+ * boven de lijst voor de vraag die de groepen beantwoordden. Dat keert §82's
+ * groepering om en dat staat met zoveel woorden in regel 84 en in `DECISIONS.md`.
  *
- * `dear` deliberately beats `noslot`: somebody who cannot afford a thing is
- * not helped by being told they also have no shelf for it, and the price is
- * the fact they came to read.
+ * De zes toestanden, in deze volgorde gevraagd, en de volgorde ís de regel:
  *
- * §83 made this per **kind of plek**, because a thing may fit several and its
- * free plek is not the same answer in each: a row under *muur* with a full muur
- * says `noslot` while the very same thing under *plank* says `buy`.
+ *  - `list` — er is helemaal geen beurs (de Keeper, §18, die niemand draagt).
+ *    Een prijslijst, en geen knop ergens op de pagina.
+ *  - `owned` — er is er **één van** en die ligt al in deze kamer. Alleen voor
+ *    `one_of_a_kind` een weigering; voor al het andere is "je hebt er al een"
+ *    een *mededeling* naast een levende knop (§83).
+ *  - `taken` — er is er één van en een ander heeft hem. Hardop gezegd, want een
+ *    lantaarn die weg is, is niet zomaar afwezig uit de wereld.
+ *  - `dear` — je kunt hem niet betalen. **Staat er nog steeds, met de prijs**,
+ *    en met de zin die zegt hoeveel je tekortkomt — zichtbaar, niet in een
+ *    `title`, want een `title` bestaat niet op een telefoon en dit is precies
+ *    de zin die iemand aan het sparen zet.
+ *  - `noslot` — je kunt het betalen en je hebt er nergens plek voor. Een deur
+ *    terug naar de kamer, waar een plek geopend kan worden.
+ *  - `buy` — alles klopt tegelijk.
+ *
+ * `dear` gaat met opzet vóór `noslot`: wie iets niet kan betalen heeft niets aan
+ * de mededeling dat hij er ook geen plank voor heeft, en de prijs is het feit
+ * waarvoor hij kwam.
  */
 export type WinkelState = 'list' | 'owned' | 'taken' | 'dear' | 'noslot' | 'buy';
 
-export function winkelState(item: ShopItem, canBuy: boolean, kind: PlekKind): WinkelState {
+/**
+ * Waar dit ding zou landen: de eerste vrije plek, in de volgorde van de ladder.
+ *
+ * `shopFor` vult `landsIn` door de plekken van deze kamer op `sort_order` af te
+ * lopen, dus de **sleutelvolgorde** ís de ladder — en dat is hier de hele
+ * afspraak. Lopen over `PLEK_KINDS` zou de volgorde van een constante zijn
+ * (muur, plank, bureau, kist) en niet die van de kamer (bureau, plank, muur),
+ * en een klok die op een muur én een bureau past landde dan aan de muur terwijl
+ * het vrije bureau de eerdere sport was. Een e2e-zaak vond dat; het comment
+ * boven deze functie zei het goede en de code deed het andere (§83's les).
+ */
+export function landing(item: ShopItem): { kind: PlekKind; slotId: string } | null {
+  for (const [kind, slotId] of Object.entries(item.landsIn)) {
+    if (slotId) return { kind: kind as PlekKind, slotId };
+  }
+  return null;
+}
+
+export function winkelState(item: ShopItem, canBuy: boolean): WinkelState {
   if (!canBuy) return 'list';
-  // §83: owning one only stops you when there is one of it in the world.
+  // §83: al hebben houdt je alleen tegen als er één van in de wereld is.
   if (item.unique && item.owned) return 'owned';
   if (item.takenElsewhere) return 'taken';
   if (!item.affordable) return 'dear';
-  return item.landsIn[kind] ? 'buy' : 'noslot';
+  return landing(item) ? 'buy' : 'noslot';
 }
 
 /**
- * §82: één ding dat te koop staat.
+ * §82/§84: één ding dat te koop staat.
  *
- * The same four things in the same order as §80's catalogue row, because it is
- * the same question asked in a wider room: the cover, the name with its one
- * line, what it says it gives, and — to the right — the price with whatever
- * may be done about it underneath. Somebody saving up reads a shop window in
- * that order, and a second order would be a second habit.
+ * Dezelfde vier dingen in dezelfde volgorde als de catalogusrij in de
+ * plek-kiezer, want het is dezelfde vraag in een ruimere kamer: de afbeelding,
+ * de naam met zijn ene regel, wat het zegt dat het geeft, en — rechts — de
+ * prijs met wat eraan te doen valt. Wie spaart leest een etalage in die
+ * volgorde, en een tweede volgorde zou een tweede gewoonte zijn.
  *
- * The name is a link to the artikel, because a stuk huisraad *is* an artikel
- * (§79, rule 3) and this is not a second place where it lives. The effect
- * lines are shown and never added up (rule 78): the archive lists, the table
- * decides.
+ * De naam is een link naar het artikel, want een stuk huisraad *is* een artikel
+ * (§79, regel 3) en dit is niet een tweede plek waar het woont. De effectregels
+ * worden getoond en nooit opgeteld (rule 78): het archief somt op, de tafel
+ * beslist.
  *
- * Nothing here is told apart by colour — `dear` is `--ink-muted` and a dashed
- * rule, and the state a test reads is `data-state`. §45 has four colour
- * schemes and a Keeperkant on top of them, so a colour is never a fact.
+ * Niets wordt hier uit elkaar gehouden met kleur — `dear` is `--ink-muted` en
+ * een gestreepte rand, en de toestand die een test leest is `data-state`. §45
+ * heeft vier kleurschema's en een Keeperkant erbovenop, dus een kleur is nooit
+ * een feit.
  */
 export function WinkelRij({
   item,
-  kind,
   roomId,
   roomSlug,
   balance,
@@ -74,40 +100,33 @@ export function WinkelRij({
   words,
 }: {
   item: ShopItem;
-  /**
-   * §83: the group this row is drawn in. A thing that fits a muur and a plank
-   * is drawn twice — once under each — and the free plek, and therefore the
-   * button, is that group's own.
-   */
-  kind: PlekKind;
-  /** The kamer being shopped for, or null when there is no purse (the Keeper). */
+  /** De kamer waarvoor gekocht wordt, of null als er geen beurs is (de Keeper). */
   roomId: string | null;
-  /** That kamer's onderzoeker-slug, for the way back when there is no free plek. */
+  /** De slug van die onderzoeker, voor de weg terug én voor de deur in de melding. */
   roomSlug: string | null;
   balance: number;
   canBuy: boolean;
   words: Words;
 }) {
-  const state = winkelState(item, canBuy, kind);
-  const short = item.price - balance;
-  const landsIn = item.landsIn[kind] ?? null;
+  const state = winkelState(item, canBuy);
+  const lands = landing(item);
 
   return (
     <li
       className={`kamer-koop winkel-rij${state === 'dear' ? ' kamer-koop-dear' : ''}`}
       data-testid="winkel-rij"
       data-entry-id={item.id}
-      data-kind={kind}
+      data-kinds={item.plekken.join(' ')}
       data-price={item.price}
       data-state={state}
-      /* §80's attribute, kept spelled the same way so the two rows read alike. */
+      /* §80's attribuut, hetzelfde gespeld zodat de twee rijen gelijk lezen. */
       data-afford={item.affordable ? 'ja' : 'nee'}
     >
       <Cover
         assetId={item.coverAssetId}
-        shape="portrait"
+        shape="square"
         alt=""
-        icon="box"
+        icon={plekIcon(item.plekken[0] ?? 'kist')}
         variant="thumb"
         className="plek-cover winkel-cover"
       />
@@ -130,21 +149,37 @@ export function WinkelRij({
             ))}
           </ul>
         )}
+        {/*
+          §84: waar het past, als chips. Dit is wat de groepen van §82 zeiden,
+          en het is nu een eigenschap van het ding in plaats van van zijn plaats
+          in de lijst — waarmee hetzelfde ding niet meer twee keer op het scherm
+          kan staan en zichzelf tegenspreken.
+        */}
+        <p className="tiny winkel-plekken" data-testid="winkel-plekken">
+          {item.plekken.map((kind) => (
+            <span key={kind} className="winkel-plek-chip" data-kind={kind}>
+              <Icon name={plekIcon(kind)} size={11} />
+              {plekWord(kind, words)}
+            </span>
+          ))}
+        </p>
       </div>
 
-      <div className="kamer-koop-buy winkel-buy">
+      <div className="kamer-koop-buy">
         <span className="stamp kamer-koop-price" data-testid="winkel-prijs">
           {munt(item.price, words)}
         </span>
 
         {/*
-          §83: "dit heb je al" is a *fact*, and only for a unique thing is it
-          also a refusal. So it is printed beside a live button as well —
-          somebody buying a second stoel deserves to know they own one.
+          §83: "dit heb je al" is een *feit*, en alleen voor een uniek ding ook
+          een weigering. Het staat dus ook naast een levende knop — wie een
+          tweede stoel koopt hoort te weten dat er al een staat.
         */}
         {item.owned && (
           <span className="tiny muted winkel-state" data-testid="winkel-owned">
-            {words.shopOwned}
+            {item.ownedCount > 1
+              ? fill(words.shopOwnedCount, { n: String(item.ownedCount) })
+              : words.shopOwned}
           </span>
         )}
 
@@ -157,9 +192,11 @@ export function WinkelRij({
         {state === 'noslot' && (
           <span className="tiny muted winkel-state" data-testid="winkel-geen-plek">
             {roomSlug ? (
-              /* The door back: a plek of this kind has to be opened before
-                 this can be bought, and that is done in the kamer itself. */
-              <Link href={`/kamer/${roomSlug}`} data-testid="winkel-geen-plek-deur">
+              /* De weg terug: er moet eerst een plek van de goede soort open,
+                 en dat gebeurt in de kamer zelf. Een knop en geen kale link —
+                 een zin die navigeert hoort eruit te zien als iets wat je
+                 indrukt (§84). */
+              <Link className="btn btn-ghost btn-small" href={`/kamer/${roomSlug}`} data-testid="winkel-geen-plek-deur">
                 {words.shopNoSlot}
               </Link>
             ) : (
@@ -169,20 +206,22 @@ export function WinkelRij({
         )}
 
         {state === 'dear' && (
-          <button
-            type="button"
-            className="btn btn-small btn-primary"
-            data-testid="winkel-koop"
-            data-entry-id={item.id}
-            disabled
-            title={`Je hebt nog ${munt(short, words)} nodig.`}
-          >
-            {words.buy}
-          </button>
+          <span className="tiny winkel-short" data-testid="winkel-short">
+            {shortfall(item.price, balance, words)}
+          </span>
         )}
 
-        {state === 'buy' && roomId && landsIn && (
-          <BuyButton roomId={roomId} slotId={landsIn} entryId={item.id} label={words.buy} />
+        {state === 'buy' && roomId && lands && (
+          <BuyButton
+            roomId={roomId}
+            slotId={lands.slotId}
+            entryId={item.id}
+            name={item.name}
+            kind={lands.kind}
+            price={item.price}
+            roomSlug={roomSlug}
+            words={words}
+          />
         )}
       </div>
     </li>

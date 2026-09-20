@@ -1,11 +1,9 @@
 import Link from 'next/link';
 import { Thumb } from '@/components/Cover';
 import { MentionText } from '@/components/ui/MentionPopover';
-import { PanelDoor } from '@/components/spelers/PanelDoor';
 import { attributed } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import type { FeedItem } from '@/lib/entries/service';
-import type { Words } from '@/lib/words';
 
 /**
  * The same verbs the Start reads them with. A copy on purpose: the map is one
@@ -31,7 +29,7 @@ const VERBS: Record<string, string> = {
  * is `attributed()`'s label, the karakter the row was written as, and the
  * account name is the tooltip. A speler is not their username.
  */
-export function BijdragenPanel({ rows, words }: { rows: FeedItem[]; words: Words }) {
+export function BijdragenPanel({ rows }: { rows: FeedItem[] }) {
   if (rows.length === 0) {
     return (
       <p className="small muted" style={{ margin: 0 }}>
@@ -74,7 +72,17 @@ export function BijdragenPanel({ rows, words }: { rows: FeedItem[]; words: Words
           </li>
         ))}
       </ul>
-      <PanelDoor href="/">{words.navHome}</PanelDoor>
+      {/*
+        §85: hier stond een deur naar `/`.
+        
+        §77's regel is dat een paneel een samenvatting met een deur is — en de
+        tweede helft daarvan is dat er niets in een paneel staat dat geen eigen
+        pagina heeft. De bijdragen van één persoon hebben die niet: de Start is
+        de feed van *iedereen*, dus die deur beloofde "meer hiervan" en gaf je
+        iets anders. Een deur naar een plek die niet van het onderwerp is, is
+        erger dan geen deur, dus er staat er nu geen — tot er een pagina is die
+        wél alleen deze persoon laat zien.
+      */}
     </>
   );
 }

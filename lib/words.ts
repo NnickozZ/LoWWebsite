@@ -293,6 +293,15 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'nudge', what: 'Iemand hierheen vragen', fallback: 'Kom kijken' },
       { key: 'nudgeAsks', what: 'Tussen de naam en de plek', fallback: 'vraagt je bij' },
       { key: 'nudgeRefused', what: 'Als die ander daar niet bij mag', fallback: 'Daar kan die niet bij.' },
+      { key: 'yourAccount', what: 'Boven je eigen accountpagina', fallback: 'Jouw account' },
+      {
+        key: 'youMarker',
+        what: 'Waaraan je je eigen regel in de hal herkent',
+        fallback: '(jij)',
+        hint: 'Je eigen regel staat bovenaan; dit is het woord dat zegt waarom.',
+      },
+      { key: 'onlineNow', what: 'Iemand die nu in het archief is', fallback: 'online' },
+      { key: 'wears', what: 'De kolom met wie ze dragen', fallback: 'Draagt' },
       { key: 'spelerPage', what: 'De pagina van één speler', fallback: 'Spelerspagina' },
       { key: 'spelerPagePlural', what: 'Meer spelerspaginas', fallback: 'Spelerspaginas' },
     ],
@@ -357,12 +366,57 @@ export const WORD_GROUPS: WordGroup[] = [
           'andere kant krijgen dezelfde. Het verschil zou zelf het lek zijn (§76).',
       },
       { key: 'ledger', what: 'Het grootboek', fallback: 'Grootboek' },
-      { key: 'ledgerGive', what: 'De Keeper geeft iets (de knop)', fallback: 'Uitgeven' },
+      {
+        key: 'ledgerGive',
+        what: 'De Keeper geeft iets (de knop)',
+        fallback: 'Geven',
+        hint:
+          '§84: stond hier tot ronde 45 als "Uitgeven", wat het tegenovergestelde ' +
+          'betekent — uitgeven doe je in de winkel, de Keeper gééft.',
+      },
       { key: 'ledgerWhy', what: 'Waarvoor, op een regel in het grootboek', fallback: 'Waarvoor?' },
+      {
+        key: 'purse',
+        what: 'Je beurs, het blokje met je saldo',
+        fallback: 'Je beurs',
+        hint: 'Wat er hardop gelezen wordt bij het saldo rechtsboven. Eén tik brengt je naar je kamer.',
+      },
+      {
+        key: 'shortfall',
+        what: 'Wat er nog aan ontbreekt',
+        fallback: 'Nog {n} nodig',
+        hint: '{n} wordt het bedrag. Laat het staan, anders staat het getal er niet meer bij.',
+      },
+      {
+        key: 'boughtHere',
+        what: 'Nadat je iets gekocht of neergezet hebt',
+        fallback: '{ding} ligt nu op je {plek}.',
+        hint: '{ding} wordt de naam, {plek} de soort plek.',
+      },
+      { key: 'unlockedHere', what: 'Nadat je een plek geopend hebt', fallback: 'Je {plek} is open.' },
+      { key: 'clearedHere', what: 'Nadat je iets weggehaald hebt', fallback: '{ding} is weggehaald.' },
+      { key: 'toastShow', what: 'De knop in zo’n melding', fallback: 'Bekijk' },
       { key: 'shop', what: 'De winkel — alles wat te koop is', fallback: 'Winkel' },
       { key: 'shopEmpty', what: 'Als er nog niets te koop is', fallback: 'Er staat nog niets te koop.' },
       { key: 'shopNoSlot', what: 'Je kunt het betalen, maar je hebt er geen plek voor', fallback: 'Geen vrije plek van deze soort' },
       { key: 'shopOwned', what: 'Dit heb je al in je kamer', fallback: 'Staat al in je kamer' },
+      {
+        key: 'shopOwnedCount',
+        what: 'Als je er al meer dan één van hebt',
+        fallback: '{n}× in je kamer',
+        hint: 'Sinds §83 mag hetzelfde ding vaker in één kamer staan; dit telt ze.',
+      },
+      { key: 'shopAll', what: 'Het filter dat alles toont', fallback: 'Alles' },
+      {
+        key: 'keeperGuest',
+        what: 'Wat de Keeper leest in de kamer van een ander',
+        fallback: 'Je kijkt mee in de kamer van {naam}.',
+      },
+      {
+        key: 'keeperGuestGift',
+        what: 'En wat dat voor zijn knoppen betekent',
+        fallback: 'Neerzetten is gratis; openen betaalt {naam} zelf.',
+      },
       { key: 'shopTaken', what: 'Er is er één van en een ander heeft hem', fallback: 'Iemand anders heeft hem' },
       { key: 'shopFor', what: 'Boven de keuze voor welke onderzoeker je koopt', fallback: 'Kopen voor' },
       { key: 'shopKeeper', what: 'Wat de Keeper hier leest', fallback: 'Jij zet dingen zelf neer; dit is de prijslijst.' },
@@ -382,9 +436,27 @@ export const WORD_GROUPS: WordGroup[] = [
       {
         key: 'handoutAll',
         what: 'Het ene getal dat iedereen krijgt',
-        fallback: 'Iedereen',
-        hint: 'Verander je dit, dan springt elk bedrag eronder mee — ook wat je met de hand had aangepast.',
+        fallback: 'Voor iedereen',
+        hint:
+          'Verander je dit, dan springt elk bedrag eronder mee — ook wat je met de hand ' +
+          'had aangepast. §85: heette "Iedereen", en dat las als een kolomkop boven de ' +
+          'lijst in plaats van als het vak waar je een getal in typt.',
       },
+      {
+        key: 'handoutAmount',
+        what: 'Het vakje naast één naam',
+        fallback: 'Bedrag',
+        hint: 'Wat een schermlezer voorleest bij het bedrag van één kamer. Staat er niet zichtbaar bij.',
+      },
+      {
+        key: 'handoutRunning',
+        what: 'Wat de knop op dit moment zou uitdelen',
+        fallback: '{munten} naar {kamers}',
+        hint:
+          '{munten} wordt het totaal, {kamers} het aantal kamers met hun woord. Het is een ' +
+          'optelling van wat jij net getypt hebt en nooit een som over het archief (rule 78).',
+      },
+      { key: 'handoutDoneShort', what: 'Wat de knop even zegt nadat het gelukt is', fallback: 'Uitgedeeld' },
       { key: 'handoutWhy', what: 'Waarvoor er uitgedeeld wordt', fallback: 'Waarvoor?' },
       {
         key: 'handoutHint',
@@ -393,6 +465,54 @@ export const WORD_GROUPS: WordGroup[] = [
       },
       { key: 'handoutEmpty', what: 'Als er nog geen kamers zijn om aan uit te delen', fallback: 'Er draagt nog niemand een onderzoeker.' },
       { key: 'handoutDone', what: 'Nadat er uitgedeeld is', fallback: 'Uitgedeeld.' },
+      {
+        key: 'ledgerSlotLine',
+        what: 'Een regel die een plek opende',
+        fallback: '{plek} geopend',
+        hint:
+          '{plek} wordt de soort plek. §85: las tot ronde 46 als "Plek: plank" — een ' +
+          'veldnaam met een dubbele punt, geen zin over iets dat gebeurd is.',
+      },
+      { key: 'ledgerItemLine', what: 'Een regel die iets kocht', fallback: '{ding} gekocht' },
+      {
+        key: 'ledgerFrom',
+        what: 'Een regel die de Keeper geschreven heeft',
+        fallback: 'Van de {keeper}: {reden}',
+        hint: '{keeper} is jouw woord voor de spelleider, {reden} wat er in het vakje stond.',
+      },
+      { key: 'ledgerFromPlain', what: 'Idem, zonder dat er een reden bij stond', fallback: 'Van de {keeper}' },
+      { key: 'ledgerEmpty', what: 'Een grootboek waar nog niets in staat', fallback: 'Nog geen regels.' },
+      {
+        key: 'ledgerAll',
+        what: 'Het hele grootboek openklappen',
+        fallback: 'Alles tonen',
+        hint: 'Het boek staat ingeklapt op de laatste drie regels; dit vouwt de rest open.',
+      },
+      { key: 'ledgerFewer', what: 'En weer dicht', fallback: 'Minder tonen' },
+      {
+        key: 'roomEffectsNone',
+        what: 'Als er nog niets ligt dat iets doet',
+        fallback: 'Nog niets dat je iets geeft.',
+        hint: 'Er staat een deur naar de winkel naast — dit is de kop van een lege kamer, geen fout.',
+      },
+      {
+        key: 'slotClearOne',
+        what: 'Het kruisje waarmee je iets weghaalt',
+        fallback: 'Weghalen: {ding}',
+        hint: 'Alleen voor een schermlezer: op het scherm is het een ×, en die zegt niet wát hij weghaalt.',
+      },
+      {
+        key: 'roomPanelLine',
+        what: 'De samenvatting van een kamer op een spelerspagina',
+        fallback: '{open} van {alle} open · {gevuld} gevuld',
+        hint:
+          '{open} is hoeveel plekken er open staan, {alle} hoeveel er zijn mét hun woord ' +
+          '("12 plekken"), {gevuld} hoeveel er iets op ligt.',
+      },
+      { key: 'toRoom', what: 'De deur terug naar de kamer', fallback: 'Naar de {kamer}' },
+      { key: 'toPlayers', what: 'De deur naar de hal', fallback: 'Naar de {spelers}' },
+      { key: 'toCharacters', what: 'De deur naar je karakters', fallback: 'Naar je karakters' },
+      { key: 'toCases', what: 'De deur naar de dossiers', fallback: 'Naar de {dossiers}' },
       { key: 'plekMuur', what: 'Een plek aan de muur', fallback: 'muur' },
       { key: 'plekPlank', what: 'Een plek op een plank', fallback: 'plank' },
       { key: 'plekBureau', what: 'Een plek op het bureau', fallback: 'bureau' },
@@ -432,6 +552,33 @@ export function cleanWordOverrides(input: unknown): Words {
 /** The full word list a screen reads: defaults with the Keeper's words on top. */
 export function resolveWords(overrides: unknown): Words {
   return { ...DEFAULT_WORDS, ...cleanWordOverrides(overrides) };
+}
+
+/**
+ * §84: een woord met een gat erin.
+ *
+ * Tot ronde 45 was elk woord in deze lijst een heel woord of een hele zin, en
+ * een zin met een getal erin werd daarom in de component in elkaar gezet —
+ * `Je hebt nog ${munt(n)} nodig.` stond drie keer letterlijk in de code, en de
+ * Keeper kon er niets aan veranderen (§11).
+ *
+ * Een sjabloon lost dat op: `'Nog {n} nodig'` staat in de lijst, de component
+ * vult `{n}`. De Keeper ziet het gat in Beheer en mag de zin eromheen
+ * herschrijven, hem omdraaien, of hem korter maken — zolang het gat blijft
+ * staan. **Een gat dat hij weghaalt is geen fout**: dan staat het getal er niet
+ * meer, en dat is zijn keuze. Er wordt hier dus niets afgedwongen en niets
+ * geraden; wat niet voorkomt in de tekst wordt stil genegeerd.
+ *
+ * Onbekende gaten blijven staan zoals ze zijn. Dat is met opzet: een `{plek}`
+ * in een zin die geen plek meegekregen heeft, is beter zichtbaar als `{plek}`
+ * dan als een gat in een zin.
+ */
+export function fill(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.split(`{${key}}`).join(value);
+  }
+  return out;
 }
 
 /**

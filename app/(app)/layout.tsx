@@ -7,6 +7,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { listEntryTypes } from '@/lib/entries/service';
+import { purseOf } from '@/lib/kamers/service';
 import { cleanTypeText } from '@/lib/pageBlocks';
 import { readingFontAttr } from '@/lib/readingFont';
 import { getSchemes } from '@/lib/admin/schemes';
@@ -54,6 +55,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     characters: user.isKeeper ? [] : listCharacters(user.id),
     activeId: user.isKeeper ? null : (activeCharacter(user.id)?.entryId ?? null),
   };
+
+  /*
+   * §84: het saldo van de onderzoeker die deze persoon draagt, voor de hoek van
+   * elke pagina. Hier gelezen omdat de schil een client-component is; drie
+   * goedkope query's, en `getOrCreateRoom` is na de eerste keer een SELECT.
+   * Null voor de Keeper en voor wie niemand draagt (§18) — dan staat er niets.
+   */
+  const purse = purseOf(user);
 
   /*
    * §45: the four colour schemes, written out as one block of custom
@@ -109,6 +118,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           types={types}
           words={words}
           me={me}
+          purse={purse}
           uploadLimit={uploadLimitFor(me)}
           siteName={settings?.name ?? 'Zeeland Case Files'}
           tagline={settings?.tagline ?? ''}

@@ -1,6 +1,8 @@
 import '@/app/spelers.css';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
+import { MEANING } from '@/components/kamer/plekWords';
+import { HalOnline } from '@/components/spelers/HalOnline';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
@@ -33,8 +35,25 @@ export default async function SpelersPage() {
   const spelers = listSpelers();
   const worn = charactersWorn(spelers.map((speler) => speler.id));
 
+  /*
+   * §85: **jij staat bovenaan.**
+   *
+   * De hal stond op accountnaam, alfabetisch, en dat is de goede volgorde voor
+   * een lijst waar je iemand in zoekt. Maar de eerste vraag die iemand aan een
+   * lijst van zichzelf-en-de-rest stelt is "waar sta ik", en op naam is dat
+   * antwoord elke avond ergens anders. Je eigen regel staat nu vooraan en zegt
+   * dat hij van jou is; de rest houdt precies de volgorde die hij had. De
+   * server beslist dit en niet de browser: de lijst die binnenkomt is dan al
+   * goed, in plaats van een tel later te verspringen.
+   */
+  const inHall = [...spelers].sort((a, b) => {
+    if (a.id === user?.id) return -1;
+    if (b.id === user?.id) return 1;
+    return 0;
+  });
+
   return (
-    <div className="page spelers-index" data-testid="spelers-page">
+    <div className="page spelers-hal" data-testid="spelers-page">
       {/*
        * §21: `users` for who exists at all, `characters` for what they are
        * wearing. Both move rarely and both change this list when they do.
@@ -51,24 +70,46 @@ export default async function SpelersPage() {
         */}
         {user?.isKeeper && (
           <Link className="btn btn-small" href="/uitdelen" data-testid="spelers-uitdelen">
-            <Icon name="plus" size={13} />
+            <Icon name={MEANING.geven} size={13} />
             {words.handout}
           </Link>
         )}
       </h1>
 
+      {/*
+        §85: kolomkoppen. Twee dingen per regel, waarvan het rechter er per
+        regel anders uitziet — een naam, een schuingedrukt *als jezelf*, een
+        rode stempel — en niets dat zegt wat die kolom is. Eén regel erboven
+        kost niets en beantwoordt dat één keer voor de hele lijst.
+      */}
+      <p className="tiny muted spelers-koppen" aria-hidden="true">
+        <span>{capitalise(words.player)}</span>
+        <span>{words.wears}</span>
+      </p>
+
       <ul className="spelers-lijst" data-testid="spelers-lijst">
-        {spelers.map((speler) => {
+        {inHall.map((speler) => {
           const karakter = worn.get(speler.id) ?? null;
+          const isSelf = speler.id === user?.id;
           return (
-            <li key={speler.id} className="spelers-rij">
+            <li key={speler.id}>
               <Link
                 href={`/spelers/${speler.slug}`}
                 className="spelers-deur"
                 data-testid="spelers-deur"
                 data-speler={speler.slug}
+                data-self={isSelf ? 'ja' : 'nee'}
               >
-                <span className="spelers-naam">{speler.username}</span>
+                <span className="spelers-naam">
+                  {speler.username}
+                  {isSelf && (
+                    <span className="tiny muted spelers-jij" data-testid="spelers-jij">
+                      {' '}
+                      {words.youMarker}
+                    </span>
+                  )}
+                  <HalOnline href={`/spelers/${speler.slug}`} words={words} />
+                </span>
                 <span className="tiny muted spelers-onder">
                   {speler.isKeeper ? (
                     /*

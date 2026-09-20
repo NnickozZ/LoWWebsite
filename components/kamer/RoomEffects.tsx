@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { Icon } from '@/components/Icon';
 import type { RoomView } from '@/lib/kamers/service';
 import type { Words } from '@/lib/words';
+import { MEANING } from './plekWords';
 
 /**
  * §80: "Wat deze kamer je geeft" — en het is een **lijst**, nooit een som.
@@ -26,12 +28,33 @@ import type { Words } from '@/lib/words';
  * at all. That is §76 again: "er ligt iets" on the tile and three lines below
  * it saying exactly what it does would be the leak the veil exists to stop.
  *
- * Nothing at all to say means the section is not drawn — a heading over an
- * empty list reads as a thing that is broken rather than a thing that is
- * empty.
+ * §85 moved it **above the grid** and gave it an empty state.
+ *
+ * Until round 46 this stood under the raster, and the reasoning was that the
+ * raster is what a kamer is about. On a phone that put it under twelve tiles,
+ * which is two screens down — so the one thing a kamer is *for* was the one
+ * thing nobody scrolled to. It is the answer to "what did all this buy me",
+ * and that answer belongs where the question is asked.
+ *
+ * And "nothing at all" is now drawn rather than skipped. A kamer with an empty
+ * grid and no section at all reads as a page that has not loaded; one sentence
+ * saying where the furniture comes from, with the door to go there, reads as a
+ * kamer that is empty — which is what it is, on everybody's first evening.
+ * That is the one case where an empty heading earns its place, and it earns it
+ * because the door under it is the next thing to do.
  */
 export function RoomEffects({ effects, words }: { effects: RoomView['effects']; words: Words }) {
-  if (!effects.length) return null;
+  if (!effects.length) {
+    return (
+      <section className="kamer-effecten kamer-effecten-leeg" data-testid="kamer-effecten-leeg">
+        <p className="small muted kamer-effecten-zin">{words.roomEffectsNone}</p>
+        <Link className="btn btn-small" href="/winkel" data-testid="kamer-effecten-winkel">
+          <Icon name={MEANING.winkel} size={13} />
+          {words.shop}
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <section

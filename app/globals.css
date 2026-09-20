@@ -120,7 +120,7 @@
   --ink: #e8e1d2;
   --ink-muted: #a49b8a;
   --rule: #3d382f;
-  --stamp-red: #a8321e;
+  --stamp-red: #c04a34;
   --string-red: #c0392b;
   --link: #8fb8dd;
   --cork: #4a3a26;
@@ -179,7 +179,7 @@
   --ink: #e8e1d2;
   --ink-muted: #a49b8a;
   --rule: #3d382f;
-  --stamp-red: #a8321e;
+  --stamp-red: #c04a34;
   --string-red: #c0392b;
   --link: #8fb8dd;
   --cork: #4a3a26;
@@ -469,6 +469,28 @@ hr,
 .btn-primary:hover:not(:disabled) {
   background: #93291a;
   border-color: #93291a;
+}
+
+/*
+ * §84: een uitgeschakelde primaire knop wordt omlijnd in plaats van gevuld.
+ *
+ * `opacity: 0.5` op een rode vulling is in een licht palet nog net te zien en
+ * in een donker palet niet meer: de doorloop vond een uitgeschakelde "Kopen" en
+ * een ingeschakelde "Kopen" die in het donker bijna dezelfde kleur waren. Dat
+ * is de ergste van de fouten die alleen 's avonds bestaan — je ziet niet meer
+ * wat je kunt betalen.
+ *
+ * Een *vorm* in plaats van een tint lost het in alle vier de paletten tegelijk
+ * op, en het is dezelfde grammatica die de kamer al spreekt: gevuld is
+ * beschikbaar, gestreept is nog niet (§79's tegels zeggen het zo).
+ */
+.btn-primary:disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--ink-muted);
+  border-color: var(--rule);
+  border-style: dashed;
+  box-shadow: none;
 }
 .btn-ghost {
   background: transparent;
@@ -981,6 +1003,62 @@ a.card:hover {
   color: var(--stamp-red);
 }
 
+/*
+ * §85: de FAB wijkt waar de pagina zijn eigen laatste knop heeft.
+ *
+ * Twee dingen rechtsonder is er één te veel, en de FAB is de minst belangrijke
+ * van de twee op zo'n scherm: op `/uitdelen` staat de knop die de avond afrondt
+ * in een plakkende voet, en boven een open blad ligt de FAB gewoon in de weg
+ * van het blad zelf. Allebei met `:has()` in plaats van met een vlag door de
+ * schil, want het is een eigenschap van wat er op het scherm staat — en er is
+ * geen staat die ermee uit de pas kan lopen.
+ */
+body:has(.uitdelen-page) .fab,
+body:has(.sheet-backdrop) .fab {
+  display: none;
+}
+
+/* ==========================================================================
+   §85 (6.1, tweede ronde) — raakdoelen op de schermen van de kamer.
+
+   §69 6.1 bracht 44 px naar de vier tekenvlakken en liet de rest van het
+   archief met opzet staan: Nicks keuze toen was dat een `.btn-small` in een
+   lijst geen canvasknop is. Ronde 45 vond met de e2e-zaak die *elke* zichtbare
+   knop opmeet één rij die dat wél nodig had (`/you`), en ronde 46 vond met
+   dezelfde zaak de rest van deze feature: de deur uit een lege kamer (34 px),
+   de deur naar de kamer op een onderzoekersartikel (34 px) en de acht chips op
+   `/you` (38 px).
+
+   **Het blok is op pagina's gesleuteld en niet op knoppen**, en dat is §84's
+   les: een lijstje knoppen bijhouden bewijst wat je al wist, een regel die aan
+   de *pagina* hangt neemt de knop van morgen vanzelf mee. Dat is ook precies
+   waarom het niet het hele archief is: de schermen van deze feature worden
+   staand met een duim bediend, midden in een spelavond, en het bewijs dat die
+   44 px daar nodig is staat in `tests/e2e/kamer-ux.spec.ts`. Voor een scherm
+   waar dat bewijs niet voor geleverd is verandert er niets.
+   ========================================================================== */
+@media (max-width: 767px) {
+  .kamer-page .btn,
+  .winkel-page .btn,
+  .uitdelen-page .btn,
+  .speler-page .btn,
+  .spelers-hal .btn,
+  .you-page .btn,
+  .you-page .chip-selectable,
+  .entry-kamer .btn,
+  .kamer-catalogus .btn {
+    min-height: var(--tap);
+  }
+}
+
+/* §85: de beurs en de deur naar de kamer, onder de kop van een onderzoeker.
+   Eén regel, met dezelfde ruimte eronder als de andere feitenregels daar. */
+.entry-kamer {
+  margin-top: 0.5rem;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .fab {
   position: fixed;
   right: 1rem;
@@ -1086,8 +1164,11 @@ a.card:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  /* §85: dit wás `44px`, tweemaal — hetzelfde getal dat §69 6.1 in `--tap`
+     zette, hier met de hand overgeschreven. Het klopte toevallig; het zou
+     niet mee veranderd zijn. */
+  width: var(--tap);
+  height: var(--tap);
   padding: 0;
   border: 1px solid transparent;
   border-radius: 3px;
@@ -5301,6 +5382,178 @@ body:has(.canvas-peek) .fab {
   .live-strip {
     top: 0.25rem;
     margin-top: -0.6rem;
+  }
+}
+
+/* ------------------------------------------------------------------ §84: de beurs */
+
+/*
+ * Wat je hebt, en nadrukkelijk niet wat iets kost.
+ *
+ * De `.stamp` hiernaast is het prijskaartje: schuin, rood, omlijnd. Dit is het
+ * tegendeel — rechtop, gewone inkt, de munt ervoor — want tot ronde 45 waren
+ * het dezelfde tekening en zag niemand een koop gebeuren.
+ *
+ * Hij staat in `globals.css` en niet in `kamer.css`, omdat hij sinds §84 in de
+ * hoek van élke pagina staat en `kamer.css` maar door drie routes wordt
+ * ingeladen. Dat is precies de val waar `.spelers-kop` in ronde 44 in liep.
+ */
+.beurs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-family: var(--stamp-face);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.beurs-body {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.beurs-getal {
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+.beurs-munt {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.beurs-small {
+  padding: 0.15rem 0.45rem;
+  gap: 0.25rem;
+}
+.beurs-small .beurs-getal {
+  font-size: 0.95rem;
+}
+.beurs-small .beurs-munt {
+  font-size: 0.64rem;
+}
+a.beurs {
+  transition: border-color 90ms ease, background 90ms ease;
+}
+a.beurs:hover,
+a.beurs:focus-visible {
+  border-color: var(--accent);
+  background: var(--paper);
+}
+
+/*
+ * Het bedrag verandert → React hangt een nieuw element op (`key={balance}`) →
+ * deze animatie loopt opnieuw. Geen timer, geen state, en vooral: geen
+ * rekenwerk. Het scherm telt nooit zelf mee (§79 regel 1).
+ */
+@keyframes beurs-tel {
+  0% {
+    transform: translateY(-0.35em);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(0.06em);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.beurs-body {
+  animation: beurs-tel 260ms ease-out;
+}
+
+/* In de hoek van elke pagina, links van de aanwezigheidsstrip. Twee floats
+   stapelen van rechts naar links, dus dit staat ná de strip in de bron. */
+.shell-beurs {
+  position: sticky;
+  top: 0.4rem;
+  z-index: 25;
+  float: right;
+  margin: -0.4rem 0.35rem 0 0.5rem;
+}
+
+/*
+ * §34: een canvas krijgt het scherm. Daar hangt de strip absoluut in de hoek
+ * (zie `.main:has(.page-canvas) .live-strip` hierboven) en zou een tweede ding
+ * ernaast opnieuw uitgerekend moeten worden — terwijl er op een prikbord, een
+ * landkaart, een tijdlijn of een stamboom niets te kopen valt. Dus daar staat
+ * hij niet, en dat is een regel met een reden in plaats van een uitzondering.
+ */
+.main:has(.page-canvas) .shell-beurs,
+/*
+ * En op een prikbord, om een reden die niets met geld te maken heeft: een wand
+ * is nog niet op §34's canvas-schil (zie `CLAUDE.md` §8), dus hij is géén
+ * `.page-canvas` en de regel hierboven raakt hem niet — terwijl hij wél in de
+ * hoofdkolom ligt. Een tweede `float: right` naast de aanwezigheidsstrip knijpt
+ * die kolom dan smaller, en een muur die smaller wordt is een muur waarop elke
+ * coördinaat verschuift. Twee inkt-zaken op de telefoon vonden dat, en geen van
+ * beide gaat over een kamer.
+ *
+ * Wordt de wand ooit een `.page-canvas`, dan mag deze regel weg — en dan doet
+ * de regel erboven zijn werk.
+ */
+.main:has(.board-viewport) .shell-beurs {
+  display: none;
+}
+
+/*
+ * §84: en niet twee keer hetzelfde getal naast elkaar.
+ *
+ * De kamer en de winkel dragen hun eigen, grotere beurs boven aan de pagina —
+ * daar is het saldo het onderwerp en niet een verwijzing. De hoek is de deur
+ * *naar* die pagina's, en een deur naar de kamer waar je in staat is geen deur.
+ * Gevonden in de browser: twee identieke blokjes, twintig pixels uit elkaar.
+ */
+.main:has(.kamer-page) .shell-beurs,
+.main:has(.winkel-page) .shell-beurs {
+  display: none;
+}
+
+/*
+ * §84: ruimte onder de FAB, en alleen waar er iets onder hem ligt.
+ *
+ * Hij is `position: fixed`, 56 px hoog en hangt op `--tabs-h + 1rem`, dus de
+ * onderste ~132 px van elke pagina lag onder een knop terwijl `--main-pad-b`
+ * er 84 vrijhield. Op een telefoon dekte hij de laatste Kopen-knop van de
+ * winkel af en de Uitdelen-knop van de uitdeler.
+ *
+ * **Niet in `--main-pad-b` zelf**, en dat is de hele les van deze regel: een
+ * `.page-canvas` neemt die waarde met een negatieve marge terug (§34 — het glas
+ * krijgt het scherm) terwijl zijn hóógte bij de tabbalk stopt. Groeit de
+ * variabele, dan groeit alleen de negatieve marge mee en schuift het canvas
+ * onder de tabbalk door: twee inkt-zaken op de telefoon vonden precies dat, en
+ * geen van beide heeft iets met een kamer te maken. Een canvas heeft zijn eigen
+ * afspraken; dit is er een voor pagina's die scrollen.
+ */
+@media (max-width: 767px) {
+  .main:not(:has(.page-canvas)) {
+    padding-bottom: calc(var(--main-pad-b) + 56px + 0.5rem);
+  }
+}
+
+/*
+ * §84/§69 6.1: de rij deuren op `Jij` haalt op een telefoon 44 px.
+ *
+ * Hij stond er als een naamloze `row-wrap` met vier `btn-small`s erin, en die
+ * zijn 34 px. De e2e-zaak die élke zichtbare knop opmeet vond deze rij als
+ * enige — wat precies is waarom die zaak elke knop meet en niet een lijstje
+ * dat iemand bijhoudt.
+ */
+@media (max-width: 767px) {
+  .you-doors .btn {
+    min-height: var(--tap);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beurs-body {
+    animation: none;
   }
 }
 

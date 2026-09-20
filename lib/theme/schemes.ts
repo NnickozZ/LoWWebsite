@@ -213,7 +213,18 @@ const PLAYER_DARK: Palette = {
   ink: '#e8e1d2',
   inkMuted: '#a49b8a',
   rule: '#3d382f',
-  stampRed: '#a8321e',
+  /*
+   * §84: dit was `#a8321e` — de rode inkt van het *lichte* palet, ongewijzigd
+   * overgenomen. Op licht papier is dat 6,1 tegen 1; op deze bijna-zwarte
+   * tegels 2,4, en een prijsstempel van 30 munten op een gesloten plek was
+   * daarmee 's avonds niet meer te lezen. `keeperDark` had die correctie al —
+   * dit is dezelfde waarde, en dus geen nieuwe kleur maar een vergeten regel.
+   *
+   * 3,3 tegen `paperRaised` en 3,8 tegen `paperDark`, terwijl het licht van
+   * `.btn-primary` erop op 4,6 blijft: hoger optillen maakt de knop onleesbaar
+   * en is dus geen verbetering.
+   */
+  stampRed: '#c04a34',
   stringRed: '#c0392b',
   link: '#8fb8dd',
   cork: '#4a3a26',

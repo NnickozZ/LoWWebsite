@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
+import { MEANING } from '@/components/kamer/plekWords';
 import { CharacterWardrobe } from '@/components/you/CharacterSwitcher';
 import { WritingAsLine } from '@/components/you/AuthorProvider';
 import { getWords } from '@/lib/admin/words';
@@ -8,7 +9,9 @@ import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
+import { purseOf } from '@/lib/kamers/service';
 import { spelerHref } from '@/lib/spelers/service';
+import { capitalise } from '@/lib/words';
 import { ColourSchemeForm } from './ColourSchemeForm';
 import { ReadingFontForm } from './ReadingFontForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
@@ -28,6 +31,8 @@ export default async function YouPage() {
   // find out what came of it, and read the Keeper's note back.
   const proposals = user ? listMyProposals(user.id) : [];
   const words = getWords();
+  // §84: waar je munten aan uitgeeft — zie de rij deuren hieronder.
+  const purse = purseOf(user);
 
   // §18: the wardrobe. A Keeper's is empty by rule, not by accident.
   const me = user
@@ -45,11 +50,17 @@ export default async function YouPage() {
   const myPage = spelerHref(user?.id);
 
   return (
-    <div className="page">
+    <div className="page you-page">
       <LivePage place="page:/you" watch={['characters', 'users', 'entries']} />
-      <p className="eyebrow">Jouw account</p>
+      <p className="eyebrow">{words.yourAccount}</p>
       <h1>{user?.username}</h1>
-      <p className="row-wrap">
+      {/*
+        §84: de rij deuren krijgt een naam, want hij had er geen en zijn
+        knoppen bleven daardoor 34 px op een telefoon — onder de 44 die §69 6.1
+        van alles vraagt wat een vinger raakt. De e2e-zaak die elke zichtbare
+        knop meet, vond deze rij als enige.
+      */}
+      <p className="row-wrap you-doors">
         {user?.isKeeper && (
           <>
             <span className="stamp">{words.keeper}</span>
@@ -61,6 +72,15 @@ export default async function YouPage() {
         )}
         {/* §77: the door to your own front door — the page the rest of the
             archive sees you at. */}
+        {/* §84: en de kamer. `/you` noemde de winkel en de hal en nooit de
+            plek waar je munten aan uitgeeft — terwijl dit tot ronde 45 de enige
+            pagina in de navigatie was waarlangs je er kwam. */}
+        {purse && (
+          <Link className="btn btn-small" href={`/kamer/${purse.slug}`} data-testid="you-kamer">
+            <Icon name={MEANING.kamer} size={15} />
+            {capitalise(words.room)}
+          </Link>
+        )}
         {myPage && (
           <Link className="btn btn-small" href={myPage}>
             <Icon name="person" size={15} />
@@ -76,7 +96,7 @@ export default async function YouPage() {
             aan één onderzoeker hangt — wie er twee draagt, koopt vanaf hier
             voor allebei. */}
         <Link className="btn btn-small" href="/winkel">
-          <Icon name="box" size={15} />
+          <Icon name={MEANING.winkel} size={15} />
           {words.shop}
         </Link>
       </p>

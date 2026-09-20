@@ -219,11 +219,19 @@ test.describe('§79 De kamer', () => {
     await expect(plank).toHaveAttribute('data-kind', 'plank');
     await expect(plank.getByTestId('plek-price')).toHaveAttribute('data-price', '2');
 
-    // Een knop die verdwijnt als je twee munten tekortkomt leert niets, dus hij
-    // staat er en is gehouden.
+    /*
+     * §84 keerde dit om, en het loont om te lezen waarom.
+     *
+     * §79 schreef hier: "een knop die verdwijnt als je twee munten tekortkomt
+     * leert niets, dus hij staat er en is gehouden" — met het bedrag in een
+     * `title`. Dat argument klopt; de drager niet, want een `title` bestaat op
+     * een telefoon niet en dat is de helft van de schermen. De zin staat er nu
+     * gewoon, en dan is een dode knop ernaast er één te veel.
+     */
     const duur = plek(player, 11);
     await expect(duur.getByTestId('plek-price')).toHaveAttribute('data-price', '30');
-    await expect(duur.getByTestId('plek-unlock')).toBeDisabled();
+    await expect(duur.getByTestId('plek-unlock')).toHaveCount(0);
+    await expect(duur.getByTestId('plek-short')).toContainText('25 munten');
 
     await expect(plank.getByTestId('plek-unlock')).toBeEnabled();
     await plank.getByTestId('plek-unlock').click();
@@ -447,9 +455,15 @@ test.describe('§79 De kamer', () => {
     await expect(paneel).toBeVisible({ timeout: 20_000 });
     await expect(paneel.getByTestId('kamer-panel')).toBeVisible();
     await expect(paneel.getByTestId('kamer-panel-samenvatting')).toBeVisible();
-    // Het kleinste ware ding: een saldo en hoeveel van de open plekken gevuld
-    // zijn. Drie plekken staan vanaf dag één open, er ligt niets.
-    await expect(paneel.getByTestId('kamer-panel-samenvatting')).toContainText('0 van 3');
+    /*
+     * Het kleinste ware ding. §85 draaide de zin om: hij zei "0 van 3 plekken
+     * gevuld" en zegt nu "3 van 12 plekken open · 0 gevuld" — hoevéél plekken
+     * er open staan is het getal waar iemand naar kijkt, en hoeveel er in
+     * totaal zijn is waar hij naartoe spaart. Drie staan er vanaf dag één
+     * open, twaalf zijn het er, en er ligt niets.
+     */
+    await expect(paneel.getByTestId('kamer-panel-samenvatting')).toContainText('3 van 12');
+    await expect(paneel.getByTestId('kamer-panel-samenvatting')).toContainText('0 gevuld');
 
     // Een deur, en hij komt uit in de kamer.
     const deur = paneel.getByTestId('kamer-panel-deur');

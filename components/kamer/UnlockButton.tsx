@@ -4,7 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { fill, type Words } from '@/lib/words';
+import { MEANING, plekWord, withPrice } from './plekWords';
 import { kamerPost } from './post';
+import type { PlekKind } from '@/lib/kamers/shape';
 
 /**
  * §79: the button that opens a plek.
@@ -12,8 +15,21 @@ import { kamerPost } from './post';
  * It is offered only to a hand that may arrange this kamer, and it is *held*
  * when the balance is under the price — the price is on the tile either way,
  * because a kamer has to show you what you could have or there is nothing to
- * save up for. A held button says why in its title rather than vanishing: a
- * control that disappears when you are two munten short teaches nothing.
+ * save up for. A held button says why rather than vanishing: a control that
+ * disappears when you are two munten short teaches nothing.
+ *
+ * **§84 veranderde twee dingen aan die laatste zin.**
+ *
+ * Hij stond in een `title`, en een `title` bestaat niet op een telefoon. Het is
+ * de zin die iemand aan het sparen zet — precies de verkeerde om te
+ * verstoppen — dus hij staat nu gewoon op de tegel, en de knop is weg in plaats
+ * van uitgeschakeld: een knop die niets doet naast een zin die zegt waarom, is
+ * één ding te veel.
+ *
+ * En de knop zegt wat hij kost. Openen is onomkeerbaar en vraagt niets — met
+ * opzet, want een dialoog is frictie op iets wat je twintig keer per avond
+ * doet — dus het bedrag hoort op de knop zelf te staan. Dat is dezelfde
+ * bescherming zonder de klik.
  *
  * `unlockSlot` charges inside the UPDATE, so a second click during the round
  * trip cannot buy the plek twice. `busy` is a courtesy on top of that, not the
@@ -22,17 +38,15 @@ import { kamerPost } from './post';
 export function UnlockButton({
   roomId,
   slotId,
-  label,
-  affordable,
-  short,
+  kind,
+  price,
+  words,
 }: {
   roomId: string;
   slotId: string;
-  /** `words.slotOpen`. */
-  label: string;
-  affordable: boolean;
-  /** What to say when it is held — plain Dutch, there is no word for it. */
-  short: string;
+  kind: PlekKind;
+  price: number;
+  words: Words;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -46,6 +60,13 @@ export function UnlockButton({
         ui.toast(error);
         return;
       }
+      /*
+       * §84: en zeggen wat er gebeurd is. Zonder dit was de enige terugkoppeling
+       * één cijfer dat veranderde in een blokje dat eruitzag als een prijskaartje
+       * — de doorloop mat 174 ms tussen klik en nieuw saldo, en niemand zag het.
+       * De beurs in de hoek telt ondertussen zichtbaar af.
+       */
+      ui.toast(fill(words.unlockedHere, { plek: plekWord(kind, words) }));
       router.refresh();
     } finally {
       setBusy(false);
@@ -57,12 +78,11 @@ export function UnlockButton({
       type="button"
       className="btn btn-small plek-action"
       data-testid="plek-unlock"
-      disabled={busy || !affordable}
-      title={affordable ? undefined : short}
+      disabled={busy}
       onClick={() => void unlock()}
     >
-      <Icon name="lock" size={13} />
-      {label}
+      <Icon name={MEANING.openen} size={13} />
+      {withPrice(words.slotOpen, price, words)}
     </button>
   );
 }

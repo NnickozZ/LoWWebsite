@@ -4,6 +4,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
+import { Beurs } from '@/components/kamer/Beurs';
+import { MEANING } from '@/components/kamer/plekWords';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
 import { AddToCaseButton } from '@/components/cases/AddToCaseButton';
 import type { PendingEdit } from '@/lib/entries/review';
@@ -35,7 +37,7 @@ import {
 } from '@/lib/pageBlocks';
 import type { FieldDef, Visibility } from '@/lib/db/schema';
 import type { CoverCrops } from '@/lib/images/shapes';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
@@ -156,6 +158,7 @@ export function EntryView({
   proposals,
   character,
   playedBy,
+  roomDoor,
   onMaps,
   mapsToPlace,
   mapsOfThis,
@@ -225,6 +228,18 @@ export function EntryView({
   character: { linked: boolean; active: boolean; mayTie: boolean } | null;
   /** §18: the other accounts that play this artikel. */
   playedBy: string[];
+  /**
+   * §85: de kamer van deze onderzoeker, als hij er een heeft en deze ogen hem
+   * mogen zien (`roomSummary` beantwoordt allebei, en geeft null voor een
+   * artikel dat niemand draagt). Eén regel onder de kop: de beurs en de deur.
+   *
+   * Het staat hier en niet in een paneel omdat dit de plek is waar iemand naar
+   * een onderzoeker kíjkt — en tot ronde 46 was dit het enige scherm over een
+   * onderzoeker waar zijn kamer niet genoemd werd. Je kwam er alleen via `/you`
+   * of via een spelerspagina, allebei over een *account*, terwijl een kamer aan
+   * de onderzoeker hangt (§17/§18).
+   */
+  roomDoor: { href: string; balance: number } | null;
   /** §19: the maps this artikel is pinned on… */
   onMaps: { pinId: string; mapSlug: string; mapName: string }[];
   /** …and the ones it is not on yet. */
@@ -981,6 +996,17 @@ export function EntryView({
         {playedBy.length > 0 && (
           <p className="tiny muted" style={{ marginTop: '0.5rem' }}>
             Gespeeld door {playedBy.join(', ')}
+          </p>
+        )}
+
+        {/* §85: de kamer van deze onderzoeker. Zie de prop voor waarom. */}
+        {roomDoor && (
+          <p className="row-wrap entry-kamer" data-testid="entry-kamer">
+            <Beurs balance={roomDoor.balance} words={words} size="small" />
+            <Link className="btn btn-small" href={roomDoor.href} data-testid="entry-kamer-deur">
+              <Icon name={MEANING.kamer} size={13} />
+              {fill(words.toRoom, { kamer: words.room })}
+            </Link>
           </p>
         )}
 

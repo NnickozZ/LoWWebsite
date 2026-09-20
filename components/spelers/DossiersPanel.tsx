@@ -5,7 +5,7 @@ import { PanelDoor } from '@/components/spelers/PanelDoor';
 import type { CaseSummary } from '@/lib/cases/service';
 import { relativeTime } from '@/lib/diff';
 import type { SpelerLite } from '@/lib/spelers/service';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
 
 /**
  * §77, panel 5: the dossiers this person is on, as far as the reader may know.
@@ -58,7 +58,7 @@ export function DossiersPanel({
           </li>
         ))}
       </ul>
-      <PanelDoor href="/cases">{words.navCases}</PanelDoor>
+      <PanelDoor href="/cases">{fill(words.toCases, { dossiers: words.casePlural })}</PanelDoor>
     </>
   );
 }

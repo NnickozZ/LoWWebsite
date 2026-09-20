@@ -57,20 +57,84 @@
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  /*
+   * §85: **één rijhoogte, vast**, en dat is de reparatie van het raster.
+   *
+   * Tot ronde 46 had een tegel alleen een `min-height`, dus de rij groeide mee
+   * met wat erin lag: een gevulde tegel met een staande omslag van 3:4 werd
+   * ruim 10rem hoog en duwde de drie lege tegels naast zich mee omhoog. Het
+   * raster brak dus bij de eerste koop, en op precies het moment dat je er het
+   * meest naar keek. `grid-auto-rows` zet die hoogte één keer en voor alle vier
+   * de staten; de vierkante uitsnede (`Plek.tsx`) is wat hem haalbaar maakt.
+   *
+   * Dit is met opzet een getal en geen `auto`: de e2e-zaak meet drie tegels
+   * vóór en ná een koop, en wat hij bewaakt is dat dít getal het antwoord is.
+   */
+  grid-auto-rows: 13.5rem;
   gap: 0.8rem;
   align-items: stretch;
 }
 
 .plek {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   min-width: 0;
-  min-height: 11rem;
+  height: 100%;
   padding: 0.6rem;
   border-radius: var(--radius);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
+  /* De inhoud krijgt de hoogte van de rij en nooit meer: een naam van vier
+     regels mag de tegel niet weer uitrekken. */
+  overflow: hidden;
+}
+
+/*
+ * Dezelfde beweging als een `.card` (§34), en om dezelfde reden: een tegel is
+ * iets waar je op klikt, en dat hoort onder de muis op te lichten. Met de
+ * uitzondering die overal geldt — wie beweging uitzet krijgt hem niet.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .plek-filled,
+  .plek-empty {
+    transition:
+      transform 120ms ease,
+      box-shadow 120ms ease;
+  }
+  .plek-filled:hover,
+  .plek-empty:hover {
+    transform: translateY(-2px);
+  }
+}
+.plek-filled:hover {
+  box-shadow: var(--shadow);
+}
+
+/*
+ * §85: waar *Bekijk* landt. De winkel zegt "ga kijken", springt naar
+ * `#plek-<id>`, en de tegel licht één keer op zodat je hem tussen elf andere
+ * terugvindt. `:target` is de hele bediening: geen staat, geen timer, geen
+ * component — de browser weet al welke tegel je zocht, want hij staat in het
+ * adres. De rand is `--stamp-red` omdat dit het enige moment is waarop de
+ * kamer iets aanwijst, en dat is precies waar de stempelkleur voor is.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .plek:target {
+    animation: plek-aangewezen 1.4s ease-out;
+  }
+}
+@keyframes plek-aangewezen {
+  0%,
+  60% {
+    border-color: var(--stamp-red);
+    box-shadow: 0 0 0 2px var(--stamp-red);
+  }
+  100% {
+    border-color: var(--rule);
+    box-shadow: none;
+  }
 }
 
 /* De soort plek, altijd bovenaan en altijd klein: het is het etiket van het
@@ -86,10 +150,19 @@
   font-family: var(--stamp-face);
 }
 
-/* Een knop staat onderaan de tegel, hoe hoog de rest ook uitvalt. */
+/*
+ * Een knop staat onderaan de tegel, hoe hoog de rest ook uitvalt — en sinds
+ * §85 over de hele breedte ervan. "Openen · 3 munten" is met de gewone
+ * knopruimte breder dan een tegel van 9,5rem, dus hij brak over twee regels
+ * en de knoppenrij van het raster liep niet meer gelijk. Een knop die het vak
+ * vult ís uitgelijnd, en hij is meteen groter om aan te raken.
+ */
 .plek-action {
   margin-top: auto;
-  align-self: flex-start;
+  align-self: stretch;
+  padding: 0 0.45rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 /* --- op slot -------------------------------------------------------------
@@ -99,6 +172,28 @@
 .plek-locked {
   background: var(--paper-dark);
   border-style: dashed;
+}
+/*
+ * §85: en het merk van een gesloten plek — hetzelfde gebaar als bij een lege,
+ * met het slot in plaats van de soort. Het vult de ruimte die de vaste
+ * rijhoogte overhoudt, en het is het enige wat een gesloten tegel op een
+ * afstand van een lege onderscheidt zodra de prijs te klein is om te lezen.
+ */
+.plek-slot-merk {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  opacity: 0.35;
+}
+
+/* §85: lichter dan een open tegel, niet korter. De rijhoogte is één getal voor
+   alle vier de staten (zie `.kamer-grid`), dus "compact" is hier een kwestie
+   van gewicht: een kleinere stempel en geen schaduw, met de knop op dezelfde
+   hoogte als bij de andere tegels zodat de knoppenrij uitlijnt. */
+.plek-locked .stamp {
+  font-size: 0.7rem;
 }
 .plek-price {
   margin: 0.2rem 0 0;
@@ -114,6 +209,20 @@
 }
 .plek-empty-line {
   margin: 0;
+}
+/*
+ * §85: het merk van een lege plek — het icoon van de soort, groot en gedempt,
+ * op de plek waar bij een gevulde tegel de omslag staat. Het groeit mee met de
+ * ruimte die overblijft (`flex: 1`), dus het houdt de twee staten op dezelfde
+ * hoogte zonder dat die hoogte hier nog een keer staat.
+ */
+.plek-leeg-merk {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  opacity: 0.45;
 }
 
 /* --- gevuld --------------------------------------------------------------
@@ -142,16 +251,81 @@
   align-items: center;
   justify-content: center;
 }
+
+/*
+ * §85: de hoogte staat vast en de breedte volgt uit het vierkant, in plaats
+ * van andersom. Een tegel die op een breed scherm 14rem breed wordt zou met
+ * `width: 100%` een omslag van 14rem hóóg krijgen, en dan is de vaste
+ * rijhoogte hierboven meteen weer stuk.
+ *
+ * **Alleen in een tegel.** `.plek-cover` wordt ook door een winkelrij
+ * gedragen (`.winkel-cover`, 3rem breed), en een hoogte van 6,4rem op een
+ * breedte van 3 maakte daar een staande streep van elk omslagje. Die fout was
+ * onzichtbaar in de kamer, waar hij klopte — gevonden op de winkel op een
+ * telefoon, in een screenshot.
+ */
+.plek .plek-cover {
+  height: 6.4rem;
+  width: auto;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
 .plek-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 .plek-item-name {
-  display: block;
+  /* Twee regels, en daarna een beletselteken: de tegel heeft een vaste hoogte
+     en een naam van vijf regels zou de omslag eruit duwen. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin-top: 0.3rem;
   line-height: 1.2;
   word-break: break-word;
+}
+
+/*
+ * §85: weghalen is een ×, rechtsboven, en geen knop naast Neerzetten.
+ *
+ * Even groot en op dezelfde plek zetten zegt dat het twee even waarschijnlijke
+ * dingen zijn om te doen, en dat is het niet — je zet tien dingen neer voor je
+ * er één weghaalt. Klein en uit de leesrichting dus, maar met een volwaardig
+ * raakvlak: `--tap` op een telefoon (§69 6.1), want een × die je twee keer
+ * moet aantikken is erger dan een knop die te groot is.
+ */
+.plek-clear {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  padding: 0.25rem;
+  min-height: 0;
+  line-height: 1;
+  /*
+   * Zichtbaar zonder muis: een rand en een eigen papier, want een × in
+   * `--ink-muted` op `--paper-raised` in een tegel van `--paper-raised` is
+   * een knop die je alleen vindt als je weet dat hij er is. Op een telefoon
+   * (geen hover) was dat de enige staat die er was.
+   */
+  border-color: var(--rule);
+  background: var(--paper);
+  color: var(--ink-muted);
+}
+/*
+ * Wegdoezelen tot je er met de muis bij bent mag alleen waar een muis ís. Een
+ * telefoon heeft geen hover-staat, dus daar zou dit een knop zijn die nooit
+ * verschijnt — en weghalen is niet iets wat alleen een bureaublad mag.
+ */
+@media (hover: hover) {
+  .plek-clear {
+    opacity: 0;
+  }
+  .plek-filled:hover .plek-clear,
+  .plek-clear:focus-visible {
+    opacity: 1;
+  }
 }
 .plek-item:hover .plek-item-name {
   text-decoration: underline;
@@ -235,6 +409,12 @@
   flex: 0 0 auto;
 }
 
+/* §85: de knop die de rest van het boek openvouwt. Onopvallend, want hij is
+   een gemak en geen actie — hij verandert niets aan de kamer. */
+.kamer-grootboek-meer {
+  margin-top: 0.5rem;
+}
+
 /* De regel die de Keeper erbij schrijft, onderaan het boek. */
 .kamer-grant {
   display: flex;
@@ -253,7 +433,7 @@
 
 /* ---------------------------------------------------------------- telefoon */
 
-@media (max-width: 560px) {
+@media (max-width: 767px) {
   /*
    * Twee kolommen, vast. `auto-fill` met 9.5rem zou op een smalle telefoon op
    * één kolom uitkomen, en twaalf plekken onder elkaar is een lijst van een
@@ -264,8 +444,26 @@
     gap: 0.6rem;
   }
   .plek {
-    min-height: 9.5rem;
     padding: 0.5rem;
+  }
+  /* Twee kolommen van een halve telefoon zijn smaller dan 9.5rem, dus de
+     omslag en dus de tegel mogen mee omlaag. Eén getal, hier en boven. */
+  .kamer-grid {
+    grid-auto-rows: 11.5rem;
+  }
+  .plek .plek-cover {
+    height: 5rem;
+  }
+  /* §69 6.1: een vinger. Het kruisje is klein getekend en groot aan te raken —
+     de `padding` maakt het raakvlak, het icoon blijft 14 px. */
+  .plek-clear {
+    min-width: var(--tap);
+    min-height: var(--tap);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    top: 0;
+    right: 0;
   }
   /* Onder elkaar: een bedrag, een reden en een tijd naast elkaar op 320 px
      duwt de reden tot één woord per regel. */
@@ -296,8 +494,51 @@
    geen eigen kleur: §45 heeft vier kleurschema's en een Keeperkant, en "te
    duur" zou daar vier keer gekozen moeten worden. */
 
-.kamer-tabs {
+/*
+ * §85: twee tabs, met een streep onder degene waar je bent.
+ *
+ * Ze waren `chip-selectable` — het patroon van een *filter*, waarvan je er
+ * geen of drie tegelijk aan kunt hebben. Hier is er altijd precies één aan.
+ * De vorm zegt dat nu: geen kader om allebei, maar een lijn onder de ene,
+ * met `--tap` eronder omdat een chip van 30 px op een telefoon te klein was
+ * (§69 6.1).
+ */
+.kamer-tab {
+  flex: 1;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.kamer-tab:hover {
+  color: var(--ink);
+}
+.kamer-tab-aan {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Eén vak boven allebei de tabs, dus het hoort bij geen van beide en staat
+   erboven met zijn eigen ruimte eronder. */
+.kamer-zoek {
+  margin: 0.6rem 0 0.2rem;
+  width: 100%;
+}
+
+.kamer-tabs {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--rule);
   margin-bottom: 0.2rem;
 }
 
@@ -372,10 +613,29 @@
 /* ------------------------------------------ §80: wat deze kamer je geeft */
 
 .kamer-effecten {
+  /* §85: het staat nu bóven het raster, dus de ruimte hoort eronder in plaats
+     van erboven — zonder dit plakt de eerste rij tegels tegen de laatste
+     effectregel aan. */
+  margin-bottom: 1rem;
   margin-top: 1.6rem;
   padding-top: 1rem;
   border-top: 1px solid var(--rule);
 }
+/*
+ * §85: de lege variant. Eén zin en een deur, op één regel — het is geen kop
+ * boven een lege lijst (dat leest als kapot) maar een antwoord op "er ligt hier
+ * nog niets" met de plek waar dat verandert ernaast.
+ */
+.kamer-effecten-leeg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.kamer-effecten-zin {
+  margin: 0;
+}
+
 .kamer-effecten-title {
   font-size: 1rem;
   margin: 0 0 0.6rem;
@@ -415,7 +675,7 @@
   content: '— ';
 }
 
-@media (max-width: 560px) {
+@media (max-width: 767px) {
   /* Op een telefoon is het blad bijna de hele breedte, maar een omslagje, een
      naam, een prijs én een knop op één rij is er één te veel: de prijs en de
      knop gaan naast elkaar onder de tekst staan. */
@@ -483,22 +743,10 @@
 /* --- per soort plek ------------------------------------------------------
    Eén kop per soort, in de volgorde van de ladder (`PLEK_KINDS`). Een groep
    zonder inhoud staat er niet: een kop met een gat eronder is geen etalage. */
-.winkel-groep {
-  margin-top: 1.4rem;
-}
-.winkel-groep-title {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 1rem;
-  margin: 0 0 0.5rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid var(--rule);
-  color: var(--ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-family: var(--stamp-face);
-}
+/* §84: `.winkel-groep` en `.winkel-groep-title` stonden hier voor de kopjes per
+   soort plek. Die groepen zijn weg — een ding dat op twee soorten plek past
+   stond in twee ervan en sprak zichzelf tegen — en een klasse die niets meer
+   tekent hoort ook weg. Het filter erboven is `.winkel-filter`. */
 
 /* Een omslagje in de winkel is smaller dan een tegel in de kamer: de rij is
    breed en de tekst is waar hij over gaat. `.plek-cover` doet het knippen. */
@@ -532,12 +780,30 @@
   margin: 0.4rem 0 1.2rem;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 767px) {
   /* Op een telefoon staan de prijs en wat eronder hoort naast elkaar onder de
      tekst (`.kamer-koop` wrapt al), en dan mag de regel de breedte hebben. */
   .winkel-state {
     max-width: none;
     text-align: right;
+  }
+  /*
+   * §85: prijs en bijschrift naast elkaar, knop eronder over de volle breedte.
+   * Ze stonden alle drie in één kolom van nog geen zes centimeter, dus "Staat
+   * al in je kamer" brak over twee regels en duwde tegen de koopknop aan.
+   */
+  .kamer-koop-buy {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+  }
+  .kamer-koop-buy .winkel-state {
+    flex: 1 1 auto;
+  }
+  .kamer-koop-buy .btn {
+    flex: 1 1 100%;
   }
   .winkel-cover {
     width: 2.5rem;
@@ -552,6 +818,13 @@
 /* Eén getal bovenaan, één reden, en daaronder één regel per kamer. De vorm is
    bewust die van een formulier en niet van een tabel: er wordt hier niets
    gelezen, er wordt iets ingevuld. */
+
+/* §85: de kop draagt een deur terug, dus hij is een regel met twee dingen
+   erin in plaats van alleen een woord — dezelfde vorm als `.spelers-kop`. */
+.uitdelen-page .uitdelen-title {
+  align-items: center;
+  gap: 0.6rem;
+}
 
 .uitdelen-title {
   margin: 0 0 0.75rem;
@@ -606,6 +879,30 @@
   border-bottom: 0;
 }
 
+/*
+ * §85: zebra. Twaalf regels met vier kolommen cijfers en niets dat een regel
+ * van de volgende scheidt is een plek waar je je regel kwijtraakt — en dit is
+ * het ene scherm in het archief waar je van links naar rechts moet lezen om te
+ * zien wie wat krijgt. Een gestreepte achtergrond is daar het oudste
+ * hulpmiddel dat er is, en het is `--paper-raised` en dus geen eigen kleur.
+ */
+.uitdelen-rij:nth-child(odd) {
+  background: var(--paper-raised);
+}
+
+/*
+ * En de vinkjes krijgen de stempelkleur. `accent-color` tekent het vinkje met
+ * de inkt van het archief in plaats van met het blauw van het besturings-
+ * systeem, in alle vier de paletten tegelijk, zonder dat er iets nagebouwd
+ * hoeft te worden.
+ */
+.uitdelen-wie input[type='checkbox'] {
+  accent-color: var(--stamp-red);
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
 /* De naam neemt de ruimte die overblijft; het saldo en het bedrag staan rechts
    onder elkaar uitgelijnd, zodat een kolom cijfers ook een kolom is. */
 .uitdelen-wie {
@@ -633,6 +930,43 @@
   min-height: 2.5rem;
 }
 
+/*
+ * §85: de voet. Hij plakt onderaan het scherm zolang de lijst langer is dan
+ * de pagina, want het totaal is het laatste wat je nakijkt en de knop het
+ * laatste wat je aanraakt — en op een tafel van twaalf stonden die twee tot
+ * ronde 46 onder de vouw. Op de plek van de FAB, die op deze pagina wijkt
+ * (zie `app/globals.css`): twee dingen rechtsonder is er één te veel.
+ */
+.uitdelen-voet {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+}
+.uitdelen-totaal {
+  margin: 0;
+  min-height: 1.2em;
+}
+.uitdelen-voet-knoppen {
+  gap: 0.5rem;
+  margin-left: auto;
+}
+/* Op een telefoon staat de tabbalk onder de voet, dus de voet plakt daarboven
+   in plaats van eroverheen. */
+@media (max-width: 767px) {
+  .uitdelen-voet {
+    bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom));
+    padding-bottom: 0.6rem;
+  }
+}
+
 /* §83: de deur naar de uitdeler staat in de kop van het grootboek, dus die kop
    is een regel met twee dingen erin in plaats van alleen een woord. */
 .kamer-grootboek-title {
@@ -646,12 +980,11 @@
   margin-left: auto;
 }
 
-.spelers-kop {
-  align-items: center;
-  gap: 0.6rem;
-}
+/* §84: `.spelers-kop` stond hier, en `/spelers` laadt dit bestand niet in — het
+   werkte alleen zolang Next de twee brokken bij elkaar veegde. Hij staat nu in
+   `app/spelers.css`, waar de pagina hem wél om vraagt. */
 
-@media (max-width: 560px) {
+@media (max-width: 767px) {
   /* Op 390 px past "naam · saldo · bedrag" niet op één regel, dus het bedrag
      zakt eronder en houdt zijn uitlijning rechts. 44 px hoog (§69 6.1), want
      het is een vakje waar een vinger in moet. */
@@ -666,9 +999,141 @@
     text-align: left;
   }
   .uitdelen-bedrag {
-    min-height: 44px;
+    min-height: var(--tap);
   }
   .uitdelen-all-input {
-    min-height: 44px;
+    min-height: var(--tap);
+  }
+}
+
+/* ------------------------------------------------- §84: het geld spreekt */
+
+/*
+ * De zin die zegt hoeveel je tekortkomt. Hij stond tot ronde 45 drie keer
+ * letterlijk in de code en alle drie de keren in een `title` — die op een
+ * telefoon niet bestaat. Nu is het gewoon tekst, en hij staat waar de knop zou
+ * staan zodat de kolom niet danst.
+ */
+.plek-short,
+.winkel-short {
+  margin: auto 0 0;
+  color: var(--ink-muted);
+  font-style: italic;
+  line-height: 1.25;
+}
+.winkel-short {
+  margin: 0;
+  display: block;
+  max-width: 9rem;
+  text-wrap: balance;
+}
+
+/*
+ * Waar een ding past, als chips op de rij zelf. Dit is wat de groepen van §82
+ * zeiden; sinds §83 kon dat niet meer, want een ding dat op twee soorten plek
+ * past stond dan twee keer op het scherm — en sprak zichzelf tegen.
+ */
+.winkel-plekken {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.3rem 0 0;
+}
+.winkel-plek-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  line-height: 1.5;
+}
+
+/* Het filter boven de lijst — de vraag die de groepen beantwoordden, zonder
+   het antwoord te verdubbelen. */
+.winkel-filter {
+  gap: 0.35rem;
+  margin: 0.2rem 0 0.9rem;
+}
+.winkel-filter-count {
+  margin-left: 0.15rem;
+  opacity: 0.65;
+}
+
+/*
+ * §84: de Keeper staat in andermans kamer met andermans knoppen. Gestreept en
+ * niet gekleurd, want §45 heeft vier paletten en dit moet in alle vier een
+ * *waarschuwing* blijven in plaats van een versiering.
+ */
+.kamer-guest {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-dark);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+/*
+ * §84: waar de *Bekijk* van een koopmelding landt. Twee tellen een rand in de
+ * kleur van een stempel, en dan is het weer een gewone tegel — genoeg om je oog
+ * te vinden, te kort om een staat te worden.
+ */
+@keyframes plek-aangewezen {
+  0%,
+  70% {
+    border-color: var(--stamp-red);
+  }
+  100% {
+    border-color: var(--rule);
+  }
+}
+.plek:target {
+  animation: plek-aangewezen 2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .plek:target {
+    animation: none;
+    border-color: var(--stamp-red);
+  }
+}
+
+@media (max-width: 767px) {
+  /*
+   * §69 6.1: alles wat een vinger raakt haalt 44 px. Geen van de knoppen in
+   * deze feature deed dat — een `btn-small` is 34 px en een `chip-selectable`
+   * 38 — en de lijst hieronder is twee klassen diep omdat een regel die vóór
+   * de regel staat die hij overschrijft verliest bij gelijke specificiteit
+   * (ronde 35 leerde dat op `.ink-tool`).
+   */
+  .plek .plek-action,
+  .kamer-koop-buy .btn,
+  .winkel-filter .chip-selectable,
+  .kamer-tabs .chip-selectable,
+  .kamer-grootboek .btn,
+  .kamer-balance .btn {
+    min-height: var(--tap);
+  }
+
+  /*
+   * En de knop wordt zo breed als zijn rij. De FAB is een vaste cirkel van
+   * 56 px in de rechterhoek, dus een knop die daar eindigt is in zijn rechter
+   * helft onaanraakbaar; een knop over de volle breedte heeft altijd oppervlak
+   * dat de FAB niet dekt.
+   */
+  .kamer-koop-buy .btn {
+    width: 100%;
+    justify-content: center;
+    /* Zonder dit breekt "Kopen · 2 munten" over twee regels zodra de knop de
+       volle breedte krijgt, en dan is een knop van 44 px er ineens 66. */
+    white-space: nowrap;
   }
 }

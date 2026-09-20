@@ -212,8 +212,21 @@ async function openPicker(page: Page, sort: number): Promise<Locator> {
     }
     await expect(picker).toBeVisible({ timeout: 1500 });
   }).toPass({ timeout: 30_000 });
-  // Het blad opent altijd op "Wat je al hebt": dat is de eerste vraag.
-  await expect(picker).toHaveAttribute('data-tab', 'bezit');
+  /*
+   * §85 keerde dit om. Het blad opende *altijd* op "Wat je al hebt", en voor
+   * iemand die nog niets bezit is dat een leeg blad met één zin erin — op de
+   * eerste avond dus voor iedereen. Het opent nu op het tabblad dat iets te
+   * zeggen heeft, en de spelers in dit bestand bezitten niets dat past.
+   *
+   * De assertie is daarom "het is uitgekozen en blijft staan", niet welke van
+   * de twee het is: wélk tabblad het wordt hangt af van wat er in het archief
+   * ligt, en dat is per zaak anders. Wat er bewaakt wordt is dat er precies
+   * één keer gekozen wordt — een blad dat onder je hand blijft springen is
+   * erger dan een leeg blad.
+   */
+  const landed = await picker.getAttribute('data-tab');
+  await picker.page().waitForTimeout(600);
+  await expect(picker).toHaveAttribute('data-tab', landed!);
   return picker;
 }
 
@@ -401,11 +414,21 @@ test.describe('§80 Huisraad', () => {
 
     /* ------------------------------------------------ zaak 3: nog niet, wel te zien */
 
-    await expect(picker.getByTestId('plek-picker-saldo')).toHaveText('0 munten');
+    await expect(picker.getByTestId('plek-picker-saldo')).toContainText('0');
     await expect(stoelRij).toHaveAttribute('data-afford', 'nee');
-    const koop = stoelRij.getByTestId('plek-koop');
-    await expect(koop).toBeDisabled();
-    await expect(koop).toHaveAttribute('title', /nog 4 munten/);
+    /*
+     * §84 keerde deze assertie om, en met opzet.
+     *
+     * §80 liet de knop staan en zette de uitleg in een `title`: "een knop die
+     * verdwijnt als je twee munten tekortkomt leert je niets". Dat argument
+     * klopt — maar een `title` bestaat niet op een telefoon, dus op de helft
+     * van de schermen leerde hij alsnog niets. Nu staat de uitleg er als
+     * tekst en verdwijnt de dode knop: die twee samen zijn er één te veel.
+     */
+    await expect(stoelRij.getByTestId('plek-koop')).toHaveCount(0);
+    const kort = stoelRij.getByTestId('plek-catalogus-short');
+    await expect(kort).toBeVisible();
+    await expect(kort).toContainText('4 munten');
     await closePicker(owner);
 
     // De Keeper schrijft zes munten bij: genoeg voor de stoel, met twee over,

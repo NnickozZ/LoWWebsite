@@ -4417,3 +4417,243 @@ Sixty-seven rules worth knowing before changing anything:
     helpers** wezen naar `#field-plek`, dat er na de meerkeuze niet meer is: één
     `setPlekken`/`expectPlekken` in `tests/e2e/helpers.ts` is nu de plek die dat
     weet.
+
+84. **Geld heeft een stem, een saldo is geen prijskaartje, en een deur ziet
+    eruit als een deur.** §84. Nick, ronde 45: *"Make the UX of this shop and
+    player page immaculate."* Drie agents liepen de feature eerst na — een
+    routekaart, de visuele taal, en een echte doorloop met screenshots op
+    1440 en 390 px, in licht en donker. Wat ze vonden was niet één fout maar
+    één soort fout, drie keer: **wat er gebeurt is nergens te zien.**
+
+    **Het saldo en de prijs waren hetzelfde component.** Allebei de `.stamp` —
+    schuin, rood, omlijnd. *Wat je hebt* en *wat iets kost* stonden in één
+    oogopslag naast elkaar en waren niet uit elkaar te houden, en een koop
+    veranderde dus één cijfer in een ding dat eruitziet als een prijskaartje.
+    De `.stamp` blijft van de prijs; de **beurs** (`components/kamer/Beurs.tsx`)
+    is nieuw en staat rechtop, in gewone inkt, met een munt ervoor. Nooit rood —
+    rood is in dit archief de kleur van een stempel en van de Keeper, en een
+    saldo is geen van beide. Eén tekening op alle vier de plekken waar het getal
+    staat; er waren er drie.
+
+    **En hij staat in de hoek van élke pagina.** Dat is de tweede helft: de hele
+    meta-progressie hing aan één menu-item (*Jij*), je eigen kamer was drie
+    klikken diep en die van een ander vier, en `/you` noemde de winkel en de hal
+    en **nooit de kamer of het saldo**. Nu is het één klik, vanaf overal — en
+    daarmee is de beurs de voordeur van de feature geworden. Hij is *absent*
+    voor wie niemand draagt en voor de Keeper (§18), niet leeg: een blokje dat
+    "0 munten" zegt tegen iemand zonder kamer belooft een kamer. Op een canvas
+    staat hij niet (§34: het glas krijgt het scherm), en op de kamer en de
+    winkel ook niet — die dragen hun eigen, en twee keer hetzelfde getal naast
+    elkaar is wat de browser als eerste liet zien.
+
+    **Elke uitgave spreekt nu, vóór en na.** Vooraf zegt de knop wat hij kost
+    (*Openen · 2 munten*, *Kopen · 5 munten*); achteraf zegt een melding waar
+    het ding heen is (*"Staande klok ligt nu op je muur. −2 munten"*) met een
+    deur die op díé tegel landt. Er is nog steeds **geen bevestigingsdialoog**,
+    en dat is een keuze: dit doe je twintig keer op een avond, en een dialoog
+    zou frictie zijn in plaats van zorg. De doorloop mat 174 ms tussen klik en
+    nieuw saldo — de snelheid was nooit het probleem, de stilte was.
+
+    **"Nog 3 munten nodig" was een `title`.** Drie keer, letterlijk in de code,
+    alle drie op een uitgeschakelde knop — en een `title` bestaat niet op een
+    telefoon. Het is de zin die iemand aan het sparen zet en dus precies de
+    verkeerde om te verstoppen. Eén `shortfall()`, één woordsleutel, zichtbare
+    tekst, en de knop is wég in plaats van dood: een knop die niets doet naast
+    een zin die zegt waarom is er één te veel.
+
+    **De winkel is één lijst met een filter, en dat keert regel 82 om.** §82
+    groepeerde per soort plek met een goede reden — een etalage lees je naar
+    wáár een ding zou gaan — en §83 haalde die reden onderuit zonder het te
+    merken: sindsdien past een ding op meer dan één soort plek, dus stond het in
+    twee groepen met twee knoppen, en ná één koop zei de ene rij *"geen vrije
+    plek van deze soort"* en de andere, over hetzelfde voorwerp, *"staat al in
+    je kamer"* boven een levende knop. Nu staat een ding er één keer, met chips
+    die zeggen waar het past, en de chips erboven filteren. **De ontdubbeling
+    zit in de pagina en niet in `shopFor`** — `landsIn` blijft per soort plek —
+    en dat de bestaande `winkel.test.ts` zonder één wijziging groen bleef, is
+    daar het bewijs van.
+
+    Verder: **één vorm per betekenis.** `box` was de kist én de winkel én het
+    tabblad *wat je al hebt* én de lege cover van elk stuk huisraad; `book` was
+    de plank én de catalogus; `plus` was neerzetten, geven, uitdelen en de
+    uitdeelknop. Vijf nieuwe vormen (`coin`, `shop`, `gift`, `shelf`, `desk`) en
+    een tabel in `components/kamer/plekWords.ts` die een test leest. En **één
+    werkwoord**: de knop onder het grootboek zei *Uitgeven*, wat het
+    tegenovergestelde betekent van wat hij doet — uitgeven doe je in de winkel,
+    de Keeper **geeft**.
+
+    Drie dingen gingen pas stuk onder een test of een hand, en het zijn alle
+    drie dingen die niemand ziet slijten. Het **donkere spelerspalet** droeg de
+    rode inkt van het *lichte* palet, ongewijzigd: 2,4 tegen 1 op een gesloten
+    tegel, waar `keeperDark` die correctie allang had. Een prijs van 30 munten
+    was 's avonds niet te lezen, en een uitgeschakelde en een ingeschakelde
+    *Kopen* waren bijna dezelfde kleur — nu is een tegengehouden primaire knop
+    **omlijnd in plaats van gevuld**, wat een vorm is en dus in alle vier de
+    paletten tegelijk werkt. De **FAB** hing over de onderste 132 px van elke
+    pagina terwijl er 84 px vrij werd gehouden, en dekte op een telefoon de
+    laatste Kopen-knop van de winkel af. En de rij deuren op *Jij* haalde de
+    44 px niet — gevonden door de e2e-zaak die élke zichtbare knop opmeet in
+    plaats van een lijstje dat iemand bijhoudt.
+
+    En één die precies §83's les herhaalde: **`landsIn` landde op de verkeerde
+    plek terwijl het comment erboven het goede zei.** Een ding dat op een muur
+    én een bureau past hoort op de eerste vrije plek te komen, en dat is de
+    vroegste sport van de ladder — maar de code liep over `PLEK_KINDS` (muur,
+    plank, bureau, kist) terwijl `ROOM_SHAPE` met bureau begint. De klok hing
+    dus aan de muur terwijl het vrije bureau twee sporten eerder kwam.
+    `shopFor` vult `landsIn` nu in de volgorde waarin het de plekken toch al
+    afloopt, en de rij leest die sleutelvolgorde.
+
+    En één die alleen een schil kon vinden: **de beurs in de hoek kneep een
+    prikbord smaller.** `.live-strip` is een `float: right` in de hoofdkolom en
+    een tweede float ernaast neemt nóg een stuk van die kolom; op een landkaart,
+    tijdlijn of stamboom gebeurt dat niet (die zijn `.page-canvas` en de strip
+    hangt er absoluut), maar een wand is nog niet op §34's canvas-schil. Een
+    muur die smaller wordt is een muur waarop elke coördinaat verschuift, en
+    twee inkt-zaken op de telefoon liepen erop vast — twee tests die niets met
+    geld te maken hebben.
+
+    Twee kleinere dingen die bij de opruiming hoorden: het breekpunt van
+    `kamer.css` en `spelers.css` stond op 560 px waar de hele app (en
+    `useIsPhone`) 767 zegt, zodat die twee pagina's tussen 561 en 767 px in
+    bureaubladopmaak stonden terwijl de app zichzelf een telefoon noemde; en
+    `.spelers-kop` werd gedefinieerd in `app/kamer.css`, dat `/spelers` niet
+    importeert — het landde alleen doordat Next de stylesheets samenvoegt.
+
+    **Wat er níét veranderde**, en met opzet: rule 78 (het archief rekent nooit
+    een bonus uit — ook niet "even handig" in een melding), §76 (de beurs toont
+    alleen je eigen saldo, nooit dat van een ander), en §79's regel dat het
+    saldo de som van het grootboek is — het scherm animeert naar het getal dat
+    de server teruggeeft en telt zelf nooit mee.
+
+85. **Eén rijhoogte, één zin per gebeurtenis, en een deur met een werkwoord
+    erop.** §85. Nick, ronde 46: *"Next half please"* — de tweede helft van het
+    kamer-contract, die hij in ronde 45 zelf had afgesplitst. Waar §84 over
+    **geld** ging, gaat deze over **vorm**: het raster, het grootboek, de
+    plek-kiezer, de uitdeler, de hal en de spelerspagina. En het resultaat van
+    allebei de helften staat sinds deze ronde in `docs/kamer-contract.md`, veertig
+    genummerde regels, naar het model van `docs/canvas-contract.md`.
+
+    **Het raster brak bij de eerste koop.** Een tegel had alleen een
+    `min-height`, dus de rij groeide mee met wat erin lag: een gevulde tegel met
+    een staande omslag van 3:4 werd in een kolom van 9,5rem ruim tien rem hoog
+    en duwde de drie lege tegels naast zich mee omhoog. Het brak dus precies op
+    het moment dat je er het meest naar keek. Drie dingen repareren dat samen:
+    `grid-auto-rows` zet de hoogte één keer voor alle vier de staten, een
+    gevulde tegel draagt een **vierkante** uitsnede (die bestond al sinds ronde
+    19 en is nooit hoger dan breed), en een lege of gesloten tegel draagt een
+    groot gedempt merk — de soort plek, respectievelijk een slot — op de plek
+    waar de omslag zou staan. De maat hoort bij de **tegel** en niet bij de
+    klasse: `.plek .plek-cover`, want een winkelrij draagt dezelfde klasse op
+    3rem breed, en een hoogte van 6,4rem maakte daar van elk omslagje een
+    staande streep. Dat was in de kamer, waar de regel klopte, onzichtbaar.
+
+    **Een grootboekregel is een zin over iets dat gebeurd is.** Er stond `Plek:
+    plank` voor een geopende plek, een kale artikelnaam voor een koop, en voor
+    een gift wat er getypt was met een liggend streepje als dat niets was: drie
+    vormen, geen van drieën een zin. Nu *Plank geopend*, *Prent demo gekocht* en
+    *Van de Keeper: Startgeld*, alle drie sjablonen in `lib/words.ts`. De
+    vierde vorm — een versluierde regel — is met opzet níét meeveranderd: §76's
+    regel is dat elk versluierd ding dezelfde ene zin zegt, en een eigen vorm
+    zou juist de tell zijn. En het bedrag ernaast is geen `.stamp` meer: §84
+    gaf het saldo een eigen vorm juist omdat een stempel een *prijs* betekent,
+    en hier stonden er drie onder elkaar waarvan één met een `+` ervoor. Drie
+    rode kaartjes lezen alle drie als een waarschuwing. Het boek staat
+    bovendien ingeklapt op de laatste drie regels — `ledgerOf` haalt er vijftig
+    op, dus onder een kamer van twaalf tegels stond een lijst van vier kamers
+    lang.
+
+    **De plek-kiezer opent op het tabblad dat iets te zeggen heeft.** *Wat je al
+    hebt* is de goede eerste vraag zodra het antwoord bestaat, en een
+    doodlopende weg daarvóór — dus op ieders eerste avond. Het omschakelen
+    gebeurt nadat het antwoord binnen is en precies één keer per opening: een
+    tabblad dat onder je hand terugspringt zodra je typt is erger dan een leeg
+    tabblad. De twee chips werden bovendien **echte tabs** — ze droegen
+    `aria-pressed`, het patroon van een *filter*, waarvan je er geen of drie
+    tegelijk aan kunt hebben, terwijl er hier altijd precies één aan is — en het
+    zoekvak staat nu boven allebei in plaats van in één van de twee.
+
+    **De uitdeler zegt in een plakkende voet wat de knop gaat doen.** De som
+    stond als `.tiny` aan het eind van de knop geplakt en las als een breuk
+    (*"36 munten / 12"*): het ene getal dat een Keeper nakijkt vóór hij drukt,
+    kleiner dan al het andere op de pagina en op een tafel van twaalf onder de
+    vouw. Nu *36 munten naar 12 kamers*, met de knop ernaast, op 390 px in beeld
+    zonder scrollen. Daarbij zebra-strepen, `accent-color` op de vinkjes, het
+    saldo náást het bedrag in plaats van aan de andere kant van de rij, en de
+    FAB die wijkt — twee dingen rechtsonder is er één te veel.
+
+    **De hal kent jou en een onderzoeker wijst naar zijn kamer.** Je eigen regel
+    staat bovenaan met *(jij)* erachter, met kolomkoppen erboven en het woord
+    *online* voor wie er is — dat laatste uit de roster die de schil toch al
+    heeft (§76), dus zonder tweede lijst en zonder tweede stel regels over wie
+    genoemd mag worden. De panelen van een spelerspagina staan in een andere
+    volgorde (**Kamer, Karakters, Aanwezig, Dossiers, Bijdragen**; de oude was
+    die waarin ze per ronde gebouwd zijn en zette het paneel dat meestal leeg is
+    vooraan), het kamerpaneel vult de hele eerste rij en elke regel erin is een
+    deur die je kunt zien. En `/e/<slug>` van een gedragen onderzoeker draagt
+    één regel onder de kop — de beurs en *Naar de kamer* — want dit was het
+    enige scherm in het archief dat over een onderzoeker gáát en zijn kamer
+    nergens noemde.
+
+    **Elke deur draagt een werkwoord**, geen bestemming: *Naar de kamer*, niet
+    *Kamer*. Een deur die naar zijn bestemming genoemd is leest als een kop. De
+    deur van *Recente bijdragen* ging weg in plaats van er een te krijgen: hij
+    wees naar `/`, de feed van iedereen, dus hij beloofde "meer hiervan" en gaf
+    iets anders — §77's regel dat er niets in een paneel staat dat geen eigen
+    pagina heeft, geldt ook voor de deur eronder.
+
+    **De kiezer sprong élke keer naar de catalogus.** De nieuwe regel vraagt
+    `items.length === 0`, en `items` begint leeg omdat er nog niets *gevraagd*
+    is — wat niet hetzelfde is als "niets gevonden". In de tel tussen het
+    openen en het antwoord was die voorwaarde dus altijd waar, ook voor iemand
+    met een plank vol. Het is letterlijk de fout die §80 één tabblad verderop
+    al had opgeschreven (daar staat `shop === null` voor "nog niet gevraagd",
+    met een comment erboven waarom dat geen lege lijst is). Zes bestaande zaken
+    vielen er tegelijk over om, en ik had ze bijna afgedaan als specs die een
+    oude vorm aannemen — wat er in deze ronde ook twee wáren. **Als een handvol
+    tests tegelijk omvalt, tel dan eerst hoeveel er gelijk hebben.**
+
+    **Acht fouten onderweg, zeven gevonden door een screenshot, een meting of
+    een test.**
+    De vierkante uitsnede die in de winkel lekte (hierboven); het kruisje op een
+    gevulde tegel dat er wél stond, 44 bij 44 was, en `--ink-muted` op
+    `--paper-raised` binnen een tegel van `--paper-raised` — met een
+    `opacity: 0` die pas bij hover wegging, terwijl een telefoon geen hover
+    heeft; een `span 2` op het kamerpaneel dat een nieuw gat maakte in plaats
+    van het oude te dichten (het is het kórtste paneel, dus het liet een gat ter
+    hoogte van zijn buurman — `1 / -1` heeft geen buurman); een tegelknop die
+    niet in een tegel paste en over twee regels brak, precies de uitlijning
+    kapot die de ronde vroeg; en een winkelrij die op 390 px drie dingen in zes
+    centimeter propte.
+
+    En twee in de **tests zelf**, die hier staan omdat ze een soort zijn. De
+    e2e-zaak van §84 riep "ligt onder iets anders" over een knop waar niets mee
+    was: hij sloeg een knop over waarvan de ónderkant voorbij 844 px lag en
+    mengde daarmee twee stelsels — `boundingBox()` meet vanaf de bovenkant van
+    het *document*, `elementFromPoint` vanaf die van het *venster* — en hij hield
+    geen rekening met de tabbalk, die de onderste 56 px vastgeplakt bezet.
+    Zolang de knoppen 34 px waren viel daar niets in; zodra deze ronde ze op
+    44 px zette landde er één in die band. De zaak scrollt elke knop nu eerst
+    naar het midden van het scherm, wat een duim ook doet. **Een test die zegt
+    dat het stuk is terwijl het werkt, is net zo duur als een die zwijgt terwijl
+    het stuk is.** En twee zaken kochten elkaars huisraad, omdat
+    `getByTestId('winkel-koop').first()` op de bovenste rij van de winkel klikt
+    en de winkel het hele archief is.
+
+    **Wat er níét veranderde**, en met opzet: rule 78 (het lopende totaal in de
+    uitdeler is een echo van de vakjes die je zelf net ingevuld hebt, nooit een
+    som over het archief), §76 (een versluierde grootboekregel hield exact
+    dezelfde zin terwijl de drie andere zinnen werden), §79 (geen scherm rekent
+    een saldo uit), en de tap-vloer bleef aan de **pagina's van deze feature**
+    hangen in plaats van aan het hele archief — precies zoals §69 6.1 hem aan de
+    tekenvlakken hing. Voor een scherm waar het bewijs niet voor geleverd is,
+    verandert er niets.
+
+    Eén ding uit het contract is bewust níét gebouwd: de catalogusrij is geen
+    `WinkelRij` geworden. `CatalogueEntry` mist precies de zes velden die de
+    kiezer al wéét omdat hij vóór één bepaalde plek staat, dus hergebruik vroeg
+    om een verzonnen `landsIn` en een `unique: false` die niet waar hoeft te
+    zijn. **Een leugen in een type is duurder dan een tweede component**, en hij
+    wordt pas duur op de dag dat iemand hem gelooft. Wat het contract er echt
+    mee wilde — dezelfde staten, dezelfde woorden, dezelfde zichtbare
+    tekortzin — is er wel.

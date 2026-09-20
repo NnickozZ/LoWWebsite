@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { munt } from '@/components/kamer/plekWords';
-import type { Words } from '@/lib/words';
+import { Beurs } from '@/components/kamer/Beurs';
+import { fill, type Words } from '@/lib/words';
 
 export type KamerPanelData = {
   /** One line per onderzoeker this account wears whose kamer the *reader* may open. */
@@ -14,6 +14,8 @@ export type KamerPanelData = {
     filled: number;
     /** How many plekken are open at all. Locked ones are not counted: they are not shelf yet. */
     open: number;
+    /** §85: and how many there are in total, locked ones included — "3 van 12". */
+    total: number;
   }[];
 };
 
@@ -37,6 +39,18 @@ export type KamerPanelData = {
  * account wearing three fiches gets three lines. `roomSummary` is asked once
  * per fiche and returns null for a karakter the reader may not see, so the
  * narrowing is the archive's own and not a second copy of it here.
+ *
+ * **§85 made each line a door you can see.** It was a `.tiny muted` sentence
+ * reading `6 munten · 1 van 3 plekken gevuld` — the balance drawn in the same
+ * grey as the count beside it, at the size the archive uses for timestamps.
+ * The beurs is the one number on this panel that a person is looking for, and
+ * since §84 the archive has a shape for exactly that, used in the shell, the
+ * kamer, the winkel and the plek-kiezer. Using it here too costs nothing and
+ * makes the fifth place the same as the other four.
+ *
+ * What is still true is §77's rule: **nothing on it is spendable.** A beurs is
+ * a reading of `roomSummary`'s balance, not a control, and the whole row is
+ * one link to the kamer where the verbs live.
  */
 export function KamerPanel({ data, words }: { data: KamerPanelData; words: Words }) {
   if (data.rooms.length === 0) {
@@ -53,13 +67,20 @@ export function KamerPanel({ data, words }: { data: KamerPanelData; words: Words
     <ul className="speler-feed" aria-label={words.roomPlural} data-testid="kamer-panel">
       {data.rooms.map((room) => (
         <li key={room.entryId}>
-          <Link className="feed-item speler-feed-row" href={room.href} data-testid="kamer-panel-deur">
-            <span className="small" style={{ display: 'block', fontWeight: 600 }}>
-              {room.name}
+          <Link className="feed-item speler-kamer-rij" href={room.href} data-testid="kamer-panel-deur">
+            <Beurs balance={room.balance} words={words} size="small" />
+            <span className="speler-kamer-woorden">
+              <span className="small speler-kamer-naam">{room.name}</span>
+              <span className="tiny muted" data-testid="kamer-panel-samenvatting">
+                {fill(words.roomPanelLine, {
+                  open: String(room.open),
+                  alle: `${room.total} ${room.total === 1 ? words.slot : words.slotPlural}`,
+                  gevuld: String(room.filled),
+                })}
+              </span>
             </span>
-            <span className="tiny muted" style={{ display: 'block' }} data-testid="kamer-panel-samenvatting">
-              {munt(room.balance, words)} &middot; {room.filled} van {room.open}{' '}
-              {room.open === 1 ? words.slot : words.slotPlural} gevuld
+            <span className="speler-kamer-pijl" aria-hidden="true">
+              &rarr;
             </span>
           </Link>
         </li>

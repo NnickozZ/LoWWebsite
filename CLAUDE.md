@@ -163,7 +163,37 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5678][0-9]" app components lib` before
-  choosing a number — the latest is **§83 / rule 83** (round 44: het open
+  choosing a number — the latest is **§85 / rule 85** (round 46: de kamer
+  in de hand, de tweede helft van het kamer-contract. **Eén rijhoogte** voor
+  alle vier de staten van een tegel (`grid-auto-rows` plus een vierkante
+  uitsnede — het raster brak tot nu toe bij de eerste koop); een grootboek dat
+  **zinnen** leest in plaats van veldnamen (*Plank geopend*, niet `Plek: plank`),
+  ingeklapt staat op drie regels en zijn bedrag zonder stempel tekent; *wat deze
+  kamer je geeft* boven het raster, met een lege variant; weghalen als een
+  kruisje; de plek-kiezer met **echte tabs**, die opent op het tabblad dat iets
+  heeft, met één zoekvak erboven; een uitdeler met zebra, een plakkende voet die
+  in een zin zegt wat de knop gaat doen, en een FAB die wijkt; een hal die jou
+  bovenaan zet met het woord *online* uit de roster die er al was; een
+  spelerspagina met een nieuwe paneelvolgorde en een kamerpaneel over de volle
+  breedte; een deur naar de kamer op het artikel van een gedragen onderzoeker;
+  en elke deur met een **werkwoord** erop. Plus `docs/kamer-contract.md`, veertig
+  genummerde regels over allebei de helften. Zeven fouten onderweg, zes gevonden
+  door een screenshot of een meting — waaronder twee in de *tests* zelf, zie
+  §85 hieronder.) Daarvoor **§84 / rule 84** (round 45: het geld
+  spreekt. Een **beurs** in de hoek van elke pagina, één klik van je eigen kamer
+  (de feature hing aan één menu-item en je kamer was drie klikken diep); het
+  saldo is een eigen vorm en niet langer dezelfde `.stamp` als een príjs; elke
+  knop draagt zijn bedrag en elke uitgave krijgt een melding met een deur naar
+  de tegel; "nog n nodig" is zichtbare tekst in plaats van drie letterlijke
+  `title`s; de winkel is één lijst met een filter, wat **regel 82 omkeert** en
+  §83's dubbele rij opruimt — de ontdubbeling zit in de pagina, `shopFor` bleef
+  gelijk; één vorm per betekenis (`coin`, `shop`, `gift`, `shelf`, `desk`, plus
+  een tabel in `plekWords.ts` die een test leest); één werkwoord (*Geven*, niet
+  *Uitgeven*). Vier dingen die alleen een test of een hand vond: het donkere
+  spelerspalet droeg de róde inkt van het lichte (2,4 op een tegel), een
+  tegengehouden `btn-primary` is nu omlijnd in plaats van half doorzichtig, de
+  FAB dekte de onderste 132 px van elke pagina af, en de deuren op `/you`
+  haalden de 44 px niet). Daarvoor **§83 / rule 83** (round 44: het open
   grootboek, de uitdeling, en twee grenzen die te strak stonden. Het grootboek
   is van iedereen die de kamer mag zien — met een sluier over een regel die een
   artikel noemt dat je niet mag zien (§76) — en alleen het formulier eronder
@@ -1005,6 +1035,70 @@ And a third that belongs with them: an e2e helper is a reader too. Changing a
 `select` into a `multiselect` deletes `#field-plek`, and three specs pointed at
 it. One `setPlekken`/`expectPlekken` in `tests/e2e/helpers.ts` is now the one
 place that knows what that field looks like.
+
+### §84: een UX-regel die niet gemeten wordt, slijt
+
+Ronde 45 was een UX-ronde, en dat is het soort ronde waarvan de regels een half
+jaar later stilletjes weg zijn: een `44px` die terugkruipt waar `--tap` hoorde,
+een icoon dat er een tweede betekenis bij krijgt, een Nederlandse zin die in een
+component belandt in plaats van in `lib/words.ts`, een klasse in de opmaak die
+geen enkel stylesheet tekent. **Geen van die vier breekt iets.** Ze slijten
+alleen, en daarom staan ze in `tests/unit/kamer-contract.test.ts` en niet in een
+document.
+
+Twee dingen die dat bestand laat zien en een mens niet:
+
+1. **Meet elke knop, houd geen lijstje bij.** De e2e-zaak die op 390 px
+   `elementFromPoint` op het midden van *elke zichtbare* `.btn` zet en zijn
+   hoogte opmeet, vond de rij deuren op `/you` — een rij die in geen enkel
+   overzicht stond omdat niemand hem als onderdeel van deze feature zag. Een
+   test die alleen de knoppen afloopt waarvan je wist dat ze er waren, bewijst
+   wat je al wist.
+2. **Een contrastgetal vangt wat een screenshot niet vangt.** `playerDark` droeg
+   sinds §45 de rode inkt van het *lichte* palet: 2,4 tegen 1 op een gesloten
+   tegel, waar `keeperDark` die correctie allang had. Vier rondes lang keek daar
+   iemand naar zonder het te zien — en de test die het vond was drie regels.
+
+En de vorm die ronde 45 toevoegde: **een woord mag een gat hebben.** `'Nog {n}
+nodig'` staat in `lib/words.ts` en `fill()` vult het. De Keeper ziet het gat in
+Beheer, mag de zin eromheen herschrijven, en mag het gat zelfs weghalen — dan
+staat het getal er niet meer, en dat is zijn keuze. Er wordt niets afgedwongen:
+een onbekend gat blijft staan zoals het is, want `{plek}` in een zin is beter
+zichtbaar mis dan een gat in een zin.
+
+### §85: een test die "stuk" roept terwijl het werkt, kost net zoveel
+
+Ronde 46 vond zeven dingen, en **twee ervan zaten in de tests van ronde 45**.
+Dat is het deel dat het opschrijven waard is, want §84 had net vastgelegd dat
+een UX-regel die niet gemeten wordt slijt — en dan is de meting zélf het
+volgende dat kan slijten, zonder dat iemand het merkt.
+
+1. **Meng nooit documentcoördinaten met venstercoördinaten.**
+   `locator.boundingBox()` meet vanaf de bovenkant van het *document*;
+   `document.elementFromPoint(x, y)` leest vanaf de bovenkant van het *venster*.
+   Bij scrollpositie 0 zijn ze gelijk, dus een zaak die ze door elkaar haalt is
+   maandenlang groen. §84's telefoon-zaak deed dat én sloeg knoppen over
+   waarvan de onderkant voorbij 844 px lag — terwijl de tabbalk vastgeplakt de
+   ónderste 56 px bezet, dus een knop die daarin landt is in beeld én bedekt.
+   Zolang elke knop 34 px was viel er niets in die band; §85 zette ze op 44 px
+   en de zaak begon te schreeuwen over een scherm waar niets mee was. **Scroll
+   waar je naar kijkt eerst naar het midden van het venster en meet daarna** —
+   dat is wat een duim ook doet, en het maakt allebei de stelsels hetzelfde.
+2. **`.first()` in een zaak die zijn eigen fixture maakt, is bijna altijd fout.**
+   `getByTestId('winkel-koop').first()` klikt op de bovenste rij van de winkel,
+   en de winkel is het **hele archief** — dus de zaak over het grootboek kocht
+   het stuk huisraad dat de zaak erboven net gemaakt had, en viel om op een naam
+   die klopte. Filter op de naam die je zelf gestempeld hebt. Hetzelfde geldt
+   voor elke lijst die door andere zaken gevuld wordt: de hal, de catalogus, de
+   uitdeler.
+
+En een derde, over de code: **een klasse heeft soms twee lezers.** `.plek-cover`
+kreeg een vaste hoogte voor de tegel, en `.winkel-cover` draagt dezelfde klasse
+op 3rem breed — dus elk omslagje in de winkel werd een staande streep van 3 bij
+6,4 rem, terwijl het in de kamer precies goed stond. Dat is §83's les in een
+stylesheet in plaats van in SQL: **een tweede lezer van hetzelfde ding beweegt
+niet mee.** Sleutel de maat aan de context die hem nodig heeft (`.plek
+.plek-cover`) en zet er een test op.
 
 ### §80: a lock needs a slot on the outside of the door too
 

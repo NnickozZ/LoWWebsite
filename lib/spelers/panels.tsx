@@ -162,13 +162,29 @@ function casesShared(viewer: Viewer, speler: SpelerLite): CaseSummary[] {
   return listCases(viewer, { memberOf: speler.id, sort: 'status' }).slice(0, 6);
 }
 
+/**
+ * §85: **the order is the answer to "what is this person to me".**
+ *
+ * It was presence, karakters, kamer, bijdragen, dossiers — which is the order
+ * the panels were built in, one per round, and nothing else. What that put
+ * first was the line that is empty most of the time (nobody is online) and
+ * what it put last was the two that are almost always full.
+ *
+ * The kamer goes first because it is the one panel that is *about* something
+ * that accumulates: it says what this person has, and since §84 it has a
+ * number on it that moves. Karakters second because a kamer belongs to an
+ * onderzoeker and the next question is which one. Presence third, where a line
+ * that is usually empty costs nothing. Then dossiers and the contributions,
+ * both of which are lists you scan rather than facts you read.
+ */
 export const SPELER_PANELS: Panel[] = [
   definePanel({
-    id: 'nu-bezig',
-    title: (words) => words.presence,
-    // Nothing to load: presence is the live line's, not the database's.
-    load: () => null,
-    Component: ({ speler, words }) => <NuBezigPanel speler={speler} words={words} />,
+    id: 'kamer',
+    title: (words) => capitalise(words.room),
+    // §79: one line per onderzoeker this account wears. Reserved under §78,
+    // filled in now that the kamer has a page of its own to point at.
+    load: kamersOf,
+    Component: ({ data, words }) => <KamerPanel data={data} words={words} />,
   }),
   definePanel({
     id: 'karakters',
@@ -179,19 +195,11 @@ export const SPELER_PANELS: Panel[] = [
     ),
   }),
   definePanel({
-    id: 'kamer',
-    title: (words) => capitalise(words.room),
-    // §79: one line per onderzoeker this account wears. Reserved under §78,
-    // filled in now that the kamer has a page of its own to point at.
-    load: kamersOf,
-    Component: ({ data, words }) => <KamerPanel data={data} words={words} />,
-  }),
-  definePanel({
-    id: 'bijdragen',
-    // §11 has no word for this yet; a plain Dutch heading rather than a new key.
-    title: () => 'Recente bijdragen',
-    load: contributionsOf,
-    Component: ({ data, words }) => <BijdragenPanel rows={data} words={words} />,
+    id: 'nu-bezig',
+    title: (words) => words.presence,
+    // Nothing to load: presence is the live line's, not the database's.
+    load: () => null,
+    Component: ({ speler, words }) => <NuBezigPanel speler={speler} words={words} />,
   }),
   definePanel({
     id: 'dossiers',
@@ -200,5 +208,12 @@ export const SPELER_PANELS: Panel[] = [
     Component: ({ data, speler, words }) => (
       <DossiersPanel cases={data} speler={speler} words={words} />
     ),
+  }),
+  definePanel({
+    id: 'bijdragen',
+    // §11 has no word for this yet; a plain Dutch heading rather than a new key.
+    title: () => 'Recente bijdragen',
+    load: contributionsOf,
+    Component: ({ data }) => <BijdragenPanel rows={data} />,
   }),
 ];

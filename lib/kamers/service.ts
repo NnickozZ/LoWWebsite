@@ -71,6 +71,14 @@ export type RoomView = {
   id: string;
   character: { id: string; name: string; slug: string };
   ownerId: string | null;
+  /**
+   * §84: en hoe die persoon heet. `ownerId` stond hier sinds §79 en werd door
+   * niets gelezen; de kamerpagina heeft de naam nodig voor twee dingen die
+   * allebei uit elkaar gehouden moeten worden — de eyebrow (van wie is deze
+   * kamer) tegenover de kop (welke onderzoeker), en de zin die de Keeper leest
+   * als hij in andermans kamer staat.
+   */
+  ownerName: string | null;
   balance: number;
   slots: SlotView[];
   /** This viewer may unlock, place and clear. */
@@ -336,6 +344,8 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
         .all()
     : [];
   const byId = new Map(items.map((item) => [item.id, item]));
+  // §84: wie deze onderzoeker draagt, en hoe die heet.
+  const owner = ownerOf(entry.id);
   // §80: the effect lines come off the same rows, and only the visible ones —
   // a thing this viewer may not see contributes nothing to the list below.
   const fieldsById = new Map(
@@ -352,7 +362,11 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
   return {
     id: roomId,
     character: entry,
-    ownerId: ownerOf(entry.id),
+    ownerId: owner,
+    ownerName: owner
+      ? (db.select({ username: schema.users.username }).from(schema.users).where(eq(schema.users.id, owner)).get()
+          ?.username ?? null)
+      : null,
     balance: balanceOf(roomId),
     slots: rows.map((row) => {
       const item = row.entryId ? (byId.get(row.entryId) ?? null) : null;
@@ -478,6 +492,13 @@ export type ShopItem = {
   unique: boolean;
   /** Already lying in the kamer being shopped for. A label, not a refusal (§83). */
   owned: boolean;
+  /**
+   * §84: en hoevéél ervan. Sinds §83 mag hetzelfde stuk huisraad vaker in één
+   * kamer staan, en dan is "staat al in je kamer" een armere zin dan het aantal.
+   * Puur een telling voor het scherm: hij weigert niets en `owned` blijft de
+   * vraag die de knop stelt.
+   */
+  ownedCount: number;
   /** One of a kind, and somebody else has it. */
   takenElsewhere: boolean;
   /**
@@ -544,7 +565,11 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
         .orderBy(asc(schema.roomSlots.sortOrder))
         .all()
     : [];
-  const mine = new Set(slots.map((slot) => slot.entryId).filter((id): id is string => Boolean(id)));
+  const mine = new Map<string, number>();
+  for (const slot of slots) {
+    if (!slot.entryId) continue;
+    mine.set(slot.entryId, (mine.get(slot.entryId) ?? 0) + 1);
+  }
   const freeByKind = new Map<PlekKind, string>();
   for (const slot of slots) {
     if (slot.unlockedAt === null || slot.entryId) continue;
@@ -592,7 +617,8 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
     })
     .filter((row) => row.plekken.length > 0 && row.price > 0)
     .map((row) => {
-      const owned = mine.has(row.id);
+      const ownedCount = mine.get(row.id) ?? 0;
+      const owned = ownedCount > 0;
       /*
        * §83: owning one no longer keeps you from buying another — that was the
        * whole of Nick's third wish. Only `one_of_a_kind` still holds a row
@@ -602,14 +628,28 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
       const held = row.unique && (owned || claimed.has(row.id));
       const landsIn: Partial<Record<PlekKind, string>> = {};
       if (!held) {
-        for (const kind of row.plekken) {
-          const free = freeByKind.get(kind);
-          if (free) landsIn[kind] = free;
+        /*
+         * §84: in de volgorde van de **ladder**, en niet van `PLEK_KINDS`.
+         *
+         * `freeByKind` is gevuld door `slots` in `sort_order` af te lopen, dus
+         * zijn sleutels staan al in de volgorde waarin deze kamer gebouwd is.
+         * Die volgorde hier aanhouden is wat een sleutelvolgorde waard maakt:
+         * de winkel heeft er één koopknop bij en die moet ergens landen, en
+         * "de eerste vrije plek" hoort de vroegste sport van de ladder te zijn
+         * en niet de eerste soort die toevallig in een constante bovenaan staat.
+         *
+         * `ROOM_SHAPE` begint met bureau, plank, muur; `PLEK_KINDS` met muur.
+         * Wie hier over `row.plekken` loopt, krijgt dus de muur — en schrijft
+         * er dan een comment bij dat "de eerste vrije plek" zegt.
+         */
+        for (const [kind, free] of freeByKind) {
+          if (row.plekken.includes(kind)) landsIn[kind] = free;
         }
       }
       return {
         ...row,
         owned,
+        ownedCount,
         takenElsewhere: !owned && row.unique && claimed.has(row.id),
         landsIn,
         affordable: Boolean(room) && room!.balance >= row.price,
@@ -618,6 +658,47 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
     .sort((a, b) => a.price - b.price || a.name.localeCompare(b.name, 'nl'));
 
   return { rooms, roomId: room?.id ?? null, balance: room?.balance ?? 0, items };
+}
+
+/**
+ * §84: de beurs van de onderzoeker die je nú draagt — het ene getal dat de
+ * schil op elke pagina laat zien.
+ *
+ * Tot ronde 45 stond het saldo op precies twee pagina's, en de weg ernaartoe
+ * was drie klikken diep; `/you` noemde de winkel en de hal en **nooit de kamer
+ * en nooit het saldo**. Een spaarpot die je niet ziet is geen spaarpot.
+ *
+ * Eén onderzoeker en niet allemaal, om twee redenen. Het is *de* beurs waaruit
+ * je op dit moment betaalt — dezelfde die `WritingAsLine` bedoelt met "je
+ * schrijft als" — en de hoek van elke pagina is geen plek voor een lijstje
+ * (§76's redenering over het aanwezigheidslijstje, één laag hoger).
+ *
+ * Nooit die van een ander: dit leest alleen de eigen `activeCharacterId`, en de
+ * Keeper draagt niemand (§18) en krijgt dus `null`. Wie nog geen onderzoeker
+ * draagt ook — en dan staat er niets, in plaats van een nul (§80: een blokje
+ * dat "0 munten" zegt tegen iemand die geen kamer heeft, belooft een kamer).
+ */
+export type Purse = { roomId: string; balance: number; slug: string; name: string };
+
+export function purseOf(viewer: Viewer): Purse | null {
+  if (!viewer || viewer.isKeeper) return null;
+  const worn = db
+    .select({ entryId: schema.entries.id, name: schema.entries.name, slug: schema.entries.slug })
+    .from(schema.users)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.users.activeCharacterId))
+    .innerJoin(
+      schema.userCharacters,
+      and(
+        eq(schema.userCharacters.userId, schema.users.id),
+        eq(schema.userCharacters.entryId, schema.entries.id),
+      ),
+    )
+    .where(and(eq(schema.users.id, viewer.id), visibleEntryCondition(viewer)))
+    .get();
+  if (!worn) return null;
+  const roomId = getOrCreateRoom(worn.entryId);
+  if (!roomId) return null;
+  return { roomId, balance: balanceOf(roomId), slug: worn.slug, name: worn.name };
 }
 
 /** Every onderzoeker this person wears, with their kamer and its purse. */
@@ -1231,9 +1312,10 @@ export function handOut(rows: HandOutRow[], reason: string, viewer: Viewer): { r
 export function roomSummary(
   entryId: string,
   viewer: Viewer,
-  // `open` is how many plekken stand open, not how many exist — the panel says
-  // "1 van 4 plekken gevuld", and a locked plek is not one of the four.
-): { href: string; balance: number; filled: number; open: number } | null {
+  // `open` is how many plekken stand open, not how many exist, and `total` is
+  // how many there are at all — §85's panel says "3 van 12 plekken open · 1
+  // gevuld", so it needs both halves of that distinction rather than one.
+): { href: string; balance: number; filled: number; open: number; total: number } | null {
   const roomId = getOrCreateRoom(entryId);
   if (!roomId || !canSeeRoom(roomId, viewer)) return null;
   const entry = db.select({ slug: schema.entries.slug }).from(schema.entries).where(eq(schema.entries.id, entryId)).get();
@@ -1248,5 +1330,6 @@ export function roomSummary(
     balance: balanceOf(roomId),
     filled: slots.filter((slot) => slot.entryId).length,
     open: slots.filter((slot) => slot.unlockedAt !== null).length,
+    total: slots.length,
   };
 }

@@ -1,11 +1,14 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { relativeTime } from '@/lib/diff';
 import type { LedgerLine } from '@/lib/kamers/service';
 import { isPlekKind } from '@/lib/kamers/shape';
-import { capitalise, type Words } from '@/lib/words';
+import { capitalise, fill, type Words } from '@/lib/words';
 import { GrantForm } from './GrantForm';
-import { munt, plekWord } from './plekWords';
+import { MEANING, munt, plekWord } from './plekWords';
 
 /**
  * §79/§83: the grootboek, and the line being written at the bottom of it.
@@ -35,15 +38,37 @@ import { munt, plekWord } from './plekWords';
  * A line that paid for a plek writes the plek's *kind key* as its reason
  * (`unlockSlot`), so it is read back through `lib/words.ts` like every other
  * kind on this page rather than printed raw.
+ *
+ * **§85 made every line a sentence.** They were field names with colons —
+ * `Plek: plank` for an opened plek, a bare artikel name for a purchase, and
+ * for a grant whatever the Keeper had typed, with an em dash when that was
+ * nothing. Three different shapes, none of which said what had *happened*: a
+ * grootboek is a list of events and it read as a table of values. Now the
+ * three are three sentences (`{plek} geopend`, `{ding} gekocht`, `Van de
+ * {keeper}: {reden}`), all three the Keeper's to rewrite, and the fourth —
+ * the veiled one — is untouched on purpose: §76's rule is that every veiled
+ * thing says the *same* sentence, and giving this one a shape of its own would
+ * make it tellable from the others.
  */
 function reasonOf(line: LedgerLine, words: Words): string {
   if (line.veiled) return words.slotVeiled;
   if (line.kind === 'slot') {
     const kind = isPlekKind(line.reason) ? plekWord(line.reason, words) : line.reason;
-    return `${capitalise(words.slot)}: ${kind}`;
+    return capitalise(fill(words.ledgerSlotLine, { plek: kind }));
   }
-  return line.reason.trim() || '—';
+  if (line.kind === 'item') {
+    return capitalise(fill(words.ledgerItemLine, { ding: line.reason.trim() }));
+  }
+  const why = line.reason.trim();
+  return why
+    ? fill(words.ledgerFrom, { keeper: words.keeper, reden: why })
+    : fill(words.ledgerFromPlain, { keeper: words.keeper });
 }
+
+/** Hoeveel regels er zonder vragen staan. De lijst komt al op volgorde binnen
+    (`ledgerOf`, nieuwste eerst), dus dit zijn de laatste drie dingen die er
+    gebeurd zijn — precies wat iemand na een avond nog wil nakijken. */
+const LEDGER_SHOWN = 3;
 
 export function Grootboek({
   roomId,
@@ -57,6 +82,9 @@ export function Grootboek({
   canGrant: boolean;
   words: Words;
 }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? lines : lines.slice(0, LEDGER_SHOWN);
+
   return (
     <section className="kamer-grootboek" data-testid="kamer-grootboek" aria-labelledby="kamer-grootboek-title">
       <h2 id="kamer-grootboek-title" className="kamer-grootboek-title">
@@ -68,7 +96,7 @@ export function Grootboek({
         */}
         {canGrant && (
           <Link className="btn btn-small kamer-grootboek-uitdelen" href="/uitdelen" data-testid="grootboek-uitdelen">
-            <Icon name="person" size={13} />
+            <Icon name={MEANING.geven} size={13} />
             {words.handout}
           </Link>
         )}
@@ -76,11 +104,11 @@ export function Grootboek({
 
       {lines.length === 0 ? (
         <p className="small muted" style={{ margin: 0 }}>
-          Nog geen regels.
+          {words.ledgerEmpty}
         </p>
       ) : (
         <ul className="kamer-grootboek-list" aria-label={words.ledger}>
-          {lines.map((line) => (
+          {shown.map((line) => (
             <li
               key={line.id}
               className="kamer-grootboek-row"
@@ -89,7 +117,17 @@ export function Grootboek({
               data-kind={line.kind}
               data-veiled={line.veiled ? 'ja' : 'nee'}
             >
-              <span className={`stamp kamer-delta${line.delta < 0 ? ' kamer-delta-out' : ''}`}>
+              {/*
+                §85: een bedrag in het grootboek is geen stempel meer.
+                
+                Het was een `.stamp` — rood, gedraaid, omlijnd — en dat is in dit
+                archief de vorm van een *prijs* (§84 zette dat vast toen het saldo
+                zijn eigen vorm kreeg). Een regel in het grootboek is geen prijs:
+                hij is wat er gebeurd is. Drie rode kaartjes onder elkaar, waarvan
+                één "+4" zegt, lezen bovendien alle drie als een waarschuwing.
+                Nu: erbij in gewone inkt en vet, eraf gedempt, en niets rood.
+              */}
+              <span className={`kamer-delta${line.delta < 0 ? ' kamer-delta-out' : ''}`}>
                 {line.delta > 0 ? '+' : ''}
                 {munt(line.delta, words)}
               </span>
@@ -98,6 +136,28 @@ export function Grootboek({
             </li>
           ))}
         </ul>
+      )}
+
+      {/*
+        §85: het boek staat ingeklapt op de laatste drie regels.
+        
+        Een kamer van een half jaar oud heeft er vijftig, en `ledgerOf` haalt
+        er vijftig op — dus stond er onder elke kamer een lijst die vier keer
+        zo lang was als de kamer zelf, met bovenaan de enige drie regels die
+        iemand nog leest. Dit is een gemak en geen recht: de knop haalt niets
+        op en verbergt niets voor wie hij niet bedoeld is (de sluier van §76
+        zit in `ledgerOf`, niet hier), dus hij mag in de browser wonen.
+      */}
+      {lines.length > LEDGER_SHOWN && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-small kamer-grootboek-meer"
+          data-testid="grootboek-meer"
+          aria-expanded={open}
+          onClick={() => setOpen((was) => !was)}
+        >
+          {open ? words.ledgerFewer : words.ledgerAll}
+        </button>
       )}
 
       {canGrant && <GrantForm roomId={roomId} give={words.ledgerGive} why={words.ledgerWhy} />}

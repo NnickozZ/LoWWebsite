@@ -174,13 +174,19 @@ describe('the address', () => {
 });
 
 describe('the panel registry', () => {
+  /**
+   * §85 herschikte ze. De volgorde was die waarin ze gebouwd zijn — één per
+   * ronde — en die zette het paneel dat meestal leeg is (Aanwezig) vooraan en
+   * de twee die bijna altijd vol zitten achteraan. Nu: waar iemand zijn
+   * spullen bewaart, wie hij is, of hij er is, en dan twee lijsten.
+   */
   it('is five panels with unique ids, in the order the page draws them', () => {
     expect(deps.SPELER_PANELS.map((p) => p.id)).toEqual([
-      'nu-bezig',
-      'karakters',
       'kamer',
-      'bijdragen',
+      'karakters',
+      'nu-bezig',
       'dossiers',
+      'bijdragen',
     ]);
   });
 

@@ -8,6 +8,20 @@ const PATHS: Record<string, string> = {
   // §43: a web — three knots and the lines between them.
   web: 'M12 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM19 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM12 5l-7 11M12 5l7 11M7 18h10',
   minus: 'M5 12h14',
+  /*
+   * §84: vijf vormen die er niet waren, en daarom vier betekenissen deelden.
+   *
+   * `box` was de kist, de winkel, het tabblad "wat je al hebt" én de lege cover
+   * van huisraad; `book` was de plank én de catalogus; `plus` was neerzetten,
+   * geven, uitdelen en de uitdeelknop. Een icoon dat twee dingen betekent
+   * betekent er geen — `components/kamer/plekWords.ts` houdt nu de tabel bij en
+   * een test leest hem.
+   */
+  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z',
+  shop: 'M3 9.5h18L19.5 21h-15zM3 9.5 5 3.5h14l2 6M9.5 21v-6h5v6',
+  gift: 'M3.5 11.5h17V21h-17zM2.5 7.5h19v4h-19zM12 7.5V21M12 7.5C10.5 3.5 6 3.9 6 6.1c0 1.2 1.8 1.7 6 1.4M12 7.5c1.5-4 6-3.6 6-1.4 0 1.2-1.8 1.7-6 1.4',
+  shelf: 'M3 14.5h18M5.5 14.5V18M18.5 14.5V18M7.5 14.5V9.5h3v5M13 14.5v-7h3.2v7',
+  desk: 'M2.5 10.5h19v2h-19zM4.5 12.5V21M19.5 12.5V21M8 16h7.5M8 16v3.5h7.5V16',
   layers: 'M3 8l9 4 9-4-9-4zM3 12l9 4 9-4M3 16l9 4 9-4',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21c0-3.9 3.6-6 8-6s8 2.1 8 6',
   badge:

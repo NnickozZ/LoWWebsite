@@ -1,14 +1,14 @@
 import '@/app/kamer.css';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
-import { plekIcon, plekWord, munt } from '@/components/kamer/plekWords';
+import { Beurs } from '@/components/kamer/Beurs';
+import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { KamerKiezer } from '@/components/winkel/KamerKiezer';
-import { WinkelRij } from '@/components/winkel/WinkelRij';
+import { WinkelFilter } from '@/components/winkel/WinkelFilter';
 import { getWords } from '@/lib/admin/words';
 import { getSessionUser } from '@/lib/auth/session';
 import { shopFor } from '@/lib/kamers/service';
-import { PLEK_KINDS } from '@/lib/kamers/shape';
 import { capitalise } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
@@ -24,12 +24,14 @@ export const dynamic = 'force-dynamic';
  *
  * Three decisions are visible in the shape.
  *
- * **It is grouped by soort plek and not by price.** A shop window is read by
- * where a thing would go — you are standing in a kamer with an empty muur, and
- * the question is what hangs there. Inside a group it is cheapest first, which
- * is `shopFor`'s own order and the order somebody saving up reads. Since §83 a
- * thing may fit more than one kind, and then it stands in each of their
- * groups — with the free plek, the state and the button of *that* group.
+ * **§84: het is één lijst met een filter, en niet meer één groep per soort
+ * plek.** §82 koos die groepering met een goede reden — een etalage lees je
+ * naar wáár een ding zou gaan — en §83 haalde hem onderuit zonder het te
+ * merken: sindsdien past een ding op meer dan één soort plek, dus stond het in
+ * twee groepen met twee knoppen, en na één koop zeiden die twee rijen over
+ * hetzelfde voorwerp tegengestelde dingen. Het filter houdt de vraag in leven
+ * zonder het antwoord te verdubbelen; de chips op de rij zeggen waar het past.
+ * Dit keert regel 82 om, en dat staat in regel 84 en in `DECISIONS.md`.
  *
  * **Nothing is hidden for being out of reach.** What you cannot afford stays
  * in the list with its price on it, greyed and held, and the button says how
@@ -83,7 +85,15 @@ export default async function WinkelPage({
        */}
       <LivePage place="page:/winkel" watch={['entries', 'characters', 'users']} />
 
-      <p className="eyebrow">{capitalise(words.room)}</p>
+      {/*
+        §84: de eyebrow zei op drie verschillende pagina's "Kamer" — hier, in de
+        kamer zelf en op de uitdeler. Een kruimelpad dat overal hetzelfde zegt,
+        zegt niets. Hier staat nu voor wíé je koopt, wat ook precies de vraag is
+        die iemand met twee onderzoekers zich stelt.
+      */}
+      <p className="eyebrow" data-testid="winkel-eyebrow">
+        {room ? room.name : capitalise(words.room)}
+      </p>
       <h1 className="winkel-title">{capitalise(words.shop)}</h1>
 
       {canBuy ? (
@@ -93,10 +103,12 @@ export default async function WinkelPage({
             <KamerKiezer rooms={shop.rooms} roomId={shop.roomId} words={words} />
           )}
           <p className="kamer-balance winkel-balance" data-testid="winkel-balance" data-balance={shop.balance}>
-            <span className="stamp">{munt(shop.balance, words)}</span>
+            {/* §84: de beurs en niet nóg een stempel. Wat je hebt ziet er
+                anders uit dan wat iets kost — zie `components/kamer/Beurs.tsx`. */}
+            <Beurs balance={shop.balance} words={words} />
             {room && (
               <Link className="btn btn-small winkel-kamer-deur" href={`/kamer/${room.slug}`}>
-                <Icon name="home" size={14} />
+                <Icon name={MEANING.kamer} size={14} />
                 {capitalise(words.room)}
               </Link>
             )}
@@ -119,43 +131,14 @@ export default async function WinkelPage({
           {words.shopEmpty}
         </p>
       ) : (
-        /*
-         * The four kinds in `PLEK_KINDS`' own order — the ladder's order, the
-         * one a kamer is built in — and not alphabetically, which is how the
-         * service happens to sort. A group with nothing in it is not a heading
-         * with a hole under it; it is simply not there.
-         */
-        PLEK_KINDS.map((kind) => {
-          // §83: een ding dat op meerdere soorten plek past staat in élke
-          // groep waar het in past — dat is wat een etalage per soort plek
-          // betekent, en de rij krijgt de soort van zijn groep mee omdat zijn
-          // vrije plek (en dus zijn knop) per soort verschilt.
-          const items = shop.items.filter((item) => item.plekken.includes(kind));
-          if (items.length === 0) return null;
-          const label = plekWord(kind, words);
-          return (
-            <section key={kind} className="winkel-groep" data-testid="winkel-groep" data-kind={kind}>
-              <h2 className="winkel-groep-title">
-                <Icon name={plekIcon(kind)} size={14} />
-                {capitalise(label)}
-              </h2>
-              <ul className="kamer-catalogus winkel-lijst" aria-label={capitalise(label)}>
-                {items.map((item) => (
-                  <WinkelRij
-                    key={item.id}
-                    item={item}
-                    kind={kind}
-                    roomId={shop.roomId}
-                    roomSlug={room?.slug ?? null}
-                    balance={shop.balance}
-                    canBuy={canBuy}
-                    words={words}
-                  />
-                ))}
-              </ul>
-            </section>
-          );
-        })
+        <WinkelFilter
+          items={shop.items}
+          roomId={shop.roomId}
+          roomSlug={room?.slug ?? null}
+          balance={shop.balance}
+          canBuy={canBuy}
+          words={words}
+        />
       )}
     </div>
   );

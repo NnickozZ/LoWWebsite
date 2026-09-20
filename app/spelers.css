@@ -52,6 +52,62 @@
   border-bottom: 1px solid var(--rule);
 }
 
+/*
+ * §85: het kamerpaneel staat vooraan en vult de eerste rij.
+ *
+ * `auto-fit` legt de panelen in kolommen van minstens 19rem, en het
+ * kamerpaneel is het kortste van de vijf — één regel per onderzoeker. Met de
+ * nieuwe volgorde stond dat korte paneel dus naast een paneel van vijf regels,
+ * met een gat eronder. Twee kolommen breed vult het die rij zelf, en het is
+ * meteen het eerste wat er op een spelerspagina staat: waar deze persoon zijn
+ * spullen bewaart.
+ *
+ * Alleen waar er twee kolommen zíjn: onder 767 px is `.speler-panels` één
+ * kolom en zou `span 2` een lege tweede kolom uitvinden.
+ */
+@media (min-width: 768px) {
+  [data-testid='panel-kamer'] {
+    /*
+     * De hele rij, niet twee kolommen van de drie. Met `span 2` stond het
+     * korte kamerpaneel naast het lange karakterpaneel en liet het een gat
+     * onder zich van de hoogte van dát paneel — precies het gat dat weg moest.
+     * Een band over de volle breedte heeft geen buurman en dus geen gat.
+     */
+    grid-column: 1 / -1;
+  }
+}
+
+/*
+ * Eén regel per kamer, en hij is een deur: beurs, naam, samenvatting, pijl.
+ * De beurs is dezelfde vorm als in de schil en in de kamer zelf (§84) — het
+ * vijfde scherm waar één getal op dezelfde manier getekend wordt.
+ */
+.speler-kamer-rij {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  /* De hele regel is de link, dus de onderstreping hoort bij de naam en niet
+     bij het saldo en de telling eronder (dezelfde regel als `.plek-item`). */
+  text-decoration: none;
+  color: inherit;
+}
+.speler-kamer-rij:hover .speler-kamer-naam {
+  text-decoration: underline;
+}
+.speler-kamer-woorden {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.speler-kamer-naam {
+  font-weight: 600;
+}
+.speler-kamer-pijl {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}
+
 /* De deur: de uitgang van het paneel, niet de inhoud. Altijd onderaan. */
 .speler-panel-door {
   margin: 0.7rem 0 0;
@@ -137,7 +193,7 @@
 
 /* ------------------------------------------------------------- telefoon */
 
-@media (max-width: 560px) {
+@media (max-width: 767px) {
   .speler-panels {
     /* Eén kolom, en wat lucht tussen de panelen in plaats van ernaast. */
     grid-template-columns: 1fr;
@@ -193,12 +249,57 @@
   border-color: var(--accent);
 }
 .spelers-naam {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
   font-family: var(--sans);
   font-weight: 600;
+}
+/* §85: (jij) en online hangen aan de naam en zijn allebei geen naam — dus
+   geen vet en geen eigen kleur, alleen kleiner. */
+.spelers-jij {
+  font-weight: 400;
+}
+.spelers-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 400;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.spelers-online-stip {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--stamp-red);
+}
+
+/* De kolomkoppen boven de lijst. Dezelfde twee ruimtes als een regel eronder,
+   zodat het woord boven de kolom staat die het benoemt. */
+.spelers-koppen {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  max-width: 34rem;
+  margin: 0 0 0.3rem;
+  padding: 0 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 .spelers-onder {
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* §84: de kop van de hal draagt sinds §83 een knop, dus hij is een regel met
+   twee dingen erin. Deze regel stond tot ronde 45 in `app/kamer.css`, dat deze
+   route niet importeert — hij landde alleen doordat Next de stylesheets van de
+   hele app samenvoegt, en dat is geen afspraak waar je op kunt bouwen. */
+.spelers-kop {
+  align-items: center;
+  gap: 0.6rem;
 }

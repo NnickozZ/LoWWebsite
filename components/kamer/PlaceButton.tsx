@@ -9,8 +9,9 @@ import { useUi } from '@/components/ui/UiProvider';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
 import type { CatalogueEntry } from '@/lib/kamers/service';
 import type { PlekKind } from '@/lib/kamers/shape';
-import { capitalise, type Words } from '@/lib/words';
-import { munt } from './plekWords';
+import { capitalise, fill, type Words } from '@/lib/words';
+import { Beurs } from './Beurs';
+import { MEANING, munt, plekWord, shortfall, withPrice } from './plekWords';
 import { kamerPost } from './post';
 
 type Voorwerp = {
@@ -84,14 +85,50 @@ export function PlaceButton({
   const [tab, setTab] = useState<Tab>('bezit');
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<Voorwerp[]>([]);
+  /** Heeft de vraag "wat heb ik dat hier past" al een *antwoord* gegeven? Een
+      lege lijst vóór het antwoord is geen lege lijst (zie het effect hieronder). */
+  const [answered, setAnswered] = useState(false);
   const [shop, setShop] = useState<CatalogueEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open || tab !== 'bezit') return;
+    if (!open) return;
     setTimeout(() => boxRef.current?.focus(), 60);
-  }, [open, tab]);
+  }, [open]);
+
+  /*
+   * §85: open op het tabblad dat iets te zeggen heeft.
+   *
+   * De kiezer begon altijd bij *Wat je al hebt*, en voor iedereen die nog
+   * niets bezit is dat een leeg blad met één zin erin — op de eerste avond
+   * dus voor iedereen. De vraag "wat heb ik dat hier past" is de goede eerste
+   * vraag zodra het antwoord bestaat, en daarvóór is hij een doodlopende weg.
+   *
+   * Het gebeurt nadat het antwoord binnen is en nooit ervoor: er is geen
+   * tweede telling op de server die zou kunnen verschillen van de lijst die
+   * hier staat. En het gebeurt precies één keer per opening (`switched`), want
+   * een tabblad dat onder je hand terugspringt zodra je typt is erger dan een
+   * leeg tabblad.
+   */
+  const [switched, setSwitched] = useState(false);
+  useEffect(() => {
+    if (!open) {
+      setSwitched(false);
+      return;
+    }
+    /*
+     * `answered` is de hele zaak. `items` begint leeg — dat is "nog niet
+     * gevraagd", niet "niets gevonden" — dus zonder deze vraag sprong het blad
+     * élke keer naar de catalogus, ook voor iemand met een plank vol, in de
+     * tel tussen het openen en het antwoord. Precies de fout die §80 in deze
+     * zelfde component al eens opschreef over `shop === null`, een tabblad
+     * verderop.
+     */
+    if (switched || !answered || tab !== 'bezit' || query.trim() || items.length > 0) return;
+    setSwitched(true);
+    setTab('catalogus');
+  }, [open, switched, answered, tab, query, items.length]);
 
   useEffect(() => {
     if (!open || tab !== 'bezit') return;
@@ -105,6 +142,7 @@ export function PlaceButton({
         if (!response.ok) return;
         const data = (await response.json()) as { entries?: Voorwerp[] };
         setItems(data.entries ?? []);
+        setAnswered(true);
       } catch {
         /* ignore — an aborted ask is the next keystroke's, not a failure */
       }
@@ -144,6 +182,7 @@ export function PlaceButton({
     setOpen(false);
     setQuery('');
     setShop(null);
+    setAnswered(false);
     router.refresh();
   }
 
@@ -155,6 +194,9 @@ export function PlaceButton({
         ui.toast(error);
         return;
       }
+      // §84: zeggen wat er gebeurd is. Geen *Bekijk*-knop hier: je staat al in
+      // de kamer en het blad sluit op de tegel die net gevuld is.
+      ui.toast(fill(words.boughtHere, { ding: entry.name, plek: plekWord(kind, words) }));
       done();
     } finally {
       setBusy(false);
@@ -174,6 +216,9 @@ export function PlaceButton({
         ui.toast(error);
         return;
       }
+      ui.toast(
+        `${fill(words.boughtHere, { ding: entry.name, plek: plekWord(kind, words) })} −${munt(entry.price, words)}`,
+      );
       done();
     } finally {
       setBusy(false);
@@ -190,6 +235,7 @@ export function PlaceButton({
         data-testid="plek-place"
         onClick={() => {
           setTab('bezit');
+          setAnswered(false);
           setOpen(true);
         }}
       >
@@ -203,8 +249,14 @@ export function PlaceButton({
             <h2 id={titleId} style={{ margin: '0 0 0.2rem', fontSize: '1.2rem' }}>
               {words.slotPlace} &mdash; {kindLabel}
             </h2>
-            <p className="tiny muted" data-testid="plek-picker-saldo" style={{ margin: '0 0 0.6rem' }}>
-              {munt(balance, words)}
+            {/*
+              §84: dezelfde beurs als overal. Dit was de derde tekening van één
+              getal — een `.stamp` in de kamer, een `.stamp` in de winkel en
+              hier een grijze `.tiny` — en dat maakte het saldo drie keer iets
+              anders in één feature.
+            */}
+            <p style={{ margin: '0 0 0.6rem' }} data-testid="plek-picker-saldo">
+              <Beurs balance={balance} words={words} size="small" />
             </p>
 
             {/*
@@ -214,49 +266,75 @@ export function PlaceButton({
               not a renameable noun — the same class of string as "Zoeken…"
               and "Niets dat hier past." below — because it names a *question*
               ("what have I already got?") rather than a thing in the archive.
-              `aria-pressed` rather than a tablist: it is two buttons swapping
-              one list, the pattern `chip-selectable` is used for everywhere
-              else in the archive.
+
+              **§85 made them tabs.** They were `chip-selectable` with
+              `aria-pressed`, which is the archive's pattern for a *filter* —
+              and a filter is something you may have none or several of. These
+              two are neither: exactly one is always on, and pressing one turns
+              the other off. A screen reader was told "two toggle buttons" for
+              what is one list with two faces, and on a phone the chips were
+              30 px tall, under §69 6.1's floor. So: a real `tablist`, an
+              underline for the one you are on, and `--tap` under both.
             */}
-            <div className="row-wrap kamer-tabs" role="group" aria-label={words.slotPlace}>
+            <div className="kamer-tabs" role="tablist" aria-label={words.slotPlace}>
               <button
                 type="button"
-                className={`chip chip-selectable${tab === 'bezit' ? ' chip-active' : ''}`}
-                aria-pressed={tab === 'bezit'}
+                role="tab"
+                id={`${titleId}-tab-bezit`}
+                className={`kamer-tab${tab === 'bezit' ? ' kamer-tab-aan' : ''}`}
+                aria-selected={tab === 'bezit'}
+                aria-controls={`${titleId}-paneel`}
                 data-testid="plek-picker-tab-bezit"
                 onClick={() => setTab('bezit')}
               >
-                <Icon name="box" size={13} />
+                <Icon name={MEANING.kamer} size={13} />
                 Wat je al hebt
               </button>
               <button
                 type="button"
-                className={`chip chip-selectable${tab === 'catalogus' ? ' chip-active' : ''}`}
-                aria-pressed={tab === 'catalogus'}
+                role="tab"
+                id={`${titleId}-tab-catalogus`}
+                className={`kamer-tab${tab === 'catalogus' ? ' kamer-tab-aan' : ''}`}
+                aria-selected={tab === 'catalogus'}
+                aria-controls={`${titleId}-paneel`}
                 data-testid="plek-picker-tab-catalogus"
                 onClick={() => setTab('catalogus')}
               >
-                <Icon name="book" size={13} />
+                <Icon name={MEANING.catalogus} size={13} />
                 {capitalise(words.catalogue)}
               </button>
             </div>
 
+            {/*
+              §85: één zoekvak, boven allebei de tabs.
+              
+              Het stond in het eerste tabblad, dus wie op de catalogus zocht
+              moest eerst terug — en het vak sprong bij elke wissel weg en
+              weer terug, wat de hele kiezer liet springen. Het filtert nu
+              allebei de lijsten: het bezit op de server (dat zijn duizend
+              artikelen), de catalogus in de browser (die is al binnen en
+              telt er tien).
+            */}
+            <label className="visually-hidden" htmlFor={`${titleId}-zoek`}>
+              Zoeken
+            </label>
+            <input
+              id={`${titleId}-zoek`}
+              ref={boxRef}
+              className="input kamer-zoek"
+              data-testid="plek-picker-zoek"
+              value={query}
+              placeholder="Zoeken…"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+
+            <div
+              id={`${titleId}-paneel`}
+              role="tabpanel"
+              aria-labelledby={`${titleId}-tab-${tab}`}
+            >
             {tab === 'bezit' ? (
               <>
-                <label className="visually-hidden" htmlFor={`${titleId}-zoek`}>
-                  Zoeken
-                </label>
-                <input
-                  id={`${titleId}-zoek`}
-                  ref={boxRef}
-                  className="input"
-                  data-testid="plek-picker-zoek"
-                  value={query}
-                  placeholder="Zoeken…"
-                  style={{ marginTop: '0.6rem' }}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-
                 {items.length === 0 ? (
                   <p className="small muted" style={{ marginTop: '0.7rem' }} data-testid="plek-picker-leeg">
                     Niets dat hier past.
@@ -289,12 +367,14 @@ export function PlaceButton({
             ) : (
               <Catalogus
                 entries={shop}
+                query={query}
                 balance={balance}
                 busy={busy}
                 words={words}
                 onBuy={(entry) => void buy(entry)}
               />
             )}
+            </div>
           </div>
         </Sheet>
       )}
@@ -317,6 +397,7 @@ export function PlaceButton({
  */
 function Catalogus({
   entries,
+  query,
   balance,
   busy,
   words,
@@ -324,6 +405,9 @@ function Catalogus({
 }: {
   /** `null` until the ask comes back — "nothing yet" is not the same answer as "nothing". */
   entries: CatalogueEntry[] | null;
+  /** §85: what is in the one search box above both tabs. Filtered here rather
+      than asked again: this list is already in the browser and it is short. */
+  query: string;
   balance: number;
   busy: boolean;
   words: Words;
@@ -336,7 +420,12 @@ function Catalogus({
       </p>
     );
   }
-  if (!entries.length) {
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? entries.filter((entry) => entry.name.toLowerCase().includes(needle))
+    : entries;
+
+  if (!shown.length) {
     return (
       <p className="small muted" style={{ marginTop: '0.7rem' }} data-testid="plek-catalogus-leeg">
         {words.catalogueEmpty}
@@ -346,7 +435,7 @@ function Catalogus({
 
   return (
     <ul className="kamer-catalogus" data-testid="plek-catalogus" aria-label={capitalise(words.catalogue)}>
-      {entries.map((entry) => {
+      {shown.map((entry) => {
         const short = entry.price - balance;
         const affordable = short <= 0;
         return (
@@ -361,7 +450,11 @@ function Catalogus({
                fact a test may read (§45). */
             data-afford={affordable ? 'ja' : 'nee'}
           >
-            <Thumb assetId={entry.coverAssetId} icon="box" />
+            {/* §85: `box` is de **kist** en niets anders (§84's tabel). Een
+                stuk huisraad zonder omslag droeg hier het kistje, en een rij
+                over een schilderij kreeg dus het icoon van een lade. De
+                catalogus leent haar eigen vorm uit. */}
+            <Thumb assetId={entry.coverAssetId} icon={MEANING.catalogus} />
             <div className="kamer-koop-body">
               <p className="kamer-koop-name">
                 <strong>{entry.name}</strong>
@@ -383,16 +476,29 @@ function Catalogus({
               <span className="stamp kamer-koop-price" data-testid="plek-catalogus-prijs">
                 {munt(entry.price, words)}
               </span>
-              <button
-                type="button"
-                className="btn btn-small btn-primary"
-                data-testid="plek-koop"
-                disabled={busy || !affordable}
-                title={affordable ? undefined : `Je hebt nog ${munt(short, words)} nodig.`}
-                onClick={() => onBuy(entry)}
-              >
-                {words.buy}
-              </button>
+              {/*
+                §84: de derde en laatste kopie van deze zin. Hij stond hier, op
+                de tegel en in de winkelrij, alle drie letterlijk in de code en
+                alle drie in een `title` — die op een telefoon niet bestaat.
+                Eén `shortfall()`, zichtbaar, en de knop is weg in plaats van
+                dood.
+              */}
+              {affordable ? (
+                <button
+                  type="button"
+                  className="btn btn-small btn-primary"
+                  data-testid="plek-koop"
+                  disabled={busy}
+                  onClick={() => onBuy(entry)}
+                >
+                  <Icon name={MEANING.munt} size={13} />
+                  {withPrice(words.buy, entry.price, words)}
+                </button>
+              ) : (
+                <span className="tiny winkel-short" data-testid="plek-catalogus-short">
+                  {shortfall(entry.price, balance, words)}
+                </span>
+              )}
             </div>
           </li>
         );

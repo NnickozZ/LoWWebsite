@@ -6,7 +6,7 @@ import type { Words } from '@/lib/words';
 import { ClearButton } from './ClearButton';
 import { PlaceButton } from './PlaceButton';
 import { UnlockButton } from './UnlockButton';
-import { munt, plekIcon, plekWord } from './plekWords';
+import { MEANING, munt, plekIcon, plekWord, shortfall } from './plekWords';
 
 export type PlekState = 'locked' | 'empty' | 'filled' | 'veiled';
 
@@ -101,6 +101,9 @@ export function Plek({
       data-kind={slot.kind}
       data-plek={slot.id}
       data-sort={slot.sortOrder}
+      /* §84: waar de *Bekijk* van een koopmelding naartoe springt. Eén anker
+         per plek, zodat de winkel kan zeggen "ga kijken" en de kamer weet waar. */
+      id={`plek-${slot.id}`}
     >
       <p className="tiny plek-kind" data-testid="plek-kind">
         <Icon name={plekIcon(slot.kind)} size={12} />
@@ -113,20 +116,51 @@ export function Plek({
             <span className="stamp">{munt(slot.price, words)}</span>
           </p>
           <p className="tiny muted plek-locked-line">{words.slotLocked}</p>
-          {canArrange && (
-            <UnlockButton
-              roomId={roomId}
-              slotId={slot.id}
-              label={words.slotOpen}
-              affordable={balance >= slot.price}
-              short={`Je hebt nog ${munt(slot.price - balance, words)} nodig.`}
-            />
-          )}
+          {/* §85: dezelfde greep als bij een lege plek — zie `.plek-slot-merk`. */}
+          <span className="plek-slot-merk" aria-hidden="true">
+            <Icon name={MEANING.openen} size={28} />
+          </span>
+          {/*
+            §84: één van de twee, nooit allebei en nooit geen van beide.
+            
+            Tot ronde 45 stond hier altijd een knop, uitgeschakeld als je hem
+            niet kon betalen, met de reden in een `title` — en een `title`
+            bestaat niet op een telefoon. Wie twee munten tekortkwam zag dus een
+            grijze knop en geen enkele uitleg. Nu staat de zin er gewoon, en de
+            knop is weg in plaats van dood: een knop die niets doet naast een
+            zin die zegt waarom is er één te veel.
+          */}
+          {canArrange &&
+            (balance >= slot.price ? (
+              <UnlockButton
+                roomId={roomId}
+                slotId={slot.id}
+                kind={slot.kind}
+                price={slot.price}
+                words={words}
+              />
+            ) : (
+              <p className="tiny plek-short" data-testid="plek-short">
+                {shortfall(slot.price, balance, words)}
+              </p>
+            ))}
         </>
       )}
 
       {state === 'empty' && (
         <>
+          {/*
+            §85: een lege plek toonde één woord — "Leeg" — en verder niets, en
+            een raster van die tegels leest als een pagina die nog aan het laden
+            is. Het icoon van de soort, groot en gedempt, zegt hetzelfde met de
+            vorm die de tegel toch al heeft: dit is een plank, en er ligt niets
+            op. Het staat waar bij een gevulde tegel de omslag staat, zodat de
+            twee staten dezelfde hoogte houden zonder dat iemand die hoogte
+            ergens opschrijft.
+          */}
+          <span className="plek-leeg-merk" aria-hidden="true">
+            <Icon name={plekIcon(slot.kind)} size={34} />
+          </span>
           <p className="tiny muted plek-empty-line" data-testid="plek-empty">
             {words.slotEmpty}
           </p>
@@ -146,10 +180,18 @@ export function Plek({
       {state === 'filled' && slot.item && (
         <>
           <Link className="plek-item" data-testid="plek-item" href={`/e/${slot.item.slug}`}>
+            {/*
+              §85: **vierkant**, en dat is de hele reparatie van het raster.
+              Een 3:4 omslag is in een tegel van 9,5rem breed ruim 10rem hoog,
+              dus de rij waar iets in gekocht werd sprong open en het raster
+              brak bij de eerste koop. Een vierkante uitsnede bestaat al
+              (`SHAPES.square`, ronde 19) en is nooit hoger dan breed — de rij
+              houdt zijn hoogte en de foto houdt zijn eigen kader.
+            */}
             <Cover
               assetId={slot.item.coverAssetId}
               crop={slot.item.coverCrop}
-              shape="portrait"
+              shape="square"
               alt=""
               icon={slot.item.typeIcon}
               colour={slot.item.typeColour}
@@ -158,7 +200,16 @@ export function Plek({
             />
             <span className="small plek-item-name">{slot.item.name}</span>
           </Link>
-          {canArrange && <ClearButton roomId={roomId} slotId={slot.id} label={words.slotClear} />}
+          {canArrange && (
+            <ClearButton
+              roomId={roomId}
+              slotId={slot.id}
+              label={words.slotClear}
+              name={slot.item.name}
+              compact
+              words={words}
+            />
+          )}
         </>
       )}
     </li>

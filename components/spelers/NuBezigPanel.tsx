@@ -21,7 +21,7 @@ import type { Words } from '@/lib/words';
  */
 export function NuBezigPanel({ speler, words }: { speler: SpelerLite; words: Words }) {
   return (
-    <div className="speler-nu" data-testid="panel-nu-bezig-shell">
+    <div data-testid="panel-nu-bezig-shell">
       <NuBezigLive href={`/spelers/${speler.slug}`} words={words} fallback="Niet online." />
     </div>
   );

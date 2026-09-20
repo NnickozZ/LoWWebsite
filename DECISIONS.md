@@ -5269,3 +5269,112 @@ komt — en die wordt voor deze soort niet getekend.
 - **Een telefoonvariant van de spec.** Er is geen canvas, geen gebaar en geen
   §73-modus in deze ronde, dus de `phone`-variant zou dezelfde klikken op een
   smaller scherm zijn.
+
+## Ronde 45 — 20 September 2026: het geld spreekt (§84)
+
+*(Rondes 39 t/m 44 staan niet in dit bestand; hun beslissingen staan in
+`README.md` regels 76–83 en in `claude/round-39-…` t/m `claude/round-44-…`.
+Deze staat er wél in, om één reden: hij **keert een eerdere beslissing om**, en
+CLAUDE.md §5 zegt dat dat hier met zoveel woorden moet staan.)*
+
+**Omgekeerd: de winkel is niet meer gegroepeerd per soort plek (regel 82).**
+
+§82 koos die groepering bewust. De redenering staat er nog en klopte:
+
+> *"Een etalage wordt gelezen naar wáár een ding zou gaan — je staat in een
+> kamer met een lege muur, en de vraag is wat daar hangt."*
+
+§83 haalde de voorwaarde onder die redenering weg zonder het te merken. Sinds
+ronde 44 past een ding op **meer dan één** soort plek, en een lijst die per
+soort plek groepeert moet zo'n ding dan twee keer tekenen. Dat is niet alleen
+dubbel: de twee rijen krijgen elk hun eigen toestand, want hun vrije plek
+verschilt. Na één koop zei de rij onder *Muur* "geen vrije plek van deze soort"
+en de rij onder *Bureau*, over hetzelfde voorwerp, "staat al in je kamer" boven
+een levende koopknop. Twee rijen, één ding, tegengestelde boodschappen.
+
+De vervanging houdt §82's vraag in leven en laat het antwoord ongedubbeld: één
+lijst met een **filter** erboven (*Alles · Muur · Plank · Bureau · Kist*, met
+tellingen) en **chips op de rij zelf** die zeggen waar het ding past. Je kunt nog
+steeds vragen wat er aan een muur hangt; een ding staat maar één keer op het
+scherm.
+
+**Wat er bij die omkering niet mocht gebeuren**, en niet gebeurd is: de
+ontdubbeling zit in de *pagina*. `shopFor` is ongewijzigd, `landsIn` blijft per
+soort plek, en `tests/unit/winkel.test.ts` bleef zonder één aanpassing groen —
+dat laatste is met opzet het bewijs. Een ontdubbeling in de service zou §17's
+regel 4 geweest zijn met de verkeerde afloop: de lezer zou dingen verbergen die
+de schrijver nog accepteert.
+
+**Twee kleinere omkeringen in dezelfde ronde**, allebei van iets wat in §79/§80
+bewust zo gekozen was:
+
+- **Een knop die je niet kunt betalen verdwijnt, in plaats van uitgeschakeld te
+  blijven staan.** §79 koos "held rather than vanishing: a control that
+  disappears when you are two munten short teaches nothing", en dat argument
+  klopt — maar de uitleg stond in een `title`, die op een telefoon niet bestaat.
+  Nu staat de uitleg er als tekst en verdwijnt de knop, want een dode knop naast
+  een zin die zegt waarom is er één te veel. De les van §79 blijft dus staan; de
+  drager ervan is veranderd.
+- **De Keeper die in andermans kamer een plek opent, betaalt nog steeds háár
+  munten.** Dit is géén omkering — het is een uitgesproken *bevestiging*, want
+  het was tot nu toe een gevolg van `canArrangeRoom` en niet een keuze.
+  Nick, ronde 45: de kamer is van haar, de ladder is van haar; wil je haar een
+  plek cadeau doen, dan geef je haar eerst de munten, en dat is één regel in het
+  grootboek en dus navolgbaar. Wat erbij kwam is alleen de zin die het zegt.
+
+---
+
+## Ronde 46 (§85) — de tweede helft, en wat er bewust níét uit het contract kwam
+
+De ronde zelf keert niets om: ze bouwt de tien vorm-beslissingen uit
+`claude/prompt-round-45-de-kamer-in-de-hand.md` die ronde 45 liet liggen. Wat
+hier hoort staan zijn de drie plekken waar van die opdracht **afgeweken** is, en
+één keuze die daarin verborgen zat.
+
+**1. De catalogusrij is geen `WinkelRij` geworden, en dat is bewust.**
+
+Het contract zei: *"Catalogusrij = dezelfde component als de winkelrij
+(`WinkelRij` met `compact`)"*. De redenering erachter is goed — één rij, één
+stel staten, één plek om ze te veranderen. Maar `CatalogueEntry` is `ShopItem`
+mínus `plekken`, `unique`, `owned`, `ownedCount`, `takenElsewhere` en
+`landsIn`, en dat zijn precies de zes velden die de plek-kiezer al wéét omdat
+hij vóór één bepaalde plek staat. Hergebruik had dus betekend: een `ShopItem`
+verzinnen met een `landsIn` die de kiezer al in handen heeft en een
+`unique: false` die niet waar hoeft te zijn.
+
+**Een leugen in een type is duurder dan een tweede component**, en hij wordt
+pas duur op de dag dat iemand hem gelooft — precies het patroon van §83's
+fouten. Wat het contract er werkelijk mee wilde (dezelfde staten, dezelfde
+woorden, dezelfde zichtbare tekortzin) is er wél: allebei de rijen lopen door
+`shortfall()`, `withPrice()`, `MEANING.munt` en `.winkel-short`. Het staat als
+open punt in `docs/kamer-contract.md`, met deze reden erbij.
+
+**2. De tap-vloer van 44 px bleef aan de pagina's van déze feature hangen.**
+
+Het contract zei *"alle knoppen in scope"*, en dat is ook wat er gebeurd is —
+maar de verleiding was om `.btn-small` app-breed op 44 px te zetten, want dat is
+wat §69 6.1 eigenlijk vraagt. Dat is niet gedaan, om dezelfde reden als in ronde
+35: Nicks keuze toen was dat de rest van het archief er precies zo uit blijft
+zien. Het nieuwe blok hangt daarom aan `.kamer-page`, `.winkel-page`,
+`.uitdelen-page`, `.speler-page`, `.spelers-hal`, `.you-page`, `.entry-kamer` en
+`.kamer-catalogus` — aan **pagina's**, zodat een knop die daar morgen bij komt
+vanzelf meedoet, en niet aan een lijstje knoppen.
+
+Voor een scherm waar het bewijs niet voor geleverd is, verandert er niets. Of
+dat app-breed moet worden is een keuze van Nick, geen gevolg van deze ronde.
+
+**3. De aanwezigheidsstip is geen knop met woord geworden.**
+
+Het contract vroeg op desktop *Wie is er?* + stip + telling in plaats van een
+ongelabelde stip van 12 px. Dat is niet gebouwd: die stip staat in de **schil**
+van elke pagina in het archief en niet alleen op de zeven schermen van deze
+feature. Het is een ronde over de schil waard, met een eigen doorloop, en niet
+een regel aan het eind van deze. Wat hij wél kreeg is zijn 44 px op een
+telefoon.
+
+**En één keuze die in beslissing 7 verstopt zat.** Het grootboek kreeg drie
+zinnen in plaats van drie veldnamen — maar de **vierde** vorm, een versluierde
+regel (§76), is met opzet níét meeveranderd. Hij zegt nog steeds exact dezelfde
+ene zin als een versluierde plek en een versluierde effectregel. Een eigen vorm
+zou hem van de andere drie te onderscheiden maken, en dat verschil is zelf het
+lek dat de sluier bestaat om te dichten.

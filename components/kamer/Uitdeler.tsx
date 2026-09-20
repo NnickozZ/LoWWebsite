@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { useHoldRefresh } from '@/components/live/refreshHold';
 import { useUi } from '@/components/ui/UiProvider';
 import type { HandOutTarget } from '@/lib/kamers/service';
-import type { Words } from '@/lib/words';
-import { munt } from './plekWords';
+import { fill, type Words } from '@/lib/words';
+import { MEANING, munt } from './plekWords';
 import { kamerPost } from './post';
 
 /**
@@ -40,6 +42,25 @@ import { kamerPost } from './post';
  * Like `GrantForm`, this is an ordinary controlled form rather than
  * `useActionState`: what was typed has to survive a refusal (§63), and a form
  * that owns its own state has nothing to reset.
+ *
+ * **§85 gave it a foot, a stripe and a verdict.**
+ *
+ * The screen was right and unreadable. The sum of what you were about to do
+ * was a `.tiny` span glued onto the end of the button — *Uitdelen — 36 munten
+ * / 12* — which is the one number a Keeper checks before pressing, written
+ * smaller than everything else on the page and phrased as a fraction. It is
+ * now a sentence in a sticky foot that is on screen whatever you have scrolled
+ * to, which on a table of twelve is the difference between reading it and
+ * taking the button's word for it. The rows got zebra stripes for the ordinary
+ * reason — four columns of digits without them is a place to lose your line —
+ * and the saldo moved next to the box, because "what have they got" and "what
+ * am I giving them" is one question asked twice and the answers were at
+ * opposite ends of the row.
+ *
+ * And it says when it is done. A toast is gone in four seconds and this is a
+ * thing you do once an evening: the button holds *Uitgedeeld* for a beat and a
+ * door to the hall appears beside it, because after handing out the next thing
+ * anybody wants is to look at what everyone has.
  */
 export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: Words }) {
   const ui = useUi();
@@ -54,6 +75,21 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
   const [on, setOn] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(targets.map((target) => [target.roomId, true])),
   );
+  /** §85: de knop houdt zijn uitkomst even vast. Zie de docblock hierboven. */
+  const [done, setDone] = useState(false);
+
+  /*
+   * §59: niets landt terwijl hier een half ingevuld formulier staat. Een
+   * uitdeling is twaalf vakjes en een reden, en een `router.refresh()` van een
+   * speler die ergens anders iets koopt zou daar dwars doorheen komen.
+   */
+  useHoldRefresh(Boolean(all.trim() || reason.trim() || busy));
+
+  useEffect(() => {
+    if (!done) return;
+    const timer = setTimeout(() => setDone(false), 4000);
+    return () => clearTimeout(timer);
+  }, [done]);
 
   /** What the button says it is about to do — the same sum `handOut` will write. */
   const summary = useMemo(() => {
@@ -92,6 +128,7 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
         return;
       }
       ui.toast(words.handoutDone);
+      setDone(true);
       setReason('');
       setGlobal('');
       router.refresh();
@@ -101,7 +138,7 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
   }
 
   return (
-    <form className="uitdelen-form" data-testid="uitdelen-form" onSubmit={(event) => void submit(event)}>
+    <form data-testid="uitdelen-form" onSubmit={(event) => void submit(event)}>
       <div className="uitdelen-head">
         <label className="uitdelen-all">
           <span className="small">{words.handoutAll}</span>
@@ -110,7 +147,12 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
             data-testid="uitdelen-iedereen"
             value={all}
             inputMode="numeric"
-            placeholder="3"
+            /*
+             * §85: leeg, niet "3". Een placeholder van een getal in een vak
+             * waar een getal in moet leest als een waarde die er al staat —
+             * en het vak eronder zegt dan 0 terwijl je denkt dat het 3 is.
+             */
+            placeholder=""
             readOnly={busy}
             onChange={(event) => setGlobal(event.target.value)}
           />
@@ -152,6 +194,9 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
               </span>
             </label>
 
+            {/* §85: het saldo staat naast het vakje en niet aan de andere kant
+                van de rij — wat iemand heeft en wat je die geeft is één vraag,
+                twee keer gesteld, en de antwoorden stonden op de uiteinden. */}
             <span className="tiny muted uitdelen-saldo" data-testid="uitdelen-saldo">
               {munt(target.balance, words)}
             </span>
@@ -159,7 +204,7 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
             <input
               className="input uitdelen-bedrag"
               data-testid="uitdelen-bedrag"
-              aria-label={`${words.handoutAll} — ${target.name}`}
+              aria-label={`${words.handoutAmount} — ${target.name}`}
               value={amounts[target.roomId] ?? ''}
               inputMode="numeric"
               placeholder="0"
@@ -172,22 +217,42 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
         ))}
       </ul>
 
-      <button
-        type="submit"
-        className="btn btn-primary uitdelen-knop"
-        data-testid="uitdelen-geef"
-        data-rooms={summary.rooms}
-        disabled={busy || summary.rooms === 0}
-      >
-        <Icon name="plus" size={14} />
-        {words.handout}
-        {summary.rooms > 0 && (
-          <span className="tiny">
-            {' '}
-            — {munt(summary.total, words)} / {summary.rooms}
-          </span>
-        )}
-      </button>
+      {/*
+        §85: de voet plakt, want het totaal is het enige wat je nog nakijkt.
+        Op een tafel van twaalf staat de knop anders onder de vouw en lees je
+        de som niet meer; hier staat hij naast de knop die hem gaat uitvoeren.
+        Hij telt op wat er in déze vakjes staat en nooit iets uit het archief
+        (rule 78) — het is een echo van je eigen hand, geen bevinding.
+      */}
+      <div className="uitdelen-voet">
+        <p className="small uitdelen-totaal" data-testid="uitdelen-totaal" data-total={summary.total}>
+          {summary.rooms > 0
+            ? fill(words.handoutRunning, {
+                munten: munt(summary.total, words),
+                kamers: `${summary.rooms} ${summary.rooms === 1 ? words.room : words.roomPlural}`,
+              })
+            : ''}
+        </p>
+
+        <span className="row-wrap uitdelen-voet-knoppen">
+          {done && (
+            <Link className="btn btn-small" href="/spelers" data-testid="uitdelen-naar-spelers">
+              <Icon name={MEANING.onderzoeker} size={13} />
+              {fill(words.toPlayers, { spelers: words.playerPlural })}
+            </Link>
+          )}
+          <button
+            type="submit"
+            className="btn btn-primary uitdelen-knop"
+            data-testid="uitdelen-geef"
+            data-rooms={summary.rooms}
+            disabled={busy || summary.rooms === 0}
+          >
+            <Icon name={MEANING.geven} size={14} />
+            {done ? words.handoutDoneShort : words.handout}
+          </button>
+        </span>
+      </div>
     </form>
   );
 }

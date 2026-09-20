@@ -16,6 +16,7 @@ import { Icon } from '@/components/Icon';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, attributed, listCharacters, playersOf, windowPresenceName } from '@/lib/characters';
+import { roomSummary } from '@/lib/kamers/service';
 import { canReview, listPendingEdits } from '@/lib/entries/review';
 import { diffLines, relativeTime } from '@/lib/diff';
 import { docToText } from '@/lib/entries/doc';
@@ -228,6 +229,18 @@ export default async function EntryPage({
   const playedBy = playersOf(entry.id)
     .filter((p) => p.id !== user?.id)
     .map((p) => p.username);
+
+  /*
+   * §85: de kamer van deze onderzoeker, als er een is.
+   *
+   * `roomSummary` beantwoordt de hele vraag in één keer en is de enige lezer
+   * hier: hij geeft null voor een artikel dat niemand draagt (`ownerOf`, dus
+   * er wordt ook geen kamer aangemaakt door ernaar te kíjken) en null voor een
+   * kamer die deze ogen niet mogen openen (`canSeeRoom`). §80: de deur is
+   * absent voor wie er niet door mag, en de pagina erachter blijft de 404 die
+   * hij is.
+   */
+  const roomDoor = roomSummary(entry.id, user);
 
   // §19: where this fiche is on the maps, and which maps it could still go on.
   // §17: all three reads are per viewer now — a landkaart whose dial shuts this
@@ -864,6 +877,7 @@ export default async function EntryPage({
         proposals={proposals}
         character={character}
         playedBy={playedBy}
+        roomDoor={roomDoor ? { href: roomDoor.href, balance: roomDoor.balance } : null}
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}
         mapsOfThis={mapsOfThis}

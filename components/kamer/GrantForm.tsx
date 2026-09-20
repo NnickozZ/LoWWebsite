@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { MEANING } from './plekWords';
 import { kamerPost } from './post';
 
 /**
@@ -87,7 +88,7 @@ export function GrantForm({
         onChange={(event) => setReason(event.target.value)}
       />
       <button type="submit" className="btn btn-primary btn-small" data-testid="grootboek-geef" disabled={busy}>
-        <Icon name="plus" size={13} />
+        <Icon name={MEANING.geven} size={13} />
         {give}
       </button>
     </form>
