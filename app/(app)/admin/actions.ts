@@ -241,6 +241,30 @@ export async function setLogoAction(formData: FormData) {
   revalidatePath('/', 'layout');
 }
 
+/**
+ * §88: hetzelfde gebaar als hierboven, voor het icoontje in de browsertab.
+ *
+ * Bewust een kopie en geen gedeelde functie met een kolomnaam als argument:
+ * een server action is een adres dat de browser aanroept, en een die zelf
+ * kiest wélke kolom hij schrijft is een adres waar je een kolomnaam aan
+ * meegeeft. Twee acties van acht regels zijn goedkoper dan die vraag.
+ *
+ * `revalidatePath('/', 'layout')` is hier geen nette bijkomstigheid maar de
+ * hele reden dat je het ziet werken: de titel en het icoon komen uit
+ * `generateMetadata` in de wortel-layout, en die wordt alleen opnieuw
+ * gedraaid als de layout ongeldig verklaard wordt.
+ */
+export async function setFaviconAction(formData: FormData) {
+  const keeper = await requireKeeper();
+  const assetId = String(formData.get('assetId') ?? '') || null;
+  db.update(schema.siteSettings)
+    .set({ faviconAssetId: assetId })
+    .where(eq(schema.siteSettings.id, 1))
+    .run();
+  logAudit({ actorId: keeper.id, action: 'site.favicon_changed' });
+  revalidatePath('/', 'layout');
+}
+
 /* ------------------------------------------------- entry types (§11) */
 
 /** The three JSON fields the type editor posts, each as its own hidden input. */

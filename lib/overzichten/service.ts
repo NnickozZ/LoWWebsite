@@ -20,15 +20,21 @@ import { RESERVED_WIKI_SLUGS, slugify, uniqueSlug } from '@/lib/slug';
  *
  * Three rules this file is the keeper of:
  *
- *  1. **A list filters by side; a lookup never does** (§46). `listOverzichten`
- *     carries `sideCondition`; `getOverzicht`, `getOverzichtBySlug` and
- *     `getHomeOverzicht` do not, because a Keeper walks into one from either
- *     side and the page has to be there — `sideDetour` then turns the archive
- *     over around them, exactly as it does for an artikel.
- *  2. **The home overzicht cannot be binned or unmade.** It is the address
+ *  1. **A list filters by side; a lookup never does** (§46) — **and the front
+ *     door is neither.** `listOverzichten` carries `sideCondition`;
+ *     `getOverzicht` and `getOverzichtBySlug` do not, because a Keeper walks
+ *     into one from either side and the page has to be there — `sideDetour`
+ *     then turns the archive over around them, exactly as it does for an
+ *     artikel.
+ *
+ *     `getHomeOverzicht` was in that second group until §87, and that was the
+ *     round's whole bug: it is not a record somebody walks to, it is *the page
+ *     of the side you are standing on*. There are two `is_home` rows now, one
+ *     per side, and the lookup picks by side like a list would.
+ *  2. **A home overzicht cannot be binned or unmade.** It is the address
  *     `/wiki` resolves to, and a wiki with no front door is a 404 where the
  *     front page should be. `deleteOverzicht` refuses it, and nothing here can
- *     clear `is_home` — the migration set it once.
+ *     clear `is_home` — the migrations set it, once per side.
  *  3. **Anybody may edit, and that is a dial and not a hard-coded yes.** The
  *     table ships `edit_mode = 'all'`, so `viewerCanEdit` answers true for
  *     every signed-in person until somebody turns it down; a Keeper who wants
@@ -124,15 +130,39 @@ export function getOverzichtBySlug(slug: string, viewer: Viewer): Overzicht | nu
 }
 
 /**
- * The front door. A lookup by definition, and the one read in the archive that
- * is allowed to answer null without that being a 404: `/wiki` falls back to the
- * list when the home overzicht is the Keeper's and the reader is not a Keeper.
+ * De voordeur — **één per kant**.
+ *
+ * Dit is een opzoeking, en §46 zegt dat een opzoeking nooit op kant filtert:
+ * een Keeper loopt van beide kanten over een touwtje naar één artikel en dat
+ * artikel moet er dan staan. Die regel klopt overal, en hier klopte hij niet.
+ *
+ * §87: **een voordeur is geen touwtje.** Hij is geen record waar je naartoe
+ * loopt maar de pagina van de kant waar je stáát — en er was precies één rij
+ * met `is_home`, dus stond op `/wiki` aan allebei de kanten hetzelfde, terwijl
+ * élk ander overzicht al gescheiden was (die zitten in een lijst, en die
+ * filtert wél). Sinds migratie `0030` zijn het er twee, uit elkaar gehouden
+ * door `keeper_only`, en kiest deze functie die van de kijker.
+ *
+ * Voor een speler doet `sideCondition` niets (`1 = 1`) — en dat hoeft ook
+ * niet: `visibleOverzichtCondition` haalt de Keeperkant er voor hem al uit
+ * (§44), dus wat overblijft is zijn eigen voorpagina en niets anders.
+ *
+ * En het blijft de ene lezing in het archief die null mag antwoorden zonder
+ * dat dat een 404 is: `/wiki` valt terug op de lijst. Dat vangt nu een geval
+ * erbij — een kant die (nog) geen voorpagina heeft. Terugvallen op die van de
+ * ándere kant zou precies de fout zijn die deze ronde weghaalt.
  */
 export function getHomeOverzicht(viewer: Viewer): Overzicht | null {
   const row = db
     .select(COLUMNS)
     .from(schema.overzichten)
-    .where(and(eq(schema.overzichten.isHome, true), visibleOverzichtCondition(viewer)))
+    .where(
+      and(
+        eq(schema.overzichten.isHome, true),
+        visibleOverzichtCondition(viewer),
+        sideCondition('overzicht', viewer),
+      ),
+    )
     .get();
   return row ? withHidden(row, viewer) : null;
 }

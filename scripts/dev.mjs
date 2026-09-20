@@ -42,7 +42,7 @@ function lanAddress() {
 
 const lan = lanAddress();
 console.log('');
-console.log(`  Zeeland Case Files — development`);
+console.log(`  LoW: Land over Water Archief — development`);
 console.log(`  Local:   http://localhost:${port}`);
 if (lan) console.log(`  Network: http://${lan}:${port}   (phones on the same Wi-Fi)`);
 console.log('');

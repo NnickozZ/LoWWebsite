@@ -492,6 +492,7 @@ export default async function AdminPage({
             tagline={settings?.tagline ?? ''}
             accent={(settings?.theme as { accent?: string })?.accent ?? ''}
             logoAssetId={settings?.logoAssetId ?? null}
+            faviconAssetId={settings?.faviconAssetId ?? null}
             intro={settings?.intro ?? ''}
           />
         </>

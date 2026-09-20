@@ -357,7 +357,11 @@ test('site settings rename the archive, and the export downloads', async ({ page
   await expect(page.locator('.masthead-tagline')).toHaveText('Archief van het Eiland');
   await page.goto('/');
   const welcome = page.locator('.home-welcome');
-  await expect(welcome.getByRole('heading', { level: 1 })).toHaveText('Zeeland Case Files');
+  // §88: de naam van het archief staat in één rij en wordt op drie plekken
+  // gelezen — de kop hier, de mast in het menu, en sinds deze ronde de titel
+  // van de browsertab. Dit is de naam waarmee `seed-demo.mjs` het archief
+  // aanmaakt, niet een losse string van deze zaak.
+  await expect(welcome.getByRole('heading', { level: 1 })).toHaveText('LoW: Land over Water Archief');
   await expect(welcome.locator('.home-intro p')).toHaveCount(2);
   await expect(welcome.locator('.home-intro p').first()).toHaveText('Welkom, onderzoekers.');
   await expect(welcome.locator('.home-numbers')).toContainText('artikel');

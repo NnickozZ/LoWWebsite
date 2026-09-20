@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 99 files, 1596 tests as of round 38 (round 37: 98 / 1570)
+npx vitest run         # 108 files, 1936 tests as of round 49 (round 38: 99 / 1596)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -163,8 +163,29 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5678][0-9]" app components lib` before
-  choosing a number — the latest is **§86 / rule 86** (round 47: de lijst en
-  de veerman. De uitdeler begint **leeg** en je zoekt erin — op de naam van de
+  choosing a number — the latest is **§88 / rule 88** (round 49: de naam in de
+  tab. De titel van de browsertab stond als letterlijke string in
+  `app/layout.tsx` terwijl de naam van het archief sinds ronde 1 een
+  *instelling* is die de mast, de kop op Start en de export allang lazen —
+  hernoemen veranderde alles behalve de tab. `generateMetadata()` in de wortel
+  leest nu `siteIdentity()` (`lib/admin/identity.ts`): één `SELECT` op rij 1,
+  **geen sessie**, want de wortel draait boven de inlogpoort en een archiefnaam
+  is geen geheim. Daarnaast een **icoontje** in Beheer → Site, naast het logo en
+  met hetzelfde gebaar; leeg betekent "val terug op het logo", plakken blijft
+  van het logo, en de asset zelf blijft achter de inlog (401 zonder sessie).
+  Migratie `0031_eigen_naam_en_icoon` hernoemt het archief **alleen als het nog
+  de naam van ronde 1 draagt** — die ene `WHERE` is de hele afspraak en er staat
+  een test op.) Daarvoor **§87 / rule 87** (round 48: een voordeur
+  per kant. Elk overzicht was al per kant gescheiden, maar `/wiki` gaat langs
+  `getHomeOverzicht` — een **opzoeking**, en §46 zegt dat een opzoeking nooit
+  op kant filtert. Er was precies één rij met `is_home`, dus las de Keeper op
+  zijn eigen kant de voorpagina van zijn spelers. **Een voordeur is geen
+  touwtje**: je loopt er niet naartoe, je staat erop. Migratie `0030` zet er
+  één bij voor de Keeperkant, leeg, en `getHomeOverzicht` draagt nu
+  `sideCondition` — terwijl `getOverzicht` en `getOverzichtBySlug` dat terecht
+  nog steeds niet doen. De terugval valt nooit terug op de voorpagina van de
+  ándere kant; daar staat een test op.) Daarvoor **§86 / rule 86** (round 47:
+  de lijst en de veerman. De uitdeler begint **leeg** en je zoekt erin — op de naam van de
   onderzoeker én die van de speler — met een telling over de héle lijst en
   *Alles in beeld* dat aanvinkt wat het filter toont; het globale bedrag raakt
   **alleen wat aanstaat** en heet daarom niet meer *Voor iedereen*. Elke rij
@@ -288,15 +309,22 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
+  `0031_eigen_naam_en_icoon` (§88: `site_settings.favicon_asset_id` erbij, plus
+  een `UPDATE` die het archief hernoemt **alleen waar het nog 'Zeeland Case
+  Files' heet** — een migratie die een naam overschrijft die iemand zelf koos,
+  gooit data weg), so **the next is `0032_`**. Before it:
+  `0030_voorpagina_per_kant` (§87: de wiki krijgt een tweede thuispagina, voor
+  de Keeperkant, leeg en met een vaste id — `is_home` mag vanaf nu twee keer
+  voorkomen, één keer per kant). Before that:
   `0029_meerdere_plekken` (§83: the field `plek` becomes a `multiselect`, and
   **the field definition and every stored value change in the same migration**
   — a `multiselect` refuses a bare string on save, so shipping half of it would
-  be a silent data loss), so **the next is `0030_`**. Before it: `0028_huisraad`
+  be a silent data loss), and before that `0028_huisraad`
   (§80: `entry_types.keeper_made` / `one_of_a_kind`, `room_slots.claim` and the
   soort *Huisraad*) and `0027_kamers` (§79: `rooms`, `room_slots`, `room_ledger`,
   and the field `plek` on the soort that already existed), then
-  `0026_overzichten` (§75: the `overzichten` table and the one home row the
-  wiki's front door resolves to). Before those: round
+  `0026_overzichten` (§75: the `overzichten` table and the home row the wiki's
+  front door resolves to — one then, one per side since `0030`). Before those: round
   36's `0025_sections_and_pin_layer` and §69's `0024_soft_delete_pins_events`
   (a `deleted_at` on `map_pins` and `timeline_events`, so the *Ongedaan maken*
   in a toast gives back the same row)
@@ -1079,6 +1107,67 @@ staat het getal er niet meer, en dat is zijn keuze. Er wordt niets afgedwongen:
 een onbekend gat blijft staan zoals het is, want `{plek}` in een zin is beter
 zichtbaar mis dan een gat in een zin.
 
+### §87: een regel die overal klopt, kent zijn eigen uitzondering niet
+
+§46 zegt: **een lijst filtert op kant, een opzoeking nooit.** Die regel is goed
+en hij heeft een goede reden — een Keeper loopt van beide kanten over een
+touwtje naar één artikel, en dat artikel moet er dan staan. Hij stond in tien
+functies en in tien gevallen klopte hij.
+
+In het elfde niet. `getHomeOverzicht` is qua vorm een opzoeking (`WHERE is_home
+= 1`) en qua betekenis geen record maar **de pagina van de kant waar je staat**.
+Het verschil is niet in de code te zien: allebei zijn het één `SELECT … .get()`.
+Het zit in de vraag die de functie beantwoordt, en die staat alleen in de naam.
+
+Twee dingen om mee te nemen:
+
+1. **Als een regel over "lijsten" en "opzoekingen" gaat, controleer dan of er
+   een derde soort is.** Hier was dat er één: een pagina die per kant bestaat
+   en toch met één rij opgezocht wordt. Zulke gevallen herken je eraan dat de
+   uitkomst voor *iedereen dezelfde* is terwijl het scherm van niemand in het
+   bijzonder is.
+2. **Schrijf de uitzondering in de docblock waar de regel staat**, niet alleen
+   bij de functie die hem breekt. De opsomming boven `lib/overzichten/service.ts`
+   noemde met naam en toenaam welke functies `sideCondition` dragen en welke
+   niet — als die niet was bijgewerkt, was de volgende lezer met een kloppend
+   ogende lijst aan de haal gegaan.
+
+En één over testen, van een ander soort: beide fouten van deze ronde zaten in
+de **zaak** en niet in de app. `/keeper` is geen tuimelschakelaar (hij brengt je
+naar de Keeperkant; terug is `/api/keeper/flip?side=player`), en
+`locator.blur()` is niet het gebaar dat een los tekstvak opslaat — dat is ergens
+anders klikken. Allebei stonden ze al goed in een bestaande zaak twee blokken
+hoger in hetzelfde bestand. **Kopieer het gebaar dat er al staat.**
+
+### §88: de lezer die er al was, is degene die stilstaat
+
+Ronde 49 was klein — een titel en een plaatje — en toch is er iets aan dat het
+opschrijven waard is, want het is de vierde keer op rij dat dezelfde vorm
+opduikt (§83, §85, §86, en nu deze).
+
+1. **Een instelling met drie lezers heeft er vier.** De naam van het archief
+   werd gelezen door de mast, de kop op Start en de export. De vierde lezer
+   stond in `app/layout.tsx` en was geen lezer maar een *kopie*: een letterlijke
+   string die toevallig dezelfde woorden droeg. Zolang niemand hernoemde, was
+   er geen verschil te zien. **Zoek bij een instelling niet naar wie hem leest,
+   maar naar waar zijn waarde nóg een keer staat** — `grep` op de wáárde, niet
+   op de kolomnaam. Die ene `grep -rn "Zeeland Case Files"` vond behalve
+   `layout.tsx` ook nog een terugval in `app/(app)/layout.tsx`, een regel in de
+   ontwikkelbanner, de glossary en de kop van `README.md`.
+
+2. **Een migratie die een door een mens gekozen waarde overschrijft, gooit data
+   weg.** `UPDATE site_settings SET name = …` zonder `WHERE` zou hier precies
+   één archief goed hernoemd hebben en elk ander archief zijn naam afgepakt.
+   De `WHERE` is niet een voorzichtigheidje maar de hele betekenis van de
+   migratie: *hernoem wat nooit hernoemd is*. Zet zo'n `WHERE` in een test,
+   want hij ziet eruit als iets dat weggelaten kan worden.
+
+En één over waar code hoort te staan: `siteIdentity()` is bewust **dom** — geen
+sessie, geen zichtbaarheid. De wortel-layout draait boven de inlogpoort en voor
+élke pagina, dus alles wat daar een recht veronderstelt, trekt het hele archief
+door de sessielaag voor een titel. Als je in `app/layout.tsx` iets wilt lezen,
+is de eerste vraag niet "mag dit" maar "hoort dit hier".
+
 ### §86: de kortste weg naar het antwoord is niet de weg die de app loopt
 
 Ronde 47 bouwde één uitzondering — de Keeper mag een kamer openen voor een
@@ -1330,7 +1419,42 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46 and 47
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48 and 49
+
+**Round 49 (§88) leaves four, all named on purpose:**
+
+- **Het icoontje wordt niet vierkant gemaakt.** Wat je uploadt gaat door
+  dezelfde `fitUpload` als een logo en komt er als `?s=thumb` (400 px) weer
+  uit; een breed plaatje wordt door de browser platgedrukt of ingesnoerd, per
+  browser verschillend. De tekst onder het vakje zegt daarom "een vierkant
+  plaatje werkt het best". Een echte uitsnede is §19's drie-vormen-machinerie
+  en dat is een ronde, geen regel.
+- **Er is geen `.ico` en geen `apple-touch-icon` van eigen maat.** Alle drie de
+  `icons`-sleutels wijzen naar dezelfde PNG. Dat werkt in elke browser van deze
+  eeuw; wie een scherpe snelkoppeling op een iPhone-beginscherm wil, heeft
+  een tweede maat nodig en dus een tweede asset.
+- **Een uitgelogde browser ziet het standaardicoon.** `/api/assets/[id]` geeft
+  401 zonder sessie, dus de loginpagina draagt wél de juiste *naam* en niet het
+  juiste *plaatje*. Dat is met opzet zo (zie §88) en het is de plek waar
+  iemand ooit zal vragen om een uitzondering. Die uitzondering is dan een
+  publieke route voor precies één asset-id, niet een losser `assets`-recht.
+- **Browsers houden een favicon lang vast.** Vervangen is meteen zichtbaar in
+  de HTML en vaak pas na een harde verversing in de tabbalk. De tekst onder het
+  vakje zegt dat; er is geen cache-buster in het adres gezet, omdat dat het
+  plaatje op élke paginalading opnieuw zou laten ophalen.
+
+**Round 48 (§87) leaves two, both named on purpose:**
+
+- **Nothing can set or move `is_home`.** The migrations put one on each side and
+  no screen can point at a different overzicht, so a Keeper who wants another
+  page as their front door cannot say so. It needs nothing today — both sides
+  have one and `deleteOverzicht` refuses to bin either — but the day somebody
+  wants to swap it, it is a write that has to keep the invariant *one per side*
+  rather than a free flag.
+- **A side with no front door falls back to the browse list, silently.** That is
+  the right answer and it is tested, but it looks like a page that never got
+  written rather than a page that is missing. If `is_home` ever becomes
+  settable, that fallback is where the offer to make one belongs.
 
 **Round 47 (§86) leaves four, all named on purpose:**
 

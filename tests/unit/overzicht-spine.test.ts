@@ -215,13 +215,25 @@ describe('0026_overzichten applies on a fresh archive', () => {
     expect(column?.dflt_value).toBe("'all'");
   });
 
-  it('gives the wiki a front door that the migration made, exactly one', () => {
-    const homes = deps.sqlite.prepare('SELECT id, slug FROM overzichten WHERE is_home = 1').all() as {
-      id: string;
-      slug: string;
-    }[];
-    expect(homes).toHaveLength(1);
-    expect(homes[0].id).toBe('overzicht-home');
+  /**
+   * §87 maakte er twee van, en dat is precies wat hier bewaakt wordt: **één
+   * per kant, en niet meer.**
+   *
+   * Tot ronde 48 stond er één rij met `is_home`, en een opzoeking die niet op
+   * kant filtert (§46) gaf die aan iedereen — dus las de Keeper op /wiki de
+   * voorpagina van de spelers. Twee rijen is het antwoord; drie zou betekenen
+   * dat één kant er twee heeft, en dan bepaalt de volgorde van de tabel welke
+   * je krijgt.
+   */
+  it('gives each side a front door that the migrations made, exactly one apiece', () => {
+    const homes = deps.sqlite
+      .prepare('SELECT id, slug, keeper_only AS keeperOnly FROM overzichten WHERE is_home = 1 ORDER BY keeper_only')
+      .all() as { id: string; slug: string; keeperOnly: number }[];
+    expect(homes).toHaveLength(2);
+    expect(homes.map((row) => row.id)).toEqual(['overzicht-home', 'overzicht-home-keeper']);
+    expect(homes.map((row) => row.keeperOnly)).toEqual([0, 1]);
+    // En hun slugs verschillen, want de index erop is uniek.
+    expect(new Set(homes.map((row) => row.slug)).size).toBe(2);
   });
 
   it('leaves the home overzicht empty, so lib/intro.ts stays the one text', () => {
@@ -366,6 +378,43 @@ describe('§44/§46: the side', () => {
     expect(deps.getHomeOverzicht(BRAM)).toBeNull();
     expect(deps.getHomeOverzicht(KEEPER)?.id).toBe('overzicht-home');
     deps.setKeeperSide('overzicht', 'overzicht-home', false, 'keeper-1');
+  });
+
+  /**
+   * §87: **de voordeur is er één per kant.**
+   *
+   * Nick, ronde 48: *"De portaal paginas zijn bij de keeper en bij de spelers
+   * hetzelfde, dit moet niet."* De oorzaak was §46's regel, die overal elders
+   * klopt: een opzoeking filtert niet op kant, want een Keeper loopt van beide
+   * kanten over een touwtje naar één artikel. Maar een voordeur is geen
+   * touwtje — hij is de pagina van de kant waar je staat.
+   *
+   * Dit is de zaak die zou zijn omgevallen vóór deze ronde, en het is de enige
+   * die ertoe doet: de Keeper op zijn eigen kant krijgt een ándere rij dan de
+   * spelers.
+   */
+  it('gives each side its own front door', () => {
+    expect(deps.getHomeOverzicht(KEEPER_ON_KEEPER_SIDE)?.id).toBe('overzicht-home-keeper');
+    expect(deps.getHomeOverzicht(KEEPER_ON_PLAYER_SIDE)?.id).toBe('overzicht-home');
+    // En een speler heeft er maar één te kiezen, want de andere bestaat voor
+    // hem niet (§44) — hij hoeft dus geen kant te hebben.
+    expect(deps.getHomeOverzicht(BRAM)?.id).toBe('overzicht-home');
+  });
+
+  /**
+   * En de terugval blijft wat hij was, met één geval erbij. Een kant zonder
+   * voorpagina valt terug op de lijst — nooit op de voorpagina van de *andere*
+   * kant, want dat is precies de fout die deze ronde weghaalt.
+   */
+  it('falls back to nothing, never to the other side, when a side has no front door', () => {
+    deps.sqlite
+      .prepare("UPDATE overzichten SET deleted_at = unixepoch() WHERE id = 'overzicht-home-keeper'")
+      .run();
+    expect(deps.getHomeOverzicht(KEEPER_ON_KEEPER_SIDE)).toBeNull();
+    // De spelerskant merkt er niets van.
+    expect(deps.getHomeOverzicht(KEEPER_ON_PLAYER_SIDE)?.id).toBe('overzicht-home');
+    expect(deps.getHomeOverzicht(BRAM)?.id).toBe('overzicht-home');
+    deps.sqlite.prepare("UPDATE overzichten SET deleted_at = NULL WHERE id = 'overzicht-home-keeper'").run();
   });
 });
 

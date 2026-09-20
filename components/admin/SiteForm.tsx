@@ -6,13 +6,21 @@ import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
-import { saveSiteAction, setLogoAction, type AdminState } from '@/app/(app)/admin/actions';
+import {
+  saveSiteAction,
+  setFaviconAction,
+  setLogoAction,
+  type AdminState,
+} from '@/app/(app)/admin/actions';
 import { defaultIntro } from '@/lib/intro';
 import { UploadProbe } from './UploadProbe';
 
+/** Which of the two pictures on this pane an upload is for. */
+type Picture = 'logo' | 'favicon';
+
 /**
- * §11's Site pane: name, tagline, the welcome on the start page, logo, accent
- * colour.
+ * §11's Site pane: name, tagline, the welcome on the start page, logo, favicon,
+ * accent colour.
  *
  * §30: the logo can be pasted as well as picked — a logo is almost always
  * something copied out of another page or cropped in a paint program, which is
@@ -20,29 +28,41 @@ import { UploadProbe } from './UploadProbe';
  * is guarded by `pasteIsForTyping`, so pasting a tagline is still pasting a
  * tagline; only a picture is caught, and it goes up the same road as the file
  * dialog, with the same ceiling and the same refusal.
+ *
+ * §88: het icoontje in de tab staat hier, naast het logo, en niet in een eigen
+ * paneel — het is hetzelfde gebaar met hetzelfde plaatje, en de enige vraag die
+ * een Keeper erover heeft ("waar zet ik dat ding?") wordt beantwoord door het
+ * naast het logo te zetten. **Plakken blijft van het logo**: één toetsaanslag
+ * kan maar één ding betekenen, en een plakbare favicon zou van Ctrl+V een
+ * raadsel maken. De favicon wordt gekozen met de knop.
  */
 export function SiteForm({
   name,
   tagline,
   accent,
   logoAssetId,
+  faviconAssetId,
   intro,
 }: {
   name: string;
   tagline: string;
   accent: string;
   logoAssetId: string | null;
+  /** §88: het icoontje in de browsertab. Leeg betekent "val terug op het logo". */
+  faviconAssetId: string | null;
   /** The start page's welcome text; empty means the archive's own default. */
   intro: string;
 }) {
   const ui = useUi();
   const [state, action, busy] = useActionState<AdminState, FormData>(saveSiteAction, {});
   const [logo, setLogo] = useState(logoAssetId);
-  const [uploading, setUploading] = useState(false);
+  const [favicon, setFavicon] = useState(faviconAssetId);
+  const [uploading, setUploading] = useState<Picture | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const faviconRef = useRef<HTMLInputElement>(null);
 
-  async function upload(file: File) {
-    setUploading(true);
+  async function upload(file: File, what: Picture) {
+    setUploading(what);
     try {
       // §30: a logo that is too heavy is shrunk to fit rather than refused.
       const fitted = await fitUpload(file, ui.uploadLimit);
@@ -58,12 +78,17 @@ export function SiteForm({
         ui.toast(result.error);
         return;
       }
-      setLogo(result.data.asset.id);
       const body = new FormData();
       body.append('assetId', result.data.asset.id);
-      await setLogoAction(body);
+      if (what === 'favicon') {
+        setFavicon(result.data.asset.id);
+        await setFaviconAction(body);
+      } else {
+        setLogo(result.data.asset.id);
+        await setLogoAction(body);
+      }
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   }
 
@@ -71,7 +96,7 @@ export function SiteForm({
   // `upload` is redeclared on every render, and re-binding a document listener
   // on each keystroke in this form is the mistake README rule 14 is about.
   const uploadRef = useRef<(file: File) => void>(() => {});
-  uploadRef.current = (file: File) => void upload(file);
+  uploadRef.current = (file: File) => void upload(file, 'logo');
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -92,6 +117,9 @@ export function SiteForm({
           Naam van het archief
         </label>
         <input id="site-name" className="input" name="name" defaultValue={name} />
+        <p className="tiny muted" style={{ margin: '0.25rem 0 0' }}>
+          Staat in het menu én in de titel van de browsertab.
+        </p>
       </div>
 
       <div>
@@ -160,10 +188,11 @@ export function SiteForm({
             type="button"
             className="btn btn-small"
             onClick={() => fileRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading !== null}
+            data-testid="site-logo-kies"
           >
             <Icon name="camera" size={15} />
-            {uploading ? 'Uploaden…' : logo ? 'Vervangen' : 'Logo toevoegen'}
+            {uploading === 'logo' ? 'Uploaden…' : logo ? 'Vervangen' : 'Logo toevoegen'}
           </button>
           {logo && (
             <button
@@ -189,7 +218,69 @@ export function SiteForm({
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
-            if (file) void upload(file);
+            if (file) void upload(file, 'logo');
+          }}
+        />
+      </div>
+
+      {/*
+        §88: het icoontje in de browsertab. Eén plaatje, twee vragen die een
+        Keeper zich stelt — "hoe heet dit archief in mijn tabbladen" staat
+        hierboven bij de naam, "welk plaatje staat ervoor" staat hier.
+      */}
+      <div data-testid="site-favicon">
+        <span className="label">Icoontje in de browsertab</span>
+        <div className="row-wrap">
+          {favicon ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={assetUrl(favicon, 'thumb')}
+              alt=""
+              data-testid="site-favicon-beeld"
+              style={{ width: 32, height: 32, objectFit: 'contain', border: '1px solid var(--rule)' }}
+            />
+          ) : (
+            <span className="tiny muted">
+              {logo ? 'Nog geen eigen icoontje — de tab draagt je logo.' : 'Nog geen icoontje.'}
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => faviconRef.current?.click()}
+            disabled={uploading !== null}
+            data-testid="site-favicon-kies"
+          >
+            <Icon name="camera" size={15} />
+            {uploading === 'favicon' ? 'Uploaden…' : favicon ? 'Vervangen' : 'Icoontje toevoegen'}
+          </button>
+          {favicon && (
+            <button
+              type="button"
+              className="btn btn-small btn-ghost"
+              onClick={() => {
+                setFavicon(null);
+                void setFaviconAction(new FormData());
+              }}
+            >
+              Verwijderen
+            </button>
+          )}
+        </div>
+        <p className="tiny muted" style={{ margin: '0.25rem 0 0' }}>
+          Een vierkant plaatje werkt het best; een browser toont het op zestien pixels. Laat dit leeg
+          en de tab draagt je logo. Browsers houden een icoontje lang vast — zie je het oude nog, ververs
+          de pagina dan met Ctrl+F5.
+        </p>
+        <input
+          ref={faviconRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void upload(file, 'favicon');
           }}
         />
       </div>

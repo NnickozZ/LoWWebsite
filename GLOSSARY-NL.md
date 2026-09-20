@@ -19,7 +19,7 @@ change.
 
 | English | Dutch | Notes |
 |---|---|---|
-| Zeeland Case Files | Zeeland Case Files | the archive's name; stays |
+| LoW: Land over Water Archief | LoW: Land over Water Archief | the archive's name (§88, round 49 — it was *Zeeland Case Files*); a Keeper renames it in Beheer → Site and the browser tab follows |
 | Keeper / Keepers | Keeper / Keepers | the role, capitalised, never translated |
 | player(s) | speler(s) | |
 | investigator(s) (the people) | onderzoeker(s) | |

@@ -5421,3 +5421,78 @@ het globale bedrag vult nu alleen de aangevinkte rijen. Nicks zin uit ronde 44
 blijft gelden — het is dezelfde bedoeling op een lijst die tien keer zo lang
 is — maar het woord "alles" betekende daar "iedereen die meedoet", en dat zijn
 nu de vinkjes.
+
+---
+
+## Ronde 48 (§87) — §46 krijgt zijn eerste uitzondering, en waarom het er één is
+
+§46 (ronde 23) legde vast: **een lijst filtert op kant, een opzoeking nooit.**
+De reden staat er ook bij, en hij is goed: een Keeper loopt van beide kanten
+over een touwtje naar één artikel, en als dat artikel dan niet gevonden wordt
+is het archief vanaf één kant kapot. Elf functies leven ernaar en in tien
+gevallen klopt hij.
+
+`getHomeOverzicht` is de elfde. Qua vorm is het een opzoeking — één `SELECT`
+met `WHERE is_home = 1` — en qua betekenis is het geen record maar **de pagina
+van de kant waar je staat**. Dat verschil is in de code niet te zien; het zit
+in de vraag die de functie beantwoordt.
+
+**Dit is een uitzondering en geen herziening.** `getOverzicht` en
+`getOverzichtBySlug` blijven ongefilterd, want daar geldt §46's redenering wél:
+je komt er via een link op een andere pagina, en die link moet werken. Alleen de
+voordeur is eruit gehaald, en de opsomming in de docblock van
+`lib/overzichten/service.ts` noemt nu allebei de groepen met naam.
+
+**Wat dit niet is**: een vrije vlag. `is_home` mag vanaf `0030` twee keer
+voorkomen, maar de bedoelde toestand is *precies één per kant* — drie rijen
+zouden betekenen dat de tabelvolgorde bepaalt welke voordeur je krijgt, en de
+rugtest in `tests/unit/overzicht-spine.test.ts` telt daarom op twee en niet op
+"minstens twee".
+
+**En wat er bewust niet bij hoort**: er is nog steeds geen manier om `is_home`
+te zetten of te verplaatsen. De migraties doen het, en verder niets. Zodra dat
+er wel is, moet die schrijfactie het "één per kant" bewaken in plaats van een
+vinkje te zijn — zie de restlijst in `CLAUDE.md` §8.
+
+---
+
+## Ronde 49 (§88) — de naam in de tab, en een migratie die zuinig hernoemt
+
+Nick vroeg twee dingen in één zin: de tabbalk moet *LoW: Land over Water
+Archief* zeggen in plaats van *Zeeland Case Files*, en het icoontje ernaast
+moet ergens in Beheer te veranderen zijn.
+
+**De eerste helft is geen wens maar een reparatie**, en dat is het deel dat
+hier hoort. De naam van het archief is sinds ronde 1 een instelling. Drie
+schermen lazen hem. De `<title>` was een letterlijke string in
+`app/layout.tsx`, dus hernoemen in Beheer deed alles behalve wat je in je
+tabbalk ziet. Niemand had het gemeld omdat er niets van brak — §17 regel 4 in
+zijn stilste vorm.
+
+**Waarom `siteIdentity()` geen sessie leest.** De wortel-layout draait voor
+élke pagina, ook de loginpagina, die geen sessie heeft. Eén `SELECT` op rij 1,
+geen rechtenvraag. Een archiefnaam is geen geheim: wie op de deur staat mag
+weten waar hij aanklopt. De *asset* van het icoontje zit wél achter de inlog
+(`/api/assets/[id]` geeft 401), en dat blijft zo — een uitgelogde browser
+krijgt het standaardicoon. De tab is geen plek om een rechtenregel voor op te
+rekken.
+
+**Het icoontje valt terug op het logo.** Favicon → logo → niets. Wie een logo
+heeft wil het vrijwel zeker ook in zijn tab, en twee keer hetzelfde plaatje
+moeten uploaden is de soort wrijving waar een Keeper nooit aan toe komt. Dat is
+een keuze en dus een test; wie hem ooit omdraait, doet dat expres.
+
+**Plakken blijft van het logo.** §30 vangt een geplakte afbeelding op deze
+pagina op. Met twee plakbare vakken zou Ctrl+V een raadsel worden: één
+toetsaanslag kan maar één ding betekenen. Het icoontje wordt met de knop
+gekozen.
+
+**En de migratie hernoemt zuinig.** `0031_eigen_naam_en_icoon` zet
+`favicon_asset_id` erbij en doet daarna één `UPDATE … WHERE name = 'Zeeland
+Case Files'`. Zonder die `WHERE` zou de migratie precies één archief goed
+hernoemen en elk ander archief zijn zelfgekozen naam afpakken. De `WHERE` is
+niet voorzichtigheid maar de betekenis: *hernoem wat nooit hernoemd is*. Een
+vers archief krijgt de nieuwe naam rechtstreeks uit `lib/db/seed.mjs` en heeft
+niets te hernoemen. Alle drie de plekken die die naam kennen — de seed, de
+kolomstandaard in `schema.ts` en `DEFAULT_SITE_NAME` — zeggen hetzelfde, en
+`tests/unit/site-identity.test.ts` is waar dat blijkt.

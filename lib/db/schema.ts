@@ -118,9 +118,15 @@ export const sessions = sqliteTable(
 
 export const siteSettings = sqliteTable('site_settings', {
   id: integer('id').primaryKey(),
-  name: text('name').notNull().default('Zeeland Case Files'),
+  name: text('name').notNull().default('LoW: Land over Water Archief'),
   tagline: text('tagline').notNull().default('Archief van het Eiland'),
   logoAssetId: text('logo_asset_id'),
+  /**
+   * §88: het icoontje in de browsertab. Een asset, net als het logo, en langs
+   * dezelfde weg gezet. Leeg betekent "geen eigen icoon" — de tab valt dan
+   * terug op het logo, want wie er één heeft wil hem daar vrijwel zeker ook.
+   */
+  faviconAssetId: text('favicon_asset_id'),
   inviteCode: text('invite_code').notNull(),
   /**
    * §11's accent, and since §45 the four colour schemes beside it. `accent` is

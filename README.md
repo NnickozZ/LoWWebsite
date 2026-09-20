@@ -1,4 +1,4 @@
-# Zeeland Case Files
+# LoW: Land over Water Archief
 
 A private player aid for a West Marches *Call of Cthulhu* campaign set in a 1930s
 Zeeland that has drifted into the North Sea. A wiki of typed entries, Case Files
@@ -4728,3 +4728,93 @@ Sixty-seven rules worth knowing before changing anything:
     van het grootboek — er kwam geen tweede soort kamer bij, alleen een tweede
     manier om er één te laten ontstaan), en §76 (de hal krijgt geen kolom met
     saldo's, hoe goed hij ook zou passen).
+
+87. **Een voordeur is geen touwtje.** §87. Nick, ronde 48: *"De portaal
+    paginas zijn bij de keeper en bij de spelers hetzelfde, dit moet niet. Ook
+    deze moeten los zijn van elkaar."*
+
+    Elk overzicht was al gescheiden — de tabel draagt `keeper_only` sinds §75
+    en `listOverzichten` filtert erop. Behalve de voordeur: `/wiki` gaat langs
+    `getHomeOverzicht`, en dat is een **opzoeking** (`WHERE is_home = 1`). §46
+    zegt met zoveel woorden dat een lijst op kant filtert en een opzoeking
+    nooit, en die regel is goed: een Keeper loopt van beide kanten over een
+    touwtje naar één artikel, en dat artikel moet er dan staan, anders is het
+    archief vanaf één kant kapot. Maar er was precies één rij met `is_home`,
+    dus las de Keeper op zijn eigen kant de voorpagina van zijn spelers en had
+    hij nergens een plek om te schrijven wat de tafel niet mag weten.
+
+    **Een voordeur is geen record waar je naartoe loopt — het is de pagina van
+    de kant waar je stáát.** Dat is het onderscheid dat §46 niet maakte, en het
+    is de reden dat die regel hier een uitzondering krijgt in plaats van een
+    reparatie: `getOverzicht` en `getOverzichtBySlug` filteren nog steeds niet
+    op kant, want daar geldt de redenering wél.
+
+    Migratie `0030_voorpagina_per_kant` zet er één bij voor de Keeper, met een
+    vaste id, een eigen slug (de index erop is uniek; hij is nergens zichtbaar
+    want `overzichtHref` geeft `/wiki` voor élke thuispagina) en een **lege**
+    tekst — Nicks keuze: geen kopie van wat de spelers hebben, want die tekst
+    is van hen. `getHomeOverzicht` draagt nu `sideCondition`, wat voor een
+    speler niets doet en ook niets hoeft te doen: §44 haalt de Keeperkant er
+    voor hem al uit. De terugval blijft wat hij was — `/wiki` valt terug op de
+    lijst als er niets is — en vangt er één geval bij op, een kant zonder
+    voorpagina. **Terugvallen op die van de andere kant zou precies de fout
+    zijn die deze ronde weghaalt**, dus dat gebeurt niet en er staat een test
+    op.
+
+    Twee dingen die onderweg misgingen, allebei in de *test* en niet in de
+    app — de wijziging zelf is klein genoeg dat het meeste werk in het bewijzen
+    zat. **`/keeper` is geen tuimelschakelaar**: hij brengt je naar de
+    Keeperkant, en terug gaat met `/api/keeper/flip?side=player` (§57's "één
+    weg naar de kant", die ik zelf niet gelezen had). En **`locator.blur()` is
+    niet het gebaar dat opslaat** — de lead van een overzicht slaat op als je
+    ergens anders klikt, zoals elk los tekstvak in het archief; de bestaande
+    zaak twee blokken hoger deed dat al goed, en hem kopiëren was beter geweest
+    dan iets nieuws verzinnen.
+
+88. **De naam in de tab is de naam van het archief.** §88. Nick, ronde 49:
+    *"De naam van de website in de tab is nu 'Zeeland Case Files' Kan dit 'LoW:
+    Land over Water Archief' worden? en is het mogelijk om ergens het icoontje
+    aan te passen daarvan op de website zelf? In beheer voor keepers wellicht?"*
+
+    De eerste helft was geen wens maar een fout die al sinds ronde 1 open
+    stond. De naam van het archief is een **instelling** — Beheer → Site, rij 1
+    van `site_settings` — en drie schermen lazen hem al: de mast in de
+    zijbalk, de kop op Start, en de export. De `<title>` van de app niet: die
+    stond als letterlijke tekst in `app/layout.tsx`. Je kon het archief dus
+    hernoemen, alles in beeld volgde mee, en de tabbalk bleef de oude naam
+    dragen zonder dat iets zei waarom. Dat is §17 regel 4 in zijn zuiverste
+    vorm — **twee lezers van dezelfde zin, en er is er één die niet meebeweegt**
+    — en de reden dat het vier rondes kon overleven is dat er niets van breekt.
+
+    `generateMetadata()` in de wortel-layout leest nu `siteIdentity()`
+    (`lib/admin/identity.ts`), en die functie is met opzet dom: één `SELECT` op
+    rij 1, geen sessie, geen zichtbaarheidsvraag. De wortel draait **boven de
+    inlogpoort**, dus ook voor de loginpagina, en een `getSessionUser()` daar
+    zou élke pagina in het archief door de sessielaag trekken voor een titel.
+    Een archiefnaam is ook geen geheim: wie op de deur staat mag weten waar
+    hij aanklopt.
+
+    Het **icoontje** is de tweede helft en staat in Beheer → Site, naast het
+    logo, met hetzelfde gebaar: kiezen, vervangen, verwijderen, en dezelfde
+    `fitUpload`-ceiling. Twee keuzes die geen van beide vanzelf spreken:
+
+    - **Leeg betekent "val terug op het logo".** Wie een logo heeft geüpload
+      wil dat vrijwel zeker ook in zijn tab, en twee keer hetzelfde plaatje
+      moeten aanleveren is precies de kleine wrijving waar een Keeper nooit aan
+      toe komt. De volgorde is favicon → logo → niets.
+    - **Plakken blijft van het logo.** §30 vangt een geplakte afbeelding op
+      deze pagina op; met twee plakbare vakken zou Ctrl+V een raadsel worden.
+      Eén toetsaanslag kan maar één ding betekenen.
+
+    De asset zelf zit **wel** achter de inlog — `/api/assets/[id]` geeft 401
+    zonder sessie — en dat blijft zo. Een uitgelogde browser krijgt het
+    standaardicoon van de browser, een ingelogde het jouwe. De tab is geen plek
+    om een rechtenregel voor op te rekken.
+
+    Migratie `0031_eigen_naam_en_icoon` zet de kolom `favicon_asset_id` erbij
+    en hernoemt het archief — maar **alleen als het nog de naam van ronde 1
+    draagt**. Die ene `WHERE name = 'Zeeland Case Files'` is de hele afspraak:
+    een Keeper die zijn archief zelf een naam gaf, houdt die naam, en een vers
+    archief krijgt de nieuwe naam rechtstreeks uit de seed en heeft niets te
+    hernoemen. Er staat een test op, want dat is precies het soort `WHERE` dat
+    een volgende migratie achteloos breder maakt.

@@ -13,6 +13,7 @@ import { readingFontAttr } from '@/lib/readingFont';
 import { getSchemes } from '@/lib/admin/schemes';
 import { schemeStyle, themeAttr } from '@/lib/theme/schemes';
 import { resolveWords } from '@/lib/words';
+import { DEFAULT_SITE_NAME } from '@/lib/admin/identity';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,7 +121,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           me={me}
           purse={purse}
           uploadLimit={uploadLimitFor(me)}
-          siteName={settings?.name ?? 'Zeeland Case Files'}
+          siteName={settings?.name ?? DEFAULT_SITE_NAME}
           tagline={settings?.tagline ?? ''}
           logoAssetId={settings?.logoAssetId ?? null}
         >

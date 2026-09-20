@@ -142,3 +142,93 @@ test.describe('§75 het overzicht', () => {
     await expect(page.getByText('Plekken')).toHaveCount(0);
   });
 });
+
+/**
+ * §87, ronde 48: **de voordeur is er één per kant.**
+ *
+ * Nick: *"De portaal paginas zijn bij de keeper en bij de spelers hetzelfde,
+ * dit moet niet. Ook deze moeten los zijn van elkaar."*
+ *
+ * De oorzaak was §46's regel, die overal elders klopt: een opzoeking filtert
+ * niet op kant, want een Keeper loopt van beide kanten over een touwtje naar
+ * één artikel en dat artikel moet er dan staan. `getHomeOverzicht` is zo'n
+ * opzoeking, en er was precies één rij met `is_home` — dus las de Keeper op
+ * zijn eigen kant de voorpagina van de spelers. Elk *ander* overzicht was al
+ * netjes gescheiden, want die zitten in een lijst en die filtert wél.
+ *
+ * Dit bestand meet het van de kant die het bewijst: de Keeper schrijft iets op
+ * zijn eigen voordeur, en een speler mag het nooit te zien krijgen.
+ */
+test.describe('§87 een voordeur per kant', () => {
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name !== 'desktop', 'dezelfde klikken op een smaller scherm bewijzen niets nieuws');
+  });
+
+  test('de Keeper schrijft zijn eigen voorpagina, en de spelers lezen die van hen', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(240_000);
+    const stamp = Date.now().toString(36);
+    const geheim = `Alleen voor de Keeper ${stamp}`;
+    const vanHen = `Van de spelers ${stamp}`;
+
+    await signIn(page, 'Keeper', 'abbeytower34');
+
+    /* ------------------------------------------- de spelerskant blijft van hen */
+
+    /*
+     * Opslaan hangt aan blur, en blur komt van een *andere* plek aanklikken —
+     * `locator.blur()` is niet hetzelfde gebaar. Daarna herladen en kijken of
+     * het er echt staat: een schrijfactie die je niet terugleest, heb je niet
+     * bewezen. (Dezelfde volgorde als de tweede zaak hierboven.)
+     */
+    await page.goto('/wiki');
+    await editArticle(page, '#overzicht-name');
+    await fillWhenReady(page.locator('#overzicht-lead'), vanHen);
+    await page.locator('#overzicht-name').click();
+    await page.reload();
+    await expect(page.locator('.entry-lead')).toContainText(vanHen, { timeout: 20_000 });
+
+    /* ------------------------------------------------- en de Keeper zijn eigen */
+
+    /*
+     * §57: één weg naar de kant, en dat is `/api/keeper/flip?side=…`. `/keeper`
+     * stuurt daar ook heen maar is geen tuimelschakelaar — hij brengt je naar
+     * de Keeperkant, dus terug moet met `side=player`. Dat verschil kostte deze
+     * zaak twee runs.
+     */
+    await page.goto('/api/keeper/flip?side=keeper&to=%2Fwiki');
+    await page.waitForLoadState('domcontentloaded');
+    await editArticle(page, '#overzicht-name');
+
+    // De kern: wat hij hier leest is *niet* wat hij net op de andere kant typte.
+    await expect(page.locator('#overzicht-lead')).not.toHaveValue(vanHen);
+
+    await fillWhenReady(page.locator('#overzicht-lead'), geheim);
+    await page.locator('#overzicht-name').click();
+    await page.reload();
+    await expect(page.locator('.entry-lead')).toContainText(geheim, { timeout: 20_000 });
+
+    /* ---------------------------------------- en terug: allebei staan ze er nog */
+
+    await page.goto('/api/keeper/flip?side=player&to=%2Fwiki');
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.getByText(vanHen)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(geheim)).toHaveCount(0);
+
+    /* -------------------------------------- en een speler ziet alleen de zijne */
+
+    const spelerCtx = await browser.newContext();
+    const speler = await spelerCtx.newPage();
+    await signUp(speler, `Voordeur ${stamp}`, 'onderzeeboot');
+    await speler.goto('/wiki');
+    await expect(speler.getByText(vanHen)).toBeVisible({ timeout: 20_000 });
+    // §44: de andere voordeur bestaat voor hem niet, en hij is ook niet te
+    // raden — er is geen adres dat hem oplevert, want `/wiki` ís het adres.
+    await expect(speler.getByText(geheim)).toHaveCount(0);
+    await expect(speler.locator('body')).not.toContainText(geheim);
+
+    await spelerCtx.close();
+  });
+});
