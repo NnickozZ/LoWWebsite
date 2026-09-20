@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn } from './helpers';
 
 /**
  * §82: de winkel — de etalage, de beurs, en wat er met een klik gebeurt.
@@ -89,7 +89,7 @@ type Huisraad = { name: string; slug: string; path: string; effect: string[]; pr
  */
 async function newHuisraad(
   page: Page,
-  spec: { name: string; plek: PlekKind; prijs: number; effect: string[] },
+  spec: { name: string; plek?: PlekKind; plekken?: readonly PlekKind[]; prijs: number; effect: string[] },
 ): Promise<Huisraad> {
   await page.goto('/wiki/huisraad');
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
@@ -110,8 +110,11 @@ async function newHuisraad(
   const slug = path.replace(/^\/e\//, '');
 
   const effect = spec.effect.join('\n');
+  // §83: een ding mag op meer dan één soort plek passen; één is het gewone
+  // geval en niet een ander geval.
+  const plekken = spec.plekken ?? [spec.plek!];
   await unfoldInfobox(page);
-  await page.locator('#field-plek').selectOption(spec.plek);
+  await setPlekken(page, plekken);
   await fillWhenReady(page.locator('#field-prijs'), String(spec.prijs));
   await page.locator('#field-prijs').blur();
   await fillWhenReady(page.locator('#field-effect'), effect);
@@ -125,7 +128,7 @@ async function newHuisraad(
     await page.goto(path);
     await editArticle(page);
     await unfoldInfobox(page);
-    await expect(page.locator('#field-plek')).toHaveValue(spec.plek, { timeout: 5000 });
+    await expectPlekken(page, plekken);
     await expect(page.locator('#field-prijs')).toHaveValue(String(spec.prijs), { timeout: 5000 });
     await expect(page.locator('#field-effect')).toHaveValue(effect, { timeout: 5000 });
   }).toPass({ timeout: 60_000 });
@@ -260,10 +263,15 @@ test.describe('§82 De winkel', () => {
     await expect(owner.getByTestId('winkel-balance')).toHaveAttribute('data-balance', '1', {
       timeout: 20_000,
     });
-    await expect(rij(owner, prent.name)).toHaveAttribute('data-state', 'owned', { timeout: 20_000 });
-    await expect(rij(owner, prent.name).getByTestId('winkel-owned')).toBeVisible();
-    // Er is niets meer te kopen aan een ding dat je al hebt.
-    await expect(rij(owner, prent.name).getByTestId('winkel-koop')).toHaveCount(0);
+    /*
+     * §83 keerde de helft hiervan om. De rij zegt nog steeds dát je er een
+     * hebt — dat is een feit dat iemand die een tweede koopt hoort te lezen —
+     * maar het weigert niets meer: je mag hetzelfde ding vaker in je kamer
+     * hebben staan. Wat de knop hier tegenhoudt is de beurs, niet het bezit.
+     */
+    await expect(rij(owner, prent.name).getByTestId('winkel-owned')).toBeVisible({ timeout: 20_000 });
+    await expect(rij(owner, prent.name)).toHaveAttribute('data-state', 'dear');
+    await expect(rij(owner, prent.name).getByTestId('winkel-koop')).toBeDisabled();
 
     // Het dure ding is nóg duurder geworden ten opzichte van de beurs, en staat
     // er nog steeds — dat is de regel van de etalage, ook ná een koop.
@@ -545,6 +553,88 @@ test.describe('§82 De winkel', () => {
    * De klem zit in de volgorde: `room_slots.claim` wordt bij de kóóp
    * geschreven, en alleen als de soort op dat moment één-van-zijn-soort is.
    */
+  /**
+   * ZAAK 6 (§83) — een ding dat op twee soorten plek past staat in twee groepen,
+   * en de knop van elke groep is die van zijn eigen plank.
+   *
+   * Dit is de zaak die alleen een browser kan stellen: de winkel groepeert per
+   * soort plek, en de vraag is of dezelfde rij twee keer getekend wordt *en*
+   * twee verschillende antwoorden geeft zodra één van de twee soorten vol is.
+   * Eén `landsIn` voor zo'n ding zou de winkel in één van zijn twee groepen
+   * laten liegen.
+   */
+  test('een ding dat op twee soorten plek past staat in beide groepen', async ({
+    page,
+    browser,
+    isMobile,
+  }, info) => {
+    test.skip(isMobile, '§83 wordt op de desk bewezen');
+    test.setTimeout(300_000);
+    const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+    await signIn(page, ...KEEPER);
+    const klok = await newHuisraad(page, {
+      name: `Staande klok ${stamp}`,
+      plekken: ['muur', 'bureau'],
+      prijs: 2,
+      effect: [`Hij slaat het uur ${stamp}`],
+    });
+
+    const ownerCtx = await browser.newContext();
+    const owner = await ownerCtx.newPage();
+    const { slug } = await signUpWearing(owner, `Klokkenluider ${stamp}`);
+    await giveMunten(page, slug, 9, `Sparen ${stamp}`);
+
+    await openWinkel(owner);
+    const rijen = rij(owner, klok.name);
+    // Twee keer dezelfde rij, één per groep — en elke groep zegt welke.
+    await expect(rijen).toHaveCount(2, { timeout: 20_000 });
+    const inGroep = (kind: PlekKind) =>
+      owner.locator(`[data-testid="winkel-rij"][data-kind="${kind}"]`).filter({ hasText: klok.name });
+    const aanDeMuur = inGroep('muur');
+    const opHetBureau = inGroep('bureau');
+    await expect(aanDeMuur).toHaveCount(1);
+    await expect(opHetBureau).toHaveCount(1);
+    await expect(aanDeMuur).toHaveAttribute('data-state', 'buy');
+    await expect(opHetBureau).toHaveAttribute('data-state', 'buy');
+
+    /* ---------------------- de muur vol, en alleen die groep verandert mee */
+
+    await opHetBureau.getByTestId('winkel-koop').click();
+    await expect(owner.getByTestId('winkel-balance')).toHaveAttribute('data-balance', '7', {
+      timeout: 20_000,
+    });
+
+    // Rung 0 is het gratis bureau: daar staat hij nu.
+    await openKamer(owner, slug);
+    await expect(plek(owner, 0)).toHaveAttribute('data-state', 'filled', { timeout: 20_000 });
+    await expect(plek(owner, 0)).toHaveAttribute('data-kind', 'bureau');
+
+    /*
+     * En nu het hele punt: hetzelfde ding, nog een keer, maar dan aan de muur.
+     * §83 laat dat toe — twee dezelfde klokken mag — en de muurgroep heeft nog
+     * een vrije plek (rung 2), dus dáár staat wél een knop.
+     */
+    await openWinkel(owner);
+    const muurRij = inGroep('muur');
+    await expect(muurRij.getByTestId('winkel-owned')).toBeVisible({ timeout: 20_000 });
+    await expect(muurRij).toHaveAttribute('data-state', 'buy');
+    await muurRij.getByTestId('winkel-koop').click();
+    await expect(owner.getByTestId('winkel-balance')).toHaveAttribute('data-balance', '5', {
+      timeout: 20_000,
+    });
+
+    await openKamer(owner, slug);
+    await expect(plek(owner, 2)).toHaveAttribute('data-state', 'filled', { timeout: 20_000 });
+    await expect(plek(owner, 2)).toHaveAttribute('data-kind', 'muur');
+    // Twee klokken, twee regels onder het raster: het archief somt op (rule 78).
+    await expect(
+      owner.locator(`[data-testid="kamer-effect"][data-name="${klok.name}"]`),
+    ).toHaveCount(2);
+
+    await ownerCtx.close();
+  });
+
   test('van een uniek ding zegt de etalage dat een ander het heeft', async ({
     page,
     browser,
@@ -621,6 +711,14 @@ test.describe('§82 De winkel', () => {
     const dingSlug = dingPad.replace(/^\/e\//, '');
 
     await unfoldInfobox(page);
+    /*
+     * §83: deze soort is met de hand in Beheer gemaakt en zijn velden zijn
+     * **tekstvakken** — Beheer geeft een nieuw veld geen keuzes mee. Dat is
+     * geen slordigheid van deze zaak maar precies het vangnet dat `plekKinds`
+     * heeft: een losse string wordt nog steeds gelezen, dus een soort die
+     * niemand door migratie `0029` haalt blijft in een kamer passen. Hier dus
+     * `fillWhenReady` en geen vinkjes.
+     */
     await fillWhenReady(page.locator('#field-plek'), 'plank');
     await page.locator('#field-plek').blur();
     await fillWhenReady(page.locator('#field-prijs'), '2');
@@ -733,7 +831,9 @@ test.describe('§82 De winkel', () => {
     ).toBe(true);
 
     await koop.click();
-    await expect(rij(page, kandelaar.name)).toHaveAttribute('data-state', 'owned', {
+    // §83: de rij zegt dát je er een hebt, maar dat weigert niets meer — wat
+    // de knop hier tegenhoudt is de beurs. Zie de desktopzaak hierboven.
+    await expect(rij(page, kandelaar.name).getByTestId('winkel-owned')).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.getByTestId('winkel-balance')).toHaveAttribute('data-balance', '1', {

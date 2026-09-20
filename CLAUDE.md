@@ -162,8 +162,21 @@ freely there.
 
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
-  markers to match. Check `grep -rn "§[567][0-9]" app components lib` before
-  choosing a number — the latest is **§82 / rule 82** (round 43: de winkel —
+  markers to match. Check `grep -rn "§[5678][0-9]" app components lib` before
+  choosing a number — the latest is **§83 / rule 83** (round 44: het open
+  grootboek, de uitdeling, en twee grenzen die te strak stonden. Het grootboek
+  is van iedereen die de kamer mag zien — met een sluier over een regel die een
+  artikel noemt dat je niet mag zien (§76) — en alleen het formulier eronder
+  blijft van de Keeper; `/uitdelen` schrijft een handvol gewone grants in **één
+  transactie**, alles of niets, aan **kamers** en niet aan spelers; hetzelfde
+  stuk huisraad mag vaker in één kamer, en `one_of_a_kind` is wat er nog wél
+  tegenhoudt; en het veld `plek` werd een meerkeuze (migratie `0029`, de
+  velddefinitie **én** de waarden), met `plekKinds` als enige lezer en `landsIn`
+  per soort plek. Drie fouten onderweg, alle drie §17's regel 4: de plek-kiezer
+  vroeg het veld als enige in SQL en vond een lijst niet meer, `ledgerOf`
+  sorteerde sinds §79 op een willekeurig `id` terwijl zijn eigen comment `rowid`
+  zei, en de e2e helpers wezen naar een `#field-plek` dat niet meer bestaat).
+  Daarvoor **§82 / rule 82** (round 43: de winkel —
   `/winkel` toont alles wat te koop is, ook wat je niet kunt betalen, want je
   kunt niet sparen voor wat je niet ziet; kopen gaat door `buyFurnishing` heen
   en is dus nooit een tweede weg. Daarbij twee reparaties die alleen een echte
@@ -232,8 +245,15 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
+  `0029_meerdere_plekken` (§83: the field `plek` becomes a `multiselect`, and
+  **the field definition and every stored value change in the same migration**
+  — a `multiselect` refuses a bare string on save, so shipping half of it would
+  be a silent data loss), so **the next is `0030_`**. Before it: `0028_huisraad`
+  (§80: `entry_types.keeper_made` / `one_of_a_kind`, `room_slots.claim` and the
+  soort *Huisraad*) and `0027_kamers` (§79: `rooms`, `room_slots`, `room_ledger`,
+  and the field `plek` on the soort that already existed), then
   `0026_overzichten` (§75: the `overzichten` table and the one home row the
-  wiki's front door resolves to), so **the next is `0027_`**. Before it: round
+  wiki's front door resolves to). Before those: round
   36's `0025_sections_and_pin_layer` and §69's `0024_soft_delete_pins_events`
   (a `deleted_at` on `map_pins` and `timeline_events`, so the *Ongedaan maken*
   in a toast gives back the same row)
@@ -958,6 +978,33 @@ the only side that finds them.
    tests were green the whole time, because they write the row with SQL. The
    browser found it in one run. When a round invents a new way for data to be
    shaped, walk the road a person would walk before calling it done.
+
+### §83: de lezer die achterblijft is nooit degene waar je naar kijkt
+
+Round 44 moved two boundaries — what "already taken" means, and what a `plek`
+field may hold — and both times the thing that broke was a *reader* nobody had
+in mind, because §17's rule 4 is that readers and writers must say the same
+sentence and a reader written in another language is easy to forget.
+
+Two of them, and their shape is the lesson:
+
+1. **A reader written in SQL does not move when the others do.** Every reader of
+   `plek` goes through `plekKinds` — except the plek-picker, which asks it of a
+   thousand rows it has not fetched, so it asked `json_extract(…) = 'bureau'`.
+   That finds `["bureau"]` never. The picker offered **nothing** while
+   `placeItem` still accepted everything, and not one unit test noticed. It is
+   now `plekMatches`, exported beside the other readers and tested against
+   `plekKinds` row for row.
+2. **A comment is not the code.** `ledgerOf` said "`rowid` is the only tiebreak
+   that is always in writing order" and then sorted by `id`, which is sixteen
+   random bytes. It had been wrong since §79 and was invisible while only the
+   Keeper read the list. When a comment names the right column, check that the
+   line under it names the same one.
+
+And a third that belongs with them: an e2e helper is a reader too. Changing a
+`select` into a `multiselect` deletes `#field-plek`, and three specs pointed at
+it. One `setPlekken`/`expectPlekken` in `tests/e2e/helpers.ts` is now the one
+place that knows what that field looks like.
 
 ### §80: a lock needs a slot on the outside of the door too
 

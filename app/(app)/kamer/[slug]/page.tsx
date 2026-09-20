@@ -29,8 +29,9 @@ export const dynamic = 'force-dynamic';
  *
  * The shape is the round's four decisions made visible: a heading that points
  * back at the person, the balance in `words.currency`, a **grid of plekken**
- * (not a canvas, not an illustration), and — for a Keeper only — the grootboek
- * that the balance is the sum of.
+ * (not a canvas, not an illustration), and the grootboek that the balance is
+ * the sum of — since §83 for everybody who may stand here, with only the
+ * writing of a line still the Keeper's.
  *
  * Rule 78 is the boundary this page is drawn inside, and it shows in what is
  * *not* here: no bonus, no total, no stat, no roll. What a voorwerp does is
@@ -44,8 +45,16 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
   if (!room) notFound();
 
   const words = getWords();
-  // §9: the grootboek is the Keeper's, so it is not even read for anybody else.
-  const lines = room.canGrant ? ledgerOf(room.id) : [];
+  /*
+   * §83: het grootboek is van iedereen die de kamer mag zien — Nick, ronde 44:
+   * *"Spelers mogen het 'grootboek' ook wel kunnen inzien."* Alleen het
+   * formulier eronder blijft van de Keeper, en dat weet `Grootboek` zelf.
+   *
+   * De kijker gaat mee omdat een regel die iets gekocht heeft de **naam** van
+   * dat artikel draagt: wie hier binnen mag maar dat ding niet mag zien, leest
+   * de naam anders alsnog. `ledgerOf` versluiert die regels (§76).
+   */
+  const lines = ledgerOf(room.id, user);
 
   return (
     <div className="page kamer-page" data-testid="kamer-page" data-room={room.id}>
@@ -96,7 +105,7 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
        */}
       <RoomEffects effects={room.effects} words={words} />
 
-      {room.canGrant && <Grootboek roomId={room.id} lines={lines} words={words} />}
+      <Grootboek roomId={room.id} lines={lines} canGrant={room.canGrant} words={words} />
     </div>
   );
 }

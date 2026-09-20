@@ -440,9 +440,9 @@ describe('§79: wat er op een plek mag liggen', () => {
 
   it('refuses a plek field that is not a kind of plek', () => {
     expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'n-onzin', BRAM)).toThrow(/hoort nergens in een kamer/);
-    expect(kamers.plekKindOf('n-onzin')).toBeNull();
-    expect(kamers.plekKindOf('n-persoon')).toBeNull();
-    expect(kamers.plekKindOf('v-lantaarn')).toBe('plank');
+    expect(kamers.plekKindsOf('n-onzin')).toEqual([]);
+    expect(kamers.plekKindsOf('n-persoon')).toEqual([]);
+    expect(kamers.plekKindsOf('v-lantaarn')).toEqual(['plank']);
   });
 
   it('refuses a voorwerp that asks for a different kind of plek', () => {

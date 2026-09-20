@@ -86,6 +86,13 @@ export const PAGE_PLACES = [
    */
   '/web',
   '/admin',
+  /*
+   * §83: de uitdeler. Hij staat hier zodat een Keeper die erop staat érgens
+   * staat — maar `canWatch` heeft er een tak vóór deze lijst voor, net als
+   * `/admin`: een speler hoort niet in het lijstje te lezen dat de Keeper
+   * munten aan het uitdelen is.
+   */
+  '/uitdelen',
 ] as const;
 
 export const entryKey = (id: string) => `entry:${id}`;

@@ -4336,3 +4336,84 @@ Sixty-seven rules worth knowing before changing anything:
     Beheer, liet `room_slots.claim` achter zoals die stond: de winkel bood iets
     aan dat de kamer weigerde. `updateType` vult die claims nu bij als de vlag
     aan gaat, en haalt ze weg als hij uit gaat.
+
+83. **Een grootboek dat open ligt, een knop die de hele tafel betaalt, en twee
+    grenzen die te strak stonden.** §83. Nick, ronde 44: *"Spelers mogen het
+    'grootboek' ook wel kunnen inzien. Er moet een makkelijke 'mass coin
+    distribution' komen voor keepers… Je mag best vaker hetzelfde ding in je
+    kamer hebben staan. Ik wil dat je sommige items op meerdere verschillende
+    plekken mag plaatsen."*
+
+    **Het grootboek is van iedereen die de kamer mag zien.** §79 hield het voor
+    de Keeper, wat een speler zijn eigen boekhouding ontzegde: het saldo staat
+    bovenaan de pagina en waar het vandaan komt niet. Wat van de Keeper blijft
+    is het formulier eronder, en dat onderscheid woont nu in `Grootboek` zelf —
+    de lijst en de deur zijn één ding, en een pagina die de ene zonder de andere
+    moest doorgeven is een pagina die het vergeet.
+
+    En er kwam een sluier mee. Een regel met `kind: 'item'` draagt de **naam**
+    van het artikel dat gekocht is, dus wie hier binnen mag maar dat ding niet
+    mag zien las die naam alsnog — precies het lek waar `SlotView.veiled` voor
+    bestaat. `ledgerOf` krijgt de kijker erbij en zo'n regel komt versluierd
+    terug, met dezelfde zin als de plek zelf (§76: de variatie is het lek). Het
+    **bedrag** blijft staan: het saldo is al zichtbaar en de plek zegt al dat er
+    iets ligt, dus het getal vertelt niets nieuws — en een regel die verdween
+    zou zelf de verklapper zijn.
+
+    **De uitdeling.** `/uitdelen` is één getal bovenaan, één reden, en één regel
+    per kamer: een vinkje, de naam, het saldo, een bedrag. Het globale getal
+    overschrijft élk bedrag eronder, ook wat net met de hand is getypt — dat is
+    letterlijk wat Nick vroeg, en het is iets wat je moet zien gebeuren. Het
+    vinkje is het *wie* en het bedrag het *hoeveel*, en het globale getal raakt
+    alleen het tweede: iedereen op 3 zetten mag niemand stilletjes weer
+    uitnodigen die er net af gehaald was. Een 0, een leeg vak en een uitgezet
+    vinkje betekenen alle drie hetzelfde, want als één ervan wél een regel
+    schreef was die ene een val.
+
+    `handOut` schrijft **gewone grants** — geen nieuwe soort regel, geen tweede
+    tabel: een uitdeling *is* een handvol grants, en het grootboek hoort ze zo
+    te tonen. In **één transactie**, en dat is de hele reden dat het geen lus
+    over `grant` is: alles lukt of niets lukt. Een half uitgedeelde beloning is
+    erger dan een weigering, want de Keeper ziet aan het scherm niet wie wel en
+    wie niet.
+
+    **Het lijstje is van kamers en niet van spelers**, en dat is de ene plek
+    waar Nicks zin en het archief uit elkaar lopen. Een beurs hoort bij een
+    onderzoeker (§79), dus wie er twee draagt heeft er twee, en een scherm dat
+    mensen opsomde zou er stilletjes één van moeten kiezen. Elke regel leest
+    *Onderzoeker (speler)*: de naam die hij zoekt staat er, en wat er
+    aangevinkt wordt is het ding dat munten houdt.
+
+    **Dubbel mag.** §80 weigerde een tweede leesstoel in dezelfde kamer met de
+    redenering "twee identieke lampen op één raster is ook niemands bedoeling".
+    Die redenering was van ons. Wat blijft is `one_of_a_kind`: één voorwerp is
+    één ding in de wereld, de vraag wordt aan het hele archief gesteld en de
+    unieke index op `claim` staat gewoon nog. Voor al het andere wordt er nu
+    **niets** gevraagd — en de lezers verschoven mee, want dit is §17's regel 4:
+    `catalogueFor` houdt alleen nog claims weg, en in de winkel is `owned` een
+    *label* geworden in plaats van een weigering.
+
+    **Een ding mag op meerdere soorten plek passen.** Het veld `plek` werd een
+    `multiselect`, met migratie `0029` die de velddefinitie én elke opgeslagen
+    waarde omzet — allebei of geen van beide, want een `multiselect` weigert bij
+    het opslaan alles wat geen lijst is en de eerstvolgende bewerking had anders
+    stil elke plek gewist. `plekKinds` is de ene lezer, en die **blijft een losse
+    string aannemen**: een archief dat de migratie niet gezien heeft hoort niet
+    stilletjes zijn kamers te verliezen, en dat kost één regel. In de winkel is
+    `landsIn` daardoor **per soort plek** — een klok die aan de muur én op het
+    bureau kan, met een volle muur en een vrij bureau, is in de ene groep niet te
+    koop en in de andere wel — en zo'n ding staat in beide groepen.
+
+    Drie dingen gingen pas stuk onder een echte hand of onder een test die ernaar
+    zocht, en alle drie zijn ze dezelfde fout. De **plek-kiezer** vroeg het veld
+    als enige in SQL (`json_extract(...) = 'bureau'`) en vond een lijst niet
+    meer: hij bood ineens niets aan terwijl `placeItem` alles nog accepteerde.
+    Die voorwaarde heet nu `plekMatches`, staat naast de andere lezers, en wordt
+    van allebei de kanten getest. Het **grootboek** sorteerde op `id` terwijl
+    zijn eigen comment `rowid` zei — en `lib/ids.ts` maakt een id uit zestien
+    willekeurige bytes, dus twee regels in dezelfde seconde kwamen in geen enkele
+    volgorde terug. Dat stond er sinds §79 en was onzichtbaar zolang alleen de
+    Keeper keek; een uitdeling landt per ontwerp in één seconde. En de **e2e
+    helpers** wezen naar `#field-plek`, dat er na de meerkeuze niet meer is: één
+    `setPlekken`/`expectPlekken` in `tests/e2e/helpers.ts` is nu de plek die dat
+    weet.

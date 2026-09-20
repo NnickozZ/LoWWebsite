@@ -29,6 +29,33 @@ export function isPlekKind(value: unknown): value is PlekKind {
 }
 
 /**
+ * §83: de soorten plek waar één artikel op past — en de enige plek waar die
+ * vraag gesteld wordt.
+ *
+ * Nick, ronde 44: *"Ik wil dat je sommige items op meerdere verschillende
+ * plekken mag plaatsen, dus niet limiteren aan slechts 1 ding als muur, bureau,
+ * plank etc"*. Het veld `plek` ging daarom van `select` naar `multiselect`, en
+ * dat slaat een array op.
+ *
+ * **Een losse string wordt nog steeds gelezen**, en dat is geen slordigheid die
+ * later weg mag. Migratie `0029` bouwt elke bestaande waarde om, maar een
+ * archief dat om wat voor reden dan ook niet (of half) gemigreerd is, hoort niet
+ * stilletjes elke kamer leeg te maken: een kamer die zegt dat er niets past is
+ * een veel stillere ramp dan een foutmelding. De migratie is de bedoeling, dit
+ * is het vangnet, en het kost één regel.
+ *
+ * Dubbelen eruit, en de volgorde van `PLEK_KINDS` aangehouden — dat is de
+ * volgorde waarin een kamer gebouwd is, en dus de volgorde waarin een mens ze
+ * leest.
+ */
+export function plekKinds(raw: unknown): PlekKind[] {
+  const asked = Array.isArray(raw) ? raw : [raw];
+  const found = new Set<PlekKind>();
+  for (const value of asked) if (isPlekKind(value)) found.add(value);
+  return PLEK_KINDS.filter((kind) => found.has(kind));
+}
+
+/**
  * §79: what makes an artikel a voorwerp.
  *
  * A **field**, not a soort. The obvious design — seed a soort called

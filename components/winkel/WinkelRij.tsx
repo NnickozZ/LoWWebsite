@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Cover } from '@/components/Cover';
 import { munt } from '@/components/kamer/plekWords';
 import type { ShopItem } from '@/lib/kamers/service';
+import type { PlekKind } from '@/lib/kamers/shape';
 import type { Words } from '@/lib/words';
 import { BuyButton } from './BuyButton';
 
@@ -12,7 +13,10 @@ import { BuyButton } from './BuyButton';
  *
  *  - `list` — there is no purse at all (the Keeper, §18, who wears nobody).
  *    A price list, and not one button anywhere on it.
- *  - `owned` — it is already lying in the kamer being shopped for.
+ *  - `owned` — there is one of it and it is already lying in the kamer being
+ *    shopped for. **Only for a thing there is one of** (§83): since ronde 44
+ *    you may own two of the same stoel, so for everything else this is a line
+ *    of text beside a live button rather than a state.
  *  - `taken` — there is one of it and somebody else has it. Said out loud,
  *    because a lantaarn that is gone is not simply missing from the world.
  *  - `dear` — you cannot pay for it. **Still listed, still priced**, with a
@@ -26,15 +30,20 @@ import { BuyButton } from './BuyButton';
  * `dear` deliberately beats `noslot`: somebody who cannot afford a thing is
  * not helped by being told they also have no shelf for it, and the price is
  * the fact they came to read.
+ *
+ * §83 made this per **kind of plek**, because a thing may fit several and its
+ * free plek is not the same answer in each: a row under *muur* with a full muur
+ * says `noslot` while the very same thing under *plank* says `buy`.
  */
 export type WinkelState = 'list' | 'owned' | 'taken' | 'dear' | 'noslot' | 'buy';
 
-export function winkelState(item: ShopItem, canBuy: boolean): WinkelState {
+export function winkelState(item: ShopItem, canBuy: boolean, kind: PlekKind): WinkelState {
   if (!canBuy) return 'list';
-  if (item.owned) return 'owned';
+  // §83: owning one only stops you when there is one of it in the world.
+  if (item.unique && item.owned) return 'owned';
   if (item.takenElsewhere) return 'taken';
   if (!item.affordable) return 'dear';
-  return item.landsIn ? 'buy' : 'noslot';
+  return item.landsIn[kind] ? 'buy' : 'noslot';
 }
 
 /**
@@ -57,6 +66,7 @@ export function winkelState(item: ShopItem, canBuy: boolean): WinkelState {
  */
 export function WinkelRij({
   item,
+  kind,
   roomId,
   roomSlug,
   balance,
@@ -64,6 +74,12 @@ export function WinkelRij({
   words,
 }: {
   item: ShopItem;
+  /**
+   * §83: the group this row is drawn in. A thing that fits a muur and a plank
+   * is drawn twice — once under each — and the free plek, and therefore the
+   * button, is that group's own.
+   */
+  kind: PlekKind;
   /** The kamer being shopped for, or null when there is no purse (the Keeper). */
   roomId: string | null;
   /** That kamer's onderzoeker-slug, for the way back when there is no free plek. */
@@ -72,15 +88,16 @@ export function WinkelRij({
   canBuy: boolean;
   words: Words;
 }) {
-  const state = winkelState(item, canBuy);
+  const state = winkelState(item, canBuy, kind);
   const short = item.price - balance;
+  const landsIn = item.landsIn[kind] ?? null;
 
   return (
     <li
       className={`kamer-koop winkel-rij${state === 'dear' ? ' kamer-koop-dear' : ''}`}
       data-testid="winkel-rij"
       data-entry-id={item.id}
-      data-kind={item.plek}
+      data-kind={kind}
       data-price={item.price}
       data-state={state}
       /* §80's attribute, kept spelled the same way so the two rows read alike. */
@@ -120,7 +137,12 @@ export function WinkelRij({
           {munt(item.price, words)}
         </span>
 
-        {state === 'owned' && (
+        {/*
+          §83: "dit heb je al" is a *fact*, and only for a unique thing is it
+          also a refusal. So it is printed beside a live button as well —
+          somebody buying a second stoel deserves to know they own one.
+        */}
+        {item.owned && (
           <span className="tiny muted winkel-state" data-testid="winkel-owned">
             {words.shopOwned}
           </span>
@@ -159,8 +181,8 @@ export function WinkelRij({
           </button>
         )}
 
-        {state === 'buy' && roomId && item.landsIn && (
-          <BuyButton roomId={roomId} slotId={item.landsIn} entryId={item.id} label={words.buy} />
+        {state === 'buy' && roomId && landsIn && (
+          <BuyButton roomId={roomId} slotId={landsIn} entryId={item.id} label={words.buy} />
         )}
       </div>
     </li>

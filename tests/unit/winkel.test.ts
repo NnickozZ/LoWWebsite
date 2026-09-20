@@ -282,31 +282,37 @@ beforeEach(() => {
 /**
  * The one property that matters most, and the reason this file exists.
  *
- * `catalogueFor` answers "what may I buy for *this* plek" and hides what is
- * already taken. `shopFor` answers "what is there" and shows the taken ones
- * with a flag. Restricted to one kind of plek, therefore:
+ * `catalogueFor` answers "what may I buy for *this* plek" and leaves out what
+ * is claimed. `shopFor` answers "what is there" and says of a claimed one that
+ * somebody has it. Restricted to one kind of plek, therefore:
  *
- *     shop(kind) minus {owned, takenElsewhere}  ===  catalogue(kind)
+ *     shop(kind) minus {held}  ===  catalogue(kind)
  *
  * — as a **sequence**, not merely a set, because the two sort by the same
  * comparator inside one kind (price, then name in Dutch) and a shop that
  * ordered its shelves differently from the picker would be a second surprise.
+ *
+ * **§83 moved the line between them.** Owning one used to be enough to be left
+ * out of the catalogue; now only a thing there is one of is ever held back, and
+ * then it is held back whether the copy is yours (`unique && owned`) or
+ * somebody else's (`takenElsewhere`). A plain `owned` is a label and no longer
+ * a difference between these two lists.
  */
+const held = (row: import('@/lib/kamers/service').ShopItem) =>
+  (row.unique && row.owned) || row.takenElsewhere;
+
 const agreesWithTheCatalogue = (viewer: Parameters<typeof kamers.shopFor>[0], roomId: string) => {
   const shop = kamers.shopFor(viewer, roomId);
-  // The Keeper has no kamer of his own; the catalogue still needs one to ask
-  // "what is already lying here", so it is asked about the same room.
-  const asked = shop.roomId ?? roomId;
   for (const kind of shape.PLEK_KINDS) {
-    const catalogue = kamers.catalogueFor(asked, kind, viewer).map((row) => row.id);
-    const here = shop.items.filter((row) => row.plek === kind);
+    const catalogue = kamers.catalogueFor(kind, viewer).map((row) => row.id);
+    const here = shop.items.filter((row) => row.plekken.includes(kind));
 
     // Nothing the picker offers is missing from the window.
     expect(here.map((row) => row.id)).toEqual(expect.arrayContaining(catalogue));
-    // And nothing the window offers unflagged is refused by the picker.
-    expect(here.filter((row) => !row.owned && !row.takenElsewhere).map((row) => row.id)).toEqual(catalogue);
-    // What the two differ by is exactly the flags, never anything else.
-    expect(here.filter((row) => !catalogue.includes(row.id)).every((row) => row.owned || row.takenElsewhere)).toBe(true);
+    // And nothing the window offers unheld is refused by the picker.
+    expect(here.filter((row) => !held(row)).map((row) => row.id)).toEqual(catalogue);
+    // What the two differ by is exactly that, never anything else.
+    expect(here.filter((row) => !catalogue.includes(row.id)).every(held)).toBe(true);
   }
 };
 
@@ -359,16 +365,25 @@ describe('§82: de winkel is het eens met de catalogus', () => {
    */
   it('sells what it offers: every unflagged, affordable row goes through buyFurnishing', () => {
     kamers.grant(ROOM, 200, 'genoeg voor de hele winkel', KEEPER);
-    const buyable = () =>
-      kamers.shopFor(BRAM, ROOM).items.find((row) => !row.owned && !row.takenElsewhere && row.affordable && row.landsIn);
+    const buyable = () => {
+      for (const row of kamers.shopFor(BRAM, ROOM).items) {
+        if (held(row) || !row.affordable) continue;
+        // §83: `landsIn` is per kind of plek now, so a buyable row is a pair.
+        for (const kind of row.plekken) {
+          const slotId = row.landsIn[kind];
+          if (slotId) return { row, slotId };
+        }
+      }
+      return null;
+    };
 
     let bought = 0;
     for (let round = 0; round < 40; round += 1) {
-      const row = buyable();
-      if (!row) break;
-      expect(() => kamers.buyFurnishing(row.landsIn!, row.id, BRAM), `kopen: ${row.id}`).not.toThrow();
+      const next = buyable();
+      if (!next) break;
+      expect(() => kamers.buyFurnishing(next.slotId, next.row.id, BRAM), `kopen: ${next.row.id}`).not.toThrow();
       // And what was bought now reads as owned, in the same window.
-      expect(shopItem(kamers.shopFor(BRAM, ROOM), row.id).owned).toBe(true);
+      expect(shopItem(kamers.shopFor(BRAM, ROOM), next.row.id).owned).toBe(true);
       bought += 1;
     }
     expect(bought).toBeGreaterThan(2);
@@ -415,7 +430,7 @@ describe('§82: wat de winkel nooit toont — gevraagd door wie niet mag', () =>
     expect(shop.balance).toBe(0);
     // A window you can look through without a door to go in by.
     expect(shop.items.length).toBeGreaterThan(0);
-    expect(shop.items.every((row) => row.landsIn === null)).toBe(true);
+    expect(shop.items.every((row) => Object.keys(row.landsIn).length === 0)).toBe(true);
     expect(shop.items.every((row) => row.affordable === false)).toBe(true);
     expect(shop.items.every((row) => row.owned === false)).toBe(true);
   });
@@ -464,7 +479,7 @@ describe('§82: wat niet te koop is, staat niet in de winkel', () => {
    * merchandise. Not to the Keeper either — it is the *soort* that is wrong.
    */
   it('leaves out a voorwerp carrying a price, and every voorwerp besides', () => {
-    expect(kamers.factsOf('v-prijskaartje')).toMatchObject({ plek: 'plank', price: 4, keeperMade: false });
+    expect(kamers.factsOf('v-prijskaartje')).toMatchObject({ plekken: ['plank'], price: 4, keeperMade: false });
     forEveryReader('v-prijskaartje', false);
     forEveryReader('v-lantaarn', false);
   });
@@ -482,7 +497,8 @@ describe('§82: wat niet te koop is, staat niet in de winkel', () => {
   it('lists nothing without a kind of plek and a price above nought', () => {
     for (const viewer of [BRAM, KEEPER, null]) {
       for (const row of kamers.shopFor(viewer, ROOM).items) {
-        expect(shape.isPlekKind(row.plek)).toBe(true);
+        expect(row.plekken.length).toBeGreaterThan(0);
+        expect(row.plekken.every((kind) => shape.isPlekKind(kind))).toBe(true);
         expect(row.price).toBeGreaterThan(0);
         expect(Number.isInteger(row.price)).toBe(true);
       }
@@ -543,7 +559,7 @@ describe('§82: takenElsewhere — alleen voor het ding waar er één van is', (
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel');
     expect(row.takenElsewhere).toBe(false);
     expect(row.owned).toBe(false);
-    expect(row.landsIn).toBe(plek(ROOM, FREE_PLANK).id);
+    expect(row.landsIn.plank).toBe(plek(ROOM, FREE_PLANK).id);
   });
 
   it('flags nothing at all while nobody has claimed anything', () => {
@@ -562,44 +578,56 @@ describe('§82: takenElsewhere — alleen voor het ding waar er één van is', (
 describe('§82: landsIn — de plek waar het zou landen', () => {
   it('points at the first open, empty plek of the right kind', () => {
     const shop = kamers.shopFor(BRAM, ROOM);
-    expect(shopItem(shop, 'h-stoel').landsIn).toBe(plek(ROOM, FREE_PLANK).id);
-    expect(shopItem(shop, 'h-kast').landsIn).toBe(plek(ROOM, FREE_MUUR).id);
-    expect(shopItem(shop, 'h-schrijfmap').landsIn).toBe(plek(ROOM, FREE_BUREAU).id);
+    expect(shopItem(shop, 'h-stoel').landsIn.plank).toBe(plek(ROOM, FREE_PLANK).id);
+    expect(shopItem(shop, 'h-kast').landsIn.muur).toBe(plek(ROOM, FREE_MUUR).id);
+    expect(shopItem(shop, 'h-schrijfmap').landsIn.bureau).toBe(plek(ROOM, FREE_BUREAU).id);
   });
 
   /** Every kist in `ROOM_SHAPE` costs something, so a fresh kamer has nowhere. */
-  it('is null while every plek of that kind is still on slot', () => {
-    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-kistje').landsIn).toBeNull();
+  it('is empty while every plek of that kind is still on slot', () => {
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-kistje').landsIn.kist).toBeUndefined();
   });
 
   it('finds the plek the moment that kind is unlocked', () => {
     const kist = slotsOf(ROOM).find((slot) => slot.kind === 'kist')!;
     kamers.grant(ROOM, 50, 'sparen', KEEPER);
     kamers.unlockSlot(kist.id, BRAM);
-    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-kistje').landsIn).toBe(kist.id);
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-kistje').landsIn.kist).toBe(kist.id);
   });
 
-  it('is null when every open plek of that kind is full', () => {
+  it('is empty when every open plek of that kind is full', () => {
     // The one free bureau, filled — and the other one still locked.
     kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-schrijfmap', BRAM);
     expect(plek(ROOM, PAID_BUREAU).unlockedAt).toBeNull();
-    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').landsIn).toBeNull();
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').landsIn.bureau).toBeUndefined();
   });
 
   it('moves on to the next plek of that kind when the first is taken', () => {
     kamers.grant(ROOM, 50, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'v-lantaarn', BRAM);
-    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel').landsIn).toBe(plek(ROOM, PAID_PLANK).id);
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel').landsIn.plank).toBe(plek(ROOM, PAID_PLANK).id);
   });
 
-  it('is null for something this kamer already owns', () => {
+  /**
+   * §83 reversed this one. §82 put nothing where you already owned one; a
+   * second leesstoel is allowed now, so the free plank is offered.
+   */
+  it('still points somewhere for something this kamer already owns (§83)', () => {
     kamers.grant(ROOM, 50, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
-    // There is an empty plank left, and it is still not offered: you have one.
     expect(plek(ROOM, PAID_PLANK).entryId).toBeNull();
-    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel').landsIn).toBeNull();
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel').landsIn.plank).toBe(plek(ROOM, PAID_PLANK).id);
+  });
+
+  /** But a unique one you already hold points nowhere: there is one of it. */
+  it('points nowhere for a unique thing you already hold', () => {
+    kamers.grant(ROOM, 50, 'sparen', KEEPER);
+    kamers.unlockSlot(plek(ROOM, PAID_BUREAU).id, BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    expect(plek(ROOM, PAID_BUREAU).entryId).toBeNull();
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').landsIn).toEqual({});
   });
 
   /** A plek it points at is always this kamer's, open and empty. */
@@ -607,12 +635,13 @@ describe('§82: landsIn — de plek waar het zou landen', () => {
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
     const here = new Map(slotsOf(ROOM).map((slot) => [slot.id, slot]));
     for (const row of kamers.shopFor(BRAM, ROOM).items) {
-      if (!row.landsIn) continue;
-      const slot = here.get(row.landsIn);
-      expect(slot, `${row.id} wijst buiten de kamer`).toBeDefined();
-      expect(slot!.kind).toBe(row.plek);
-      expect(slot!.entryId).toBeNull();
-      expect(slot!.unlockedAt).not.toBeNull();
+      for (const [kind, slotId] of Object.entries(row.landsIn)) {
+        const slot = here.get(slotId);
+        expect(slot, `${row.id} wijst buiten de kamer`).toBeDefined();
+        expect(slot!.kind).toBe(kind);
+        expect(slot!.entryId).toBeNull();
+        expect(slot!.unlockedAt).not.toBeNull();
+      }
     }
   });
 });
@@ -698,7 +727,7 @@ describe('§82: roomsOf — één beurs per onderzoeker', () => {
     expect(shop.rooms).toEqual([]);
     expect(shop.roomId).toBeNull();
     expect(shop.balance).toBe(0);
-    expect(shop.items.every((row) => row.landsIn === null && !row.affordable && !row.owned)).toBe(true);
+    expect(shop.items.every((row) => Object.keys(row.landsIn).length === 0 && !row.affordable && !row.owned)).toBe(true);
   });
 
   it('gives a signed-out reader none at all either', () => {
@@ -754,9 +783,10 @@ describe('§82: de gekozen kamer — en die van een ander', () => {
     const hers = new Set(slotsOf(ROOM_B).map((slot) => slot.id));
     const mine = new Set(slotsOf(ROOM).map((slot) => slot.id));
     for (const row of shop.items) {
-      if (!row.landsIn) continue;
-      expect(hers.has(row.landsIn)).toBe(false);
-      expect(mine.has(row.landsIn)).toBe(true);
+      for (const slotId of Object.values(row.landsIn)) {
+        expect(hers.has(slotId)).toBe(false);
+        expect(mine.has(slotId)).toBe(true);
+      }
     }
   });
 
@@ -797,35 +827,59 @@ describe('§82: elke vlag tegen de weigering waar hij over gaat', () => {
 
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp');
     expect(row.takenElsewhere).toBe(true);
-    // A landing place is not permission: the flag is what says no, and the
-    // kamer says it again if anybody presses through.
-    if (row.landsIn) {
-      expect(() => kamers.buyFurnishing(row.landsIn!, row.id, BRAM)).toThrow(/andere kamer/i);
-    }
-    expect(kamers.balanceOf(ROOM)).toBe(50);
+    // §83: a unique thing somebody else holds gets no landing place at all —
+    // `held` is asked before `landsIn` is filled. The kamer refuses it anyway,
+    // which is the half that must be true even if this page went stale.
+    expect(row.landsIn).toEqual({});
+    kamers.unlockSlot(plek(ROOM, PAID_BUREAU).id, BRAM);
+    const spent = kamers.balanceOf(ROOM);
+    expect(() => kamers.buyFurnishing(plek(ROOM, PAID_BUREAU).id, row.id, BRAM)).toThrow(/andere kamer/i);
+    expect(kamers.balanceOf(ROOM)).toBe(spent);
+  });
+
+  it('means what it says about a unique thing you hold yourself', () => {
+    kamers.grant(ROOM, 50, 'genoeg', KEEPER);
+    kamers.unlockSlot(plek(ROOM, PAID_BUREAU).id, BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+
+    const row = shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp');
+    expect(row.owned).toBe(true);
+    expect(row.landsIn).toEqual({});
+    const before = kamers.balanceOf(ROOM);
+    expect(() => kamers.buyFurnishing(plek(ROOM, PAID_BUREAU).id, 'u-bureaulamp', BRAM)).toThrow(
+      /al ergens in deze kamer/,
+    );
+    expect(kamers.balanceOf(ROOM)).toBe(before);
   });
 
   it('means what it says about what you cannot afford', () => {
     kamers.grant(ROOM, 2, 'net niet', KEEPER);
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel');
     expect(row.affordable).toBe(false);
-    expect(row.landsIn).toBe(plek(ROOM, FREE_PLANK).id);
-    expect(() => kamers.buyFurnishing(row.landsIn!, row.id, BRAM)).toThrow(/nog niet genoeg/);
+    expect(row.landsIn.plank).toBe(plek(ROOM, FREE_PLANK).id);
+    expect(() => kamers.buyFurnishing(row.landsIn.plank!, row.id, BRAM)).toThrow(/nog niet genoeg/);
     expect(kamers.balanceOf(ROOM)).toBe(2);
   });
 
-  it('means what it says about what you already own', () => {
+  /**
+   * §83 reversed the second half of this. Owning a leesstoel is still said out
+   * loud — it is a fact somebody buying a second one deserves to read — but it
+   * refuses nothing any more, and the shop and the kamer say that together.
+   */
+  it('says you own one and sells you another anyway (§83)', () => {
     kamers.grant(ROOM, 50, 'genoeg', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
     kamers.buyFurnishing(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
 
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel');
     expect(row.owned).toBe(true);
-    expect(row.landsIn).toBeNull();
-    // And the other, still-empty plank refuses it for the same reason.
+    expect(row.unique).toBe(false);
+    expect(row.landsIn.plank).toBe(plek(ROOM, PAID_PLANK).id);
+
     const before = kamers.balanceOf(ROOM);
-    expect(() => kamers.buyFurnishing(plek(ROOM, PAID_PLANK).id, 'h-stoel', BRAM)).toThrow(/al ergens in deze kamer/);
-    expect(kamers.balanceOf(ROOM)).toBe(before);
+    expect(() => kamers.buyFurnishing(plek(ROOM, PAID_PLANK).id, 'h-stoel', BRAM)).not.toThrow();
+    expect(kamers.balanceOf(ROOM)).toBe(before - row.price);
+    expect(plek(ROOM, PAID_PLANK).entryId).toBe('h-stoel');
   });
 
   /** And nothing the shop hides may be bought by id either (§80's own bug). */
@@ -852,17 +906,20 @@ describe('§82: wat een regel in de winkel draagt', () => {
       id: 'h-stoel',
       name: 'Een leesstoel',
       slug: 'leesstoel',
-      plek: 'plank',
+      plekken: ['plank'],
       price: 3,
       effect: ['Een plek om te lezen.', 'Rust bij het haardvuur'],
     });
 
-    // Grouped by kind, and inside a kind the cheapest first: saving up starts
-    // at the top of a shelf, as it does in the picker.
-    const kinds = shop.items.map((row) => row.plek);
-    expect(kinds).toEqual([...kinds].sort((a, b) => a.localeCompare(b)));
+    /*
+     * §83: the grouping moved to the page, because a thing that fits a muur
+     * *and* a plank belongs in both groups and one sorted list cannot hold it
+     * twice. What the service still guarantees is the order **inside** a group:
+     * cheapest first, which is what somebody saving up reads, and what the
+     * picker does. The page filters; the order survives the filter.
+     */
     for (const kind of shape.PLEK_KINDS) {
-      const prices = shop.items.filter((row) => row.plek === kind).map((row) => row.price);
+      const prices = shop.items.filter((row) => row.plekken.includes(kind)).map((row) => row.price);
       expect(prices).toEqual([...prices].sort((a, b) => a - b));
     }
   });

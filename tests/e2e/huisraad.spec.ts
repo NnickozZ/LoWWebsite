@@ -1,13 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import {
-  becomeInvestigator,
-  editArticle,
-  fillWhenReady,
-  inviteCode,
-  newEntryButton,
-  openRights,
-  signIn,
-} from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, newEntryButton, openRights, setPlekken, signIn } from './helpers';
 
 /**
  * §80: huisraad — de catalogus, het kopen, en wat een kamer je zegt te geven.
@@ -149,7 +141,7 @@ async function newHuisraad(
 
   const effect = spec.effect.join('\n');
   await unfoldInfobox(page);
-  await page.locator('#field-plek').selectOption(spec.plek);
+  await setPlekken(page, [spec.plek]);
   await fillWhenReady(page.locator('#field-prijs'), String(spec.prijs));
   await page.locator('#field-prijs').blur();
   await fillWhenReady(page.locator('#field-effect'), effect);
@@ -180,7 +172,7 @@ async function newHuisraad(
     await page.goto(path);
     await editArticle(page);
     await unfoldInfobox(page);
-    await expect(page.locator('#field-plek')).toHaveValue(spec.plek, { timeout: 5000 });
+    await expectPlekken(page, [spec.plek]);
     await expect(page.locator('#field-prijs')).toHaveValue(String(spec.prijs), { timeout: 5000 });
     await expect(page.locator('#field-effect')).toHaveValue(effect, { timeout: 5000 });
   }).toPass({ timeout: 60_000 });

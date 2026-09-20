@@ -341,3 +341,46 @@ export async function pasteImage(page: Page, fileName: string) {
     { bytes, fileName },
   );
 }
+
+/**
+ * §83: de soorten plek die een artikel vraagt, aan- of uitvinken.
+ *
+ * Het veld `plek` was tot ronde 43 een `select` en elke spec deed
+ * `#field-plek` + `selectOption`. Sinds §83 mag een ding op meer dan één soort
+ * plek passen, dus het is een `multiselect` — en die tekent §38's rij vinkjes
+ * met een `role="group"` in plaats van één besturingselement met een id. Er is
+ * dus geen `#field-plek` meer, en dat is precies het soort verandering waar een
+ * spec stil op afgaat als het bij één bestand blijft: dit staat hier zodat er
+ * één plek is die het weet.
+ *
+ * De groep heet naar het label van het veld ("Plek"), en elk vinkje naar zijn
+ * optie. `exact` op allebei, want "muur" is een deel van "muurkast".
+ */
+export async function setPlekken(page: Page, kinds: readonly string[], label = 'Plek') {
+  const group = page.getByRole('group', { name: label, exact: true });
+  await expect(group).toBeVisible({ timeout: 20_000 });
+  for (const box of await group.getByRole('checkbox').all()) {
+    if (await box.isChecked()) await box.uncheck();
+  }
+  for (const kind of kinds) {
+    await group.getByRole('checkbox', { name: kind, exact: true }).check();
+  }
+}
+
+/**
+ * En wat er terugkomt als je de pagina opnieuw ophaalt — de enige proef die
+ * telt. Élke soort plek wordt gevraagd, aangevinkt én niet aangevinkt: een
+ * assertie die alleen kijkt of het gewenste vinkje staat, ziet niet dat er nog
+ * een tweede bij staat.
+ */
+export const PLEK_KINDS = ['muur', 'plank', 'bureau', 'kist'] as const;
+
+export async function expectPlekken(page: Page, kinds: readonly string[], label = 'Plek') {
+  const group = page.getByRole('group', { name: label, exact: true });
+  for (const kind of PLEK_KINDS) {
+    await expect(group.getByRole('checkbox', { name: kind, exact: true }), kind).toBeChecked({
+      checked: kinds.includes(kind),
+      timeout: 5000,
+    });
+  }
+}

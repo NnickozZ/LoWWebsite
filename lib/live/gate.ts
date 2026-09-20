@@ -34,6 +34,9 @@ export function canWatch(key: string, viewer: Viewer): boolean {
   if (key.startsWith('page:')) {
     const path = key.slice('page:'.length);
     if (path === '/admin') return Boolean(viewer.isKeeper);
+    // §83: de uitdeler is van de Keeper, dus zijn plek ook. Vóór `PAGE_PLACES`,
+    // die iedereen toelaat.
+    if (path === '/uitdelen') return Boolean(viewer.isKeeper);
     if ((PAGE_PLACES as readonly string[]).includes(path)) return true;
     /*
      * §77: a spelerspagina. Every signed-in person may stand on anyone's — what

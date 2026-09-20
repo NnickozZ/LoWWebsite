@@ -22,8 +22,10 @@ export const dynamic = 'force-dynamic';
  * own: only a hand that may arrange it gets either list, because both
  * sentences are about *your* shelf.
  *
- * Everything else is `catalogueFor`'s: keeper-made soorten only, a price, the
- * right kind of plek, visible to these eyes, and not already lying somewhere.
+ * Everything else is `catalogueFor`'s: keeper-made soorten only, a price, a
+ * fitting kind of plek, visible to these eyes, and — for a thing there is one
+ * of — not already claimed (§83: a second copy of the same stoel is allowed, so
+ * the kamer is no longer part of that question).
  * Nothing is re-implemented here, and — the part that matters — **nothing is
  * filtered out for being too dear**. What you cannot afford yet comes back
  * with its price on it and is drawn greyed by the sheet: saving up starts with
@@ -38,7 +40,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
     if (!canArrangeRoom(id, user)) {
       return json({ error: 'Dit is jouw kamer niet.' }, { status: 403 });
     }
-    return json({ entries: catalogueFor(id, kind, user) });
+    return json({ entries: catalogueFor(kind, user) });
   } catch (err) {
     return apiError(err);
   }

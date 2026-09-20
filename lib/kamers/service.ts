@@ -8,6 +8,7 @@ import type { CoverCrops } from '@/lib/images/shapes';
 import {
   EFFECT_FIELD_KEY,
   isPlekKind,
+  plekKinds,
   PRICE_FIELD_KEY,
   ROOM_SHAPE,
   VOORWERP_FIELD_KEY,
@@ -187,24 +188,80 @@ export type LedgerLine = {
   kind: 'grant' | 'slot' | 'item';
   reason: string;
   createdAt: number;
+  /**
+   * §83: this line names something this pair of eyes may not see. The page
+   * prints `words.slotVeiled` instead of the reason — the same sentence the
+   * plek itself uses, for the same reason (§76).
+   */
+  veiled: boolean;
 };
 
-export function ledgerOf(roomId: string, limit = 50): LedgerLine[] {
-  return db
+/**
+ * §79/§83: het grootboek, door de ogen van wie kijkt.
+ *
+ * §79 kept this for the Keeper alone, which made the viewer irrelevant. Nick,
+ * ronde 44: *"Spelers mogen het 'grootboek' ook wel kunnen inzien."* — so it is
+ * now read by everyone who may see the kamer, and that makes the viewer the
+ * whole problem.
+ *
+ * **A line of `kind: 'item'` carries the name of an artikel** (`buyFurnishing`
+ * writes `entry.name`). Somebody who may stand in this kamer but may not see
+ * that artikel would read its name here — which is precisely the leak
+ * `SlotView.veiled` exists to stop. A plek that says *er ligt iets* with three
+ * lines underneath saying exactly what is not a veil.
+ *
+ * So an `item` line whose artikel does not pass `visibleEntryCondition` comes
+ * back veiled. **The amount stays**: the balance is already on the page and the
+ * plek already says something is lying there, so the number tells nobody
+ * anything new — and a line that vanished, or one whose amount was blanked,
+ * would itself be the tell (§76: the variation is the leak).
+ *
+ * `grant` lines are the Keeper's own words, written for the player to read, and
+ * `slot` lines print a kind of plek. Neither is ever veiled.
+ */
+export function ledgerOf(roomId: string, viewer: Viewer, limit = 50): LedgerLine[] {
+  const rows = db
     .select({
       id: schema.roomLedger.id,
       delta: schema.roomLedger.delta,
       kind: schema.roomLedger.kind,
       reason: schema.roomLedger.reason,
       createdAt: schema.roomLedger.createdAt,
+      entryId: schema.roomLedger.entryId,
     })
     .from(schema.roomLedger)
     .where(eq(schema.roomLedger.roomId, roomId))
-    // Several lines can share a second (a grant and the spend it paid for);
-    // `rowid` is the only tiebreak that is always in writing order.
-    .orderBy(sql`${schema.roomLedger.createdAt} DESC, ${schema.roomLedger.id} DESC`)
+    /*
+     * Several lines share a second all the time — a grant and the spend it
+     * paid for, and since §83 a whole uitdeling at once. `rowid` is the only
+     * tiebreak that is in writing order.
+     *
+     * §79 wrote exactly that sentence in this comment and then sorted by `id`,
+     * which `lib/ids.ts` makes out of sixteen random bytes. So two lines in the
+     * same second came back in an order that had nothing to do with anything,
+     * and it was invisible for four rounds because only the Keeper ever read
+     * this list. §83 opened it to everybody and a test found it the same hour.
+     */
+    .orderBy(sql`${schema.roomLedger.createdAt} DESC, ${schema.roomLedger}.rowid DESC`)
     .limit(limit)
     .all();
+
+  const named = rows.map((row) => row.entryId).filter((id): id is string => Boolean(id));
+  const visible = new Set(
+    named.length
+      ? db
+          .select({ id: schema.entries.id })
+          .from(schema.entries)
+          .where(and(inArray(schema.entries.id, named), visibleEntryCondition(viewer)))
+          .all()
+          .map((row) => row.id)
+      : [],
+  );
+
+  return rows.map(({ entryId, ...line }) => ({
+    ...line,
+    veiled: line.kind === 'item' && Boolean(entryId) && !visible.has(entryId as string),
+  }));
 }
 
 /** May this viewer look at this kamer at all? The artikel's rule, then the dial. */
@@ -339,26 +396,37 @@ export type CatalogueEntry = {
  * §80: what is for sale that fits this plek.
  *
  * Everything the viewer may see, of a soort the Keeper keeps to himself
- * (`keeper_made`), asking for this kind of plek and carrying a price. What is
+ * (`keeper_made`), fitting this kind of plek and carrying a price. What is
  * too dear is **in the list anyway**, greyed by the page: saving up starts with
  * seeing what there is to save for. Affordability is the page's business, not
  * this function's — it answers "what exists", and the balance is right there.
+ *
+ * §83 took the kamer out of the signature. It was only ever there to hide what
+ * you already owned, and owning something twice is allowed now; a dead
+ * parameter is an invitation to start using it again (§81).
  */
-export function catalogueFor(roomId: string, kind: PlekKind, viewer: Viewer): CatalogueEntry[] {
-  const here = db
-    .select({ entryId: schema.roomSlots.entryId })
-    .from(schema.roomSlots)
-    .where(eq(schema.roomSlots.roomId, roomId))
-    .all()
-    .map((row) => row.entryId)
-    .filter((id): id is string => Boolean(id));
+export function catalogueFor(kind: PlekKind, viewer: Viewer): CatalogueEntry[] {
+  /*
+   * §83, and it is §17's rule 4 in the place it always bites: this is the
+   * *reader* of the sentence `buyFurnishing` writes, so it moved when that one
+   * did.
+   *
+   * §80 kept out everything already lying in this kamer **and** everything
+   * claimed anywhere. The first half is now wrong: since ronde 44 a second copy
+   * of the same stoel is allowed, and a catalogue that hides what the kamer
+   * would happily accept is a catalogue that lies about the kamer.
+   *
+   * What is left is exactly the claims — and a claim is only ever written for
+   * something there is one of (§80), so a unique thing lying *here* is in this
+   * set too. One list, one rule, and `roomId` is no longer part of the answer.
+   */
   const claimed = db
     .select({ claim: schema.roomSlots.claim })
     .from(schema.roomSlots)
     .all()
     .map((row) => row.claim)
     .filter((id): id is string => Boolean(id));
-  const taken = new Set([...here, ...claimed]);
+  const taken = new Set(claimed);
 
   return db
     .select({
@@ -381,13 +449,13 @@ export function catalogueFor(roomId: string, kind: PlekKind, viewer: Viewer): Ca
         slug: row.slug,
         shortDescription: row.shortDescription,
         coverAssetId: row.coverAssetId,
-        plek: row.fields?.[VOORWERP_FIELD_KEY],
+        plekken: plekKinds(row.fields?.[VOORWERP_FIELD_KEY]),
         price: Number.isFinite(price) && price > 0 ? Math.floor(price) : 0,
         effect: effectLines(row.fields?.[EFFECT_FIELD_KEY]),
       };
     })
-    .filter((row) => row.plek === kind && row.price > 0 && !taken.has(row.id))
-    .map(({ plek: _plek, ...rest }) => rest)
+    .filter((row) => row.plekken.includes(kind) && row.price > 0 && !taken.has(row.id))
+    .map(({ plekken: _plekken, ...rest }) => rest)
     .sort((a, b) => a.price - b.price || a.name.localeCompare(b.name, 'nl'));
 }
 
@@ -399,15 +467,27 @@ export type ShopItem = {
   slug: string;
   shortDescription: string;
   coverAssetId: string | null;
-  plek: PlekKind;
+  /** §83: every kind of plek this fits. A shop row is drawn once per kind. */
+  plekken: PlekKind[];
   price: number;
   effect: string[];
-  /** Already lying in the kamer being shopped for. */
+  /**
+   * §80: there is one of this in the world. Since §83 this is the *only* thing
+   * that stops a second copy, so the page asks it and not `owned`.
+   */
+  unique: boolean;
+  /** Already lying in the kamer being shopped for. A label, not a refusal (§83). */
   owned: boolean;
   /** One of a kind, and somebody else has it. */
   takenElsewhere: boolean;
-  /** The plek it would land in — open, empty and of the right kind. */
-  landsIn: string | null;
+  /**
+   * §83: the plek it would land in, **per kind of plek** — open, empty and of
+   * that kind. A thing that hangs on a muur and stands on a plank, with a full
+   * muur and a free plank, is not for sale under *muur* and is under *plank*.
+   * One `landsIn` for such a thing would make the shop lie in one of its two
+   * groups.
+   */
+  landsIn: Partial<Record<PlekKind, string>>;
   affordable: boolean;
 };
 
@@ -465,10 +545,11 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
         .all()
     : [];
   const mine = new Set(slots.map((slot) => slot.entryId).filter((id): id is string => Boolean(id)));
-  const freeByKind = new Map<string, string>();
+  const freeByKind = new Map<PlekKind, string>();
   for (const slot of slots) {
     if (slot.unlockedAt === null || slot.entryId) continue;
-    if (!freeByKind.has(slot.kind)) freeByKind.set(slot.kind, slot.id);
+    const kind = slot.kind as PlekKind;
+    if (!freeByKind.has(kind)) freeByKind.set(kind, slot.id);
   }
   // §80: a claim is only ever made for a thing there is one of, so this is
   // exactly the set of unique things that are spoken for.
@@ -489,13 +570,13 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
       shortDescription: schema.entries.shortDescription,
       coverAssetId: schema.entries.coverAssetId,
       fields: schema.entries.fields,
+      oneOfAKind: schema.entryTypes.oneOfAKind,
     })
     .from(schema.entries)
     .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
     .where(and(eq(schema.entryTypes.keeperMade, true), visibleEntryCondition(viewer)))
     .all()
     .map((row) => {
-      const asked = row.fields?.[VOORWERP_FIELD_KEY];
       const price = Number(row.fields?.[PRICE_FIELD_KEY]);
       return {
         id: row.id,
@@ -503,23 +584,38 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
         slug: row.slug,
         shortDescription: row.shortDescription,
         coverAssetId: row.coverAssetId,
-        plek: isPlekKind(asked) ? asked : null,
+        plekken: plekKinds(row.fields?.[VOORWERP_FIELD_KEY]),
         price: Number.isFinite(price) && price > 0 ? Math.floor(price) : 0,
         effect: effectLines(row.fields?.[EFFECT_FIELD_KEY]),
+        unique: Boolean(row.oneOfAKind),
       };
     })
-    .filter((row): row is typeof row & { plek: PlekKind } => row.plek !== null && row.price > 0)
+    .filter((row) => row.plekken.length > 0 && row.price > 0)
     .map((row) => {
       const owned = mine.has(row.id);
+      /*
+       * §83: owning one no longer keeps you from buying another — that was the
+       * whole of Nick's third wish. Only `one_of_a_kind` still holds a row
+       * back, and then it holds it back whether the copy is yours or
+       * somebody else's, because there is exactly one.
+       */
+      const held = row.unique && (owned || claimed.has(row.id));
+      const landsIn: Partial<Record<PlekKind, string>> = {};
+      if (!held) {
+        for (const kind of row.plekken) {
+          const free = freeByKind.get(kind);
+          if (free) landsIn[kind] = free;
+        }
+      }
       return {
         ...row,
         owned,
-        takenElsewhere: !owned && claimed.has(row.id),
-        landsIn: owned ? null : (freeByKind.get(row.plek) ?? null),
+        takenElsewhere: !owned && row.unique && claimed.has(row.id),
+        landsIn,
         affordable: Boolean(room) && room!.balance >= row.price,
       };
     })
-    .sort((a, b) => a.plek.localeCompare(b.plek) || a.price - b.price || a.name.localeCompare(b.name, 'nl'));
+    .sort((a, b) => a.price - b.price || a.name.localeCompare(b.name, 'nl'));
 
   return { rooms, roomId: room?.id ?? null, balance: room?.balance ?? 0, items };
 }
@@ -645,7 +741,11 @@ export function unlockSlot(slotId: string, viewer: Viewer): { spent: number } {
  * world; huisraad is a listing, and two onderzoekers may own the same one.
  */
 export type ThingFacts = {
-  plek: PlekKind | null;
+  /**
+   * §83: the kinds of plek this thing fits — a list, and empty means it belongs
+   * in no kamer at all. Was one kind until ronde 44; see `plekKinds`.
+   */
+  plekken: PlekKind[];
   keeperMade: boolean;
   oneOfAKind: boolean;
   /** In munten. Null or 0 means it is not in the catalogue — a Keeper gives it. */
@@ -665,10 +765,9 @@ export function factsOf(entryId: string): ThingFacts | null {
     .where(eq(schema.entries.id, entryId))
     .get();
   if (!row) return null;
-  const asked = row.fields?.[VOORWERP_FIELD_KEY];
   const price = Number(row.fields?.[PRICE_FIELD_KEY]);
   return {
-    plek: isPlekKind(asked) ? asked : null,
+    plekken: plekKinds(row.fields?.[VOORWERP_FIELD_KEY]),
     keeperMade: Boolean(row.keeperMade),
     oneOfAKind: Boolean(row.oneOfAKind),
     price: Number.isFinite(price) && price > 0 ? Math.floor(price) : null,
@@ -692,25 +791,90 @@ export function effectLines(raw: unknown): string[] {
     .slice(0, 12);
 }
 
-/** What kind of plek this artikel asks for, or null when it is not a voorwerp at all. */
-export function plekKindOf(entryId: string): PlekKind | null {
+/**
+ * §83: "past dit artikel op een plek van deze soort?", als SQL.
+ *
+ * `plekKinds` is the reader everywhere else, and everywhere else the row is
+ * already in hand. The plek-picker (`app/api/kamers/[id]/voorwerpen/route.ts`)
+ * is the one place that has to ask it of a thousand rows it has not fetched, so
+ * it asks the database — and that made it the reader that stayed behind when
+ * the field became a list. `json_extract(…) = 'bureau'` does not find
+ * `["bureau"]`, so the picker offered nothing at all while `placeItem` still
+ * accepted everything. §17's rule 4, and no unit test saw it; the browser did,
+ * in one run (§80).
+ *
+ * It lives here rather than in the route so that there is **one** place both
+ * shapes are named, and so a test can ask it without a request. Both shapes:
+ * an array, and a bare string for an archive that has not seen migration
+ * `0029` — exactly what `plekKinds` accepts, said twice in two languages
+ * because there is no third way to say it.
+ */
+export function plekMatches(kind: PlekKind) {
+  const path = `$.${VOORWERP_FIELD_KEY}`;
+  return sql`CASE json_type(${schema.entries.fields}, ${path})
+               WHEN 'text' THEN json_extract(${schema.entries.fields}, ${path}) = ${kind}
+               WHEN 'array' THEN EXISTS (
+                 SELECT 1 FROM json_each(${schema.entries.fields}, ${path}) je
+                  WHERE je.value = ${kind}
+               )
+               ELSE 0
+             END`;
+}
+
+/** §83: which kinds of plek this artikel asks for. Empty means it fits in no kamer. */
+export function plekKindsOf(entryId: string): PlekKind[] {
   const row = db
     .select({ fields: schema.entries.fields })
     .from(schema.entries)
     .where(eq(schema.entries.id, entryId))
     .get();
-  const asked = row?.fields?.[VOORWERP_FIELD_KEY];
-  return isPlekKind(asked) ? asked : null;
+  return plekKinds(row?.fields?.[VOORWERP_FIELD_KEY]);
+}
+
+/**
+ * §80/§83: is dit ding al neergezet? — en hoe ver die vraag reikt, is de zaak
+ * van de *soort* en niet van de functie die hem stelt.
+ *
+ * A voorwerp is one thing in the world (`one_of_a_kind`), so the question is
+ * asked of the whole archive: a lantaarn on somebody's plank is not also on
+ * yours. Huisraad is a listing several people may own — and, since §83, that
+ * one person may own twice. Nick, ronde 44: *"Je mag best vaker hetzelfde ding
+ * in je kamer hebben staan."*
+ *
+ * So for anything that is not unique this asks **nothing at all**. §80 asked it
+ * of this kamer alone ("two identical lamps on one grid is nobody's intention
+ * either"), which turned out to be exactly Nick's intention. The reasoning was
+ * ours, not his, and it is the kind of rule that is easier to add later than to
+ * find once it is in.
+ *
+ * `placeItem` and `buyFurnishing` both call this, because they are two writers
+ * of one sentence and §17's rule 4 is what happens when they drift apart.
+ */
+function requireNotPlaced(facts: ThingFacts, entryId: string, roomId: string) {
+  if (!facts.oneOfAKind) return;
+  const elsewhere = db
+    .select({ roomId: schema.roomSlots.roomId })
+    .from(schema.roomSlots)
+    .where(eq(schema.roomSlots.entryId, entryId))
+    .get();
+  if (!elsewhere) return;
+  throw new KamerError(
+    elsewhere.roomId === roomId ? 'Dat ligt al ergens in deze kamer.' : 'Dat ligt al in een andere kamer.',
+  );
 }
 
 /**
  * Put a voorwerp in a plek.
  *
  * Four refusals, and each is a thing somebody will try: a plek that is still
- * locked, an artikel that is not a voorwerp (or asks for a different kind of
- * plek), an artikel this person cannot see, and one that is already lying
- * somewhere else in this same kamer. The last is the partial unique index's
- * job as well — the check here is for the message, the index is for the truth.
+ * locked, an artikel that is not a voorwerp (or does not fit this kind of
+ * plek), an artikel this person cannot see, and a **one-of-a-kind** thing that
+ * is already lying somewhere. The last is the partial unique index's job as
+ * well — the check here is for the message, the index is for the truth.
+ *
+ * §83 took one refusal away: a second copy of the same thing in the same kamer.
+ * Nick, ronde 44: *"Je mag best vaker hetzelfde ding in je kamer hebben
+ * staan."*
  */
 export function placeItem(slotId: string, entryId: string, viewer: Viewer) {
   const slot = db
@@ -735,32 +899,10 @@ export function placeItem(slotId: string, entryId: string, viewer: Viewer) {
   if (!entry) throw new KamerError('Dat artikel bestaat niet.');
 
   const facts = factsOf(entryId);
-  if (!facts?.plek) throw new KamerError('Dat hoort nergens in een kamer.');
-  if (facts.plek !== slot.kind) throw new KamerError('Dat hoort niet op deze plek.');
+  if (!facts?.plekken.length) throw new KamerError('Dat hoort nergens in een kamer.');
+  if (!facts.plekken.includes(slot.kind as PlekKind)) throw new KamerError('Dat hoort niet op deze plek.');
 
-  /*
-   * §80: already lying somewhere — and *how far* that question reaches is the
-   * soort's business, not this function's.
-   *
-   * A voorwerp is one thing in the world (`one_of_a_kind`), so it is asked of
-   * the whole archive. Huisraad is a listing that several people may own, so it
-   * is asked of this kamer alone — two identical lamps on one grid is nobody's
-   * intention either.
-   */
-  const elsewhere = db
-    .select({ roomId: schema.roomSlots.roomId })
-    .from(schema.roomSlots)
-    .where(
-      facts.oneOfAKind
-        ? eq(schema.roomSlots.entryId, entryId)
-        : and(eq(schema.roomSlots.roomId, slot.roomId), eq(schema.roomSlots.entryId, entryId)),
-    )
-    .get();
-  if (elsewhere) {
-    throw new KamerError(
-      elsewhere.roomId === slot.roomId ? 'Dat ligt al ergens in deze kamer.' : 'Dat ligt al in een andere kamer.',
-    );
-  }
+  requireNotPlaced(facts, entryId, slot.roomId);
 
   db.update(schema.roomSlots)
     .set({
@@ -837,8 +979,8 @@ export function buyFurnishing(slotId: string, entryId: string, viewer: Viewer): 
   if (!entry) throw new KamerError('Dat bestaat niet.');
 
   const facts = factsOf(entryId);
-  if (!facts?.plek) throw new KamerError('Dat hoort nergens in een kamer.');
-  if (facts.plek !== slot.kind) throw new KamerError('Dat hoort niet op deze plek.');
+  if (!facts?.plekken.length) throw new KamerError('Dat hoort nergens in een kamer.');
+  if (!facts.plekken.includes(slot.kind as PlekKind)) throw new KamerError('Dat hoort niet op deze plek.');
   /*
    * §17's rule 4, in the place it is easiest to forget: **readers use the SQL
    * condition, writers use the boolean.**
@@ -854,20 +996,7 @@ export function buyFurnishing(slotId: string, entryId: string, viewer: Viewer): 
   if (!facts.keeperMade) throw new KamerError('Dat staat niet te koop.');
   if (!facts.price) throw new KamerError('Dat staat niet te koop.');
 
-  const elsewhere = db
-    .select({ roomId: schema.roomSlots.roomId })
-    .from(schema.roomSlots)
-    .where(
-      facts.oneOfAKind
-        ? eq(schema.roomSlots.entryId, entryId)
-        : and(eq(schema.roomSlots.roomId, slot.roomId), eq(schema.roomSlots.entryId, entryId)),
-    )
-    .get();
-  if (elsewhere) {
-    throw new KamerError(
-      elsewhere.roomId === slot.roomId ? 'Dat ligt al ergens in deze kamer.' : 'Dat ligt al in een andere kamer.',
-    );
-  }
+  requireNotPlaced(facts, entryId, slot.roomId);
 
   const price = facts.price;
   return db.transaction((tx) => {
@@ -940,6 +1069,162 @@ export function grant(roomId: string, delta: number, reason: string, viewer: Vie
       .run();
   });
   logActivity({ actorId: viewer?.id ?? null, verb: 'room.granted', meta: { roomId, delta } });
+}
+
+/** §83: one line of an uitdeling — a kamer and what it gets. */
+export type HandOutRow = { roomId: string; delta: number };
+
+/** §83: every kamer an uitdeling can reach, with whose it is and what is in it. */
+export type HandOutTarget = {
+  roomId: string;
+  /** The onderzoeker the kamer belongs to. */
+  name: string;
+  slug: string;
+  /** Who wears them — blank when nobody does, and then there is no kamer to reach. */
+  player: string;
+  balance: number;
+};
+
+/**
+ * §83: aan wie er uitgedeeld kan worden.
+ *
+ * Nick, ronde 44: *"dat ze dan gewoon de namen van de **spelers** invullen"* —
+ * and this is the one place his sentence and the archive disagree, so it is
+ * answered out loud rather than quietly.
+ *
+ * **A purse belongs to an onderzoeker, not to a player** (§79: the kamer hangs
+ * off the karakter's artikel). Somebody wearing two has two kamers and two
+ * balances, and a screen that listed *people* would have to pick one of them
+ * for him — silently, and wrongly half the time. So the list is of kamers, and
+ * each row reads "Onderzoeker (speler)": the name Nick is looking for is right
+ * there, and the thing that actually holds munten is what gets ticked.
+ *
+ * Keeper-only, because the screen it feeds is.
+ */
+export function handOutTargets(viewer: Viewer): HandOutTarget[] {
+  if (!viewer?.isKeeper) return [];
+  const worn = db
+    .select({
+      entryId: schema.userCharacters.entryId,
+      name: schema.entries.name,
+      slug: schema.entries.slug,
+      player: schema.users.username,
+    })
+    .from(schema.userCharacters)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.userCharacters.entryId))
+    .innerJoin(schema.users, eq(schema.users.id, schema.userCharacters.userId))
+    .where(and(eq(schema.users.isDisabled, false), visibleEntryCondition(viewer)))
+    .orderBy(asc(schema.entries.name))
+    .all();
+
+  const out: HandOutTarget[] = [];
+  const seen = new Set<string>();
+  for (const worn_ of worn) {
+    const roomId = getOrCreateRoom(worn_.entryId);
+    if (!roomId || seen.has(roomId)) continue;
+    seen.add(roomId);
+    out.push({
+      roomId,
+      name: worn_.name,
+      slug: worn_.slug,
+      player: worn_.player,
+      balance: balanceOf(roomId),
+    });
+  }
+  return out;
+}
+
+/**
+ * §83: de uitdeling — één reden, één knop, één transactie.
+ *
+ * Nick, ronde 44: *"Er moet een makkelijke 'mass coin distribution' komen voor
+ * keepers… en dan iedereen x aantal munten geeft omdat ze samen wat gedaan
+ * hebben."*
+ *
+ * Three decisions are in here rather than on the screen, and each of them is
+ * the sort that has to be true everywhere or nowhere.
+ *
+ * **It is a handful of ordinary grants.** No new `kind`, no second table, no
+ * row that says "this was part of an uitdeling". A player looking at their
+ * grootboek sees a line with the Keeper's reason on it, which is exactly what
+ * happened; and the balance stays the sum of the grootboek (§79's rule 1)
+ * without anything new having to be taught that.
+ *
+ * **Alles of niets.** If one kamer would drop below zero the whole thing
+ * refuses and names it. A half-finished uitdeling is worse than a refusal:
+ * the Keeper cannot see from the screen who got theirs, so the only safe repair
+ * would be to check eight grootboeken by hand.
+ *
+ * **Zero is a full answer.** A row of 0 — and a row left out by its tick — both
+ * write nothing. Those are the two ways a person says "not this one", and if
+ * they disagreed one of them would be a trap.
+ *
+ * The floor at zero, "een bedrag is een heel getal" and Keeper-only are the
+ * same rules `grant` keeps, and they are asked here rather than by calling
+ * `grant` in a loop: `grant` opens a transaction of its own, so a loop over it
+ * is precisely the half-applied uitdeling this refuses to be.
+ */
+export function handOut(rows: HandOutRow[], reason: string, viewer: Viewer): { rooms: number; total: number } {
+  if (!viewer?.isKeeper) throw new KamerError('Alleen de Keeper geeft uit.');
+
+  const giving: HandOutRow[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!Number.isInteger(row.delta)) throw new KamerError('Een bedrag is een heel getal.');
+    if (seen.has(row.roomId)) throw new KamerError('Die kamer staat er twee keer in.');
+    seen.add(row.roomId);
+    if (row.delta === 0) continue;
+    giving.push(row);
+  }
+  if (giving.length === 0) throw new KamerError('Er staat niemand aan.');
+
+  const why = reason.trim().slice(0, 200);
+  const now = Math.floor(Date.now() / 1000);
+
+  return db.transaction((tx) => {
+    let total = 0;
+    for (const row of giving) {
+      const room = tx
+        .select({ id: schema.rooms.id, entryId: schema.rooms.entryId })
+        .from(schema.rooms)
+        .where(eq(schema.rooms.id, row.roomId))
+        .get();
+      if (!room) throw new KamerError('Die kamer bestaat niet.');
+      const balance = Number(
+        tx
+          .select({ total: sql<number>`COALESCE(SUM(${schema.roomLedger.delta}), 0)` })
+          .from(schema.roomLedger)
+          .where(eq(schema.roomLedger.roomId, row.roomId))
+          .get()?.total ?? 0,
+      );
+      if (balance + row.delta < 0) {
+        const name = tx
+          .select({ name: schema.entries.name })
+          .from(schema.entries)
+          .where(eq(schema.entries.id, room.entryId))
+          .get()?.name;
+        throw new KamerError(`Dat zou ${name ?? 'iemand'} onder nul brengen.`);
+      }
+      tx.insert(schema.roomLedger)
+        .values({
+          id: newId(),
+          roomId: row.roomId,
+          delta: row.delta,
+          kind: 'grant',
+          reason: why,
+          actorId: viewer.id,
+          createdAt: now,
+        })
+        .run();
+      total += row.delta;
+    }
+    logActivity({
+      actorId: viewer.id,
+      verb: 'room.granted',
+      meta: { rooms: giving.length, total },
+    });
+    return { rooms: giving.length, total };
+  });
 }
 
 /** §77: what the spelerspagina's panel shows — the smallest true thing, and a door. */

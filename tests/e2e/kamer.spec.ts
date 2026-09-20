@@ -301,19 +301,29 @@ test.describe('§79 De kamer', () => {
     await expect(plek(other, 3).getByTestId('plek-price')).toHaveAttribute('data-price', '2');
     await expect(plek(other, 1)).toHaveAttribute('data-state', 'empty');
 
-    // En aanraken niet. Geen van de drie knoppen, en het grootboek is niet
-    // "verborgen" maar helemaal niet getekend — ook niet in de opmaak.
+    // En aanraken niet. Geen van de drie knoppen.
     await expect(other.getByTestId('plek-unlock')).toHaveCount(0);
     await expect(other.getByTestId('plek-place')).toHaveCount(0);
     await expect(other.getByTestId('plek-clear')).toHaveCount(0);
-    await expect(other.getByTestId('kamer-grootboek')).toHaveCount(0);
+
+    /*
+     * §83 keerde de rest van deze assertie om, en met opzet.
+     *
+     * §79 hield het grootboek voor de Keeper: het werd voor een ander niet
+     * eens *gelezen*, en deze zaak bewees dat de reden van een regel nergens
+     * in de pagina stond. Nick, ronde 44: *"Spelers mogen het 'grootboek' ook
+     * wel kunnen inzien."* — dus het staat er nu, met de reden erbij, en wat
+     * van de Keeper blijft is het formulier eronder en de deur naar de
+     * uitdeler.
+     *
+     * Wat er in ruil voor die omkering bij kwam, staat in `huisraad.spec.ts`:
+     * een regel die een artikel noemt dat deze ogen niet mogen zien, komt
+     * versluierd terug.
+     */
+    await expect(other.getByTestId('kamer-grootboek')).toHaveCount(1);
+    await expect(other.getByTestId('kamer-grootboek')).toContainText(`Avondje ${stamp}`);
     await expect(other.getByTestId('grootboek-form')).toHaveCount(0);
-    await expect(other.getByTestId('grootboek-regel')).toHaveCount(0);
-    const markup = await other.getByTestId('kamer-page').innerHTML();
-    expect(markup).not.toContain('grootboek');
-    expect(markup).not.toContain(`Avondje ${stamp}`);
-    // De reden van een regel staat nergens in de pagina, ook niet in de payload.
-    expect(await other.content()).not.toContain(`Avondje ${stamp}`);
+    await expect(other.getByTestId('grootboek-uitdelen')).toHaveCount(0);
 
     await otherCtx.close();
   });

@@ -287,14 +287,14 @@ describe('§80: twee vlaggen op een soort', () => {
   /** And `factsOf` is the one place the rest of the code reads them. */
   it('reads both flags back off the artikel, with its price and its lines', () => {
     expect(kamers.factsOf('v-lantaarn')).toEqual({
-      plek: 'plank',
+      plekken: ['plank'],
       keeperMade: false,
       oneOfAKind: true,
       price: null,
       effect: [],
     });
     expect(kamers.factsOf('h-stoel')).toEqual({
-      plek: 'plank',
+      plekken: ['plank'],
       keeperMade: true,
       oneOfAKind: false,
       price: 3,
@@ -398,12 +398,24 @@ describe('§80: de claim — één ding in de wereld, of niet', () => {
     expect(plek(ROOM_B, FREE_PLANK).claim).toBeNull();
   });
 
-  it('refuses the same stuk huisraad twice in one kamer', () => {
+  /**
+   * §83 reversed this one on purpose, and it is the clearest place to say so.
+   *
+   * §80 refused a second copy of the same stuk huisraad in one kamer, with the
+   * reasoning "two identical lamps on one grid is nobody's intention either".
+   * That reasoning was ours. Nick, ronde 44: *"Je mag best vaker hetzelfde ding
+   * in je kamer hebben staan."*
+   */
+  it('allows the same stuk huisraad twice in one kamer (§83, was refused in §80)', () => {
     kamers.grant(ROOM, 10, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
-    expect(() => kamers.placeItem(plek(ROOM, PAID_PLANK).id, 'h-stoel', BRAM)).toThrow(/al ergens in deze kamer/);
-    expect(plek(ROOM, PAID_PLANK).entryId).toBeNull();
+    expect(() => kamers.placeItem(plek(ROOM, PAID_PLANK).id, 'h-stoel', BRAM)).not.toThrow();
+    expect(plek(ROOM, PAID_PLANK).entryId).toBe('h-stoel');
+    expect(plek(ROOM, FREE_PLANK).entryId).toBe('h-stoel');
+    // En geen van beide claimt iets: een claim is alleen voor wat uniek is.
+    expect(plek(ROOM, PAID_PLANK).claim).toBeNull();
+    expect(plek(ROOM, FREE_PLANK).claim).toBeNull();
   });
 
   it('gives the claim back when the plek is emptied, and the voorwerp may move', () => {
@@ -633,11 +645,11 @@ describe('§80: kopen — en elke weigering die niets mag kosten', () => {
 /* ================================================== E. de catalogus */
 
 describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faalt', () => {
-  const ids = (kind: PlekKind, viewer: Parameters<typeof kamers.catalogueFor>[2], room = ROOM) =>
-    kamers.catalogueFor(room, kind, viewer).map((row) => row.id);
+  const ids = (kind: PlekKind, viewer: Parameters<typeof kamers.catalogueFor>[1]) =>
+    kamers.catalogueFor(kind, viewer).map((row) => row.id);
 
   it('offers the huisraad that fits this plek, with its price and its lines', () => {
-    const found = kamers.catalogueFor(ROOM, 'plank', BRAM).find((row) => row.id === 'h-stoel');
+    const found = kamers.catalogueFor('plank', BRAM).find((row) => row.id === 'h-stoel');
     expect(found).toMatchObject({
       id: 'h-stoel',
       name: 'Een leesstoel',
@@ -649,7 +661,7 @@ describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faal
 
   /** 1. Keeper-made only — and this row fails on that alone. */
   it('leaves out a voorwerp, even one carrying a price', () => {
-    expect(kamers.factsOf('v-prijskaartje')).toMatchObject({ plek: 'plank', price: 4, keeperMade: false });
+    expect(kamers.factsOf('v-prijskaartje')).toMatchObject({ plekken: ['plank'], price: 4, keeperMade: false });
     expect(ids('plank', BRAM)).toContain('h-stoel');
     expect(ids('plank', BRAM)).not.toContain('v-prijskaartje');
     // Not to the Keeper either: it is the soort that is wrong, not the looker.
@@ -679,7 +691,7 @@ describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faal
   it('leaves out what the looker may not see, and hands it to the Keeper', () => {
     expect(ids('plank', BRAM)).toContain('h-stoel');
     expect(ids('plank', BRAM)).not.toContain('h-geheim');
-    expect(ids('plank', AAGJE, ROOM_B)).not.toContain('h-geheim');
+    expect(ids('plank', AAGJE)).not.toContain('h-geheim');
     expect(ids('plank', null)).not.toContain('h-geheim');
     expect(ids('plank', KEEPER)).toContain('h-geheim');
 
@@ -689,11 +701,18 @@ describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faal
     expect(ids('plank', BRAM)).toContain('h-wiki');
   });
 
-  /** 5. Not already taken — which asks the soort how far "taken" reaches. */
-  it('leaves out what is already lying in this kamer', () => {
+  /**
+   * 5. Not already claimed — and §83 narrowed what that means.
+   *
+   * §80 also left out what was already lying in *this* kamer. Since you may own
+   * two of the same stoel, a catalogue that hid the second one would hide
+   * something the kamer would gladly accept — and §17's rule 4 says the reader
+   * and the writer have to say the same sentence.
+   */
+  it('keeps offering what is already lying here, because you may have two (§83)', () => {
     expect(ids('plank', BRAM)).toContain('h-stoel');
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
-    expect(ids('plank', BRAM)).not.toContain('h-stoel');
+    expect(ids('plank', BRAM)).toContain('h-stoel');
   });
 
   it('still offers the neighbours’ huisraad, because there may be more than one of it', () => {
@@ -706,16 +725,23 @@ describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faal
     kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', AAGJE);
     expect(plek(ROOM_B, FREE_BUREAU).claim).toBe('u-bureaulamp');
     expect(ids('bureau', BRAM)).not.toContain('u-bureaulamp');
-    expect(ids('bureau', AAGJE, ROOM_B)).not.toContain('u-bureaulamp');
+    expect(ids('bureau', AAGJE)).not.toContain('u-bureaulamp');
+  });
+
+  /** And a unique thing in your *own* kamer is gone too — the claim covers it. */
+  it('drops a unique thing you placed yourself, because a claim is a claim', () => {
+    expect(ids('bureau', BRAM)).toContain('u-bureaulamp');
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    expect(ids('bureau', BRAM)).not.toContain('u-bureaulamp');
   });
 
   it('puts the cheapest first, so saving up starts at the top', () => {
-    const prices = kamers.catalogueFor(ROOM, 'plank', KEEPER).map((row) => row.price);
+    const prices = kamers.catalogueFor('plank', KEEPER).map((row) => row.price);
     expect(prices.length).toBeGreaterThan(2);
     expect(prices).toEqual([...prices].sort((a, b) => a - b));
     expect(prices[0]).toBeLessThanOrEqual(prices[prices.length - 1]);
     // Too dear is still in the list: what you cannot afford is what you save for.
-    expect(kamers.catalogueFor(ROOM, 'plank', KEEPER).map((row) => row.id)).toContain('h-duur');
+    expect(kamers.catalogueFor('plank', KEEPER).map((row) => row.id)).toContain('h-duur');
   });
 });
 
@@ -878,8 +904,8 @@ describe('§80: wat niet in de catalogus staat, is ook niet te koop', () => {
       .run();
 
     // De catalogus biedt hem niet aan — aan niemand.
-    expect(kamers.catalogueFor(ROOM, 'plank', BRAM).map((row) => row.id)).not.toContain('v-geprijsd');
-    expect(kamers.catalogueFor(ROOM, 'plank', KEEPER).map((row) => row.id)).not.toContain('v-geprijsd');
+    expect(kamers.catalogueFor('plank', BRAM).map((row) => row.id)).not.toContain('v-geprijsd');
+    expect(kamers.catalogueFor('plank', KEEPER).map((row) => row.id)).not.toContain('v-geprijsd');
 
     // En kopen mag dus ook niet, met het id rechtstreeks in de hand.
     const before = ledgerRows(ROOM).length;

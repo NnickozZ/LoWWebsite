@@ -1,7 +1,9 @@
 import '@/app/spelers.css';
 import Link from 'next/link';
+import { Icon } from '@/components/Icon';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
+import { getSessionUser } from '@/lib/auth/session';
 import { charactersWorn } from '@/lib/characters';
 import { listSpelers } from '@/lib/spelers/service';
 import { capitalise } from '@/lib/words';
@@ -26,6 +28,7 @@ export const dynamic = 'force-dynamic';
  * is: who is here now. This one answers who there is at all, online or not.
  */
 export default async function SpelersPage() {
+  const user = await getSessionUser();
   const words = getWords();
   const spelers = listSpelers();
   const worn = charactersWorn(spelers.map((speler) => speler.id));
@@ -39,7 +42,20 @@ export default async function SpelersPage() {
       <LivePage place="page:/spelers" watch={['users', 'characters']} />
 
       <p className="eyebrow">{capitalise(words.playerPlural)}</p>
-      <h1>{words.spelerPagePlural}</h1>
+      <h1 className="row-wrap spelers-kop">
+        {words.spelerPagePlural}
+        {/*
+          §83: de tweede deur naar de uitdeler, en de vanzelfsprekende — dit is
+          de pagina die "iedereen" heet. Alleen voor de Keeper, en absent in
+          plaats van verborgen (§44), want de pagina erachter is ook een 404.
+        */}
+        {user?.isKeeper && (
+          <Link className="btn btn-small" href="/uitdelen" data-testid="spelers-uitdelen">
+            <Icon name="plus" size={13} />
+            {words.handout}
+          </Link>
+        )}
+      </h1>
 
       <ul className="spelers-lijst" data-testid="spelers-lijst">
         {spelers.map((speler) => {

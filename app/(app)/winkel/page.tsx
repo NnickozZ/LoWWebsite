@@ -27,7 +27,9 @@ export const dynamic = 'force-dynamic';
  * **It is grouped by soort plek and not by price.** A shop window is read by
  * where a thing would go — you are standing in a kamer with an empty muur, and
  * the question is what hangs there. Inside a group it is cheapest first, which
- * is `shopFor`'s own order and the order somebody saving up reads.
+ * is `shopFor`'s own order and the order somebody saving up reads. Since §83 a
+ * thing may fit more than one kind, and then it stands in each of their
+ * groups — with the free plek, the state and the button of *that* group.
  *
  * **Nothing is hidden for being out of reach.** What you cannot afford stays
  * in the list with its price on it, greyed and held, and the button says how
@@ -124,7 +126,11 @@ export default async function WinkelPage({
          * with a hole under it; it is simply not there.
          */
         PLEK_KINDS.map((kind) => {
-          const items = shop.items.filter((item) => item.plek === kind);
+          // §83: een ding dat op meerdere soorten plek past staat in élke
+          // groep waar het in past — dat is wat een etalage per soort plek
+          // betekent, en de rij krijgt de soort van zijn groep mee omdat zijn
+          // vrije plek (en dus zijn knop) per soort verschilt.
+          const items = shop.items.filter((item) => item.plekken.includes(kind));
           if (items.length === 0) return null;
           const label = plekWord(kind, words);
           return (
@@ -138,6 +144,7 @@ export default async function WinkelPage({
                   <WinkelRij
                     key={item.id}
                     item={item}
+                    kind={kind}
                     roomId={shop.roomId}
                     roomSlug={room?.slug ?? null}
                     balance={shop.balance}

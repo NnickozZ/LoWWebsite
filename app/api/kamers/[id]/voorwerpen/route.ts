@@ -1,9 +1,9 @@
-import { and, desc, eq, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, notInArray } from 'drizzle-orm';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { db, schema } from '@/lib/db';
 import { visibleEntryCondition } from '@/lib/entries/visibility';
-import { isPlekKind, VOORWERP_FIELD_KEY } from '@/lib/kamers/shape';
+import { isPlekKind } from '@/lib/kamers/shape';
 import { rankBy } from '@/lib/search/fuzzy';
 /*
  * §79: the same question every write in this round asks. It used to be
@@ -14,7 +14,7 @@ import { rankBy } from '@/lib/search/fuzzy';
  * changes hands. Two roads to one answer is the shape of mistake that lets a
  * previous wearer spend somebody else's munt.
  */
-import { canArrangeRoom } from '@/lib/kamers/service';
+import { canArrangeRoom, plekMatches } from '@/lib/kamers/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +34,17 @@ const SCAN = 1000;
  *
  * So the three conditions here are the three `placeItem` asks, and no others:
  *
- *  - the artikel carries `fields.plek` and the answer is **this plek's kind**.
- *    That is §79's whole definition of a voorwerp — not a soort, so the Keeper
- *    may make *Voorwerpen*, *Boeken* and *Relikwieën* and all three turn up
- *    here (`VOORWERP_FIELD_KEY`);
+ *  - the artikel carries `fields.plek` and **this plek's kind is one of the
+ *    answers**. That is §79's whole definition of a voorwerp — not a soort, so
+ *    the Keeper may make *Voorwerpen*, *Boeken* and *Relikwieën* and all three
+ *    turn up here (`VOORWERP_FIELD_KEY`). Since §83 the field is a list, and
+ *    this is the **only** place the question is asked in SQL rather than
+ *    through `plekKinds` — see the condition itself;
  *  - the reader may see it (`visibleEntryCondition`, which is §9, §17 and §44
  *    in one place and is not re-implemented anywhere in this round);
- *  - it is not already lying somewhere else in *this* kamer.
+ *  - nobody has claimed it. §83: a claim is only ever made for a thing there is
+ *    one of, so a second leesstoel stays on the list and a lantaarn on somebody
+ *    else's plank — or on your own — does not.
  *
  * The rights on the route itself are the kamer's own: only a hand that may
  * arrange it gets the list at all, because "what is not already on your shelf"
@@ -62,13 +66,20 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
       return json({ error: 'Dit is jouw kamer niet.' }, { status: 403 });
     }
 
+    /*
+     * §83: de claims, en niet meer "wat er in deze kamer ligt".
+     *
+     * §79 hield weg wat hier al lag, wat toen klopte omdat álles uniek was.
+     * Sinds ronde 44 mag hetzelfde stuk huisraad er twee keer staan, dus een
+     * kiezer die het wegliet bood minder aan dan `placeItem` accepteert — §17's
+     * regel 4, en precies dezelfde verschuiving als in `catalogueFor`.
+     */
     const taken = db
-      .select({ entryId: schema.roomSlots.entryId })
+      .select({ claim: schema.roomSlots.claim })
       .from(schema.roomSlots)
-      .where(eq(schema.roomSlots.roomId, id))
       .all()
-      .map((row) => row.entryId)
-      .filter((entryId): entryId is string => Boolean(entryId));
+      .map((row) => row.claim)
+      .filter((claim): claim is string => Boolean(claim));
 
     const candidates = db
       .select({
@@ -85,9 +96,13 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
       .where(
         and(
           visibleEntryCondition(user),
-          // The one field that makes an artikel a voorwerp, asked of the row
-          // rather than of its soort. The path is a bound parameter.
-          sql`json_extract(${schema.entries.fields}, ${`$.${VOORWERP_FIELD_KEY}`}) = ${kind}`,
+          /*
+           * §83: het ene veld dat een artikel tot voorwerp maakt, gevraagd aan
+           * de rij en niet aan zijn soort — en sinds ronde 44 is het antwoord
+           * een **lijst**. Eén functie kent allebei de vormen; zie
+           * `plekMatches` voor waarom dit de lezer was die achterbleef.
+           */
+          plekMatches(kind),
           ...(taken.length ? [notInArray(schema.entries.id, taken)] : []),
         ),
       )

@@ -546,3 +546,129 @@
     gap: 0.5rem;
   }
 }
+
+/* ------------------------------------------------------- §83: de uitdeling */
+
+/* Eén getal bovenaan, één reden, en daaronder één regel per kamer. De vorm is
+   bewust die van een formulier en niet van een tabel: er wordt hier niets
+   gelezen, er wordt iets ingevuld. */
+
+.uitdelen-title {
+  margin: 0 0 0.75rem;
+}
+
+.uitdelen-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.uitdelen-head label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Het globale vak is smal, want er staat een getal in van hooguit drie cijfers
+   — en smal maakt zichtbaar dat het iets anders is dan de reden ernaast. */
+.uitdelen-all-input {
+  width: 6rem;
+}
+
+.uitdelen-why {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.uitdelen-hint {
+  margin: 0.4rem 0 1rem;
+}
+
+.uitdelen-lijst {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.uitdelen-rij {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.uitdelen-rij:last-child {
+  border-bottom: 0;
+}
+
+/* De naam neemt de ruimte die overblijft; het saldo en het bedrag staan rechts
+   onder elkaar uitgelijnd, zodat een kolom cijfers ook een kolom is. */
+.uitdelen-wie {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.uitdelen-saldo {
+  flex: 0 0 auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.uitdelen-bedrag {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  text-align: right;
+}
+
+.uitdelen-knop {
+  min-height: 2.5rem;
+}
+
+/* §83: de deur naar de uitdeler staat in de kop van het grootboek, dus die kop
+   is een regel met twee dingen erin in plaats van alleen een woord. */
+.kamer-grootboek-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kamer-grootboek-uitdelen {
+  margin-left: auto;
+}
+
+.spelers-kop {
+  align-items: center;
+  gap: 0.6rem;
+}
+
+@media (max-width: 560px) {
+  /* Op 390 px past "naam · saldo · bedrag" niet op één regel, dus het bedrag
+     zakt eronder en houdt zijn uitlijning rechts. 44 px hoog (§69 6.1), want
+     het is een vakje waar een vinger in moet. */
+  .uitdelen-rij {
+    flex-wrap: wrap;
+  }
+  .uitdelen-wie {
+    flex: 1 1 100%;
+  }
+  .uitdelen-saldo {
+    flex: 1 1 auto;
+    text-align: left;
+  }
+  .uitdelen-bedrag {
+    min-height: 44px;
+  }
+  .uitdelen-all-input {
+    min-height: 44px;
+  }
+}
