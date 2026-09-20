@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { canView, grantFor, loadAccessRow, viewerCanEdit } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -123,26 +123,123 @@ function ownerOf(entryId: string): string | null {
  */
 export function getOrCreateRoom(entryId: string): string | null {
   const owner = ownerOf(entryId);
-  if (!owner) return null;
   const existing = db
     .select({ id: schema.rooms.id, createdBy: schema.rooms.createdBy })
     .from(schema.rooms)
     .where(eq(schema.rooms.entryId, entryId))
     .get();
-  const id = existing?.id ?? newId();
-  if (!existing) {
-    db.insert(schema.rooms).values({ id, entryId, createdBy: owner }).onConflictDoNothing().run();
-  } else if (existing.createdBy !== owner) {
-    // The karakter changed hands. `created_by` is not what decides who may
-    // arrange (see `canArrangeRoom`), but leaving it pointing at the previous
-    // wearer would leave a second, wrong answer lying about for the next
-    // person to read.
-    db.update(schema.rooms).set({ createdBy: owner }).where(eq(schema.rooms.id, existing.id)).run();
+  /*
+   * §86: **de drager beslist of er een kamer gemáákt wordt, niet of er één
+   * gevonden wordt.**
+   *
+   * De vraag stond hier bovenaan, vóór de opzoeking, en dat was vier rondes
+   * lang hetzelfde antwoord — zonder drager bestond er toch geen kamer. Sinds
+   * §86 kan de Keeper er met de hand één openen, en toen werd die volgorde een
+   * lek van de stille soort: de kamer bestond, de uitdeler vond hem, en élke
+   * andere lezer (`roomSummary`, `viewRoomBySlug`, de deur op het artikel) zei
+   * dat er geen was. De knop deed het en er gebeurde zichtbaar niets.
+   *
+   * Dit is §83's les op een derde plek: een tweede lezer van hetzelfde ding
+   * beweegt niet mee. Gevonden door de e2e-zaak die de knop indrukt en daarna
+   * kijkt of er iets veranderd is — niet door de unit-test, die `roomIdFor`
+   * vroeg en dus langs deze functie heen keek.
+   */
+  if (existing) {
+    if (owner && existing.createdBy !== owner) {
+      db.update(schema.rooms).set({ createdBy: owner }).where(eq(schema.rooms.id, existing.id)).run();
+    }
+    syncShape(existing.id);
+    return existing.id;
   }
+  if (!owner) return null;
+  /*
+   * Vanaf hier is er geen kamer én een drager, dus er wordt er één gemaakt.
+   * `created_by` is niet wie hem mag inrichten (dat is `canArrangeRoom`), maar
+   * hem naar de vorige drager laten wijzen zou een tweede, fout antwoord laten
+   * liggen — daarom wordt hij hierboven bijgewerkt als het karakter van hand
+   * wisselt.
+   */
+  const id = newId();
+  db.insert(schema.rooms).values({ id, entryId, createdBy: owner }).onConflictDoNothing().run();
   const settled =
     db.select({ id: schema.rooms.id }).from(schema.rooms).where(eq(schema.rooms.entryId, entryId)).get()?.id ?? id;
   syncShape(settled);
   return settled;
+}
+
+/**
+ * §86: een kamer voor een onderzoeker die niemand draagt.
+ *
+ * `getOrCreateRoom` weigert dat met opzet — een kamer hangt aan een gedragen
+ * karakter (§17/§18: een karakter is een naam die iemand draagt, en de kamer
+ * gaat met hem mee). Dat klopt nog steeds voor de kamer die vanzelf ontstaat.
+ * Maar Nick, ronde 47: *"coins belong to a character"*, en hij schrijft
+ * karakters die nog aan niemand gekoppeld zijn — een figuur die hij deze
+ * sessie introduceert, een onderzoeker die klaarligt voor een nieuwe speler.
+ * Die kunnen vandaag niets bezitten en niets ontvangen.
+ *
+ * Dus is er **één extra weg, en het is een handeling en geen bijwerking**.
+ * Nick kiest, ronde 47: *"alleen als jij er één opent"* — geen soort die
+ * automatisch een beurs krijgt, geen artikel dat er een krijgt doordat iemand
+ * ernaar kijkt. Dat laatste is niet theoretisch: `roomSummary` wordt sinds §85
+ * op *elk* artikel aangeroepen, dus een versoepeling van `getOrCreateRoom`
+ * had elk artikel in het archief een kamer gegeven zodra iemand het opensloeg.
+ *
+ * Drie dingen die eruit volgen en die niet vergeten mogen worden:
+ *
+ *  - **`created_by` is de Keeper**, want hij heeft hem gemaakt. Wie hem
+ *    *arrangeert* is een andere vraag en die leest `ownerOf` (null hier), dus
+ *    `canArrangeRoom` laat alleen de Keeper binnen — precies goed voor een
+ *    figuur die niemand speelt.
+ *  - **Hij wordt privé geboren** (§48: een nieuw ding wordt geboren op de kant
+ *    waar het gemaakt is). Een kamer die vanzelf ontstaat is van een speler en
+ *    staat open; deze is van de Keeper en staat dicht tot hij hem opendraait.
+ *    Anders leest de tafel morgen wat er in de kist van een NPC ligt.
+ *  - **Hij verdwijnt niet als er later wél iemand op gekoppeld wordt.** Dan is
+ *    het gewoon zijn kamer, met wat erin lag — wat precies de bedoeling is van
+ *    een onderzoeker die klaarligt.
+ */
+export function openRoomFor(entryId: string, viewer: Viewer): string | null {
+  if (!viewer?.isKeeper) return null;
+  const entry = db
+    .select({ id: schema.entries.id })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, entryId), isNull(schema.entries.deletedAt)))
+    .get();
+  if (!entry) return null;
+
+  const existing = db
+    .select({ id: schema.rooms.id })
+    .from(schema.rooms)
+    .where(eq(schema.rooms.entryId, entryId))
+    .get();
+  if (existing) {
+    syncShape(existing.id);
+    return existing.id;
+  }
+
+  const id = newId();
+  db.insert(schema.rooms)
+    .values({ id, entryId, createdBy: viewer.id, viewMode: 'private', editMode: 'private' })
+    .onConflictDoNothing()
+    .run();
+  const settled =
+    db.select({ id: schema.rooms.id }).from(schema.rooms).where(eq(schema.rooms.entryId, entryId)).get()?.id ?? id;
+  syncShape(settled);
+  return settled;
+}
+
+/**
+ * Does this artikel have a kamer at all, without making one?
+ *
+ * The question the Keeper's door on an artikel asks, and it may not be
+ * `getOrCreateRoom` — that one *writes*, and a page that renders a door would
+ * then create the thing the door offers to create.
+ */
+export function roomIdFor(entryId: string): string | null {
+  return (
+    db.select({ id: schema.rooms.id }).from(schema.rooms).where(eq(schema.rooms.entryId, entryId)).get()?.id ?? null
+  );
 }
 
 /**
@@ -1161,8 +1258,25 @@ export type HandOutTarget = {
   /** The onderzoeker the kamer belongs to. */
   name: string;
   slug: string;
-  /** Who wears them — blank when nobody does, and then there is no kamer to reach. */
-  player: string;
+  /**
+   * Who wears them, or **null when nobody does**.
+   *
+   * §83 wrote here: *"blank when nobody does, and then there is no kamer to
+   * reach"*. Sinds §86 is die tweede helft niet meer waar — de Keeper kan een
+   * kamer openen voor een onderzoeker die aan geen enkel account hangt, en die
+   * staat gewoon in deze lijst. Een comment die het halve antwoord goed heeft
+   * is precies wat §83 zelf als les opschreef.
+   */
+  player: string | null;
+  /**
+   * §86: draagt de speler deze onderzoeker *op dit moment*?
+   *
+   * Nick, ronde 47: *"right now you can only give to a character that is
+   * currently being used"* — en dat was niet waar, de lijst had de niet-actieve
+   * karakters altijd al. Maar niets op het scherm zei dat, dus er was geen
+   * manier om te zien dat je gelijk had. Nu staat het er.
+   */
+  active: boolean;
   balance: number;
 };
 
@@ -1184,12 +1298,28 @@ export type HandOutTarget = {
  */
 export function handOutTargets(viewer: Viewer): HandOutTarget[] {
   if (!viewer?.isKeeper) return [];
-  const worn = db
+
+  /*
+   * **Twee bronnen, en de volgorde is de reden dat het er twee zijn.**
+   *
+   * De eerste is elk karakter dat een account *houdt* — niet het karakter dat
+   * het nú speelt, dat onderscheid heeft deze lijst nooit gemaakt. Die pas
+   * roept `getOrCreateRoom` aan, want dat is waar een gewone kamer ontstaat:
+   * hij bestaat pas als iemand hem nodig heeft.
+   *
+   * De tweede is §86's kamer zonder drager — door de Keeper geopend voor een
+   * onderzoeker die aan niemand hangt. Die staat wél al in `rooms` (openen ís
+   * de handeling), dus die wordt gelezen en niet gemaakt. Andersom zou het
+   * fout zijn: uit `rooms` lezen als enige bron zou een speler die zijn kamer
+   * nog nooit geopend heeft uit de lijst laten vallen.
+   */
+  const held = db
     .select({
       entryId: schema.userCharacters.entryId,
       name: schema.entries.name,
       slug: schema.entries.slug,
       player: schema.users.username,
+      activeId: schema.users.activeCharacterId,
     })
     .from(schema.userCharacters)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.userCharacters.entryId))
@@ -1200,19 +1330,52 @@ export function handOutTargets(viewer: Viewer): HandOutTarget[] {
 
   const out: HandOutTarget[] = [];
   const seen = new Set<string>();
-  for (const worn_ of worn) {
-    const roomId = getOrCreateRoom(worn_.entryId);
+  for (const row of held) {
+    const roomId = getOrCreateRoom(row.entryId);
     if (!roomId || seen.has(roomId)) continue;
     seen.add(roomId);
     out.push({
       roomId,
-      name: worn_.name,
-      slug: worn_.slug,
-      player: worn_.player,
+      name: row.name,
+      slug: row.slug,
+      player: row.player,
+      active: row.activeId === row.entryId,
       balance: balanceOf(roomId),
     });
   }
-  return out;
+
+  // §86: en de kamers die de Keeper met de hand geopend heeft. `visibleEntry-
+  // Condition` staat er ook hier voor: een Keeper ziet alles, maar de regel
+  // hoort bij de lezing en niet bij de rol (§46).
+  const opened = db
+    .select({
+      roomId: schema.rooms.id,
+      entryId: schema.rooms.entryId,
+      name: schema.entries.name,
+      slug: schema.entries.slug,
+    })
+    .from(schema.rooms)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.rooms.entryId))
+    .where(and(isNull(schema.entries.deletedAt), visibleEntryCondition(viewer)))
+    .orderBy(asc(schema.entries.name))
+    .all();
+
+  for (const row of opened) {
+    if (seen.has(row.roomId)) continue;
+    seen.add(row.roomId);
+    out.push({
+      roomId: row.roomId,
+      name: row.name,
+      slug: row.slug,
+      player: null,
+      active: false,
+      balance: balanceOf(row.roomId),
+    });
+  }
+
+  // Op naam, over allebei de bronnen heen: met zestig rijen is de volgorde van
+  // de zoekactie belangrijker dan de vraag hoe een kamer ontstaan is.
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'nl'));
 }
 
 /**

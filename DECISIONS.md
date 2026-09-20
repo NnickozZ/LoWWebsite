@@ -5378,3 +5378,46 @@ regel (§76), is met opzet níét meeveranderd. Hij zegt nog steeds exact dezelf
 ene zin als een versluierde plek en een versluierde effectregel. Een eigen vorm
 zou hem van de andere drie te onderscheiden maken, en dat verschil is zelf het
 lek dat de sluier bestaat om te dichten.
+
+---
+
+## Ronde 47 (§86) — één uitzondering op §79, en de vorm die ze kreeg
+
+§79 zegt dat een kamer aan een **gedragen** onderzoeker hangt: een karakter is
+een naam die iemand draagt (§17/§18), en de kamer gaat met hem mee. Deze ronde
+maakt daar één uitzondering op, en de vorm ervan is belangrijker dan het
+bestaan.
+
+**Wat er níét gekozen is.** Nick kreeg drie manieren voorgelegd om een
+onderzoeker die niemand draagt een kamer te geven: elk artikel van de soort
+Personen, een vinkje op de soort in Beheer, of alleen als de Keeper er met de
+hand één opent. Hij koos de laatste, en dat is de smalste — terecht, want de
+eerste twee waren in dit archief bijna niet veilig te bouwen. Sinds §85 roept
+élk artikel `roomSummary` aan om te kijken of het een kamer heeft, en
+`getOrCreateRoom` **maakt** er een op een lezing. Een soort die "automatisch een
+kamer heeft" betekent dus: elk artikel van die soort krijgt er één zodra iemand
+het opensloeg, inclusief de dode kapitein uit 1890. De keuze voor een handeling
+maakt dat onmogelijk in plaats van onwaarschijnlijk.
+
+**Wat de uitzondering niet is.** Er is geen tweede soort kamer bijgekomen, geen
+kolom, geen vlag die zegt "dit is een NPC-kamer". Een kamer is een rij in
+`rooms` met een `entry_id`, en dat was hij al. Wat er anders is, is hoe hij
+ontstaat en met welke dials: `private`/`private` in plaats van de standaard
+(§48 — een nieuw ding wordt geboren op de kant waar het gemaakt is), en
+`created_by` de Keeper. Wie hem mag inrichten leest nog steeds `ownerOf`, en
+dat geeft niemand, dus alleen de Keeper — precies goed voor een figuur die
+niemand speelt.
+
+**Wat dat omkeert.** Niets in `DECISIONS.md`, maar wel één zin in de code:
+`handOutTargets`' comment zei *"blank when nobody wears them, and then there is
+no kamer to reach"*. Die tweede helft is niet meer waar en is vervangen in
+plaats van stil blijven staan — §83's eigen les over een comment die het halve
+antwoord goed heeft.
+
+**En één keuze op het scherm die een eerdere omkeert.** §83 vroeg om "als je
+het globale nummer weer aanpast dan reset alles naar dat", en §85 bouwde dat zo.
+Met een lijst die sinds §86 leeg begint, is *alles* de verkeerde verzameling:
+het globale bedrag vult nu alleen de aangevinkte rijen. Nicks zin uit ronde 44
+blijft gelden — het is dezelfde bedoeling op een lijst die tien keer zo lang
+is — maar het woord "alles" betekende daar "iedereen die meedoet", en dat zijn
+nu de vinkjes.

@@ -97,6 +97,19 @@ test.describe('§83 Uitdelen en het open grootboek', () => {
 
     /* --------------------------------- het globale getal zet alles ineens */
 
+    /*
+     * §86 zette hier twee regels boven, en de reden staat in ronde 47.
+     *
+     * Tot dan stond élke rij aangevinkt bij het openen, dus "het globale getal
+     * zet alles ineens" en "het zet alles wat meedoet" waren dezelfde zin. Met
+     * een tafel van zestig is alles-aan een val, dus de lijst begint leeg — en
+     * dan is *alles* de verkeerde verzameling: het vak vult wat je gekozen
+     * hebt. De bedoeling van §83 is ongewijzigd, het woord "alles" betekende
+     * daar "iedereen die meedoet", en dat zijn nu de vinkjes.
+     */
+    await page.getByTestId('uitdelen-alles').click();
+    await expect(page.getByTestId('uitdelen-telling')).not.toHaveAttribute('data-picked', '0');
+
     await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '2');
     await expect(rijA.getByTestId('uitdelen-bedrag')).toHaveValue('2');
     await expect(rijB.getByTestId('uitdelen-bedrag')).toHaveValue('2');
@@ -106,7 +119,8 @@ test.describe('§83 Uitdelen en het open grootboek', () => {
     await expect(rijB.getByTestId('uitdelen-bedrag')).toHaveValue('5');
     await expect(rijA.getByTestId('uitdelen-bedrag')).toHaveValue('2');
 
-    // En dan het globale getal opnieuw: **alles** springt mee, ook de 5.
+    // En dan het globale getal opnieuw: elke **aangevinkte** rij springt mee,
+    // ook de 5 die met de hand getypt was.
     await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '3');
     await expect(rijB.getByTestId('uitdelen-bedrag')).toHaveValue('3');
     await expect(rijA.getByTestId('uitdelen-bedrag')).toHaveValue('3');
@@ -226,7 +240,9 @@ test.describe('§83 Uitdelen en het open grootboek', () => {
       ),
     ).toBe(true);
 
-    // En hij doet het ook: het globale getal bereikt deze regel.
+    // En hij doet het ook: het globale getal bereikt deze regel — zodra ze
+    // aangevinkt is, want §86 liet de lijst leeg beginnen.
+    await rij(page, `Onderzoeker ${ownerName}`).getByTestId('uitdelen-aan').check();
     await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '2');
     await expect(bedrag).toHaveValue('2');
   });

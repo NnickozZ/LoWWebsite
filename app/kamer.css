@@ -858,6 +858,44 @@
   margin: 0.4rem 0 1rem;
 }
 
+/*
+ * §86: zoeken boven de lijst. Het vak neemt de ruimte, de twee knoppen en de
+ * telling staan ernaast — en op een telefoon zakken ze eronder, want een
+ * zoekvak van vier centimeter is geen zoekvak.
+ */
+.uitdelen-zoek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.uitdelen-zoek .input {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.uitdelen-kiezen {
+  gap: 0.4rem;
+  align-items: center;
+}
+.uitdelen-telling {
+  white-space: nowrap;
+}
+/* De aantekening achter een naam: wie hem draagt, en of hij gespeeld wordt.
+   Hij mag afbreken — een accountnaam plus "niet in gebruik" is lang. */
+.uitdelen-wie-noot {
+  word-break: break-word;
+}
+
+/*
+ * §86: **de lijst scrollt niet zelf.** Hij kreeg eerst een eigen venster van
+ * 26rem, zodat het zoekvak boven in beeld bleef — en dat was met zestig rijen
+ * precies verkeerd: de onderste rij werd halverwege afgesneden tegen de
+ * plakkende voet aan, en een halve rij leest als kapot in plaats van als
+ * "er is meer". De pagina scrollt, de voet plakt al, en na een zoekactie is
+ * de lijst toch kort. Eén schuifbeweging, geen vakje in een vakje.
+ */
+
 .uitdelen-lijst {
   list-style: none;
   margin: 0 0 1rem;
@@ -901,6 +939,14 @@
   width: 1.1rem;
   height: 1.1rem;
   flex: 0 0 auto;
+}
+/* Op een telefoon mag het vierkantje zelf ook groter: een vinkje van 17 px is
+   te raken via zijn label, maar je mikt op het vierkantje. */
+@media (max-width: 767px) {
+  .uitdelen-wie input[type='checkbox'] {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
 }
 
 /* De naam neemt de ruimte die overblijft; het saldo en het bedrag staan rechts
@@ -993,6 +1039,17 @@
   }
   .uitdelen-wie {
     flex: 1 1 100%;
+    /*
+     * §86, §69 6.1: **dit is het raakvlak van deze pagina.** Het vinkje zelf is
+     * 1,1rem en het label eromheen was 25 px hoog — ruim onder de 44 die een
+     * duim vraagt, en dit is de knop die je op dit scherm het vaakst aanraakt.
+     *
+     * Het viel buiten elke meting van §84 en §85: die lopen `.btn` en `input`
+     * af, en een `<label>` is geen van beide. Precies de vorm van slijtage die
+     * §84 beschrijft — de regel gold, niemand mat hem hier.
+     */
+    min-height: var(--tap);
+    align-items: center;
   }
   .uitdelen-saldo {
     flex: 1 1 auto;

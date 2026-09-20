@@ -163,7 +163,20 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5678][0-9]" app components lib` before
-  choosing a number — the latest is **§85 / rule 85** (round 46: de kamer
+  choosing a number — the latest is **§86 / rule 86** (round 47: de lijst en
+  de veerman. De uitdeler begint **leeg** en je zoekt erin — op de naam van de
+  onderzoeker én die van de speler — met een telling over de héle lijst en
+  *Alles in beeld* dat aanvinkt wat het filter toont; het globale bedrag raakt
+  **alleen wat aanstaat** en heet daarom niet meer *Voor iedereen*. Elke rij
+  zegt nu of iemand het karakter draagt en of hij het *speelt* — dat antwoord
+  bestond al (`handOutTargets` las altijd `user_characters`, niet het actieve
+  karakter) maar stond nergens. En de Keeper kan met één knop op een artikel
+  een **kamer openen voor een onderzoeker die niemand draagt** — een handeling,
+  nooit een bijwerking van een lezing, en de kamer wordt dicht geboren (§48).
+  De fout die de ronde zijn naam geeft: `getOrCreateRoom` stelde de dragervraag
+  vóór de opzoeking, dus de nieuwe kamer bestond wél en geen enkele andere
+  lezer zag hem — §83's les voor de derde keer, zie §86 hieronder.) Daarvoor
+  **§85 / rule 85** (round 46: de kamer
   in de hand, de tweede helft van het kamer-contract. **Eén rijhoogte** voor
   alle vier de staten van een tegel (`grid-auto-rows` plus een vierkante
   uitsnede — het raster brak tot nu toe bij de eerste koop); een grootboek dat
@@ -1066,6 +1079,38 @@ staat het getal er niet meer, en dat is zijn keuze. Er wordt niets afgedwongen:
 een onbekend gat blijft staan zoals het is, want `{plek}` in een zin is beter
 zichtbaar mis dan een gat in een zin.
 
+### §86: de kortste weg naar het antwoord is niet de weg die de app loopt
+
+Ronde 47 bouwde één uitzondering — de Keeper mag een kamer openen voor een
+onderzoeker die niemand draagt — en die uitzondering legde twee dingen bloot
+die allebei het opschrijven waard zijn.
+
+1. **Zet een vraag over *maken* nooit boven een opzoeking.**
+   `getOrCreateRoom` begon met `const owner = ownerOf(entryId); if (!owner)
+   return null;` en pas daarna kwam de `SELECT`. Vier rondes lang was dat
+   hetzelfde antwoord, want zonder drager bestond er toch geen kamer — de
+   volgorde was gratis. Zodra er een tweede manier kwam om er één te laten
+   ontstaan, was diezelfde volgorde een stil lek: de kamer stond in `rooms`, de
+   uitdeler vond hem (die leest `rooms` rechtstreeks) en élke andere lezer zei
+   dat er geen was. **De drager beslist of er iets gemaakt wordt, niet of er
+   iets gevonden wordt**, en die twee horen niet in één `if`.
+
+2. **Een test die de kortste weg naar het antwoord neemt, bewaakt de weg niet
+   die de app loopt.** De unit-test hierboven vroeg `roomIdFor` — de functie
+   die ik net geschreven had, die rechtstreeks in `rooms` kijkt — en was
+   groen terwijl de hele feature onbruikbaar was. De e2e-zaak die de knop
+   indrukt en daarna kijkt of er íéts veranderd is, vond het in één run. Als je
+   een nieuwe weg naar een bestaand ding bouwt, meet dan de **bestaande**
+   lezers, niet de nieuwe.
+
+En een derde, die §84 een trapje hoger zet. Die regel luidt "meet elke knop,
+houd geen lijstje bij", en de e2e-zaak die dat doet vond in §85 en §86 allebei
+iets. Toch liep hij langs het raakvlak dat op `/uitdelen` het vaakst aangeraakt
+wordt: het `<label>` om een vinkje, 25 px hoog. Het is geen `.btn` en geen
+`input`, dus het stond in geen enkele selector. **Het lijstje van *soorten* is
+ook een lijstje** — meet wat een vinger raakt (`label:has(input[type=
+"checkbox"])` hoort erbij), niet wat toevallig een knop heet.
+
 ### §85: een test die "stuk" roept terwijl het werkt, kost net zoveel
 
 Ronde 46 vond zeven dingen, en **twee ervan zaten in de tests van ronde 45**.
@@ -1285,7 +1330,74 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37 and 38
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46 and 47
+
+**Round 47 (§86) leaves four, all named on purpose:**
+
+- **A kamer that is opened cannot be closed.** There is no button that takes one
+  away, so a figure the Keeper gave a beurs to keeps it. That is deliberate —
+  unmaking one belongs with the prullenbak (`lib/admin/trash.ts`), not with a
+  button on an artikel — but it does mean a mis-click leaves a row on
+  `/uitdelen` for ever. The cheap version is a Keeper-only "haal deze kamer
+  weg" that refuses once anything has been spent.
+- **`handOutTargets` asks `balanceOf` once per row.** At sixty rows that is
+  sixty small queries on a Keeper-only page and nobody will feel it; at six
+  hundred it is the first thing to fix, and the fix is one grouped sum.
+- **The uitdeler's search is in the browser.** The whole list travels to the
+  page and is filtered there, which is right at this size and wrong at ten
+  times it. When it stops being right, the tell is the payload rather than the
+  filtering.
+- **Nothing marks *why* a kamer exists.** A kamer with `created_by` = the
+  Keeper and no holder is §86's, and one whose holder left is not — they look
+  identical in the table. Nothing needs to tell them apart today; if something
+  ever does, that is a column and therefore a migration.
+
+
+*(Rounds 39 to 45 never got a block here, and that is itself worth noticing: the
+register stopped at 38 for eight rounds while the kamer was being built. What
+those rounds left open is gathered under round 46 below, because the kamer is
+one feature and its open ends are one list — and round 46 is where they were
+finally written down.)*
+
+**Round 46 (§85) closes the kamer's second half and leaves seven, all named on
+purpose. The first four are in `docs/kamer-contract.md` under *Wat open staat*;
+they are repeated here because that is where somebody looks.**
+
+- **The catalogue row and the shop row are still two components.**
+  `Catalogus` inside `components/kamer/PlaceButton.tsx` and
+  `components/winkel/WinkelRij.tsx` say the same states with the same words and
+  the same classes, and the contract asked for one. It was refused on purpose:
+  `CatalogueEntry` is `ShopItem` minus exactly the six fields the picker
+  already knows (it stands in front of one plek), so reuse meant inventing a
+  `landsIn` and a `unique: false` that are not true. A lie in a type is dearer
+  than a second component. If they are ever merged, the road is to widen the
+  `catalogus` route to return real `ShopItem`s, not to fake one in the browser.
+- **`.btn-small` is still 34 px outside this feature's pages.** §85 lifted the
+  tap floor to `--tap` on `.kamer-page`, `.winkel-page`, `.uitdelen-page`,
+  `.speler-page`, `.spelers-hal`, `.you-page`, `.entry-kamer` and
+  `.kamer-catalogus` — on **pages**, so a button added there tomorrow inherits
+  it. App-wide is Nick's call, exactly as it was in §69 6.1, and it would be a
+  visible change to every phone screen in the archive.
+- **The hall has no saldo column.** It would fit and it would break §76: the
+  beurs shows only your own balance, never somebody else's. Do not add it
+  without deciding that rule has changed.
+- **The presence dot is still an unlabelled 12 px circle on desktop.** The
+  contract asked for a button with a word (*Wie is er?* + dot + count). It sits
+  in the **shell** of every page in the archive, not on these seven screens, so
+  it is a round about the shell rather than a line in this one. It did get its
+  44 px on a phone.
+- **The e2e suite has two reds that are not damage.**
+  `per-place-crops.spec.ts:13` is the documented one from round 19 (see below),
+  and `round-28-mention-overlay.spec.ts:54` on the **phone** project lost once
+  in round 46's confirming run and passes alone — the §6 "not yet listening"
+  race. Re-run it alone before believing it.
+- **`roomSummary` now returns `total` and only the spelerspagina reads it.**
+  One field, one reader; if a third screen ever needs "how many plekken are
+  there at all", it goes through this one rather than counting rows again.
+- **Nothing in this feature has a `phone` variant of its own e2e beyond what
+  `kamer-ux.spec.ts` covers.** Three of its nine cases skip on mobile with a
+  reason on each: the row height, the ledger and the grid are the same
+  agreement at both sizes, and one proof is enough.
 
 **Round 38 (§75) leaves four, all named on purpose:**
 

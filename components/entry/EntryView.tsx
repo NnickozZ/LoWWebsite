@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
+import { OpenRoomButton } from '@/components/kamer/OpenRoomButton';
 import { MEANING } from '@/components/kamer/plekWords';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
 import { AddToCaseButton } from '@/components/cases/AddToCaseButton';
@@ -159,6 +160,7 @@ export function EntryView({
   character,
   playedBy,
   roomDoor,
+  canOpenRoom,
   onMaps,
   mapsToPlace,
   mapsOfThis,
@@ -240,6 +242,15 @@ export function EntryView({
    * de onderzoeker hangt (§17/§18).
    */
   roomDoor: { href: string; balance: number } | null;
+  /**
+   * §86: mag deze hand deze onderzoeker een kamer *geven*?
+   *
+   * Alleen de Keeper, en alleen zolang er nog geen kamer is — dus precies het
+   * geval waarin `roomDoor` null is. Twee velden en geen één afgeleide: de
+   * pagina weet of er een kamer bestaat zonder er een te máken (`roomIdFor`),
+   * en dat is de hele reden dat dit niet één veld is.
+   */
+  canOpenRoom: boolean;
   /** §19: the maps this artikel is pinned on… */
   onMaps: { pinId: string; mapSlug: string; mapName: string }[];
   /** …and the ones it is not on yet. */
@@ -1007,6 +1018,14 @@ export function EntryView({
               <Icon name={MEANING.kamer} size={13} />
               {fill(words.toRoom, { kamer: words.room })}
             </Link>
+          </p>
+        )}
+
+        {/* §86: en als er er nog geen is, de knop die er een maakt — alleen
+            voor de Keeper, en alleen hier waar je naar de figuur kijkt. */}
+        {!roomDoor && canOpenRoom && (
+          <p className="row-wrap entry-kamer" data-testid="entry-kamer-leeg">
+            <OpenRoomButton entryId={entry.id} name={name || entry.name} words={words} />
           </p>
         )}
 

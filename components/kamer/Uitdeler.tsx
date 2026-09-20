@@ -61,6 +61,24 @@ import { kamerPost } from './post';
  * thing you do once an evening: the button holds *Uitgedeeld* for a beat and a
  * door to the hall appears beside it, because after handing out the next thing
  * anybody wants is to look at what everyone has.
+ *
+ * **§86 maakte het een lijst waar je in zoekt.**
+ *
+ * Nick, ronde 47: *"There will be more then 50 characters in this thing."* Bij
+ * twaalf rijen is alles aangevinkt beginnen een gemak; bij zestig is het een
+ * val — je deelt uit aan vijfenvijftig mensen die er niet bij waren omdat je
+ * er vijf hebt aangeraakt en de rest niet gezien hebt. Dus: **niets staat aan
+ * bij het begin**, er is een zoekvak, en het globale bedrag raakt alleen wat
+ * aangevinkt is.
+ *
+ * Dat laatste is de keuze die de rest bij elkaar houdt. Zou het elke rij
+ * vullen, dan zou een lijst van zestig met vijf vinkjes vijfenvijftig
+ * ingevulde bedragen hebben die niets doen — en één misklik verderop wel.
+ *
+ * En omdat "iedereen krijgt drie munten omdat ze samen iets gedaan hebben"
+ * §83's oorspronkelijke vraag is, is *Alles in beeld* geen extraatje maar wat
+ * die vraag één gebaar houdt: zoek niets, vink alles aan, typ 3. Zoek wél iets
+ * en dezelfde knop vinkt precies die familie aan.
  */
 export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: Words }) {
   const ui = useUi();
@@ -72,24 +90,58 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
   const [amounts, setAmounts] = useState<Record<string, string>>(() =>
     Object.fromEntries(targets.map((target) => [target.roomId, ''])),
   );
-  const [on, setOn] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(targets.map((target) => [target.roomId, true])),
-  );
+  /*
+   * §86: **leeg**, niet iedereen. Zie de docblock hierboven voor waarom dat bij
+   * zestig rijen het omgekeerde van een gemak is.
+   */
+  const [on, setOn] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState('');
   /** §85: de knop houdt zijn uitkomst even vast. Zie de docblock hierboven. */
   const [done, setDone] = useState(false);
+
+  /** Staat er íéts aan? Goedkoop genoeg om zonder memo te lezen, en het is de
+      vraag die §59's hold stelt: ligt er een hand op dit scherm. */
+  const anyPicked = Object.values(on).some(Boolean);
 
   /*
    * §59: niets landt terwijl hier een half ingevuld formulier staat. Een
    * uitdeling is twaalf vakjes en een reden, en een `router.refresh()` van een
    * speler die ergens anders iets koopt zou daar dwars doorheen komen.
    */
-  useHoldRefresh(Boolean(all.trim() || reason.trim() || busy));
+  useHoldRefresh(Boolean(all.trim() || reason.trim() || query.trim() || anyPicked || busy));
 
   useEffect(() => {
     if (!done) return;
     const timer = setTimeout(() => setDone(false), 4000);
     return () => clearTimeout(timer);
   }, [done]);
+
+  /**
+   * Wat het zoekvak overlaat. Op de naam van de onderzoeker **en** op die van
+   * de speler, want je zoekt het ene even vaak als het andere — "wie speelde
+   * Van Dijk ook alweer" en "geef Jasper z'n mensen wat" zijn dezelfde
+   * handeling met een ander aanknopingspunt.
+   *
+   * In de browser, niet op de server: de Keeper heeft deze lijst al helemaal
+   * binnen, en zestig rijen filteren is geen vraag om te stellen.
+   */
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return targets;
+    return targets.filter(
+      (target) =>
+        target.name.toLowerCase().includes(needle) ||
+        (target.player ?? '').toLowerCase().includes(needle),
+    );
+  }, [targets, query]);
+
+  /** Hoeveel er aangevinkt staan — over de héle lijst, niet over wat je nu ziet.
+      Een telling die met het filter meebeweegt zou verzwijgen wat er buiten
+      beeld nog aanstaat, en dat is precies het getal dat je wilt weten. */
+  const picked = useMemo(
+    () => targets.filter((target) => on[target.roomId]).length,
+    [targets, on],
+  );
 
   /** What the button says it is about to do — the same sum `handOut` will write. */
   const summary = useMemo(() => {
@@ -106,12 +158,50 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
   }, [targets, amounts, on]);
 
   /**
-   * The reset Nick asked for, and it is deliberately blunt: every row takes the
-   * new number, whatever was in it.
+   * The reset Nick asked for, and it is deliberately blunt: every ticked row
+   * takes the new number, whatever was in it.
+   *
+   * §86 zette er dat woord *ticked* in. Nick, ronde 44, vroeg om "als je het
+   * globale nummer weer aanpast dan reset alles naar dat", en dat was bij
+   * twaalf rijen die allemaal aanstonden hetzelfde. Bij zestig rijen waarvan er
+   * niets aanstaat is "alles" een lijst vol bedragen die niemand krijgt — tot
+   * de dag dat iemand een vinkje zet en er ineens een getal in blijkt te staan
+   * dat hij nooit getypt heeft. Het vinkje is *wie*, het bedrag is *hoeveel*,
+   * en het globale vak hoort dus bij het tweede: het vult wat al gekozen is.
+   *
+   * Een rij die later aangevinkt wordt krijgt het globale bedrag er alsnog bij
+   * (`toggle` hieronder), want anders zou de volgorde van je handelingen
+   * bepalen wat er gebeurt — en dat is precies de val die dit moest sluiten.
    */
   function setGlobal(value: string) {
     setAll(value);
-    setAmounts(Object.fromEntries(targets.map((target) => [target.roomId, value])));
+    setAmounts((prev) =>
+      Object.fromEntries(
+        targets.map((target) => [target.roomId, on[target.roomId] ? value : (prev[target.roomId] ?? '')]),
+      ),
+    );
+  }
+
+  /** Eén rij aan of uit. Aanzetten neemt het globale bedrag mee, als dat er is. */
+  function toggle(roomId: string, next: boolean) {
+    setOn((prev) => ({ ...prev, [roomId]: next }));
+    if (next && all.trim()) setAmounts((prev) => ({ ...prev, [roomId]: all }));
+  }
+
+  /** Alles wat het filter nu toont, aan of uit — met hetzelfde bedrag erbij. */
+  function pickShown(next: boolean) {
+    setOn((prev) => {
+      const out = { ...prev };
+      for (const target of shown) out[target.roomId] = next;
+      return out;
+    });
+    if (next && all.trim()) {
+      setAmounts((prev) => {
+        const out = { ...prev };
+        for (const target of shown) out[target.roomId] = all;
+        return out;
+      });
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -173,8 +263,57 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
 
       <p className="tiny muted uitdelen-hint">{words.handoutHint}</p>
 
+      {/*
+        §86: zoeken, tellen, en in één gebaar aanvinken wat je ziet. Deze drie
+        horen bij elkaar: zonder de eerste is een lijst van zestig onleesbaar,
+        zonder de tweede weet je niet wat er buiten beeld nog aanstaat, en
+        zonder de derde kost "iedereen krijgt drie" zestig tikken.
+      */}
+      <div className="uitdelen-zoek">
+        <label className="visually-hidden" htmlFor="uitdelen-zoek">
+          {words.handoutSearch}
+        </label>
+        <input
+          id="uitdelen-zoek"
+          className="input"
+          data-testid="uitdelen-zoek"
+          value={query}
+          placeholder={words.handoutSearch}
+          readOnly={busy}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <span className="row-wrap uitdelen-kiezen">
+          <button
+            type="button"
+            className="btn btn-small"
+            data-testid="uitdelen-alles"
+            disabled={busy || shown.length === 0}
+            onClick={() => pickShown(true)}
+          >
+            {words.handoutPickShown}
+          </button>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            data-testid="uitdelen-niets"
+            disabled={busy || picked === 0}
+            onClick={() => setOn({})}
+          >
+            {words.handoutPickNone}
+          </button>
+          <span className="tiny muted uitdelen-telling" data-testid="uitdelen-telling" data-picked={picked}>
+            {fill(words.handoutPicked, { n: String(picked), alle: String(targets.length) })}
+          </span>
+        </span>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="small muted" data-testid="uitdelen-geen-match">
+          {words.handoutNoMatch}
+        </p>
+      ) : (
       <ul className="uitdelen-lijst" aria-label={words.handoutTitle}>
-        {targets.map((target) => (
+        {shown.map((target) => (
           <li key={target.roomId} className="uitdelen-rij" data-testid="uitdelen-rij" data-room={target.roomId}>
             <label className="uitdelen-wie">
               <input
@@ -182,15 +321,28 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
                 data-testid="uitdelen-aan"
                 checked={on[target.roomId] ?? false}
                 disabled={busy}
-                onChange={(event) =>
-                  setOn((prev) => ({ ...prev, [target.roomId]: event.target.checked }))
-                }
+                onChange={(event) => toggle(target.roomId, event.target.checked)}
               />
               <span>
                 <strong>{target.name}</strong>{' '}
-                {/* §83: de naam die Nick zoekt staat erbij, maar de beurs is van
-                    de onderzoeker — wie er twee draagt heeft er twee. */}
-                <span className="tiny muted">({target.player})</span>
+                {/*
+                  §83: de naam die Nick zoekt staat erbij, maar de beurs is van
+                  de onderzoeker — wie er twee draagt heeft er twee.
+                  
+                  §86 zette erbij wát voor onderzoeker het is, en dat was de
+                  hele klacht van ronde 47: de lijst had de niet-gespeelde
+                  karakters altijd al, maar niets op het scherm zei dat, dus
+                  leek hij alleen over actieve karakters te gaan. Nu staat er
+                  achter de naam of iemand deze draagt, of hij hem nu speelt, en
+                  of er helemaal niemand achter zit (§86's eigen kamer).
+                */}
+                <span className="tiny muted uitdelen-wie-noot">
+                  {target.player === null
+                    ? words.handoutNobody
+                    : target.active
+                      ? target.player
+                      : `${target.player} · ${words.handoutResting}`}
+                </span>
               </span>
             </label>
 
@@ -207,7 +359,13 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
               aria-label={`${words.handoutAmount} — ${target.name}`}
               value={amounts[target.roomId] ?? ''}
               inputMode="numeric"
-              placeholder="0"
+              /*
+               * §86: leeg, en om dezelfde reden als het globale vak in §85 —
+               * een `0` als placeholder in een getallenvak leest als een
+               * ingevulde waarde. Met zestig rijen die allemaal leeg beginnen
+               * stond het scherm vol met nullen die niemand getypt had.
+               */
+              placeholder=""
               readOnly={busy}
               onChange={(event) =>
                 setAmounts((prev) => ({ ...prev, [target.roomId]: event.target.value }))
@@ -216,6 +374,7 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
           </li>
         ))}
       </ul>
+      )}
 
       {/*
         §85: de voet plakt, want het totaal is het enige wat je nog nakijkt.

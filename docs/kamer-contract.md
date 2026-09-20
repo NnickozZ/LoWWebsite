@@ -87,21 +87,33 @@ geldt hetzelfde: een verschil dat blijft staan, staat hier met zijn reden.
 
 | | Regel | |
 |---|---|---|
-| **K31** | **Het globale getal overschrijft elk bedrag eronder**, ook wat met de hand is aangepast. Dat is wat Nick vroeg, en het moet zichtbaar gebeuren: alle vakjes bewegen tegelijk. | bewaakt (`uitdelen.test.ts`) |
+| **K31** | **Het globale getal overschrijft elk **aangevinkt** bedrag eronder**, ook wat met de hand is aangepast — en niets anders. Een rij die je later aanvinkt krijgt het er alsnog bij, zodat de volgorde van je handelingen niet uitmaakt. (§86 zette *aangevinkt* erin: met een lijst die leeg begint zou "alles" vijfenvijftig bedragen klaarzetten die niemand krijgt.) | bewaakt (`uitdelen.test.ts`, `kamer-ux.spec.ts` zaak 13) |
 | **K32** | **Het vinkje en het bedrag zijn twee vragen.** Het vinkje is *wie*, het bedrag is *hoeveel*; het globale getal raakt alleen het tweede. Een vinkje weghalen en een 0 typen betekenen allebei *deze niet*, en ze spreken elkaar niet tegen. | bewaakt (`uitdelen.test.ts`) |
 | **K33** | **Eén knop, één reden, één transactie.** Een halve uitdeling is vanaf dit scherm niet te zien en mag daarom niet bestaan. | bewaakt (`uitdelen.test.ts`) |
 | **K34** | **De voet plakt en zegt in een zin wat de knop gaat doen** — *36 munten naar 12 kamers* — en de knop staat op een telefoon in beeld zonder scrollen. De som is een echo van de vakjes en nooit een bevinding over het archief (rule 78). | gemeten · bewaakt (`kamer-ux.spec.ts`, zaak 10) |
 | **K35** | **De FAB wijkt** waar de pagina zijn eigen laatste knop heeft (`/uitdelen`) en boven een open blad. Twee dingen rechtsonder is er één te veel. | bewaakt (`kamer-ux.spec.ts`, zaak 10) |
+| **K36** | **De lijst begint leeg.** Niets staat aangevinkt bij het openen, er is een zoekvak dat op de naam van de onderzoeker **én** die van de speler filtert, en *Alles in beeld* vinkt precies aan wat het filter op dat moment toont. De telling gaat over de héle lijst en niet over wat je ziet — want het getal dat je wilt weten is wat er búiten beeld aanstaat. | bewaakt (`kamer-ux.spec.ts`, zaak 13) |
+| **K37** | **Elke rij zegt wát voor onderzoeker het is**: wie hem draagt, of die hem nu speelt, en of er helemaal niemand achter zit. De lijst had de niet-gespeelde karakters altijd al; tot §86 zei niets dat, en een waarheid die nergens staat is er voor de lezer niet. | bewaakt (`uitdelen.test.ts`, `kamer-ux.spec.ts` zaak 14) |
+| **K38** | **Een lege bedragrij is leeg**, geen `0` als placeholder. Een nul in een getallenvak leest als een waarde die er al staat — dezelfde regel als voor het globale vak (§85). | |
 
 ## 8. De hal en de spelerspagina
 
 | | Regel | |
 |---|---|---|
-| **K36** | **Jij staat bovenaan in de hal, en er staat bij waarom** — de server sorteert dat, niet de browser, zodat de lijst niet een tel later verspringt. De rest houdt de volgorde die hij had. | bewaakt (`kamer-ux.spec.ts`, zaak 11) |
-| **K37** | **Online is een woord**, geen kleur alleen. Het komt uit de roster die de schil al heeft (§76) en nergens anders vandaan — dus geen tweede lijst en geen tweede stel regels over wie genoemd mag worden. | |
-| **K38** | **Een paneel is een samenvatting met een deur, en niets erin is bedienbaar** (§77). Er staat ook niets in een paneel dat geen eigen pagina heeft: daarom heeft *Recente bijdragen* sinds §85 geen deur meer — de Start is de feed van iedereen en beloofde "meer hiervan" terwijl hij iets anders gaf. | |
-| **K39** | **De volgorde is Kamer, Karakters, Aanwezig, Dossiers, Bijdragen**, en het kamerpaneel vult de hele eerste rij. De oude volgorde was die waarin de panelen gebouwd zijn en zette het paneel dat meestal leeg is vooraan. | bewaakt (`spelers-page.test.ts`) |
-| **K40** | **Een gedragen onderzoeker wijst naar zijn kamer** — één regel onder de kop van `/e/<slug>`: de beurs en de deur. Absent voor wie er niet in mag, en de pagina erachter blijft de 404 die hij is (§80). | bewaakt (`kamer-ux.spec.ts`, zaak 12) |
+| **K39** | **Jij staat bovenaan in de hal, en er staat bij waarom** — de server sorteert dat, niet de browser, zodat de lijst niet een tel later verspringt. De rest houdt de volgorde die hij had. | bewaakt (`kamer-ux.spec.ts`, zaak 11) |
+| **K40** | **Online is een woord**, geen kleur alleen. Het komt uit de roster die de schil al heeft (§76) en nergens anders vandaan — dus geen tweede lijst en geen tweede stel regels over wie genoemd mag worden. | |
+| **K41** | **Een paneel is een samenvatting met een deur, en niets erin is bedienbaar** (§77). Er staat ook niets in een paneel dat geen eigen pagina heeft: daarom heeft *Recente bijdragen* sinds §85 geen deur meer — de Start is de feed van iedereen en beloofde "meer hiervan" terwijl hij iets anders gaf. | |
+| **K42** | **De volgorde is Kamer, Karakters, Aanwezig, Dossiers, Bijdragen**, en het kamerpaneel vult de hele eerste rij. De oude volgorde was die waarin de panelen gebouwd zijn en zette het paneel dat meestal leeg is vooraan. | bewaakt (`spelers-page.test.ts`) |
+| **K43** | **Een gedragen onderzoeker wijst naar zijn kamer** — één regel onder de kop van `/e/<slug>`: de beurs en de deur. Absent voor wie er niet in mag, en de pagina erachter blijft de 404 die hij is (§80). | bewaakt (`kamer-ux.spec.ts`, zaak 12) |
+
+## 9. De kamer zonder drager
+
+| | Regel | |
+|---|---|---|
+| **K44** | **Een kamer ontstaat vanzelf voor een gedragen onderzoeker, en verder nooit.** Kijken naar een artikel maakt er geen. Sinds §85 vraagt élk artikel of het er een heeft, dus een kamer die op een *lezing* zou ontstaan had het hele archief een beurs gegeven. | bewaakt (`uitdelen.test.ts`) |
+| **K45** | **De Keeper mag er met de hand één openen**, op het artikel zelf, en dat is een POST en geen bijwerking. Alleen hij; de knop is absent voor wie er niet op mag drukken en `openRoomFor` weigert hem ook (§80: het slot én de gleuf). | bewaakt (`uitdelen.test.ts`, `kamer-ux.spec.ts` zaak 15) |
+| **K46** | **Zo'n kamer wordt dicht geboren** (§48) — `private` in beide dials, `created_by` de Keeper — en alleen hij richt hem in, want `ownerOf` geeft niemand. Wordt de onderzoeker later aan een speler gekoppeld, dan is het gewoon diens kamer met wat erin lag. | bewaakt (`uitdelen.test.ts`) |
+| **K47** | **De drager beslist of er een kamer gemáákt wordt, niet of er één gevónden wordt.** Élke lezer vindt een kamer die bestaat, ongeacht wie hem draagt. Dit is de fout van §86 en de reden dat hij een regel is. | bewaakt (`uitdelen.test.ts`: "is found by every reader") |
 
 ---
 
@@ -131,3 +143,6 @@ geldt hetzelfde: een verschil dat blijft staan, staat hier met zijn reden.
 - **De hal heeft geen kolom voor het saldo.** Hij zou er passen en hij zou
   §76 breken: het beursblok toont alleen je eigen saldo, nooit dat van een
   ander.
+- **Een kamer die geopend is, gaat niet meer dicht.** Er is geen knop die er
+  één weghaalt; dat hoort bij de prullenbak en niet bij een knop op een
+  artikel. Zie de restlijst in `CLAUDE.md` §8.

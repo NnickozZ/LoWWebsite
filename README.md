@@ -4657,3 +4657,74 @@ Sixty-seven rules worth knowing before changing anything:
     wordt pas duur op de dag dat iemand hem gelooft. Wat het contract er echt
     mee wilde — dezelfde staten, dezelfde woorden, dezelfde zichtbare
     tekortzin — is er wel.
+
+86. **Wie beslist of iets gemáákt wordt, beslist niet of het gevónden wordt.**
+    §86. Nick, ronde 47: *"Get all characters unticked and then we can search.
+    There will be more then 50 characters in this thing and coins belong to a
+    character. Also right now you can only give to a character that is
+    currently being used."*
+
+    **Die laatste helft was niet waar, en de klacht was toch terecht.**
+    `handOutTargets` leest `user_characters` — élk karakter dat een account
+    *houdt*, niet het karakter dat het speelt, en niets met online-zijn te
+    maken. Wie er drie draagt had altijd al drie rijen. Maar achter elke naam
+    stond alleen de speler, dus een tafel van vijf spelers met acht karakters
+    las als vijf spelers die toevallig acht regels vulden. **Een waarheid die
+    nergens staat, is er voor de lezer niet.** Er staat nu bij of iemand het
+    karakter draagt, of hij het nu speelt (*niet in gebruik*), en of er
+    helemaal niemand achter zit.
+
+    **Wat wél niet kon** is een karakter dat aan geen enkel account hangt: een
+    figuur die de Keeper geschreven heeft en nog niet uitgedeeld. Die heeft
+    geen kamer, want §17/§18 zegt dat een karakter een naam is die iemand
+    draagt. Dat blijft staan; er kwam één uitzondering bij, en het is een
+    **handeling**: op het artikel van zo'n onderzoeker staat voor de Keeper een
+    knop *Een kamer geven*. Geen soort die er automatisch een krijgt, en
+    vooral: geen kamer die ontstaat doordat iemand naar een artikel kíjkt —
+    sinds §85 leest `roomSummary` op élk artikel of er een kamer is, dus een
+    versoepeling van `getOrCreateRoom` had het hele archief een beurs gegeven.
+    `roomIdFor` leest en maakt niets; de knop schrijft. En de kamer wordt
+    **dicht** geboren (§48), want hij is van de Keeper.
+
+    **De lijst begint leeg.** Bij twaalf rijen is "alles staat aan" een gemak;
+    bij zestig is het een val — je raakt er vijf aan en vijfenvijftig mensen
+    die er niet bij waren krijgen munten. Dus niets aangevinkt, een zoekvak dat
+    op de naam van de onderzoeker én die van de speler filtert, een telling die
+    over de héle lijst gaat (juist om te zeggen wat er búiten beeld aanstaat),
+    en *Alles in beeld* — dat laatste geen extraatje maar wat §83's
+    oorspronkelijke vraag ("iedereen krijgt drie omdat ze samen iets gedaan
+    hebben") één gebaar houdt. En het globale bedrag raakt **alleen wat
+    aanstaat**: anders staan er vijfenvijftig bedragen klaar die niets doen tot
+    de dag dat iemand een zesde vinkje zet en er een getal in blijkt te staan
+    dat hij nooit getypt heeft. Het vak heet daarom niet meer *Voor iedereen* —
+    dat was het één ronde lang en het was niet meer waar.
+
+    **De fout die de ronde zijn naam geeft.** `getOrCreateRoom` stelde de
+    dragervraag vóór de opzoeking: `if (!owner) return null;` stond boven de
+    `SELECT`. Vier rondes lang was dat hetzelfde antwoord, want zonder drager
+    bestond er toch geen kamer. Zodra §86 er één kon openen werd die volgorde
+    een stil lek: de kamer stond in `rooms`, de uitdeler vond hem — die leest
+    `rooms` — en élke andere lezer (`roomSummary`, `viewRoomBySlug`, de deur op
+    het artikel) zei dat er geen was. Je drukte op de knop en er gebeurde
+    zichtbaar niets. Dit is §83's les voor de derde keer, nu in de volgorde van
+    twee regels binnen één functie. En de unit-test die ik ervoor geschreven
+    had vroeg `roomIdFor`, dus keek precies langs de kapotte functie heen; de
+    e2e-zaak die de knop indrukt en daarna kijkt of er íéts veranderd is, vond
+    hem in één run. **Een test die de kortste weg naar het antwoord neemt,
+    bewaakt de weg niet die de app loopt.**
+
+    Drie kleinere, alle drie uit een screenshot: het `<label>` om een vinkje —
+    het raakvlak dat op dit scherm het vaakst aangeraakt wordt — was 25 px, en
+    viel buiten élke meting van §84 en §85 omdat het geen knop en geen
+    invoervak is (**het lijstje van *soorten* is ook een lijstje**); elke lege
+    bedragrij las als een nul door een `placeholder="0"`, exact de fout die
+    ronde 45 één kolom verderop had weggehaald; en de lijst kreeg eerst een
+    eigen schuifvenster, dat met zestig rijen de onderste rij halverwege
+    afsneed tegen de plakkende voet — een halve rij leest als kapot en niet als
+    "er is meer".
+
+    **Wat er níét veranderde:** rule 78 (het lopende totaal is een echo van je
+    eigen vakjes), §79 (een kamer hangt aan een artikel en het saldo is de som
+    van het grootboek — er kwam geen tweede soort kamer bij, alleen een tweede
+    manier om er één te laten ontstaan), en §76 (de hal krijgt geen kolom met
+    saldo's, hoe goed hij ook zou passen).

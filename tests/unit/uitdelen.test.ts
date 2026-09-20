@@ -319,7 +319,13 @@ describe('§83: handOutTargets — kamers, niet spelers', () => {
     expect(rows.find((row) => row.roomId === ROOM_D2)!.balance).toBe(0);
   });
 
-  it('leaves out an onderzoeker nobody wears', () => {
+  /**
+   * §86 gaf hier een deur naast: de Keeper kan er met de hand een kamer voor
+   * openen. Zolang hij dat niet doet blijft dit waar — en dát is de helft die
+   * hier bewaakt wordt, want "niemand draagt hem" mag nooit *vanzelf* een
+   * kamer worden. De andere helft staat onderaan dit bestand.
+   */
+  it('leaves out an onderzoeker nobody wears, until somebody opens one', () => {
     expect(kamers.handOutTargets(KEEPER).map((row) => row.slug)).not.toContain('de-veerman');
   });
 
@@ -853,5 +859,153 @@ describe('§83: regels die een seconde delen staan in schrijfvolgorde', () => {
     const lines = kamers.ledgerOf(ROOM, BRAM);
     expect(lines[0].kind).toBe('slot');
     expect(lines[1].kind).toBe('grant');
+  });
+});
+
+
+/* ================================================ E. §86: de kamer zonder drager */
+
+/**
+ * §86: een kamer voor een onderzoeker die niemand draagt.
+ *
+ * Nick, ronde 47: *"coins belong to a character"* — en hij schrijft karakters
+ * die nog aan geen enkel account hangen. Die konden niets bezitten, want
+ * `getOrCreateRoom` weigert zonder drager.
+ *
+ * Wat hier bewaakt wordt is de **vorm** van de uitzondering, niet dat hij
+ * bestaat: het is een handeling van de Keeper en geen bijwerking van een
+ * lezing, en de kamer die eruit komt is van niemand — wat iets anders is dan
+ * van iedereen.
+ *
+ * `beforeEach` veegt alle kamers weg, dus elke zaak opent de zijne zelf. Dat
+ * is niet omslachtig maar juist: een zaak die leunt op wat de zaak ervoor
+ * achterliet, valt om zodra iemand de volgorde verandert — en dat is precies
+ * hoe twee e2e-zaken in ronde 46 elkaars huisraad kochten.
+ */
+describe('§86: een kamer die de Keeper opent', () => {
+  const openVeerman = () => {
+    const roomId = kamers.openRoomFor('e-los', KEEPER);
+    if (!roomId) throw new Error('de kamer ging niet open');
+    return roomId;
+  };
+
+  it('makes none by itself — looking at an artikel never creates one', () => {
+    expect(kamers.roomIdFor('e-los')).toBeNull();
+    // En de lezing die §85 op élk artikel doet, maakt er ook geen.
+    expect(kamers.roomSummary('e-los', KEEPER)).toBeNull();
+    expect(kamers.roomIdFor('e-los')).toBeNull();
+  });
+
+  it('refuses everybody but the Keeper', () => {
+    expect(kamers.openRoomFor('e-los', BRAM)).toBeNull();
+    expect(kamers.openRoomFor('e-los', null)).toBeNull();
+    expect(kamers.roomIdFor('e-los')).toBeNull();
+  });
+
+  it('refuses an artikel that is not there', () => {
+    expect(kamers.openRoomFor('bestaat-niet', KEEPER)).toBeNull();
+  });
+
+  it('opens one, gives it the whole ladder, and says the same id twice', () => {
+    const roomId = openVeerman();
+    expect(kamers.roomIdFor('e-los')).toBe(roomId);
+    expect(slotsOf(roomId).length).toBe(shape.ROOM_SHAPE.length);
+    // Twee keer openen is één kamer: de handeling is idempotent.
+    expect(kamers.openRoomFor('e-los', KEEPER)).toBe(roomId);
+  });
+
+  /**
+   * §48: een nieuw ding wordt geboren op de kant waar het gemaakt is. Deze
+   * kamer is van de Keeper, dus hij staat dicht tot hij hem opendraait —
+   * anders leest de tafel morgen wat er in de kist van een figuur ligt die zij
+   * nog niet eens ontmoet hebben.
+   */
+  it('is born shut, and only the Keeper may arrange it', () => {
+    const roomId = openVeerman();
+    const row = sqlite
+      .prepare('SELECT view_mode AS viewMode, edit_mode AS editMode, created_by AS createdBy FROM rooms WHERE id = ?')
+      .get(roomId) as { viewMode: string; editMode: string; createdBy: string | null };
+    expect(row.viewMode).toBe('private');
+    expect(row.editMode).toBe('private');
+    expect(row.createdBy).toBe(KEEPER.id);
+
+    expect(kamers.canArrangeRoom(roomId, KEEPER)).toBe(true);
+    // Niemand draagt deze onderzoeker, dus er is geen tweede hand die mag.
+    expect(kamers.canArrangeRoom(roomId, BRAM)).toBe(false);
+    expect(kamers.canSeeRoom(roomId, BRAM)).toBe(false);
+  });
+
+  /**
+   * De zaak die de unit-tests **niet** vonden, tot de browser hem vond.
+   *
+   * `roomIdFor` keek langs `getOrCreateRoom` heen, en daar stond de
+   * dragervraag vóór de opzoeking: de kamer bestond, de uitdeler vond hem, en
+   * elke andere lezer zei dat er geen was. Dus wordt hier nu de weg gemeten die
+   * de rest van de app loopt, en niet de kortste.
+   */
+  it('is found by every reader, not only by the one that opened it', () => {
+    const roomId = openVeerman();
+    expect(kamers.getOrCreateRoom('e-los')).toBe(roomId);
+    const summary = kamers.roomSummary('e-los', KEEPER);
+    expect(summary, 'de kamer bestaat maar roomSummary ziet hem niet').toBeTruthy();
+    expect(summary!.href).toBe('/kamer/de-veerman');
+    expect(kamers.viewRoomBySlug('de-veerman', KEEPER)).toBeTruthy();
+  });
+
+  it('turns up in the uitdeling, with nobody beside the name', () => {
+    openVeerman();
+    const row = kamers.handOutTargets(KEEPER).find((target) => target.slug === 'de-veerman');
+    expect(row, 'de kamer die net geopend is staat niet in de lijst').toBeTruthy();
+    expect(row!.player).toBeNull();
+    expect(row!.active).toBe(false);
+    expect(row!.balance).toBe(0);
+  });
+
+  it('takes a grant like any other kamer', () => {
+    const roomId = openVeerman();
+    kamers.handOut([{ roomId, delta: 7 }], 'Voor de overtocht', KEEPER);
+    expect(kamers.balanceOf(roomId)).toBe(7);
+    expect(ledgerRows(roomId).map((line) => line.reason)).toEqual(['Voor de overtocht']);
+  });
+
+  /** En de lijst blijft één rij per kamer, ook nu er twee soorten in zitten. */
+  it('never lists one kamer twice', () => {
+    openVeerman();
+    const ids = kamers.handOutTargets(KEEPER).map((row) => row.roomId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+/* ============================== F. §86: gehouden, maar niet gespeeld */
+
+/**
+ * Nick, ronde 47: *"right now you can only give to a character that is
+ * currently being used"* — en dat was niet waar. `handOutTargets` leest
+ * `user_characters`, dus élk karakter dat een account *houdt* staat erin, of
+ * hij nu gespeeld wordt of niet. Maar niets op het scherm zei dat, en een
+ * waarheid die nergens staat is er voor de lezer niet.
+ *
+ * Dus draagt een rij nu `active`, en dat is het enige nieuwe: het antwoord
+ * bestond al, het had alleen geen woorden.
+ */
+describe('§86: gehouden, maar niet gespeeld', () => {
+  const plays = (userId: string, entryId: string | null) =>
+    sqlite.prepare('UPDATE users SET active_character_id = ? WHERE id = ?').run(entryId, userId);
+
+  it('lists both of a pair and marks which one is being played', () => {
+    plays('daan', 'e-daan2');
+    const rows = kamers.handOutTargets(KEEPER).filter((row) => row.player === 'Daan');
+    expect(rows.length).toBe(2);
+    expect(rows.find((row) => row.slug === 'daan-de-jonge')!.active).toBe(true);
+    expect(rows.find((row) => row.slug === 'daan-de-oude')!.active).toBe(false);
+    plays('daan', null);
+  });
+
+  it('keeps somebody who wears nobody at the moment in the list all the same', () => {
+    plays('bram', null);
+    const row = kamers.handOutTargets(KEEPER).find((target) => target.slug === 'bram-kuiper');
+    expect(row, 'een karakter valt uit de lijst zodra niemand het speelt').toBeTruthy();
+    expect(row!.active).toBe(false);
+    expect(row!.player).toBe('Bram');
   });
 });

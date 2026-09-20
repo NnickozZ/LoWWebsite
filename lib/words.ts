@@ -435,12 +435,13 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'handoutTitle', what: 'De kop boven de uitdeelpagina', fallback: 'Munten uitdelen' },
       {
         key: 'handoutAll',
-        what: 'Het ene getal dat iedereen krijgt',
-        fallback: 'Voor iedereen',
+        what: 'Het ene getal dat iedereen krijgt die je aanvinkt',
+        fallback: 'Voor wie je aanvinkt',
         hint:
-          'Verander je dit, dan springt elk bedrag eronder mee — ook wat je met de hand ' +
-          'had aangepast. §85: heette "Iedereen", en dat las als een kolomkop boven de ' +
-          'lijst in plaats van als het vak waar je een getal in typt.',
+          'Verander je dit, dan springt elk **aangevinkt** bedrag eronder mee — ook wat je ' +
+          'met de hand had aangepast. §85: heette "Iedereen", en dat las als een kolomkop ' +
+          'boven de lijst. §86: heette "Voor iedereen", en dat was niet meer waar toen de ' +
+          'lijst leeg begon — het vult wat je gekozen hebt.',
       },
       {
         key: 'handoutAmount',
@@ -461,9 +462,20 @@ export const WORD_GROUPS: WordGroup[] = [
       {
         key: 'handoutHint',
         what: 'De zin onder het globale getal',
-        fallback: 'Pas een bedrag hieronder gerust aan. Zet iemand uit, of op 0, en die krijgt niets.',
+        fallback:
+          'Zoek, vink aan wie iets krijgt, en pas een bedrag gerust met de hand aan. ' +
+          'Iemand uitvinken of op 0 zetten betekent hetzelfde: die krijgt niets.',
       },
-      { key: 'handoutEmpty', what: 'Als er nog geen kamers zijn om aan uit te delen', fallback: 'Er draagt nog niemand een onderzoeker.' },
+      {
+        key: 'handoutEmpty',
+        what: 'Als er nog geen kamers zijn om aan uit te delen',
+        fallback:
+          'Er is nog niemand om aan uit te delen. Koppel een onderzoeker aan een speler, ' +
+          'of geef er zelf één een kamer op zijn artikel.',
+        hint:
+          '§86: zei "Er draagt nog niemand een onderzoeker", en dat is sinds deze ronde ' +
+          'niet meer de enige manier om aan een kamer te komen.',
+      },
       { key: 'handoutDone', what: 'Nadat er uitgedeeld is', fallback: 'Uitgedeeld.' },
       {
         key: 'ledgerSlotLine',
@@ -510,6 +522,45 @@ export const WORD_GROUPS: WordGroup[] = [
           '("12 plekken"), {gevuld} hoeveel er iets op ligt.',
       },
       { key: 'toRoom', what: 'De deur terug naar de kamer', fallback: 'Naar de {kamer}' },
+      {
+        key: 'roomOpen',
+        what: 'De Keeper geeft een onderzoeker een kamer (de knop)',
+        fallback: 'Een kamer geven',
+        hint:
+          '§86: staat op het artikel van een onderzoeker die niemand draagt. Een kamer ' +
+          'van een gedragen karakter ontstaat vanzelf; deze maak jij.',
+      },
+      { key: 'roomOpened', what: 'Nadat dat gelukt is', fallback: '{naam} heeft nu een kamer.' },
+      {
+        key: 'handoutSearch',
+        what: 'Het zoekvak boven de uitdeellijst',
+        fallback: 'Zoek een onderzoeker of speler',
+      },
+      {
+        key: 'handoutPicked',
+        what: 'Hoeveel er aangevinkt staan',
+        fallback: '{n} van {alle} aangevinkt',
+      },
+      { key: 'handoutPickShown', what: 'Alles aanvinken wat het filter toont', fallback: 'Alles in beeld' },
+      { key: 'handoutPickNone', what: 'En weer niets', fallback: 'Niets' },
+      {
+        key: 'handoutNoMatch',
+        what: 'Als het zoekvak niets oplevert',
+        fallback: 'Niemand met die naam.',
+      },
+      {
+        key: 'handoutNobody',
+        what: 'Achter de naam van een onderzoeker die niemand draagt',
+        fallback: 'niemand draagt deze',
+      },
+      {
+        key: 'handoutResting',
+        what: 'Achter een karakter dat wel gehouden maar niet gespeeld wordt',
+        fallback: 'niet in gebruik',
+        hint:
+          '§86: de lijst had deze karakters altijd al, maar niets zei dat — dus leek het ' +
+          'alsof je alleen aan het actieve karakter kon geven.',
+      },
       { key: 'toPlayers', what: 'De deur naar de hal', fallback: 'Naar de {spelers}' },
       { key: 'toCharacters', what: 'De deur naar je karakters', fallback: 'Naar je karakters' },
       { key: 'toCases', what: 'De deur naar de dossiers', fallback: 'Naar de {dossiers}' },

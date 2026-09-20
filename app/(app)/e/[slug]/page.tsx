@@ -16,7 +16,7 @@ import { Icon } from '@/components/Icon';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getSessionUser } from '@/lib/auth/session';
 import { activeCharacter, attributed, listCharacters, playersOf, windowPresenceName } from '@/lib/characters';
-import { roomSummary } from '@/lib/kamers/service';
+import { roomIdFor, roomSummary } from '@/lib/kamers/service';
 import { canReview, listPendingEdits } from '@/lib/entries/review';
 import { diffLines, relativeTime } from '@/lib/diff';
 import { docToText } from '@/lib/entries/doc';
@@ -241,6 +241,15 @@ export default async function EntryPage({
    * hij is.
    */
   const roomDoor = roomSummary(entry.id, user);
+  /*
+   * §86: en als er nog geen kamer is, mag de Keeper er een openen.
+   *
+   * `roomIdFor` leest en maakt niets — dat onderscheid is de hele zaak. De
+   * vraag "is er een kamer" wordt op élk artikel gesteld sinds §85, dus als
+   * hij hem zou máken had elk artikel in het archief er een zodra iemand het
+   * opensloeg. De knop is een handeling, en die staat achter een POST.
+   */
+  const canOpenRoom = Boolean(user?.isKeeper) && roomIdFor(entry.id) === null;
 
   // §19: where this fiche is on the maps, and which maps it could still go on.
   // §17: all three reads are per viewer now — a landkaart whose dial shuts this
@@ -878,6 +887,7 @@ export default async function EntryPage({
         character={character}
         playedBy={playedBy}
         roomDoor={roomDoor ? { href: roomDoor.href, balance: roomDoor.balance } : null}
+        canOpenRoom={canOpenRoom}
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}
         mapsOfThis={mapsOfThis}

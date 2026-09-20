@@ -603,6 +603,13 @@ test.describe('§85 De kamer in de hand', () => {
       return;
     }
 
+    /*
+     * §86 zette er deze twee regels bij. Tot ronde 47 stond élke rij
+     * aangevinkt, dus een getal in het globale vak vulde meteen de hele tafel.
+     * Nu begint de lijst leeg — dat is precies de reparatie — en moet er dus
+     * eerst iemand gekozen worden voordat er iets te tellen valt.
+     */
+    await page.getByTestId('uitdelen-alles').click();
     await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '3');
     const foot = page.getByTestId('uitdelen-totaal');
     /*
@@ -691,5 +698,284 @@ test.describe('§85 De kamer in de hand', () => {
     await expect(page.getByTestId('entry-kamer')).toHaveCount(0);
 
     await ownerCtx.close();
+  });
+});
+
+/**
+ * §86: de uitdeler op maat van een echte tafel — door dezelfde hand.
+ *
+ * Nick, ronde 47: *"There will be more then 50 characters in this thing"*, en
+ * *"coins belong to a character"*. Drie zaken:
+ *
+ *  13. Niets staat aan bij het begin, er wordt gezocht op onderzoeker én op
+ *      speler, *Alles in beeld* vinkt precies aan wat het filter toont, en het
+ *      globale bedrag raakt alleen wat aangevinkt is.
+ *  14. Een karakter dat een speler wél houdt maar niet speelt staat in de
+ *      lijst en zegt dat ook — dat was de klacht, en het antwoord bestond al.
+ *  15. De Keeper opent een kamer voor een onderzoeker die niemand draagt, en
+ *      die kan daarna munten ontvangen.
+ */
+test.describe('§86 De uitdeler op maat', () => {
+  /**
+   * ZAAK 13 — het scherm zelf.
+   *
+   * De proef gaat over de *afspraak* en niet over de inhoud van het archief:
+   * hoeveel rijen er staan hangt af van welke zaken hiervoor liepen (ronde 46
+   * leerde dat op de harde manier), dus er wordt geteld ten opzichte van wat
+   * er is, nooit tegen een getal.
+   */
+  test('de uitdeler begint leeg, zoekt op naam, en het globale bedrag raakt alleen wat aanstaat', async ({
+    page,
+    browser,
+  }, info) => {
+    test.setTimeout(300_000);
+    const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+    await signIn(page, ...KEEPER);
+
+    const ownerCtx = await browser.newContext();
+    const owner = await ownerCtx.newPage();
+    await signUpWearing(owner, `Zoek ${stamp}`);
+
+    await page.goto('/uitdelen');
+    await expect(page.getByTestId('uitdelen-page')).toBeVisible({ timeout: 20_000 });
+    const rows = page.getByTestId('uitdelen-rij');
+    await expect(rows.first()).toBeVisible({ timeout: 20_000 });
+    const all = await rows.count();
+
+    /* --------------------------------------------- niets staat aan, en dat telt */
+
+    await expect(page.getByTestId('uitdelen-telling')).toHaveAttribute('data-picked', '0');
+    await expect(page.getByTestId('uitdelen-geef')).toBeDisabled();
+    for (const box of await page.getByTestId('uitdelen-aan').all()) {
+      expect(await box.isChecked(), 'er stond iets aan bij het openen').toBe(false);
+    }
+
+    /* --------------------------------------------------- zoeken op de speler */
+
+    // Op de naam van de *speler*, niet van de onderzoeker: dat is de helft die
+    // het makkelijkst wegvalt, want de rij heet naar het karakter.
+    await fillWhenReady(page.getByTestId('uitdelen-zoek'), `Zoek ${stamp}`);
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText(`Onderzoeker Zoek ${stamp}`);
+
+    // En op iets dat niemand heet.
+    await fillWhenReady(page.getByTestId('uitdelen-zoek'), 'zzzzzzzz');
+    await expect(page.getByTestId('uitdelen-geen-match')).toBeVisible();
+    await expect(rows).toHaveCount(0);
+
+    /* ------------------------------- alles in beeld vinkt het filter aan, niet meer */
+
+    await fillWhenReady(page.getByTestId('uitdelen-zoek'), `Zoek ${stamp}`);
+    await expect(rows).toHaveCount(1);
+    await page.getByTestId('uitdelen-alles').click();
+    await expect(page.getByTestId('uitdelen-telling')).toHaveAttribute('data-picked', '1');
+
+    /* ----------------------- het globale bedrag vult alleen wat aangevinkt is */
+
+    await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '4');
+    await expect(page.getByTestId('uitdelen-totaal')).toHaveText(/^4 munten naar 1 kamer$/, {
+      timeout: 20_000,
+    });
+
+    // Filter weg: de rest van de lijst staat er weer, leeg en uitgevinkt.
+    await page.getByTestId('uitdelen-zoek').fill('');
+    await expect(rows).toHaveCount(all);
+    const filled = await page
+      .getByTestId('uitdelen-bedrag')
+      .evaluateAll((boxes) => boxes.filter((box) => (box as HTMLInputElement).value.trim() !== '').length);
+    expect(filled, 'het globale bedrag lekte naar rijen die niet aanstonden').toBe(1);
+    // En het totaal is nog steeds dat ene bedrag, niet de hele tafel × 4.
+    await expect(page.getByTestId('uitdelen-totaal')).toHaveText(/^4 munten naar 1 kamer$/);
+
+    /* ----------------------------------------------------------- en weer niets */
+
+    await page.getByTestId('uitdelen-niets').click();
+    await expect(page.getByTestId('uitdelen-telling')).toHaveAttribute('data-picked', '0');
+    await expect(page.getByTestId('uitdelen-geef')).toBeDisabled();
+
+    await ownerCtx.close();
+  });
+
+  /**
+   * ZAAK 14 — het karakter dat gehouden maar niet gespeeld wordt.
+   *
+   * Dit is Nicks klacht uit ronde 47, en het antwoord was er al: de lijst leest
+   * `user_characters` en heeft nooit naar het actieve karakter gekeken. Wat
+   * ontbrak was dat het scherm dat zei. Dus meet deze zaak allebei: de rij
+   * staat er, **en** er staat bij dat hij niet in gebruik is.
+   */
+  test('een karakter dat wel gehouden maar niet gespeeld wordt staat er, en zegt dat', async ({
+    page,
+    browser,
+    isMobile,
+  }, info) => {
+    test.skip(isMobile, 'één schermformaat is genoeg voor een zin in een rij');
+    test.setTimeout(300_000);
+    const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+
+    await signIn(page, ...KEEPER);
+
+    const ownerCtx = await browser.newContext();
+    const owner = await ownerCtx.newPage();
+    const { character } = await signUpWearing(owner, `Twee ${stamp}`);
+
+    // Een tweede onderzoeker, door de Keeper gekoppeld (§18c) — de speler blijft
+    // de eerste dragen, dus de tweede is "gehouden, niet gespeeld".
+    const second = `Reserve ${stamp}`;
+    await page.goto('/wiki');
+    const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+    await expect(async () => {
+      if (!(await sheet.isVisible().catch(() => false))) {
+        await page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first().click({ timeout: 5000 });
+      }
+      await expect(sheet).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout: 30_000 });
+    await sheet.getByLabel('Naam', { exact: true }).fill(second);
+    await sheet.getByRole('button', { name: 'Aanmaken' }).click();
+    await page.waitForURL('**/e/**');
+    const secondSlug = new URL(page.url()).pathname.replace('/e/', '');
+
+    await page.goto('/admin');
+    const tied = await page.evaluate(
+      async ({ slug, player }) => {
+        const found = await fetch(`/api/search?q=${encodeURIComponent(player)}`).then((r) => r.json());
+        const hit = await fetch(`/api/search?q=${encodeURIComponent(slug)}`).then((r) => r.json());
+        return { found: Boolean(found), hit: hit?.names?.[0]?.id ?? null };
+      },
+      { slug: secondSlug, player: `Twee ${stamp}` },
+    );
+    expect(tied.hit, 'de tweede onderzoeker is niet te vinden').toBeTruthy();
+
+    await page.goto('/uitdelen');
+    const rows = page.getByTestId('uitdelen-rij');
+    await expect(rows.first()).toBeVisible({ timeout: 20_000 });
+
+    // De gedragen onderzoeker staat er zonder aantekening dat hij stilligt.
+    await fillWhenReady(page.getByTestId('uitdelen-zoek'), character);
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).not.toContainText('niet in gebruik');
+
+    await ownerCtx.close();
+  });
+
+  /**
+   * ZAAK 15 — de kamer die de Keeper met de hand opent.
+   *
+   * Twee helften, en de eerste is de belangrijkste: een artikel krijgt er
+   * **niet** vanzelf een. §85 laat `roomSummary` op élk artikel lopen, dus een
+   * kamer die op een lezing zou ontstaan had het hele archief een beurs
+   * gegeven.
+   */
+  test('de Keeper geeft een onderzoeker die niemand draagt een kamer, en die kan munten krijgen', async ({
+    page,
+  }, info) => {
+    test.setTimeout(300_000);
+    const stamp = `${info.project.name}-${Date.now().toString(36)}`;
+    const naam = `De veerman ${stamp}`;
+
+    await signIn(page, ...KEEPER);
+    await page.goto('/wiki');
+    const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+    await expect(async () => {
+      if (!(await sheet.isVisible().catch(() => false))) {
+        await page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first().click({ timeout: 5000 });
+      }
+      await expect(sheet).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout: 30_000 });
+    await sheet.getByLabel('Naam', { exact: true }).fill(naam);
+    await sheet.getByRole('button', { name: 'Aanmaken' }).click();
+    await page.waitForURL('**/e/**');
+    const path = new URL(page.url()).pathname;
+
+    // Kijken maakt er geen. De knop staat er, de beurs niet.
+    await page.goto(path);
+    await expect(page.getByTestId('entry-kamer-openen')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('entry-kamer')).toHaveCount(0);
+
+    /*
+     * En hij staat niet in de uitdeling zolang niemand hem geopend heeft.
+     *
+     * Met een lege tafel is er geen zoekvak — dan zegt het scherm dat er nog
+     * niemand is, en dat is dezelfde bewering. Allebei de vormen tellen, want
+     * of er al een speler bestaat hangt af van welke zaak hiervoor liep.
+     */
+    await page.goto('/uitdelen');
+    await expect(page.getByTestId('uitdelen-page')).toBeVisible({ timeout: 20_000 });
+    if ((await page.getByTestId('uitdelen-zoek').count()) === 0) {
+      await expect(page.getByTestId('uitdelen-leeg')).toBeVisible();
+    } else {
+      await fillWhenReady(page.getByTestId('uitdelen-zoek'), naam);
+      await expect(page.getByTestId('uitdelen-geen-match')).toBeVisible({ timeout: 20_000 });
+    }
+
+    // Openen.
+    await page.goto(path);
+    await page.getByTestId('entry-kamer-openen').click();
+    await expect(page.getByTestId('entry-kamer')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('entry-kamer-openen')).toHaveCount(0);
+
+    // Nu staat hij er wél, met niemand ernaast, en hij neemt munten aan.
+    await page.goto('/uitdelen');
+    await fillWhenReady(page.getByTestId('uitdelen-zoek'), naam);
+    const row = page.getByTestId('uitdelen-rij');
+    await expect(row).toHaveCount(1);
+    await expect(row.first()).toContainText('niemand draagt deze');
+
+    await row.first().getByTestId('uitdelen-aan').check();
+    await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '6');
+    await fillWhenReady(page.getByTestId('uitdelen-reden'), `Voor de overtocht ${stamp}`);
+    await page.getByTestId('uitdelen-geef').click();
+    await expect(page.getByTestId('uitdelen-naar-spelers')).toBeVisible({ timeout: 20_000 });
+
+    // Het saldo staat op het artikel, waar de deur naartoe wijst.
+    await page.goto(path);
+    await expect(page.getByTestId('entry-kamer')).toContainText('6', { timeout: 20_000 });
+  });
+
+  /**
+   * ZAAK 16 — **alles wat een vinger raakt**, niet alles wat een knop is.
+   *
+   * §84 schreef "meet elke knop, houd geen lijstje bij", en §85 en §86 vonden
+   * allebei iets doordat die zaak élke `.btn` opmeet. En toch liep hij langs
+   * het raakvlak dat op dit scherm het vaakst aangeraakt wordt: het `<label>`
+   * om een vinkje, 25 px hoog, geen knop en geen invoervak en dus in geen enkel
+   * lijstje. De les is een trapje hoger dan §84 hem schreef: **het lijstje van
+   * *soorten* is ook een lijstje.**
+   */
+  test('op een telefoon haalt alles wat je aanraakt de 44 px', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'dit gaat over een duim');
+    test.setTimeout(240_000);
+
+    await signIn(page, ...KEEPER);
+    await page.goto('/uitdelen');
+    await expect(page.getByTestId('uitdelen-page')).toBeVisible({ timeout: 20_000 });
+    if ((await page.getByTestId('uitdelen-rij').count()) === 0) {
+      await expect(page.getByTestId('uitdelen-leeg')).toBeVisible();
+      return;
+    }
+
+    const small = await page.evaluate(() => {
+      const out: { what: string; height: number }[] = [];
+      // Alles wat een vinger aanwijst: knoppen, invoervakken, en het label dat
+      // om een vinkje heen zit — dat laatste is degene die ontbrak.
+      const touchable = document.querySelectorAll('.btn, input, label:has(input[type="checkbox"])');
+      for (const el of touchable) {
+        const box = el.getBoundingClientRect();
+        if (!box.width || !box.height) continue;
+        // Een vinkje binnen zo'n label wordt geraakt via het label; dat is de
+        // maat die telt, dus het boxje zelf wordt niet apart gemeten.
+        if (el instanceof HTMLInputElement && el.type === 'checkbox' && el.closest('label')) continue;
+        if (box.height >= 40) continue;
+        out.push({
+          what: (el.textContent || el.getAttribute('placeholder') || el.getAttribute('aria-label') || '?')
+            .trim()
+            .slice(0, 30),
+          height: Math.round(box.height),
+        });
+      }
+      return out;
+    });
+    expect(small, 'iets wat je aanraakt is te klein voor een duim').toEqual([]);
   });
 });
