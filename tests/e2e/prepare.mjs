@@ -27,7 +27,8 @@ run('seed-demo.mjs');
 const output = run('bootstrap.mjs', ['--username', 'Keeper', '--password', 'abbeytower34']);
 
 // A real image for the photo-attachment spec, rather than a checked-in binary.
-const sharp = (await import(join(root, 'node_modules', 'sharp', 'lib', 'index.js'))).default;
+// sharp 0.35 moved its files; the package's own entry point is the stable road.
+const sharp = (await import('sharp')).default;
 await sharp({
   create: { width: 800, height: 500, channels: 3, background: { r: 122, g: 74, b: 43 } },
 })

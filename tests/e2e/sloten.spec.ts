@@ -128,7 +128,8 @@ test.describe('§89: de sloten', () => {
       await guesser.getByLabel('Naam', { exact: true }).fill(name);
       await guesser.getByLabel('Wachtwoord').fill(`fout-${i}-wachtwoord`);
       await guesser.getByRole('button', { name: 'Inloggen' }).click();
-      const note = guesser.locator('.error-note, [role="alert"]').first();
+      // The form's own line — not Next's route announcer, which is also role=alert.
+      const note = guesser.locator('form .error-note, .auth-card .error-note').first();
       await expect(note).toBeVisible();
       last = (await note.textContent()) ?? '';
     }

@@ -31,10 +31,17 @@ if (answer !== 'restore') {
 
 const db = openDb();
 
+// §89: a table name comes out of a zip file's path and is put into SQL, so it
+// has to be one this archive actually has — never whatever the zip says.
+const knownTables = new Set(
+  db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name),
+);
+
 const restore = db.transaction(() => {
   for (const [name, data] of zip) {
     if (!name.startsWith('json/')) continue;
     const table = name.slice(5, -5);
+    if (!knownTables.has(table)) continue;
     const rows = JSON.parse(data.toString('utf8'));
     if (table === 'schema_migrations') continue;
 

@@ -358,3 +358,21 @@ describe('§89: the shape of the code', () => {
     expect(middleware).toContain('sec-fetch-site');
   });
 });
+
+/* ======================================================= 11. ronde 50b */
+
+describe('§89: a document cannot smuggle attributes through __proto__', () => {
+  it('drops an own __proto__ key from a node’s and a mark’s attrs, and keeps the rest', async () => {
+    const { cleanDoc } = await import('@/lib/entries/doc');
+    const raw = JSON.parse(
+      '{"type":"doc","content":[{"type":"paragraph","content":[' +
+        '{"type":"text","text":"x","marks":[{"type":"link","attrs":{"href":"https://example.org","__proto__":{"onmouseover":"alert(1)"}}}]},' +
+        '{"type":"image","attrs":{"src":"/api/assets/abc","__proto__":{"onerror":"alert(1)"}}}' +
+        ']}]}',
+    );
+    const out = JSON.stringify(cleanDoc(raw));
+    expect(out).not.toContain('alert');
+    expect(out).toContain('https://example.org');
+    expect(out).toContain('/api/assets/abc');
+  });
+});

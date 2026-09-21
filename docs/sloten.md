@@ -36,6 +36,19 @@ dat niet van het archief komt.
   opnieuw verbindt (ronde 22) — maar elke toetsaanslag vraagt `admit` opnieuw.
 - **Geen tweefactor, geen wachtwoord-vergeten-per-mail** (er is geen mail).
 
+## Afhankelijkheden (`npm audit`)
+
+Ronde 50b. **Nooit `npm audit fix --force`** — dat tilt Next, Tiptap, drizzle en
+sharp tegelijk een major omhoog (CLAUDE.md §5, 7 september). Per melding:
+
+| Pakket | Ernst | Wat eraan gedaan is |
+|---|---|---|
+| sharp | hoog | **Opgewaardeerd naar 0.35.4** (libvips/libheif-lekken). sharp leest elke geüploade afbeelding, dus dit was de enige die ertoe deed. |
+| @tiptap/core | midden | `__proto__` in attrs wordt een DOM-attribuut; de fix zit alleen in Tiptap 3. **Afgevangen in `cleanDoc`**: elk attrs-object verliest `__proto__`/`constructor`/`prototype` (test in `sloten.test.ts`). |
+| drizzle-orm | hoog | SQL-injectie via *identifiers*. Nergens komt gebruikersinvoer in een tabel- of kolomnaam; de ene plek die er één interpoleert (`scripts/restore.mjs`) accepteert sinds 50b alleen tabellen die bestaan. Opwaarderen (0.39 → 0.45) is een eigen ronde. |
+| postcss (via next) | hoog | Draait alleen tijdens de build, op onze eigen CSS. Niet bereikbaar. |
+| vitest | midden | Alleen de testrunner; draait nooit op de server. |
+
 ## Uitrollen
 
 1. `git pull`, `npm ci`, `npm run build` (de migratie draait bij de start).

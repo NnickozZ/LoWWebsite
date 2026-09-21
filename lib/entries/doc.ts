@@ -167,6 +167,18 @@ export function safeImageSrc(value: unknown): string | null {
  * Returns a new value; the input is not changed. A non-object (null, a string)
  * comes back as it was, because the callers already treat that as "no text".
  */
+const POISON = ['__proto__', 'constructor', 'prototype'];
+
+function hasPoisonKey(attrs: object): boolean {
+  return POISON.some((key) => Object.prototype.hasOwnProperty.call(attrs, key));
+}
+
+function withoutPoison(attrs: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(attrs)) if (!POISON.includes(key)) clean[key] = value;
+  return clean;
+}
+
 export function cleanDoc<T>(doc: T): T {
   if (!doc || typeof doc !== 'object') return doc;
 
@@ -176,8 +188,25 @@ export function cleanDoc<T>(doc: T): T {
    * document when they differ, so a "tidier" value here would reset rooms that
    * were never dirty, under the hands of people typing in them.
    */
-  const walk = (node: ProseNode, depth: number): ProseNode | null => {
-    if (!node || typeof node !== 'object' || depth > 64) return null;
+  const walk = (input: ProseNode, depth: number): ProseNode | null => {
+    if (!input || typeof input !== 'object' || depth > 64) return null;
+    /*
+     * First, before anything copies an attrs bag: Tiptap 2's `mergeAttributes`
+     * turns an attrs object's *own* `__proto__` key (which `JSON.parse`
+     * happily creates) into inherited DOM attributes — an `onerror` on every
+     * reader's screen (npm audit: @tiptap/core, fixed only in Tiptap 3). No real
+     * attribute has one of these names, so they are simply taken off.
+     */
+    let node = input;
+    if (node.attrs && typeof node.attrs === 'object' && hasPoisonKey(node.attrs)) {
+      node = { ...node, attrs: withoutPoison(node.attrs) };
+    }
+    if (Array.isArray(node.marks) && node.marks.some((m) => m?.attrs && hasPoisonKey(m.attrs))) {
+      node = {
+        ...node,
+        marks: node.marks.map((m) => (m?.attrs && hasPoisonKey(m.attrs) ? { ...m, attrs: withoutPoison(m.attrs) } : m)),
+      };
+    }
     const out: ProseNode = { ...node };
 
     if (node.type === 'image') {
