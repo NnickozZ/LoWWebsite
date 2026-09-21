@@ -19,7 +19,7 @@ import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/sid
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
 import { displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
@@ -42,7 +42,7 @@ export default async function TimelinePage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
   const query = await searchParams;
   const timeline = getTimelineBySlug(slug, user);

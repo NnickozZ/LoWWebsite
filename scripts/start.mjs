@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ensureEnv } from './ensure-env.mjs';
+import { loadEnv } from './ensure-env.mjs';
 // Runs on import and exits if node_modules is not the tree package.json asks
 // for. Starting a server built from the wrong Next, or against the
 // better-sqlite3 that aborts the process, is worse than not starting at all.
@@ -40,9 +40,14 @@ if (!existsSync(join(root, '.next', 'BUILD_ID'))) {
   process.exit(1);
 }
 
-ensureEnv();
+// §89: load .env into this process too (not only into Next's), so HOST and
+// PORT set there decide where the server listens. Variables already in the
+// environment win, as before.
+loadEnv();
 
 const port = process.env.PORT || '3000';
+// §89: 127.0.0.1 behind nginx, so nobody reaches the app around the proxy.
+const host = process.env.HOST || '0.0.0.0';
 process.env.NODE_ENV = 'production';
 
 /**
@@ -81,9 +86,9 @@ function note(level, text) {
   }
 }
 
-note('INFO', `starting: node ${process.version}, port ${port}, logs in ${logs}`);
+note('INFO', `starting: node ${process.version}, ${host}:${port}, logs in ${logs}`);
 
-const child = spawn(process.execPath, [...diagnostics, nextBin, 'start', '-H', '0.0.0.0', '-p', port], {
+const child = spawn(process.execPath, [...diagnostics, nextBin, 'start', '-H', host, '-p', port], {
   stdio: 'inherit',
   cwd: root,
   env: process.env,

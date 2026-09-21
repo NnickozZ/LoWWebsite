@@ -36,8 +36,8 @@ let deps: Deps;
 function user(sqlite: Deps['sqlite'], id: string, name: string, isKeeper = false) {
   sqlite
     .prepare(
-      `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-       VALUES (?, ?, ?, 'x', 'x', ?)`,
+      `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+       VALUES (?, ?, ?, 'x', ?)`,
     )
     .run(id, name, name.toLowerCase(), isKeeper ? 1 : 0);
 }
@@ -229,10 +229,15 @@ describe('a player who has not chosen does not write', () => {
 
       // Wim's knot points into the prullenbak, so both read "holds nobody".
       expect(() => gate()({ id: 'wim', isKeeper: false, characterId: null })).not.toThrow();
+      // §89: but "holds nobody" is not "may take anybody": Griet plays this one.
+      expect(() => addCharacter('wim', 'artikel', { id: 'wim', isKeeper: false })).toThrow(
+        /speelt iemand anders/,
+      );
+      // Once nobody plays it, the same door opens for him.
+      removeCharacter('griet', 'artikel', keeper);
       expect(() => addCharacter('wim', 'artikel', { id: 'wim', isKeeper: false })).not.toThrow();
 
       // Put the table back the way the rest of this file expects it.
-      removeCharacter('griet', 'artikel', keeper);
       removeCharacter('wim', 'artikel', keeper);
       expect(listCharacters('griet')).toHaveLength(0);
     });

@@ -191,6 +191,13 @@ export type MentionSpan = {
   name: string;
   /** What it means on the archive-wide index; null when no name matches. */
   entryId: string | null;
+  /**
+   * §89: which shorthand it was written in. A `[[…]]` span exists whether or
+   * not the name matches anything; an `@` span exists **only** when it does —
+   * so the two may not be handed to a reader the same way (see
+   * `resolveMentions`).
+   */
+  source: 'bracket' | 'at';
 };
 
 /** Where the n-th whitespace-separated word of `rest` ends, counted in `rest`. */
@@ -212,7 +219,7 @@ export function mentionSpans(text: string, byName: ReadonlyMap<string, string>):
 
   for (const match of text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) {
     const start = match.index ?? 0;
-    spans.push({ start, end: start + match[0].length, name: match[1].trim(), entryId: idFor(match[1]) });
+    spans.push({ start, end: start + match[0].length, name: match[1].trim(), entryId: idFor(match[1]), source: 'bracket' });
   }
 
   /*
@@ -234,7 +241,7 @@ export function mentionSpans(text: string, byName: ReadonlyMap<string, string>):
       const id = idFor(candidate);
       if (!id) continue;
       const end = at + 1 + endOfWord(line, n) - (raw.length - candidate.length);
-      spans.push({ start: at, end, name: candidate, entryId: id });
+      spans.push({ start: at, end, name: candidate, entryId: id, source: 'at' });
       at = end - 1;
       break;
     }
@@ -288,9 +295,10 @@ export function entryNameIndex(): Map<string, string> {
  *
  * Rule 1 of this file (nothing comes out without the reader's own rule) is
  * kept: no id, no name, no slug of an artikel the reader may not see ever
- * leaves here. What is left behind is a dead chip — which is exactly what a
- * plain typo leaves too, so the two cannot be told apart, and the name in the
- * sentence was the writer's to show either way.
+ * leaves here. What is left behind for a `[[…]]` is a dead chip — which is
+ * exactly what a bracketed typo leaves too, so the two cannot be told apart.
+ * §89: for an `@` nothing is left behind at all, because an `@` typo makes no
+ * span and a dead `@` chip would therefore say the name exists.
  */
 export type ResolvedMention = {
   start: number;
@@ -322,8 +330,18 @@ export function resolveMentions(viewer: Viewer, texts: string[]): ResolvedMentio
         .all()
     : [];
   const open = new Map(rows.map((row) => [row.id, row]));
+  /*
+   * §89: an `@` span is only ever *made* when the name matches an artikel
+   * somewhere in the archive — the scan has no other way to know where the
+   * name ends. So a dead `@` chip handed back to the browser used to say
+   * "there is an artikel called exactly this", for any name a speler cared to
+   * post, Keeper-only ones included: a one-line oracle. An `@` span on an
+   * artikel this reader may not open is therefore dropped whole, and the text
+   * reads as the plain words it is. `[[…]]` stays a dead chip, because it is
+   * made whether or not anything matches, so its death says nothing.
+   */
   return perText.map((spans) =>
-    spans.map((span) => {
+    spans.filter((span) => span.source === 'bracket' || (span.entryId !== null && open.has(span.entryId))).map((span) => {
       const row = span.entryId ? open.get(span.entryId) : undefined;
       return {
         start: span.start,

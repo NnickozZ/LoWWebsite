@@ -5,7 +5,7 @@ import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { NewOverzichtButton } from '@/components/overzichten/NewOverzichtButton';
 import { OverzichtView } from '@/components/overzichten/OverzichtView';
 import { TypeTabs } from '@/components/TypeTabs';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { countEntriesPerType, listEntryTypes } from '@/lib/entries/service';
 import { sideOf } from '@/lib/keeper/kinds';
 import { queryTail, sideDetour } from '@/lib/keeper/side';
@@ -37,7 +37,7 @@ export default async function OverzichtPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
   const query = await searchParams;
 

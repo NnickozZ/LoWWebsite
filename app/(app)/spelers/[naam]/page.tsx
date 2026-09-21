@@ -2,7 +2,7 @@ import '@/app/spelers.css';
 import { notFound } from 'next/navigation';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import type { Viewer } from '@/lib/entries/visibility';
 import { spelerPagePlace } from '@/lib/live/keys';
 import { SPELER_PANELS } from '@/lib/spelers/panels';
@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
  * that went and asked would be a second, staler answer to the same question.
  */
 export default async function SpelerPage({ params }: { params: Promise<{ naam: string }> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { naam } = await params;
 
   const speler = spelerBySlug(naam);

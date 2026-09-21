@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { requireViewer } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,5 +21,7 @@ export const dynamic = 'force-dynamic';
  * they would have seen anyway. Nothing here says the Keeper's side exists.
  */
 export default async function KeeperSidePage() {
+  // §89: every page is its own gate — see `requireViewer`.
+  await requireViewer();
   redirect('/api/keeper/flip?side=keeper&to=/');
 }

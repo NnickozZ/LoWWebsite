@@ -71,8 +71,8 @@ beforeAll(async () => {
   ] as const) {
     deps.sqlite
       .prepare(
-        `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-         VALUES (?, ?, ?, 'x', 'x', ?)`,
+        `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+         VALUES (?, ?, ?, 'x', ?)`,
       )
       .run(id, name, name.toLowerCase(), keeper);
   }
@@ -158,8 +158,8 @@ describe('linkedFamiliesOf', () => {
     // Absent, never counted and never named.
     expect(names(deps.linkedFamiliesOf(boom.id, BRAM))).toEqual(['Het huis Voor']);
     expect(JSON.stringify(deps.linkedFamiliesOf(boom.id, BRAM))).not.toContain('Achter');
-    // Nobody signed in reads it the same way a player does.
-    expect(names(deps.linkedFamiliesOf(boom.id, null))).toEqual(['Het huis Voor']);
+    // §89: nobody signed in reads nothing at all.
+    expect(names(deps.linkedFamiliesOf(boom.id, null))).toEqual([]);
   });
 
   it('leest ook de kale id die coerceFieldValue nog aanneemt, en niets van een andere sleutel', () => {

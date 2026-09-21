@@ -140,7 +140,7 @@ beforeAll(async () => {
     ['aagje', 'Aagje', 0],
   ] as const) {
     run(
-      `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper) VALUES (?, ?, ?, 'x', 'x', ?)`,
+      `INSERT INTO users (id, username, username_lower, password_hash, is_keeper) VALUES (?, ?, ?, 'x', ?)`,
       id,
       name,
       name.toLowerCase(),
@@ -369,11 +369,9 @@ describe('§79: de rechten, gevraagd door wie niet mag', () => {
     expect(() => kamers.clearSlot(open.id, NOBODY)).toThrow(kamers.KamerError);
     expect(() => kamers.grant(ROOM, 5, 'zomaar', NOBODY)).toThrow(/Keeper/);
 
-    // A kamer's view dial ships 'all', so they may look — and the reading says
-    // so in the only two fields a screen is allowed to trust.
-    const view = kamers.viewRoomBySlug('bram-kuiper', NOBODY)!;
-    expect(view.canArrange).toBe(false);
-    expect(view.canGrant).toBe(false);
+    // §89: and they may not even look. A kamer's view dial ships 'all', which
+    // is everyone *signed in*; signed out, there is no kamer to read.
+    expect(kamers.viewRoomBySlug('bram-kuiper', NOBODY)).toBeNull();
   });
 
   it('lets the onderzoeker who lives there arrange it', () => {
@@ -829,7 +827,8 @@ describe('§79: de live-lijn vraagt precies wat de kamer vraagt', () => {
    * without an account is ever handed a socket.
    */
   it('hands no socket to anybody signed out, whatever the dial says', () => {
-    expect(kamers.canSeeRoom(ROOM, NOBODY)).toBe(true);
+    // §89: and since round 50 the kamer itself agrees — signed out sees nothing.
+    expect(kamers.canSeeRoom(ROOM, NOBODY)).toBe(false);
     expect(canWatch(`room:${ROOM}`, NOBODY)).toBe(false);
   });
 });

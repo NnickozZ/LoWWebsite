@@ -7,7 +7,7 @@ import { LivePage } from '@/components/live/LivePage';
 import { KamerKiezer } from '@/components/winkel/KamerKiezer';
 import { WinkelFilter } from '@/components/winkel/WinkelFilter';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { shopFor } from '@/lib/kamers/service';
 import { capitalise } from '@/lib/words';
 
@@ -58,7 +58,7 @@ export default async function WinkelPage({
 }: {
   searchParams: Promise<{ kamer?: string | string[] }>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   /*
    * `?kamer=<id>` — which onderzoeker's purse is being spent. A repeated

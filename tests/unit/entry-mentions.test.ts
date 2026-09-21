@@ -102,7 +102,7 @@ beforeAll(async () => {
   ] as const) {
     deps.sqlite
       .prepare(
-        `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper) VALUES (?, ?, ?, 'x', 'x', ?)`,
+        `INSERT INTO users (id, username, username_lower, password_hash, is_keeper) VALUES (?, ?, ?, 'x', ?)`,
       )
       .run(id, name, name.toLowerCase(), keeper);
   }
@@ -185,12 +185,9 @@ describe('a dossier the reader may not open', () => {
     expect(JSON.stringify(his)).not.toContain('c-stil');
   });
 
-  it('and a signed-out reader is told even less', () => {
-    const names = deps
-      .listMentions(vuurtoren, null)
-      .filter((m) => m.kind === 'case')
-      .map((m) => m.name);
-    expect(names).toEqual(['Zaak Vlissingen']);
+  // §89: signed out is told nothing at all — not even what is shared with everyone.
+  it('and a signed-out reader is told nothing', () => {
+    expect(deps.listMentions(vuurtoren, null)).toEqual([]);
   });
 });
 

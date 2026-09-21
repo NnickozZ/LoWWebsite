@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
+import { cleanDoc } from '@/lib/entries/doc';
 import { db, schema } from '@/lib/db';
 import { logActivity, logAudit, reindexEntry } from '@/lib/entries/service';
 import { entryIdsInCase, reconcileOrigin } from '@/lib/entries/origin';
@@ -790,7 +791,8 @@ export function restoreCaseRevision(revisionId: string, keeperId: string) {
     .set({
       name: String(snapshot.name ?? ''),
       summary: String(snapshot.summary ?? ''),
-      notes: snapshot.notes ?? null,
+      // §89: an old version is cleaned on its way back like any other document.
+      notes: cleanDoc(snapshot.notes ?? null),
       notesText: String(snapshot.notesText ?? ''),
       status: (snapshot.status as 'open' | 'cold' | 'closed') ?? 'open',
       updatedAt: Math.floor(Date.now() / 1000),

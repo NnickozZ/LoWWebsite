@@ -7,6 +7,7 @@ import {
   encodeAwarenessUpdate,
   removeAwarenessStates,
 } from 'y-protocols/awareness';
+import { cleanDoc } from '@/lib/entries/doc';
 import { prosemirrorJSONToYXmlFragment, updateYFragment, yXmlFragmentToProsemirrorJSON } from 'y-prosemirror';
 import type { Author } from '@/lib/auth/author';
 import { db, schema } from '@/lib/db';
@@ -212,7 +213,20 @@ function persistRoom(room: Room) {
   room.dirty = false;
   try {
     storeState(room.key, room.doc);
-    if (room.lastActor) room.spec.persist(roomJSON(room), room.lastActor);
+    const json = roomJSON(room);
+    if (room.lastActor) room.spec.persist(json, room.lastActor);
+    /*
+     * §89: a shared document is JSON that browsers write, a keystroke at a
+     * time, and the services clean it on its way into the archive
+     * (`cleanDoc`). The shared copy has to follow, or the dirty version stays
+     * in `live_docs` and is handed to every tab that opens the room. So when
+     * cleaning changed anything, the room is reset to the clean version — the
+     * same road a restored revision takes — and the open tabs get it at once.
+     */
+    if (room.spec.kind !== 'fields') {
+      const clean = cleanDoc(json);
+      if (JSON.stringify(clean) !== JSON.stringify(json)) resetRoom(room.key, clean);
+    }
     fanOut(room, { event: 'persisted', data: { at: Date.now() } });
   } catch (err) {
     // Left dirty: the next keystroke, or the sweeper, tries again. A write that

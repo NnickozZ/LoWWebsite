@@ -49,3 +49,16 @@ export function sweepDeletedRows(nowMs: number = Date.now()): { pins: number; ev
 
   return { pins: pins.changes ?? 0, events: events.changes ?? 0 };
 }
+
+/**
+ * §89: sessions past their expiry. `getSessionUser` already ignores them, so
+ * this is housekeeping rather than a lock — but a table that only ever grows
+ * is a table of every browser anybody ever signed in from. Once at start-up,
+ * next to the buried rows above and for the same reason. Here rather than in
+ * `lib/auth/session.ts`, because that file imports `next/headers` and this one
+ * is the file `instrumentation.ts` is allowed to load (see `next.config.mjs`).
+ */
+export function sweepExpiredSessions(nowMs: number = Date.now()): number {
+  const now = Math.floor(nowMs / 1000);
+  return db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, now)).run().changes ?? 0;
+}

@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { eq } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
-import { encryptPassword, hashPassword, passwordProblem } from '@/lib/auth/password.mjs';
-import { requireKeeper } from '@/lib/auth/session';
+import { hashPassword, passwordProblem } from '@/lib/auth/password.mjs';
+import { destroyAllSessions, requireKeeper } from '@/lib/auth/session';
 import { logAudit } from '@/lib/entries/service';
 import { approvePendingEdit, rejectPendingEdit } from '@/lib/entries/review';
 import {
   destroyFromTrash,
+  listTrash,
   restoreBoardRevision,
   restoreCaseRevision,
   restoreFromTrash,
@@ -28,16 +29,37 @@ export async function setPasswordAction(_prev: AdminState, formData: FormData): 
   const problem = passwordProblem(password);
   if (problem) return { error: problem };
 
+  const target = db
+    .select({ id: schema.users.id, isKeeper: schema.users.isKeeper, username: schema.users.username })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+  if (!target) return { error: 'Die gebruiker bestaat niet.' };
+  /*
+   * §89: Keepers are equals. Setting another Keeper's password is taking over
+   * their account, and "every Keeper may" meant any one of them could. To
+   * recover a lost Keeper account: demote it first (`toggleKeeperAction`,
+   * audited), then set a password on the speler it has become.
+   */
+  if (target.isKeeper && target.id !== keeper.id) {
+    return { error: 'Een Keeper zet het wachtwoord van een andere Keeper niet. Zet hem eerst af als Keeper.' };
+  }
+
   db.update(schema.users)
-    .set({ passwordHash: await hashPassword(password), passwordEnc: encryptPassword(password) })
+    .set({ passwordHash: await hashPassword(password) })
     .where(eq(schema.users.id, userId))
     .run();
+  // §89: the whole point of a new password is that the old key stops working —
+  // including in a browser that is still signed in with it.
+  await destroyAllSessions(userId);
 
   logAudit({
     actorId: keeper.id,
     action: 'password.set_by_keeper',
     targetType: 'user',
     targetId: userId,
+    // §89: named, so the Logboek says whose — the line the reveal used to write.
+    meta: { username: target.username },
   });
   revalidatePath('/admin');
   return { ok: 'Nieuw wachtwoord ingesteld.' };
@@ -68,8 +90,14 @@ export async function toggleKeeperAction(formData: FormData) {
 export async function toggleDisabledAction(formData: FormData) {
   const keeper = await requireKeeper();
   const userId = String(formData.get('userId') ?? '');
-  const row = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
+  const row = db
+    .select({ id: schema.users.id, isKeeper: schema.users.isKeeper, isDisabled: schema.users.isDisabled })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
   if (!row || row.id === keeper.id) return;
+  // §89: nor does one Keeper switch another off. Demote first, like above.
+  if (row.isKeeper) return;
 
   db.update(schema.users)
     .set({ isDisabled: !row.isDisabled })
@@ -152,11 +180,19 @@ export async function destroyAction(_prev: AdminState, formData: FormData): Prom
   const kind = String(formData.get('kind') ?? '');
   const id = String(formData.get('id') ?? '');
   const typed = String(formData.get('confirmName') ?? '').trim();
-  const expected = String(formData.get('name') ?? '').trim();
 
   if (!isTrashKind(kind)) {
     return { error: 'Onbekend soort.' };
   }
+  /*
+   * §89: the name to type back is the archive's, not the form's. It used to be
+   * read from a hidden `name` field in the same post, so a hand-built request
+   * could send any name twice and pass the guard. It is a guard against acting
+   * without thinking rather than a lock (a Keeper may destroy anyway), but a
+   * guard that the thing it guards supplies is no guard.
+   */
+  const expected = (listTrash(1000).find((row) => row.kind === kind && row.id === id)?.name ?? '').trim();
+  if (!expected) return { error: 'Dit staat niet (meer) in de prullenbak.' };
   // Case-insensitive, whitespace-collapsed: this is a guard against acting
   // without thinking, not a spelling test.
   const same = (value: string) => value.replace(/\s+/g, ' ').toLocaleLowerCase('nl');

@@ -5,7 +5,7 @@ import { MEANING } from '@/components/kamer/plekWords';
 import { CharacterWardrobe } from '@/components/you/CharacterSwitcher';
 import { WritingAsLine } from '@/components/you/AuthorProvider';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { activeCharacter, listCharacters } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
@@ -26,7 +26,7 @@ const PROPOSAL_STATUS: Record<string, string> = {
 };
 
 export default async function YouPage() {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   // §10: a locked entry sends a player's edit to the Keeper. This is where they
   // find out what came of it, and read the Keeper's note back.
   const proposals = user ? listMyProposals(user.id) : [];

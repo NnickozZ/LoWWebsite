@@ -92,8 +92,8 @@ beforeAll(async () => {
   ] as const) {
     deps.sqlite
       .prepare(
-        `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-         VALUES (?, ?, ?, 'x', 'x', ?)`,
+        `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+         VALUES (?, ?, ?, 'x', ?)`,
       )
       .run(id, name, name.toLowerCase(), keeper);
   }
@@ -133,8 +133,8 @@ describe('resolveFieldRefs', () => {
     const fields = { talen: [ref('e-open', 'Neeltje'), ref('e-geheim', 'De ware vader')] };
     expect(Object.keys(resolve(fields, BRAM))).toEqual(['e-open']);
     expect(Object.keys(resolve(fields, KEEPER)).sort()).toEqual(['e-geheim', 'e-open']);
-    // And a reader who is not signed in gets the same silence a player gets.
-    expect(Object.keys(resolve(fields, null))).toEqual(['e-open']);
+    // §89: and a reader who is not signed in is told nothing at all.
+    expect(Object.keys(resolve(fields, null))).toEqual([]);
   });
 
   it('reads both shapes of field and the hand-filled lists, and nothing else', () => {

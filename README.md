@@ -162,13 +162,27 @@ server {
     client_max_body_size 25m;       # uploads: 2 MB for players, 20 MB for the Keeper
     http2 on;                       # §60: many tabs, one socket each is not enough
     location / {
+        proxy_pass http://127.0.0.1:3000;   # §89: and HOST=127.0.0.1 in .env
         proxy_http_version 1.1;     # HTTP/1.0 to the app would close the stream
         proxy_buffering off;        # or nginx holds every frame until the response ends
         proxy_read_timeout 300s;    # a live line is idle for minutes at a time, on purpose
-        # ...
+        # §89: who is knocking. *Overwrite*, never append ($proxy_add_x_forwarded_for
+        # keeps whatever the browser sent first), and set TRUST_PROXY=1 in .env.
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # A header that only Next itself may ever write (CVE-2025-29927).
+        proxy_set_header x-middleware-subrequest "";
     }
 }
 ```
+
+**§89: behind that block the app listens on `127.0.0.1` only** (`HOST` in
+`.env`), and `TRUST_PROXY=1` tells the login limits the address nginx wrote is
+real. Without both, a browser can type its own `X-Forwarded-For` and every
+per-address limit is a suggestion. fail2ban watching nginx's log for
+`POST /login` bursts is a good second lock.
 
 `http2 on` is the one that matters most: over HTTP/1.1 a browser opens about
 six connections per origin, and round 29 went to some trouble to make a browser
@@ -381,30 +395,31 @@ Everything has a working local default in `.env.example`.
 | Variable | Notes |
 |---|---|
 | `PUBLIC_URL` | Drives the `Secure` cookie flag. Set it to your https URL in production |
-| `SESSION_SECRET` | 32 random bytes, hex |
-| `PASSWORD_RECOVERY_KEY` | **64 hex characters exactly.** Encrypts the recoverable copy of passwords |
+| `SESSION_SECRET` | 32+ random characters. Keys the session table (HMAC); in production nobody is signed in without it. Changing it signs everybody out |
 | `DATA_DIR` | Where `app.db`, `assets/` and `backups/` live |
 | `PORT` | Defaults to 3000 |
+| `HOST` | Defaults to `0.0.0.0` (phones on the LAN reach `make dev`). **Behind nginx: `127.0.0.1`**, so nobody reaches the app around the proxy |
+| `TRUST_PROXY` | `1` only when exactly one proxy you run stands in front and overwrites `X-Forwarded-For` (see the nginx block). Leave empty otherwise |
 
-If `PASSWORD_RECOVERY_KEY` is ever lost or changed, **logins keep working** —
-they use the argon2id hash. Only "Reveal password" stops working for passwords
-set under the old key; "Set new password" still does.
+`PASSWORD_RECOVERY_KEY` no longer exists (§89): delete it from your `.env`.
 
 ---
 
 ## A note on password recovery
 
-The brief asks for Keeper-recoverable passwords, which means keeping something
-reversible. Two things are stored per account:
+**A Keeper gives a new password; nobody reads an old one** (§89, round 50).
 
-- an **argon2id hash**, the only thing consulted when someone logs in;
-- an **AES-256-GCM encrypted copy**, read only when a Keeper presses "Reveal
-  password", which writes an audit row naming who revealed whose, and when.
+Until round 50 the archive kept an AES-encrypted copy of every password beside
+its hash, so a Keeper could "reveal" it. That copy went into every nightly
+backup and every "Download alles" zip, with its key in `.env` on the same
+machine, and every Keeper could read every other Keeper's password. People
+reuse passwords. Migration `0032_sloten` blanks and drops the column.
 
-The encryption key lives only in the server environment, never in the database,
-so a stolen `app.db` on its own yields nothing but hashes. Players are told at
-signup not to reuse a password from another site. That is as safely as this
-requirement can be done, and the audit log is what keeps it honest.
+What is stored now is an **argon2id hash** and nothing else. A player who
+forgets their password asks the Keeper, who uses **Beheer → Nieuw wachtwoord
+instellen**; that also signs the player out everywhere. A Keeper cannot set
+another Keeper's password or switch them off — demote first, then reset, and
+both steps are in the audit log.
 
 ---
 
@@ -642,7 +657,7 @@ tests/e2e/           playwright, the golden flows
 The interface is Dutch; `GLOSSARY-NL.md` is the list of terms every screen
 uses. Code, comments and these docs are English.
 
-Sixty-seven rules worth knowing before changing anything:
+Eighty-nine rules worth knowing before changing anything:
 
 1. **Every read of an entry goes through `visibleEntryCondition()`, and every
    read of a case through `visibleCaseCondition()`.** Lists, search,
@@ -4818,3 +4833,36 @@ Sixty-seven rules worth knowing before changing anything:
     archief krijgt de nieuwe naam rechtstreeks uit de seed en heeft niets te
     hernoemen. Er staat een test op, want dat is precies het soort `WHERE` dat
     een volgende migratie achteloos breder maakt.
+
+89. **Een uitgelogde lezer ziet niets, en wat een lezer niet mag zien bestaat
+    voor hem niet.** §89. Nick, ronde 50: *"I need to be sure that passwords
+    cannot be leaked, keeper pages are invisible for all, not even through
+    inspect element. No account → you can only see the login page. Players →
+    can only see and change the things that they can, no exploits. Keepers →
+    full access."*
+
+    Vijf sloten, en geen ervan is de layout:
+
+    - **Geen wachtwoord is leesbaar.** Alleen een argon2id-hash; de Keeper geeft
+      een nieuw wachtwoord en niemand leest een oud (zie *A note on password
+      recovery*). Een nieuw wachtwoord sluit alle andere sessies. Keepers zijn
+      gelijken: niemand zet het wachtwoord van een andere Keeper.
+    - **Uitgelogd is niemand.** `viewableCondition(_, null)` en
+      `visibleEntryCondition(null)` zijn `0 = 1`. Er is geen publieke kant.
+    - **Elke pagina is haar eigen poort.** `requireViewer()` staat bovenaan elke
+      `page.tsx`; `middleware.ts` stuurt een browser zonder sessiecookie naar
+      `/login` en weigert een schrijf naar `/api` van een andere herkomst. De
+      layout redirect ook, maar een layout is geen slot: Next rendert hem niet
+      opnieuw bij een navigatie en hij beslist niet of de pagina eronder
+      rendert.
+    - **Wat je niet mag zien, bestaat niet — ook niet als versie, chip of
+      terugzet-knop.** Een versie uit een Keeper-tijdperk staat niet in de lijst
+      van een speler en is niet terug te zetten; een `@`-naam die een
+      onzichtbaar artikel raakt, geeft geen dode chip terug; een ongebruikte
+      server action bestaat niet (een geëxporteerde `'use server'`-functie is
+      een endpoint, ook zonder knop).
+    - **Een document wordt schoongemaakt waar het binnenkomt** (`cleanDoc`), en
+      de CSP laat de browser niets laden dat niet van het archief komt.
+
+    `docs/sloten.md` is de dreigingstabel; `tests/unit/sloten.test.ts` bewaakt
+    hem.

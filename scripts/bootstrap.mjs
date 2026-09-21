@@ -6,7 +6,7 @@ loadEnv();
 
 const { openDb } = await import('../lib/db/open.mjs');
 const { seedBaseline } = await import('../lib/db/seed.mjs');
-const { hashPassword, encryptPassword, passwordProblem } = await import('../lib/auth/password.mjs');
+const { hashPassword, passwordProblem } = await import('../lib/auth/password.mjs');
 const { usernameProblem, usernameKey } = await import('../lib/auth/username.mjs');
 const { randomBytes } = await import('node:crypto');
 
@@ -44,9 +44,9 @@ if (flagUsername && flagPassword) {
     process.exit(0);
   }
   db.prepare(
-    `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-     VALUES (?, ?, ?, ?, ?, 1)`,
-  ).run(newId(), flagUsername, key, await hashPassword(flagPassword), encryptPassword(flagPassword));
+    `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+     VALUES (?, ?, ?, ?, 1)`,
+  ).run(newId(), flagUsername, key, await hashPassword(flagPassword));
   console.log(`Keeper "${flagUsername}" created. Invite code: ${settings.invite_code}`);
   process.exit(0);
 }
@@ -86,9 +86,9 @@ try {
   }
 
   db.prepare(
-    `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-     VALUES (?, ?, ?, ?, ?, 1)`,
-  ).run(newId(), username, key, await hashPassword(password), encryptPassword(password));
+    `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+     VALUES (?, ?, ?, ?, 1)`,
+  ).run(newId(), username, key, await hashPassword(password));
 
   console.log(`\n  Keeper "${username}" created.`);
   console.log(`  Invite code for everyone else: ${settings.invite_code}`);

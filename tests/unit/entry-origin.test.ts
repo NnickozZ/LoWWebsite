@@ -90,8 +90,8 @@ beforeAll(async () => {
 
   deps.sqlite
     .prepare(
-      `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-       VALUES ('keeper-1', 'Keeper', 'keeper', 'x', 'x', 1)`,
+      `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+       VALUES ('keeper-1', 'Keeper', 'keeper', 'x', 1)`,
     )
     .run();
   for (const [id, name, slug] of [

@@ -3,15 +3,11 @@
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
-import {
-  encryptPassword,
-  hashPassword,
-  passwordProblem,
-  verifyPassword,
-} from '@/lib/auth/password.mjs';
+import { hashPassword, passwordProblem, verifyPassword } from '@/lib/auth/password.mjs';
 import {
   destroyAllSessions,
   destroyCurrentSession,
+  destroyOtherSessions,
   requireUser,
 } from '@/lib/auth/session';
 import { logAudit } from '@/lib/entries/service';
@@ -78,7 +74,11 @@ export async function changePasswordAction(
   const current = String(formData.get('current') ?? '');
   const next = String(formData.get('next') ?? '');
 
-  const row = db.select().from(schema.users).where(eq(schema.users.id, user.id)).get();
+  const row = db
+    .select({ passwordHash: schema.users.passwordHash })
+    .from(schema.users)
+    .where(eq(schema.users.id, user.id))
+    .get();
   if (!row) return { error: 'Account niet gevonden.' };
   if (!(await verifyPassword(row.passwordHash, current))) {
     return { error: 'Dat is niet je huidige wachtwoord.' };
@@ -87,12 +87,15 @@ export async function changePasswordAction(
   if (problem) return { error: problem };
 
   db.update(schema.users)
-    .set({ passwordHash: await hashPassword(next), passwordEnc: encryptPassword(next) })
+    .set({ passwordHash: await hashPassword(next) })
     .where(eq(schema.users.id, user.id))
     .run();
+  // §89: a new password closes every other door this account had open — this
+  // browser stays signed in, the phone somebody else is holding does not.
+  await destroyOtherSessions(user.id);
 
   logAudit({ actorId: user.id, action: 'password.changed', targetType: 'user', targetId: user.id });
-  return { ok: 'Wachtwoord gewijzigd.' };
+  return { ok: 'Wachtwoord gewijzigd. Je bent overal anders uitgelogd.' };
 }
 
 export async function logoutAction() {

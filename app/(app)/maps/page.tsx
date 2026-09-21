@@ -5,7 +5,7 @@ import { Icon } from '@/components/Icon';
 import { NewMapButton } from '@/components/maps/NewMapButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
 import { listMaps } from '@/lib/maps/service';
@@ -17,7 +17,7 @@ const SORTS = ['order', 'name', 'recent', 'created'] as const;
 
 /** §19: the shelf of maps. The Keeper hangs them; everyone opens them. */
 export default async function MapsPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
   const sort = readOne(query, 'sort', SORTS, 'order') as (typeof SORTS)[number];

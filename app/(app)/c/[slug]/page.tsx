@@ -10,7 +10,7 @@ import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/sid
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
 import { attributed, charactersWorn, displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
@@ -68,7 +68,7 @@ export default async function CasePage({
   /** §22: `?new=1` — a dossier made this second opens with its fields open. */
   searchParams: Promise<{ new?: string }>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
   const query = await searchParams;
 

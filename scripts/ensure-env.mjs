@@ -14,12 +14,11 @@ export function ensureEnv() {
   if (existsSync(envPath)) return envPath;
 
   const example = readFileSync(join(root, '.env.example'), 'utf8');
-  const filled = example
-    .replace(/^SESSION_SECRET=.*$/m, `SESSION_SECRET=${randomBytes(32).toString('hex')}`)
-    .replace(
-      /^PASSWORD_RECOVERY_KEY=.*$/m,
-      `PASSWORD_RECOVERY_KEY=${randomBytes(32).toString('hex')}`,
-    );
+  // §89: PASSWORD_RECOVERY_KEY is gone — no password is stored readably any more.
+  const filled = example.replace(
+    /^SESSION_SECRET=.*$/m,
+    `SESSION_SECRET=${randomBytes(32).toString('hex')}`,
+  );
   writeFileSync(envPath, filled, { mode: 0o600 });
   console.log('Created .env with fresh random secrets.');
   return envPath;

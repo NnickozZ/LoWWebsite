@@ -3,7 +3,7 @@ import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
@@ -15,7 +15,7 @@ const WHERE = ['loose', 'case'] as const;
 const SHOW = ['mine', 'restricted'] as const;
 
 export default async function BoardsPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const sort = readOne(query, 'sort', SORTS, 'recent') as (typeof SORTS)[number];
   const where = readOne(query, 'where', WHERE, '') as '' | (typeof WHERE)[number];

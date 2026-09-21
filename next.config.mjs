@@ -35,8 +35,63 @@ function lanOrigins() {
   return [...new Set(origins)];
 }
 
+/**
+ * §89: the headers every answer carries.
+ *
+ * The CSP is the browser's half of rule 1 and of `cleanDoc`: nothing on a page
+ * may be loaded from anywhere but this archive. `img-src 'self'` is what turns
+ * an outside picture smuggled into a shared document into a broken image
+ * instead of a beacon that reports every reader. `'unsafe-inline'` for scripts
+ * is the one concession — Next's bootstrap is inline and a nonce needs a
+ * per-request middleware render (left for a later round, see the round note);
+ * `'unsafe-eval'` is added only for `next dev`, whose refresh runtime needs it.
+ */
+function securityHeaders() {
+  const dev = process.env.NODE_ENV !== 'production';
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join('; ');
+  const headers = [
+    { key: 'Content-Security-Policy', value: csp },
+    { key: 'X-Content-Type-Options', value: 'nosniff' },
+    { key: 'Referrer-Policy', value: 'same-origin' },
+    { key: 'X-Frame-Options', value: 'DENY' },
+    { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+    { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  ];
+  // Only where the archive is really served over https, like `secureCookies()`:
+  // HSTS on a LAN address would pin a phone to an https that does not exist.
+  if ((process.env.PUBLIC_URL ?? '').startsWith('https://')) {
+    headers.push({ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' });
+  }
+  return headers;
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // §89: no advert for the framework and its version.
+  poweredByHeader: false,
+  async headers() {
+    return [
+      { source: '/:path*', headers: securityHeaders() },
+      // Every API answer is somebody's own; no cache in between may keep one.
+      // Pictures are left out: `/api/assets/[id]` answers `private, immutable`
+      // itself, and an id never points at different bytes.
+      { source: '/api/:path((?!assets/).*)', headers: [{ key: 'Cache-Control', value: 'no-store' }] },
+    ];
+  },
   // Standalone output is what keeps the Docker image small, but `next start`
   // refuses to serve it — so it is switched on only for the image build.
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,

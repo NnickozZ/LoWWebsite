@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { viewerCanEdit } from '@/lib/access';
 import { db, schema } from '@/lib/db';
-import { docToText } from '@/lib/entries/doc';
+import { cleanDoc, docToText } from '@/lib/entries/doc';
 import { recomputeCaseMentions, recomputeSectionMentions } from '@/lib/entries/mentions';
 import { logActivity, logAudit } from '@/lib/entries/service';
 import { canSeeSection, type Viewer } from '@/lib/entries/visibility';
@@ -244,6 +244,8 @@ export function updateSection(
 ) {
   const existing = db.select().from(schema.sections).where(eq(schema.sections.id, sectionId)).get();
   if (!existing) throw new Error('Sectie niet gevonden');
+  // §89: cleaned where it comes in.
+  if (patch.body !== undefined) patch = { ...patch, body: cleanDoc(patch.body) };
 
   const values: Record<string, unknown> = {};
   if (patch.title !== undefined) values.title = patch.title.slice(0, 200);

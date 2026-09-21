@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import type { CoverCrops } from '@/lib/images/shapes';
 import { db, schema } from '@/lib/db';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -171,6 +171,24 @@ export function addCharacter(userId: string, entryId: string, actor: { id: strin
     .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(actor as Viewer)))
     .get();
   if (!entry) throw new Error('Artikel niet gevonden');
+
+  /*
+   * §89: a speler's own first koppeling may not take somebody else's
+   * onderzoeker. The door §18b leaves open is "make yourself somebody", not
+   * "become the karakter another speler at the table is playing" — which would
+   * let a new account write under that name (§18b records the name on every
+   * act). Somebody nobody holds yet is fine; a Keeper may tie anyone to anyone.
+   * Asked of every tie, disabled accounts included: a switched-off speler's
+   * onderzoeker is still theirs.
+   */
+  if (!actor.isKeeper) {
+    const heldByOther = db
+      .select({ userId: schema.userCharacters.userId })
+      .from(schema.userCharacters)
+      .where(and(eq(schema.userCharacters.entryId, entryId), ne(schema.userCharacters.userId, userId)))
+      .get();
+    if (heldByOther) throw new Error('Dat karakter speelt iemand anders al. Vraag de Keeper.');
+  }
 
   const count = db
     .select({ id: schema.userCharacters.entryId })

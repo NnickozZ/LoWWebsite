@@ -9,7 +9,7 @@ import { RoomEffects } from '@/components/kamer/RoomEffects';
 import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { ledgerOf, viewRoomBySlug } from '@/lib/kamers/service';
 import { roomKey } from '@/lib/live/keys';
 import { capitalise, fill } from '@/lib/words';
@@ -39,7 +39,7 @@ export const dynamic = 'force-dynamic';
  * prose on its artikel, and the link on the tile is how you go and read it.
  */
 export default async function KamerPage({ params }: { params: Promise<{ slug: string }> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
 
   const room = viewRoomBySlug(slug, user);

@@ -4,7 +4,7 @@ import { Icon } from '@/components/Icon';
 import { NewFamilyTreeButton } from '@/components/families/NewFamilyTreeButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { relativeTime } from '@/lib/diff';
 import { listFamilyTrees } from '@/lib/families/service';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
@@ -22,7 +22,7 @@ const SHOW = ['mine', 'restricted'] as const;
  * sorting a shelf by a number that differs per reader reads as a bug.
  */
 export default async function FamilyTreesPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
   const sort = readOne(query, 'sort', SORTS, 'recent') as (typeof SORTS)[number];

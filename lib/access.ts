@@ -99,7 +99,7 @@ export type AccessColumns = { id: Column; viewMode: Column; createdBy: Column; k
 
 /**
  * The view rule as a WHERE fragment for one of the tables above. Keepers get
- * `1 = 1`; a signed-out viewer only ever sees 'all'.
+ * `1 = 1`; a signed-out viewer gets `0 = 1` (§89).
  *
  * `on` names the copy of the table to ask about, for a query that joins one
  * table twice; left out, it is the table itself, which is every other caller.
@@ -120,8 +120,15 @@ export function viewableCondition(
    * `visibility = 'keeper'` since Phase 3, and two ways to say one thing is
    * how a leak gets written. The column is absent there, so this adds nothing.
    */
+  /*
+   * §89: a signed-out viewer sees **nothing**. This used to answer
+   * `view_mode = 'all'` — as if the archive had a public side — so any road
+   * that reached a query without a session (a page rendered past its layout,
+   * see `requireViewer`) was handed everything shared with "everyone". There
+   * is no public side. `null` means "not signed in", and it matches no row.
+   */
+  if (!viewer) return sql`0 = 1`;
   const notKeepers = t.keeperOnly ? sql`${t.keeperOnly} = 0 AND ` : sql``;
-  if (!viewer) return sql`${notKeepers}${t.viewMode} = 'all'`;
   return sql`${notKeepers}(
     ${t.viewMode} = 'all'
     OR ${t.createdBy} = ${viewer.id}
@@ -137,12 +144,13 @@ export function viewableCondition(
 
 /** The same rule as a plain predicate, for in-memory checks and tests. */
 export function canView(row: AccessRow, viewer: Viewer, grant?: Grant | null): boolean {
-  if (viewer?.isKeeper) return true;
+  // §89: signed out sees nothing — the same answer as the SQL above.
+  if (!viewer) return false;
+  if (viewer.isKeeper) return true;
   // §44: same order as the SQL above — the Keeper's side first, and nothing
   // below it can talk its way past.
   if (row.keeperOnly) return false;
   if (row.viewMode === 'all') return true;
-  if (!viewer) return false;
   if (row.createdBy === viewer.id) return true;
   if (row.viewMode === 'some') return Boolean(grant?.canView);
   return false;

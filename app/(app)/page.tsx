@@ -6,7 +6,7 @@ import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
 import { MentionText } from '@/components/ui/MentionPopover';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
 import { attributed } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
@@ -37,7 +37,7 @@ const VERBS: Record<string, string> = {
  * says what this place is and where to begin.
  */
 export default async function HomePage() {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const words = getWords();
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
 

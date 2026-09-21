@@ -18,6 +18,13 @@ import { DEFAULT_SITE_NAME } from '@/lib/admin/identity';
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  /*
+   * §89: a comfort, not the gate. A layout is not re-rendered on a client
+   * navigation and does not decide whether the page below it renders, so the
+   * locks are elsewhere: `middleware.ts` (no cookie, no archive),
+   * `requireViewer()` at the top of every page, and a `null` viewer that
+   * matches no row in any visibility rule.
+   */
   const user = await getSessionUser();
   if (!user) redirect('/login');
 

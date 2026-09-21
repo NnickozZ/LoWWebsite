@@ -6,7 +6,7 @@ import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
 import type { AccessMode } from '@/lib/db/schema';
 import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
-import { docToText } from '@/lib/entries/doc';
+import { cleanDoc, docToText } from '@/lib/entries/doc';
 import { recomputeCaseMentions } from '@/lib/entries/mentions';
 import type { Author } from '@/lib/auth/author';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
@@ -417,6 +417,8 @@ export function updateCase(
 ) {
   const existing = db.select().from(schema.cases).where(eq(schema.cases.id, caseId)).get();
   if (!existing) throw new Error('Dossier niet gevonden');
+  // §89: cleaned where it comes in.
+  if (patch.notes !== undefined) patch = { ...patch, notes: cleanDoc(patch.notes) };
 
   const values: Record<string, unknown> = {};
   if (patch.name !== undefined && patch.name.trim()) values.name = patch.name.trim();

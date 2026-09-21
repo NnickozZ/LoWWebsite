@@ -1,7 +1,7 @@
 import { LivePage } from '@/components/live/LivePage';
 import { WebView } from '@/components/web/WebView';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { clampDepth } from '@/lib/web/slice';
 import { parseWebNodeId } from '@/lib/web/types';
 
@@ -20,7 +20,7 @@ export default async function WebPage({
 }: {
   searchParams: Promise<{ focus?: string | string[]; d?: string | string[] }>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
   const focusRaw = Array.isArray(query.focus) ? query.focus[0] : query.focus;

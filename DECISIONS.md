@@ -5496,3 +5496,60 @@ vers archief krijgt de nieuwe naam rechtstreeks uit `lib/db/seed.mjs` en heeft
 niets te hernoemen. Alle drie de plekken die die naam kennen — de seed, de
 kolomstandaard in `schema.ts` en `DEFAULT_SITE_NAME` — zeggen hetzelfde, en
 `tests/unit/site-identity.test.ts` is waar dat blijkt.
+
+## Ronde 50 (§89) — de sloten, en de wachtwoordkopie die er nooit had mogen zijn
+
+Nick vroeg om zekerheid: wachtwoorden die niet kunnen lekken, Keeper-pagina's
+die voor niemand anders bestaan — ook niet via "inspect element" — en een site
+waar je uitgelogd alleen de inlogpagina ziet. Een senior-review vooraf vond
+eenentwintig dingen; deze ronde sloot er achttien in code en schreef de rest op.
+
+**Dit keert de beslissing van Phase 1 om dat een Keeper een wachtwoord moet
+kunnen *teruglezen*.** Dat vroeg om een omkeerbare kopie (AES-256-GCM, sleutel
+in `.env`), en die kopie zat in elke nachtelijke backup en elke export — met
+de sleutel op dezelfde machine. Elke Keeper kon het wachtwoord van elke andere
+Keeper lezen, en mensen hergebruiken wachtwoorden. Wat de eis eigenlijk wilde
+("een speler die zijn wachtwoord kwijt is, komt weer binnen") doet *Nieuw
+wachtwoord instellen* al. Dus: `password_enc` en `PASSWORD_RECOVERY_KEY` weg,
+migratie `0032_sloten`, en de knop *Wachtwoord tonen* weg.
+
+**Keepers zijn gelijken.** Niemand zet het wachtwoord van een andere Keeper of
+schakelt hem uit. Wie een Keeper-account moet overnemen, zet hem eerst af
+(`toggleKeeperAction`, in het Logboek) — twee stappen, twee regels, geen stille
+overname. Afgewogen tegen "een Keeper die zijn telefoon kwijt is": die heeft
+een tweede Keeper nodig om af te zetten en te resetten, en dat is precies het
+toezicht dat er hoort te zijn.
+
+**Uitgelogd is niemand.** `viewableCondition(_, null)` antwoordde
+`view_mode = 'all'`, alsof het archief een publieke kant had. Het had er geen,
+maar de SQL deed alsof — en de enige muur ervoor was de layout, die volgens de
+Next-documentatie zelf geen muur is (hij wordt bij een navigatie niet opnieuw
+gerenderd en beslist niet of de pagina eronder rendert). Nu drie sloten die elk
+alleen genoeg zijn: `middleware.ts` (geen sessiecookie → `/login`),
+`requireViewer()` bovenaan elke pagina, en `null` is `0 = 1`. Een test leest de
+broncode en faalt als een pagina het tweede slot mist.
+
+**Waarom de middleware de database niet opent.** Hij draait op elke request,
+prefetches inbegrepen; de Next-documentatie raadt het af en de pagina's vragen
+het toch al. Hij kijkt alleen óf er een cookie is, en weigert een schrijf naar
+`/api` van een andere herkomst (`Sec-Fetch-Site`, anders `Origin`). Server
+actions deden dat al; route handlers leunden alleen op `SameSite=Lax`.
+
+**Waarom de rate limit het IP niet meer vertrouwt.** `X-Forwarded-For` is een
+header die de browser ook schrijft, en de eerste waarde — die we lazen — is
+precies de zijne. Zonder `TRUST_PROXY` is er dus geen per-adres-emmer (één
+gedeelde emmer zou tien foute gokken van wie dan ook iedereen buitensluiten);
+wel een per-naam-emmer en een noodrem voor de hele site, die alleen mislukkingen
+telt. Achter nginx met `TRUST_PROXY=1` komt het adres er weer bij, en dan het
+*laatste*.
+
+**Drie dingen die de review vond en die níet veranderd zijn, en waarom.**
+- *Twee antwoorden op één onzichtbaar ding (403 vs 404).* Nagelopen: elke
+  schrijvende route kijkt het record eerst op door de zichtbaarheidsregel en
+  antwoordt 404 vóór hij 403 zegt. Er was geen gat.
+- *`by` op een collectie-signaal.* Een speler hoort "er veranderde iets in
+  `entries`, door die tab" ook als het een Keeper-only artikel was. Geen naam,
+  geen id; geaccepteerd sinds §21 en opnieuw in ronde 22.
+- *De naam op een caret komt van de browser.* Een speler kan zijn caret
+  "Keeper" noemen. Imitatie, geen lek (het wordt als tekst getekend); een
+  server-gezaghebbende naam is een ronde van de live-laag, niet van deze.

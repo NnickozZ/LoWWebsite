@@ -10,7 +10,7 @@ import { SiteForm } from '@/components/admin/SiteForm';
 import { TypeEditor } from '@/components/admin/TypeEditor';
 import { WordsForm } from '@/components/admin/WordsForm';
 import { Icon } from '@/components/Icon';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { db, schema } from '@/lib/db';
 import { relativeTime } from '@/lib/diff';
 import { destroyEffects, listArchivedThings, listBoardRevisions, listCaseRevisions, listTrash } from '@/lib/admin/trash';
@@ -99,7 +99,7 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ case?: string; board?: string }>;
 }) {
-  const me = await getSessionUser();
+  const me = await requireViewer();
   if (!me?.isKeeper) notFound();
   const query = await searchParams;
 

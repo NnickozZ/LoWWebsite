@@ -71,7 +71,7 @@ beforeAll(async () => {
     ['bram', 'Bram', 0],
   ] as const) {
     run(
-      `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper) VALUES (?, ?, ?, 'x', 'x', ?)`,
+      `INSERT INTO users (id, username, username_lower, password_hash, is_keeper) VALUES (?, ?, ?, 'x', ?)`,
       id,
       name,
       name.toLowerCase(),

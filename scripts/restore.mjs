@@ -38,10 +38,19 @@ const restore = db.transaction(() => {
     const rows = JSON.parse(data.toString('utf8'));
     if (table === 'schema_migrations') continue;
 
+    /*
+     * §89: only the columns this archive still has. A backup made before a
+     * migration dropped a column (0032 dropped users.password_enc — the
+     * readable copy of every password) still restores: the old field is left
+     * behind in the zip instead of failing the INSERT, or worse, coming back.
+     */
+    const existing = new Set(db.prepare(`PRAGMA table_info("${table}")`).all().map((c) => c.name));
+    if (!existing.size) continue;
+
     db.prepare(`DELETE FROM "${table}"`).run();
     if (!rows.length) continue;
 
-    const columns = Object.keys(rows[0]);
+    const columns = Object.keys(rows[0]).filter((c) => existing.has(c));
     const insert = db.prepare(
       `INSERT INTO "${table}" (${columns.map((c) => `"${c}"`).join(', ')})
        VALUES (${columns.map((c) => `@${c}`).join(', ')})`,

@@ -49,8 +49,8 @@ beforeAll(async () => {
   const add = (id: string, username: string, keeper = 0, disabled = 0) =>
     sqlite
       .prepare(
-        `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper, is_disabled)
-         VALUES (?, ?, ?, 'x', 'x', ?, ?)`,
+        `INSERT INTO users (id, username, username_lower, password_hash, is_keeper, is_disabled)
+         VALUES (?, ?, ?, 'x', ?, ?)`,
       )
       .run(id, username, username.toLowerCase(), keeper, disabled);
 

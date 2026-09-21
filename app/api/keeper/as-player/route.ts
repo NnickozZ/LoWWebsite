@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+// §89: one vetting of `to=` for both roads, backslash included.
+import { safeReturnPath } from '@/lib/auth/paths';
 import { AS_PLAYER_COOKIE, getSessionUser } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +20,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const on = url.searchParams.get('on') === '1';
-  const back = safePath(url.searchParams.get('to'));
+  const back = safeReturnPath(url.searchParams.get('to'));
 
   const user = await getSessionUser();
   /*
@@ -49,8 +51,3 @@ export async function GET(request: Request) {
   return response;
 }
 
-/** Only ever back into this archive: one leading slash, and no scheme sneaking in. */
-function safePath(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
-}

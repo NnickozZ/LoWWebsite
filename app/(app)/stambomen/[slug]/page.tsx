@@ -17,7 +17,7 @@ import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { BinSlot } from '@/components/ui/BinSlot';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
 import { displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
@@ -46,7 +46,7 @@ export default async function FamilyTreePage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
   const query = await searchParams;
   const tree = getFamilyTreeBySlug(slug, user);

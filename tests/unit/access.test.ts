@@ -19,9 +19,10 @@ const row = (viewMode: 'all' | 'some' | 'private', editMode: 'all' | 'some' | 'p
 const grant = (canViewIt: boolean, canEditIt: boolean) => ({ userId: 'c', canView: canViewIt, canEdit: canEditIt });
 
 describe('canView', () => {
-  it("'all' is everyone, even signed out", () => {
+  // §89: 'all' is everyone *signed in*. Signed out is nobody — there is no public side.
+  it("'all' is everyone signed in, and nobody signed out", () => {
     expect(canView(row('all', 'all'), stranger)).toBe(true);
-    expect(canView(row('all', 'all'), null)).toBe(true);
+    expect(canView(row('all', 'all'), null)).toBe(false);
   });
   it("'some' is the chosen, the owner, and the Keepers", () => {
     expect(canView(row('some', 'all'), chosen, grant(true, false))).toBe(true);

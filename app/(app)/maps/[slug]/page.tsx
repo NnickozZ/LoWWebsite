@@ -15,7 +15,7 @@ import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canManageAccess } from '@/lib/access';
 import { viewerCanEditMap } from '@/lib/maps/service';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { presenceColour } from '@/lib/boards/live';
 import { displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
@@ -32,7 +32,7 @@ export const dynamic = 'force-dynamic';
  * fiche a player may not see is not on their map either.
  */
 export default async function MapPage({ params }: { params: Promise<{ slug: string }> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
   // §40: a landkaart this viewer's dial does not allow is a 404, not a locked
   // door — the same answer a private artikel or dossier gives at its own URL.

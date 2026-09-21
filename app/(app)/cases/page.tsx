@@ -6,7 +6,7 @@ import { MentionText } from '@/components/ui/MentionPopover';
 import { NewCaseButton } from '@/components/cases/NewCaseButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { countEntriesPerCase, listCases, type CaseStatus } from '@/lib/cases/service';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
@@ -20,7 +20,7 @@ const SHOW = ['mine', 'member', 'restricted'] as const;
 
 /** §14: the dossier shelf, sortable and filterable — status above all. */
 export default async function CasesPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
 

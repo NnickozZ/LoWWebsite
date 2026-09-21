@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { cookies } from 'next/headers';
-import { and, eq, gt } from 'drizzle-orm';
+import { redirect } from 'next/navigation';
+import { and, eq, gt, ne } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { cleanReadingFont, type ReadingFont } from '@/lib/readingFont';
 import { cleanColourScheme, type ColourScheme } from '@/lib/theme/schemes';
@@ -8,7 +9,17 @@ import type { Side } from '@/lib/keeper/kinds';
 import { newId, randomToken } from '@/lib/ids';
 import { readCharacterHeader, resolveCharacter } from '@/lib/auth/author';
 
-export const COOKIE_NAME = 'zcf_session';
+/**
+ * §89: the session cookie's name. On https it carries the `__Host-` prefix,
+ * which makes the browser itself refuse the cookie unless it is `Secure`,
+ * `Path=/` and has no `Domain` — so no sibling subdomain and no plain-http
+ * page can ever plant or overwrite it. On plain http (§13a: a phone on the
+ * LAN during development) the prefix would make the browser drop the cookie,
+ * so it is the bare name there. `middleware.ts` reads the same function.
+ */
+export function sessionCookieName(): string {
+  return secureCookies() ? '__Host-zcf_session' : 'zcf_session';
+}
 /**
  * §44: "kijk als speler". A Keeper who sets this cookie is handed to the whole
  * app as a player — every read, every room, every API — until they take it off
@@ -59,11 +70,28 @@ export type SessionUser = {
   characterId: string | null;
 };
 
-function hashToken(token: string) {
-  return createHash('sha256').update(token).digest('hex');
+/**
+ * §89: what the `sessions` table stores for a token. An HMAC under
+ * `SESSION_SECRET` rather than a bare SHA-256, so a copied `sessions` table —
+ * a backup, an export — is worth nothing without the `.env` beside it.
+ * Migration 0032 emptied the table when this changed; everybody signs in once.
+ */
+function sessionKey(): string {
+  const secret = process.env.SESSION_SECRET ?? '';
+  // The placeholder in `.env.example` is long enough to pass a length check,
+  // so it is refused by name: a copied example file must not become the key.
+  if (secret.length >= 32 && !secret.startsWith('change-me')) return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET ontbreekt of is korter dan 32 tekens. Zet hem in .env (`make dev` maakt er een).');
+  }
+  return 'dev-only-session-secret-never-used-in-production';
 }
 
-function secureCookies() {
+function hashToken(token: string) {
+  return createHmac('sha256', sessionKey()).update(token).digest('hex');
+}
+
+export function secureCookies() {
   // §13a: plain http on a LAN address must work for phone testing.
   return (process.env.PUBLIC_URL ?? '').startsWith('https://');
 }
@@ -79,7 +107,7 @@ export async function createSession(userId: string) {
   });
 
   const jar = await cookies();
-  jar.set(COOKIE_NAME, token, {
+  jar.set(sessionCookieName(), token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: secureCookies(),
@@ -90,16 +118,30 @@ export async function createSession(userId: string) {
 
 export async function destroyCurrentSession() {
   const jar = await cookies();
-  const token = jar.get(COOKIE_NAME)?.value;
+  const name = sessionCookieName();
+  const token = jar.get(name)?.value;
   if (token) {
     await db.delete(schema.sessions).where(eq(schema.sessions.tokenHash, hashToken(token)));
   }
-  jar.delete(COOKIE_NAME);
+  jar.delete(name);
 }
 
-/** "Log out everywhere" in account settings. */
+/** "Log out everywhere" in account settings — and (§89) every password a Keeper sets. */
 export async function destroyAllSessions(userId: string) {
   await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+}
+
+/**
+ * §89: every session of this account except the one making the request. A
+ * person who changes their password because somebody may be looking over
+ * their shoulder must not leave that somebody signed in.
+ */
+export async function destroyOtherSessions(userId: string) {
+  const token = (await cookies()).get(sessionCookieName())?.value;
+  const keep = token ? hashToken(token) : '';
+  await db
+    .delete(schema.sessions)
+    .where(and(eq(schema.sessions.userId, userId), ne(schema.sessions.tokenHash, keep)));
 }
 
 /**
@@ -108,7 +150,7 @@ export async function destroyAllSessions(userId: string) {
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   const jar = await cookies();
-  const token = jar.get(COOKIE_NAME)?.value;
+  const token = jar.get(sessionCookieName())?.value;
   if (!token) return null;
 
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -194,6 +236,23 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     readingFont: cleanReadingFont(row.readingFont),
     colourScheme: cleanColourScheme(row.colourScheme),
   };
+}
+
+/**
+ * §89: the first line of every page under `app/(app)`.
+ *
+ * The layout redirects a signed-out browser too, but a layout is **not** a
+ * gate: Next re-renders only the segments that change on a client navigation,
+ * and a layout does not decide whether the page below it renders or appears in
+ * the RSC payload (nextjs.org/docs/app/guides/authentication, "Layouts and auth
+ * checks"). So every page asks for itself, and a signed-out request is sent to
+ * the front door before a single query runs. For route handlers use
+ * `requireUser`, which throws a 401 instead of redirecting.
+ */
+export async function requireViewer(): Promise<SessionUser> {
+  const user = await getSessionUser();
+  if (!user) redirect('/login');
+  return user;
 }
 
 /** For route handlers and pages that must have a user. */

@@ -49,11 +49,17 @@ export async function register() {
    * restart, and every read already filters them out.
    */
   try {
-    const { sweepDeletedRows } = await import('./lib/db/sweep');
+    const { sweepDeletedRows, sweepExpiredSessions } = await import('./lib/db/sweep');
     const swept = sweepDeletedRows();
     if (swept.pins || swept.events) {
       const { logEvent } = await import('./lib/diagnostics');
       logEvent('info', 'swept rows buried for an undo that never came', swept);
+    }
+    // §89: and the sessions nobody can use any more.
+    const sessions = sweepExpiredSessions();
+    if (sessions) {
+      const { logEvent } = await import('./lib/diagnostics');
+      logEvent('info', 'swept expired sessions', { sessions });
     }
   } catch (err) {
     const { logEvent } = await import('./lib/diagnostics');

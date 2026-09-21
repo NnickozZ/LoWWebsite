@@ -11,6 +11,13 @@ import type { Side } from '@/lib/keeper/kinds';
  * across from either side and the page they land on decides where they are.
  */
 export type Viewer = { id: string; isKeeper: boolean; side?: Side } | null;
+/*
+ * §89: `null` is "not signed in", and it sees **nothing**. There is no public
+ * side of this archive: every visibility rule below and in `lib/access.ts`
+ * answers `0 = 1` / `false` for it. The type stays nullable so the dozens of
+ * signatures that take a `Viewer` need not change — but a page must never
+ * reach a query with one (`requireViewer` in `lib/auth/session.ts`).
+ */
 
 /**
  * §9. A viewer may see an entry when it is not deleted AND
@@ -25,9 +32,10 @@ export type Viewer = { id: string; isKeeper: boolean; side?: Side } | null;
  */
 export function visibleEntryCondition(viewer: Viewer): SQL {
   const notDeleted = sql`${schema.entries.deletedAt} IS NULL`;
-  if (viewer?.isKeeper) return notDeleted;
+  // §89: signed out sees nothing, not "whatever is shared with everyone".
+  if (!viewer) return sql`0 = 1`;
+  if (viewer.isKeeper) return notDeleted;
   const owner = viewableCondition('entry', viewer);
-  if (!viewer) return sql`${notDeleted} AND ${schema.entries.visibility} = 'all' AND ${owner}`;
   return sql`${notDeleted} AND (
     ${schema.entries.visibility} = 'all'
     OR (${schema.entries.visibility} = 'players' AND EXISTS (
@@ -44,11 +52,12 @@ export function canSeeEntry(
   revealedEntryIdsForViewer: ReadonlySet<string> = new Set(),
   entryId?: string,
 ): boolean {
-  if (entry.deletedAt) return Boolean(viewer?.isKeeper);
-  if (viewer?.isKeeper) return true;
+  if (!viewer) return false; // §89
+  if (entry.deletedAt) return viewer.isKeeper;
+  if (viewer.isKeeper) return true;
   if (entry.visibility === 'all') return true;
   if (entry.visibility === 'keeper') return false;
-  if (!viewer || !entryId) return false;
+  if (!entryId) return false;
   return revealedEntryIdsForViewer.has(entryId);
 }
 
@@ -58,9 +67,10 @@ export function canSeeSection(
   revealedSectionIdsForViewer: ReadonlySet<string> = new Set(),
   sectionId?: string,
 ): boolean {
-  if (viewer?.isKeeper) return true;
+  if (!viewer) return false; // §89
+  if (viewer.isKeeper) return true;
   if (section.visibility === 'all') return true;
   if (section.visibility === 'keeper') return false;
-  if (!viewer || !sectionId) return false;
+  if (!sectionId) return false;
   return revealedSectionIdsForViewer.has(sectionId);
 }

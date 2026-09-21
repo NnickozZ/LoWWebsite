@@ -151,7 +151,7 @@ beforeAll(async () => {
     ['daan', 'Daan', 0],
   ] as const) {
     run(
-      `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper) VALUES (?, ?, ?, 'x', 'x', ?)`,
+      `INSERT INTO users (id, username, username_lower, password_hash, is_keeper) VALUES (?, ?, ?, 'x', ?)`,
       id,
       name,
       name.toLowerCase(),
@@ -428,18 +428,16 @@ describe('§82: wat de winkel nooit toont — gevraagd door wie niet mag', () =>
     expect(shop.rooms).toEqual([]);
     expect(shop.roomId).toBeNull();
     expect(shop.balance).toBe(0);
-    // A window you can look through without a door to go in by.
-    expect(shop.items.length).toBeGreaterThan(0);
-    expect(shop.items.every((row) => Object.keys(row.landsIn).length === 0)).toBe(true);
-    expect(shop.items.every((row) => row.affordable === false)).toBe(true);
-    expect(shop.items.every((row) => row.owned === false)).toBe(true);
+    // §89: and no window either — signed out, the shop shows nothing at all.
+    expect(shop.items).toEqual([]);
   });
 
   it('and still hides from a signed-out reader what it hides from a player', () => {
     const shop = kamers.shopFor(null);
     expect(ids(shop)).not.toContain('h-geheim');
     expect(ids(shop)).not.toContain('h-prep');
-    expect(ids(shop)).toContain('h-wiki');
+    // §89: not even what a player may see.
+    expect(ids(shop)).not.toContain('h-wiki');
     const printed = JSON.stringify(shop);
     expect(printed).not.toContain('Het glas fluistert terug.');
     expect(printed).not.toContain('zwarte-spiegel');
@@ -457,8 +455,9 @@ describe('§82: wat de winkel nooit toont — gevraagd door wie niet mag', () =>
 /* ========================================= C. wat niet te koop is, staat er niet */
 
 describe('§82: wat niet te koop is, staat niet in de winkel', () => {
+  // §89: signed-in readers only — a signed-out one is shown nothing (see above).
   const forEveryReader = (id: string, present: boolean) => {
-    for (const viewer of [BRAM, AAGJE, KEEPER, null]) {
+    for (const viewer of [BRAM, AAGJE, KEEPER]) {
       const listed = ids(kamers.shopFor(viewer, ROOM)).includes(id);
       expect(listed, `${id} voor ${viewer?.id ?? 'niemand'}`).toBe(present);
     }

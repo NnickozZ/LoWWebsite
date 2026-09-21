@@ -53,6 +53,10 @@ function prune() {
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'fatal';
 
+/** §89: one day's log file stops growing here (see `logEvent`). */
+const LOG_CEILING_BYTES = 50 * 1024 * 1024;
+const ceilingNoted = new Set<string>();
+
 /**
  * One event, one line of header plus an indented body. Written synchronously
  * and mirrored to the console, so `pm2 logs` and the file agree.
@@ -79,7 +83,23 @@ export function logEvent(level: LogLevel, event: string, detail?: unknown) {
 
   const text = line.join('\n') + '\n';
   try {
-    appendFileSync(join(logsDir(), `server-${today()}.log`), text);
+    const file = join(logsDir(), `server-${today()}.log`);
+    /*
+     * §89: a day's log has a ceiling. The disk this writes to is the disk the
+     * database lives on, and a loop — somebody else's script posting error
+     * reports, or our own bug logging in a circle — must not be able to fill
+     * it. Past the ceiling only `fatal` is still written, and the first line
+     * refused says so once.
+     */
+    const size = existsSync(file) ? statSync(file).size : 0;
+    if (size >= LOG_CEILING_BYTES && level !== 'fatal') {
+      if (!ceilingNoted.has(file)) {
+        ceilingNoted.add(file);
+        appendFileSync(file, `[${stamp()}] WARN log is full for today (${LOG_CEILING_BYTES} bytes); only FATAL from here on\n`);
+      }
+    } else {
+      appendFileSync(file, text);
+    }
   } catch {
     /* a full or read-only disk must not turn a logged error into a crash */
   }

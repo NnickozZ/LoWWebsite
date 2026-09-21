@@ -8,7 +8,7 @@ import { resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
-import { docToText, EMPTY_DOC, extractEntryLinks } from './doc';
+import { cleanDoc, docToText, EMPTY_DOC, extractEntryLinks } from './doc';
 import { checkFieldPatch, cleanFieldPatch, listBlockKeys, type StoredEntryRef } from './fieldValues';
 // §66: the pure half of the mirror — what should be written on the other page.
 import { mirrorPlan, refIdsOf } from '@/lib/families/mirror';
@@ -365,7 +365,8 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
   );
 
   const id = newId();
-  const body = input.body ?? EMPTY_DOC;
+  // §89: a document is cleaned where it comes in (`cleanDoc`).
+  const body = cleanDoc(input.body ?? EMPTY_DOC);
 
   // §38: an artikel is made with the soort's own infobox, or with none. The
   // same gate `updateEntry` puts on a save, so the first write cannot smuggle
@@ -966,6 +967,9 @@ export function updateEntry(
 ): SaveResult {
   const entry = db.select().from(schema.entries).where(eq(schema.entries.id, entryId)).get();
   if (!entry) throw new Error('Artikel niet gevonden');
+  // §89: the body is cleaned before anything reads it — the proposal a speler
+  // files, the revision, the links and the shared document all see the same.
+  if (patch.body !== undefined) patch = { ...patch, body: cleanDoc(patch.body) };
 
   // §18b: the onderzoeker this window is writing as — recorded on everything
   // this call leaves behind: the revision, the feed row, the audit line, and a
@@ -1231,24 +1235,6 @@ export function softDeleteEntry(entryId: string, by: ActedBy) {
   });
 }
 
-export function restoreEntry(entryId: string, by: ActedBy) {
-  const userId = actorId(by);
-  const characterId = actorCharacter(by);
-  db.update(schema.entries)
-    .set({ deletedAt: null, updatedBy: userId })
-    .where(eq(schema.entries.id, entryId))
-    .run();
-  reindexEntry(entryId);
-  logActivity({ actorId: userId, characterId, verb: 'entry.restored', entryId });
-  logAudit({
-    actorId: userId,
-    characterId,
-    action: 'entry.restored',
-    targetType: 'entry',
-    targetId: entryId,
-  });
-}
-
 export function restoreRevision(revisionId: string, user: Author) {
   const revision = db
     .select()
@@ -1260,6 +1246,16 @@ export function restoreRevision(revisionId: string, user: Author) {
   if (!viewerCanEdit('entry', revision.entryId, user)) {
     throw new Error('Je mag dit artikel niet bewerken.');
   }
+  /*
+   * §89: a version written while the artikel stood on the Keeperkant does not
+   * exist for anybody but a Keeper — not in the list, not under `?rev=`, and
+   * not here. Rule 65 kept its *words* off a player's screen; restoring it
+   * would have put every one of those words back on the artikel for the whole
+   * table to read. The same sentence a made-up id gets.
+   */
+  if (!user.isKeeper && isKeeperEpoch(revision.snapshot)) {
+    throw new Error('Versie niet gevonden');
+  }
 
   /*
    * §38 gates a *patch* to `entries.fields`; this is not one. Putting an old
@@ -1268,7 +1264,10 @@ export function restoreRevision(revisionId: string, user: Author) {
    * since retyped. A restore that quietly corrected the version it restored
    * would not be a restore.
    */
-  const snapshot = revision.snapshot as Record<string, unknown>;
+  // §89: an old version is cleaned on its way back like any other document.
+  const stored = revision.snapshot as Record<string, unknown>;
+  const snapshot: Record<string, unknown> =
+    stored.body !== undefined ? { ...stored, body: cleanDoc(stored.body) } : stored;
   // §66: what the infobox says *now*, read before it is overwritten, so the
   // kinship the restore undoes can be undone on the other pages too.
   const standing = db
@@ -1282,7 +1281,7 @@ export function restoreRevision(revisionId: string, user: Author) {
       name: snapshot.name as string,
       shortDescription: snapshot.shortDescription as string,
       body: snapshot.body,
-      bodyText: (snapshot.bodyText as string) ?? docToText(snapshot.body),
+      bodyText: docToText(snapshot.body),
       fields: (snapshot.fields as Record<string, unknown>) ?? {},
       tags: (snapshot.tags as string[]) ?? [],
       coverAssetId: (snapshot.coverAssetId as string | null) ?? null,
@@ -1364,6 +1363,27 @@ export function restoreRevision(revisionId: string, user: Author) {
  */
 export const REVISION_PAGE = 100;
 
+/** §89: was this snapshot taken while the artikel was the Keeper's alone? */
+function isKeeperEpoch(snapshot: unknown): boolean {
+  return Boolean(
+    snapshot && typeof snapshot === 'object' && (snapshot as { visibility?: unknown }).visibility === 'keeper',
+  );
+}
+
+/**
+ * §89: the same fact in SQL. `IS NOT` rather than `<>`, so a snapshot from
+ * before `visibility` was recorded (the key is absent, `json_extract` is NULL)
+ * still counts as the table's.
+ */
+const notKeeperEpoch = sql`json_extract(${schema.entryRevisions.snapshot}, '$.visibility') IS NOT 'keeper'`;
+
+/*
+ * §89: for anybody but a Keeper, a Keeper-epoch version is not in this list at
+ * all — no row, no id, no "Bekijken", nothing to hand `restoreRevision`. The
+ * history then describes the step *over* that stretch (row i against the next
+ * row the reader may see), and §65's `mayQuote` keeps the words of any step
+ * that touches a Keeper epoch out of it either way.
+ */
 export function listRevisions(entryId: string, keeper = false) {
   const snap = schema.entryRevisions.snapshot;
   return db
@@ -1399,7 +1419,11 @@ export function listRevisions(entryId: string, keeper = false) {
     })
     .from(schema.entryRevisions)
     .leftJoin(schema.users, eq(schema.users.id, schema.entryRevisions.editedBy))
-    .where(eq(schema.entryRevisions.entryId, entryId))
+    .where(
+      keeper
+        ? eq(schema.entryRevisions.entryId, entryId)
+        : and(eq(schema.entryRevisions.entryId, entryId), notKeeperEpoch),
+    )
     // §65: see `writeRevision` — whole seconds need a tiebreak, and insertion
     // order is the one the history reads by.
     .orderBy(desc(schema.entryRevisions.createdAt), sql`${schema.entryRevisions}.rowid DESC`)
@@ -1414,11 +1438,20 @@ export function listRevisions(entryId: string, keeper = false) {
     .all();
 }
 
-export function getRevision(revisionId: string) {
+/**
+ * One revision, as this reader may have it. §89: `keeper` false — the default,
+ * so a forgotten argument fails closed — and a Keeper-epoch version answers
+ * undefined, exactly like an id that never existed.
+ */
+export function getRevision(revisionId: string, keeper = false) {
   return db
     .select()
     .from(schema.entryRevisions)
-    .where(eq(schema.entryRevisions.id, revisionId))
+    .where(
+      keeper
+        ? eq(schema.entryRevisions.id, revisionId)
+        : and(eq(schema.entryRevisions.id, revisionId), notKeeperEpoch),
+    )
     .get();
 }
 

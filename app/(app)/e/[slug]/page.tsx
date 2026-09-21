@@ -14,7 +14,7 @@ import { caseIdsInFields } from '@/lib/entries/caseFields';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { activeCharacter, attributed, listCharacters, playersOf, windowPresenceName } from '@/lib/characters';
 import { roomIdFor, roomSummary } from '@/lib/kamers/service';
 import { canReview, listPendingEdits } from '@/lib/entries/review';
@@ -106,7 +106,7 @@ export default async function EntryPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ new?: string; rev?: string }>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { slug } = await params;
   const query = await searchParams;
 
@@ -397,7 +397,8 @@ export default async function EntryPage({
   const typeText = cleanTypeText(entry.typePageText);
   const openHistory = Boolean(query.rev);
 
-  const selectedRevision = query.rev ? getRevision(query.rev) : undefined;
+  // §89: a Keeper-epoch version is not there for a speler, not even by id.
+  const selectedRevision = query.rev ? getRevision(query.rev, isKeeper) : undefined;
   const selectedFacts =
     selectedRevision && selectedRevision.entryId === entry.id
       ? revisionFacts(selectedRevision.snapshot)

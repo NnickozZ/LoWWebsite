@@ -64,7 +64,10 @@ export const EntryLink = Node.create({
         'data-entry-slug': attrs.slug,
         'data-entry-icon': attrs.icon ?? '',
         'data-entry-colour': attrs.colour ?? '',
-        style: attrs.colour ? `--chip-colour:${attrs.colour}` : undefined,
+        // §89: the colour goes into a style attribute on every reader's screen,
+        // so only six hex digits are ever written there. The server cleans the
+        // stored document too (`cleanDoc`); this is the second lock.
+        style: attrs.colour && /^#[0-9a-fA-F]{6}$/.test(attrs.colour) ? `--chip-colour:${attrs.colour}` : undefined,
       }),
       attrs.label || 'entry',
     ];

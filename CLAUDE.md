@@ -163,7 +163,16 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5678][0-9]" app components lib` before
-  choosing a number — the latest is **§88 / rule 88** (round 49: de naam in de
+  choosing a number — the latest is **§89 / rule 89** (round 50: de sloten. Een
+  beveiligingsronde: geen wachtwoord is nog leesbaar — `password_enc` en
+  `PASSWORD_RECOVERY_KEY` zijn weg, migratie `0032_sloten` — een uitgelogde
+  lezer ziet **niets** (`null` is `0 = 1` in elke zichtbaarheidsregel), elke
+  pagina begint met `requireViewer()`, `middleware.ts` weigert wie geen
+  sessiecookie heeft en elke schrijf van een andere herkomst, en wat een speler
+  niet mag zien bestaat niet als versie, `@`-chip of terugzetknop. Zie
+  `docs/sloten.md` en `tests/unit/sloten.test.ts`; **een nieuwe pagina krijgt
+  `requireViewer()` op regel één en een nieuwe `'use server'`-export moet ergens
+  geïmporteerd worden, anders faalt die test.**) Daarvoor **§88 / rule 88** (round 49: de naam in de
   tab. De titel van de browsertab stond als letterlijke string in
   `app/layout.tsx` terwijl de naam van het archief sinds ronde 1 een
   *instelling* is die de mast, de kop op Start en de export allang lazen —
@@ -309,10 +318,14 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0031_eigen_naam_en_icoon` (§88: `site_settings.favicon_asset_id` erbij, plus
+  `0032_sloten` (§89: `users.password_enc` leeggemaakt en gedropt, en alle
+  sessies weg omdat ze voortaan met een HMAC worden opgeslagen — iedereen logt
+  één keer opnieuw in; `scripts/restore.mjs` slaat kolommen over die niet meer
+  bestaan, zodat een oude backup blijft openen), so **the next is `0033_`**.
+  Before it: `0031_eigen_naam_en_icoon` (§88: `site_settings.favicon_asset_id` erbij, plus
   een `UPDATE` die het archief hernoemt **alleen waar het nog 'Zeeland Case
   Files' heet** — een migratie die een naam overschrijft die iemand zelf koos,
-  gooit data weg), so **the next is `0032_`**. Before it:
+  gooit data weg). Before it:
   `0030_voorpagina_per_kant` (§87: de wiki krijgt een tweede thuispagina, voor
   de Keeperkant, leeg en met een vaste id — `is_home` mag vanaf nu twee keer
   voorkomen, één keer per kant). Before that:

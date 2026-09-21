@@ -144,7 +144,7 @@ beforeAll(async () => {
     ['aagje', 'Aagje', 0],
   ] as const) {
     run(
-      `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper) VALUES (?, ?, ?, 'x', 'x', ?)`,
+      `INSERT INTO users (id, username, username_lower, password_hash, is_keeper) VALUES (?, ?, ?, 'x', ?)`,
       id,
       name,
       name.toLowerCase(),
@@ -823,7 +823,9 @@ describe('§80: wat de kamer geeft, en wat hij nooit verraadt', () => {
   /** §44, and the owner is no more entitled than anybody else. */
   it('does the same for the far side of a tweeling, to the owner as well', () => {
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-prep', KEEPER);
-    for (const viewer of [AAGJE, BRAM, null]) {
+    // §89: signed out gets no kamer at all, let alone its effects.
+    expect(kamers.viewRoomBySlug('bram-kuiper', null)).toBeNull();
+    for (const viewer of [AAGJE, BRAM]) {
       const seen = view(viewer);
       expect(seen.effects).toEqual([]);
       const printed = JSON.stringify(seen);

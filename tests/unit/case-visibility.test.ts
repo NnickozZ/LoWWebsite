@@ -14,10 +14,11 @@ const grantFor = (id: string) => ({ userId: id, canView: true, canEdit: false })
  * case-shaped edge — a deleted case is a Keeper's alone.
  */
 describe('canSeeCase', () => {
-  it('everyone sees an open case, signed out included', () => {
+  // §89: everyone signed in; a signed-out reader sees no case at all.
+  it('everyone signed in sees an open case, and nobody signed out does', () => {
     const open = { createdBy: 'p1', viewMode: 'all' as const, editMode: 'all' as const };
     expect(canSeeCase(open, other)).toBe(true);
-    expect(canSeeCase(open, null)).toBe(true);
+    expect(canSeeCase(open, null)).toBe(false);
   });
 
   it('a confidential case is for the owner, the chosen, and the Keepers', () => {

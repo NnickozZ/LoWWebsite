@@ -76,7 +76,7 @@ beforeAll(async () => {
     ['aagje', 'Aagje', 0],
   ] as const) {
     sqlite
-      .prepare(`INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper) VALUES (?, ?, ?, 'x', 'x', ?)`)
+      .prepare(`INSERT INTO users (id, username, username_lower, password_hash, is_keeper) VALUES (?, ?, ?, 'x', ?)`)
       .run(id, name, name.toLowerCase(), keeper);
   }
   const para = (text: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });

@@ -4,7 +4,7 @@ import { Icon } from '@/components/Icon';
 import { NewTimelineButton } from '@/components/timelines/NewTimelineButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
 import { listTimelines } from '@/lib/timelines/service';
@@ -19,7 +19,7 @@ const SHOW = ['mine', 'restricted'] as const;
 
 /** §32: the shelf of tijdlijnen. Anyone makes one; the sort-and-filter bar is the prikborden's. */
 export default async function TimelinesPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
   const sort = readOne(query, 'sort', SORTS, 'recent') as (typeof SORTS)[number];

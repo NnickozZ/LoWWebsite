@@ -6,7 +6,7 @@ import { NewOfTypeButton } from '@/components/NewOfTypeButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { TypeTabs } from '@/components/TypeTabs';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { readListFilters, wikiFilterGroups, WIKI_SORTS } from '@/lib/entries/browseFilters';
 import {
   browseEntries,
@@ -27,7 +27,7 @@ export default async function BrowseTypePage({
   params: Promise<{ type: string }>;
   searchParams: Promise<ListParams>;
 }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { type: typeSlug } = await params;
   const query = await searchParams;
 

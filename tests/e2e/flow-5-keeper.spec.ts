@@ -3,12 +3,14 @@ import { editArticle, inviteCode, openRights, signIn } from './helpers';
 
 /**
  * Golden flow 5 (§15), both halves:
- *   a Keeper reveals a player's password in admin and the audit log shows it;
+ *   a Keeper gives a player a new password in admin — §89: nobody can *read*
+ *   one any more — the player's open session ends, the new one works, and the
+ *   audit log shows it;
  *   a Keeper reveals a hidden section on an entry and the player sees it on
  *   refresh — done from the phone viewport, which is where it happens at the
  *   table.
  */
-test('recovery: an audited password reveal, and a section revealed to a player', async ({
+test('recovery: an audited new password, and a section revealed to a player', async ({
   page,
   browser,
 }, testInfo) => {
@@ -27,18 +29,31 @@ test('recovery: an audited password reveal, and a section revealed to a player',
   await player.getByRole('button', { name: 'Account aanmaken' }).click();
   await player.waitForURL('**/');
 
-  // -- the Keeper reveals that password, and the log records it --------------
+  // -- the Keeper sets a new password; nothing can show the old one ----------
   await signIn(page, 'Keeper', 'abbeytower34');
   await page.goto('/admin');
   const row = page.locator('li', { hasText: playerName }).first();
-  await row.getByRole('button', { name: 'Wachtwoord tonen' }).click();
-  await expect(page.getByText('duikerklok')).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Wachtwoord tonen' })).toHaveCount(0);
+  await row.getByRole('button', { name: 'Nieuw wachtwoord instellen' }).click();
+  await row.getByPlaceholder(/Nieuw wachtwoord/).fill('zoutwater12');
+  await row.getByRole('button', { name: 'Instellen', exact: true }).click();
+  await expect(row.getByText('Nieuw wachtwoord ingesteld.')).toBeVisible();
 
-  // The log was rendered before the reveal happened, so ask for it again.
+  // §89: the player's open session is gone, the old password no longer works,
+  // and the new one does.
+  await player.goto('/');
+  await player.waitForURL('**/login');
+  await player.getByLabel('Naam', { exact: true }).fill(playerName);
+  await player.getByLabel('Wachtwoord').fill('duikerklok');
+  await player.getByRole('button', { name: 'Inloggen' }).click();
+  await expect(player.getByText('Naam of wachtwoord klopt niet.')).toBeVisible();
+  await signIn(player, playerName, 'zoutwater12');
+
+  // The log was rendered before the change happened, so ask for it again.
   await page.reload();
   await page.getByRole('tab', { name: 'Logboek' }).click();
   await expect(
-    page.locator('li', { hasText: 'wachtwoord getoond' }).filter({ hasText: playerName }).first(),
+    page.locator('li', { hasText: 'nieuw wachtwoord ingesteld' }).filter({ hasText: playerName }).first(),
   ).toBeVisible();
 
   // -- an entry with a section the player may not see -----------------------

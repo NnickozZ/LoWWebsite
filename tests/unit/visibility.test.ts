@@ -5,9 +5,10 @@ const player = { id: 'u_player', isKeeper: false };
 const keeper = { id: 'u_keeper', isKeeper: true };
 
 describe('canSeeEntry', () => {
-  it('shows public entries to everyone', () => {
+  // §89: to everyone signed in — and to nobody who is not.
+  it('shows public entries to everyone signed in, and to nobody signed out', () => {
     expect(canSeeEntry({ visibility: 'all' }, player)).toBe(true);
-    expect(canSeeEntry({ visibility: 'all' }, null)).toBe(true);
+    expect(canSeeEntry({ visibility: 'all' }, null)).toBe(false);
   });
 
   it('never shows keeper-only entries to a player', () => {

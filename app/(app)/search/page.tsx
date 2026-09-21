@@ -1,5 +1,6 @@
 import { SearchScreen } from '@/components/SearchScreen';
 import { LivePage } from '@/components/live/LivePage';
+import { requireViewer } from '@/lib/auth/session';
 import { listEntryTypes } from '@/lib/entries/service';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,8 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<{ q?: string; type?: string }>;
 }) {
+  // §89: every page is its own gate — see `requireViewer`.
+  await requireViewer();
   const { q, type } = await searchParams;
   const types = listEntryTypes().map((item) => ({
     slug: item.slug,

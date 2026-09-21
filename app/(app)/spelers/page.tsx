@@ -5,7 +5,7 @@ import { MEANING } from '@/components/kamer/plekWords';
 import { HalOnline } from '@/components/spelers/HalOnline';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { charactersWorn } from '@/lib/characters';
 import { listSpelers } from '@/lib/spelers/service';
 import { capitalise } from '@/lib/words';
@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic';
  * is: who is here now. This one answers who there is at all, online or not.
  */
 export default async function SpelersPage() {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const words = getWords();
   const spelers = listSpelers();
   const worn = charactersWorn(spelers.map((speler) => speler.id));

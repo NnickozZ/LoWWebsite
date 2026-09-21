@@ -8,7 +8,7 @@ import { sideOf } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import {
   getBoard,
   listBoards,
@@ -30,7 +30,7 @@ import { getInk } from '@/lib/ink/service';
 export const dynamic = 'force-dynamic';
 
 export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const { id } = await params;
 
   const board = getBoard(id, user);

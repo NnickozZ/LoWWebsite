@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+// §89: one vetting of `to=` for both roads, backslash included.
+import { safeReturnPath } from '@/lib/auth/paths';
 import { getSessionUser, SIDE_COOKIE } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
@@ -35,13 +37,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const side = url.searchParams.get('side');
   // §50: `gewisseld=1` rides along to the destination so the page that landed
-  // us here can say so in a toast. It is added to a path `safePath` has already
+  // us here can say so in a toast. It is added to a path `safeReturnPath` has already
   // vetted, never taken from `to` itself, so it cannot widen the redirect.
   // §57: and `zondertweeling=1` beside it, when the toggle sent us to a list
   // because the page had no other face. Both are flags, not addresses: they
   // are read as booleans here and written out again by hand.
   const back = withSwitched(
-    safePath(url.searchParams.get('to')),
+    safeReturnPath(url.searchParams.get('to')),
     url.searchParams.get('gewisseld') === '1',
     url.searchParams.get('zondertweeling') === '1',
   );
@@ -59,11 +61,6 @@ async function write(response: NextResponse, side: unknown) {
   }
 }
 
-/** Only ever back into this archive: one leading slash, and no scheme sneaking in. */
-function safePath(value: string | null): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
-  return value;
-}
 
 /**
  * §50/§57: hang `gewisseld=1` — and, when there was no tweeling to go to,

@@ -5,14 +5,14 @@ import { redirect } from 'next/navigation';
 import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import {
-  encryptPassword,
+  decoyPasswordHash,
   hashPassword,
   passwordProblem,
   verifyPassword,
   constantTimeEqual,
 } from '@/lib/auth/password.mjs';
-import { clearRateLimit, clientIp, rateLimit } from '@/lib/auth/ratelimit';
-import { createSession } from '@/lib/auth/session';
+import { clearRateLimit, clientIp, isLimited, rateLimit, type RateLimitResult } from '@/lib/auth/ratelimit';
+import { createSession, destroyCurrentSession } from '@/lib/auth/session';
 import { usernameKey, usernameProblem } from '@/lib/auth/username.mjs';
 import { newId } from '@/lib/ids';
 import { logAudit } from '@/lib/entries/service';
@@ -36,13 +36,42 @@ export type AuthState = {
   seq?: number;
 };
 
+/*
+ * §89: the front door's three buckets.
+ *
+ *   per address   only when `TRUST_PROXY` says the address is real (see
+ *                 `clientIp`); otherwise every request would share one key and
+ *                 ten wrong guesses by anyone would lock the whole table out.
+ *   per name      login only: a guesser who changes address every try still
+ *                 runs into the account they are guessing at.
+ *   site-wide     a brake, counted on *failures* only, so forty people signing
+ *                 in at the start of an evening never trip it.
+ *
+ * Failures are counted; a success clears the address and the name. The check
+ * comes before any database work, so a refused request costs nothing.
+ */
+const NAME_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
+const LOGIN_BRAKE = { max: 300, windowMs: 15 * 60 * 1000 };
+const SIGNUP_BRAKE = { max: 60, windowMs: 60 * 60 * 1000 };
+
+function tooMany(limit: RateLimitResult): AuthState | null {
+  if (limit.ok) return null;
+  const minutes = Math.ceil(limit.retryAfterSeconds / 60);
+  return { error: `Te veel pogingen. Probeer het over ${minutes} ${minutes === 1 ? 'minuut' : 'minuten'} opnieuw.` };
+}
+
 export async function signupAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const ip = clientIp(await headers());
-  const limit = rateLimit(`signup:${ip}`);
-  if (!limit.ok) {
-    const minutes = Math.ceil(limit.retryAfterSeconds / 60);
-    return { error: `Te veel pogingen. Probeer het over ${minutes} ${minutes === 1 ? 'minuut' : 'minuten'} opnieuw.` };
-  }
+  const ipKey = ip === 'direct' ? null : `signup:${ip}`;
+  const refused = tooMany(isLimited('signup:all', SIGNUP_BRAKE)) ?? (ipKey ? tooMany(isLimited(ipKey)) : null);
+  if (refused) return refused;
+  // Every attempt at the door counts until it succeeds; a wrong code is the
+  // attempt worth slowing down.
+  const fail = (state: AuthState): AuthState => {
+    rateLimit('signup:all', SIGNUP_BRAKE);
+    if (ipKey) rateLimit(ipKey);
+    return state;
+  };
 
   const code = String(formData.get('code') ?? '').trim();
   const username = String(formData.get('username') ?? '');
@@ -52,8 +81,20 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
   if (!settings) return { error: 'Het archief is nog niet ingericht. Voer `make bootstrap` uit.' };
 
+  /*
+   * §89: the first account is no longer whoever gets here first. It used to be
+   * made a Keeper by signing up into an empty archive — which on a fresh
+   * deploy is a race anybody with the address can win. `make bootstrap` makes
+   * the first Keeper from the server's own terminal, and until it has, the
+   * front door is shut.
+   */
+  const accounts = db.select({ n: sql<number>`count(*)` }).from(schema.users).get();
+  if ((accounts?.n ?? 0) === 0) {
+    return { error: 'Het archief is nog niet ingericht. Voer `make bootstrap` uit.' };
+  }
+
   if (!constantTimeEqual(code.toUpperCase(), settings.inviteCode.toUpperCase())) {
-    return { error: 'Die uitnodigingscode klopt niet.', field: 'code' };
+    return fail({ error: 'Die uitnodigingscode klopt niet.', field: 'code' });
   }
 
   const nameProblem = usernameProblem(username);
@@ -73,12 +114,6 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
     .get();
   if (taken) return { error: 'Die naam is al in gebruik.', field: 'username' };
 
-  const count = db
-    .select({ n: sql<number>`count(*)` })
-    .from(schema.users)
-    .get();
-  const isFirst = (count?.n ?? 0) === 0;
-
   const id = newId();
   db.insert(schema.users)
     .values({
@@ -86,41 +121,66 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
       username: username.trim(),
       usernameLower: key,
       passwordHash: await hashPassword(password),
-      passwordEnc: encryptPassword(password),
-      isKeeper: isFirst,
+      // §89: a new account is a speler. Only a Keeper (Beheer) or
+      // `make bootstrap` makes a Keeper.
+      isKeeper: false,
     })
     .run();
 
   logAudit({ actorId: id, action: 'user.signup', targetType: 'user', targetId: id });
-  clearRateLimit(`signup:${ip}`);
+  if (ipKey) clearRateLimit(ipKey);
+  await destroyCurrentSession();
   await createSession(id);
   redirect('/');
 }
 
 export async function loginAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const ip = clientIp(await headers());
-  const limit = rateLimit(`login:${ip}`);
-  if (!limit.ok) {
-    const minutes = Math.ceil(limit.retryAfterSeconds / 60);
-    return { error: `Te veel pogingen. Probeer het over ${minutes} ${minutes === 1 ? 'minuut' : 'minuten'} opnieuw.` };
-  }
-
   const username = String(formData.get('username') ?? '');
   const password = String(formData.get('password') ?? '');
+  const nameKey = `login:name:${usernameKey(username)}`;
+  const ipKey = ip === 'direct' ? null : `login:ip:${ip}`;
+
+  const refused =
+    tooMany(isLimited('login:all', LOGIN_BRAKE)) ??
+    tooMany(isLimited(nameKey, NAME_LIMIT)) ??
+    (ipKey ? tooMany(isLimited(ipKey)) : null);
+  if (refused) return refused;
 
   const user = db
-    .select()
+    .select({
+      id: schema.users.id,
+      passwordHash: schema.users.passwordHash,
+      isDisabled: schema.users.isDisabled,
+    })
     .from(schema.users)
     .where(eq(schema.users.usernameLower, usernameKey(username)))
     .get();
 
-  // Same message either way, and on *neither* box — naming one would be the
-  // account enumeration the single sentence exists to avoid.
-  const wrong: AuthState = { error: 'Naam of wachtwoord klopt niet.' };
-  if (!user || user.isDisabled) return wrong;
-  if (!(await verifyPassword(user.passwordHash, password))) return wrong;
+  /*
+   * Same message either way, and on *neither* box — naming one would be the
+   * account enumeration the single sentence exists to avoid.
+   *
+   * §89: and the same *time* either way. An unknown name used to answer before
+   * argon2 ran, a known one after — tens of milliseconds apart, which is a
+   * name list for anybody with a stopwatch. An unknown or switched-off name is
+   * now verified against a decoy hash, so both roads cost the same.
+   */
+  const ok = user && !user.isDisabled
+    ? await verifyPassword(user.passwordHash, password)
+    : (await verifyPassword(await decoyPasswordHash(), password), false);
 
-  clearRateLimit(`login:${ip}`);
+  if (!ok || !user) {
+    rateLimit('login:all', LOGIN_BRAKE);
+    rateLimit(nameKey, NAME_LIMIT);
+    if (ipKey) rateLimit(ipKey);
+    return { error: 'Naam of wachtwoord klopt niet.' };
+  }
+
+  clearRateLimit(nameKey);
+  if (ipKey) clearRateLimit(ipKey);
+  // A browser that signs in while it still holds a session leaves no row behind.
+  await destroyCurrentSession();
   await createSession(user.id);
   redirect('/');
 }

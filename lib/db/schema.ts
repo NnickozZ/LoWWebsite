@@ -66,8 +66,6 @@ export const users = sqliteTable(
     username: text('username').notNull(),
     usernameLower: text('username_lower').notNull(),
     passwordHash: text('password_hash').notNull(),
-    /** AES-256-GCM of the plaintext, for Keeper recovery only. Never used to log in. */
-    passwordEnc: text('password_enc').notNull(),
     isKeeper: integer('is_keeper', { mode: 'boolean' }).notNull().default(false),
     isDisabled: integer('is_disabled', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull().default(now),

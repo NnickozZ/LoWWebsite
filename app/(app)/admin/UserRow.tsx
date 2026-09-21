@@ -29,8 +29,6 @@ type UserLite = {
   characters?: CharacterLite[];
 };
 
-const REVEAL_SECONDS = 30;
-
 /**
  * §18c: the Keeper's casting bench, one account at a time.
  *
@@ -155,34 +153,18 @@ function AssignedCharacters({ user }: { user: UserLite }) {
 }
 
 export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
-  const [revealed, setRevealed] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState(0);
-  const [revealError, setRevealError] = useState<string | null>(null);
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [passwordState, setPassword] = useActionState<AdminState, FormData>(setPasswordAction, {});
-
-  useEffect(() => {
-    if (!revealed) return;
-    setCountdown(REVEAL_SECONDS);
-    const tick = setInterval(() => setCountdown((n) => n - 1), 1000);
-    const hide = setTimeout(() => setRevealed(null), REVEAL_SECONDS * 1000);
-    return () => {
-      clearInterval(tick);
-      clearTimeout(hide);
-    };
-  }, [revealed]);
-
-  async function reveal() {
-    setRevealError(null);
-    const response = await fetch('/api/admin/reveal', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userId: user.id }),
-    });
-    const data = await response.json();
-    if (data.password) setRevealed(data.password);
-    else setRevealError(data.error ?? 'Dat wachtwoord kon niet worden gelezen.');
-  }
+  /*
+   * §89: Keepers are equals. Nobody sets another Keeper's password or switches
+   * them off — the server refuses it (`admin/actions.ts`), and this only stops
+   * offering a button that would be refused. To take over a lost Keeper
+   * account, demote it first (an audited act of its own), then reset it.
+   *
+   * There is no "Wachtwoord tonen" any more: a password is stored only as an
+   * argon2id hash and cannot be read by anybody (§89, rule 4).
+   */
+  const otherKeeper = user.isKeeper && !isSelf;
 
   return (
     <li
@@ -207,24 +189,22 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
       </div>
 
       <div className="row-wrap" style={{ marginTop: '0.4rem' }}>
-        <button type="button" className="btn btn-small" onClick={reveal}>
-          <Icon name="eye" size={14} />
-          Wachtwoord tonen
-        </button>
-        <button
-          type="button"
-          className="btn btn-small btn-ghost"
-          onClick={() => setShowSetPassword((v) => !v)}
-        >
-          Nieuw wachtwoord instellen
-        </button>
+        {!otherKeeper && (
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            onClick={() => setShowSetPassword((v) => !v)}
+          >
+            Nieuw wachtwoord instellen
+          </button>
+        )}
         <form action={toggleKeeperAction}>
           <input type="hidden" name="userId" value={user.id} />
           <button type="submit" className="btn btn-small btn-ghost">
             {user.isKeeper ? 'Als Keeper afzetten' : 'Tot Keeper maken'}
           </button>
         </form>
-        {!isSelf && (
+        {!isSelf && !otherKeeper && (
           <form action={toggleDisabledAction}>
             <input type="hidden" name="userId" value={user.id} />
             <button type="submit" className="btn btn-small btn-ghost">
@@ -238,23 +218,7 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
           this is where they do it. */}
       <AssignedCharacters user={user} />
 
-      {revealed && (
-        <p
-          className="row"
-          style={{
-            marginTop: '0.5rem',
-            background: 'var(--paper-dark)',
-            border: '1px solid var(--rule)',
-            padding: '0.4rem 0.6rem',
-          }}
-        >
-          <code style={{ fontSize: '1.05rem', flex: 1 }}>{revealed}</code>
-          <span className="tiny muted">verdwijnt over {Math.max(0, countdown)}s</span>
-        </p>
-      )}
-      {revealError && <p className="error-note small">{revealError}</p>}
-
-      {showSetPassword && (
+      {showSetPassword && !otherKeeper && (
         <form action={setPassword} className="row" style={{ marginTop: '0.5rem', maxWidth: 420 }}>
           <input type="hidden" name="userId" value={user.id} />
           <input

@@ -10,13 +10,29 @@
  * `.env` is read by Next itself at startup, so nothing is repeated here except
  * NODE_ENV, which `next start` requires.
  */
+/**
+ * §89: HOST from `.env` (127.0.0.1 behind nginx), read by hand because pm2
+ * starts Next directly and Next reads `.env` only after it has bound its port.
+ */
+function envValue(key, fallback) {
+  if (process.env[key]) return process.env[key];
+  try {
+    const text = require('node:fs').readFileSync(require('node:path').join(__dirname, '.env'), 'utf8');
+    const line = text.split(/\r?\n/).find((l) => l.trim().startsWith(`${key}=`));
+    const value = line ? line.slice(line.indexOf('=') + 1).trim().replace(/^['"]|['"]$/g, '') : '';
+    return value || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 module.exports = {
   apps: [
     {
       name: 'landoverwater',
       cwd: __dirname,
       script: 'node_modules/next/dist/bin/next',
-      args: 'start -H 0.0.0.0 -p 3000',
+      args: `start -H ${envValue('HOST', '0.0.0.0')} -p ${envValue('PORT', '3000')}`,
       env: { NODE_ENV: 'production' },
       // The built app idles around 150–200 MB. This is a safety net for a leak,
       // not a budget; if it ever trips, `pm2 logs landoverwater` says why.

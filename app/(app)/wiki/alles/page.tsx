@@ -4,7 +4,7 @@ import { NewOfTypeButton } from '@/components/NewOfTypeButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { TypeTabs } from '@/components/TypeTabs';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import {
   browseEntries,
   countEntriesPerType,
@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
  * opgeslagen werken nog precies zo.
  */
 export default async function WikiAllesPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
 

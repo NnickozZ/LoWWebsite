@@ -51,7 +51,7 @@ loadEnv();
 
 const { openDb, dataDir, assetsDir } = await import('../lib/db/open.mjs');
 const { seedBaseline } = await import('../lib/db/seed.mjs');
-const { hashPassword, encryptPassword } = await import('../lib/auth/password.mjs');
+const { hashPassword } = await import('../lib/auth/password.mjs');
 const { usernameKey } = await import('../lib/auth/username.mjs');
 const DATA = await import('./seed-wereld.data.mjs');
 
@@ -322,9 +322,9 @@ for (const [naam] of SPELERS) {
   }
   const id = newId();
   db.prepare(
-    `INSERT INTO users (id, username, username_lower, password_hash, password_enc, is_keeper)
-     VALUES (?, ?, ?, ?, ?, 0)`,
-  ).run(id, naam, key, await hashPassword(WACHTWOORD), encryptPassword(WACHTWOORD));
+    `INSERT INTO users (id, username, username_lower, password_hash, is_keeper)
+     VALUES (?, ?, ?, ?, 0)`,
+  ).run(id, naam, key, await hashPassword(WACHTWOORD));
   users.push({ id, username: naam, nieuw: true });
   manifest.users.push(id);
 }

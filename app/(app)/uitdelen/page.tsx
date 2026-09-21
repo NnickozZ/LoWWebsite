@@ -6,7 +6,7 @@ import { Uitdeler } from '@/components/kamer/Uitdeler';
 import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { handOutTargets } from '@/lib/kamers/service';
 import { fill } from '@/lib/words';
 
@@ -35,7 +35,7 @@ export const dynamic = 'force-dynamic';
  * lijst uit kamers bestaat en niet uit spelers.
  */
 export default async function UitdelenPage() {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   if (!user?.isKeeper) notFound();
 
   const words = getWords();

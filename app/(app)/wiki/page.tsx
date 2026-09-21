@@ -4,7 +4,7 @@ import { NewOverzichtButton } from '@/components/overzichten/NewOverzichtButton'
 import { OverzichtView } from '@/components/overzichten/OverzichtView';
 import { TypeTabs } from '@/components/TypeTabs';
 import { getWords } from '@/lib/admin/words';
-import { getSessionUser } from '@/lib/auth/session';
+import { requireViewer } from '@/lib/auth/session';
 import { countEntriesPerType, listEntryTypes } from '@/lib/entries/service';
 import { defaultIntro } from '@/lib/intro';
 import { newOverzichtSide } from '@/lib/overzichten/service';
@@ -33,7 +33,7 @@ export const dynamic = 'force-dynamic';
  *     verklappen valt: de lijst is wat er stond voordat deze ronde bestond.
  */
 export default async function WikiPage({ searchParams }: { searchParams: Promise<ListParams> }) {
-  const user = await getSessionUser();
+  const user = await requireViewer();
   const query = await searchParams;
   const words = getWords();
 
