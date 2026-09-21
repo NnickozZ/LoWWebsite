@@ -155,7 +155,8 @@ export async function editCase(page: Page) {
 }
 
 /**
- * §22: the image tools live behind one "Afbeelding" button now. Opens that
+ * §22: the image tools live behind one "Omslag" button now (§90; it said
+ * "Afbeelding" until round 51). Opens that
  * menu and picks one of them. With no picture yet there is no menu — the one
  * thing to do is a button of its own — so this is only for an artikel that
  * already has a cover.

@@ -11,7 +11,9 @@ import type { Words } from '@/lib/words';
 export function defaultIntro(words: Words): string {
   return [
     `Welkom in het archief. Alles wat het gezelschap tegenkomt krijgt hier een plek: ${words.entryPlural} over personen, plekken, voorwerpen en aanwijzingen; ${words.casePlural} per zaak; ${words.boardPlural} om verbanden te leggen; en ${words.mapPlural} om alles een plaats te geven.`,
-    `Begin bij een open ${words.case}, blader door de wiki, of druk op n voor een nieuw ${words.entry}.`,
+    // §90: no "druk op n" — a phone has no n. The `+` is on every screen: the
+    // button in the side menu and the round one above the tab bar.
+    `Begin bij een open ${words.case}, blader door de wiki, of maak met de + een nieuw ${words.entry}.`,
   ].join('\n\n');
 }
 

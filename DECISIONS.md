@@ -5553,3 +5553,283 @@ telt. Achter nginx met `TRUST_PROXY=1` komt het adres er weer bij, en dan het
 - *De naam op een caret komt van de browser.* Een speler kan zijn caret
   "Keeper" noemen. Imitatie, geen lek (het wordt als tekst getekend); een
   server-gezaghebbende naam is een ronde van de live-laag, niet van deze.
+
+---
+
+## Ronde 51 (§90) — de deuren: kleine reparaties, en welke eerdere keuzes ze invullen
+
+Nick schreef na ronde 50: *"Je moet te veel knopjes klikken"*, en vroeg om een
+UI/UX-review van de hele site, voor desktop en telefoon
+(`claude/review-ui-ux-de-wrijving.md`, 21 september 2026). Die review stelde
+zes bouwrondes voor. **Nick besliste op dezelfde dag:**
+
+- **Rondes 51 en 52 nu.** 51 is *De deuren*: kleine reparaties en echte bugs,
+  elk onder het uur, geen herontwerp. 52 is *Jouw plek*.
+- **Op de telefoon alleen het Jij-blad.** De acht tabs blijven zoals ze zijn.
+  Er komt geen "Kaarten"-tab, dus §32/§66 wordt nu niet omgekeerd.
+- **Eén wie-regel: ja** (review S6). "Je speelt als" en "Je schrijft als"
+  worden in ronde 52 één regel.
+- **De lade met een Keeper-slot en "koop ongedaan maken": ja, maar pas in
+  ronde 54.** Tot dan blijft review E1 open: de plek-kiezer biedt onder *Wat je
+  al hebt* nog steeds huisraad aan dat niemand kocht.
+- **De welkomsttekst op Start blijft**, met in ronde 52 een Jij-rij erboven.
+  De review stelde voor om het welkom na het eerste bezoek in te klappen; dat
+  gebeurt niet.
+
+Deze ronde keert geen besluit uit dit bestand om. Ze vult er wel een handvol
+in, en die staan hieronder met hun reden.
+
+### De schrijfvraag komt nooit in Lezen (O12, en §18b's kruisje)
+
+§18b stelt de vraag "met wie ben je nu aan het schrijven?" bij de eerste poging
+om te *typen*. Op de vier tekenvlakken lag de poort om het hele glas, dus één
+tik in Lezen (§73) vroeg het ook al: pannen, *Legenda*, *Alles in beeld*. Een
+telefoon begint altijd in Lezen, dus daar was de eerste aanraking altijd de
+vraag. De canvas-bijlage van de review legde het voor als open vraag O12, en
+het antwoord is nee: **de vraag komt nooit in Lezen**. Een tekenvlak vraagt
+alleen als het schrijft (Bewerken, of het potlood in de hand). In Lezen vraagt
+alleen een vak waarin je echt typt, en de camera, de schakelaar en de legenda
+vragen nooit iets. §18b zelf verandert niet: de vraag blijft per venster en
+blijft blokkerend.
+
+**Het kruisje op die vraag verdwijnt. Het wordt niet "annuleren".** Het deed
+niets (`onClose` was een lege functie), en een knop die niets doet is de
+slechtste knop die er is. De review noemde twee uitwegen. "Annuleren" is de
+slechtste van de twee: op een bewerkvlak wacht er achter de vraag niets om te
+annuleren, en het vlak vraagt bij de volgende aanraking meteen opnieuw. Het
+kruisje zou dus heropenen wat het net sloot. Escape en de achtergrond blijven
+de vraag weigeren, zoals §18b wil ("geen uitweg behalve een antwoord"), en
+`characters.spec.ts` houdt dat op allebei de wegen vast. Wat er wél bij kwam:
+de vraag stelt het karakter voor dat het account al draagt, met een knop
+*Verder als …*. Die knop krijgt bewust geen `autoFocus`, want de vraag komt
+vaak op een toetsaanslag, en de volgende spatie zou hem dan ongezien indrukken.
+Als er niets achter de vraag wachtte, gaat na het antwoord de focus terug naar
+waar de vraag vandaan kwam.
+
+### Twee restanten van ronde 37 beslist, één niet (O2, O7, O1)
+
+- **O2: *Ongedaan maken* is in Lezen overal zichtbaar en grijs.** Tot nu toe
+  was hij grijs op het prikbord en de landkaart, nog indrukbaar op de tijdlijn
+  en helemaal weg op de stamboom. Grijs is het antwoord dat het minst
+  verspringt als je van stand wisselt.
+- **O7: bij één venster in de peek is er één kruisje.** Het venster zelf en de
+  knop "alles dichtvouwen" laten hun kruisje weg zolang er één venster open
+  is, want dan doen ze hetzelfde als het kruisje van de peek.
+- **O1 blijft open:** een nieuw tekenvlak opent op een telefoon nog in Lezen.
+  De review adviseert Bewerken, zoals een artikel op `?new=1`, maar dat is
+  Nicks keuze en die is nog niet gemaakt.
+
+### De FAB wijkt op elk tekenvlak (breidt §74 en K35 uit)
+
+K35 liet de FAB wijken op `/uitdelen` en boven een open blad. §74 liet hem
+wijken voor een peek. Nu wijkt hij op elk tekenvlak en voor elk gedokt paneel:
+de pagina's op de §34-schil, het prikbord (dat daar nog niet op staat), een
+vlak in een dossier, de inspector van het prikbord en de kiezer van de
+stamboom. Een tekenvlak heeft zijn eigen `+` (*Speld zetten*, *Gebeurtenis
+toevoegen*, *Nieuwe notitie*, *Los kaartje*). De FAB was daar een tweede
+maakknop, die in Lezen midden over het glas lag en over wat er gedokt werd.
+De `n` blijft werken. De regel is één blok `body:has(…) .fab` in
+`app/globals.css`, op elke breedte.
+
+### E3 vult §86 in, en er is geen soortvraag om te lenen
+
+§86 bedoelde "een onderzoeker die niemand draagt", maar de knop stond op élk
+artikel zonder kamer. De review vond een Persoon met een kamer, per ongeluk
+gemaakt, en een kamer gaat niet meer dicht. De bouwopdracht was: dezelfde vraag
+die *Dit is mijn karakter* stelt. **Die vraag bestaat niet.** `addCharacter`
+kijkt niet naar de soort: een speler kan elk artikel dat hij ziet als eerste
+karakter aandoen, en de e2e-helpers doen dat met een Persoon. Daarom is
+`mayHoldRoom` de eerlijkste vraag die de data wél kan beantwoorden: **de soort
+`investigator`, of een soort waarvan aan deze tafel al iemand een artikel
+draagt, en nooit een soort die `keeper_made` is.** Het gevolg is
+bewust: aan een tafel waar iemand een Persoon speelt, kan de Keeper een andere
+Persoon een kamer geven. De echte oplossing is een vlag "draagbare soort" op
+`entry_types`, en die raakt ook §18b's `CHARACTER_TYPE_SLUG`. Dat is een
+migratie en dus een eigen ronde.
+
+### Harde woorden in de plek-kiezer: de uitzondering van §80 vervalt
+
+§80 hield *Wat je al hebt*, *Niets dat hier past.*, *Even kijken…* en
+*Zoeken…* bewust buiten `lib/words.ts`, omdat ze een vraag noemen en geen ding
+in het archief. K7 zegt dat elk zichtbaar woord een sleutel is, en E15 van de
+review telde ze mee. Ze zijn nu sleutels (`pickHave`, `pickNothing`,
+`pickLoading`, `pickSearchHint`), met het voorgelezen label van het zoekvak
+erbij (`pickSearch`). De lijst `ALLOWED` in `tests/unit/kamer-contract.test.ts`
+is leeg: wie er iets bij zet, schrijft erbij waarom.
+
+### Kleinere keuzes
+
+- **`/winkel` zonder `?kamer=` koopt voor het karakter dat je speelt**
+  (`purseOf`), niet voor `rooms[0]`. Pas als er geen actief karakter is, valt
+  hij terug op de eerste kamer. Eén winkelknop per kamerpagina (E12), en
+  alleen in je eigen kamer.
+- **Een tag-chip gaat naar de lijst van zijn eigen soort**, niet naar
+  `/wiki/alles`. De vraag die een tag beantwoordt is "wie zit er nog meer in de
+  haven?", en die gaat over dezelfde soort. Zonder soort wordt het de hele
+  wiki. De gekozen tag staat altijd als chip in de filterbalk, ook als hij niet
+  bij de veertien meest gebruikte hoort.
+- **Een gedeelde link overleeft het inloggen** (`?next=`). Er is geen nieuwe
+  controle bijgekomen: `safeReturnPath` is sinds §89 het enige antwoord op
+  "mogen we de browser daarheen sturen?". De middleware draagt het adres alleen
+  mee, en de loginpagina en `loginAction` beslissen.
+- **De loginkaart zegt de naam van het archief** (`siteIdentity()`, zonder
+  sessie, zoals §88 het voor de tab besliste). Het stond er nog
+  als *Zeeland · 1934 / Case Files*.
+- **S20: na een routewissel gaat de focus niet naar de `h1`.** Next kondigt
+  de titel al aan, en een tweede aankondiging is ruis. Er kwam wel een
+  skip-link *Naar de inhoud*. `<main>` krijgt geen `tabIndex`: dan zou elke
+  klik op kale pagina de focus op `<main>` zetten, en de helft van de app leest
+  "focus op `<body>`" als "niemand typt".
+- **Beheer: Gebruikers, Beoordelen en Prullenbak staan vooraan**
+  (`lib/adminTabOrder.ts`). Op een telefoon begon de prullenbak op x 696 van
+  390, achter een veeg die niemand kende. De gekozen tab komt in het adres via
+  `history.replaceState` en niet via `router.replace`. Dat laatste zou bij elke
+  tik de hele Beheer-pagina, met alle tien panelen, opnieuw op de server
+  laten renderen, terwijl ze al op de pagina staan.
+- ***Tot Keeper maken* vraagt eerst.** Dit keert §69 niet om: dat weghalen
+  niet vraagt, geldt voor dingen die een melding met *Ongedaan maken* kunnen
+  terugzetten. Wie Keeper wordt, ziet meteen de Keeperkant, en geen melding
+  neemt terug wat iemand al gelezen heeft. De rol *afnemen* verbergt weer, en
+  blijft dus één druk.
+- **`.btn-small` blijft 34 px buiten de feature-pagina's.** Dat blijft Nicks
+  keuze (§69 6.1, kamer-contract *Wat open staat*). Deze ronde tilde er één
+  knop uit: *Lezen/Bewerken* op een artikel (`.entry-mode-toggle`), de knop die
+  in het hele archief het meest gebruikt wordt.
+- **Het kruisje op een gevulde tegel is ook op desktop zichtbaar, gedempt**
+  (E9, K21). De review had dit bij ronde 54 gezet. Het was één CSS-blok en het
+  stond naast de rest van de kamer, dus het is nu gedaan. *Verplaatsen* (E10)
+  blijft voor ronde 54.
+- **"Wat deze kamer je geeft" is op een telefoon ingeklapt**, met een telling
+  erachter die alleen daar zichtbaar is. Elke tegel draagt de eerste
+  effectregel van zijn ding. §85 zette het blok bóven het raster; op een breed
+  scherm blijft dat zo, maar op 390 px duwde het bij zes dingen het hele raster
+  onder de vouw.
+- **De uitleg van het web staat in de zijkolom**, en niet meer in een kader
+  over het glas dat je één keer moest wegklikken. De sleutel `web:hint-seen`
+  in `localStorage` wordt niet meer gelezen.
+
+---
+
+## Ronde 52 (§91) — jouw plek: een vaste plek, één wie-regel, en de pil weg
+
+De tweede bouwronde na de UI/UX-review (`claude/review-ui-ux-de-wrijving.md`).
+Nick besliste op 21 september (zie ronde 51 hierboven): op de telefoon **alleen
+het Jij-blad**, de acht tabs blijven, **één wie-regel: ja**, en de
+welkomsttekst op Start blijft met een **Jij-rij erboven**. Deze ronde bouwt
+die vier. Ze maakt §18b strakker, keert de tweede helft van regel 84 om, en
+laat de tabbalk (§32/§66) staan.
+
+### §18b strakker: wie je speelt, is wie je schrijft (review S6)
+
+§18b maakte de schrijfkeuze per venster, en de schil liet daarom altijd twee
+regels zien: *Je speelt als* (van het account) en *Je schrijft als* (van dit
+venster). Die twee liepen uit elkaar zodra iemand wisselde. Wie van Cornelis
+naar Jan ging, zag de beurs naar Jans kamer gaan en schreef nog steeds als
+Cornelis. De review telde vijf handelingen voor "wissel en schrijf als hem",
+waar er twee nodig zijn.
+
+**Het besluit: een wissel van *Je speelt als* zet in dít venster ook de
+schrijfkeuze op dat karakter, via elke weg.** Dat zijn de wissel in de
+zijbalk, *Speel als ▾* in het Jij-blad, de kleerkast op `/you` en *Speel als …*
+op een artikel. Alle vier roepen `followPlay` aan (`AuthorProvider`), en
+`afterPlaySwitch` in `lib/authorChoice.ts` zegt wat er met de keuze gebeurt.
+Het karakter dat je nu speelt wordt de keuze. **Een wissel naar *als jezelf*
+laat de keuze staan**: als jezelf schrijven bestaat niet (§18b), dus er is
+niets om naartoe te gaan, en de oude keuze weggooien zou alleen de vraag bij de
+volgende toetsaanslag terugbrengen. Alleen een *wissel* (een `PATCH` met
+`active`) neemt de keuze mee. Een karakter koppelen (`POST`) doet dat niet.
+
+**Wat er van §18b overblijft, en dat is het meeste:**
+- Een venster dat nog niets koos, schrijft als het karakter van het account
+  en krijgt de schrijfvraag bij de eerste schrijfhandeling. Sinds §90 komt die
+  vraag nooit in Lezen.
+- Een bewuste andere keuze, via de schrijfvraag of de schrijf-kiezer, blijft
+  per venster. Twee vensters kunnen nog steeds als twee karakters schrijven.
+- **Alleen dan** staat *Je schrijft als* als tweede regel in de schil
+  (`showsWritingLine`: geen Keeper, een eigen keuze, en die verschilt van wie
+  het account speelt). Op `/you` staat de regel altijd, want daar woont de
+  schrijf-kiezer en een venster moet ergens kunnen zeggen dat het als de
+  ander wil schrijven.
+- Een Keeper draagt niemand (§18) en heeft nooit een tweede regel.
+
+Het woord *Je speelt als* staat in de zijbalk alleen nog voor een schermlezer
+(`visually-hidden`). Het portret en de naam zíjn de regel, en de ruimte ging
+naar de groepen eronder.
+
+### Omgekeerd: de beurs staat niet meer in de hoek (regel 84)
+
+§84 zette de beurs als pil in de hoek van elke pagina, om één reden die nog
+steeds klopt: de hele meta-progressie hing aan één menu-item, en je kamer was
+drie klikken diep. De pil maakte dat één klik. **Die reden blijft; de pil
+niet.** De review mat wat hij kostte: 89 × 22 px, geen woord erbij, en hij
+verdween juist op de plekken waar je hem zocht: op een canvas (§34), in de
+kamer en de winkel (§84's eigen uitzondering) en op het artikel van je eigen
+onderzoeker (§90, S22). Wie hem niet zag, had geen tweede ingang. In de
+handelingstelling van de review kostte "inloggen → mijn kamer" vijf
+handelingen, omdat je moest raden dat *0 MUNTEN* een deur was.
+
+**Het besluit: de pil verdwijnt op elke breedte, en de deur verhuist naar een
+plek die er altijd is.** Op een computer is dat *Kamer* in de zijbalk, met het
+saldo rechts ernaast. De zijbalk staat er ook op een canvas, dus "één klik van
+je kamer" blijft waar en geldt nu ook daar. Op een telefoon is het de Jij-tab,
+die het saldo onder het poppetje draagt, en in het blad *Naar de kamer*. Dat
+zijn **twee** tikken, niet één. Dat is de prijs van Nicks besluit om geen
+negende tab te maken en de acht te laten staan, en we betalen hem bewust. Op
+Start is het ook op de telefoon één tik, via de Jij-rij.
+
+Wat daarmee vervalt:
+- de vier CSS-regels die de pil op een canvas, een prikbord, de kamer, de
+  winkel en het eigen artikel weghaalden;
+- S22 van ronde 51 (de pil wijkt naast `entry-kamer`). De beurs in
+  `.entry-kamer` zelf blijft (K43);
+- `:not(.shell-beurs)` in §90's `clear: right`-regel, die nu alleen nog voor de
+  strip is.
+
+`ShellBeurs` bleef als hook (`useShellBeurs`): één luisteraar naar
+`room:{id}`, één keer gemount, voor beide tekeningen. Twee luisteraars zouden
+bij één gift twee keer verversen.
+
+Wat er **niet** omdraait: het saldo heeft nog steeds de vorm van §84 (munt,
+rechtop, inkt, nooit `.stamp`). Het is absent voor wie niemand draagt en voor
+de Keeper, en het toont alleen je eigen saldo (§76). In de zijbalk is het een
+`.nav-tail` met die vorm, en geen `Beurs.tsx`. Waarom dat een benoemde
+uitzondering op K1 is, staat in het kamer-contract.
+
+### Onveranderd: de tabbalk heeft acht plekken (§32/§66)
+
+De review stelde een *Kaarten*-tab voor in plaats van de vier tekenvlakken als
+losse ingangen, en daarvoor moest §32/§66 om. Nick koos voor alleen het
+Jij-blad, dus **de tabbalk houdt acht plekken** en blijft verder zoals hij
+was. De achtste is nu een knop die een blad opent en geen link naar `/you`.
+Zijn naam blijft *Jij* (§64: specs en schermlezers vinden hem daarop). `/you`
+bestaat nog steeds. Je komt er via *Instellingen* in het blad, en op een
+computer via de onderste regel van de zijbalk. De twee compacte tabs (Zoeken,
+Jij) zijn nu precies `--tap` breed, zodat de zes met een woord (ook
+LANDKAARTEN) niet meer worden afgekapt.
+
+### Kleinere keuzes
+
+- **Eén lijst, twee tekeningen.** `yoursDoors` bepaalt welke deuren er zijn en
+  in welke volgorde. De zijbalk en het blad lezen allebei die lijst. De
+  review verwees naar Discord, dat in 2024 een indeling terugdraaide die per
+  toestel verschilde.
+- **In de zijbalk heet een deur naar zijn bestemming** (*Kamer*, *Winkel*),
+  zoals elke andere regel in een menu (*Dossiers*, *Wiki*). K11's werkwoord
+  geldt voor een deur *op een pagina*. In het blad en in de Jij-rij, waar de
+  deuren knoppen zijn, staat wél *Naar de kamer* en *Naar de winkel*.
+- **Zoeken wordt een vak, geen palet.** Enter gaat naar `/search?q=`. Een
+  palet dat alles doorzoekt (S3, `⌘K`) staat bij "later" in de review.
+- **De Keeper-groep wordt niet gerenderd voor wie geen Keeper is** (§44),
+  en in het blad alleen voor een echte Keeper die niet als speler kijkt.
+- **De zijbalk is op een computer niet 44 px per regel.** Met `--tap` viel
+  *Nieuw artikel* op 1440 × 900 onder de vouw. Een muis is geen duim. §85's
+  tap-vloer blijft voor pagina's en voor de telefoon, en de spec meet dat
+  *Nieuw artikel* boven de vouw staat.
+- **De Keeperkant-knop blijft een knop in de hoek** (§46). Op een computer
+  draagt hij nu een woord en is hij 44 px hoog. Op een telefoon krijgt hij een
+  onzichtbare rand in plaats van een grotere cirkel, want de hoek van een
+  telefoonscherm is klein. Zo is de rest van S12 gedaan.
+- **De Jij-rij leest de feed van Start** (`ownRecentWork`), en doet geen
+  eigen query. Zo kan hij regel 1 niet breken, en er zijn geen twee stel
+  regels om gelijk te houden. De spelerspagina doet voor *Bijdragen* precies
+  hetzelfde.

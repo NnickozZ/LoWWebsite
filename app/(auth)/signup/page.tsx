@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { sql } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
+import { getWords } from '@/lib/admin/words';
+import { siteIdentity } from '@/lib/admin/identity';
 import { getSessionUser } from '@/lib/auth/session';
+import { fill } from '@/lib/words';
 import { AuthForm } from '../AuthForm';
 
 export const dynamic = 'force-dynamic';
@@ -12,11 +15,17 @@ export default async function SignupPage() {
 
   const count = db.select({ n: sql<number>`count(*)` }).from(schema.users).get();
   const isEmpty = (count?.n ?? 0) === 0;
+  // §90: the archive's own name on the card, as on the login card and the tab.
+  const site = siteIdentity();
+  const words = getWords();
 
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <p className="eyebrow">Zeeland &middot; 1934</p>
+        <p className="eyebrow">
+          {site.name}
+          {site.tagline && <> &middot; {site.tagline}</>}
+        </p>
         <h1 className="auth-title">Word lid van het archief</h1>
         {/*
           §89: an empty archive is not an open door. The first Keeper is made by
@@ -33,7 +42,7 @@ export default async function SignupPage() {
             Je hebt de uitnodigingscode van je Keeper nodig.
           </p>
         )}
-        <AuthForm mode="signup" />
+        <AuthForm mode="signup" passwordNote={fill(words.passwordReset, { keeper: words.keeper })} />
         <hr className="rule" />
         <p className="small muted" style={{ margin: 0 }}>
           Al ingeschreven? <Link href="/login">Inloggen</Link>.

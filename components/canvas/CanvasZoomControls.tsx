@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '@/components/Icon';
+import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 
 /**
  * §69 — één zoomblok, op alle vier de plekken.
@@ -48,7 +49,8 @@ export default function CanvasZoomControls({
   disabled?: boolean;
 }) {
   return (
-    <span className="canvas-zoom" role="group" aria-label="Zoomen">
+    /* §90: the camera is looking, never writing — in either mode. */
+    <span className="canvas-zoom" role="group" aria-label="Zoomen" {...AUTHOR_GATE_OFF}>
       <button
         type="button"
         className="btn btn-small btn-ghost"

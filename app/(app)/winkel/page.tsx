@@ -1,15 +1,14 @@
 import '@/app/kamer.css';
 import Link from 'next/link';
-import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
-import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { KamerKiezer } from '@/components/winkel/KamerKiezer';
 import { WinkelFilter } from '@/components/winkel/WinkelFilter';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
 import { shopFor } from '@/lib/kamers/service';
-import { capitalise } from '@/lib/words';
+import { roomKey } from '@/lib/live/keys';
+import { capitalise, fill } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,8 +61,9 @@ export default async function WinkelPage({
   const query = await searchParams;
   /*
    * `?kamer=<id>` — which onderzoeker's purse is being spent. A repeated
-   * parameter takes the first, an unknown id falls through to the first kamer
-   * (`shopFor` resolves it), and no id at all is the same thing. Nothing
+   * parameter takes the first, an unknown id falls through to the kamer of
+   * the karakter you are playing now (§90; `shopFor` resolves it), and no id
+   * at all is the same thing. Nothing
    * validates it here on purpose: the id is only ever matched against the
    * kamers this viewer actually wears, so a stranger's id is not a leak, it is
    * a miss.
@@ -83,7 +83,16 @@ export default async function WinkelPage({
        * `characters` and `users` because whose purse this is, and whether
        * there is one at all, is a karakter somebody wears.
        */}
-      <LivePage place="page:/winkel" watch={['entries', 'characters', 'users']} />
+      {/*
+        §90 (E7): en elke kamer waarvoor hier gekocht kan worden. Een gift van
+        de Keeper, een koop in een ander tabblad of een plek die in de kamer
+        openging, verandert wat hier betaalbaar is en waar iets landt — en dat
+        stond stil tot je herlaadde, want `room:{id}` bewoog nooit.
+      */}
+      <LivePage
+        place="page:/winkel"
+        watch={['entries', 'characters', 'users', ...shop.rooms.map((option) => roomKey(option.id))]}
+      />
 
       {/*
         §84: de eyebrow zei op drie verschillende pagina's "Kamer" — hier, in de
@@ -98,18 +107,28 @@ export default async function WinkelPage({
 
       {canBuy ? (
         <>
-          {/* One onderzoeker is not a choice: just the purse. */}
+          {/*
+            One onderzoeker is not a choice: just the purse.
+
+            §90 (E6): and two onderzoekers are a choice *of purses* — the chip
+            carries the balance it is chosen on, so the loose beurs block under
+            it was the same number a second time (and a third, in "Nog n
+            nodig"). With a kiezer, the kiezer ís the beurs. The line below
+            stays for the door and for `data-balance`, which is what a spec
+            reads.
+          */}
           {shop.rooms.length > 1 && (
             <KamerKiezer rooms={shop.rooms} roomId={shop.roomId} words={words} />
           )}
           <p className="kamer-balance winkel-balance" data-testid="winkel-balance" data-balance={shop.balance}>
             {/* §84: de beurs en niet nóg een stempel. Wat je hebt ziet er
                 anders uit dan wat iets kost — zie `components/kamer/Beurs.tsx`. */}
-            <Beurs balance={shop.balance} words={words} />
+            {shop.rooms.length === 1 && <Beurs balance={shop.balance} words={words} />}
+            {/* §90 (E6/E25): een tekstlink met een werkwoord, geen knop met de
+                naam van een bestemming — K11. */}
             {room && (
-              <Link className="btn btn-small winkel-kamer-deur" href={`/kamer/${room.slug}`}>
-                <Icon name={MEANING.kamer} size={14} />
-                {capitalise(words.room)}
+              <Link className="winkel-kamer-deur" href={`/kamer/${room.slug}`} data-testid="winkel-kamer-deur">
+                {fill(words.toRoom, { kamer: words.room })}
               </Link>
             )}
           </p>
@@ -135,6 +154,7 @@ export default async function WinkelPage({
           items={shop.items}
           roomId={shop.roomId}
           roomSlug={room?.slug ?? null}
+          buyerName={shop.rooms.length > 1 ? (room?.name ?? null) : null}
           balance={shop.balance}
           canBuy={canBuy}
           words={words}

@@ -97,6 +97,8 @@ test.describe('round 24', () => {
     const gone = await page.request.delete(`/api/entries/${entry.id}`);
     expect(gone.ok()).toBe(true);
     await page.reload();
+    // §90: the card's "aanmaken" is making, so it is Bewerken's (a phone reloads into Lezen).
+    await editCanvas(page);
 
     const card = page.locator('.board-card', { hasText: name });
     await expect(card.locator('.stamp')).toContainText('Ontbreekt');

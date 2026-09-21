@@ -24,7 +24,11 @@ test.describe('§89: de sloten', () => {
   test('a signed-out browser only ever reaches the two doors', async ({ page, request }) => {
     for (const path of ['/', '/wiki/alles', '/admin', '/e/westkapelle-lighthouse', '/search', '/keeper']) {
       await page.goto(path);
-      await expect(page, path).toHaveURL(/\/login$/);
+      // §90: the door keeps the address it was asked for, so the way in
+      // lands there — `/` needs no reminder.
+      await expect(page, path).toHaveURL(/\/login(\?next=[^&]*)?$/);
+      const next = new URL(page.url()).searchParams.get('next');
+      expect(next, path).toBe(path === '/' ? null : path);
     }
     await page.goto('/signup');
     await expect(page).toHaveURL(/\/signup$/);
@@ -106,6 +110,10 @@ test.describe('§89: de sloten', () => {
     const row = page.locator(`li[data-username="${name}"]`);
     await expect(row.getByRole('button', { name: 'Nieuw wachtwoord instellen' })).toBeVisible();
     await row.getByRole('button', { name: 'Tot Keeper maken' }).click();
+    // §90: making somebody a Keeper asks first — they will see the Keeperkant.
+    const ask = page.getByRole('dialog', { name: `Van ${name} een Keeper maken?` });
+    await expect(ask).toContainText('ook de Keeperkant');
+    await ask.getByRole('button', { name: 'Ja, tot Keeper maken' }).click();
     await expect(row.getByRole('button', { name: 'Als Keeper afzetten' })).toBeVisible();
     // Both controls are gone for another Keeper — and the server refuses the
     // same thing if it is posted by hand (`setPasswordAction`, §89).

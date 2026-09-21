@@ -8,6 +8,7 @@ import { activeCharacter, listCharacters } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { listEntryTypes } from '@/lib/entries/service';
 import { purseOf } from '@/lib/kamers/service';
+import { spelerHref } from '@/lib/spelers/service';
 import { cleanTypeText } from '@/lib/pageBlocks';
 import { readingFontAttr } from '@/lib/readingFont';
 import { getSchemes } from '@/lib/admin/schemes';
@@ -71,6 +72,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * Null voor de Keeper en voor wie niemand draagt (§18) — dan staat er niets.
    */
   const purse = purseOf(user);
+  // §91: and the address of this account's own spelerspagina, for jouw plek.
+  const myPage = spelerHref(user.id);
 
   /*
    * §45: the four colour schemes, written out as one block of custom
@@ -127,6 +130,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           words={words}
           me={me}
           purse={purse}
+          myPage={myPage}
           uploadLimit={uploadLimitFor(me)}
           siteName={settings?.name ?? DEFAULT_SITE_NAME}
           tagline={settings?.tagline ?? ''}

@@ -161,10 +161,10 @@ test('a player wears a fiche, the archive uses its name, and the name sticks', a
   const nav = page.getByRole('navigation', { name: 'Hoofdmenu' }).first();
   if (await nav.locator('.who').isVisible()) {
     await expect(nav.locator('.who')).toContainText(character);
-    // §18b: and, right under it, what this window writes as. Before any
-    // answer that is the account's karakter — which is what the server would
-    // use for a plain page load, so the line is telling the truth.
-    await expect(nav.locator('.who-writing')).toContainText(character);
+    // §18b/§91: this window writes as the karakter the account plays, so
+    // that is one fact on one line — the second line ("Je schrijft als") only
+    // stands where the two differ (`showsWritingLine`).
+    await expect(nav.locator('.who-writing')).toHaveCount(0);
   }
 
   // With a name to write under, the player can make something — and the feed
@@ -281,13 +281,28 @@ test('a fresh window is asked at the first edit, and not one moment before', asy
   // It does not take no for an answer while it is standing in the way.
   await reader.keyboard.press('Escape');
   await expect(askSheet(reader)).toBeVisible();
+  // §90: and it no longer draws a cross that does nothing.
+  await expect(askSheet(reader).getByRole('button', { name: 'Sluiten' })).toHaveCount(0);
 
   await askSheet(reader).getByRole('radio', { name: new RegExp(character) }).click();
   await expect(askSheet(reader)).toHaveCount(0);
   // And having answered, the window says so — and is never asked again.
-  await expect(reader.locator('.who-writing, [data-testid="writing-as"]').first()).toContainText(
-    character,
-  );
+  // §91: it answered with the karakter the account plays, so the side menu
+  // says it on one line: who you play is who you write as.
+  // On a phone the side menu is not drawn; the same line is the top of the
+  // Jij-blad, which the Jij tab opens.
+  if (info.project.name === 'phone') {
+    await reader.getByTestId('tab-jij').click();
+    const sheet = reader.getByTestId('jij-sheet');
+    await expect(sheet.locator('.jij-who-name')).toContainText(character);
+    await expect(sheet.locator('.who-writing')).toHaveCount(0);
+    await reader.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+  } else {
+    const readerNav = reader.getByRole('navigation', { name: 'Hoofdmenu' });
+    await expect(readerNav.locator('.who')).toContainText(character);
+    await expect(readerNav.locator('.who-writing')).toHaveCount(0);
+  }
   await body(reader).click();
   await reader.keyboard.type('allo');
   await expect(askSheet(reader)).toHaveCount(0);
@@ -558,7 +573,7 @@ test('a speler ties on their first onderzoeker and no more; the Keeper hands out
   // In the wardrobe, not in the side menu: both print the name of the karakter
   // you are wearing, and the menu's copy is hidden on a phone.
   await expect(page.getByRole('main').getByText(own, { exact: false }).first()).toBeVisible();
-  await expect(page.getByPlaceholder('Zoek de artikel van je karakter…')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Zoek het artikel van je karakter…')).toHaveCount(0);
   await expect(page.getByRole('button', { name: `${own} ontkoppelen` })).toHaveCount(0);
   // What they *wear* is still theirs, so that one is untouched.
   await expect(page.getByRole('button', { name: /^Als jezelf/ })).toBeVisible();
@@ -600,6 +615,6 @@ test('a speler ties on their first onderzoeker and no more; the Keeper hands out
   await row.getByRole('button', { name: 'Speel als' }).click();
   await expect(row.getByRole('button', { name: 'Actief' })).toBeVisible({ timeout: 15_000 });
   // Still no ✕, and still no box: two on the peg, and both the Keeper's doing.
-  await expect(page.getByPlaceholder('Zoek de artikel van je karakter…')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Zoek het artikel van je karakter…')).toHaveCount(0);
   await expect(page.getByRole('button', { name: `${extra} ontkoppelen` })).toHaveCount(0);
 });

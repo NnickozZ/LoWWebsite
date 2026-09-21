@@ -16,19 +16,22 @@ import { Thumb } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { reconnectLive, setWritingAs } from '@/components/live/LiveProvider';
 import { Sheet } from '@/components/ui/Sheet';
+import { openSheetCount } from '@/lib/sheetStack';
 import {
+  afterPlaySwitch,
   authorStance,
   effectiveAuthorId,
   mayStartEntryWith,
   mayTypeWith,
   rememberedFrom,
   shouldPrompt,
+  showsWritingLine,
   writeRemembered,
   type MiniStorage,
 } from '@/lib/authorChoice';
 import { onAuthorNeeded } from '@/lib/authorSignal';
 import type { CharacterLite } from '@/lib/characters';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
 import type { Me } from './CharacterSwitcher';
 
 /**
@@ -118,8 +121,13 @@ export type AuthorValue = {
    * front of the page, and the page is still there when it is answered.
    * Anything that would put a second **sheet** on the screen wants
    * `ensureAuthor` instead.
+   *
+   * §90: `origin` is what the person was touching when the question came up
+   * — the gate hands it the event's target. Once answered, the caret goes back
+   * there, so the keystroke or tap that raised the question has somewhere to
+   * land instead of `<body>`.
    */
-  ask: () => void;
+  ask: (origin?: EventTarget | null) => void;
   /**
    * "Ask first, then do." The same question as `ask`, with the thing that
    * asked it waiting behind it.
@@ -143,6 +151,19 @@ export type AuthorValue = {
   change: () => void;
   /** Has *this window* answered? (As opposed to falling back to the account.) */
   chosen: boolean;
+  /**
+   * §91: één wie-regel. Called by every road that changes *Je speelt als* —
+   * the switcher in the side menu, the Jij-blad, the wardrobe on /you and the
+   * "Speel als …" button on an artikel — with the karakter the archive now
+   * says the account plays. This window's answer moves along with it, so the
+   * beurs and the writing never point at two different people after a wissel.
+   */
+  followPlay: (playing: string | null) => void;
+  /**
+   * §91: does this window write as somebody other than the account plays?
+   * Only then does the shell print a second line (`showsWritingLine`).
+   */
+  writesOther: boolean;
 };
 
 const AuthorContext = createContext<AuthorValue | null>(null);
@@ -180,9 +201,9 @@ export function useMayStartEntry(): boolean {
 }
 
 export type AuthorGateProps = {
-  onFocusCapture: () => void;
-  onKeyDownCapture: () => void;
-  onPointerDownCapture: () => void;
+  onFocusCapture: (event?: { target: EventTarget | null }) => void;
+  onKeyDownCapture: (event?: { target: EventTarget | null }) => void;
+  onPointerDownCapture: (event?: { target: EventTarget | null }) => void;
 };
 
 /**
@@ -197,11 +218,13 @@ export type AuthorGateProps = {
 export function useAuthorGate(): AuthorGateProps {
   const value = useContext(AuthorContext);
   const ask = value?.ask;
+  // §90: each handler passes what it was aimed at, so the answer can put the
+  // caret back there. Same three handlers, same shape — only the argument is new.
   return useMemo(
     () => ({
-      onFocusCapture: () => ask?.(),
-      onKeyDownCapture: () => ask?.(),
-      onPointerDownCapture: () => ask?.(),
+      onFocusCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target),
+      onKeyDownCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target),
+      onPointerDownCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target),
     }),
     [ask],
   );
@@ -213,6 +236,19 @@ export function useAuthorGate(): AuthorGateProps {
  * answer in flight and an answer already given look identical from here.
  */
 const ANSWER_GRACE_MS = 3000;
+
+/**
+ * §90: the element the caret belongs in, from whatever a gate event hit — a
+ * paragraph inside the editor is not focusable, the editor is. Null when there
+ * is nothing sensible to give the focus back to.
+ */
+function focusableFrom(target: EventTarget | null | undefined): HTMLElement | null {
+  if (typeof Element === 'undefined' || !(target instanceof Element)) return null;
+  const hit = target.closest<HTMLElement>(
+    'input, textarea, select, button, a[href], [contenteditable="true"], [tabindex]:not([tabindex="-1"])',
+  );
+  return hit ?? null;
+}
 
 /** `sessionStorage`, or null where there is none (the server render). */
 function windowStore(): MiniStorage | null {
@@ -300,14 +336,27 @@ export function AuthorProvider({
    * readable inside the very click that answers.
    */
   const pending = useRef<(() => void) | null>(null);
+  /**
+   * §90: where the caret was going when the question came up — the field, the
+   * editor, the button. Given back after the answer (see `choose`), because the
+   * sheet's own "back to where you were" only knows what had the focus when it
+   * *opened*, and a tap that raised the question never got to give it any.
+   */
+  const origin = useRef<HTMLElement | null>(null);
 
-  const ask = useCallback(() => {
-    // Exactly the `ask` stance: a Keeper has nothing to answer, somebody with
-    // no onderzoeker has nothing to answer it with (and has the banner
-    // instead), and a window that has answered is not asked twice.
-    if (!shouldPrompt(stanceNow())) return;
-    setSheet((current) => current ?? 'blocking');
-  }, [stanceNow]);
+  const ask = useCallback(
+    (from?: EventTarget | null) => {
+      // Exactly the `ask` stance: a Keeper has nothing to answer, somebody with
+      // no onderzoeker has nothing to answer it with (and has the banner
+      // instead), and a window that has answered is not asked twice.
+      if (!shouldPrompt(stanceNow())) return;
+      // The first touch is the one that counts; a second while the question
+      // stands is the same person, still looking at it.
+      if (!origin.current) origin.current = focusableFrom(from);
+      setSheet((current) => current ?? 'blocking');
+    },
+    [stanceNow],
+  );
 
   /**
    * The same question, with the caller's own next step held behind it — see
@@ -338,6 +387,7 @@ export function AuthorProvider({
   /** Dismissing the question throws away whatever was waiting behind it. */
   const dismiss = useCallback(() => {
     pending.current = null;
+    origin.current = null;
     setSheet(null);
   }, []);
 
@@ -363,7 +413,25 @@ export function AuthorProvider({
      */
     const next = pending.current;
     pending.current = null;
+    const from = origin.current;
+    origin.current = null;
     next?.();
+    /*
+     * §90: and with nothing waiting, back to what was being touched. After the
+     * sheet has gone — its own clean-up puts the focus back on whatever had it
+     * when it *opened*, which for a tap is `<body>` or the last button pressed
+     * — so a frame later. The question was modal, so nothing but the answer
+     * can have moved the caret since; the one thing to respect is a sheet that
+     * is on the screen now (the archive's own "needs an author" can raise one
+     * at any moment). With something waiting, the next sheet takes the focus,
+     * and that is right.
+     */
+    if (!next && from) {
+      requestAnimationFrame(() => {
+        if (!from.isConnected || openSheetCount() > 0) return;
+        from.focus({ preventScroll: true });
+      });
+    }
   }, []);
 
   /*
@@ -403,6 +471,38 @@ export function AuthorProvider({
     [me.isKeeper, characterIds.length],
   );
 
+  /*
+   * §91: who the account plays, as this window last heard it. The layout's
+   * `me.activeId` is the truth and wins whenever it changes; `followPlay`
+   * writes it ahead of the `router.refresh()` that brings the new truth down,
+   * so the moment between the wissel and the refresh does not print two lines
+   * that are about to become one.
+   */
+  const [playing, setPlaying] = useState<string | null>(me.activeId);
+  useEffect(() => {
+    setPlaying(me.activeId);
+  }, [me.activeId]);
+
+  const followPlay = useCallback(
+    (next: string | null) => {
+      if (me.isKeeper) return;
+      setPlaying(next);
+      const answer = afterPlaySwitch(chosenRef.current, next);
+      if (answer === chosenRef.current) return;
+      // The same four writes `choose` makes, for the same reasons — the store
+      // for this window's lifetime, the ref for the callbacks, the module box
+      // the `fetch` patch reads, and the line, so the strip says the new name.
+      writeRemembered(windowStore(), answer);
+      chosenRef.current = answer;
+      setWritingAs(answer);
+      setChosen(answer);
+      reconnectLive();
+    },
+    [me.isKeeper],
+  );
+
+  const writesOther = showsWritingLine({ isKeeper: me.isKeeper, chosen, playing });
+
   const authorId = effectiveAuthorId({ isKeeper: me.isKeeper, chosen, activeId: me.activeId });
   const authorName = me.characters.find((c) => c.entryId === authorId)?.name ?? null;
 
@@ -417,6 +517,8 @@ export function AuthorProvider({
       ensureAuthor,
       change,
       chosen: chosen !== null,
+      followPlay,
+      writesOther,
     }),
     [
       authorId,
@@ -428,6 +530,8 @@ export function AuthorProvider({
       ensureAuthor,
       change,
       chosen,
+      followPlay,
+      writesOther,
     ],
   );
 
@@ -442,6 +546,8 @@ export function AuthorProvider({
           /* Blocking typing means blocking: there is no way out but an answer. */
           onClose={sheet === 'change' ? dismiss : null}
           onChoose={choose}
+          /* §90: the account's own karakter, ready to confirm with one press. */
+          preselected={chosen ?? (me.activeId && characterIds.includes(me.activeId) ? me.activeId : null)}
         />
       )}
     </AuthorContext.Provider>
@@ -461,18 +567,36 @@ function WritingAsSheet({
   words,
   characters,
   chosen,
+  preselected,
   onClose,
   onChoose,
 }: {
   words: Words;
   characters: CharacterLite[];
   chosen: string | null;
+  /**
+   * §90: the one to offer first — this window's answer, or else the karakter
+   * the account is wearing (the one the side menu already names). Marked in
+   * the list and behind a "Verder als …" button, so the usual answer is one
+   * tap on the biggest thing in the sheet.
+   */
+  preselected: string | null;
   /** Null while the sheet is blocking typing: nothing dismisses it. */
   onClose: (() => void) | null;
   onChoose: (id: string) => void;
 }) {
+  const ready = characters.find((character) => character.entryId === preselected) ?? null;
   return (
-    <Sheet onClose={onClose ?? (() => undefined)} labelledBy="writing-as-title">
+    /*
+     * §90: `closable` false while it blocks. It drew a cross that did nothing
+     * (`onClose` was a no-op), and Escape and the backdrop stay no-ops on
+     * purpose — §18b's "no way out but an answer", which the characters spec
+     * holds on both roads in. Turning the cross into "annuleren" was the other
+     * choice and the worse one: on an editing surface nothing is held behind
+     * the question to cancel, and the surface asks again on the very next
+     * touch, so the cross would have reopened what it closed.
+     */
+    <Sheet onClose={onClose ?? (() => undefined)} labelledBy="writing-as-title" closable={onClose !== null}>
       <h2 id="writing-as-title" style={{ marginTop: 0, fontSize: '1.25rem' }}>
         Met wie ben je nu aan het schrijven?
       </h2>
@@ -483,7 +607,7 @@ function WritingAsSheet({
 
       <ul className="who-list" role="radiogroup" aria-label="Met wie ben je nu aan het schrijven?">
         {characters.map((character) => {
-          const isChosen = character.entryId === chosen;
+          const isChosen = character.entryId === (chosen ?? preselected);
           return (
             <li key={character.entryId}>
               <button
@@ -509,6 +633,20 @@ function WritingAsSheet({
           );
         })}
       </ul>
+
+      {!onClose && ready && (
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ width: '100%', marginTop: '0.9rem' }}
+          /* Deliberately not `autoFocus`: the question often arrives on a
+             keystroke, and the next space of the sentence being typed would
+             press this button unseen. One tap, not zero. */
+          onClick={() => onChoose(ready.entryId)}
+        >
+          {fill(words.writingAsGoOn, { naam: ready.name })}
+        </button>
+      )}
 
       {onClose && (
         <p className="row-wrap" style={{ margin: '0.9rem 0 0' }}>
@@ -536,18 +674,38 @@ function WritingAsSheet({
  * It prints the name the archive would actually use, which before an answer is
  * the account's karakter — never a name the next write would not carry.
  */
-export function WritingAsLine() {
+export function WritingAsLine({
+  words,
+  always = false,
+  onOpen,
+}: {
+  words: Words;
+  /**
+   * §91: één wie-regel. In the shell (the side menu, the Jij-blad) this line
+   * stands only when this window writes as somebody other than the account
+   * plays (`writesOther`). On /you it always stands: that page is where the
+   * schrijf-kiezer lives, and a window that wants to write as the other one
+   * has to be able to say so somewhere.
+   */
+  always?: boolean;
+  /** §91: the Jij-blad closes itself first, so the question is never a sheet on a sheet. */
+  onOpen?: () => void;
+}) {
   const author = useAuthorOptional();
   if (!author || !author.characters.length) return null;
+  if (!always && !author.writesOther) return null;
 
   const name = author.authorName;
   return (
     <div className="who-writing">
-      <span className="who-eyebrow">Je schrijft als</span>
+      <span className="who-eyebrow">{words.writesAs}</span>
       <button
         type="button"
         className="who-button"
-        onClick={author.change}
+        onClick={() => {
+          onOpen?.();
+          author.change();
+        }}
         aria-haspopup="dialog"
         data-testid="writing-as"
       >
@@ -598,10 +756,13 @@ export function ReadOnlyBanner({ words }: { words: Words }) {
     <p className="author-banner" role="status" data-testid="no-author-banner">
       <Icon name="eye" size={16} />
       <span>
-        <strong>Je hebt nog geen onderzoeker, dus je kunt alleen lezen.</strong> Alles wat iemand
-        schrijft komt op naam van een onderzoeker. Maak met ‘{words.newEntry}’ een {words.entry}{' '}
-        voor je onderzoeker en <Link href="/you#karakters">koppel het aan je account</Link>, of
-        vraag de {words.keeper} het voor je te doen.
+        {/* §90: the Keeper's word for it, the same one the Jij page uses on the
+            same screen — it said "onderzoeker" here and "karakter" there. */}
+        <strong>Je hebt nog geen {words.character}, dus je kunt alleen lezen.</strong> Alles wat
+        iemand schrijft komt op naam van een {words.character}. Maak met ‘{words.newEntry}’ een{' '}
+        {words.entry} voor je {words.character} en{' '}
+        <Link href="/you#karakters">koppel het aan je account</Link>, of vraag de {words.keeper} het
+        voor je te doen.
       </span>
     </p>
   );

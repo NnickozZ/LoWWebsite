@@ -301,6 +301,15 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 
 **Doel.** Ctrl+Z en één knop `Ongedaan maken` (icoon + woord, `title` met de toets, `disabled` bij een lege stack) op alle vier, over `components/canvas/undoStack.ts`, met een toast-actie na verwijderen; op de landkaart en de tijdlijn dekt hij een verplaatsing (en verwijderen zodra `OPEN` (vraag 8) beslist is). *Waarom:* het prikbord en de stamboom zijn al identiek; het alternatief — undo weghalen — maakt taak D overal `∞` en dat is het tegendeel van het doel.
 
+> **Ronde 51 (§90): uniform in Lezen.** Na fase 2 gedroeg de knop zich in
+> Lezen nog op drie manieren (CLAUDE.md §8, ronde 37). Op het prikbord en de
+> landkaart was hij grijs, op de tijdlijn nog indrukbaar en op de stamboom
+> helemaal weg. Nu is hij op alle vier zichtbaar en in Lezen grijs:
+> `canUndo={editing && undoDepth > 0}` (tijdlijn `handsOn`, stamboom `editOn`,
+> prikbord `!handsOff`). Op de stamboom staat hij niet meer in de groep die in
+> Lezen verdwijnt. Beslist als O2 in de canvas-bijlage van de review; bewaakt
+> in `round-37-tree.spec.ts`.
+
 ### Rij 10 — Verwijderen
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -397,6 +406,33 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 
 **Doel.** Op de telefoon: één vinger pant, een vinger op een ding kiest en sleept, tweede tik opent, knijpen zoomt om het vingermidden, de zoomknoppen en `Alles in beeld` blijven, `Ongedaan maken` blijft, elk paneel is een bottom sheet, de inktbalk staat op alle vier in dezelfde hoek, en elk raakdoel is ≥ 44 px. *Waarom:* "telefoon boven desktop" is de eerste prioriteit van het plan, en elk van deze punten is op minstens twee plekken al zo.
 
+> **Ronde 51 (§90): raakdoelen in de breedte, en geen FAB op het glas.**
+> - **Raakdoelen.** §69 6.1 regelde de *hoogte* (44 px). Een knop met alleen
+>   een icoon bleef daardoor 29–37 px breed: Uitzoomen 37, Legenda 35,
+>   Opnieuw schikken 29, Los kaartje 29, Alles tonen 35. Nu krijgen
+>   `.btn-small` in `.canvas-zoom`, `.map-toolbar`, `.board-bar`,
+>   `.board-tools`, `.tree-tools` en `.timeline-toolbar` op een telefoon ook
+>   `min-width: var(--tap)`. Tijdlijn-tags (24 px hoog) en de `+n`-kluitjes
+>   (23×19 op de tijdlijn, 28×26 op de landkaart) krijgen een onzichtbare
+>   tikrand van 44 px (`::after`). Ze ogen niet groter. Om die rand niet af te
+>   knippen draagt `.timeline-tag` geen `overflow: hidden` meer; de naam binnenin
+>   (`.timeline-tag-name`) draagt de ellips. Bewuste ruil: de rand kan een paar
+>   px van een buurtag bedekken.
+> - **De FAB** (review-bijlage canvas B19). De FAB lag in Lezen midden over het
+>   glas en over alles wat er gedokt werd: de inspector van het prikbord,
+>   *Erbij* in de kiezer van de stamboom en de telregel onder de landkaart. Hij
+>   wijkt nu op elk tekenvlak, op elke breedte: `body:has(.page-canvas)`,
+>   `.board-page`, `.map-page`, `.timeline-frame`, `.tree-page`, en voor een
+>   gedokte `.board-inspector` of `.tree-picker`. Een tekenvlak heeft zijn
+>   eigen `+`, en de `n` blijft werken. Dit breidt §74 en K35 uit
+>   (`docs/kamer-contract.md`).
+> - **Eén kruisje bij één venster** (O7). In de peek van de tijdlijn staat met
+>   één open venster alleen het kruisje van de peek. Het eigen kruisje van het
+>   venster en *alles dichtvouwen* verschijnen pas vanaf twee vensters.
+> - **De schrijfvraag komt nooit in Lezen** (O12). Zie README regel 90: de
+>   poort is `useCanvasAuthorGate(editing || inkActive)`, en de camera, de
+>   schakelaar en de legenda dragen `data-author-gate="off"`.
+
 ### Rij 15 — Lege staat, laadstaat, foutstaat
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -413,6 +449,16 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 - Een lezer krijgt op het prikbord de editor-zin ("sleep vanaf de kop"), elders een eigen zin. `TOEVAL` → ronde 36.
 
 **Doel.** Elke lege plek zegt op het glas zelf één zin die begint met wat er is (`Nog niets …`) en één die zegt wat je nu kunt doen — anders voor wie mag bewerken dan voor wie kijkt; de woorden zelf zijn van ronde 36. *Waarom:* drie van de vier doen dit; de landkaart verstopt zijn zin.
+
+> **Ronde 51 (§90): het prikbord ook.** De lege staat van het prikbord had nog
+> één zin voor iedereen. Die stuurde een telefoon in Lezen naar een zoekvak
+> dat er niet is ("hierboven") en naar een draad die een vinger niet kan
+> spannen, en twee JSX-regeleinden aten de spaties rond {punaise} op. Nu is er
+> één zin per stand en per toestel (`boardEmptyRead`, `boardEmptyFind`,
+> `boardEmptyMake`, en `boardEmptyString` alleen met een muis). Een hand die
+> alleen mag kijken, krijgt alleen de kop. In Lezen is de naam van het
+> prikbord bovendien tekst en geen vak meer (review C27/B27), zoals op de
+> stamboom.
 
 ---
 ## Tafel 2 — de makers

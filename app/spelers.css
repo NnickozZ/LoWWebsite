@@ -171,6 +171,11 @@
   display: block;
   color: var(--stamp-red);
 }
+/* §90 economie: "Draagt deze nu" brak onder een smal portret over drie regels.
+   Het woord is korter geworden (`wearsNow`) en breekt niet meer. */
+.speler-face-now {
+  white-space: nowrap;
+}
 
 /* -------------------------------------------------------------- regels */
 

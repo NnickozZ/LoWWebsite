@@ -8,7 +8,7 @@ import { MentionOverlay, MentionPopover, MentionRow } from './MentionPopover';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 import { clearDraft, readDraft, writeDraft, DRAFT_ENTRY } from '@/lib/sheetDraft';
 import type { EntryTypeLite } from './UiProvider';
 
@@ -155,10 +155,22 @@ export function NewEntrySheet({
   const sideLocked = Boolean(here?.keeperOnly);
   const [keeperSide, setKeeperSide] = useState(sideLocked || ui.side === 'keeper');
 
-  useEffect(() => {
-    nameRef.current?.focus();
-    nameRef.current?.select();
-  }, []);
+  /*
+   * §90: the caret in the name box, from the moment the box exists. This was
+   * an effect on mount, and `Sheet` draws nothing on its first commit (a portal
+   * cannot be made during a server render) — so the effect found no box, the
+   * sheet then focused its own panel, and after "met wie ben je nu aan het
+   * schrijven?" the person had to click into the name before typing it. A
+   * callback ref runs when the box is actually attached, once.
+   */
+  const nameFocused = useRef(false);
+  const attachName = (element: HTMLInputElement | null) => {
+    nameRef.current = element;
+    if (!element || nameFocused.current) return;
+    nameFocused.current = true;
+    element.focus();
+    element.select();
+  };
 
   /*
    * §69 (4.5): every keystroke, into the page-lived draft. On unmount rather
@@ -286,7 +298,7 @@ export function NewEntrySheet({
         </label>
         <input
           id="new-entry-name"
-          ref={nameRef}
+          ref={attachName}
           className="input"
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -399,6 +411,13 @@ export function NewEntrySheet({
       >
         {busy ? 'Opbergen…' : 'Aanmaken'}
       </button>
+      {/* §90: the Keeper has `SideChoice` above to say who reads this; a speler
+          was told nothing. One grey line, and where to change it afterwards. */}
+      {!ui.isKeeper && (
+        <p className="tiny muted" style={{ margin: '0.5rem 0 0' }}>
+          {fill(words.newEntryWhoReads, { beheer: words.manage })}
+        </p>
+      )}
     </Sheet>
   );
 }

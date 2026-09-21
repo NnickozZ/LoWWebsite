@@ -40,12 +40,15 @@ export function UnlockButton({
   slotId,
   kind,
   price,
+  guestOf = null,
   words,
 }: {
   roomId: string;
   slotId: string;
   kind: PlekKind;
   price: number;
+  /** §90: de onderzoeker, als dit niet je eigen kamer is — dan is het niet "je" plank. */
+  guestOf?: string | null;
   words: Words;
 }) {
   const ui = useUi();
@@ -66,7 +69,11 @@ export function UnlockButton({
        * — de doorloop mat 174 ms tussen klik en nieuw saldo, en niemand zag het.
        * De beurs in de hoek telt ondertussen zichtbaar af.
        */
-      ui.toast(fill(words.unlockedHere, { plek: plekWord(kind, words) }));
+      ui.toast(
+        guestOf
+          ? fill(words.unlockedThere, { plek: plekWord(kind, words), naam: guestOf })
+          : fill(words.unlockedHere, { plek: plekWord(kind, words) }),
+      );
       router.refresh();
     } finally {
       setBusy(false);

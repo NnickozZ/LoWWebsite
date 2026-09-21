@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CharacterLite } from '@/lib/characters';
+import { useAuthorOptional } from './AuthorProvider';
 
 /**
  * §18: who you are being.
@@ -49,6 +50,8 @@ type State = { characters: CharacterLite[]; activeId: string | null };
 function useWardrobe(me: Me) {
   const router = useRouter();
   const ui = useUi();
+  const author = useAuthorOptional();
+  const followPlay = author?.followPlay;
   const [state, setState] = useState<State>({ characters: me.characters, activeId: me.activeId });
   const [busy, setBusy] = useState(false);
 
@@ -75,6 +78,10 @@ function useWardrobe(me: Me) {
           return null;
         }
         setState({ characters: data.characters, activeId: data.activeId });
+        // §91: één wie-regel — a wissel of *speelt als* takes this window's
+        // *schrijft als* along. Only a wissel: tying one on (POST) says who
+        // you hold, and the archive answers with who you play either way.
+        if (method === 'PATCH' && 'active' in body) followPlay?.(data.activeId);
         // Every name in every feed is resolved on the server from who is
         // active now, so the whole page re-reads.
         router.refresh();
@@ -86,7 +93,7 @@ function useWardrobe(me: Me) {
         setBusy(false);
       }
     },
-    [router, ui],
+    [router, ui, followPlay],
   );
 
   return { state, busy, call };
@@ -104,8 +111,98 @@ function TypeMark({ character }: { character: CharacterLite }) {
   );
 }
 
-/** The line under the masthead, and the sheet it opens. */
-export function CharacterSwitcher({ me }: { me: Me }) {
+/**
+ * §91: the list of who you can be, as radios — the sheet in the side menu and
+ * the Jij-blad on a phone draw the same one, and both press the same
+ * `/api/characters` PATCH through `useWardrobe` (§5: one wissel, one road).
+ */
+function WhoOptions({
+  me,
+  state,
+  busy,
+  call,
+  onDone,
+}: {
+  me: Me;
+  state: State;
+  busy: boolean;
+  call: ReturnType<typeof useWardrobe>['call'];
+  onDone: () => void;
+}) {
+  const words = useUi().words;
+  if (state.characters.length === 0) {
+    /* §18c: this is the zero-held case — the one case where the road is
+       still the player's own. So it still points at it, and names the
+       Keeper for everything after. */
+    return (
+      <p className="small muted" style={{ margin: 0 }}>
+        Je hebt nog geen {words.character} gekoppeld. Je eerste maak je zelf: met de knop
+        &lsquo;{words.thisIsMyCharacter}&rsquo; op een {words.entry}, of op je eigen pagina.
+        Daarna koppelt de {words.keeper} ze aan je account.
+      </p>
+    );
+  }
+  return (
+    <ul className="who-list" role="radiogroup" aria-label={words.playsAs}>
+      {state.characters.map((character) => {
+        const isActive = character.entryId === state.activeId;
+        return (
+          <li key={character.entryId}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              className={`who-option${isActive ? ' who-option-active' : ''}`}
+              disabled={busy}
+              onClick={() => {
+                if (!isActive) void call('PATCH', { active: character.entryId });
+                onDone();
+              }}
+            >
+              <TypeMark character={character} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <strong>{character.name}</strong>
+              </span>
+              {isActive && <Icon name="check" size={16} />}
+            </button>
+          </li>
+        );
+      })}
+      <li>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={state.activeId === null}
+          className={`who-option${state.activeId === null ? ' who-option-active' : ''}`}
+          disabled={busy}
+          onClick={() => {
+            if (state.activeId !== null) void call('PATCH', { active: null });
+            onDone();
+          }}
+        >
+          <span className="feed-thumb" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="you" size={18} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <strong>{words.asYourself}</strong>
+            <span className="tiny muted" style={{ display: 'block' }}>
+              {me.username}
+            </span>
+          </span>
+          {state.activeId === null && <Icon name="check" size={16} />}
+        </button>
+      </li>
+    </ul>
+  );
+}
+
+/**
+ * §91: the head of the Jij-blad on a phone — portrait, name, and *Speel als ▾*
+ * folding the same list open in place. In place and not as a second sheet:
+ * the blad is a sheet already, and a sheet on a sheet is what §18b spent a
+ * round getting rid of.
+ */
+export function JijWho({ me, onPicked }: { me: Me; onPicked?: () => void }) {
   const ui = useUi();
   const words = ui.words;
   const { state, busy, call } = useWardrobe(me);
@@ -114,8 +211,70 @@ export function CharacterSwitcher({ me }: { me: Me }) {
 
   if (me.isKeeper) {
     return (
+      <div className="jij-who" title={me.username}>
+        <span className="jij-who-name">
+          <Icon name="shield" size={18} />
+          {words.keeper}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="jij-who">
+      <div className="jij-who-row">
+        {active ? <TypeMark character={active} /> : <Icon name="you" size={20} />}
+        <span className="jij-who-name">{active?.name ?? me.username}</span>
+        {state.characters.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-small jij-who-switch"
+            aria-expanded={open}
+            aria-controls="jij-who-options"
+            onClick={() => setOpen((was) => !was)}
+            data-testid="jij-switch"
+          >
+            {words.switchPlay}
+            <Icon name="chevron" size={14} style={{ transform: open ? 'rotate(-90deg)' : 'rotate(90deg)' }} />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div id="jij-who-options" className="jij-who-options">
+          <WhoOptions
+            me={me}
+            state={state}
+            busy={busy}
+            call={call}
+            onDone={() => {
+              setOpen(false);
+              onPicked?.();
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The line under the masthead, and the sheet it opens. */
+export function CharacterSwitcher({ me }: { me: Me }) {
+  const ui = useUi();
+  const words = ui.words;
+  const { state, busy, call } = useWardrobe(me);
+  const [open, setOpen] = useState(false);
+  const active = state.characters.find((c) => c.entryId === state.activeId) ?? null;
+
+  /*
+   * §91: één wie-regel. The eyebrow "Je speelt als" is still there for a
+   * screen reader and for the specs that read `.who`, but not on the screen:
+   * the portrait and the name *are* the line, and every pixel of the side
+   * menu is wanted for the places under it.
+   */
+  if (me.isKeeper) {
+    return (
       <div className="who" title={me.username}>
-        <span className="who-eyebrow">{words.playsAs}</span>
+        <span className="who-eyebrow visually-hidden">{words.playsAs}</span>
         <span className="who-name">
           <Icon name="shield" size={14} />
           {words.keeper}
@@ -126,7 +285,7 @@ export function CharacterSwitcher({ me }: { me: Me }) {
 
   return (
     <div className="who">
-      <span className="who-eyebrow">{words.playsAs}</span>
+      <span className="who-eyebrow visually-hidden">{words.playsAs}</span>
       <button
         type="button"
         className="who-button"
@@ -144,67 +303,7 @@ export function CharacterSwitcher({ me }: { me: Me }) {
           <h2 id="who-title" style={{ marginTop: 0 }}>
             {words.playsAs}
           </h2>
-          {state.characters.length === 0 ? (
-            /* §18c: this is the zero-held case — the one case where the road is
-               still the player's own. So it still points at it, and names the
-               Keeper for everything after. */
-            <p className="small muted" style={{ margin: 0 }}>
-              Je hebt nog geen {words.character} gekoppeld. Je eerste maak je zelf: met de knop
-              &lsquo;{words.thisIsMyCharacter}&rsquo; op een {words.entry}, of op je eigen pagina.
-              Daarna koppelt de {words.keeper} ze aan je account.
-            </p>
-          ) : (
-            <ul className="who-list" role="radiogroup" aria-label={words.playsAs}>
-              {state.characters.map((character) => {
-                const isActive = character.entryId === state.activeId;
-                return (
-                  <li key={character.entryId}>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      className={`who-option${isActive ? ' who-option-active' : ''}`}
-                      disabled={busy}
-                      onClick={() => {
-                        if (!isActive) void call('PATCH', { active: character.entryId });
-                        setOpen(false);
-                      }}
-                    >
-                      <TypeMark character={character} />
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <strong>{character.name}</strong>
-                      </span>
-                      {isActive && <Icon name="check" size={16} />}
-                    </button>
-                  </li>
-                );
-              })}
-              <li>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={state.activeId === null}
-                  className={`who-option${state.activeId === null ? ' who-option-active' : ''}`}
-                  disabled={busy}
-                  onClick={() => {
-                    if (state.activeId !== null) void call('PATCH', { active: null });
-                    setOpen(false);
-                  }}
-                >
-                  <span className="feed-thumb" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="you" size={18} />
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <strong>{words.asYourself}</strong>
-                    <span className="tiny muted" style={{ display: 'block' }}>
-                      {me.username}
-                    </span>
-                  </span>
-                  {state.activeId === null && <Icon name="check" size={16} />}
-                </button>
-              </li>
-            </ul>
-          )}
+          <WhoOptions me={me} state={state} busy={busy} call={call} onDone={() => setOpen(false)} />
           <p style={{ margin: '0.9rem 0 0' }}>
             <Link className="btn btn-small" href="/you#karakters" onClick={() => setOpen(false)}>
               <Icon name="mask" size={15} />
@@ -324,7 +423,8 @@ export function CharacterWardrobe({ me }: { me: Me }) {
           </span>
           <EntryPicker
             value={null}
-            placeholder={`Zoek de ${words.entry} van je ${words.character}…`}
+            // §90: "het artikel" — the paragraph above already fixed this once.
+            placeholder={`Zoek het ${words.entry} van je ${words.character}…`}
             onPick={(entry) => {
               void call('POST', { entryId: entry.id }).then((next) => {
                 if (next) ui.toast(`${entry.name} is nu een van je ${words.characterPlural}.`);

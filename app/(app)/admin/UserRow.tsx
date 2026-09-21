@@ -1,13 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActionState } from 'react';
 import { Thumb } from '@/components/Cover';
 import { EntryPicker } from '@/components/entry/EntryPicker';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CharacterLite } from '@/lib/characters';
+import { fill } from '@/lib/words';
 import { relativeTime } from '@/lib/diff';
 import { setPasswordAction, toggleDisabledAction, toggleKeeperAction, type AdminState } from './actions';
 
@@ -165,6 +166,35 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
    * argon2id hash and cannot be read by anybody (§89, rule 4).
    */
   const otherKeeper = user.isKeeper && !isSelf;
+  /*
+   * §90: *Tot Keeper maken* asks first. It is not a removal (§69 lets those go
+   * without a question and puts the undo in a toast); it is a secret that
+   * leaks with one tap — the Keeperkant, every hidden sectie — and there is no
+   * toast that takes back what somebody has already read. The same question
+   * the archive asks everywhere else before an act (`ui.confirm`). Taking the
+   * role *away* hides things again, so that stays one press.
+   */
+  const ui = useUi();
+  const keeperForm = useRef<HTMLFormElement>(null);
+  const keeperConfirmed = useRef(false);
+  const onKeeperSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    if (user.isKeeper || keeperConfirmed.current) {
+      keeperConfirmed.current = false;
+      return;
+    }
+    event.preventDefault();
+    const yes = await ui.confirm({
+      title: fill(ui.words.keeperPromoteTitle, { naam: user.username, keeper: ui.words.keeper }),
+      message: fill(ui.words.keeperPromoteMessage, {
+        naam: user.username,
+        keeperkant: ui.words.keeperSide,
+      }),
+      confirmLabel: fill(ui.words.keeperPromoteYes, { keeper: ui.words.keeper }),
+    });
+    if (!yes) return;
+    keeperConfirmed.current = true;
+    keeperForm.current?.requestSubmit();
+  };
 
   return (
     <li
@@ -198,7 +228,7 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
             Nieuw wachtwoord instellen
           </button>
         )}
-        <form action={toggleKeeperAction}>
+        <form ref={keeperForm} action={toggleKeeperAction} onSubmit={(event) => void onKeeperSubmit(event)}>
           <input type="hidden" name="userId" value={user.id} />
           <button type="submit" className="btn btn-small btn-ghost">
             {user.isKeeper ? 'Als Keeper afzetten' : 'Tot Keeper maken'}
@@ -219,14 +249,22 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
       <AssignedCharacters user={user} />
 
       {showSetPassword && !otherKeeper && (
-        <form action={setPassword} className="row" style={{ marginTop: '0.5rem', maxWidth: 420 }}>
+        <form action={setPassword} className="row-wrap" style={{ marginTop: '0.5rem', maxWidth: 420 }}>
           <input type="hidden" name="userId" value={user.id} />
+          {/* §90: a real label, and the caret already in the box — a
+              placeholder alone is gone the moment you start typing. */}
+          <label className="label" htmlFor={`new-password-${user.id}`} style={{ flexBasis: '100%', margin: 0 }}>
+            {fill(ui.words.adminNewPasswordFor, { naam: user.username })}
+          </label>
           <input
+            id={`new-password-${user.id}`}
             className="input"
             name="password"
             type="text"
             placeholder="Nieuw wachtwoord (minstens 8 tekens)"
             autoComplete="off"
+            autoFocus
+            style={{ flex: '1 1 12rem', width: 'auto' }}
           />
           <button className="btn btn-small" type="submit">
             Instellen

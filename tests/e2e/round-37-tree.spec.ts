@@ -66,7 +66,9 @@ test('§73: op een telefoon opent de stamboom in Lezen, en Bewerken zet de geree
   await expect(modeRadio(page, 'Bewerken')).toHaveAttribute('aria-checked', 'false');
   // Absent, not hidden: Lezen has no toolbar that makes anything.
   await expect(page.getByTestId('tree-add-loose')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toHaveCount(0);
+  // §90: undo stays, grey — on all four canvases the same (it used to go with the group).
+  await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeDisabled();
   // And the heading is text, not a box a thumb can land in.
   await expect(page.locator('#tree-name')).toHaveCount(0);
   await expect(page.getByTestId('family-tree-title')).toContainText(name);

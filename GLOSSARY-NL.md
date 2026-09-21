@@ -102,6 +102,12 @@ Search → Zoeken · You → Jij · Admin → Beheer
 **Stambomen** and **Het web** are in the desktop menu only: the phone's tab bar
 is full at eight (§66).
 
+Since round 52 (§91) the desktop menu is grouped: **Jouw plek**, **Het archief**
+and, for the Keeper only, **Keeper**. *Zoeken* is a box at the top of it rather
+than a line, and *Jij* is its last line, with *Instellingen* beside it. On a
+phone *Zoeken* is still a tab, and the eighth tab, *Jij*, opens the **Jij-blad**
+instead of going to `/you`. See *Ronde 52* at the end of this file.
+
 Admin panes: Gebruikers · Beoordelen · Soorten artikelen · Woorden · Prullenbak ·
 Geschiedenis · Site · Export · Logboek
 
@@ -125,11 +131,13 @@ Geschiedenis · Site · Export · Logboek
 | Why this matters here | Waarom dit hier van belang is |
 | Options for X | Opties voor X |
 | Add cover | Afbeelding toevoegen |
+| Cover menu (the button on an artikel that already has a cover; round 51, §90 — it said *Afbeelding*, which is also the camera in the text's own toolbar) | Omslag |
 | Replace | Vervangen |
 | Crop / Close crop (menu item on the artikel; round 19 — one set of crops per picture, no crop on a dossier's filing or a board card any more) | Bijsnijden / Bijsnijden sluiten |
 | Landscape 3:2 / Portrait 3:4 / Square 1:1 (the three crop frames) | Liggend 3:2 / Staand 3:4 / Vierkant 1:1 |
 | Crop (noun, the frame's label) | Uitsnede liggend / staand / vierkant |
 | Three crops — landscape, portrait and square. Every list, card and knot picks one. Drag to move; scroll to zoom. | Drie uitsneden — liggend, staand en vierkant. Elke lijst, kaart en knoop kiest er een. Sleep om te verschuiven; scrol om te zoomen. |
+| … on a touch screen (round 51, §90: the device decides which of the two is shown) | … Sleep om te verschuiven; knijp om te zoomen. |
 | Remove | Verwijderen |
 | Done | Klaar |
 | Cancel | Annuleren |
@@ -546,7 +554,7 @@ lezen, en dat is de bedoeling. Twee dingen zijn wel verhuisd.
 |---|---|---|
 | **Met wie ben je nu aan het schrijven?** | een blad, één keer per browservenster | Alleen onderzoekers staan erin: als jezelf schrijven bestaat niet meer. |
 | **Alles wat je in dit venster typt komt op naam van deze onderzoeker. Een ander venster kan een andere kiezen.** | in dat blad | Waarom het per venster gaat. |
-| **Je schrijft als** | onder de karakterwissel in het menu, en boven de kleerkast op Jij | Wat er nu op je volgende regel komt te staan. Klik erop om te wisselen. |
+| **Je schrijft als** | onder de karakterwissel in het menu, en boven de kleerkast op Jij | Wat er nu op je volgende regel komt te staan. Klik erop om te wisselen. **Sinds ronde 52 (§91)** staat deze regel in het menu en in het Jij-blad alleen nog als dit venster bewust iemand anders koos dan je speelt. Een wissel van *Speel als* neemt de schrijfkeuze mee, dus meestal is het één regel. Op Jij staat hij altijd. |
 | **nog niemand** | in die regel | Er is nog niets gekozen én het account draagt niets. |
 | **Je hebt nog geen onderzoeker, dus je kunt alleen lezen.** | een blijvende melding bovenaan elke pagina | Voor een speler zonder onderzoeker. De melding wijst de weg naar buiten: maak een artikel en koppel het aan je account. |
 | **Je hebt nog geen onderzoeker, dus je kunt hier alleen lezen.** | melding, bij een knop die dicht blijft | Hetzelfde, waar het gebeurt. |
@@ -781,7 +789,7 @@ is waar hij *heen* gaat — niet waar je nu bent.
 
 | Op het scherm | Waar | Betekenis |
 |---|---|---|
-| **{Naar de Keeperkant}** | de ronde knop rechtsboven in beeld, met een schildje — op elk scherm dezelfde hoek, buiten het menu om. Alleen een echte {Keeper} ziet hem | Klapt het hele archief om: elke lijst — Start, Wiki, {Dossiers}, {Prikborden}, {Landkaarten}, {Tijdlijnen}, het web, Zoeken — laat daarna alleen nog de dingen van de {Keeper} zien. |
+| **{Naar de Keeperkant}** | de ronde knop rechtsboven in beeld, met een schildje — op elk scherm dezelfde hoek, buiten het menu om. Alleen een echte {Keeper} ziet hem. Sinds ronde 52 (§91) staat er op een groot scherm een woord naast: **{Keeperkant}** of **{Spelerskant}**, de kant waar hij je heen brengt. Op een telefoon staat hij ook in het Jij-blad | Klapt het hele archief om: elke lijst — Start, Wiki, {Dossiers}, {Prikborden}, {Landkaarten}, {Tijdlijnen}, het web, Zoeken — laat daarna alleen nog de dingen van de {Keeper} zien. |
 | **{Naar de spelerskant}** | dezelfde knop, nu met een poppetje | De weg terug: elke lijst laat weer precies zien wat de {spelers} zien. |
 | **{Keeperkant}** | het stempeltje onder de naam van het archief, zolang je aan die kant staat | Alleen op een groot scherm: het naambordje staat in de zijbalk, en die heeft een telefoon niet. Op een telefoon zijn de knop en de kleuren het teken. |
 | *(geen tekst)* | de toets **k** | Dezelfde knop, vanaf het toetsenbord — naast `n` (nieuw {artikel}) en `/` (zoeken). Doet niets terwijl je in een veld typt of er een blad openstaat. |
@@ -1249,3 +1257,59 @@ of **{stamboom}** staat, staat op het scherm het woord van de Keeper.
 | **Groter of kleiner** | de greep bovenaan een kaartje dat op een telefoon van onderen opkomt | Eén naam in beide standen (§64); `aria-expanded` zegt welke. De tooltip zegt *Groter* of *Kleiner* (§74). |
 | **Sluiten** | het kruisje rechts in die greep | Dezelfde naam als het kruisje in een `Sheet` (§74). |
 | **Groot bekijken** | de knop onder de foto van een prikbordkaartje, in het kaartje van onderen op een telefoon | Opent de volledige lightbox; een bureau opent die meteen (§74). |
+
+## Ronde 51 — de deuren (§90)
+
+Veel kleine reparaties, en daarom veel kleine woorden. **Alles hieronder staat
+in `lib/words.ts`**, in de drie blokken met `// §90`, en is dus te herschrijven
+in Beheer → Woorden. Een zin die je daar herschrijft, wordt na 60 tekens
+afgekapt; zie `CLAUDE.md` §8. Waar **{kamer}**, **{winkel}**, **{keeper}** of
+**{karakter}** staat, staat op het scherm het woord van de Keeper. Hieronder
+staan alleen de begrippen: namen van knoppen, deuren en tabs. De zinnen
+eromheen (meldingen, lege staten, uitleg) staan in `lib/words.ts` bij hun
+sleutel, met een regel *what* die zegt waar ze staan.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Omslag** (`coverMenu`) | de knop met het menu van de omslag, op een {artikel} dat er een heeft | Heette *Afbeelding*, net als het camera-knopje in de werkbalk van de tekst, dat een plaatje *in* de tekst zet. Twee dingen met één naam betekende elke keer raden. Zonder omslag blijft de knop *Afbeelding toevoegen*. |
+| **Naar de inhoud** (`skipToContent`) | de eerste stop voor wie met Tab loopt; alleen zichtbaar als hij de focus heeft | Slaat het menu over en springt naar `<main>`. |
+| **Tabbalk** (`tabBar`) | de voorgelezen naam van de balk onderaan op een telefoon | De zijbalk en de tabbalk heetten allebei *Hoofdmenu*: één naam voor twee plekken. |
+| **Verder als {naam}** (`writingAsGoOn`) | de grote knop in *Met wie ben je nu aan het schrijven?* | Kiest het {karakter} dat je account al draagt, met één tik. Hij krijgt bewust geen focus, zodat een spatie die je nog aan het typen was, hem niet indrukt. De vraag zelf heeft geen kruisje meer. |
+| **Kamer maken** (`roomOpen`) | de knop van de Keeper op het artikel van een onderzoeker die niemand draagt | Heette *Een kamer geven*, maar *Geven* is wat de Keeper met munten doet (K10). Staat alleen op een artikel dat een onderzoeker kán zijn. |
+| **Naar de {winkel}** (`toShop`) | de deur naar de winkel, in je eigen kamer en op Jij | Een deur draagt een werkwoord (K11). De deur geeft de kamer mee waarvoor je koopt. |
+| **Naar de uitdeler** (`toHandout`) | de deur naar `/uitdelen`, boven het grootboek en in de hal (alleen de Keeper) | *Uitdelen* is de knop op de pagina erachter; de deur ernaartoe heet naar waar hij heen gaat. |
+| **Kopen voor {naam}** (`shopForName`) | de koopknop in de winkel, als je meer dan één onderzoeker draagt | Zegt wiens munten je uitgeeft. De prijs en de plek komen erachter: *Kopen voor Bertus · 1 munt → muur* (`buyLandsOn`). |
+| **Kamer van** (`roomSwitch`) | boven de chips waarmee je naar je andere kamer gaat, in een kamer | Alleen voor wie zelf meer dan één kamer heeft. |
+| **Hoeveel?** (`grantAmount`) | de voorgelezen naam van het bedragvak in het formulier *Geven*, dat nu bovenaan de kamer staat | Stond als losse tekst in de code. |
+| **Bedrag voor wie je aanvinkt** (`handoutAll`) | het globale vak bovenaan de uitdeler | Heette *Voor wie je aanvinkt*, en dat las als *wie*, boven een vak waar een bedrag in moet. |
+| **Wat je al hebt** (`pickHave`) · **Zoeken** (`pickSearch`) · **Zoeken…** (`pickSearchHint`) | het eerste tabblad van de plek-kiezer, en het zoekvak erboven (voorgelezen, en de grijze tekst) | Stonden sinds §80 bewust als vaste tekst in de code. Sinds §90 zijn het sleutels, zoals K7 wil. |
+| **Speelt nu** (`wearsNow`) | onder het {karakter} dat iemand nu speelt, op de spelerspagina | Heette *Draagt deze nu*, en brak onder een smal portret over drie regels. |
+| **Speel als {naam}** (`playAs`) | de knop op het artikel van een {karakter} dat je draagt maar nu niet speelt | Was vaste tekst; nu een sleutel. |
+| **zette** · **haalde** (`feedRoomPlaced`, `feedRoomCleared`) | het werkwoord van een kamerhandeling in het feed op Start en op een spelerspagina | *Bertus zette Staande klok in de kamer van Dr. Kramer.* Tot deze ronde stond er *wijzigde*, onder de naam van het karakter dat de speler op dat moment droeg. Het staartje heeft vier vormen: *in de kamer van {naam}*, *in de eigen kamer*, en *in een kamer* als je de onderzoeker niet mag zien (§76). Voor weghalen zijn het de *uit*-vormen. |
+| **Typ de naam** (`trashTypeName`) | de grijze tekst in het vak waarin je in de prullenbak een naam overtypt om iets te vernietigen | Stond er als de naam zelf, en dan leek het vak al ingevuld. |
+
+## Ronde 52 — jouw plek (§91)
+
+De speler heeft een vaste plek. Op een computer is dat een groep in de
+zijbalk, op een telefoon een blad achter de Jij-tab, en op Start een rij boven
+de welkomsttekst. **De nieuwe woorden staan in `lib/words.ts`**, in de groep
+*Jouw plek* (het blok met `// §91`), en zijn dus te herschrijven in Beheer →
+Woorden. Waar **{kamer}**, **{winkel}**, **{karakter}** of **{spelerspagina}**
+staat, staat op het scherm het woord van de Keeper.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Jouw plek** (`navGroupYours`) | de kop van de groep in de zijbalk, en de kop van de rij bovenaan Start | Alles van jou bij elkaar: {kamer} met je saldo, {winkel}, je eigen {spelerspagina} en Spelers. Heette in de review ook "Jij", maar *Jij* is al de tab en de pagina met je instellingen. |
+| **Het archief** (`navGroupArchive`) | de kop boven Start, {Dossiers}, Wiki en de tekenvlakken in de zijbalk | De lijst die er altijd stond, nu met een kop, zodat hij te onderscheiden is van *Jouw plek*. |
+| **{Keeper}** | de kop boven Beheer en Uitdelen in de zijbalk, en in het Jij-blad | Het woord van de Keeper voor de Keeper. De groep bestaat alleen voor de {Keeper}: een speler krijgt hem niet te zien, en hij staat ook niet verborgen in de pagina (§44). |
+| **Mijn {spelerspagina}** (`navMyPage`) | een deur in *Jouw plek* | Je eigen pagina in de hal (§77). |
+| **{n} online** (`onlineCount`) | rechts naast Spelers | Hoeveel anderen er nu zijn, uit dezelfde lijst als de stip bovenaan (K40). Er staat niets als er niemand is. |
+| **Kies je {karakter}** (`pickCharacter`) | in *Jouw plek* en op Start, voor wie nog geen {karakter} heeft | Gaat naar de kleerkast op Jij. Zonder {karakter} is er geen {kamer} en geen {winkel}, dus dit is de enige deur die ertoe doet. |
+| **Zoek in het archief** (`searchBox`) · **Zoek…** (`searchBoxHint`) | het zoekvak bovenaan de zijbalk: de voorgelezen naam en de grijze tekst | Enter gaat naar Zoeken met wat je typte. Op een computer zet de toets **/** de cursor in dit vak. |
+| **{n} nieuw · {zoek} zoeken** (`shortcutsLine`) · **{k} kant** (`shortcutsKeeper`) | de regel onder *Nieuw artikel* in de zijbalk | De sneltoetsen. *k kant* staat er alleen voor de {Keeper}. Heette *Druk overal op n*. |
+| **Instellingen** (`navSettings`) | naast *Jij* onderaan de zijbalk, en als knop in het Jij-blad | De pagina Jij: lettertype, kleuren, wachtwoord, en je {karakters}. |
+| **Jij-blad** | het blad dat de achtste tab op een telefoon opent | Geen woord op het scherm maar een begrip: de telefoonversie van *Jouw plek*. Bovenaan staat wie je speelt, met *Speel als*. Daaronder de deuren, *Instellingen*, en voor de {Keeper} Beheer, Uitdelen en de knop naar de andere kant. De tab zelf heet nog steeds **Jij** en draagt je saldo onder het poppetje. |
+| **Speel als** (`switchPlay`) | de knop in het Jij-blad naast je naam | Klapt de lijst van je {karakters} open in het blad zelf, niet in een tweede blad. Een wissel neemt ook mee met wie je schrijft. |
+| **Je schrijft als** (`writesAs`) | onder wie je speelt, alleen als dit venster bewust een ander koos; en altijd op Jij | Was vaste tekst in de code en is nu een sleutel. Zie *Met wie je schrijft (§18b)* hierboven. |
+| **Laatst door jou** (`homeJijRecent`) · **Nog niets bewerkt.** (`homeJijNone`) | in de Jij-rij op Start | Je laatste drie {artikelen}, met hoe lang geleden. Alleen wat je schreef of bewerkte, niet wat je in een {kamer} zette. |
+| **Naar de {kamer}** · **Naar de {winkel}** (`toRoom`, `toShop`) | als knoppen in het Jij-blad en in de Jij-rij op Start | Dezelfde deuren als in ronde 51 (K11). In de zijbalk heten ze gewoon *{Kamer}* en *{Winkel}*, zoals elke regel in een menu. |

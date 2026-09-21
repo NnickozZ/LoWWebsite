@@ -68,6 +68,21 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   // otherwise re-render on every stroke.
   ink_layers: { refs: { target_id: 'ink' }, lists: [] },
   site_settings: { lists: ['site', 'words', 'types'] },
+  /*
+   * §90: de kamer (§79). `room:{id}` is in §78 bedacht, `canWatch` zegt er
+   * sinds §79 ja tegen, de kamerpagina staat erop en `ShellBeurs` luistert
+   * ernaar — en niets liet hem ooit bewegen, want deze drie tabellen stonden
+   * hier niet. Een gift van de Keeper landde alleen op pagina's die toevallig
+   * `feed` volgden. §83's les nog een keer: een lezer die op een schrijver
+   * wacht die niet bestaat.
+   *
+   * Een UPDATE van één plek bindt alleen `id`; daarom noemen `placeItem` en
+   * `clearSlot` de kamer óók in hun WHERE. Een grootboekregel is altijd een
+   * INSERT met `room_id`, dus geven, kopen en openen bewegen hem vanzelf.
+   */
+  rooms: { row: 'room', lists: [] },
+  room_slots: { refs: { room_id: 'room' }, lists: [] },
+  room_ledger: { refs: { room_id: 'room' }, lists: [] },
 };
 
 const VERB = /^\s*(insert\s+into|update|delete\s+from)\s+"?([A-Za-z_]+)"?/i;

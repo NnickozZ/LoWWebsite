@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { isRefreshHeld, onRefreshHoldChange } from '@/components/live/refreshHold';
 import { roomKey } from '@/lib/live/keys';
-import type { Words } from '@/lib/words';
-import { Beurs } from './Beurs';
 
 /**
  * §84: de beurs in de hoek van élke pagina, en hij beweegt terwijl je kijkt.
@@ -27,12 +25,20 @@ import { Beurs } from './Beurs';
  * hier in het klein, want dit is niet de plek om `LivePage`'s hele machinerie
  * na te bouwen: een saldo dat één gebaar later landt is niemands probleem, een
  * saldo dat nooit landt wel.
+ *
+ * §91: **de pil zelf is weg**, op de desk en op de telefoon. Op de desk staat
+ * het saldo nu rechts van *Kamer* in de zijbalk (die er altijd is, ook op een
+ * canvas), op de telefoon onder het poppetje van de Jij-tab. Wat hier overbleef
+ * is het deel dat nooit een tekening was: het getal komt nog steeds van boven
+ * (`purseOf`), en deze hook is nog steeds de enige die naar `room:{id}` luistert
+ * voor de schil — één keer gemount in `AppShell`, voor beide tekeningen. Twee
+ * lezers van één saldo zouden twee keer `router.refresh()` doen op één gift.
  */
-export function ShellBeurs({ roomId, balance, slug, words }: { roomId: string; balance: number; slug: string; words: Words }) {
+export function useShellBeurs(roomId: string | null) {
   const router = useRouter();
   const owed = useRef(false);
 
-  useLiveChanges([roomKey(roomId)], () => {
+  useLiveChanges(roomId ? [roomKey(roomId)] : [], () => {
     if (isRefreshHeld()) {
       owed.current = true;
       return;
@@ -48,10 +54,4 @@ export function ShellBeurs({ roomId, balance, slug, words }: { roomId: string; b
       router.refresh();
     });
   }, [router]);
-
-  return (
-    <div className="shell-beurs" data-testid="shell-beurs">
-      <Beurs balance={balance} words={words} href={`/kamer/${slug}`} size="small" />
-    </div>
-  );
 }

@@ -391,6 +391,14 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
                 kamers: `${summary.rooms} ${summary.rooms === 1 ? words.room : words.roomPlural}`,
               })
             : ''}
+          {/* §90 (E19): na een uitdeling blijven de vinkjes staan en is het
+              bedrag leeg. Dat is goed — maar een nieuw bedrag gaat dan naar
+              dezelfde mensen, en dat hoort er te staan. */}
+          {summary.rooms === 0 && picked > 0 && (
+            <span className="muted" data-testid="uitdelen-rest">
+              {fill(words.handoutLeft, { n: String(picked) })}
+            </span>
+          )}
         </p>
 
         <span className="row-wrap uitdelen-voet-knoppen">

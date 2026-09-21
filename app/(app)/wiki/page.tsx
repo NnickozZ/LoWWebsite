@@ -1,4 +1,5 @@
 import '@/app/overzichten.css';
+import { redirect } from 'next/navigation';
 import { LivePage } from '@/components/live/LivePage';
 import { NewOverzichtButton } from '@/components/overzichten/NewOverzichtButton';
 import { OverzichtView } from '@/components/overzichten/OverzichtView';
@@ -35,6 +36,26 @@ export const dynamic = 'force-dynamic';
 export default async function WikiPage({ searchParams }: { searchParams: Promise<ListParams> }) {
   const user = await requireViewer();
   const query = await searchParams;
+
+  /*
+   * §90: the voordeur does not filter, the list does. Every tag chip in the
+   * archive pointed here with `?tag=` from round 38 until round 51, so links
+   * saved or pasted in that time are sent on to the list with everything
+   * they carried, instead of landing on the welcome and dropping the tag.
+   */
+  if (query.tag) {
+    const carried = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      for (const one of Array.isArray(value) ? value : value === undefined ? [] : [value]) {
+        carried.append(key, one);
+      }
+    }
+    // `return`, and on purpose: this page only *sometimes* sends you on, and
+    // `live-everywhere.test.ts` reads a bare `redirect(` at the start of a line
+    // as "a page that is nothing but a door".
+    return redirect(`/wiki/alles?${carried.toString()}`);
+  }
+
   const words = getWords();
 
   const loaded = await loadOverzichtPage({ home: true }, user);

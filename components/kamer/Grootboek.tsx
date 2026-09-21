@@ -7,7 +7,6 @@ import { relativeTime } from '@/lib/diff';
 import type { LedgerLine } from '@/lib/kamers/service';
 import { isPlekKind } from '@/lib/kamers/shape';
 import { capitalise, fill, type Words } from '@/lib/words';
-import { GrantForm } from './GrantForm';
 import { MEANING, munt, plekWord } from './plekWords';
 
 /**
@@ -71,12 +70,10 @@ function reasonOf(line: LedgerLine, words: Words): string {
 const LEDGER_SHOWN = 3;
 
 export function Grootboek({
-  roomId,
   lines,
   canGrant,
   words,
 }: {
-  roomId: string;
   lines: LedgerLine[];
   /** §83: may this hand write a line? The Keeper's, and only his. */
   canGrant: boolean;
@@ -97,7 +94,7 @@ export function Grootboek({
         {canGrant && (
           <Link className="btn btn-small kamer-grootboek-uitdelen" href="/uitdelen" data-testid="grootboek-uitdelen">
             <Icon name={MEANING.geven} size={13} />
-            {words.handout}
+            {words.toHandout}
           </Link>
         )}
       </h2>
@@ -160,7 +157,8 @@ export function Grootboek({
         </button>
       )}
 
-      {canGrant && <GrantForm roomId={roomId} give={words.ledgerGive} why={words.ledgerWhy} />}
+      {/* §90 (E8): het formulier van de Keeper staat niet meer hier onderaan
+          maar bovenaan de kamer, naast de beurs — zie de kamerpagina. */}
     </section>
   );
 }

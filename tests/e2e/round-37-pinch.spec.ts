@@ -52,8 +52,13 @@ test('§72: een knijp op het prikbord springt niet, en houdt vast wat tussen de 
 
   const stage = (await page.locator('.board-viewport').boundingBox())!;
   // Let go of the new notitie, so the inspector is not docked over the cork.
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.board-inspector')).toHaveCount(0);
+  // §90 (C3): a new notitie lands chosen *and* with the caret in its text, and
+  // Escape peels one layer at a time — the first leaves the text, the second
+  // lets go of the card.
+  await expect(async () => {
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.board-inspector')).toHaveCount(0, { timeout: 1000 });
+  }).toPass({ timeout: 10_000 });
   // A row of bare cork, well inside the glass: both fingers must land on the
   // wall itself — a finger on the notitie or on something docked over the
   // glass is not a finger on the wall.

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import type { CanvasModeState } from './useCanvasMode';
+import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 
 /**
  * §73 — de schakelaar tussen Lezen en Bewerken.
@@ -56,6 +57,9 @@ export default function CanvasModeToggle({ mode }: { mode: CanvasModeState }) {
       data-testid="canvas-mode"
       data-ready={ready ? 'true' : undefined}
       onKeyDown={onKeyDown}
+      /* §90: choosing a mode writes nothing, so it never asks §18b's question
+         — not even on the way from Bewerken to Lezen. */
+      {...AUTHOR_GATE_OFF}
     >
       <button
         type="button"

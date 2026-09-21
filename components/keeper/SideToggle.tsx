@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import type { Side } from '@/lib/keeper/kinds';
-import type { Words } from '@/lib/words';
+import { capitalise, type Words } from '@/lib/words';
 import { flipRoad, hereFrom, planFlip } from './flipRoad';
 
 /**
@@ -105,6 +105,13 @@ export function SideToggle({ side, words }: { side: Side; words: Words }) {
           button that may not end up on its head. */}
       <span key={turns} className="side-toggle-turn">
         <Icon name={goingToKeeper ? 'shield' : 'you'} size={17} />
+      </span>
+      {/* §91: on a desk the button says where it goes in a word — the side it
+          lands on, short, beside the icon. Hidden on a phone (CSS), where the
+          corner has room for the circle only; the accessible name is the
+          `aria-label` above either way and does not change (§64). */}
+      <span className="side-toggle-word" aria-hidden="true">
+        {goingToKeeper ? words.keeperSide : capitalise(words.playerSide)}
       </span>
     </button>
   );

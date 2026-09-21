@@ -74,7 +74,7 @@ export default async function BrowseTypePage({
       <SortFilterBar
         sorts={WIKI_SORTS}
         defaultSort="recent"
-        groups={wikiFilterGroups(tags, user)}
+        groups={wikiFilterGroups(tags, user, filters.tag)}
         summary={`${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`}
       />
 

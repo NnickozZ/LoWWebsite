@@ -16,7 +16,8 @@ import { mapKey, pinFieldsRoomKey } from '@/lib/live/keys';
 import { popoverIsOpen } from '@/lib/popoverStack';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
-import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
+import { AUTHOR_GATE_OFF, useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
@@ -235,7 +236,6 @@ export function MapCanvas({
    * it: it pans, it zooms, its legend works, and nothing on it moves.
    */
   const mayType = useMayType();
-  const gate = useAuthorGate();
   // Read by the callbacks below, which are built once and would otherwise
   // close over the answer as it was then.
   const mayTypeRef = useRef(mayType);
@@ -606,6 +606,9 @@ export function MapCanvas({
     onOpen: () => setSelectedId(null),
     stopPropagation: true,
   });
+  /* §90: the §18b question only where this glas can write — Bewerken, or the
+     potlood in the hand. Lezen and the legend's search ask nothing. */
+  const gate = useCanvasAuthorGate(editing || ink.inkActive);
   const onInkKey = ink.onKeyDown;
   /*
    * §73: leaving Bewerken puts the potlood down too (the crosshair went at
@@ -1615,7 +1618,8 @@ export function MapCanvas({
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   const legendPanel = (
-    <div className="map-legend-body">
+    /* §90: a legend filters and finds — reading, in either mode. */
+    <div className="map-legend-body" {...AUTHOR_GATE_OFF}>
       <div className="row" style={{ gap: '0.4rem' }}>
         {isPhone ? (
           <strong className="small">Legenda</strong>

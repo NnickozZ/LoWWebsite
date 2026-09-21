@@ -34,6 +34,8 @@ const SCOPE = [
   'components/kamer/Grootboek.tsx',
   'components/kamer/GrantForm.tsx',
   'components/kamer/RoomEffects.tsx',
+  // §90: het inklapbare blok "Wat deze kamer je geeft".
+  'components/kamer/EffectenFold.tsx',
   'components/kamer/Uitdeler.tsx',
   'components/kamer/plekWords.ts',
   'components/winkel/WinkelRij.tsx',
@@ -120,14 +122,12 @@ describe('§84/§11: geen losse Nederlandse zinnen in de feature', () => {
    * eronder met een reden — dat is de hele functie van deze test: iets
    * toevoegen dwingt een zin over waarom.
    */
-  const ALLOWED = [
-    // Twee losse Nederlandse zinnen in de plek-kiezer die §80 bewust niet
-    // hernoembaar maakte: "wat je al hebt" is geen zelfstandig naamwoord dat
-    // een campagne anders noemt, het is de vraag die het tabblad stelt.
-    'Wat je al hebt',
-    'Niets dat hier past.',
-    'Even kijken…',
-    'Zoeken…',
+  const ALLOWED: string[] = [
+    // §90: hier stonden vier zinnen uit de plek-kiezer ("Wat je al hebt",
+    // "Niets dat hier past.", "Even kijken…", "Zoeken…") die §80 bewust niet
+    // hernoembaar maakte. K7 zegt dat elk zichtbaar woord een sleutel is, en
+    // sinds ronde 51 zijn ze dat: `pickHave`, `pickNothing`, `pickLoading`,
+    // `pickSearchHint`. De lijst is leeg; wie hier iets zet, schrijft erbij waarom.
     // §85: 'Nog geen regels.' stond hier tot ronde 46 en is nu `ledgerEmpty`.
     // 'Recente bijdragen' is de kop van een paneel en woont in de registry,
     // niet in een van deze bestanden.
@@ -360,7 +360,8 @@ describe('§85: de deuren dragen een werkwoord', () => {
    * een vijfde bij zet komt hier langs.
    */
   it('names every door as a way out and not as a place', () => {
-    for (const key of ['toRoom', 'toPlayers', 'toCharacters', 'toCases']) {
+    // §90: de winkel en de uitdeler kregen er ook een (E25).
+    for (const key of ['toRoom', 'toPlayers', 'toCharacters', 'toCases', 'toShop', 'toHandout']) {
       expect(DEFAULT_WORDS[key], key).toMatch(/^Naar /);
     }
   });

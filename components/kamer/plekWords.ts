@@ -113,3 +113,38 @@ export function shortfall(price: number, balance: number, words: Words): string 
 export function withPrice(label: string, price: number, words: Words): string {
   return price > 0 ? `${label} · ${munt(price, words)}` : label;
 }
+
+/**
+ * §90 (E21): hoe een `room.*`-regel in het feed leest.
+ *
+ * Het feed drukt `{wie} {werkwoord} {ding}` af, en een kamerhandeling stond er
+ * als "Bertus Slabbekoorn **wijzigde** Staande klok" — het verkeerde werkwoord
+ * (het huisraadartikel is niet bewerkt) onder de verkeerde naam (het karakter
+ * dat de speler *nu* draagt; dat laatste is sinds §90 de `character_id` die
+ * `placeItem`/`clearSlot` meeschrijven). Nu: *zette Staande klok in de kamer
+ * van Dr. Elsje Kramer*, of *in de eigen kamer* als wie het deed de drager is.
+ *
+ * `owner` is de naam van de onderzoeker van die kamer **zoals deze kijker hem
+ * mag zien** (`visibleNamesOf`), of null — dan zegt de regel alleen "in een
+ * kamer", want de naam van een figuur die je niet mag zien is precies wat §76
+ * niet wil laten uitlekken. Null voor elk ander werkwoord.
+ */
+export function roomFeedPhrase(
+  verb: string,
+  owner: string | null,
+  own: boolean,
+  words: Words,
+): { verb: string; tail: string } | null {
+  if (verb !== 'room.placed' && verb !== 'room.cleared') return null;
+  const placed = verb === 'room.placed';
+  const tail = own
+    ? placed
+      ? words.feedRoomOwnIn
+      : words.feedRoomOwnOut
+    : owner
+      ? fill(placed ? words.feedRoomIn : words.feedRoomOut, { naam: owner })
+      : placed
+        ? words.feedRoomSome
+        : words.feedRoomSomeOut;
+  return { verb: placed ? words.feedRoomPlaced : words.feedRoomCleared, tail };
+}

@@ -471,7 +471,7 @@ app/
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
                      the shared-text editor (useLiveDoc, LiveBody, LivePeople)
-  entry/             cover (its tools behind one "Afbeelding" menu), the three
+  entry/             cover (its tools behind one "Omslag" menu), the three
                      crops (round 19), type fields — as a form on the editing face and as
                      printed facts on the reading one (`FieldsView`) — tags,
                      the pickers for a linked artikel (EntryPicker), a linked
@@ -519,7 +519,12 @@ components/
   you/               the character switcher and the wardrobe, and §18b's
                      AuthorProvider — the question this window answers once
                      ("Met wie ben je nu aan het schrijven?"), the
-                     "Je schrijft als …" line and the read-only banner
+                     "Je schrijft als …" line (§91: in the shell only when
+                     this window writes as somebody else) and the read-only
+                     banner
+  shell/             §91: JouwPlek.tsx — jouw plek, one list (`yoursDoors`)
+                     drawn twice: the side menu's groups and search box on a
+                     desk, the Jij tab and the Jij-blad on a phone
   ui/                the new-entry and new-case sheets, the yes/no sheet,
                      toasts, shortcuts, and `ui.uploadLimit` — this reader's
                      own ceiling, handed down from the layout
@@ -628,6 +633,7 @@ lib/
                      one gate that is *seeing*, the Keeper's switch and wipe)
   editor/            the one list of Tiptap extensions both halves build from
   search/            fuzzy ranking, the search service
+  home/              §91: jij.ts (pure: your last three from Start's own feed)
 access.ts            §17: who may look and who may touch, as one SQL condition
                      for readers and one boolean for writers
 characters.ts        §18: who a person is being, and the name a feed prints —
@@ -701,7 +707,7 @@ Eighty-nine rules worth knowing before changing anything:
    the whole picture at whatever shape it is. Lists need a shape, so the
    picture carries three crops (`entries.cover_crop`: liggend 3:2, staand 3:4,
    vierkant 1:1 — `lib/images/shapes.ts`, the only place a ratio lives), set
-   once under "Afbeelding › Bijsnijden" and drawn by every list, card, thumb
+   once under "Omslag › Bijsnijden" and drawn by every list, card, thumb
    and knot in the shape it uses: cards and thumbs staand, the tijdlijn's
    window and the web's panel liggend, a web knot vierkant. The file on disk
    is never cropped; each crop is a position and a zoom, applied by CSS
@@ -4459,10 +4465,21 @@ Eighty-nine rules worth knowing before changing anything:
     "0 munten" zegt tegen iemand zonder kamer belooft een kamer. Op een canvas
     staat hij niet (§34: het glas krijgt het scherm), en op de kamer en de
     winkel ook niet — die dragen hun eigen, en twee keer hetzelfde getal naast
-    elkaar is wat de browser als eerste liet zien.
+    elkaar is wat de browser als eerste liet zien. (§90 voegde er het artikel
+    van je *eigen* onderzoeker aan toe, waar `.entry-kamer` dezelfde beurs al
+    draagt; op het artikel van een ander staat daar een ánder getal en blijft
+    de hoek staan.)
+
+    > **Omgekeerd in §91 (ronde 52).** De pil in de hoek bestaat niet meer, op
+    > geen enkele breedte, en de uitzonderingen hierboven gingen met hem mee.
+    > De deur is gebleven: op een computer is het *Kamer* in de zijbalk, met
+    > het saldo ernaast (één klik, ook vanaf een canvas); op een telefoon is
+    > het de Jij-tab, die het saldo draagt, en dan *Naar de kamer* in het blad
+    > (twee tikken). Zie regel 91 en `DECISIONS.md`, ronde 52.
 
     **Elke uitgave spreekt nu, vóór en na.** Vooraf zegt de knop wat hij kost
-    (*Openen · 2 munten*, *Kopen · 5 munten*); achteraf zegt een melding waar
+    (*Openen · 2 munten*, *Kopen · 5 munten*; sinds §90 ook waar het landt,
+    *Kopen · 5 munten → muur*); achteraf zegt een melding waar
     het ding heen is (*"Staande klok ligt nu op je muur. −2 munten"*) met een
     deur die op díé tegel landt. Er is nog steeds **geen bevestigingsdialoog**,
     en dat is een keuze: dit doe je twintig keer op een avond, en een dialoog
@@ -4483,7 +4500,11 @@ Eighty-nine rules worth knowing before changing anything:
     twee groepen met twee knoppen, en ná één koop zei de ene rij *"geen vrije
     plek van deze soort"* en de andere, over hetzelfde voorwerp, *"staat al in
     je kamer"* boven een levende knop. Nu staat een ding er één keer, met chips
-    die zeggen waar het past, en de chips erboven filteren. **De ontdubbeling
+    die zeggen waar het past, en de chips erboven filteren. (Sinds §90 kiest
+    het filter ook waar een koop landt: wie *Muur* filtert en een klok koopt
+    die ook op een bureau past, krijgt hem aan de muur als daar plek is. De
+    winkel koopt voortaan ook voor het karakter dat je speelt, en niet meer
+    voor het eerste in de rij.) **De ontdubbeling
     zit in de pagina en niet in `shopFor`** — `landsIn` blijft per soort plek —
     en dat de bestaande `winkel.test.ts` zonder één wijziging groen bleef, is
     daar het bewijs van.
@@ -4694,7 +4715,8 @@ Eighty-nine rules worth knowing before changing anything:
     geen kamer, want §17/§18 zegt dat een karakter een naam is die iemand
     draagt. Dat blijft staan; er kwam één uitzondering bij, en het is een
     **handeling**: op het artikel van zo'n onderzoeker staat voor de Keeper een
-    knop *Een kamer geven*. Geen soort die er automatisch een krijgt, en
+    knop *Een kamer geven* (sinds §90 *Kamer maken*, en alleen op een artikel
+    dat een onderzoeker kán zijn: `mayHoldRoom`). Geen soort die er automatisch een krijgt, en
     vooral: geen kamer die ontstaat doordat iemand naar een artikel kíjkt —
     sinds §85 leest `roomSummary` op élk artikel of er een kamer is, dus een
     versoepeling van `getOrCreateRoom` had het hele archief een beurs gegeven.
@@ -4866,3 +4888,227 @@ Eighty-nine rules worth knowing before changing anything:
 
     `docs/sloten.md` is de dreigingstabel; `tests/unit/sloten.test.ts` bewaakt
     hem.
+
+90. **De deuren: elke deur gaat waar hij zegt, en een vraag komt pas als er
+    geschreven wordt.** §90. Nick, na ronde 50: *"Je moet te veel knopjes
+    klikken."* Daarop volgde een UI/UX-review van de hele site
+    (`claude/review-ui-ux-de-wrijving.md`), en ronde 51 is daarvan de eerste
+    bouwronde: kleine reparaties en echte bugs, geen herontwerp. Wat de
+    bevindingen gemeen hadden was niet het aantal knoppen, maar deuren die
+    ergens anders uitkwamen dan ze zeiden, en vragen die kwamen op een moment
+    waarop niemand iets wilde doen. Eén regel met drie delen, want het is één
+    fout in drie gebieden.
+
+    **Economie: een deur naar de winkel weet voor wie je koopt.** `/winkel`
+    zonder `?kamer=` kocht voor `rooms[0]`, het eerste karakter in
+    `sort_order`. Wie als Bertus in Bertus' kamer op *Winkel* tikte, kocht dus
+    voor Dr. Kramer met háár munten, en een koop gaat niet terug (§79). Nu
+    koopt `shopFor` zonder geldige `?kamer=` voor het karakter dat je nú
+    speelt, dezelfde kamer als de beurs in de hoek (`purseOf`; sinds §91 het
+    saldo naast *Kamer* in de zijbalk en op de Jij-tab). Elke deur die
+    een kamer kent, geeft hem mee: de deur in de kamer en op *Jij*, en de
+    kiezer in de winkel. Wie meer dan één onderzoeker draagt, ziet op de knop
+    voor wie hij koopt (*Kopen voor Bertus · 1 munt → muur*). Elke koopknop
+    zegt nu ook waar het ding landt, en het filter dat aanstaat bepaalt die
+    plek als die vrij is (`landing(item, prefer)`). Het filter is een
+    voorkeur en geen weigering: is er geen vrije muur, dan geldt de ladder van
+    K20 weer.
+
+    **`room:{id}` beweegt.** De sleutel bestond sinds §78, `canWatch` accepteert
+    hem sinds §79, en de kamer, de winkel en `ShellBeurs` luisteren ernaar
+    (sinds §91 is dat de hook `useShellBeurs`, zonder eigen tekening).
+    Toch bewoog hij nooit, want `rooms`, `room_slots` en `room_ledger` stonden
+    niet in `TABLES` van `lib/live/changes.ts`. §21 leest de live-sleutels uit
+    de SQL zelf, en een `UPDATE … WHERE id = ?` noemt de kamer niet. Daarom
+    zetten `placeItem` en `clearSlot` `room_id` in hun `WHERE`. Dat is niet om
+    te filteren: zo ziet de logger de kamer. Een grootboekregel is altijd een
+    `INSERT` met `room_id`, dus geven, kopen en openen bewegen hem vanzelf.
+
+    **Een kamer maken kan alleen voor een artikel dat een onderzoeker kán
+    zijn.** §86's knop stond op élk artikel zonder kamer, dus ook op huisraad,
+    op een locatie en op een Persoon, en een kamer gaat niet meer dicht.
+    `mayHoldRoom` antwoordt ja voor de soort `investigator`, of voor een soort
+    waarvan aan deze tafel al iemand een artikel draagt. Voor een soort die
+    `keeper_made` is, antwoordt hij altijd nee. De knop op het artikel vraagt
+    het, en `openRoomFor` vraagt het nog een keer (§17 regel 4). De knop heet
+    nu *Kamer maken*, want *Geven* is wat de Keeper met munten doet (K10).
+
+    **Een kamer spreekt de juiste persoon aan.** In je eigen kamer staat de
+    winkeldeur, met déze kamer erin. In die van een ander staat er geen, want
+    die deur ging naar jóúw winkel. In die van een ander noemt de lege zin de
+    naam (*Nog niets dat Kees iets geeft*), en de meldingen van de Keeper die
+    inricht zeggen *op de plank van …* in plaats van *op je plank*. Een kamer
+    die niemand draagt heeft een eigen zin. Het formulier *Geven* staat nu
+    bovenaan naast de beurs, en na afloop zegt het wat er gebeurde
+    (*+10 munten naar …*). Een `room.*`-regel in het feed schrijft de
+    onderzoeker van die kamer als `character_id`, en leest als *zette Staande
+    klok in de kamer van …*. De naam komt door `visibleNamesOf`, dus wie de
+    onderzoeker niet mag zien, leest *in een kamer* (§76).
+
+    **Tekenvlakken: de schrijfvraag van §18b hoort bij schrijven, niet bij
+    kijken.** `useAuthorGate` lag om het hele glas. Daardoor vroeg één tik in
+    **Lezen** al "Met wie ben je nu aan het schrijven?", en op een telefoon,
+    die altijd in Lezen begint (§73), was de eerste aanraking dus áltijd die
+    vraag. Een tekenvlak gebruikt `useAuthorGate` nu nooit zelf, maar
+    `useCanvasAuthorGate(editing || inkActive)`. De regel zelf is puur
+    (`gateAsks` in `lib/canvas/authorGate.ts`). In Bewerken, of met het potlood
+    in de hand, vraagt elke druk het, zoals voorheen. In Lezen vraagt alleen
+    een vak waarin je echt kunt typen. Alles onder `data-author-gate="off"`
+    vraagt nooit iets: de camera, de schakelaar tussen Lezen en Bewerken, en
+    de legenda van de landkaart.
+
+    Verder op de vlakken: *Ongedaan maken* staat in Lezen op alle vier en is
+    daar grijs. Op een tekenvlak is er geen FAB, want het vlak heeft zijn eigen
+    `+`. Een notitie of punaise die je vanaf de balk van het prikbord maakt,
+    landt gekozen en met de caret erin. De vraag komt vóór het maken
+    (`ensureAuthor`), niet daarna, want achteraf nam hij de focus weg en opende
+    de eerste `n` "Nieuw artikel". In Lezen maakt een tik op een notitie geen
+    artikel meer (`canMakeEntry` vraagt nu ook de stand, §73). *Tot Keeper
+    maken* vraagt eerst, in de lijn van §69 ("een houder vraagt nog wél"): het
+    is geen weghalen maar een geheim dat lekt, en een melding met *Ongedaan
+    maken* kan niet terugnemen wat iemand al gelezen heeft.
+
+    **Schrijven en de schil: een link komt aan, en een woord zegt wat waar is.**
+    Een tag-chip gaat naar de lijst van zijn soort (`/wiki/<soort>?tag=`,
+    `tagListHref`). Sinds §75 was `/wiki` de voordeur, en die kijkt niet naar
+    `?tag=`, dus elke tag-chip landde op de welkomsttekst. Een oude
+    `/wiki?tag=` stuurt door naar `/wiki/alles`, met alles wat hij meedroeg.
+    Een uitgelogde browser neemt zijn adres mee als `?next=`. `loginAction`
+    volgt dat alleen via `safeReturnPath` (§89), dus een `next` die van het
+    archief af wijst, stuurt de browser naar `/`.
+
+    Het woord naast *Lezen* komt uit `combinedSave`, voor de autosave en de
+    live kamers samen. Een weigering gaat voor alles. Daarna komt "nog niet
+    opgeslagen" als de lijn weg is of er na 5 s geen antwoord kwam, en pas
+    daarna *Opslaan…*. Tot deze ronde stond *Opslaan…* bovenaan, en dan zei een
+    pagina zonder lijn dat zolang er getypt werd. Een autosave die het archief
+    niet bereikte, bewaart zijn patch en stuurt hem opnieuw bij `online`.
+
+    De blokkerende schrijfvraag heeft geen kruisje meer (`Sheet
+    closable={false}`): het kruisje deed niets. De vraag stelt het karakter dat
+    het account draagt voor, met een knop *Verder als …*. Als er niets achter
+    de vraag wachtte, gaat de focus na het antwoord terug naar waar de vraag
+    vandaan kwam. Een speler zonder karakter opent het maakblad op
+    `investigator`, langs elke weg erheen. De `+` op een telefoon begint op de
+    soort van de lijst waar je staat (`fabTypeFor`). Op een telefoon wijkt de
+    pagina onder de beurs en de strip (`clear: right`) in plaats van ernaast te
+    krimpen: de kop van een artikel was 198 van de 358 px breed. (Sinds §91 is
+    er geen beurs meer in de hoek, en wijkt de pagina alleen nog voor de
+    strip. De regel is dezelfde, zonder `:not(.shell-beurs)`. En de
+    uitzondering die §90 hier maakte, de pil die wijkt op het artikel van je
+    eigen onderzoeker (review S22), is vervallen met de pil zelf.)
+
+    **Wat er níét veranderde:** §18b zelf. De vraag is er nog, per venster en
+    blokkerend, en Escape blijft hem weigeren. De vraag komt alleen niet meer
+    waar niemand schrijft. Rule 78 en §79 bleven ook staan: een melding na
+    *Geven* zegt het bedrag zoals het getypt is en rekent niets uit. Er is geen
+    migratie: `mayHoldRoom` leest wat er al is, en een echte vlag
+    "draagbare soort" op `entry_types` is een ronde van zichzelf (zie
+    `CLAUDE.md` §8). De proef staat in `tests/unit/ronde-51-economie.test.ts`,
+    `ronde-51-canvas.test.ts` en `ronde-51-schrijven.test.ts`, en in de drie
+    `tests/e2e/ronde-51-*.spec.ts`.
+
+91. **Jouw plek: de speler heeft een vaste plek, en wie je speelt is wie je
+    schrijft.** §91. Nick, na ronde 50: *"Je moet te veel knopjes klikken.
+    Misschien moet er iets in de sidebar komen?"* De review vond de oorzaak
+    niet in het aantal knoppen per scherm, maar in het ontbreken van een vaste
+    plek. Kamer, winkel, je eigen spelerspagina en de hal stonden in geen enkel
+    menu. De enige deur was de beurs-pil van §84, 22 px hoog, en die verdween op
+    een canvas, in de kamer en in de winkel. Ronde 52 is de tweede bouwronde na
+    de review: één lijst, twee tekeningen, en één wie-regel. Er is geen migratie
+    en er is geen verwijderd bestand.
+
+    **Op een computer is jouw plek een groep in de zijbalk.** Van boven naar
+    beneden: de mast, wie je speelt (het portret en de naam zijn de regel; het
+    woord *Je speelt als* is er nog, maar alleen voor een schermlezer), een
+    **zoekvak**, de groep **Jouw plek**, de groep **Het archief** (de lijst die
+    er al stond, zonder Zoeken en Jij), de groep **Keeper**, *Nieuw artikel*,
+    een regel met de sneltoetsen (*n nieuw · / zoeken*, en voor de Keeper
+    *· k kant*) en onderaan *Jij* met het woord *Instellingen* ernaast
+    (`/you`). Jouw plek is **Kamer** met je saldo rechts ernaast, **Winkel**
+    met `?kamer=` van de kamer van het karakter dat je speelt (§90), **Mijn
+    spelerspagina** en **Spelers** met *n online* uit de roster die de schil al
+    had (§76, K40). Zonder karakter is het alleen Spelers, met een deur *Kies je
+    karakter* naar `/you#karakters`. De Keeper draagt niemand (§18) en heeft
+    dus geen kamer en geen winkel, maar wel een spelerspagina (§81). De groep
+    **Keeper** (Beheer en Uitdelen) wordt voor ieder ander dan de Keeper
+    **niet gerenderd** (§44: afwezig, niet verborgen). De lijst en haar
+    volgorde staan op één plek, `yoursDoors` in
+    `components/shell/JouwPlek.tsx`, en beide tekeningen lezen die.
+
+    **Zoeken is een vak, en `/` zet de cursor erin.** Enter gaat naar
+    `/search?q=…`, hetzelfde adres dat de Zoeken-pagina zelf schrijft, dus er
+    is één zoekweg. `/` focust het vak als het op het scherm staat
+    (`[data-search-box]`, gevraagd met `getClientRects()`). Op een telefoon is
+    de zijbalk `display: none`, en daar gaat `/` naar `/search` zoals altijd.
+    Zoeken blijft er een tab.
+
+    **Op een telefoon opent de achtste tab het Jij-blad.** De tabbalk heeft
+    nog steeds acht plekken. De achtste is nu een knop (`JijTab`) en geen link:
+    hij opent een `Sheet` in plaats van naar `/you` te gaan. Onder het
+    poppetje staat je saldo (*◎ 12*); zonder kamer staat er *Jij*. De
+    toegankelijke naam blijft *Jij* (§64), en het saldo is zijn
+    `aria-describedby`. Het blad (`JijSheet`) toont van boven naar beneden: wie
+    je speelt, met *Speel als ▾* dat de lijst op zijn plek openklapt (geen blad
+    op een blad), dan de deuren van jouw plek als knoppen van `--tap` hoog
+    (*Naar de kamer* met de beurs erin, *Naar de winkel*, *Mijn
+    spelerspagina*, *Spelers*), dan *Instellingen*, en voor een echte Keeper
+    die niet als speler kijkt: Beheer, Uitdelen en *Naar de Keeperkant*. Die
+    laatste is geen tweede weg: hij stuurt `FLIP_EVENT`, dezelfde gebeurtenis
+    als de toets `k`, en `SideToggle` doet de wissel (§57). Het blad sluit bij
+    elke routewissel, en de focus gaat terug naar de tab.
+
+    **Het saldo heeft één luisteraar.** Het getal komt van boven (`purseOf` in
+    de layout), en `useShellBeurs` in `components/kamer/ShellBeurs.tsx` houdt het
+    live. Dat is nu een hook zonder tekening, één keer gemount in `AppShell`,
+    voor allebei de tekeningen. Twee luisteraars naar één `room:{id}` zouden
+    twee keer `router.refresh()` doen op één gift. **De beurs-pil in de hoek is
+    weg**, op elke breedte, en daarmee ook de vier CSS-regels die hem op een
+    canvas, een prikbord, de kamer, de winkel en het eigen artikel weghaalden.
+    Dat keert de tweede helft van regel 84 om; zie `DECISIONS.md`, ronde 52.
+
+    **Eén wie-regel.** Tot deze ronde stonden er in de schil altijd twee
+    regels: *Je speelt als* (het account) en *Je schrijft als* (dit venster).
+    Na een wissel van de eerste bleef de tweede staan, dus ging de beurs naar
+    Jans kamer terwijl het schrijven nog als Cornelis ging. Nu neemt **elke
+    wissel** van *Je speelt als* de schrijfkeuze van dit venster mee
+    (`followPlay` in `AuthorProvider`, `afterPlaySwitch` in
+    `lib/authorChoice.ts`). Dat geldt voor elke weg: de wissel in de zijbalk,
+    het Jij-blad, de kleerkast op `/you` en *Speel als …* op een artikel. Een
+    wissel naar *als jezelf* laat de keuze staan, want als jezelf schrijven
+    bestaat niet (§18b). De tweede regel staat er alleen nog als dit venster
+    bewust iemand anders koos dan het account speelt (`showsWritingLine`). Op
+    `/you` staat hij altijd, want daar woont de schrijf-kiezer. Een Keeper
+    heeft nooit een tweede regel.
+
+    **Start heeft een Jij-rij boven de welkomsttekst.** De welkomsttekst blijft
+    zoals hij is (Nicks besluit). Erboven staat: het karakter dat je speelt,
+    *Naar de kamer* met de beurs erin, *Naar de winkel*, en *Laatst door jou*:
+    je laatste drie artikelen, één regel per artikel. Die drie komen uit
+    `recentActivity(viewer, 200)`, de feed van Start zelf, versmald door
+    `ownRecentWork` (`lib/home/jij.ts`, puur). Er is dus geen tweede query en
+    geen tweede stel regels: wat de lezer niet mag zien, zit niet in de feed en
+    dus ook niet in de rij (regel 1). Alleen `entry.*`-regels tellen, zonder
+    `entry.deleted`. Een kamerhandeling is inrichten, geen schrijven. Zonder
+    karakter staat er alleen *Kies je karakter*. De Keeper krijgt zijn naam,
+    Beheer, Uitdelen en zijn eigen laatste drie.
+
+    **Raakdoelen in de schil** (review S12, de rest van ronde 51). De
+    Keeperkant-knop draagt op een computer een woord (*Keeperkant* of
+    *Spelerskant*, waar hij heen gaat) en is `--tap` hoog; de strip en de kop
+    van een canvas schuiven precies die breedte op. Op een telefoon blijft hij
+    een cirkel van 32 px, met een onzichtbare rand die hem 44 px maakt. De
+    online-stip krijgt op een telefoon ook zo'n rand. De regels van de zijbalk
+    zelf zijn op een computer bewust **2,05 rem** hoog en geen `--tap`: een muis
+    is geen duim, en met 44 px per regel viel *Nieuw artikel* op 1440 × 900
+    onder de vouw zodra er drie groepen stonden. `ronde-52-jouw-plek.spec.ts`
+    meet dat.
+
+    **Wat er níét veranderde:** §18b zelf. Een venster dat nog niets koos,
+    krijgt de schrijfvraag bij de eerste schrijfhandeling, en sinds §90 nooit
+    in Lezen. Een bewuste andere keuze blijft per venster. De tabbalk houdt
+    acht plekken, en er is geen *Kaarten*-tab. De welkomsttekst blijft. De
+    beurs is nog steeds absent voor wie niemand draagt en voor de Keeper, en
+    toont alleen je eigen saldo (§76). De proef staat in
+    `tests/unit/ronde-52-jouw-plek.test.ts` en
+    `tests/e2e/ronde-52-jouw-plek.spec.ts`.

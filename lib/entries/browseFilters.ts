@@ -40,12 +40,24 @@ export function readListFilters(
 export function wikiFilterGroups(
   tags: { tag: string; count: number }[],
   viewer: { id: string; isKeeper: boolean } | null | undefined,
+  /**
+   * §90: the tag the list is filtered on now. A tag chip on an artikel lands
+   * here with `?tag=`, and a tag outside the fourteen most used would filter
+   * the list while the bar showed no chip for it — a list that is quietly
+   * shorter for no visible reason. So the chosen one is always an option.
+   */
+  chosenTag?: string,
 ): FilterGroup[] {
+  const tagOptions = tags.slice(0, 14).map((t) => ({ value: t.tag, label: t.tag, count: t.count }));
+  if (chosenTag && !tagOptions.some((option) => option.value === chosenTag)) {
+    const known = tags.find((t) => t.tag === chosenTag);
+    tagOptions.push({ value: chosenTag, label: chosenTag, count: known?.count ?? 0 });
+  }
   const groups: FilterGroup[] = [
     {
       key: 'tag',
       label: 'Tag',
-      options: tags.slice(0, 14).map((t) => ({ value: t.tag, label: t.tag, count: t.count })),
+      options: tagOptions,
     },
     {
       key: 'show',

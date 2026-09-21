@@ -10,7 +10,8 @@ import { OWN_WRITE_MUTE_MS, useLive, useLiveChanges } from '@/components/live/Li
 import { useHoldRefresh } from '@/components/live/refreshHold';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
-import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
+import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
@@ -241,7 +242,6 @@ export function TimelineCanvas({
    * `canEdit` the rest of this file already asks answers that too.
    */
   const mayType = useMayType();
-  const gate = useAuthorGate();
   const canEdit = allowed && mayType;
   const isPhone = useIsPhone();
   /*
@@ -694,6 +694,9 @@ export function TimelineCanvas({
     stopPropagation: true,
   });
   const inkActive = ink.inkActive;
+  /* §90: the §18b question only where this axis can write — Bewerken, or the
+     potlood in the hand. A tap in Lezen asks nothing. */
+  const gate = useCanvasAuthorGate(handsOn || inkActive);
   /* §73: switching to Lezen puts the potlood away — Lezen has no potlood. */
   const inkToolActive = ink.inkTool.active;
   const setInkToolActive = ink.inkTool.setActive;
@@ -2194,7 +2197,8 @@ export function TimelineCanvas({
             aria-label={allOpen ? 'Alles inklappen' : 'Alles tonen'}
             title={allOpen ? 'Alles inklappen' : 'Alles tonen'}
           >
-            <Icon name={allOpen ? 'close' : 'eye'} size={14} />
+            {/* §90: not the eye — that is Lezen's, one button to the left on a phone. */}
+            <Icon name={allOpen ? 'fold' : 'unfold'} size={14} />
             <span className="canvas-tool-word">{allOpen ? 'Alles inklappen' : 'Alles tonen'}</span>
           </button>
         )}
@@ -2209,7 +2213,8 @@ export function TimelineCanvas({
           onFit={() => fit(events, width)}
         />
         {/* §69: a tijdlijn had no undo at all before this round. */}
-        {canEdit && <CanvasUndoButton onUndo={() => void undo()} canUndo={undoDepth > 0} />}
+        {/* §90: grey in Lezen, as on the other three — it was still pressable here (r37). */}
+        {canEdit && <CanvasUndoButton onUndo={() => void undo()} canUndo={handsOn && undoDepth > 0} />}
         {canEdit && (
           <button type="button" className="btn btn-ghost btn-small" onClick={() => setSheet({ mode: 'settings' })} data-testid="timeline-settings" aria-label="Instellingen" title="Instellingen">
             <Icon name="gear" size={16} />
@@ -2414,7 +2419,9 @@ export function TimelineCanvas({
                   aria-label={`${event.name}, ${when}`}
                   title={when}
                 >
-                  {event.name}
+                  {/* §90: the name carries the ellipsis, so the tag itself may
+                      grow an invisible 44 px rim on a phone. */}
+                  <span className="timeline-tag-name">{event.name}</span>
                 </a>
               ) : (
                 <button
@@ -2425,7 +2432,7 @@ export function TimelineCanvas({
                   aria-label={`${event.name}, ${when}`}
                   title={when}
                 >
-                  {event.name}
+                  <span className="timeline-tag-name">{event.name}</span>
                 </button>
               )}
             </div>
@@ -2549,8 +2556,11 @@ export function TimelineCanvas({
           /* The full-size picture answers Escape first; one press, one layer. */
           escape={!lightbox}
           /* The name is each window's own heading, so the grip row carries no
-             second copy of it — only the button that folds every window away. */
+             second copy of it — only the button that folds every window away.
+             §90: and only with more than one window: with one, the peek's own
+             cross already does exactly that (r37's leftover, three crosses). */
           headerExtra={
+            openWindows.length > 1 && (
             <button
               type="button"
               className="btn btn-small btn-ghost"
@@ -2558,8 +2568,9 @@ export function TimelineCanvas({
               title="Alles inklappen"
               onClick={() => setOpen([])}
             >
-              <Icon name="eyeOff" size={16} />
+              <Icon name="fold" size={16} />
             </button>
+            )
           }
         >
           <div className="timeline-popout-stack">
@@ -2573,6 +2584,8 @@ export function TimelineCanvas({
                 z={1}
                 ready
                 phone
+                /* §90: one window, one cross — the peek's. */
+                closable={openWindows.length > 1}
                 canEdit={canEdit}
                 setBy={event.createdBy ? (peopleNames[event.createdBy] ?? null) : null}
                 onHeight={() => undefined}
@@ -2644,7 +2657,15 @@ export function TimelineCanvas({
 
       {sheet?.mode === 'add' && (
         <Sheet onClose={() => setSheet(null)} labelledBy="new-event-title">
-          <NewEventSheet timeline={timeline} busy={saving} initialAt={sheet.at} preselected={sheet.entry} onSubmit={addEvent} />
+          <NewEventSheet
+            timeline={timeline}
+            busy={saving}
+            initialAt={sheet.at}
+            /* §90: the middle of what is on screen, as a proposal in the boxes. */
+            suggestAt={view && width ? view.origin + width / 2 / view.pxPerSecond : null}
+            preselected={sheet.entry}
+            onSubmit={addEvent}
+          />
         </Sheet>
       )}
 
@@ -2738,6 +2759,7 @@ function Popout({
   z,
   ready,
   phone = false,
+  closable = true,
   canEdit,
   setBy,
   onHeight,
@@ -2765,6 +2787,8 @@ function Popout({
    * this one window, and lays its picture out as a duimnagel beside its name.
    */
   phone?: boolean;
+  /** §90: false in a phone's peek with this one window in it — the peek's cross is the same press. */
+  closable?: boolean;
   canEdit: boolean;
   setBy: string | null;
   onHeight: (height: number) => void;
@@ -2820,9 +2844,11 @@ function Popout({
         data-testid="timeline-popout"
         data-event-id={event.id}
       >
-        <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
-          <Icon name="close" size={14} />
-        </button>
+        {closable && (
+          <button type="button" className="timeline-popout-close" aria-label="Sluiten" onClick={onClose}>
+            <Icon name="close" size={14} />
+          </button>
+        )}
         {children}
       </div>
     ) : (

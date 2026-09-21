@@ -59,12 +59,18 @@ export function Plek({
   roomId,
   balance,
   canArrange,
+  guestOf = null,
   words,
 }: {
   slot: SlotView;
   roomId: string;
   balance: number;
   canArrange: boolean;
+  /**
+   * §90: de naam van de onderzoeker als dit níét je eigen kamer is — de Keeper
+   * die inricht. Dan zegt de melding "op de plank van …" en niet "op je plank".
+   */
+  guestOf?: string | null;
   words: Words;
 }) {
   const state = plekState(slot);
@@ -137,6 +143,7 @@ export function Plek({
                 slotId={slot.id}
                 kind={slot.kind}
                 price={slot.price}
+                guestOf={guestOf}
                 words={words}
               />
             ) : (
@@ -171,6 +178,7 @@ export function Plek({
               kind={slot.kind}
               kindLabel={kind}
               balance={balance}
+              guestOf={guestOf}
               words={words}
             />
           )}
@@ -199,6 +207,13 @@ export function Plek({
               className="plek-cover"
             />
             <span className="small plek-item-name">{slot.item.name}</span>
+            {/* §90 (E13): wat dít ding je geeft, de eerste regel, klein. Het
+                blok bovenaan blijft het register; dit is het etiket. */}
+            {slot.item.effect && (
+              <span className="tiny muted plek-item-effect" data-testid="plek-effect">
+                {slot.item.effect}
+              </span>
+            )}
           </Link>
           {canArrange && (
             <ClearButton

@@ -71,7 +71,9 @@ export default async function SpelersPage() {
         {user?.isKeeper && (
           <Link className="btn btn-small" href="/uitdelen" data-testid="spelers-uitdelen">
             <Icon name={MEANING.geven} size={13} />
-            {words.handout}
+            {/* §90 (E25): een deur draagt een werkwoord; *Uitdelen* is de knop
+                op de pagina erachter. */}
+            {words.toHandout}
           </Link>
         )}
       </h1>

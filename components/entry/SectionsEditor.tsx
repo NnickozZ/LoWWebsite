@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Icon } from '@/components/Icon';
@@ -17,6 +17,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
 });
 import type { SectionOwnerKind, Visibility } from '@/lib/db/schema';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
+import { fill } from '@/lib/words';
 
 export type SectionLite = {
   id: string;
@@ -161,6 +162,26 @@ export function SectionsEditor({
   const mayType = useMayType();
   const gate = useAuthorGate();
   const readOnly = locked || !mayType;
+  /**
+   * §90: the sectie "Sectie toevoegen" just made. Its title box gets the caret
+   * and is scrolled into view once it is on the screen — the button sits above
+   * the list, so a new sectie used to land under the fold with the focus on
+   * `<body>`, and every sectie cost a scroll and a click before a letter.
+   */
+  const focusNew = useRef<string | null>(null);
+  useEffect(() => {
+    const id = focusNew.current;
+    if (!id) return;
+    const box = document.getElementById(`section-title-${id}`);
+    if (!box) return;
+    focusNew.current = null;
+    box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    box.focus({ preventScroll: true });
+  }, [sections]);
+  // §90: what a speler is told under their sectie — whoever may read the thing it hangs on.
+  const ownerWord =
+    ownerKind === 'case' ? ui.words.case : ownerKind === 'overzicht' ? ui.words.overzicht : ui.words.entry;
+  const whoReads = fill(ui.words.sectionWhoReads, { ding: ownerWord, sectie: ui.words.section });
 
   /*
    * §20: a refresh (ours after a removal, or the page's live line) brings the
@@ -213,6 +234,7 @@ export function SectionsEditor({
         return;
       }
       const data = await response.json();
+      focusNew.current = data.sectionId;
       setSections((current) => [
         ...current,
         {
@@ -332,6 +354,14 @@ export function SectionsEditor({
               </button>
             ))}
           </div>
+          )}
+
+          {/* §90: a speler has no dial here (§70), and was told nothing at all.
+              One grey line: the sectie is read by whoever reads the thing. */}
+          {!isKeeper && (
+            <p className="tiny muted" style={{ margin: '0 0 0.5rem' }}>
+              {whoReads}
+            </p>
           )}
 
           {isKeeper && section.visibility === 'players' && (

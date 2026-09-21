@@ -4,13 +4,15 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
-import { MEANING } from './plekWords';
+import { fill, type Words } from '@/lib/words';
+import { MEANING, munt } from './plekWords';
 import { kamerPost } from './post';
 
 /**
  * §79: the Keeper writes a line.
  *
- * Two boxes and a button, under the grootboek it adds to, and nothing else —
+ * Two boxes and a button (since §90 at the top of the kamer, beside the
+ * beurs, because a Keeper comes here to give), and nothing else —
  * this is the only road in for a positive number and the only road at all for
  * a correction, so it may as well look like what it is: a line being written
  * at the bottom of a ledger.
@@ -27,15 +29,16 @@ import { kamerPost } from './post';
  */
 export function GrantForm({
   roomId,
-  give,
-  why,
+  name,
+  words,
 }: {
   roomId: string;
-  /** `words.ledgerGive`. */
-  give: string;
-  /** `words.ledgerWhy`. */
-  why: string;
+  /** §90: de onderzoeker die het krijgt, voor de melding erna. */
+  name: string;
+  words: Words;
 }) {
+  const give = words.ledgerGive;
+  const why = words.ledgerWhy;
   const ui = useUi();
   const router = useRouter();
   const [delta, setDelta] = useState('');
@@ -52,6 +55,17 @@ export function GrantForm({
         ui.toast(error);
         return;
       }
+      /*
+       * §90 (E8): *Geven* was de stilste handeling van de Keeper — het getal
+       * veranderde en er verscheen een regel onderaan, en verder niets, terwijl
+       * `/uitdelen` wél "Uitgedeeld." zei. Het bedrag staat erbij zoals het
+       * getypt is; het archief rekent hier niets uit (§79 regel 1).
+       */
+      const amount = Number(delta.trim());
+      if (Number.isFinite(amount) && amount !== 0) {
+        const bedrag = `${amount > 0 ? '+' : '−'}${munt(Math.abs(amount), words)}`;
+        ui.toast(fill(words.grantDone, { bedrag, naam: name }));
+      }
       setDelta('');
       setReason('');
       router.refresh();
@@ -63,7 +77,7 @@ export function GrantForm({
   return (
     <form className="kamer-grant" data-testid="grootboek-form" onSubmit={(event) => void submit(event)}>
       <label className="visually-hidden" htmlFor="grootboek-bedrag">
-        Hoeveel?
+        {words.grantAmount}
       </label>
       <input
         id="grootboek-bedrag"

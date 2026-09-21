@@ -56,6 +56,12 @@ export type SlotView = {
     coverCrop: CoverCrops | null;
     typeIcon: string;
     typeColour: string;
+    /**
+     * §90: de eerste effectregel, klein onder de naam op de tegel — zodat een
+     * tegel zegt wat hij je geeft zonder dat je het bovenaan op naam opzoekt.
+     * Null als het ding niets zegt te doen.
+     */
+    effect: string | null;
   } | null;
   /**
    * §79, and it is §76's rule again in a new place: this plek holds something
@@ -99,6 +105,19 @@ export type RoomView = {
    */
   effects: { name: string; href: string; lines: string[] }[];
 };
+
+/**
+ * §90: de onderzoeker van deze kamer — wat een `room.*`-regel in het feed als
+ * `character_id` meeschrijft. Zonder die kolom viel `attributed` terug op het
+ * karakter dat de speler *nu* draagt, en na een wissel stond er "Bertus
+ * wijzigde Staande klok" voor iets dat Dr. Kramer in haar eigen kamer zette.
+ */
+export function roomCharacterOf(roomId: string): string | null {
+  return (
+    db.select({ entryId: schema.rooms.entryId }).from(schema.rooms).where(eq(schema.rooms.id, roomId)).get()
+      ?.entryId ?? null
+  );
+}
 
 /** Who wears this karakter. The kamer belongs to the onderzoeker; this is who arranges it. */
 function ownerOf(entryId: string): string | null {
@@ -207,6 +226,8 @@ export function openRoomFor(entryId: string, viewer: Viewer): string | null {
     .where(and(eq(schema.entries.id, entryId), isNull(schema.entries.deletedAt)))
     .get();
   if (!entry) return null;
+  // §90: alleen een artikel dat een onderzoeker kan zijn. Zie `mayHoldRoom`.
+  if (!mayHoldRoom(entryId)) return null;
 
   const existing = db
     .select({ id: schema.rooms.id })
@@ -227,6 +248,45 @@ export function openRoomFor(entryId: string, viewer: Viewer): string | null {
     db.select({ id: schema.rooms.id }).from(schema.rooms).where(eq(schema.rooms.entryId, entryId)).get()?.id ?? id;
   syncShape(settled);
   return settled;
+}
+
+/**
+ * §90: kan dit artikel een onderzoeker zijn — en dus een kamer krijgen?
+ *
+ * §86 bedoelde "een onderzoeker die niemand draagt", en de knop stond op élk
+ * artikel zonder kamer: op huisraad, op een locatie, op een Persoon. Eén tik
+ * gaf een Persoon voorgoed een kamer met twaalf plekken, en een kamer gaat niet
+ * meer dicht.
+ *
+ * De opdracht was "dezelfde vraag die *Dit is mijn karakter* stelt", en die
+ * vraag bestaat niet: `addCharacter` kijkt niet naar de soort, en een speler
+ * kan elk artikel dat hij ziet als eerste karakter aandoen (de e2e-helpers
+ * doen dat met een Persoon). Dus is dit de eerlijkste vraag die de data wél
+ * kan beantwoorden: **de soort Onderzoekers, of een soort waarvan aan deze
+ * tafel al iemand een artikel draagt.** Nooit een soort die alleen de Keeper
+ * maakt — huisraad is een ding, geen figuur.
+ *
+ * De knop op het artikel vraagt dit, en `openRoomFor` vraagt het nóg een keer
+ * (§17 regel 4: de knop is beleefdheid, de service weigert).
+ */
+export const CHARACTER_TYPE_SLUG = 'investigator';
+
+export function mayHoldRoom(entryId: string): boolean {
+  const row = db
+    .select({ typeId: schema.entries.typeId, slug: schema.entryTypes.slug, keeperMade: schema.entryTypes.keeperMade })
+    .from(schema.entries)
+    .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+    .where(eq(schema.entries.id, entryId))
+    .get();
+  if (!row || row.keeperMade) return false;
+  if (row.slug === CHARACTER_TYPE_SLUG) return true;
+  const worn = db
+    .select({ entryId: schema.userCharacters.entryId })
+    .from(schema.userCharacters)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.userCharacters.entryId))
+    .where(eq(schema.entries.typeId, row.typeId))
+    .get();
+  return Boolean(worn);
 }
 
 /**
@@ -466,7 +526,10 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
       : null,
     balance: balanceOf(roomId),
     slots: rows.map((row) => {
-      const item = row.entryId ? (byId.get(row.entryId) ?? null) : null;
+      const found = row.entryId ? (byId.get(row.entryId) ?? null) : null;
+      const item = found
+        ? { ...found, effect: effectLines(fieldsById.get(found.id)?.[EFFECT_FIELD_KEY])[0] ?? null }
+        : null;
       return {
         id: row.id,
         kind: (isPlekKind(row.kind) ? row.kind : 'plank') as PlekKind,
@@ -646,7 +709,17 @@ export type Shop = {
  */
 export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Shop {
   const rooms = roomsOf(viewer);
-  const room = rooms.find((candidate) => candidate.id === wantedRoomId) ?? rooms[0] ?? null;
+  /*
+   * §90: zonder (geldige) `?kamer=` de kamer van het karakter dat je nú speelt
+   * — dezelfde bron als de beurs in de hoek (`purseOf`). Het was `rooms[0]`,
+   * de eerste in `sort_order`: wie als Bertus in Bertus' kamer op *Winkel*
+   * tikte, kocht voor Dr. Kramer met háár munten, en een koop gaat niet terug
+   * (§79). Pas als er geen actief karakter is, valt het terug op de eerste.
+   */
+  const wanted = rooms.find((candidate) => candidate.id === wantedRoomId);
+  const active = wanted ? null : purseOf(viewer);
+  const room =
+    wanted ?? rooms.find((candidate) => candidate.id === active?.roomId) ?? rooms[0] ?? null;
 
   const slots = room
     ? db
@@ -1090,9 +1163,24 @@ export function placeItem(slotId: string, entryId: string, viewer: Viewer) {
       // for a thing there is one of.
       claim: facts.oneOfAKind ? entryId : null,
     })
-    .where(eq(schema.roomSlots.id, slotId))
+    /*
+     * §90: `room_id` in de WHERE, en niet omdat hij iets filtert. §21 leest de
+     * live-sleutels uit de SQL zelf, en een UPDATE die alleen `id = ?` bindt
+     * noemt de kamer niet — dus bewoog `room:{id}` nooit bij neerzetten, en
+     * zag een Keeper die meekeek niets (§83: een lezer die op een schrijver
+     * wacht die niet bestaat).
+     */
+    .where(and(eq(schema.roomSlots.id, slotId), eq(schema.roomSlots.roomId, slot.roomId)))
     .run();
-  logActivity({ actorId: viewer?.id ?? null, verb: 'room.placed', entryId, meta: { slotId } });
+  logActivity({
+    actorId: viewer?.id ?? null,
+    // §90: namens de onderzoeker van déze kamer, niet het karakter dat de
+    // speler toevallig nú draagt (dat was de terugval in `attributed`).
+    characterId: roomCharacterOf(slot.roomId),
+    verb: 'room.placed',
+    entryId,
+    meta: { slotId },
+  });
 }
 
 /**
@@ -1113,9 +1201,16 @@ export function clearSlot(slotId: string, viewer: Viewer) {
   if (!slot.entryId) return;
   db.update(schema.roomSlots)
     .set({ entryId: null, placedAt: null, claim: null })
-    .where(eq(schema.roomSlots.id, slotId))
+    // §90: zie `placeItem` — de kamer in de WHERE is wat `room:{id}` laat bewegen.
+    .where(and(eq(schema.roomSlots.id, slotId), eq(schema.roomSlots.roomId, slot.roomId)))
     .run();
-  logActivity({ actorId: viewer?.id ?? null, verb: 'room.cleared', entryId: slot.entryId, meta: { slotId } });
+  logActivity({
+    actorId: viewer?.id ?? null,
+    characterId: roomCharacterOf(slot.roomId),
+    verb: 'room.cleared',
+    entryId: slot.entryId,
+    meta: { slotId },
+  });
 }
 
 /**
@@ -1246,7 +1341,12 @@ export function grant(roomId: string, delta: number, reason: string, viewer: Vie
       })
       .run();
   });
-  logActivity({ actorId: viewer?.id ?? null, verb: 'room.granted', meta: { roomId, delta } });
+  logActivity({
+    actorId: viewer?.id ?? null,
+    characterId: roomCharacterOf(roomId),
+    verb: 'room.granted',
+    meta: { roomId, delta },
+  });
 }
 
 /** §83: one line of an uitdeling — a kamer and what it gets. */
@@ -1495,4 +1595,21 @@ export function roomSummary(
     open: slots.filter((slot) => slot.unlockedAt !== null).length,
     total: slots.length,
   };
+}
+
+/**
+ * §90 (E21): de namen van deze onderzoekers, door de ogen van wie kijkt — voor
+ * een `room.*`-regel in het feed ("in de kamer van …"). Wat deze kijker niet
+ * mag zien komt niet terug, en de regel zegt dan "in een kamer" (§76: een naam
+ * die je niet mag zien, staat ook niet in een zin over iets anders).
+ */
+export function visibleNamesOf(entryIds: (string | null | undefined)[], viewer: Viewer): Map<string, string> {
+  const ids = [...new Set(entryIds.filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return new Map();
+  const rows = db
+    .select({ id: schema.entries.id, name: schema.entries.name })
+    .from(schema.entries)
+    .where(and(inArray(schema.entries.id, ids), visibleEntryCondition(viewer)))
+    .all();
+  return new Map(rows.map((row) => [row.id, row.name]));
 }

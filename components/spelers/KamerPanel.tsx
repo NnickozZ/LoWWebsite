@@ -58,7 +58,7 @@ export function KamerPanel({ data, words }: { data: KamerPanelData; words: Words
     // with nothing in it (`words.roomEmpty`, which belongs on the page itself).
     return (
       <p className="small muted" style={{ margin: 0 }}>
-        Nog geen {words.room}.
+        {fill(words.roomNone, { kamer: words.room })}
       </p>
     );
   }

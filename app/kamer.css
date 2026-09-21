@@ -286,6 +286,16 @@
   line-height: 1.2;
   word-break: break-word;
 }
+/* §90 economie: E13 — de eerste effectregel onder de naam, op één regel. De
+   rijhoogte (K17) verandert er niet door: de tegel knipt, de regel ook. */
+.plek-item-effect {
+  display: block;
+  margin-top: 0.15rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /*
  * §85: weghalen is een ×, rechtsboven, en geen knop naast Neerzetten.
@@ -321,6 +331,29 @@
 @media (hover: hover) {
   .plek-clear {
     opacity: 0;
+  }
+  .plek-filled:hover .plek-clear,
+  .plek-clear:focus-visible {
+    opacity: 1;
+  }
+}
+/*
+ * §90 economie: E9 — en toch niet helemaal. `opacity: 0` tot je er met de muis
+ * boven hangt is geen "klein", het is "raden", en er is geen andere weg om iets
+ * te verplaatsen dan weghalen. Op een breed scherm staat het kruisje er nu
+ * altijd, gedempt, en het raakvlak is hetzelfde als op een telefoon (K21:
+ * klein getekend, een volwaardig raakvlak).
+ */
+@media (hover: hover) {
+  .plek-clear {
+    opacity: 0.6;
+    min-width: var(--tap);
+    min-height: var(--tap);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    top: 0;
+    right: 0;
   }
   .plek-filled:hover .plek-clear,
   .plek-clear:focus-visible {
@@ -429,6 +462,38 @@
 .kamer-grant-reason {
   flex: 1 1 14rem;
   min-width: 0;
+}
+/* §90 economie: E8 — voor de Keeper staat het formulier bovenaan, onder de
+   beurs, in plaats van onder het raster. Dezelfde regel, een eigen marge. */
+.kamer-page > .kamer-grant {
+  margin: -0.4rem 0 1rem;
+}
+@media (max-width: 767px) {
+  .kamer-grant .btn {
+    min-height: var(--tap);
+  }
+}
+
+/* §90 economie: S14 — de eyebrow is een deur naar de spelerspagina, en wie
+   meer kamers heeft wisselt ze met een rij chips. */
+.kamer-eyebrow-deur {
+  color: inherit;
+  text-decoration: none;
+}
+.kamer-eyebrow-deur:hover {
+  text-decoration: underline;
+}
+.kamer-wissel {
+  gap: 0.35rem;
+  margin: 0 0 0.6rem;
+}
+.kamer-wissel-label {
+  margin-right: 0.2rem;
+}
+@media (max-width: 767px) {
+  .kamer-wissel .chip-selectable {
+    min-height: var(--tap);
+  }
 }
 
 /* ---------------------------------------------------------------- telefoon */
@@ -640,6 +705,35 @@
   font-size: 1rem;
   margin: 0 0 0.6rem;
 }
+/* §90 economie: E13 — het blok is een `<details>` dat op een telefoon dicht
+   begint (`EffectenFold`). De kop is de hendel; de telling erachter zegt
+   hoeveel er achter zit zonder dat je hem opent. */
+.kamer-effecten-summary {
+  list-style: none;
+  cursor: pointer;
+}
+.kamer-effecten-summary::-webkit-details-marker {
+  display: none;
+}
+.kamer-effecten-fold:not([open]) .kamer-effecten-title {
+  margin-bottom: 0;
+}
+.kamer-effecten-telling {
+  font-weight: 400;
+  /* Alleen de dichtgeklapte telefoonvorm heeft de telling nodig; op een breed
+     scherm staat het blok open en telt het nooit iets op (rule 78). */
+  display: none;
+}
+@media (max-width: 767px) {
+  .kamer-effecten-telling {
+    display: inline;
+  }
+  .kamer-effecten-summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap);
+  }
+}
 /*
  * Twee kolommen op een breed scherm, want het is een register: je zoekt er een
  * naam in op. Eén op een smal scherm — zie de telefoonblok onderaan.
@@ -722,6 +816,14 @@
 .winkel-kamer-deur {
   text-decoration: none;
 }
+/* §90 economie: E6 — de deur naar de kamer is een tekstlink met een werkwoord
+   (K11), geen knop met de naam van een bestemming. Wel met een raakvlak. */
+.winkel-kamer-deur {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  text-decoration: underline;
+}
 
 /* --- voor wie je koopt ---------------------------------------------------
    Alleen zichtbaar bij meer dan één onderzoeker. Een chip met een naam en de
@@ -763,6 +865,25 @@
 }
 .winkel-rij .kamer-koop-name a:hover {
   text-decoration: underline;
+}
+/* §90 economie: E14 — de catalogusrij in de plek-kiezer draagt nu ook een
+   naamlink; dezelfde inkt als de winkelrij. */
+.kamer-catalogus .kamer-koop-name a {
+  color: inherit;
+  text-decoration: none;
+}
+.kamer-catalogus .kamer-koop-name a:hover {
+  text-decoration: underline;
+}
+/* §90 economie: E2/E4 — "Kopen voor Bertus · 1 munt → bureau" is langer dan
+   "Kopen · 1 munt"; de knop mag breken in plaats van de kolom op te rekken. */
+@media (min-width: 768px) {
+  .winkel-rij .kamer-koop-buy {
+    max-width: 15rem;
+  }
+}
+.winkel-rij .kamer-koop-buy .btn {
+  white-space: normal;
 }
 
 /* Wat géén knop is — al in je kamer, een ander heeft hem, geen vrije plek —
@@ -1119,6 +1240,24 @@
 .winkel-filter-count {
   margin-left: 0.15rem;
   opacity: 0.65;
+}
+/* §90 economie: E17 — op een telefoon staan de filterchips in één rij die
+   opzij scrollt, in plaats van twee rijen die de eerste winkelrij naar y=390
+   duwen. De pagina zelf schuift niet mee: alleen de rij. */
+@media (max-width: 767px) {
+  .row-wrap.winkel-filter {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    scrollbar-width: none;
+    padding-bottom: 0.1rem;
+  }
+  .row-wrap.winkel-filter::-webkit-scrollbar {
+    display: none;
+  }
+  .row-wrap.winkel-filter .chip-selectable {
+    flex: 0 0 auto;
+  }
 }
 
 /*

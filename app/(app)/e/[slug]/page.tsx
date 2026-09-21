@@ -16,7 +16,7 @@ import { Icon } from '@/components/Icon';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { requireViewer } from '@/lib/auth/session';
 import { activeCharacter, attributed, listCharacters, playersOf, windowPresenceName } from '@/lib/characters';
-import { roomIdFor, roomSummary } from '@/lib/kamers/service';
+import { mayHoldRoom, roomIdFor, roomSummary } from '@/lib/kamers/service';
 import { canReview, listPendingEdits } from '@/lib/entries/review';
 import { diffLines, relativeTime } from '@/lib/diff';
 import { docToText } from '@/lib/entries/doc';
@@ -249,7 +249,9 @@ export default async function EntryPage({
    * hij hem zou máken had elk artikel in het archief er een zodra iemand het
    * opensloeg. De knop is een handeling, en die staat achter een POST.
    */
-  const canOpenRoom = Boolean(user?.isKeeper) && roomIdFor(entry.id) === null;
+  // §90 (E3): en alleen op een artikel dat een onderzoeker kán zijn — niet op
+  // huisraad, een locatie of een Persoon. `openRoomFor` vraagt het nog een keer.
+  const canOpenRoom = Boolean(user?.isKeeper) && roomIdFor(entry.id) === null && mayHoldRoom(entry.id);
 
   // §19: where this fiche is on the maps, and which maps it could still go on.
   // §17: all three reads are per viewer now — a landkaart whose dial shuts this
@@ -861,6 +863,8 @@ export default async function EntryPage({
           typeLabel: entry.typeLabel,
           typeIcon: entry.typeIcon,
           typeColour: entry.typeColour,
+          // §90: where the tag chips go.
+          typeSlug: entry.typeSlug,
           typeFields: entry.typeFields ?? [],
           typeBlocks: blocks,
           typeText,
@@ -887,7 +891,12 @@ export default async function EntryPage({
         proposals={proposals}
         character={character}
         playedBy={playedBy}
-        roomDoor={roomDoor ? { href: roomDoor.href, balance: roomDoor.balance } : null}
+        roomDoor={
+          roomDoor
+            ? // §90 (S22): `own` — is dit dezelfde beurs als die in de hoek?
+              { href: roomDoor.href, balance: roomDoor.balance, own: wornId === entry.id }
+            : null
+        }
         canOpenRoom={canOpenRoom}
         onMaps={onMaps}
         mapsToPlace={mapsToPlace}

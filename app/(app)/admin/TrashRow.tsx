@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import { useUi } from '@/components/ui/UiProvider';
 import { relativeTime } from '@/lib/diff';
 import { destroyAction, restoreAction, type AdminState } from './actions';
 
@@ -27,6 +28,7 @@ export type TrashRowItem = {
  * be read.
  */
 export function TrashRow({ item }: { item: TrashRowItem }) {
+  const ui = useUi();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const [state, destroy, pending] = useActionState<AdminState, FormData>(destroyAction, {});
@@ -131,7 +133,9 @@ export function TrashRow({ item }: { item: TrashRowItem }) {
             name="confirmName"
             value={typed}
             autoComplete="off"
-            placeholder={item.name}
+            /* §90: not the name itself — a box showing the name in grey
+               looked filled in already. */
+            placeholder={ui.words.trashTypeName}
             onChange={(event) => setTyped(event.target.value)}
           />
 

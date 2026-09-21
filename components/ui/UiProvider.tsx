@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthorOptional } from '@/components/you/AuthorProvider';
 import { openSheetCount } from '@/lib/sheetStack';
 import { PLAYER_UPLOAD_BYTES } from '@/lib/upload';
+import { CHARACTER_TYPE_SLUG } from '@/lib/newEntryType';
 import { DEFAULT_WORDS, type Words } from '@/lib/words';
 import { FLIP_EVENT } from '@/components/keeper/SideToggle';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
@@ -250,8 +251,9 @@ export function UiProvider({
   const mayType = author ? author.mayType : true;
   const mayStartEntry = author ? author.mayStartEntry : true;
   const refuse = useCallback(() => {
-    toast('Je hebt nog geen onderzoeker, dus je kunt hier alleen lezen.');
-  }, [toast]);
+    // §90: the Keeper's word, as the banner above says it.
+    toast(`Je hebt nog geen ${words.character}, dus je kunt hier alleen lezen.`);
+  }, [toast, words.character]);
 
   /*
    * §18b: "ask, then do". Opening either of these *is* an act of writing, so a
@@ -280,9 +282,19 @@ export function UiProvider({
         refuse();
         return;
       }
-      askThen(() => setEntryPrefill(next ?? {}));
+      /*
+       * §90: somebody with no karakter can make exactly one thing — the
+       * artikel that becomes their first — so every road in (the `+`, the
+       * button, `n`) opens on the karakter-soort for them. A road that already
+       * named a soort keeps it.
+       */
+      const forFirst =
+        !mayType && !next?.typeSlug && types.some((type) => type.slug === CHARACTER_TYPE_SLUG)
+          ? { typeSlug: CHARACTER_TYPE_SLUG }
+          : {};
+      askThen(() => setEntryPrefill({ ...(next ?? {}), ...forFirst }));
     },
-    [mayStartEntry, refuse, askThen],
+    [mayStartEntry, mayType, types, refuse, askThen],
   );
 
   const openNewCase = useCallback(
@@ -360,7 +372,15 @@ export function UiProvider({
         window.dispatchEvent(new Event(FLIP_EVENT));
       } else if (event.key === '/') {
         event.preventDefault();
-        router.push('/search');
+        /*
+         * §91: on a desk the side menu has a search box, and `/` puts the
+         * caret in it instead of leaving the page you were on. "Is it on the
+         * screen" is the whole test — the side menu is `display: none` on a
+         * phone, where `/` still goes to Zoeken as it always did.
+         */
+        const box = document.querySelector<HTMLInputElement>('[data-search-box]');
+        if (box && box.getClientRects().length > 0) box.focus();
+        else router.push('/search');
       }
     };
     window.addEventListener('keydown', onKey);

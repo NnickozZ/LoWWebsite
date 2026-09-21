@@ -130,3 +130,43 @@ export function effectiveAuthorId(input: {
   if (input.isKeeper) return null;
   return input.chosen ?? input.activeId ?? null;
 }
+
+/**
+ * §91: één wie-regel. How many lines does "who are you" take in this window?
+ *
+ * Until round 52 the shell always printed two — *Je speelt als* (the account's
+ * karakter) and *Je schrijft als* (this window's) — and after a wissel of the
+ * first the second stayed behind, so the beurs went to Jan's kamer while the
+ * writing still went out as Cornelis. A wissel of *speelt als* now moves this
+ * window's answer along with it (`followPlay` in `AuthorProvider`), so the two
+ * are the same fact nearly always, and the same fact is printed once.
+ *
+ * The second line stands only where they really differ: this window chose,
+ * deliberately, through the schrijfvraag or the schrijf-kiezer, somebody other
+ * than the account is playing. A window that never chose writes as the
+ * account's karakter (`effectiveAuthorId`), so it has nothing to say twice; a
+ * Keeper writes as nobody (§18) and never has a second line.
+ */
+export function showsWritingLine(input: {
+  isKeeper: boolean;
+  /** This window's own answer, or null while it has none. */
+  chosen: string | null;
+  /** The karakter the account plays right now, or null for "als jezelf". */
+  playing: string | null;
+}): boolean {
+  if (input.isKeeper) return false;
+  if (!input.chosen) return false;
+  return input.chosen !== input.playing;
+}
+
+/**
+ * §91: what a wissel of *speelt als* does to this window's answer. The new
+ * karakter becomes the answer — that is the whole of "één wie-regel" — and a
+ * wissel to "als jezelf" (`null`) leaves the answer alone, because writing as
+ * yourself is the authorless case the archive refuses (§18b): there is no
+ * answer to move to, and throwing the old one away would only bring the
+ * question back on the next keystroke.
+ */
+export function afterPlaySwitch(chosen: string | null, playing: string | null): string | null {
+  return playing ?? chosen;
+}

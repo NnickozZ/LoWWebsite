@@ -1,8 +1,7 @@
 import Link from 'next/link';
-import { Icon } from '@/components/Icon';
 import type { RoomView } from '@/lib/kamers/service';
-import type { Words } from '@/lib/words';
-import { MEANING } from './plekWords';
+import { fill, type Words } from '@/lib/words';
+import { EffectenFold } from './EffectenFold';
 
 /**
  * §80: "Wat deze kamer je geeft" — en het is een **lijst**, nooit een som.
@@ -43,15 +42,31 @@ import { MEANING } from './plekWords';
  * That is the one case where an empty heading earns its place, and it earns it
  * because the door under it is the next thing to do.
  */
-export function RoomEffects({ effects, words }: { effects: RoomView['effects']; words: Words }) {
+export function RoomEffects({
+  effects,
+  words,
+  addressee = null,
+}: {
+  effects: RoomView['effects'];
+  words: Words;
+  /**
+   * §90: wie deze kamer "je" is. Null in je eigen kamer; anders de naam van de
+   * onderzoeker, want in de kamer van Kees (of van niemand) is "Nog niets dat
+   * **je** iets geeft" niet waar.
+   */
+  addressee?: string | null;
+}) {
+  /*
+   * §90 (E12): de lege variant is alleen de zin. Hij droeg een tweede
+   * *Winkel*-knop, 90 px onder die naast de beurs — K22 en §82 wisten niet
+   * van elkaar. De deur naast de beurs blijft; die hoort bij het geld.
+   */
   if (!effects.length) {
     return (
       <section className="kamer-effecten kamer-effecten-leeg" data-testid="kamer-effecten-leeg">
-        <p className="small muted kamer-effecten-zin">{words.roomEffectsNone}</p>
-        <Link className="btn btn-small" href="/winkel" data-testid="kamer-effecten-winkel">
-          <Icon name={MEANING.winkel} size={13} />
-          {words.shop}
-        </Link>
+        <p className="small muted kamer-effecten-zin">
+          {addressee ? fill(words.roomEffectsNoneOf, { naam: addressee }) : words.roomEffectsNone}
+        </p>
       </section>
     );
   }
@@ -62,30 +77,35 @@ export function RoomEffects({ effects, words }: { effects: RoomView['effects']; 
       data-testid="kamer-effecten"
       aria-labelledby="kamer-effecten-title"
     >
-      <h2 id="kamer-effecten-title" className="kamer-effecten-title">
-        {words.roomEffects}
-      </h2>
-      <ul className="kamer-effecten-list">
-        {effects.map((thing, index) => (
-          <li
-            key={`${thing.href}-${index}`}
-            className="kamer-effect"
-            data-testid="kamer-effect"
-            data-name={thing.name}
-          >
-            <Link className="kamer-effect-name" href={thing.href} data-testid="kamer-effect-naam">
-              {thing.name}
-            </Link>
-            <ul className="kamer-effect-lines">
-              {thing.lines.map((line, line_index) => (
-                <li key={line_index} className="small" data-testid="kamer-effect-regel">
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
+      {/* §90 (E13): op een telefoon ingeklapt tot één regel met een telling —
+          het blok duwde bij zes dingen het hele raster onder de vouw. */}
+      <EffectenFold
+        title={words.roomEffects}
+        count={effects.length}
+        titleId="kamer-effecten-title"
+      >
+        <ul className="kamer-effecten-list">
+          {effects.map((thing, index) => (
+            <li
+              key={`${thing.href}-${index}`}
+              className="kamer-effect"
+              data-testid="kamer-effect"
+              data-name={thing.name}
+            >
+              <Link className="kamer-effect-name" href={thing.href} data-testid="kamer-effect-naam">
+                {thing.name}
+              </Link>
+              <ul className="kamer-effect-lines">
+                {thing.lines.map((line, line_index) => (
+                  <li key={line_index} className="small" data-testid="kamer-effect-regel">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </EffectenFold>
     </section>
   );
 }

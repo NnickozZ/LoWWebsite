@@ -136,6 +136,16 @@ export function DateFields({
   const fixed = anchor ? ORDER.indexOf(anchor.unit) : -1;
   const shown = ORDER.slice(fixed + 1, depth + 1);
   const read = readDraft(draft, scale);
+  /*
+   * §90: the first box arrives with what is in it *selected*, so typing a year
+   * replaces the proposal instead of being added to the end of it.
+   */
+  const firstRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!autoFocus) return;
+    firstRef.current?.focus();
+    firstRef.current?.select();
+  }, [autoFocus]);
   return (
     <div>
       {anchor && (
@@ -149,10 +159,14 @@ export function DateFields({
             <span className="tiny muted">{PART_LABELS[key]}</span>
             <input
               id={`${idPrefix}-${key}`}
+              ref={index === 0 ? firstRef : undefined}
               className="input"
               inputMode="numeric"
               autoFocus={autoFocus && index === 0}
-              placeholder={key === 'year' ? '1931' : key === 'month' ? '3' : key === 'day' ? '12' : '0'}
+              /* §90: "1931 / 3 / 12" in grey read as a date already filled in.
+                 The word says what goes there, and cannot be mistaken for it. */
+              placeholder={PART_LABELS[key].toLowerCase()}
+              onFocus={(event) => event.currentTarget.select()}
               value={draft[key]}
               onChange={(event) => onChange({ ...draft, [key]: event.target.value.replace(/[^\d-]/g, '') })}
               style={{ width: key === 'year' ? '5.5em' : '3.6em' }}
@@ -194,6 +208,7 @@ export function NewEventSheet({
   timeline,
   busy,
   initialAt,
+  suggestAt = null,
   preselected,
   onSubmit,
 }: {
@@ -201,6 +216,12 @@ export function NewEventSheet({
   busy: boolean;
   /** A moment already chosen — a double-click on the axis. */
   initialAt: number | null;
+  /**
+   * §90: the middle of the stretch of axis on screen when the sheet opened —
+   * a real proposal in the boxes (selected, so typing replaces it) rather than
+   * grey placeholders that looked filled in and were not.
+   */
+  suggestAt?: number | null;
   /** An artikel carried here from its own page ("Zet op …"). */
   preselected: { entryId: string; name: string } | null;
   onSubmit: (input: NewEventInput) => Promise<boolean>;
@@ -227,7 +248,7 @@ export function NewEventSheet({
     ? { at: timeline.anchorAt, unit: timeline.anchorUnit }
     : null;
   const [draft, setDraft] = useState<DateDraft>(() =>
-    withAnchor(draftFromMoment(initialAt, null, timeline.scale), anchor, timeline.scale),
+    withAnchor(draftFromMoment(initialAt ?? suggestAt, null, timeline.scale), anchor, timeline.scale),
   );
   /*
    * A moment that was chosen on the axis is shown as a line of print with a

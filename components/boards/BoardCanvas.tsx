@@ -11,8 +11,9 @@ import { AccessEditor, type AccessSettings } from '@/components/access/AccessEdi
 import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
 import { useUi } from '@/components/ui/UiProvider';
-import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
-import { capitalise } from '@/lib/words';
+import { useAuthorOptional, useMayType } from '@/components/you/AuthorProvider';
+import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
+import { capitalise, fill } from '@/lib/words';
 import {
   boardBounds,
   CARD_SCALE_MAX,
@@ -439,7 +440,6 @@ export function BoardCanvas({
    * right, and the wall has forty places that ask.
    */
   const mayType = useMayType();
-  const gate = useAuthorGate();
   const readOnly = locked || !mayType;
 
   /*
@@ -747,6 +747,23 @@ export function BoardCanvas({
     },
   });
   const inkActive = ink.inkActive;
+  /*
+   * §90: a card or a punaise just made from the bar, which lands chosen and
+   * ready to be written on. The question of §18b is asked *before* it is made
+   * (`ensureAuthor`), not by the caret arriving in the box: asked afterwards
+   * it took the focus away, and the first `n` typed opened "Nieuw artikel".
+   */
+  const author = useAuthorOptional();
+  const [writeCardId, setWriteCardId] = useState<string | null>(null);
+  const [labelPinId, setLabelPinId] = useState<string | null>(null);
+  const clearWriteCard = useCallback(() => setWriteCardId(null), []);
+  const askThen = useCallback(
+    (then: () => void) => (author ? author.ensureAuthor(then) : then()),
+    [author],
+  );
+  /* §90: the §18b question only where the wall can write — Bewerken, or the
+     potlood in the hand. A tap on the cork in Lezen asks nothing. */
+  const gate = useCanvasAuthorGate(!handsOff || inkActive);
   const onInkKey = ink.onKeyDown;
 
   /**
@@ -2594,6 +2611,20 @@ export function BoardCanvas({
     [boardId, clientId, filedIn, pickableCases, router, ui],
   );
 
+  /* §90: a punaise made from the bar lands with the caret in its label. The
+     inspector is drawn in the same commit as the choice, so it is there now. */
+  useEffect(() => {
+    if (!labelPinId) return;
+    if (!selected.has(labelPinId)) {
+      setLabelPinId(null);
+      return;
+    }
+    const field = document.getElementById('pin-label');
+    if (!field) return;
+    field.focus();
+    setLabelPinId(null);
+  }, [labelPinId, selected]);
+
   /* ------------------------------------------------------------- render */
 
   const world = {
@@ -2624,24 +2655,35 @@ export function BoardCanvas({
         {/* §73: first in the bar, so a 390 px phone sees which hand it has
             before anything else. Nothing at all for a hand without rights. */}
         <CanvasModeToggle mode={mode} />
-        <label className="visually-hidden" htmlFor="board-name">
-          Naam van het prikbord
-        </label>
-        <input
-          id="board-name"
-          className="board-name-input"
-          value={name}
-          readOnly={readOnly}
-          onChange={(event) => setName(event.target.value)}
-          onBlur={() =>
-            !readOnly &&
-            void fetch(`/api/boards/${boardId}`, {
-              method: 'PATCH',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ name, clientId }),
-            })
-          }
-        />
+        {/* §90: in Lezen, and for a hand that may only look, the name is
+            print — as the stamboom's is (§73, `CanvasTitle`). A box a thumb
+            can land in is an edit, and Lezen does not edit. */}
+        {handsOff ? (
+          <span className="board-name-input board-name-text" data-testid="board-name-text">
+            {name}
+          </span>
+        ) : (
+          <>
+            <label className="visually-hidden" htmlFor="board-name">
+              Naam van het prikbord
+            </label>
+            <input
+              id="board-name"
+              className="board-name-input"
+              value={name}
+              readOnly={readOnly}
+              onChange={(event) => setName(event.target.value)}
+              onBlur={() =>
+                !readOnly &&
+                void fetch(`/api/boards/${boardId}`, {
+                  method: 'PATCH',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ name, clientId }),
+                })
+              }
+            />
+          </>
+        )}
         {/* §43: the web, with this prikbord in the middle. */}
         <ConnectionsLink kind="board" id={boardId} as="chip" />
         {readOnly && (
@@ -2816,7 +2858,15 @@ export function BoardCanvas({
         <button
           type="button"
           className="btn btn-small"
-          onClick={() => addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '' })}
+          onClick={() =>
+            askThen(() => {
+              const placed = addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '' });
+              // §90: chosen, and the box open with the caret in it.
+              setSelected(new Set([placed.id]));
+              setSelectedStringId(null);
+              setWriteCardId(placed.id);
+            })
+          }
         >
           <Icon name="plus" size={15} />
           Nieuwe notitie
@@ -2838,11 +2888,15 @@ export function BoardCanvas({
           type="button"
           className="btn btn-small"
           title={`Een losse ${ui.words.pin}: een plek op de muur voor een spoor dat nog geen ${ui.words.card} heeft`}
-          onClick={() => {
-            const placed = addCard({ id: newCardId(), kind: 'pin', name: '', text: '' });
-            setSelected(new Set([placed.id]));
-            setSelectedStringId(null);
-          }}
+          onClick={() =>
+            askThen(() => {
+              const placed = addCard({ id: newCardId(), kind: 'pin', name: '', text: '' });
+              setSelected(new Set([placed.id]));
+              setSelectedStringId(null);
+              // §90: and the caret in its label, as a new notitie gets its box.
+              setLabelPinId(placed.id);
+            })
+          }
         >
           <span className="board-pin board-pin-inline" aria-hidden="true" />
           {capitalise(ui.words.pin)}
@@ -2859,7 +2913,7 @@ export function BoardCanvas({
         {...gate}
         onDoubleClick={makeOnEmpty.onDoubleClick}
         onPointerDownCapture={(event) => {
-          (gate as { onPointerDownCapture?: () => void } | null)?.onPointerDownCapture?.();
+          gate.onPointerDownCapture(event);
           // §72: a second finger is a knijp, before a card under it can start a drag.
           if (pinchHand.onPointerDown(event) && !(event.target as HTMLElement).closest('.ink-capture')) {
             event.stopPropagation();
@@ -3066,6 +3120,8 @@ export function BoardCanvas({
               onPinPointerDown={(event) => onPinPointerDown(event, card.id)}
               /* §73: writing on a card is editing — no double-tap box in Lezen. */
               canWrite={!handsOff}
+              writeNow={card.id === writeCardId}
+              onWriteStarted={clearWriteCard}
               onTextChange={(text) => !readOnly && patchCard(card.id, { text })}
               onOpen={() => {
                 if (dragMoved.current) return;
@@ -3079,7 +3135,9 @@ export function BoardCanvas({
                 if (card.assetId)
                   setLightbox({ assetId: card.assetId, name: subjectFor(card)?.name || card.name });
               }}
-              canMakeEntry={!readOnly}
+              /* §90: making, so Bewerken's (§73) — in Lezen a thumb landing on
+                 the bottom half of a note opened "Nieuw artikel". */
+              canMakeEntry={!readOnly && !handsOff}
               onConvertToEntry={() =>
                 ui.openNewEntry({
                   name: card.name,
@@ -3353,12 +3411,31 @@ export function BoardCanvas({
             >
               Nog niets geprikt.
             </p>
-            <p className="small" style={{ margin: '0.3rem 0 0' }}>
-              Zoek hierboven om een {ui.words.entry} te prikken, begin een {ui.words.note}, of druk een losse {ui.words.pin}
-              in de muur voor een spoor dat nog geen kaart heeft. Sleep vanaf de kop van een
-              {ui.words.pin} om {ui.words.string} te spannen &mdash; naar een andere {ui.words.card}, of naar het kale kurk,
-              waar vanzelf een nieuwe {ui.words.pin} in gaat.
-            </p>
+            {/*
+              §90: one sentence per mode and per device, as the landkaart, the
+              tijdlijn and the stamboom already had. It sent a phone in Lezen to
+              a search box that is not there ("hierboven") and to a draad a
+              finger cannot pull, and two JSX line breaks ate the spaces round
+              {pin} ("eenpunaise", "punaisein"). A hand that may only look gets
+              the heading alone.
+            */}
+            {!readOnly && (
+              <p className="small" style={{ margin: '0.3rem 0 0' }}>
+                {fill(
+                  handsOff
+                    ? ui.words.boardEmptyRead
+                    : [ui.words.boardEmptyFind, ui.words.boardEmptyMake, ...(isPhone ? [] : [ui.words.boardEmptyString])].join(' '),
+                  {
+                    artikel: ui.words.entry,
+                    notitie: ui.words.note,
+                    punaise: ui.words.pin,
+                    kaart: ui.words.card,
+                    draad: ui.words.string,
+                    prikbord: ui.words.board,
+                  },
+                )}
+              </p>
+            )}
           </div>
         )}
 

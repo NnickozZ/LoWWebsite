@@ -28,7 +28,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
 import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { useIAmTheCase, useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
+import { useAutosave, useSaveWord } from '@/components/entry/useAutosave';
 import { relativeTime } from '@/lib/diff';
 import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/service';
 import type { CoverCrops } from '@/lib/images/shapes';
@@ -256,6 +256,8 @@ export function CaseDossier({
   );
 
   const { state, set, flush } = useAutosave<Record<string, unknown>>({ save });
+  // §90: a refusal and a line that is down outrank "Opslaan…".
+  const saveWord = useSaveWord(state, [notesLive, fieldsLive], ui.words);
 
   const tabs = useMemo(() => {
     /*
@@ -776,15 +778,10 @@ export function CaseDossier({
             </span>
           )}
           <div className="spacer" />
+          {/* §90: the same one word the artikel has — see `combinedSave`. */}
           {!reading && (
             <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-              {state === 'dirty' || state === 'saving' || notesLive.save === 'saving' || fieldsLive.save === 'saving'
-                ? saveLabel('saving')
-                : state === 'pending' || state === 'error'
-                  ? saveLabel(state)
-                  : state === 'saved' || notesLive.save === 'saved' || fieldsLive.save === 'saved'
-                    ? saveLabel('saved')
-                    : ''}
+              {saveWord}
             </p>
           )}
           {/* §22: the two faces, in the same pair of words the artikel uses. */}

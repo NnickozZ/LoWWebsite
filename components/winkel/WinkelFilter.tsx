@@ -34,6 +34,7 @@ export function WinkelFilter({
   items,
   roomId,
   roomSlug,
+  buyerName = null,
   balance,
   canBuy,
   words,
@@ -41,6 +42,8 @@ export function WinkelFilter({
   items: ShopItem[];
   roomId: string | null;
   roomSlug: string | null;
+  /** §90 (E2): voor wie je koopt, bij meer dan één onderzoeker. */
+  buyerName?: string | null;
   balance: number;
   canBuy: boolean;
   words: Words;
@@ -97,6 +100,8 @@ export function WinkelFilter({
             item={item}
             roomId={roomId}
             roomSlug={roomSlug}
+            buyerName={buyerName}
+            prefer={kind}
             balance={balance}
             canBuy={canBuy}
             words={words}

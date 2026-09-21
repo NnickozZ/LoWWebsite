@@ -54,8 +54,10 @@ async function newTimeline(page: Page, name: string, scaleLabel = 'Dagen') {
 
 async function fillDate(page: Page, prefix: string, parts: { year: string; month?: string; day?: string }) {
   await page.locator(`#${prefix}-year`).fill(parts.year);
-  if (parts.month) await page.locator(`#${prefix}-month`).fill(parts.month);
-  if (parts.day) await page.locator(`#${prefix}-day`).fill(parts.day);
+  // §90: the boxes arrive with a real proposal in them (the middle of the axis
+  // on screen), so a part that is not given is emptied, not left alone.
+  await page.locator(`#${prefix}-month`).fill(parts.month ?? '');
+  await page.locator(`#${prefix}-day`).fill(parts.day ?? '');
 }
 
 test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {

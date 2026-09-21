@@ -300,9 +300,12 @@ test.describe('§82 De winkel', () => {
     await expect(blok.getByTestId('kamer-effect-regel')).toHaveText([prent.effect[0]]);
 
     // De weg terug is de weg heen: de deur naar de winkel staat naast de beurs.
+    // §90 (E2): en hij draagt déze kamer mee, anders koopt hij voor wie er
+    // toevallig bovenaan staat.
+    const kamerId = await owner.getByTestId('kamer-page').getAttribute('data-room');
     await expect(owner.getByTestId('kamer-balance').getByTestId('kamer-winkel')).toHaveAttribute(
       'href',
-      '/winkel',
+      `/winkel?kamer=${encodeURIComponent(kamerId ?? '')}`,
     );
 
     // Het grootboek van de Keeper schreef de koop op, en niet als cadeau.

@@ -78,6 +78,18 @@ export function middleware(request: NextRequest) {
     const login = request.nextUrl.clone();
     login.pathname = '/login';
     login.search = '';
+    /*
+     * §90: and the address they were on goes with them, so a link shared in
+     * the group chat still lands on that artikel after the password instead of
+     * on Start. Only carried here; `loginAction` decides whether to follow it,
+     * through `safeReturnPath` — the one vetting there is (§89), so a `next`
+     * that points off this archive is sent home, never followed.
+     */
+    const query = new URLSearchParams(request.nextUrl.search);
+    // A client-side navigation's cache-buster is not part of the address.
+    query.delete('_rsc');
+    const search = query.toString();
+    if (pathname !== '/') login.searchParams.set('next', `${pathname}${search ? `?${search}` : ''}`);
     return NextResponse.redirect(login, 303);
   }
 

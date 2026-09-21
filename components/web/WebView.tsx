@@ -46,7 +46,6 @@ const SOORTEN_KEY = 'web:hidden-soorten';
 const NOTES_KEY = 'web:notes';
 const LABELS_KEY = 'web:labels';
 const IMAGES_KEY = 'web:images';
-const HINT_KEY = 'web:hint-seen';
 const OTHERS_KEY = 'web:others-private';
 
 function readStored<T>(key: string, fallback: T): T {
@@ -105,7 +104,6 @@ export function WebView({
   // tijdlijnen — off unless asked; `null` until the stored choice is read, so
   // the first fetch is not followed by a second one.
   const [othersPrivate, setOthersPrivate] = useState<boolean | null>(null);
-  const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<Set<WebNodeId>>(() => new Set(initialFocus ? [initialFocus] : []));
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [legendOpen, setLegendOpen] = useState(false);
@@ -123,7 +121,6 @@ export function WebView({
     setShowNotes(readStored<boolean>(NOTES_KEY, false));
     setLabelsAlways(readStored<boolean>(LABELS_KEY, false));
     setShowImages(readStored<boolean>(IMAGES_KEY, false));
-    setHint(!readStored<boolean>(HINT_KEY, false));
     setOthersPrivate(readStored<boolean>(OTHERS_KEY, false));
   }, []);
 
@@ -598,6 +595,15 @@ export function WebView({
           Alles wat je mag zien, en hoe het aan elkaar hangt. Beweeg over een knoop om zijn buren op te lichten, of zoek iets om het middelpunt te maken.
         </p>
       )}
+      {/*
+        §90: the "how to read it" lived in a box laid over the glass (B22/C22)
+        until a click sent it away for good. It belongs here, in the column
+        that already says what the web is, and it no longer has to be sent
+        away: it covers nothing.
+      */}
+      <p className="tiny muted web-how" style={{ margin: '0.6rem 0 0' }}>
+        <strong>Zo lees je het web.</strong> Klik = kiezen · dubbelklik = middelpunt · scrollen = zoomen · slepen = schuiven · een knoop slepen = neerzetten waar je wilt (tik op het speldje om hem los te laten) · shift-slepen = meer kiezen. De kleur zegt wat voor lijn het is; beweeg erover en hij zegt hoe.
+      </p>
       <p className="tiny muted" style={{ margin: '0.6rem 0 0' }}>
         {graph.nodes.length} knopen · {graph.edges.length} lijnen
         {graph.truncated && ' · niet alles past; ga minder diep'}
@@ -765,19 +771,6 @@ export function WebView({
             editing={canvasMode.editing}
             onPinsChange={setPins}
           />
-          {hint && full && !phone && (
-            <div
-              className="web-hint"
-              role="note"
-              onPointerDown={() => {
-                setHint(false);
-                store(HINT_KEY, true);
-              }}
-            >
-              <strong>Zo lees je het web.</strong> Klik = kiezen · dubbelklik = middelpunt · scrollen = zoomen · slepen = schuiven · een knoop slepen = neerzetten waar je wilt (tik op het speldje om hem los te laten) · shift-slepen = meer kiezen. De kleur zegt wat voor lijn het is; beweeg erover en hij zegt hoe.
-              <span className="tiny muted" style={{ display: 'block', marginTop: '0.3rem' }}>Klik om dit weg te doen.</span>
-            </div>
-          )}
           {graph.truncated && (
             <p className="web-truncated tiny">Niet alles past op {depth} diep — de rest is weggelaten.</p>
           )}

@@ -316,6 +316,8 @@ export function BoardCardView({
   onConvertToEntry,
   canMakeEntry,
   canWrite,
+  writeNow = false,
+  onWriteStarted,
   carried = false,
 }: {
   card: BoardCardModel;
@@ -360,9 +362,22 @@ export function BoardCardView({
    * is read, not edited, and the empty-card prompt says nothing about writing.
    */
   canWrite: boolean;
+  /**
+   * §90: this card was just made by *Nieuwe notitie* — open the box to write in
+   * straight away, with the caret in it, instead of leaving the focus on the
+   * button (where the first `n` typed opened "Nieuw artikel").
+   */
+  writeNow?: boolean;
+  /** Told once the box is open, so the wall can forget the request. */
+  onWriteStarted?: () => void;
 }) {
   const words = useUi().words;
   const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!writeNow || !canWrite) return;
+    setEditing(true);
+    onWriteStarted?.();
+  }, [writeNow, canWrite, onWriteStarted]);
   const [draft, setDraft] = useState(card.text);
   const textRef = useRef<HTMLTextAreaElement>(null);
 

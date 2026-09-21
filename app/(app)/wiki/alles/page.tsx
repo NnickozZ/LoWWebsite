@@ -70,7 +70,7 @@ export default async function WikiAllesPage({ searchParams }: { searchParams: Pr
       <SortFilterBar
         sorts={WIKI_SORTS}
         defaultSort="recent"
-        groups={wikiFilterGroups(tags, user)}
+        groups={wikiFilterGroups(tags, user, filters.tag)}
         summary={`${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`}
       />
 

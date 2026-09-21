@@ -214,6 +214,6 @@ export const SPELER_PANELS: Panel[] = [
     // §11 has no word for this yet; a plain Dutch heading rather than a new key.
     title: () => 'Recente bijdragen',
     load: contributionsOf,
-    Component: ({ data }) => <BijdragenPanel rows={data} />,
+    Component: ({ data, viewer, words }) => <BijdragenPanel rows={data} viewer={viewer} words={words} />,
   }),
 ];

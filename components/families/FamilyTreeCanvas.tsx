@@ -14,7 +14,8 @@ import { useHoldRefresh } from '@/components/live/refreshHold';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
-import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
+import { useMayType } from '@/components/you/AuthorProvider';
+import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
 
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
@@ -219,10 +220,13 @@ export function FamilyTreeCanvas({
   initialGraph,
   canEdit: allowed,
   isKeeper,
-  liveUser,
   initialInk,
 }: FamilyTreeCanvasProps) {
   /*
+   * §90: `liveUser` is not read either any more — it drew *you* as a blue "I"
+   * (the first letter of "Ir. Steven Duvekot") beside the shell's live strip,
+   * which already says who is here. The roster shows the others only.
+   *
    * `viewerId`, `peopleNames` and `access` are part of the page's contract and
    * are deliberately not read here: the rights chip and the §17 sheet live in
    * the page's own head (as they do on a tijdlijn), and every name this canvas
@@ -242,7 +246,6 @@ export function FamilyTreeCanvas({
    */
   const live = useLive();
   const mayType = useMayType();
-  const gate = useAuthorGate();
   const canEdit = allowed && mayType;
   /**
    * §73: lezen of bewerken. `canEdit` stays what it was — the *right* — and
@@ -419,6 +422,9 @@ export function FamilyTreeCanvas({
     },
     stopPropagation: true,
   });
+  /* §90: the §18b question only where this tree can write — Bewerken, or the
+     potlood in the hand. A tap in Lezen asks nothing. */
+  const gate = useCanvasAuthorGate(editOn || ink.inkActive);
   const inkActive = ink.inkActive;
   const onInkKey = ink.onKeyDown;
 
@@ -2371,15 +2377,18 @@ export function FamilyTreeCanvas({
               aria-label="Opnieuw schikken"
               title="Opnieuw schikken"
             >
-              <Icon name="fit" size={14} />
+              {/* §90: its own icon — `fit` is "Alles in beeld", in the same row. */}
+              <Icon name="arrange" size={14} />
               <span className="tree-tool-word">Opnieuw schikken</span>
             </button>
-            {/* §69: the shared button. This one was already the right shape —
-                icon, name, title, and the word hidden on a phone — so what it
-                gains is the grey: it was pressable with an empty stack. */}
-            <CanvasUndoButton onUndo={undo} canUndo={undoDepth > 0} testId="tree-undo" />
           </>
         )}
+        {/* §69: the shared button. This one was already the right shape —
+            icon, name, title, and the word hidden on a phone — so what it
+            gains is the grey: it was pressable with an empty stack.
+            §90: and it stays in Lezen, grey, like on the other three — it went
+            with the whole making group, which was r37's third answer. */}
+        {canEdit && <CanvasUndoButton onUndo={undo} canUndo={editOn && undoDepth > 0} testId="tree-undo" />}
         {!canEdit && (
           <span className="chip" title={`Je kunt deze ${words.familyTree} bekijken, niet bewerken.`}>
             <Icon name="lock" size={12} />
@@ -2399,11 +2408,6 @@ export function FamilyTreeCanvas({
               : undefined
           }
         >
-          {liveUser && (
-            <span className="tree-person tree-person-me" style={{ background: liveUser.colour }} title={`${liveUser.name} (jij)`}>
-              {liveUser.name.slice(0, 1).toUpperCase()}
-            </span>
-          )}
           {others.slice(0, 5).map((person) => (
             <span key={person.clientId} className="tree-person" style={{ background: person.colour }} title={person.name}>
               {person.name.slice(0, 1).toUpperCase()}

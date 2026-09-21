@@ -76,6 +76,12 @@ const PATHS: Record<string, string> = {
   pencil: 'M14.5 4.5l5 5L8 21H3v-5zM12 7l5 5',
   eraser: 'M14 4l6 6-8.5 8.5a2 2 0 0 1-2.8 0L4.5 14.3a2 2 0 0 1 0-2.8zM9 19.5 5 15.5M20 20h-9',
   undo: 'M9 14 4 9l5-5M4 9h10a5.5 5.5 0 0 1 0 11h-3',
+  // §90 canvas: "Opnieuw schikken" — three kaartjes laid out in rows, not the
+  // four corners of "Alles in beeld", which it sat beside looking identical.
+  arrange: 'M9 3h6v4H9zM3 17h6v4H3zM15 17h6v4h-6zM12 7v5M6 12h12M6 12v5M18 12v5',
+  // §90 canvas: fold every window out, and back in — not Lezen's eye.
+  unfold: 'M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4',
+  fold: 'M12 3v6M12 15v6M8 5l4 4 4-4M8 19l4-4 4 4M5 12h14',
 };
 
 /** §43: the same strokes, for drawing on a canvas with `Path2D`. */

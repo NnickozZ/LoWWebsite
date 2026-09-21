@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
-import { munt } from '@/components/kamer/plekWords';
+import { Beurs } from '@/components/kamer/Beurs';
 import type { ShopRoom } from '@/lib/kamers/service';
 import type { Words } from '@/lib/words';
 
@@ -50,7 +50,11 @@ export function KamerKiezer({
             >
               <Icon name="person" size={13} />
               {room.name}
-              <span className="tiny muted winkel-kiezer-saldo">{munt(room.balance, words)}</span>
+              {/* §90 (E6): de chip ís de beurs — dezelfde vorm als overal,
+                  zodat er onder de kiezer geen tweede saldoblok hoeft te staan. */}
+              <span className="winkel-kiezer-saldo">
+                <Beurs balance={room.balance} words={words} size="small" title={room.name} />
+              </span>
             </Link>
           );
         })}

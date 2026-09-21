@@ -2,13 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { EntryPreview } from '@/components/EntryPreview';
 import { Icon } from '@/components/Icon';
 import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
-import { ShellBeurs } from '@/components/kamer/ShellBeurs';
+import { useShellBeurs } from '@/components/kamer/ShellBeurs';
+import {
+  ArchiveHead,
+  JijSheet,
+  JijTab,
+  KeeperGroup,
+  ShortcutsLine,
+  SideSearch,
+  YoursGroup,
+  type Purse,
+} from '@/components/shell/JouwPlek';
 // §76: the roster's own stylesheet, beside the strip that opens it. `globals.css`
 // is the busiest file in the repo (§75 made `overzichten.css` for the same
 // reason); a feature with a panel, a row and a banner belongs in its own.
@@ -19,6 +29,7 @@ import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
 import { AsPlayerBanner, AsPlayerLink } from '@/components/keeper/AsPlayer';
 import { SideSwitched } from '@/components/keeper/SideSwitched';
 import { SideToggle } from '@/components/keeper/SideToggle';
+import { fabTypeFor } from '@/lib/newEntryType';
 import type { Words } from '@/lib/words';
 
 /**
@@ -32,6 +43,11 @@ const NAV: {
   icon: string;
   compact?: boolean;
   desktopOnly?: boolean;
+  /**
+   * §91: in the tab bar and not in the side menu. Zoeken is a box at the top of
+   * the side menu now; on a phone it stays the tab it was.
+   */
+  phoneOnly?: boolean;
   /** §44: not rendered at all for anyone but a Keeper — never hidden with CSS. */
   keeperOnly?: boolean;
 }[] = [
@@ -59,8 +75,11 @@ const NAV: {
   // to say so, and be absent rather than hidden.
   // Eight tabs do not fit a phone with a word under each. The two whose icon
   // everybody knows — a magnifier, a person — go without one there.
-  { href: '/search', word: 'navSearch', icon: 'search', compact: true },
-  { href: '/you', word: 'navYou', icon: 'you', compact: true },
+  { href: '/search', word: 'navSearch', icon: 'search', compact: true, phoneOnly: true },
+  // §91: *Jij* is not a place in this list any more. On a desk it is the last
+  // line of the side menu (`/you`, the settings); on a phone it is the eighth
+  // tab, and that tab opens the Jij-blad instead of going anywhere (§32: still
+  // eight tabs). Both are drawn below, beside the list rather than in it.
 ];
 
 function isCurrent(pathname: string, href: string) {
@@ -73,17 +92,33 @@ function Nav({
   tagline,
   logoAssetId,
   me,
+  purse,
+  myPage,
 }: {
   siteName: string;
   tagline: string;
   logoAssetId: string | null;
   me: Me;
+  purse: Purse;
+  myPage: string | null;
 }) {
   const pathname = usePathname();
   const ui = useUi();
   const words = ui.words;
   // §48: the dossier this screen is, when it is one.
   const here = ui.caseHere;
+  /*
+   * §84/§91: the saldo stays live — one listener on your own `room:{id}`, for
+   * both of its drawings (the side menu and the Jij tab). The pill in the
+   * corner that used to carry it is gone on both sizes.
+   */
+  useShellBeurs(purse?.roomId ?? null);
+  // §91: the Jij-blad, and the tab it hands the focus back to.
+  const [jijOpen, setJijOpen] = useState(false);
+  const jijTab = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    setJijOpen(false);
+  }, [pathname]);
 
   return (
     <>
@@ -118,32 +153,51 @@ function Nav({
          */}
         <div className="who-block">
           <CharacterSwitcher me={me} />
-          <WritingAsLine />
+          {/* §91: only when this window writes as somebody else — see `showsWritingLine`. */}
+          <WritingAsLine words={words} />
           {/* §44: the way into "kijk als speler", beside who you are being —
               the other question about whose eyes you are reading with. */}
           <AsPlayerLink show={Boolean(me.isRealKeeper && !me.asPlayer)} words={words} />
         </div>
-        {NAV.filter((item) => !item.keeperOnly || me.isKeeper).map((item) => (
-          <Link key={item.href} href={item.href} aria-current={isCurrent(pathname, item.href) ? 'page' : undefined}>
-            <Icon name={item.icon} size={18} />
-            {words[item.word]}
-          </Link>
-        ))}
+        {/* §91: zoeken is a box now, straight under who you are. */}
+        <SideSearch />
+        {/* §91: jouw plek — persoonlijk vóór gedeeld. */}
+        <YoursGroup me={me} purse={purse} myPage={myPage} />
+        <div className="nav-group" role="group" aria-labelledby="nav-archive">
+          <ArchiveHead />
+          {NAV.filter((item) => !item.phoneOnly && (!item.keeperOnly || me.isKeeper)).map((item) => (
+            <Link key={item.href} href={item.href} aria-current={isCurrent(pathname, item.href) ? 'page' : undefined}>
+              <Icon name={item.icon} size={18} />
+              {words[item.word]}
+            </Link>
+          ))}
+        </div>
+        {/* §44/§91: absent for anybody but a Keeper — not hidden. */}
+        {me.isKeeper && <KeeperGroup />}
         <button
           type="button"
-          className="btn btn-primary"
-          style={{ width: '100%', marginTop: '1rem' }}
+          className="btn btn-primary nav-new"
+          data-testid="nav-new"
           onClick={() => ui.openNewEntry(here ? { caseId: here.id } : undefined)}
         >
           <Icon name="plus" size={18} />
           {here ? `${words.newEntry} in dit ${words.case}` : words.newEntry}
         </button>
-        <p className="tiny muted" style={{ marginTop: '0.6rem', paddingLeft: '0.6rem' }}>
-          Druk overal op <kbd>n</kbd>
-        </p>
+        <ShortcutsLine keeper={Boolean(me.isRealKeeper && !me.asPlayer)} />
+        <Link
+          href="/you"
+          className="nav-you"
+          data-testid="nav-you"
+          aria-current={isCurrent(pathname, '/you') ? 'page' : undefined}
+        >
+          <Icon name="gear" size={18} />
+          {words.navYou}
+          <span className="tiny muted">{words.navSettings}</span>
+        </Link>
       </nav>
 
-      <nav className="tabs" aria-label="Hoofdmenu">
+      {/* §90: two landmarks both called "Hoofdmenu" were one name for two places. */}
+      <nav className="tabs" aria-label={words.tabBar}>
         {NAV.filter((item) => !item.desktopOnly && (!item.keeperOnly || me.isKeeper)).map((item) => (
           <Link
             key={item.href}
@@ -155,7 +209,25 @@ function Nav({
             <span className={item.compact ? 'visually-hidden' : undefined}>{words[item.word]}</span>
           </Link>
         ))}
+        {/* §91: the eighth tab opens the Jij-blad, and wears the saldo. */}
+        <JijTab purse={purse} open={jijOpen} onOpen={() => setJijOpen(true)} tabRef={jijTab} />
       </nav>
+      {jijOpen && (
+        <JijSheet
+          me={me}
+          purse={purse}
+          myPage={myPage}
+          onClose={() => {
+            setJijOpen(false);
+            // Back to the tab — unless a door in the blad already took the
+            // reader somewhere and the focus with it.
+            requestAnimationFrame(() => {
+              const active = document.activeElement;
+              if (!active || active === document.body) jijTab.current?.focus({ preventScroll: true });
+            });
+          }}
+        />
+      )}
 
       {/* §48: inside a dossier the `+` makes something *in* it — which is the
           only way a voorwerp or an aanwijzing can be made at all (§24). */}
@@ -163,7 +235,22 @@ function Nav({
         type="button"
         className="fab"
         aria-label={here ? `${words.newEntry} in dit ${words.case}` : words.newEntry}
-        onClick={() => ui.openNewEntry(here ? { caseId: here.id } : undefined)}
+        onClick={() => {
+          /*
+           * §90: the soort of the list you are standing on, as the *Nieuw* in
+           * that list's head already does — and for a speler with no karakter
+           * yet, the karakter-soort, because that artikel is the one thing
+           * they can make. A soort the sheet will not offer them is dropped
+           * there, so this only ever suggests.
+           */
+          const typeSlug = fabTypeFor({
+            pathname,
+            typeSlugs: ui.types.filter((type) => ui.isKeeper || !type.keeperMade).map((type) => type.slug),
+            needsCharacter: !me.isKeeper && me.characters.length === 0,
+          });
+          if (!here && !typeSlug) ui.openNewEntry(undefined);
+          else ui.openNewEntry({ ...(here ? { caseId: here.id } : {}), ...(typeSlug ? { typeSlug } : {}) });
+        }}
       >
         +
       </button>
@@ -176,6 +263,7 @@ export function AppShell({
   words,
   me,
   purse,
+  myPage,
   uploadLimit,
   siteName,
   tagline,
@@ -195,7 +283,9 @@ export function AppShell({
    * Keeper (draagt niemand, §18) en voor wie nog geen onderzoeker draagt — en
    * dan staat er niets, geen nul.
    */
-  purse: { roomId: string; balance: number; slug: string } | null;
+  purse: Purse;
+  /** §91: the address of this account's own spelerspagina (§77), for jouw plek. */
+  myPage: string | null;
   /**
    * How heavy a picture this person may send up — a player's 2 MB or the
    * Keeper's 20 MB, decided on the server (`uploadLimitFor`) because the role
@@ -226,7 +316,12 @@ export function AppShell({
           this window's own user id and no secret to it. */}
       <LiveProvider userId={me.id}>
         <div className="shell">
-          <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} />
+          {/* §90: the first stop for a keyboard, and invisible until it is one —
+              otherwise fourteen menu stops stand between Tab and the page. */}
+          <a className="skip-link" href="#main">
+            {words.skipToContent}
+          </a>
+          <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} purse={purse} myPage={myPage} />
           {/*
            * §46: de spiegel. Outside the menu, in the corner of the viewport,
            * the same spot on a desk and on a phone — and rendered only for a
@@ -251,20 +346,19 @@ export function AppShell({
               the address is not a Keeper's privilege, and hanging it inside
               made the cleaning depend on who was looking. */}
           <SideSwitched side={me.side === 'keeper' ? 'keeper' : 'player'} />
-          <main className="main">
+          {/* §90: no `tabIndex` — the skip link moves the browser's own
+              starting point for Tab, and a focusable `<main>` would take the
+              focus on every click on bare page, which half the app reads as
+              "nobody is typing" when it sees `<body>`. */}
+          <main className="main" id="main">
             <LiveStrip words={words} />
             {/*
-             * §84: en links ervan het saldo. Ná de strip in de bron, want twee
-             * dingen die `float: right` doen stapelen van rechts naar links:
-             * de eerste staat het verst naar rechts.
-             *
-             * Dit is de voordeur van de hele meta-progressie geworden. Vóór
-             * ronde 45 hing die aan één menu-item — *Jij* — en was je eigen
-             * kamer drie klikken diep; nu is het er één, vanaf elke pagina.
+             * §84 zette hier de beurs, als pil in de hoek van elke pagina: de
+             * voordeur van de meta-progressie. §91 haalde hem weg — op een
+             * computer staat het saldo naast *Kamer* in de zijbalk, die er ook
+             * op een canvas is, en op een telefoon onder het poppetje van de
+             * Jij-tab. De deur is gebleven, de pil niet.
              */}
-            {purse && (
-              <ShellBeurs roomId={purse.roomId} balance={purse.balance} slug={purse.slug} words={words} />
-            )}
             {/*
              * §18b: a speler with no onderzoeker may read the whole archive
              * and write none of it. The notice stands at the top of every page

@@ -182,7 +182,10 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
               words={words}
             />
             {error && <p className="error-note">{error}</p>}
-            <div className="row-wrap" style={{ gap: '0.4rem' }}>
+            {/* §90: on a phone this row sticks to the bottom of the sheet, so
+                the button that makes the tijdlijn is on screen without
+                scrolling (it was at y 862 of 844, under the keyboard). */}
+            <div className="row-wrap sheet-actions-stick" style={{ gap: '0.4rem' }}>
               <button
                 type="button"
                 className="btn btn-primary btn-small"

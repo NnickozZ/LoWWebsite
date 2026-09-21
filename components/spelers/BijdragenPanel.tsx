@@ -1,9 +1,13 @@
 import Link from 'next/link';
 import { Thumb } from '@/components/Cover';
+import { roomFeedPhrase } from '@/components/kamer/plekWords';
 import { MentionText } from '@/components/ui/MentionPopover';
 import { attributed } from '@/lib/characters';
 import { relativeTime } from '@/lib/diff';
 import type { FeedItem } from '@/lib/entries/service';
+import type { Viewer } from '@/lib/entries/visibility';
+import { visibleNamesOf } from '@/lib/kamers/service';
+import type { Words } from '@/lib/words';
 
 /**
  * The same verbs the Start reads them with. A copy on purpose: the map is one
@@ -29,7 +33,7 @@ const VERBS: Record<string, string> = {
  * is `attributed()`'s label, the karakter the row was written as, and the
  * account name is the tooltip. A speler is not their username.
  */
-export function BijdragenPanel({ rows }: { rows: FeedItem[] }) {
+export function BijdragenPanel({ rows, viewer, words }: { rows: FeedItem[]; viewer: Viewer; words: Words }) {
   if (rows.length === 0) {
     return (
       <p className="small muted" style={{ margin: 0 }}>
@@ -41,6 +45,12 @@ export function BijdragenPanel({ rows }: { rows: FeedItem[] }) {
   // §18: every row names the karakter it was written as, exactly as the Start
   // does. The account name stays one tooltip away.
   const named = attributed(rows);
+  // §90 (E21): de kamerhandelingen lezen als wat ze zijn, met de naam van de
+  // kamer zoals deze kijker hem mag zien.
+  const owners = visibleNamesOf(
+    rows.filter((row) => row.verb.startsWith('room.')).map((row) => row.characterId),
+    viewer,
+  );
 
   return (
     <>
@@ -58,7 +68,23 @@ export function BijdragenPanel({ rows }: { rows: FeedItem[] }) {
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span className="small" style={{ display: 'block' }}>
                   <strong title={row.actorAccount ?? undefined}>{row.actorLabel ?? 'Iemand'}</strong>{' '}
-                  {VERBS[row.verb] ?? 'wijzigde'} <strong>{row.entry!.name}</strong>
+                  {(() => {
+                    const room = roomFeedPhrase(
+                      row.verb,
+                      row.characterId ? (owners.get(row.characterId) ?? null) : null,
+                      !row.actorIsKeeper,
+                      words,
+                    );
+                    return room ? (
+                      <>
+                        {room.verb} <strong>{row.entry!.name}</strong> {room.tail}
+                      </>
+                    ) : (
+                      <>
+                        {VERBS[row.verb] ?? 'wijzigde'} <strong>{row.entry!.name}</strong>
+                      </>
+                    );
+                  })()}
                 </span>
                 <span className="tiny muted clamp-2" style={{ display: 'block' }}>
                   {/* §48: flat chips — the whole row is a link. */}

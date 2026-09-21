@@ -22,7 +22,9 @@ import { useLiveChanges } from '@/components/live/LiveProvider';
 import { entryKey } from '@/lib/live/keys';
 import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
+import { useAuthorOptional } from '@/components/you/AuthorProvider';
 import { useIsWide } from '@/components/useIsPhone';
+import { openSheetCount } from '@/lib/sheetStack';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
@@ -40,6 +42,7 @@ import type { FieldDef, Visibility } from '@/lib/db/schema';
 import type { CoverCrops } from '@/lib/images/shapes';
 import { capitalise, fill } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
+import { tagListHref } from '@/lib/entries/tagHref';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
 import { OriginLine, type OriginCaseLite } from './OriginLine';
@@ -54,7 +57,7 @@ import {
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
 import { TagsEditor } from './TagsEditor';
-import { saveLabel, useAutosave } from './useAutosave';
+import { useAutosave, useSaveWord } from './useAutosave';
 
 export type EntryViewData = {
   id: string;
@@ -69,6 +72,12 @@ export type EntryViewData = {
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
+  /**
+   * §90: where a tag chip on this page goes — the list of this soort, filtered
+   * on that tag. Optional so a caller that has no soort to hand still gets a
+   * working link (to `/wiki/alles`).
+   */
+  typeSlug?: string;
   typeFields: FieldDef[];
   /** §11: what this soort's page is made of, already resolved on the server. */
   typeBlocks: PageBlock[];
@@ -241,7 +250,7 @@ export function EntryView({
    * of via een spelerspagina, allebei over een *account*, terwijl een kamer aan
    * de onderzoeker hangt (§17/§18).
    */
-  roomDoor: { href: string; balance: number } | null;
+  roomDoor: { href: string; balance: number; own?: boolean } | null;
   /**
    * §86: mag deze hand deze onderzoeker een kamer *geven*?
    *
@@ -321,9 +330,59 @@ export function EntryView({
   const [mode, setMode] = useState<ArticleMode>(canToggle && openAddMore ? 'edit' : 'view');
   const reading = mode === 'view';
 
+  /*
+   * §90: after "maak" comes "schrijf". Landing on `?new=1` put the focus on
+   * `<body>`, so the first sentence of a brand-new artikel cost a click in the
+   * text first. The editor is client-only and arrives a beat after the page,
+   * so this waits for it (a few seconds at most) — and gives up the moment
+   * anybody does anything first: a key, a press, or the caret put somewhere
+   * on the page. A key matters most: `n` on a page that has just been made is
+   * "make another one", and must not become the first letter of this one.
+   * The caret is only ever *given*, never taken.
+   */
+  useEffect(() => {
+    if (!(canToggle && openAddMore)) return;
+    let tries = 0;
+    const stop = () => {
+      window.clearInterval(timer);
+      window.removeEventListener('keydown', stop, true);
+      window.removeEventListener('pointerdown', stop, true);
+    };
+    const timer = window.setInterval(() => {
+      tries += 1;
+      const active = document.activeElement;
+      const main = document.querySelector('main');
+      const free = !active || active === document.body || !main?.contains(active);
+      if (!free || tries > 40) {
+        stop();
+        return;
+      }
+      if (openSheetCount() > 0) return;
+      const editor = document.querySelector<HTMLElement>('.entry-body-block [contenteditable="true"]');
+      if (!editor) return;
+      stop();
+      editor.focus();
+    }, 150);
+    window.addEventListener('keydown', stop, true);
+    window.addEventListener('pointerdown', stop, true);
+    return stop;
+    // Once, on landing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /*
+   * §90: on a phone the infobox is a folded `<details>`, open while reading
+   * and shut while editing (§6/§22). Crossing faces used to fold it up under
+   * the hand that had just read a fact and wanted to change it. Once somebody
+   * has opened or shut it, that is the state it keeps across the switch.
+   */
+  const [infoboxOpen, setInfoboxOpen] = useState<boolean | null>(null);
+
   const [name, setName] = useState(entry.name);
   const [shortDescription, setShortDescription] = useState(entry.shortDescription);
   const [tags, setTags] = useState(entry.tags);
+  // §90: a tag chip opens this soort's list, filtered on it.
+  const tagHref = (tag: string) => tagListHref(tag, entry.typeSlug);
   const [fields, setFields] = useState(entry.fields);
   const [cover, setCover] = useState({ assetId: entry.coverAssetId, crop: entry.coverCrop });
   const [visibility, setVisibility] = useState(entry.visibility);
@@ -332,6 +391,8 @@ export function EntryView({
   // §18: tying this artikel on as a character, from the artikel itself.
   const [wardrobe, setWardrobe] = useState(character ?? { linked: false, active: false, mayTie: false });
   const [wardrobeBusy, setWardrobeBusy] = useState(false);
+  // §91: één wie-regel — "Speel als …" here is a wissel like any other.
+  const followPlay = useAuthorOptional()?.followPlay;
   const wear = useCallback(
     async (method: 'POST' | 'PATCH', body: Record<string, unknown>) => {
       setWardrobeBusy(true);
@@ -347,6 +408,7 @@ export function EntryView({
           return;
         }
         const active = data.activeId === entry.id;
+        if (method === 'PATCH' && data.activeId !== undefined) followPlay?.(data.activeId);
         // §18c: with one on the peg the door has shut behind them — this was
         // their first and only self-koppeling.
         setWardrobe({ linked: true, active, mayTie: false });
@@ -358,7 +420,7 @@ export function EntryView({
         setWardrobeBusy(false);
       }
     },
-    [entry.id, entry.name, router, ui],
+    [entry.id, entry.name, router, ui, followPlay],
   );
   const leadRef = useRef<HTMLTextAreaElement>(null);
   const notifiedFor = useRef<string | null>(null);
@@ -420,6 +482,8 @@ export function EntryView({
     status: 'connecting',
     save: 'idle',
   });
+  // §90: the one word beside Lezen, for the autosave and both rooms together.
+  const saveWord = useSaveWord(state, [liveStatus, fieldsStatus], ui.words);
 
   /**
    * Someone else saved the rest of the record — name, description, tags,
@@ -564,7 +628,7 @@ export function EntryView({
           <span className="label">Tags</span>
           <div className="row-wrap" style={{ gap: '0.3rem' }}>
             {tags.map((tag) => (
-              <a key={tag} className="tag" href={`/wiki?tag=${encodeURIComponent(tag)}`}>
+              <a key={tag} className="tag" href={tagHref(tag)}>
                 {tag}
               </a>
             ))}
@@ -624,7 +688,9 @@ export function EntryView({
       <details
         id="block-info"
         className="section entry-infobox entry-infobox-folded"
-        open={fieldsBlock!.open || openAddMore || reading}
+        open={infoboxOpen ?? (fieldsBlock!.open || openAddMore || reading)}
+        // §90: whatever the hand did last is what survives Lezen ↔ Bewerken.
+        onToggle={(event) => setInfoboxOpen(event.currentTarget.open)}
       >
         <summary>{infoboxHeading}</summary>
         <div style={{ padding: '0.6rem 0 0.8rem' }}>{infoboxBody}</div>
@@ -839,15 +905,11 @@ export function EntryView({
             is on its way; "Opgeslagen" once both have landed. Reading, there
             is nothing on its way, so the word is not there either.
           */}
+          {/* §90: a refusal and a line that is down now outrank "Opslaan…" —
+              see `combinedSave`. */}
           {!reading && (
             <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-              {state === 'dirty' || state === 'saving' || liveStatus.save === 'saving' || fieldsStatus.save === 'saving'
-                ? saveLabel('saving')
-                : state === 'pending' || state === 'error'
-                  ? saveLabel(state)
-                  : state === 'saved' || liveStatus.save === 'saved' || fieldsStatus.save === 'saved'
-                    ? saveLabel('saved')
-                    : ''}
+              {saveWord}
             </p>
           )}
           {/* §22: the two faces. Wikipedia's own pair of words, in ours. */}
@@ -860,6 +922,8 @@ export function EntryView({
                 // Anything half-typed goes to the archive before the inputs
                 // that hold it leave the page.
                 if (!reading) void flush();
+                // §90: the folded infobox keeps the state it has now.
+                setInfoboxOpen((was) => was ?? (Boolean(fieldsBlock?.open) || openAddMore || reading));
                 setMode(reading ? 'edit' : 'view');
               }}
             >
@@ -960,7 +1024,7 @@ export function EntryView({
         {tags.length > 0 && !reading && (
           <div className="row-wrap" style={{ marginTop: '0.3rem' }}>
             {tags.map((tag) => (
-              <a key={tag} className="tag" href={`/wiki?tag=${encodeURIComponent(tag)}`}>
+              <a key={tag} className="tag" href={tagHref(tag)}>
                 {tag}
               </a>
             ))}
@@ -999,7 +1063,7 @@ export function EntryView({
               onClick={() => void wear('PATCH', { active: entry.id })}
             >
               <Icon name="swap" size={15} />
-              Speel als {name || entry.name}
+              {fill(words.playAs, { naam: name || entry.name })}
             </button>
           )}
         </div>
@@ -1012,7 +1076,7 @@ export function EntryView({
 
         {/* §85: de kamer van deze onderzoeker. Zie de prop voor waarom. */}
         {roomDoor && (
-          <p className="row-wrap entry-kamer" data-testid="entry-kamer">
+          <p className="row-wrap entry-kamer" data-testid="entry-kamer" data-eigen={roomDoor.own ? 'ja' : 'nee'}>
             <Beurs balance={roomDoor.balance} words={words} size="small" />
             <Link className="btn btn-small" href={roomDoor.href} data-testid="entry-kamer-deur">
               <Icon name={MEANING.kamer} size={13} />

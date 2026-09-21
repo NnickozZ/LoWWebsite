@@ -68,10 +68,19 @@ export function Sheet({
   children,
   onClose,
   labelledBy,
+  closable = true,
 }: {
   children: ReactNode;
   onClose: () => void;
   labelledBy?: string;
+  /**
+   * §90: false for the one sheet that may not be walked away from — §18b's
+   * blocking "met wie ben je nu aan het schrijven?". It had a cross that did
+   * nothing, which is the worst kind of button there is. The note on the cross
+   * below still stands for everything else: a question you may walk away
+   * from gets a cross that means *no*.
+   */
+  closable?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   /** Null until this sheet has taken its place in the pile — and until then it draws nothing. */
@@ -195,15 +204,17 @@ export function Sheet({
          * from is a question that has to be asked differently, not a dialog
          * with the exit taken off.
          */}
-        <button
-          type="button"
-          className="sheet-close"
-          aria-label="Sluiten"
-          title="Sluiten (Esc)"
-          onClick={() => onCloseRef.current()}
-        >
-          <Icon name="close" size={18} />
-        </button>
+        {closable && (
+          <button
+            type="button"
+            className="sheet-close"
+            aria-label="Sluiten"
+            title="Sluiten (Esc)"
+            onClick={() => onCloseRef.current()}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        )}
         {/*
          * `display: contents`, dus dit vakje bestaat niet voor de opmaak — en
          * wél voor een selector. Het kruisje hierboven zweeft in de hoek, en

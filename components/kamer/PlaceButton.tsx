@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { Thumb } from '@/components/Cover';
@@ -68,6 +69,7 @@ export function PlaceButton({
   kind,
   kindLabel,
   balance,
+  guestOf = null,
   words,
 }: {
   roomId: string;
@@ -77,6 +79,8 @@ export function PlaceButton({
   kindLabel: string;
   /** What is in the grootboek right now — what decides whether a row is out of reach. */
   balance: number;
+  /** §90: de onderzoeker, als dit de kamer van een ander is (de Keeper die inricht). */
+  guestOf?: string | null;
   words: Words;
 }) {
   const ui = useUi();
@@ -186,6 +190,15 @@ export function PlaceButton({
     router.refresh();
   }
 
+  /*
+   * §90: "ligt nu op je plank" is waar in je eigen kamer. De Keeper die in
+   * andermans kamer iets neerzet, zet het niet op zíjn plank.
+   */
+  const landed = (name: string) =>
+    guestOf
+      ? fill(words.boughtThere, { ding: name, plek: plekWord(kind, words), naam: guestOf })
+      : fill(words.boughtHere, { ding: name, plek: plekWord(kind, words) });
+
   async function place(entry: Voorwerp) {
     setBusy(true);
     try {
@@ -196,7 +209,7 @@ export function PlaceButton({
       }
       // §84: zeggen wat er gebeurd is. Geen *Bekijk*-knop hier: je staat al in
       // de kamer en het blad sluit op de tegel die net gevuld is.
-      ui.toast(fill(words.boughtHere, { ding: entry.name, plek: plekWord(kind, words) }));
+      ui.toast(landed(entry.name));
       done();
     } finally {
       setBusy(false);
@@ -216,9 +229,7 @@ export function PlaceButton({
         ui.toast(error);
         return;
       }
-      ui.toast(
-        `${fill(words.boughtHere, { ding: entry.name, plek: plekWord(kind, words) })} −${munt(entry.price, words)}`,
-      );
+      ui.toast(`${landed(entry.name)} −${munt(entry.price, words)}`);
       done();
     } finally {
       setBusy(false);
@@ -262,10 +273,10 @@ export function PlaceButton({
             {/*
               §11: the second tab is named by the Keeper's own word
               (`catalogue`), so a campaign that calls its catalogue something
-              else gets that word here. The first is a plain Dutch phrase and
-              not a renameable noun — the same class of string as "Zoeken…"
-              and "Niets dat hier past." below — because it names a *question*
-              ("what have I already got?") rather than a thing in the archive.
+              else gets that word here. The first was a plain Dutch phrase in
+              the code, on the grounds that it names a *question* rather than a
+              thing in the archive; §90 put it and its four neighbours in
+              `lib/words.ts` all the same (K7: every visible word is a key).
 
               **§85 made them tabs.** They were `chip-selectable` with
               `aria-pressed`, which is the archive's pattern for a *filter* —
@@ -288,7 +299,7 @@ export function PlaceButton({
                 onClick={() => setTab('bezit')}
               >
                 <Icon name={MEANING.kamer} size={13} />
-                Wat je al hebt
+                {words.pickHave}
               </button>
               <button
                 type="button"
@@ -316,7 +327,7 @@ export function PlaceButton({
               telt er tien).
             */}
             <label className="visually-hidden" htmlFor={`${titleId}-zoek`}>
-              Zoeken
+              {words.pickSearch}
             </label>
             <input
               id={`${titleId}-zoek`}
@@ -324,7 +335,7 @@ export function PlaceButton({
               className="input kamer-zoek"
               data-testid="plek-picker-zoek"
               value={query}
-              placeholder="Zoeken…"
+              placeholder={words.pickSearchHint}
               onChange={(event) => setQuery(event.target.value)}
             />
 
@@ -337,7 +348,7 @@ export function PlaceButton({
               <>
                 {items.length === 0 ? (
                   <p className="small muted" style={{ marginTop: '0.7rem' }} data-testid="plek-picker-leeg">
-                    Niets dat hier past.
+                    {words.pickNothing}
                   </p>
                 ) : (
                   <ul className="suggest-list" style={{ marginTop: '0.6rem' }}>
@@ -416,7 +427,7 @@ function Catalogus({
   if (entries === null) {
     return (
       <p className="small muted" style={{ marginTop: '0.7rem' }} data-testid="plek-catalogus-bezig">
-        Even kijken…
+        {words.pickLoading}
       </p>
     );
   }
@@ -456,8 +467,12 @@ function Catalogus({
                 catalogus leent haar eigen vorm uit. */}
             <Thumb assetId={entry.coverAssetId} icon={MEANING.catalogus} />
             <div className="kamer-koop-body">
+              {/* §90 (E14): de naam is een deur naar het artikel, net als in de
+                  winkelrij — een stuk huisraad *is* een artikel. */}
               <p className="kamer-koop-name">
-                <strong>{entry.name}</strong>
+                <Link href={`/e/${entry.slug}`} data-testid="plek-catalogus-naam">
+                  <strong>{entry.name}</strong>
+                </Link>
               </p>
               {entry.shortDescription && (
                 <p className="tiny muted clamp-2 kamer-koop-line">{entry.shortDescription}</p>

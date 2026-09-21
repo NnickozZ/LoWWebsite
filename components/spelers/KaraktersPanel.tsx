@@ -3,7 +3,7 @@ import { Cover } from '@/components/Cover';
 import { PanelDoor } from '@/components/spelers/PanelDoor';
 import type { CharacterLite } from '@/lib/characters';
 import type { SpelerLite } from '@/lib/spelers/service';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
 
 export type KaraktersData = {
   characters: CharacterLite[];
@@ -34,7 +34,7 @@ export function KaraktersPanel({
   if (speler.isKeeper) {
     return (
       <p className="small muted" style={{ margin: 0 }}>
-        De {words.keeper} draagt geen {words.character}: die is overal de {words.keeper}.
+        {fill(words.keeperWearsNone, { keeper: words.keeper, karakter: words.character })}
       </p>
     );
   }
@@ -42,7 +42,7 @@ export function KaraktersPanel({
   if (data.characters.length === 0) {
     return (
       <p className="small muted" style={{ margin: 0 }}>
-        Nog geen {words.characterPlural}.
+        {fill(words.charactersNone, { karakters: words.characterPlural })}
       </p>
     );
   }
@@ -68,7 +68,7 @@ export function KaraktersPanel({
               />
               <span className="speler-face-name">{character.name}</span>
               {character.entryId === data.activeId && (
-                <span className="tiny speler-face-now">Draagt deze nu</span>
+                <span className="tiny speler-face-now">{words.wearsNow}</span>
               )}
             </Link>
           </li>

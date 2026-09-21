@@ -137,7 +137,8 @@ test('the picture sits above the facts in one box, and its tools are in a menu',
   await expect(page.getByRole('button', { name: 'Vervangen' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Bijsnijden/ })).toHaveCount(0);
   await page.locator('.cover-menu-button').click();
-  const menu = page.getByRole('menu', { name: 'Afbeelding' });
+  // §90: the cover's menu is called "Omslag" — "Afbeelding" was also the text's camera.
+  const menu = page.getByRole('menu', { name: 'Omslag' });
   await expect(menu.getByRole('menuitem', { name: 'Vervangen' })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: /^Bijsnijden/ })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: 'Verwijderen' })).toBeVisible();

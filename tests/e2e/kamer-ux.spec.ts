@@ -11,7 +11,8 @@ import { becomeInvestigator, expectPlekken, fillWhenReady, inviteCode, setPlekke
  *
  * Zes zaken, in de volgorde waarin ze mislopen:
  *
- *   1. Vanaf Start in **één** klik in je eigen kamer, via de beurs in de hoek.
+ *   1. Vanaf Start in **één** klik in je eigen kamer — sinds §91 via *Kamer*
+ *      in de zijbalk, met het saldo ernaast (de pil in de hoek is weg).
  *   2. De knop zegt wat hij kost, en na een koop zegt een melding waar het ding
  *      heen is — met een deur die op díé tegel landt.
  *   3. Een ding dat op twee soorten plek past staat **één keer** in de winkel.
@@ -149,10 +150,12 @@ test.describe('§84 Het geld spreekt', () => {
     /* ---------------------------------- 1. één klik, vanaf een vreemde pagina */
 
     await owner.goto('/wiki');
-    const beurs = owner.getByTestId('shell-beurs').getByTestId('beurs');
-    await expect(beurs).toBeVisible({ timeout: 20_000 });
-    await expect(beurs).toHaveAttribute('data-balance', '9');
-    await beurs.click();
+    // §91: de beurs-pil in de hoek is weg; de deur is *Kamer* in de zijbalk,
+    // met hetzelfde saldo rechts ernaast, uit dezelfde bron.
+    const kamerDeur = owner.getByTestId('yours-kamer');
+    await expect(kamerDeur).toBeVisible({ timeout: 20_000 });
+    await expect(kamerDeur.getByTestId('yours-saldo')).toHaveAttribute('data-balance', '9');
+    await kamerDeur.click();
     await expect(owner.getByTestId('kamer-page')).toBeVisible({ timeout: 20_000 });
     await expect(owner).toHaveURL(new RegExp(`/kamer/${slug}$`));
 
@@ -884,6 +887,14 @@ test.describe('§86 De uitdeler op maat', () => {
       await expect(sheet).toBeVisible({ timeout: 1500 });
     }).toPass({ timeout: 30_000 });
     await sheet.getByLabel('Naam', { exact: true }).fill(naam);
+    /*
+     * §90 (E3): een kamer is er alleen voor een artikel dat een onderzoeker kán
+     * zijn. Het blad begint op de eerste soort (*Personen*), en deze zaak gaf
+     * dus tot ronde 51 een Persoon een kamer — precies de fout van E3. De
+     * veerman is een onderzoeker, en dat zeggen we nu ook.
+     */
+    await sheet.getByRole('radio', { name: 'Onderzoekers' }).click();
+    await expect(sheet.getByRole('radio', { name: 'Onderzoekers' })).toHaveAttribute('aria-checked', 'true');
     await sheet.getByRole('button', { name: 'Aanmaken' }).click();
     await page.waitForURL('**/e/**');
     const path = new URL(page.url()).pathname;

@@ -871,6 +871,12 @@ a.card:hover {
      on a phone held sideways where the column is very short. */
   flex: 0 0 auto;
 }
+/* §90 canvas: de live-strip is zelden alleen een stip — met iemand erbij is hij
+   "2 ●", gemeten 52 px, en 2,5 rem legde hem 28 px over *Verbindingen*
+   ("Verbinding"). De gemeten breedte, dus 3,5 rem. */
+.canvas-head {
+  padding-right: 3.5rem;
+}
 .canvas-head > * {
   margin: 0;
   min-width: 0;
@@ -1128,6 +1134,20 @@ body:has(.sheet-backdrop) .fab {
   overflow-y: auto;
   padding: 0.85rem 1rem calc(1.2rem + env(safe-area-inset-bottom));
   animation: sheet-up 180ms ease-out;
+}
+/* §90 canvas: de knoppenrij van een maakblad blijft op een telefoon onderaan
+   het blad staan terwijl de rest eronder door scrolt — het tijdlijnblad (zes
+   maten met uitleg) zette zijn primaire knop anders onder de vouw. */
+@media (max-width: 767px) {
+  .sheet .sheet-actions-stick {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 0 -1rem calc(-1.2rem - env(safe-area-inset-bottom));
+    padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--rule);
+    background: var(--paper);
+  }
 }
 @keyframes sheet-up {
   from {
@@ -1473,6 +1493,24 @@ a.entry-chip {
 a.entry-chip::before {
   content: none;
 }
+/* §90 schrijven: F32 — de naam in een kaart, een regel van het feed of een
+   zoekresultaat. Daar is het hele blok de link, dus tekent `MentionChip flat`
+   een `<span>` (een `<a>` in een `<a>` mag niet) — en die kreeg het kader
+   terug dat §68 van alles wat je leest had afgehaald. Alleen díe span: hij is
+   de enige met `data-entry-slug`. Een dode naam, een Meerkeuze-antwoord en een
+   dossier dat je niet mag zien blijven de etiketten die ze waren. */
+span.entry-chip[data-entry-slug] {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--link);
+  font-weight: inherit;
+}
+span.entry-chip[data-entry-slug]::before {
+  content: none;
+}
 /* De `gap` van het chipje valt met `display: inline` weg; een dossier- of
    stamboom-verwijzing draagt wél een icoontje en heeft die ruimte nodig. */
 a.entry-chip > svg {
@@ -1752,6 +1790,20 @@ details.section[open] > summary::before {
   background: var(--paper-raised);
 }
 
+/* §90 schrijven: B19 — een zin voor een muis en een voor een duim; het
+   apparaat kiest. `hover: none` is een aanraakscherm zonder muis. */
+.hint-touch {
+  display: none;
+}
+@media (hover: none) {
+  .hint-pointer {
+    display: none;
+  }
+  .hint-touch {
+    display: inline;
+  }
+}
+
 .save-state {
   font-family: var(--stamp-face);
   text-transform: uppercase;
@@ -1760,6 +1812,19 @@ details.section[open] > summary::before {
   font-weight: 700;
   color: var(--ink-muted);
   min-height: 1.2em;
+}
+/* §90 schrijven: B13 — op een telefoon krijgt het woord een eigen regel onder
+   de stempels en de Lezen-knop. Het stond ertussen, groeide bij de eerste
+   toets van niets tot "OPSLAAN…" en duwde Lezen naar een tweede regel: titel
+   en vak schoven 58 px onder de duim weg terwijl je typte. Nu staat de regel
+   er de hele bewerkstand al (`min-height`), leeg of niet, en beweegt er niets. */
+@media (max-width: 767px) {
+  .entry-head .save-state,
+  .case-head .save-state {
+    order: 1;
+    flex: 1 0 100%;
+    text-align: right;
+  }
 }
 
 /* ----------------------------------------------------------------- toasts */
@@ -1802,6 +1867,13 @@ details.section[open] > summary::before {
   text-decoration: underline;
   cursor: pointer;
   min-height: 32px;
+}
+/* §90 economie: E17 — *Bekijk* in een koopmelding was 52×32 op een telefoon,
+   en het is de deur die je na een koop het vaakst neemt. Een vinger meet
+   `--tap` (§69 6.1), ook in een melding. */
+.toast button {
+  min-height: var(--tap);
+  min-width: var(--tap);
 }
 
 /* ---------------------------------------------------------------- preview */
@@ -1990,6 +2062,17 @@ details.section[open] > summary::before {
   border-style: solid;
   border-color: var(--ink-muted);
   background: var(--paper-raised);
+}
+/* §90 canvas: dezelfde naam als print, in Lezen (B27). Zelfde maat en plek als
+   het vak, zodat de balk niet verspringt als de schakelaar omgaat. */
+.board-name-text,
+.board-name-text:hover {
+  display: inline-block;
+  border-color: transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .board-tools {
@@ -4079,6 +4162,14 @@ details.section[open] > summary::before {
 .entry-mode-toggle {
   gap: 0.35rem;
 }
+/* §90 schrijven: B24 — de meest gebruikte knop van het archief haalt op een
+   telefoon de 44 px van §69 6.1. Alleen deze: `.btn-small` blijft 34 px, dat
+   is Nicks keuze (kamer-contract, "wat open staat"). */
+@media (max-width: 767px) {
+  .entry-mode-toggle {
+    min-height: var(--tap);
+  }
+}
 .entry-mode-toggle-on {
   border-color: var(--ink);
   background: var(--paper-raised);
@@ -5036,6 +5127,40 @@ details.section[open] > summary::before {
   .board-inspector .btn-small {
     min-height: var(--tap);
   }
+  /* §90 canvas: en ook de breedte. §69 6.1 regelde de hoogte, dus een knop
+     met alleen een icoon bleef 29–37 px breed (Uitzoomen 37, Legenda 35,
+     Opnieuw schikken 29, Los kaartje 29, Alles tonen 35). */
+  .canvas-zoom .btn-small,
+  .map-toolbar .btn-small,
+  .board-bar .btn-small,
+  .board-tools .btn-small,
+  .tree-tools .btn-small,
+  .timeline-toolbar .btn-small {
+    min-width: var(--tap);
+    justify-content: center;
+  }
+  /* §90 canvas: tijdlijn-tags (24 px hoog) en de `+n`-kluitjes (23×19 op de
+     tijdlijn, 28×26 op de landkaart) krijgen een onzichtbare rand van 44 px om
+     in te tikken. Ze ogen niet groter: de rand is een leeg pseudo-element. */
+  .timeline-tag::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: var(--tap);
+    transform: translateY(-50%);
+  }
+  .timeline-cluster::after,
+  .map-pins .map-cluster-badge::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, var(--tap));
+    height: max(100%, var(--tap));
+    transform: translate(-50%, -50%);
+  }
   /*
    * Twee klassen diep, en dat is geen sier.
    *
@@ -5223,6 +5348,23 @@ details.section[open] > summary::before {
 body:has(.canvas-peek) .fab {
   display: none;
 }
+/* §90 canvas: en niet alleen voor een peek. Een tekenvlak heeft zijn eigen `+`
+   (Speld zetten, Gebeurtenis toevoegen, Nieuwe notitie, Los kaartje), dus de
+   FAB van de schil is daar een tweede maakknop die in Lezen midden over het
+   glas ligt — en over alles wat er gedokt wordt: de inspector van het
+   prikbord ("EEN HOUTEN NAA…"), *Erbij* in de kiezer van de stamboom, de
+   telregel onder de landkaart. Op de pagina's (`.page-canvas`) én op het
+   prikbord, dat niet op die schil staat, en op een vlak dat in een dossier
+   hangt. De `n` blijft werken. */
+body:has(.page-canvas) .fab,
+body:has(.board-page) .fab,
+body:has(.map-page) .fab,
+body:has(.timeline-frame) .fab,
+body:has(.tree-page) .fab,
+body:has(.board-inspector) .fab,
+body:has(.tree-picker) .fab {
+  display: none;
+}
 
 /* ------------------------------------------------------ §8 live: other hands */
 .board-cursor {
@@ -5354,6 +5496,23 @@ body:has(.canvas-peek) .fab {
 }
 
 /* Who else is on this page, in the page's top corner. */
+/* §90 schrijven: S20 — "Naar de inhoud", alleen te zien als hij de focus heeft. */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 200;
+  padding: 0.5rem 0.8rem;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  transform: translateY(-200%);
+}
+.skip-link:focus {
+  transform: none;
+}
+
 .live-strip {
   position: sticky;
   top: 0.4rem;
@@ -5468,52 +5627,42 @@ a.beurs:focus-visible {
   animation: beurs-tel 260ms ease-out;
 }
 
-/* In de hoek van elke pagina, links van de aanwezigheidsstrip. Twee floats
-   stapelen van rechts naar links, dus dit staat ná de strip in de bron. */
-.shell-beurs {
-  position: sticky;
-  top: 0.4rem;
-  z-index: 25;
-  float: right;
-  margin: -0.4rem 0.35rem 0 0.5rem;
+/*
+ * §90 schrijven: B10 — de strook bovenaan, op een telefoon.
+ *
+ * De beurs en de aanwezigheidsstrip zijn allebei `float: right`. Tekst loopt
+ * om een float heen, maar een grid of een flexdoos is een eigen
+ * opmaakcontext, en die wijkt voor een float over zijn **hele hoogte**: de kop
+ * van een artikel (`.entry-head`, een grid) werd 198 van de 358 px breed
+ * omdat er rechtsboven een pilletje van 26 px hoog hing. Op een dossier, de
+ * wiki, Start en de spelerspagina hetzelfde, bij elke rij die een flexdoos is.
+ *
+ * Dus begint op een telefoon alles ná de twee floats eronder (`clear`): de
+ * floats zelf blijven samen in één smalle strook rechtsboven staan, plakkend
+ * zoals ze waren, en de pagina krijgt de volle breedte. Het kost één regel
+ * hoogte en werkt net zo goed als de beurs er niet is (een speler zonder
+ * onderzoeker, een Keeper, of straks de Jij-tab) — dan is het de strip alleen.
+ *
+ * Niet op een canvas (daar hangt de strip absoluut en de beurs weg, §34) en
+ * niet op een prikbord: een wand die een regel zakt is een wand waarop elke
+ * coördinaat verschuift (zie de regel hieronder).
+ *
+ * §91: de beurs is weg (het saldo staat op de Jij-tab), dus de strook is nu
+ * alleen nog de strip — één stip, en de regel blijft voor die ene float.
+ */
+@media (max-width: 767px) {
+  .main:not(:has(.page-canvas)):not(:has(.board-viewport)) > :not(.live-strip) {
+    clear: right;
+  }
 }
 
 /*
- * §34: een canvas krijgt het scherm. Daar hangt de strip absoluut in de hoek
- * (zie `.main:has(.page-canvas) .live-strip` hierboven) en zou een tweede ding
- * ernaast opnieuw uitgerekend moeten worden — terwijl er op een prikbord, een
- * landkaart, een tijdlijn of een stamboom niets te kopen valt. Dus daar staat
- * hij niet, en dat is een regel met een reden in plaats van een uitzondering.
+ * §84 zette hier de beurs als pil in de hoek, met vier regels die hem op een
+ * canvas, een prikbord, de kamer, de winkel en het eigen artikel weer weghaalden.
+ * §91 haalde de pil zelf weg (het saldo staat nu naast *Kamer* in de zijbalk en
+ * op de Jij-tab), en de vier regels gingen mee: een regel voor iets dat niet
+ * meer bestaat, leest als een regel die nog iets doet.
  */
-.main:has(.page-canvas) .shell-beurs,
-/*
- * En op een prikbord, om een reden die niets met geld te maken heeft: een wand
- * is nog niet op §34's canvas-schil (zie `CLAUDE.md` §8), dus hij is géén
- * `.page-canvas` en de regel hierboven raakt hem niet — terwijl hij wél in de
- * hoofdkolom ligt. Een tweede `float: right` naast de aanwezigheidsstrip knijpt
- * die kolom dan smaller, en een muur die smaller wordt is een muur waarop elke
- * coördinaat verschuift. Twee inkt-zaken op de telefoon vonden dat, en geen van
- * beide gaat over een kamer.
- *
- * Wordt de wand ooit een `.page-canvas`, dan mag deze regel weg — en dan doet
- * de regel erboven zijn werk.
- */
-.main:has(.board-viewport) .shell-beurs {
-  display: none;
-}
-
-/*
- * §84: en niet twee keer hetzelfde getal naast elkaar.
- *
- * De kamer en de winkel dragen hun eigen, grotere beurs boven aan de pagina —
- * daar is het saldo het onderwerp en niet een verwijzing. De hoek is de deur
- * *naar* die pagina's, en een deur naar de kamer waar je in staat is geen deur.
- * Gevonden in de browser: twee identieke blokjes, twintig pixels uit elkaar.
- */
-.main:has(.kamer-page) .shell-beurs,
-.main:has(.winkel-page) .shell-beurs {
-  display: none;
-}
 
 /*
  * §84: ruimte onder de FAB, en alleen waar er iets onder hem ligt.
@@ -5884,6 +6033,18 @@ a.beurs:focus-visible {
 .timeline-tag:hover,
 .timeline-event-open .timeline-tag {
   background: var(--paper-dark);
+}
+/* §90 canvas: the ellipsis moves to the name inside, so the tag itself no
+   longer clips — its phone-only tap rim (`::after`, §69 6.1 block) would be cut
+   off by `overflow: hidden`. The tag looks exactly as it did. */
+.timeline-tag {
+  overflow: visible;
+}
+.timeline-tag-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .timeline-empty {
   position: absolute;
@@ -7045,6 +7206,11 @@ a.beurs:focus-visible {
 .shell:has(> .side-toggle) .canvas-head {
   padding-right: 5rem;
 }
+/* §90 canvas: en met de Keeperkant-knop erbij: de strip (3,5 rem) plus de
+   knop en zijn goot (2,4 rem). */
+.shell:has(> .side-toggle) .canvas-head {
+  padding-right: 6rem;
+}
 
 /* The wipe. The new side is uncovered by a circle growing out of the button
    itself — `--flip-x` / `--flip-y` are written onto <html> from the button's
@@ -7159,4 +7325,357 @@ a.beurs:focus-visible {
   margin-left: auto;
   font-family: var(--stamp-face);
   font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   §91: jouw plek — de zijbalk, het Jij-blad en de Jij-tab.
+
+   Nick, ronde 52: "Je moet te veel knopjes klikken." De speler had geen vaste
+   plek: kamer, winkel, spelerspagina en de hal stonden in geen menu, en de
+   enige deur was een pil van 22 px hoog. Nu is er één groep, op een computer
+   in de zijbalk en op een telefoon in het blad achter de Jij-tab.
+   ========================================================================== */
+
+/* De zijbalk. Op een computer wijst een muis, geen duim: 44 px per regel
+   (`--tap`) duwde "Nieuw artikel" op 1440 × 900 onder de vouw zodra er drie
+   groepen stonden. Gemeten, niet geraden — zie `ronde-52-jouw-plek.spec.ts`. */
+.sidenav a {
+  min-height: 2.05rem;
+}
+.sidenav .masthead {
+  padding-bottom: 0.55rem;
+  margin-bottom: 0.4rem;
+}
+.sidenav .who-block {
+  margin-bottom: 0.45rem;
+}
+.sidenav .who-block > .who {
+  padding-bottom: 0.25rem;
+}
+.sidenav .who-writing {
+  padding-bottom: 0.35rem;
+}
+.sidenav .who-as-player {
+  margin-bottom: 0.4rem;
+}
+.nav-group {
+  margin: 0 0 0.2rem;
+}
+/* De kop van een groep, in het gezicht dat "JE SPEELT ALS" had. */
+.nav-group-head {
+  margin: 0.45rem 0 0.1rem;
+  padding: 0 0.6rem;
+  font-family: var(--stamp-face);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.sidenav .nav-word {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Wat rechts naast een deur staat: het saldo naast Kamer, "2 online" naast
+   Spelers. Het saldo in de beurs-vorm van §84 — munt ervoor, rechtop, inkt —
+   en nooit als `.stamp`, want dat is een prijs. */
+.nav-tail {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.nav-pick {
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.nav-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.2rem;
+  padding: 0 0.5rem 0 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+}
+.nav-search:focus-within {
+  border-color: var(--ink-muted);
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+.nav-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+}
+.nav-search kbd {
+  font-size: 0.72rem;
+}
+.nav-new {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.nav-shortcuts {
+  margin: 0.3rem 0 0.2rem;
+  padding-left: 0.6rem;
+}
+.sidenav .nav-you .tiny {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+/* De Keeperkant-knop in de hoek (§46) blijft een knop in de hoek. Op een
+   telefoon haalt hij 44 px met een onzichtbaar raakvlak om de cirkel heen —
+   de cirkel zelf blijft 32 px, want de hoek van een telefoonscherm is klein. */
+.side-toggle::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+}
+.side-toggle-word {
+  display: none;
+}
+/* En de online-stip ook: de strip is een knop (§76), en een knop van 20 px
+   is geen raakdoel. Het raakvlak groeit, de stip niet. */
+@media (max-width: 767px) {
+  .live-strip-open {
+    position: relative;
+  }
+  .live-strip-open::before {
+    content: '';
+    position: absolute;
+    inset: -12px -8px;
+  }
+}
+/* Op een computer draagt hij een woord en haalt hij 44 px. De strip en de
+   kop van een canvas schuiven mee om precies die breedte. */
+@media (min-width: 768px) {
+  .side-toggle {
+    width: auto;
+    height: var(--tap);
+    gap: 0.4rem;
+    padding: 0 0.85rem 0 0.7rem;
+  }
+  .side-toggle-word {
+    display: inline;
+    font-family: var(--stamp-face);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.66rem;
+    font-weight: 700;
+  }
+  .shell:has(> .side-toggle) .live-strip {
+    margin-right: 8.4rem;
+  }
+  .shell:has(> .side-toggle) .main:has(.page-canvas) .live-strip {
+    margin-right: 0;
+    right: calc(var(--page-pad) + 8.4rem);
+  }
+  .shell:has(> .side-toggle) .canvas-head {
+    padding-right: 12rem;
+  }
+}
+
+/* De tabbalk op een telefoon: nog steeds acht (§32). De Jij-tab is een knop
+   (hij opent het blad) en tekent zich als de tabs ernaast. */
+.tabs > .tab-jij {
+  display: flex;
+  flex: 0 0 var(--tap);
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: var(--tabs-h);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink);
+  font-family: var(--stamp-face);
+  font-size: 0.54rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tabs > .tab-jij[aria-current='page'],
+.tabs > .tab-jij[aria-expanded='true'] {
+  color: var(--stamp-red);
+}
+.tab-jij-saldo {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+/* Zoeken haalt 44 px breed, net als Jij. */
+.tabs a.tab-compact {
+  flex: 0 0 var(--tap);
+}
+/* "LANDKAART…": zes woorden met elk een even groot vak, terwijl WIKI er maar
+   een half vak van gebruikt. Een vak zo breed als zijn woord — dezelfde zes
+   woorden, dezelfde letter — past op 390 px zonder één letter af te kappen. */
+.tabs a:not(.tab-compact) {
+  flex: 1 1 auto;
+}
+.tabs a > span:not(.visually-hidden) {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Het blad. */
+.jij-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.jij-who-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--tap);
+}
+/* The first row of the blad ends in *Speel als*, and the blad's cross hangs in
+   that corner: without the gap the two 44 px targets overlapped (seen on the
+   390 px screenshot). The same gap every other sheet's first row keeps. */
+.jij-sheet .jij-who-row {
+  padding-right: var(--sheet-close-gap);
+}
+.jij-who-row .feed-thumb {
+  width: 32px;
+  height: 42px;
+}
+.jij-who-name {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.jij-who-switch {
+  min-height: var(--tap);
+  flex: 0 0 auto;
+}
+.jij-who-options {
+  margin-top: 0.5rem;
+}
+.jij-sheet .who-writing {
+  padding: 0;
+}
+.jij-doors {
+  display: grid;
+  gap: 0.45rem;
+}
+.jij-door {
+  width: 100%;
+  min-height: var(--tap);
+  justify-content: flex-start;
+  gap: 0.6rem;
+}
+.jij-door .nav-word {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.jij-keeper .nav-group-head {
+  margin: 0 0 0.4rem;
+  padding: 0;
+}
+
+/* §91: de Jij-rij bovenaan Start. Boven de welkomsttekst, over de volle
+   breedte op een computer (ook boven "Sinds je laatste bezoek"), compact: één
+   rij deuren en één regel met je laatste drie. */
+.home-layout {
+  grid-template-areas:
+    'jij'
+    'welcome'
+    'aside'
+    'rest';
+}
+@media (min-width: 1024px) {
+  .home-layout {
+    grid-template-areas:
+      'jij jij'
+      'welcome aside'
+      'rest aside';
+  }
+}
+.home-jij {
+  grid-area: jij;
+  margin: 0 0 1.2rem;
+  padding: 0.6rem 0.8rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+.home-jij-head {
+  margin: 0 0 0.4rem;
+  padding: 0;
+}
+.home-jij-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.6rem;
+}
+.home-jij-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--tap);
+  margin-right: 0.4rem;
+  color: inherit;
+  text-decoration: none;
+}
+.home-jij-card .feed-thumb {
+  width: 32px;
+  height: 42px;
+}
+.home-jij-who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.home-jij-who strong {
+  font-family: var(--serif);
+}
+.home-jij-door .beurs {
+  margin-left: 0.2rem;
+}
+.home-jij-recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin-top: 0.5rem;
+}
+.home-jij-recent ul {
+  display: contents;
+  list-style: none;
+}
+.home-jij-recent li {
+  display: inline;
 }

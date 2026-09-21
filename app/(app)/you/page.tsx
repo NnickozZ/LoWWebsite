@@ -11,7 +11,7 @@ import { relativeTime } from '@/lib/diff';
 import { listMyProposals } from '@/lib/entries/review';
 import { purseOf } from '@/lib/kamers/service';
 import { spelerHref } from '@/lib/spelers/service';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 import { ColourSchemeForm } from './ColourSchemeForm';
 import { ReadingFontForm } from './ReadingFontForm';
 import { ChangePasswordForm } from './ChangePasswordForm';
@@ -78,7 +78,8 @@ export default async function YouPage() {
         {purse && (
           <Link className="btn btn-small" href={`/kamer/${purse.slug}`} data-testid="you-kamer">
             <Icon name={MEANING.kamer} size={15} />
-            {capitalise(words.room)}
+            {/* §90 (E25): een deur draagt een werkwoord (K11). */}
+            {fill(words.toRoom, { kamer: words.room })}
           </Link>
         )}
         {myPage && (
@@ -95,9 +96,15 @@ export default async function YouPage() {
         {/* §82: de etalage. Staat hier omdat het de enige plek is die niet
             aan één onderzoeker hangt — wie er twee draagt, koopt vanaf hier
             voor allebei. */}
-        <Link className="btn btn-small" href="/winkel">
+        {/* §90 (E2): de winkel van het karakter dat je nu speelt — dezelfde
+            kamer als de beurs. Zonder beurs (de Keeper) de etalage zonder meer. */}
+        <Link
+          className="btn btn-small"
+          href={purse ? `/winkel?kamer=${encodeURIComponent(purse.roomId)}` : '/winkel'}
+          data-testid="you-winkel"
+        >
           <Icon name={MEANING.winkel} size={15} />
-          {words.shop}
+          {fill(words.toShop, { winkel: words.shop.toLowerCase() })}
         </Link>
       </p>
       {worn && (
@@ -115,7 +122,9 @@ export default async function YouPage() {
            * where a phone switches karakter — and therefore where the window's
            * onderzoeker has to be visible and changeable too.
            */}
-          <WritingAsLine />
+          {/* §91: always here — this is where the schrijf-kiezer lives now
+              that the shell prints the line only when it differs. */}
+          <WritingAsLine words={words} always />
           <CharacterWardrobe me={me} />
         </>
       )}
@@ -201,8 +210,9 @@ export default async function YouPage() {
       </div>
 
       <p className="tiny muted" style={{ marginTop: '1.5rem' }}>
-        De Keeper kan je wachtwoord terughalen als je het vergeet. Gebruik geen wachtwoord dat je
-        ook ergens anders gebruikt.
+        {/* §90: §89 keeps only a hash — a Keeper sets a new one, never reads the old. */}
+        {fill(words.passwordReset, { keeper: words.keeper })} Gebruik geen wachtwoord dat je ook
+        ergens anders gebruikt.
       </p>
     </div>
   );

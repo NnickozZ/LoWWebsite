@@ -11,6 +11,7 @@ import {
   verifyPassword,
   constantTimeEqual,
 } from '@/lib/auth/password.mjs';
+import { safeReturnPath } from '@/lib/auth/paths';
 import { clearRateLimit, clientIp, isLimited, rateLimit, type RateLimitResult } from '@/lib/auth/ratelimit';
 import { createSession, destroyCurrentSession } from '@/lib/auth/session';
 import { usernameKey, usernameProblem } from '@/lib/auth/username.mjs';
@@ -182,5 +183,11 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   // A browser that signs in while it still holds a session leaves no row behind.
   await destroyCurrentSession();
   await createSession(user.id);
-  redirect('/');
+  /*
+   * §90: back to where they were going. The middleware carried the address in
+   * `next` (a hidden box in the form); `safeReturnPath` is §89's one answer to
+   * "may we send the browser there?", so `//elders`, `/\\elders` and
+   * `https://elders` all come out as `/`.
+   */
+  redirect(safeReturnPath(String(formData.get('next') ?? '')));
 }

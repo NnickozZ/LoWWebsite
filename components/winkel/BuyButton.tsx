@@ -44,6 +44,7 @@ export function BuyButton({
   kind,
   price,
   roomSlug,
+  buyerName = null,
   words,
 }: {
   roomId: string;
@@ -57,6 +58,12 @@ export function BuyButton({
   price: number;
   /** The kamer to go and look at it in, or null when this is not a page that knows. */
   roomSlug: string | null;
+  /**
+   * §90 (E2): voor wie je koopt, als je meer dan één onderzoeker draagt —
+   * "Kopen voor Bertus · 1 munt". Het stond alleen in de eyebrow, in 11 px
+   * kapitalen, en een koop gaat niet terug.
+   */
+  buyerName?: string | null;
   words: Words;
 }) {
   const ui = useUi();
@@ -98,7 +105,11 @@ export function BuyButton({
       onClick={() => void buy()}
     >
       <Icon name={MEANING.munt} size={13} />
-      {withPrice(words.buy, price, words)}
+      {/* §90 (E4, K3): de knop zegt vóór de klik waar het ding landt. */}
+      {fill(words.buyLandsOn, {
+        knop: withPrice(buyerName ? fill(words.shopForName, { naam: buyerName }) : words.buy, price, words),
+        plek: plekWord(kind, words),
+      })}
     </button>
   );
 }

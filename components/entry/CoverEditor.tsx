@@ -178,12 +178,15 @@ export function CoverEditor({
               onClick={() => setMenuOpen((open) => !open)}
             >
               <Icon name="camera" size={14} />
-              {busy ? 'Uploaden…' : 'Afbeelding'}
+              {/* §90: "Omslag", not "Afbeelding" — the text's own toolbar has a
+                  camera for a picture *in* the text, and two things by one
+                  name was a guess every time. */}
+              {busy ? 'Uploaden…' : ui.words.coverMenu}
               <Icon name="chevron" size={12} className="cover-menu-caret" />
             </button>
 
             {menuOpen && (
-              <div className="cover-menu" role="menu" aria-label="Afbeelding">
+              <div className="cover-menu" role="menu" aria-label={ui.words.coverMenu}>
                 <button
                   type="button"
                   role="menuitem"
@@ -268,8 +271,11 @@ export function CoverEditor({
             ))}
           </div>
           <p className="tiny muted" style={{ margin: 0 }}>
-            Drie uitsneden — liggend, staand en vierkant. Elke lijst, kaart en knoop kiest er een.
-            Sleep om te verschuiven; scrol om te zoomen.
+            Drie uitsneden — liggend, staand en vierkant. Elke lijst, kaart en knoop kiest er een.{' '}
+            {/* §90: a thumb pinches, it does not scroll — both sentences are
+                on the page and `hover` decides which one is shown. */}
+            <span className="hint-pointer">{ui.words.cropHintPointer}</span>
+            <span className="hint-touch">{ui.words.cropHintTouch}</span>
           </p>
           <button type="button" className="btn btn-small" onClick={() => setCropping(false)}>
             Klaar

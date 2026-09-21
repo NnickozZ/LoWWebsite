@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
+import { GrantForm } from '@/components/kamer/GrantForm';
 import { Grootboek } from '@/components/kamer/Grootboek';
 import { Plek } from '@/components/kamer/Plek';
 import { RoomEffects } from '@/components/kamer/RoomEffects';
@@ -10,8 +11,9 @@ import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
-import { ledgerOf, viewRoomBySlug } from '@/lib/kamers/service';
+import { ledgerOf, roomsOf, viewRoomBySlug } from '@/lib/kamers/service';
 import { roomKey } from '@/lib/live/keys';
+import { spelerHref } from '@/lib/spelers/service';
 import { capitalise, fill } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +68,21 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
    */
   const ownerName = room.ownerName;
   const isGuest = Boolean(user?.isKeeper) && room.ownerId !== user?.id;
+  /*
+   * §90: wiens kamer is dit, van waar de kijker staat? Drie antwoorden, en ze
+   * zeiden alle drie "je":
+   *
+   *  - je eigen kamer (`canArrange` en je bent de drager) — "je", de winkel;
+   *  - die van een ander (`!canArrange`) — de naam, en géén winkelknop, want
+   *    die ging naar jóúw winkel terwijl je in andermans kamer stond;
+   *  - de Keeper als gast — hij richt in, maar koopt niet (hij draagt niemand).
+   */
+  const isOwn = room.canArrange && room.ownerId === user?.id;
+  const addressee = isOwn ? null : room.character.name;
+  // S14: de eyebrow is een deur naar de spelerspagina van de drager.
+  const ownerHref = spelerHref(room.ownerId);
+  // S14: wie zelf meer kamers heeft, wisselt hier in één tik.
+  const mine = roomsOf(user);
 
   return (
     <div className="page kamer-page" data-testid="kamer-page" data-room={room.id}>
@@ -85,7 +102,13 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
         spelerspagina staan ze uit elkaar (§77).
       */}
       <p className="eyebrow" data-testid="kamer-eyebrow">
-        {ownerName ?? capitalise(words.room)}
+        {ownerName && ownerHref ? (
+          <Link href={ownerHref} className="kamer-eyebrow-deur" data-testid="kamer-eyebrow-deur">
+            {ownerName}
+          </Link>
+        ) : (
+          (ownerName ?? capitalise(words.room))
+        )}
       </p>
       <h1 className="kamer-title">
         <span className="kamer-title-of">{capitalise(words.roomOf)} </span>
@@ -101,16 +124,47 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
         cadeau doen kost niets en schrijft geen regel). Dat verschil is precies
         het soort ding dat je één keer per ongeluk doet.
       */}
+      {/*
+        §90: een kamer die niemand draagt (§86) kreeg dezelfde zin als die van
+        een speler — "openen betaalt Adriaan Sinke zelf" — en Adriaan Sinke kan
+        niets betalen, want niemand draagt hem. Die kamer heeft zijn eigen zin.
+      */}
       {isGuest && (
-        <p className="kamer-guest" data-testid="kamer-guest">
+        <p className="kamer-guest" data-testid="kamer-guest" data-nobody={room.ownerId ? 'nee' : 'ja'}>
           <Icon name={MEANING.onderzoeker} size={14} />
-          <span>
-            {fill(words.keeperGuest, { naam: ownerName ?? room.character.name })}{' '}
-            <span className="muted">
-              {fill(words.keeperGuestGift, { naam: ownerName ?? room.character.name })}
+          {room.ownerId ? (
+            <span>
+              {fill(words.keeperGuest, { naam: ownerName ?? room.character.name })}{' '}
+              <span className="muted">
+                {fill(words.keeperGuestGift, { naam: ownerName ?? room.character.name })}
+              </span>
             </span>
-          </span>
+          ) : (
+            <span>
+              {fill(words.keeperGuestNobody, { naam: room.character.name })}{' '}
+              <span className="muted">{words.keeperGuestNobodyGift}</span>
+            </span>
+          )}
         </p>
+      )}
+
+      {/* S14: de wissel tussen je eigen kamers (Kamer van: Cornelis · Jan), alleen voor wie er zelf meer dan één heeft. */}
+      {mine.length > 1 && (
+        <nav className="row-wrap kamer-wissel" aria-label={words.roomSwitch} data-testid="kamer-wissel">
+          <span className="tiny muted kamer-wissel-label">{words.roomSwitch}</span>
+          {mine.map((option) => (
+            <Link
+              key={option.id}
+              href={`/kamer/${option.slug}`}
+              className={`chip chip-selectable${option.id === room.id ? ' chip-active' : ''}`}
+              aria-current={option.id === room.id ? 'page' : undefined}
+              data-testid="kamer-wissel-kamer"
+              data-room={option.id}
+            >
+              {option.name}
+            </Link>
+          ))}
+        </nav>
       )}
 
       <p className="kamer-balance row-wrap" data-testid="kamer-balance" data-balance={room.balance}>
@@ -118,12 +172,28 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
             voor waarom wat je hébt er anders uit moet zien dan wat iets kost. */}
         <Beurs balance={room.balance} words={words} />
         {/* §82: naast de beurs, want dat is waar je hem uitgeeft — de winkel
-            is de etalage waar deze kamer uit gevuld wordt. */}
-        <Link className="btn" href="/winkel" data-testid="kamer-winkel">
-          <Icon name={MEANING.winkel} size={15} />
-          {words.shop}
-        </Link>
+            is de etalage waar deze kamer uit gevuld wordt.
+            §90: alleen in je eigen kamer, en de deur draagt déze kamer mee
+            (`?kamer=`), anders kocht je voor het karakter dat toevallig
+            bovenaan stond. En het is de énige winkelknop op deze pagina (E12). */}
+        {isOwn && (
+          <Link
+            className="btn"
+            href={`/winkel?kamer=${encodeURIComponent(room.id)}`}
+            data-testid="kamer-winkel"
+          >
+            <Icon name={MEANING.winkel} size={15} />
+            {fill(words.toShop, { winkel: words.shop.toLowerCase() })}
+          </Link>
+        )}
       </p>
+
+      {/*
+        §90 (E8): de Keeper komt hier om te géven, dus het formulier staat
+        bovenaan naast de beurs in plaats van onder het hele raster (op een
+        telefoon stond het op y≈1500). Het grootboek zelf blijft onderaan.
+      */}
+      {room.canGrant && <GrantForm roomId={room.id} name={room.character.name} words={words} />}
 
       {/*
        * §85: wat deze kamer je geeft staat **boven** het raster.
@@ -134,7 +204,7 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
        * *voor* is, en dat hoort boven de vouw. Zie `RoomEffects` voor waarom
        * de lege variant nu ook getekend wordt.
        */}
-      <RoomEffects effects={room.effects} words={words} />
+      <RoomEffects effects={room.effects} words={words} addressee={addressee} />
 
       <ul className="kamer-grid" data-testid="kamer-grid" aria-label={words.slotPlural}>
         {room.slots.map((slot) => (
@@ -144,12 +214,13 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
             roomId={room.id}
             balance={room.balance}
             canArrange={room.canArrange}
+            guestOf={isOwn ? null : room.character.name}
             words={words}
           />
         ))}
       </ul>
 
-      <Grootboek roomId={room.id} lines={lines} canGrant={room.canGrant} words={words} />
+      <Grootboek lines={lines} canGrant={room.canGrant} words={words} />
     </div>
   );
 }

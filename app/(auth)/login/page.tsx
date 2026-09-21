@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { siteIdentity } from '@/lib/admin/identity';
+import { safeReturnPath } from '@/lib/auth/paths';
 import { getSessionUser } from '@/lib/auth/session';
 import { AuthForm } from '../AuthForm';
 
@@ -24,18 +26,30 @@ export const dynamic = 'force-dynamic';
  * panel is loud in shape rather than in colour — and shape is what reads from
  * across the room, which is this archive's whole idea about cards anyway.
  */
-export default async function LoginPage() {
-  if (await getSessionUser()) redirect('/');
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // §90: where the voordeur stopped them (the middleware's `?next=`). Vetted
+  // here too, because a signed-in browser is sent straight on.
+  const raw = (await searchParams).next;
+  const next = safeReturnPath(Array.isArray(raw) ? raw[0] : raw);
+  if (await getSessionUser()) redirect(next);
+
+  // §90: the card says the archive's own name — the same reading the browser
+  // tab has used since §88, and no session needed for it.
+  const site = siteIdentity();
 
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <p className="eyebrow">Zeeland &middot; 1934</p>
-        <h1 className="auth-title">Case Files</h1>
+        {site.tagline && <p className="eyebrow">{site.tagline}</p>}
+        <h1 className="auth-title">{site.name}</h1>
         <p className="muted small" style={{ marginBottom: '1.2rem' }}>
           Log in bij het archief.
         </p>
-        <AuthForm mode="login" />
+        <AuthForm mode="login" next={next === '/' ? undefined : next} />
 
         <div className="auth-join">
           <p className="auth-join-head">Nog geen account?</p>

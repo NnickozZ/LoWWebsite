@@ -4,6 +4,7 @@ import { useActionState, useEffect, useId, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { MIN_PASSWORD_LENGTH, passwordProblem } from '@/lib/auth/rules.mjs';
 import { usernameProblem } from '@/lib/auth/username.mjs';
+import { DEFAULT_WORDS, fill } from '@/lib/words';
 import { loginAction, signupAction, type AuthField, type AuthState } from './actions';
 
 /**
@@ -101,7 +102,21 @@ function Submit({ label }: { label: string }) {
   );
 }
 
-export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
+export function AuthForm({
+  mode,
+  next,
+  passwordNote,
+}: {
+  mode: 'login' | 'signup';
+  /**
+   * §90: where the person was going when the voordeur stopped them — carried
+   * in by the middleware as `?next=`. Handed on untouched in a hidden box;
+   * `loginAction` alone decides whether it is safe to follow.
+   */
+  next?: string;
+  /** §90: the sentence about a forgotten password, in the Keeper's words. */
+  passwordNote?: string;
+}) {
   const serverAction = mode === 'signup' ? signupAction : loginAction;
   const helpId = useId();
 
@@ -160,8 +175,15 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
      * ingericht" are nobody's box: their sentence stands under the button, and
      * throwing the caret into the name box would point at the wrong thing.
      */
-    if (state.error && state.field) boxes.current[state.field]?.focus();
-  }, [state.seq, state.error, state.field, state.values]);
+    /*
+     * §90: "Naam of wachtwoord klopt niet." names no box, on purpose (§63/§89:
+     * no account enumeration). But the password box is the one that comes
+     * back empty either way, so putting the caret there tells nobody anything
+     * — and on a phone it saves the tap that brings the keyboard back.
+     */
+    const target = state.field ?? (mode === 'login' ? 'password' : null);
+    if (state.error && target) boxes.current[target]?.focus();
+  }, [state.seq, state.error, state.field, state.values, mode]);
 
   const values = state.values ?? EMPTY;
   /** The sentence under one box — and `null` for the ones it is not about. */
@@ -183,6 +205,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
    */
   return (
     <form action={formAction} noValidate aria-busy={pending || undefined}>
+      {mode === 'login' && next ? <input type="hidden" name="next" value={next} /> : null}
       {mode === 'signup' && (
         <div className="field">
           <label className="label" htmlFor="code">
@@ -278,8 +301,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
             {noteFor('password2')}
           </div>
           <p className="small muted" style={{ marginTop: '-0.4rem' }}>
-            De Keeper kan je wachtwoord terughalen als je het vergeet. Gebruik geen wachtwoord dat je
-            ook ergens anders gebruikt.
+            {/* §90: §89 keeps only a hash — a Keeper sets a new one, never reads the old. */}
+            {passwordNote ?? fill(DEFAULT_WORDS.passwordReset, { keeper: DEFAULT_WORDS.keeper })} Gebruik
+            geen wachtwoord dat je ook ergens anders gebruikt.
           </p>
         </>
       )}

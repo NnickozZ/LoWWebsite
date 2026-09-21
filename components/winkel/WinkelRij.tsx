@@ -56,7 +56,17 @@ export type WinkelState = 'list' | 'owned' | 'taken' | 'dear' | 'noslot' | 'buy'
  * het vrije bureau de eerdere sport was. Een e2e-zaak vond dat; het comment
  * boven deze functie zei het goede en de code deed het andere (§83's les).
  */
-export function landing(item: ShopItem): { kind: PlekKind; slotId: string } | null {
+export function landing(
+  item: ShopItem,
+  /**
+   * §90 (E4): de soort plek waarop gefilterd wordt. Wie *Muur* filtert,
+   * bedoelt "voor aan de muur" — dus landt een klok die op muur én bureau
+   * past dan aan de muur, als daar plek is. Is er geen vrije muur, dan geldt
+   * de ladder weer: het filter is een voorkeur, geen weigering.
+   */
+  prefer: PlekKind | null = null,
+): { kind: PlekKind; slotId: string } | null {
+  if (prefer && item.landsIn[prefer]) return { kind: prefer, slotId: item.landsIn[prefer]! };
   for (const [kind, slotId] of Object.entries(item.landsIn)) {
     if (slotId) return { kind: kind as PlekKind, slotId };
   }
@@ -95,6 +105,8 @@ export function WinkelRij({
   item,
   roomId,
   roomSlug,
+  buyerName = null,
+  prefer = null,
   balance,
   canBuy,
   words,
@@ -104,12 +116,16 @@ export function WinkelRij({
   roomId: string | null;
   /** De slug van die onderzoeker, voor de weg terug én voor de deur in de melding. */
   roomSlug: string | null;
+  /** §90 (E2): voor wie je koopt, als je er meer dan één draagt. Null bij één. */
+  buyerName?: string | null;
+  /** §90 (E4): de soort plek van het filter dat aanstaat, of null. */
+  prefer?: PlekKind | null;
   balance: number;
   canBuy: boolean;
   words: Words;
 }) {
   const state = winkelState(item, canBuy);
-  const lands = landing(item);
+  const lands = landing(item, prefer);
 
   return (
     <li
@@ -220,6 +236,7 @@ export function WinkelRij({
             kind={lands.kind}
             price={item.price}
             roomSlug={roomSlug}
+            buyerName={buyerName}
             words={words}
           />
         )}

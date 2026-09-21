@@ -5,6 +5,7 @@ import { Thumb } from '@/components/Cover';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
 import { MentionText } from '@/components/ui/MentionPopover';
+import { roomFeedPhrase } from '@/components/kamer/plekWords';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
@@ -16,7 +17,12 @@ import { browseEntries, countEntriesPerType, recentActivity } from '@/lib/entrie
 import { defaultIntro, introParagraphs } from '@/lib/intro';
 import { listFamilyTrees } from '@/lib/families/service';
 import { listMaps } from '@/lib/maps/service';
-import { capitalise } from '@/lib/words';
+import { purseOf, visibleNamesOf } from '@/lib/kamers/service';
+import { activeCharacter } from '@/lib/characters';
+import { OWN_WORK_SCAN, ownRecentWork } from '@/lib/home/jij';
+import { Beurs } from '@/components/kamer/Beurs';
+import { MEANING } from '@/components/kamer/plekWords';
+import { capitalise, fill } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +49,11 @@ export default async function HomePage() {
 
   // §18: every row names the character the person is wearing now.
   const feed = attributed(recentActivity(user, 30));
+  // §90 (E21): wiens kamer een `room.*`-regel noemt, zoals deze kijker hem mag zien.
+  const roomOwners = visibleNamesOf(
+    feed.filter((item) => item.verb.startsWith('room.')).map((item) => item.characterId),
+    user,
+  );
   const recent = browseEntries(user, { limit: 12, sort: 'recent' });
   const openCases = listCases(user, { status: 'open' }).slice(0, 6);
   const counts = countEntriesPerCase(
@@ -58,13 +69,27 @@ export default async function HomePage() {
   // §66: and the stambomen, beside the walls and the landkaarten. On a phone
   // this line is the way in — the tab bar was full at eight.
   const familyTreeCount = listFamilyTrees(user).length;
+  // §90: every number is a door to its own list — DECISIONS (round 31) names
+  // this line as the phone's way into a stamboom, and until round 51 it was
+  // plain text.
   const numbers = [
-    [entryCount, words.entry, words.entryPlural],
-    [caseCount, words.case, words.casePlural],
-    [boardCount, words.board, words.boardPlural],
-    [mapCount, words.map, words.mapPlural],
-    [familyTreeCount, words.familyTree, words.familyTreePlural],
+    [entryCount, words.entry, words.entryPlural, '/wiki/alles'],
+    [caseCount, words.case, words.casePlural, '/cases'],
+    [boardCount, words.board, words.boardPlural, '/boards'],
+    [mapCount, words.map, words.mapPlural, '/maps'],
+    [familyTreeCount, words.familyTree, words.familyTreePlural, '/stambomen'],
   ] as const;
+
+  /*
+   * §91: de Jij-rij — wie je speelt, je saldo als deur naar de kamer, de
+   * winkel, en de laatste drie dingen die jíj schreef. Uit de feed van Start
+   * zelf (`ownRecentWork`), dus met de zichtbaarheidsregel van deze kijker en
+   * niets dat hij niet mag zien (rule 1). De Keeper draagt niemand (§18): hij
+   * krijgt zijn eigen laatste drie en de deuren Beheer en Uitdelen.
+   */
+  const purse = purseOf(user);
+  const worn = user && !user.isKeeper ? activeCharacter(user.id) : null;
+  const ownWork = user && (purse || user.isKeeper) ? ownRecentWork(recentActivity(user, OWN_WORK_SCAN), user.id) : [];
 
   const intro = introParagraphs(settings?.intro?.trim() ? settings.intro : defaultIntro(words));
 
@@ -88,7 +113,23 @@ export default async function HomePage() {
         <span style={{ flex: 1, minWidth: 0 }}>
           <span className="small" style={{ display: 'block' }}>
             <strong title={item.actorAccount ?? undefined}>{item.actorLabel ?? 'Iemand'}</strong>{' '}
-            {VERBS[item.verb] ?? 'wijzigde'} <strong>{item.entry!.name}</strong>
+            {(() => {
+              const room = roomFeedPhrase(
+                item.verb,
+                item.characterId ? (roomOwners.get(item.characterId) ?? null) : null,
+                !item.actorIsKeeper,
+                words,
+              );
+              return room ? (
+                <>
+                  {room.verb} <strong>{item.entry!.name}</strong> {room.tail}
+                </>
+              ) : (
+                <>
+                  {VERBS[item.verb] ?? 'wijzigde'} <strong>{item.entry!.name}</strong>
+                </>
+              );
+            })()}
           </span>
           <span className="tiny muted clamp-2" style={{ display: 'block' }}>
             {/* §48: flat chips — the whole row is a link. */}
@@ -105,6 +146,90 @@ export default async function HomePage() {
   return (
     <div className="page-wide home-layout">
       <LivePage place="page:/" watch={['feed', 'entries', 'cases', 'boards', 'maps', 'site', 'words']} />
+      {/* §91: boven de welkomsttekst, die blijft staan zoals hij is. */}
+      {user && (
+        <section className="home-jij" aria-labelledby="home-jij-title" data-testid="home-jij">
+          <h2 id="home-jij-title" className="nav-group-head home-jij-head">
+            {words.navGroupYours}
+          </h2>
+          <div className="home-jij-row">
+            {worn ? (
+              <Link href={`/e/${worn.slug}`} className="home-jij-card" data-testid="home-jij-card">
+                <Thumb
+                  assetId={worn.coverAssetId}
+                  crop={worn.coverCrop}
+                  shape="portrait"
+                  icon={worn.typeIcon}
+                  colour={worn.typeColour}
+                />
+                <span className="home-jij-who">
+                  <strong>{worn.name}</strong>
+                  <span className="tiny muted">{words.wearsNow}</span>
+                </span>
+              </Link>
+            ) : user.isKeeper ? (
+              <span className="home-jij-card" data-testid="home-jij-card">
+                <Icon name="shield" size={20} />
+                <span className="home-jij-who">
+                  <strong>{user.username}</strong>
+                  <span className="tiny muted">{words.keeper}</span>
+                </span>
+              </span>
+            ) : (
+              <Link href="/you#karakters" className="btn" data-testid="home-jij-pick">
+                <Icon name="mask" size={16} />
+                {fill(words.pickCharacter, { karakter: words.character })}
+              </Link>
+            )}
+            {purse && (
+              <>
+                <Link href={`/kamer/${purse.slug}`} className="btn home-jij-door" data-testid="home-jij-kamer">
+                  <Icon name={MEANING.kamer} size={16} />
+                  {fill(words.toRoom, { kamer: words.room })}
+                  <Beurs balance={purse.balance} words={words} size="small" />
+                </Link>
+                <Link
+                  href={`/winkel?kamer=${encodeURIComponent(purse.roomId)}`}
+                  className="btn home-jij-door"
+                  data-testid="home-jij-winkel"
+                >
+                  <Icon name={MEANING.winkel} size={16} />
+                  {fill(words.toShop, { winkel: words.shop.toLowerCase() })}
+                </Link>
+              </>
+            )}
+            {user.isKeeper && (
+              <>
+                <Link href="/admin" className="btn home-jij-door" data-testid="home-jij-admin">
+                  <Icon name="shield" size={16} />
+                  {words.navAdmin}
+                </Link>
+                <Link href="/uitdelen" className="btn home-jij-door" data-testid="home-jij-uitdelen">
+                  <Icon name={MEANING.geven} size={16} />
+                  {words.handout}
+                </Link>
+              </>
+            )}
+          </div>
+          {(purse || user.isKeeper) && (
+            <div className="home-jij-recent" data-testid="home-jij-recent">
+              <span className="tiny muted">{words.homeJijRecent}</span>
+              {ownWork.length ? (
+                <ul>
+                  {ownWork.map((item) => (
+                    <li key={item.id}>
+                      <Link href={`/e/${item.entry!.slug}`}>{item.entry!.name}</Link>{' '}
+                      <span className="tiny muted">{relativeTime(item.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="tiny muted">{words.homeJijNone}</span>
+              )}
+            </div>
+          )}
+        </section>
+      )}
       <section className="home-welcome" aria-labelledby="home-title">
         <p className="eyebrow">Het archief</p>
         <h1 id="home-title" style={{ margin: '0 0 0.2rem' }}>
@@ -117,12 +242,17 @@ export default async function HomePage() {
           ))}
         </div>
         <p className="home-numbers" aria-label="Wat het archief telt">
-          {numbers.map(([count, one, many], index) => (
-            <span key={one}>
+          {numbers.map(([count, one, many, href], index) => (
+            <span key={href}>
               {index > 0 && <span className="muted"> · </span>}
-              <strong>{count}</strong> {count === 1 ? one : many}
+              <Link href={href}>
+                <strong>{count}</strong> {count === 1 ? one : many}
+              </Link>
             </span>
           ))}
+          {/* §90: and the web, which has no count of its own — it is all of the above. */}
+          <span className="muted"> · </span>
+          <Link href="/web">{words.navWeb}</Link>
           {user?.isKeeper && (
             <>
               <span className="muted"> · </span>

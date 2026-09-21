@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 108 files, 1936 tests as of round 49 (round 38: 99 / 1596)
+npx vitest run         # 113 files, 2022 tests as of round 52 (round 38: 99 / 1596)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -162,8 +162,39 @@ freely there.
 
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
-  markers to match. Check `grep -rn "§[5678][0-9]" app components lib` before
-  choosing a number — the latest is **§89 / rule 89** (round 50: de sloten. Een
+  markers to match. Check `grep -rn "§[5-9][0-9]" app components lib` before
+  choosing a number — the latest is **§91 / rule 91** (round 52: jouw plek. De
+  tweede bouwronde na de UI/UX-review, en weer **geen migratie** en geen
+  verwijderd bestand. De speler heeft een vaste plek: op een computer de groep
+  *Jouw plek* in de zijbalk (Kamer met saldo, Winkel met `?kamer=`, Mijn
+  spelerspagina, Spelers met *n online*), onder een zoekvak waar `/` de cursor
+  in zet, met *Het archief* en — alleen gerenderd voor de Keeper — *Keeper*
+  (Beheer, Uitdelen) eronder; op een telefoon opent de achtste tab het
+  **Jij-blad** en draagt hij het saldo (nog steeds acht tabs). Eén lijst, twee
+  tekeningen: `yoursDoors` in `components/shell/JouwPlek.tsx`. **De beurs-pil
+  in de hoek is weg** (regel 84 half omgekeerd); `ShellBeurs` is nu de hook
+  `useShellBeurs`, één luisteraar voor beide tekeningen. **Eén wie-regel**:
+  elke wissel van *speelt als* neemt de schrijfkeuze van dit venster mee
+  (`followPlay`, `afterPlaySwitch`), en *Je schrijft als* staat in de schil
+  alleen nog waar die twee bewust verschillen (`showsWritingLine`). Start
+  kreeg een Jij-rij boven het welkom, uit de eigen feed (`ownRecentWork` in
+  `lib/home/jij.ts`). Zie `tests/unit/ronde-52-jouw-plek.test.ts` en
+  `tests/e2e/ronde-52-jouw-plek.spec.ts`.) Daarvoor **§90 / rule 90** (round 51: de deuren. De
+  eerste bouwronde na de UI/UX-review `claude/review-ui-ux-de-wrijving.md`:
+  kleine reparaties en echte bugs, geen herontwerp, en **geen migratie**.
+  Economie: `/winkel` zonder `?kamer=` koopt voor het karakter dat je speelt
+  (`shopFor` → `purseOf`, niet `rooms[0]`), `room:{id}` beweegt eindelijk
+  (`rooms`/`room_slots`/`room_ledger` in `TABLES`, zie de TABLES-regel
+  hieronder), en *Kamer maken* staat alleen op een artikel dat een onderzoeker
+  kán zijn (`mayHoldRoom`). Tekenvlakken: de schrijfvraag van §18b komt nooit
+  in Lezen (`useCanvasAuthorGate`, `lib/canvas/authorGate.ts`), *Ongedaan
+  maken* is in Lezen overal grijs, en op een tekenvlak is er geen FAB.
+  Schrijven en schil: een tag-chip gaat naar `/wiki/<soort>?tag=`
+  (`tagListHref`), een uitgelogde browser neemt `?next=` mee (alleen gevolgd
+  via `safeReturnPath`), het opslaan-woord is `combinedSave`, en de
+  blokkerende schrijfvraag heeft geen dood kruisje meer. Zie
+  `tests/unit/ronde-51-*.test.ts` en `tests/e2e/ronde-51-*.spec.ts`.)
+  Daarvoor **§89 / rule 89** (round 50: de sloten. Een
   beveiligingsronde: geen wachtwoord is nog leesbaar — `password_enc` en
   `PASSWORD_RECOVERY_KEY` zijn weg, migratie `0032_sloten` — een uitgelogde
   lezer ziet **niets** (`null` is `0 = 1` in elke zichtbaarheidsregel), elke
@@ -224,7 +255,8 @@ freely there.
   door een screenshot of een meting — waaronder twee in de *tests* zelf, zie
   §85 hieronder.) Daarvoor **§84 / rule 84** (round 45: het geld
   spreekt. Een **beurs** in de hoek van elke pagina, één klik van je eigen kamer
-  (de feature hing aan één menu-item en je kamer was drie klikken diep); het
+  (de feature hing aan één menu-item en je kamer was drie klikken diep —
+  *de pil is sinds §91 weg; de deur is Kamer in de zijbalk en de Jij-tab*); het
   saldo is een eigen vorm en niet langer dezelfde `.stamp` als een príjs; elke
   knop draagt zijn bedrag en elke uitgave krijgt een melding met een deur naar
   de tegel; "nog n nodig" is zichtbare tekst in plaats van drie letterlijke
@@ -825,6 +857,22 @@ freely there.
   left" on `useLive()`'s value** — it is a new object per frame, so the cleanup
   ran per frame and wiped every outgoing frame (the timeline's carried tag
   never travelled); depend on `live.reportPointer`, the stable function.
+- **A key moves only if the SQL names it** (§21, §90). `TABLES` in
+  `lib/live/changes.ts` maps a table to the live keys a write to it moves, and
+  it reads those keys out of the *statement*: `row` takes the row's own id,
+  `refs` takes the value bound to a named column. So a `refs` mapping works only
+  if the writer's SQL binds that column. An `UPDATE … WHERE id = ?` does not
+  name the parent, and the key never moves. `room:{id}` was dead from §78 to
+  §90 for two reasons. First, `rooms`, `room_slots` and `room_ledger` were not
+  in `TABLES` at all. Second, once they were, `placeItem`/`clearSlot` updated
+  a plek by its `id` alone. The fix is on the writer's side:
+  `and(eq(roomSlots.id, slotId), eq(roomSlots.roomId, slot.roomId))`, which
+  filters nothing and lets the logger see the kamer. Test such a writer
+  **through the ORM logger** (`setChangeDelivery` + `flushChanges`, as in
+  `tests/unit/ronde-51-economie.test.ts`), not only with `keysOfStatement` on
+  a hand-written string. A string test proves the mapping. It does not prove
+  that the writer produces a statement the mapping can read. One writer is
+  still blind: the claim reset in `lib/admin/types.ts` (see §8, round 51).
 - **`commit` takes an updater; never build the next board document from
   `cards` captured at render** (§61, round 29).
   `components/boards/BoardCanvas.tsx` keeps `cardsRef`/`stringsRef` beside its
@@ -1017,6 +1065,28 @@ freely there.
   would also hide "Alleen kijken" and stop viewport saves. A new gesture that
   changes the drawing gets `&& editing` on the day it is built; a new thing that
   only *opens* does not.
+- **A canvas never spreads `useAuthorGate` directly; it uses
+  `useCanvasAuthorGate(editing || inkActive)`** (§90). §18b's question used to
+  hang on the whole glass, so a tap in Lezen asked "met wie ben je nu aan het
+  schrijven?", and on a phone, which always opens in Lezen, the first touch
+  always did. The rule is `gateAsks` in `lib/canvas/authorGate.ts`, pure and
+  unit-tested. While writing (Bewerken, or the potlood in the hand), every
+  press, key and focus asks. In Lezen, only a box you can really type into
+  asks (`isTypable`). Anything under `data-author-gate="off"` never asks, in
+  either mode. Spread `AUTHOR_GATE_OFF` on a control that only looks or
+  filters: the camera (`CanvasZoomControls`), the mode switch
+  (`CanvasModeToggle`) and the landkaart's legend already carry it. A new
+  maker button on a canvas bar asks *before* it makes (`ensureAuthor`, as the
+  prikbord's *Nieuwe notitie* does). If the question comes after, it takes the
+  caret away from what was just made. The non-canvas editors (`RichEditor`,
+  `FieldsEditor`, `LiveFields`, …) keep `useAuthorGate`, because everything
+  in them is writing.
+- **There is no FAB on a canvas** (§90, extending §74 and K35). One block of
+  `body:has(…) .fab { display: none }` in `app/globals.css` hides it on every
+  `.page-canvas`, the prikbord, a tijdlijn frame in a dossier, and wherever a
+  `.board-inspector` or `.tree-picker` is docked, at every width. A canvas has
+  its own `+`, and a new docked panel that the FAB can cover belongs in that
+  selector list. `n` still works everywhere.
 - **On a phone, what a tap opens over a canvas is a `CanvasPeek`, never a
   `Sheet`** (§74). It is non-modal, fixed above the tab bar, one scrolling body
   (the thing first, its tools below), `role="dialog"` named by its heading. A
@@ -1029,6 +1099,32 @@ freely there.
   a press has passed `DRAG_SLOP` (4 px) — by then the hand really is carrying
   something and swallowing the trailing click is exactly right. The spec found
   this, not a person.
+- **A tag goes to a list, and `/wiki` is not a list** (§90). Since §75 `/wiki`
+  is the voordeur, and it ignores `?tag=`, so every tag chip in the archive
+  landed on the welcome text for thirteen rounds. Build a tag link with
+  `tagListHref(tag, typeSlug)` (`lib/entries/tagHref.ts`), never by hand: it
+  gives `/wiki/<soort>?tag=`, or `/wiki/alles?tag=` without a soort. An old
+  `/wiki?tag=` is sent on to `/wiki/alles` with everything it carried. That
+  redirect is written `return redirect(…)` on purpose:
+  `tests/unit/live-everywhere.test.ts` reads a bare `redirect(` at the start of
+  a line as "a page that is nothing but a door" and excuses it from `LivePage`.
+  A page that only *sometimes* sends you on must not match that.
+- **The save word is `combinedSave`, not a ternary per page** (§90). The
+  artikel and the dossier both call `useSaveWord(state, rooms, words)`
+  (`components/entry/useAutosave.ts`). The order is the point: a refusal
+  first, then `offline` (the browser says so, a room says so, or nothing came
+  back for `SAVE_STUCK_MS` = 5 s), then *Opslaan…*. The five-second clock runs
+  only on an autosave in flight or a room with keystrokes waiting while its
+  line is not up. A live room says `saving` for as long as somebody types, so
+  a clock on that would call a healthy line dead. A failed autosave *request*
+  is `offline`, not `error`. Its patch goes back into the queue under anything
+  typed since and goes out again on the browser's `online`.
+- **A key in `lib/words.ts` is cut to 60 characters when the Keeper overrides
+  it** (`cleanWordOverrides`), and round 51 added sentences longer than that
+  (`saveOffline`, `newEntryWhoReads`, `passwordReset`, `keeperGuestNobodyGift`,
+  `keeperWearsNone`; `handoutEmpty` was already over). The fallback shows in
+  full. A Keeper who rewrites one of them loses the tail. This is a leftover
+  (§8, round 51), not a licence: keep a new key under 60 until the cap moves.
 
 ---
 
@@ -1287,7 +1383,17 @@ mistakes. Check yours against these before declaring a spec finished.
   box `#entry-name` and there is **no heading at all**. Assert
   `toHaveValue(name)`, not `getByRole('heading', { name })` — and never a bare
   `getByText(name)`, which matches the `<code>@handle</code>` the page also
-  prints.
+  prints. **And since §90 it puts the caret in the running text** as soon as
+  the editor is there (it polls for up to about six seconds), unless a key, a
+  press or a focus somewhere on the page came first. A spec that lands on
+  `?new=1` and then goes on with `page.keyboard` should click where it means to
+  type first. Otherwise a key pressed before the editor arrives stops the
+  caret from being given and lands on `<body>` (an `n` there opens "Nieuw
+  artikel"), and a key pressed after it lands in the body text.
+- **The login redirect carries `?next=`** (§90). A signed-out `goto('/e/x')`
+  ends on `/login?next=%2Fe%2Fx`, not on `/login`. Expect
+  `/\/login(\?next=[^&]*)?$/`, as `sloten.spec.ts` does. Only `/` goes without
+  one.
 - **`waitForURL('**/e/**')` is already true if you are standing on an artikel.**
   A helper that creates several in a row must wait for the address to *change*.
 - **A page that has just navigated is not yet listening.** A click or a `fill`
@@ -1298,6 +1404,59 @@ mistakes. Check yours against these before declaring a spec finished.
   second one.
 - **A gum is a stroke** (§33), so a test that gums twice needs two Ctrl+Z before
   the undo button goes dead.
+- **A new notitie lands chosen *and* with the caret in its text** (§90), and
+  Escape peels one layer at a time. Letting go of a notitie you just made
+  therefore takes **two** Escapes: the first leaves the text, the second
+  clears the choice. Press it inside a `toPass()` until the inspector is gone,
+  as `round-37-pinch.spec.ts:46` now does. A spec that counts on one Escape
+  goes red on the phone project. A punaise made from the bar also lands
+  chosen, with the caret in its label (`#pin-label`), so do not assume the
+  focus is still on the button.
+- **The nieuwe-gebeurtenis sheet arrives with a date already in it** (§90): the
+  middle of the stretch of axis on screen, selected, so typing a year replaces
+  it. A spec that gives only a year and a month must *empty* the day rather
+  than leave it alone, or the proposal's day stays. `fillDate` in
+  `tests/e2e/timelines.spec.ts` fills every part and writes `''` for a part it
+  was not given. Copy that.
+- **The canvas's "Nieuw artikel" needs Bewerken on a phone** (§90). A tap on a
+  notitie in Lezen no longer makes an artikel (`canMakeEntry` asks the mode),
+  so a spec that presses a card's *aanmaken* after a `reload` calls
+  `editCanvas(page)` first, as `round-24.spec.ts` now does.
+- **The kamer door is `yours-kamer`, not `shell-beurs`** (§91). The beurs pill
+  in the corner is gone at every width; a spec that still looks for
+  `shell-beurs` finds nothing, and `ronde-52-jouw-plek.spec.ts` asserts that it
+  stays that way. On a desk the door is *Kamer* in the side menu, with the
+  saldo in `yours-saldo` (`data-balance`); the other doors are `yours-winkel`,
+  `yours-mine` and `yours-spelers`, inside `nav-yours`. `kamer-ux.spec.ts`
+  case 1 is the worked example.
+- **On a phone the Jij tab is a *button*, and what `/you` used to show first is
+  the Jij-blad** (§91). `getByRole('link', { name: 'Jij' })` finds nothing
+  there. Use `getByRole('button', { name: 'Jij', exact: true })` in the
+  `Tabbalk` navigation, or `getByTestId('tab-jij')`. It opens a dialog named
+  *Jij* (`jij-sheet`) and goes nowhere. The saldo is `tab-jij-saldo`. The doors
+  are `jij-kamer`, `jij-winkel`, `jij-mine`, `jij-spelers` and
+  `jij-settings` (the only road to `/you` from the tab bar), and for a Keeper
+  `jij-admin`, `jij-uitdelen` and `jij-flip`. Close it with Escape and wait for
+  `jij-sheet` to be gone before touching the page behind it.
+- **Who you are, on a phone, is read in the Jij-blad** (§91). The side menu is
+  `display: none` below 768 px, so `.who` in the `Hoofdmenu` navigation is
+  attached and never visible there. Open the tab and read
+  `jij-sheet` → `.jij-who-name`, as `characters.spec.ts:294` does (in "a fresh
+  window is asked at the first edit").
+- **`.who-writing` is absent in the shell unless this window chose somebody
+  else** (§91). A spec that used to read the account's karakter off *Je
+  schrijft als* in the side menu now asserts `toHaveCount(0)` there. On `/you`
+  the line always stands (`WritingAsLine always`). And *Je speelt als* in the
+  side menu is `visually-hidden`: `getByText('Je speelt als')` is attached and
+  never visible on a desk.
+- **`/` on a desk puts the caret in the side menu's search box; it does not
+  navigate** (§91). A spec that presses `/` and waits for `/search` only holds
+  on a phone. On a desk, type into `nav-search` and press Enter, which lands on
+  `/search?q=…`.
+- **Start prints your own last three artikelen above the welcome** (§91,
+  `home-jij-recent`). An artikel you just wrote is therefore on Start **twice**,
+  once in the Jij-rij and once in the feed, and a bare `getByText(name)` on `/`
+  matches both. Scope it to `home-jij` or to the feed.
 - **A player needs an onderzoeker before they can write anything** (§18b). Use
   `becomeInvestigator` / `writeAs` from `helpers.ts`; a fresh account can create
   artikelen and tie its *first* one on, and nothing else — everything after that
@@ -1432,7 +1591,108 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48 and 49
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51 and 52
+
+**Round 52 (§91) leaves these, all named on purpose.** Rounds 53–56 of the
+review are still the plan for what comes next, and are not repeated here.
+
+- **A long name in the Jij-blad is cut off without an ellipsis.**
+  `.jij-who-name` is `inline-flex`, and a player's name is a bare text node
+  inside it, so the name becomes an anonymous flex item and
+  `text-overflow: ellipsis` never applies to it. The fix is one `<span>` round
+  the name, carrying the overflow rules.
+- **The saldo in the side menu is not `Beurs.tsx`.** It is a `<span
+  class="nav-tail">` with the same shape (coin first, upright, ink, never
+  `.stamp`), because a menu line has no room for the component's padding.
+  K1 says a saldo *is* `Beurs.tsx`, so the contract now names this as an
+  exception. If the two shapes ever drift, the side menu drifts first.
+- **On a phone your kamer is two taps away, not one**: the Jij tab, then
+  *Naar de kamer*. Only Start's Jij-rij makes it one. That is the price of
+  keeping eight tabs (Nick, 21 September), paid on purpose. See DECISIONS,
+  round 52.
+- **The Jij-blad names some doors by their destination and some with a
+  verb.** *Naar de kamer* and *Naar de winkel* follow K11. *Mijn
+  spelerspagina*, *Spelers*, *Instellingen*, *Beheer* and *Uitdelen* are menu
+  lines, as they are in the side menu. It reads fine, but it is two rules in
+  one list. Decide it the next time somebody is in `JouwPlek.tsx`.
+- **"Laatst door jou" only looks at Start's newest 200 feed rows**
+  (`OWN_WORK_SCAN`, the spelerspagina's number). In a busy archive, someone
+  whose last edit is older than that is told *Nog niets bewerkt.* A query of
+  its own would fix it and would also be a second set of visibility rules,
+  which is why it was not written.
+- **The side menu's search box searches what `/search` searches**, which is
+  still only artikelen (review S3). A search over everything, and a palette
+  (`⌘K`), are "later" in the review.
+- **The handelingstelling was derived, not measured.** The round note
+  (`claude/round-52-jouw-plek.md`) gives before → after for the review's core
+  tasks, worked out from the code. The review's method (Playwright scripts on
+  `seed-wereld`) was not run again, because the machine had two cores and the
+  full suite running.
+
+**Round 51 (§90) leaves these, all named on purpose.** It was the first build
+round after the UI/UX review (`claude/review-ui-ux-de-wrijving.md`). Rounds
+52–56 there are the plan for what comes next, so what the review planned for
+*those* rounds is not repeated here. These are the things round 51 touched and
+left open, or found on the way.
+
+- **The plek-kiezer still offers huisraad nobody bought** (review E1).
+  `placeItem` checks the plek and the visibility, but not the price or who
+  owns it, so *Wat je al hebt* lists every stuk huisraad. Nick decided the fix
+  (a lade per kamer, a `keeper_made` slot in `placeItem`, and *Ongedaan
+  maken* in the koopmelding) and put it in **round 54**. Until then it is a
+  known hole, not a surprise.
+- ~~**Two items from round 51's own list were only half done.** Review S5/C30
+  asked for Beheer and Uitdelen in the side menu *and* the tab in the address.
+  Only the second half was built: `?tab=` via `history.replaceState`, with
+  Gebruikers, Beoordelen and Prullenbak first (`lib/adminTabOrder.ts`). Neither
+  is in the side menu yet. Review S12 is also half done: the beurs pill (22 px)
+  and the Keeperkant button (32×32) in the shell still miss `--tap`. Both fit
+  round 52's shell work.~~ **Closed in round 52 (§91).** Beheer and Uitdelen
+  are the side menu's *Keeper* group (rendered for a Keeper only) and sit in
+  the Jij-blad on a phone. The beurs pill no longer exists, so its 22 px went
+  with it. The Keeperkant button is `--tap` high with a word on a desk, and a
+  32 px circle with an invisible rim to 44 px on a phone.
+- **A Keeper's `room.placed` / `room.cleared` in a private kamer (§86) shows
+  in a player's feed** once the thing placed is visible to them. The row names
+  nobody (`visibleNamesOf` drops the onderzoeker, so it reads "in een
+  kamer"), but the event itself is there.
+- **Three kamer writes are still silent in the feed or on the live line.**
+  `buyFurnishing` and `unlockSlot` write no activity row, so a koop is in
+  nobody's feed. `handOut` writes one `room.granted` with neither `entryId`
+  nor `characterId`. The claim reset in `lib/admin/types.ts` (when a soort's
+  `one_of_a_kind` flips) updates `room_slots` by `id` alone, so `room:{id}`
+  does not move (§5, the TABLES rule).
+- **"Wat deze kamer je geeft" still says *je* in somebody else's kamer.** The
+  empty sentence and the toasts were fixed. The heading (`roomEffects`) was
+  not. K48 carries the exception.
+- **`CHARACTER_TYPE_SLUG = 'investigator'` is written twice**, in
+  `lib/kamers/service.ts` (for `mayHoldRoom`) and in `lib/newEntryType.ts` (for
+  the `+`). Both hard-code the seed's slug, so a Keeper who renames the soort's
+  slug breaks both. The real fix is a "wearable" flag on `entry_types`. That is
+  a migration and touches §18b and E3 at once, so it is a round of its own.
+- **Sentences over 60 characters cannot be fully rewritten in Beheer**
+  (`cleanWordOverrides` cuts at 60; see §5).
+- **`CharacterSwitcher.tsx` still says *onderzoeker* in plain text** in the
+  paragraph a new player reads first ("maak het {artikel} van je onderzoeker
+  en zoek hem"), while the banner and the toast now say `{words.character}`.
+- **The focus-on-mount bug `NewEntrySheet` had is probably in other sheets
+  too.** `Sheet` draws nothing on its first commit, so a `useEffect` that
+  focuses a box on mount finds no box. `NewEntrySheet` now uses a callback ref
+  (`attachName`). Nobody has checked the other sheets.
+- **O1 is still open** (see round 37 below): a new canvas opens in Lezen on a
+  phone.
+- **Two small canvas trade-offs.** The prikbord's inspector and bar picker
+  sit outside `.board-viewport`, as before. The phone-only 44 px tap rim on a
+  tijdlijn tag (`::after`) can cover a few pixels of a neighbouring tag, which
+  was accepted in exchange for a tag you can hit. `.web-hint` in
+  `app/globals.css` is no longer drawn by anything (the hint moved into the
+  web's side column), and neither is the `web:hint-seen` storage key.
+- **Flakes seen in round 51's runs, all green when re-run alone.** On the
+  untouched baseline under load (two cores): `timelines.spec.ts:224`,
+  `timeline-coop.spec.ts:269` and `round-28-mention-overlay.spec.ts:54`
+  (phone). After the round: `characters.spec.ts:527` and
+  `round-27-web.spec.ts:57` (phone). Re-run any of them alone before believing
+  it.
 
 **Round 49 (§88) leaves four, all named on purpose:**
 
@@ -1553,20 +1813,24 @@ they are repeated here because that is where somebody looks.**
 
 **Round 37 (§72–§74) leaves these, all named on purpose:**
 
-- **The undo button behaves three ways in Lezen**: grey on the prikbord and the
-  landkaart, still pressable on the tijdlijn (only Ctrl+Z is off), gone with the
-  whole making group on the stamboom. One thing, three answers — the first to
-  straighten out next time someone is in the toolbars.
+- ~~**The undo button behaves three ways in Lezen**~~ **Closed in round 51
+  (§90, review O2).** It is visible and grey in Lezen on all four canvases now.
+  On the tijdlijn it is `canUndo={handsOn && …}`, and on the stamboom it moved
+  out of the making group and is `canUndo={editOn && …}`.
 - **A canvas you just made opens in Lezen on a phone.** The spec helpers press
   Bewerken for you; the app does not. Whether a fresh canvas should land in
-  Bewerken (like an artikel on `?new=1`) is an open question for Nick.
+  Bewerken (like an artikel on `?new=1`) is an open question for Nick. *Still
+  open after round 51: the review (O1) advises Bewerken, and Nick has not
+  decided yet.*
 - **A notitie-speld's Naam and Tekst are still input boxes in Lezen**, so its
   peek opens on two fields rather than on its words. The panel's own controls
   were kept on purpose; showing the text read-only in Lezen is a small follow-up.
 - **The edit sheets are still modal `Sheet`s** on a phone (gebeurtenis
   bewerken, los kaartje) — a form is a deliberate step.
-- **A tijdlijn window in the peek has its own `Sluiten`** beside the peek's.
-  With one window open the two do the same thing.
+- ~~**A tijdlijn window in the peek has its own `Sluiten`** beside the peek's.~~
+  **Closed in round 51 (§90, review O7).** With one window in the peek there
+  is one cross, the peek's. The window's own cross and the "fold every window"
+  button appear only when more than one window is open.
 - **Two flakes seen once in round 37's final run, both green alone and in the
   run before it**: `canvas-contract.spec.ts:442` (prikbord, a fresh card never
   "stable" for the corner click; then 14/14 green with `--repeat-each`) and

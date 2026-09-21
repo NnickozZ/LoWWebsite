@@ -246,6 +246,48 @@ export const WORD_GROUPS: WordGroup[] = [
       },
       { key: 'keeperNotes', what: 'De kop boven de geheime notities', fallback: 'Notities van de Keeper' },
       { key: 'deleteEntry', what: 'De kop boven de prullenbakknop', fallback: 'Dit artikel verwijderen' },
+      // §90 schrijven
+      {
+        key: 'saveOffline',
+        what: 'Wat er naast Lezen staat als iets nog niet binnen is en de lijn weg is',
+        fallback: 'Nog niet opgeslagen — wordt bewaard zodra de verbinding terug is',
+        hint: 'Komt in plaats van "Opslaan…" als er geen verbinding is, of als er na vijf seconden nog geen antwoord kwam.',
+      },
+      { key: 'coverMenu', what: 'De knop met het menu van de omslag', fallback: 'Omslag' },
+      {
+        key: 'cropHintPointer',
+        what: 'Uitleg bij het bijsnijden, met een muis',
+        fallback: 'Sleep om te verschuiven; scrol om te zoomen.',
+      },
+      {
+        key: 'cropHintTouch',
+        what: 'Uitleg bij het bijsnijden, op een aanraakscherm',
+        fallback: 'Sleep om te verschuiven; knijp om te zoomen.',
+      },
+      {
+        key: 'sectionWhoReads',
+        what: 'Onder een sectie van een speler: wie hem leest',
+        fallback: 'Iedereen die dit {ding} mag lezen, ziet deze {sectie}.',
+        hint: '{ding} wordt het woord voor artikel, dossier of overzicht; {sectie} jouw woord voor een sectie.',
+      },
+      {
+        key: 'newEntryWhoReads',
+        what: 'Onder Aanmaken in het maakblad, voor een speler',
+        fallback: 'Iedereen aan tafel kan dit lezen. Rechten aanpassen kan daarna onder ‘{beheer}’.',
+        hint: '{beheer} is de kop boven rechten en Keeper-instellingen op een artikel.',
+      },
+      {
+        key: 'writingAsGoOn',
+        what: 'De knop in "Met wie ben je nu aan het schrijven?" die het karakter van je account kiest',
+        fallback: 'Verder als {naam}',
+      },
+      { key: 'skipToContent', what: 'De verborgen link naar de inhoud, voor wie met Tab loopt', fallback: 'Naar de inhoud' },
+      { key: 'tabBar', what: 'De naam van de balk onderaan op een telefoon, voor een schermlezer', fallback: 'Tabbalk' },
+      {
+        key: 'passwordReset',
+        what: 'De zin over een vergeten wachtwoord (inschrijven en Jij)',
+        fallback: 'De {keeper} kan een nieuw wachtwoord voor je instellen als je het vergeet.',
+      },
     ],
   },
   {
@@ -262,6 +304,57 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'adminSite', what: 'Site', fallback: 'Site' },
       { key: 'adminExport', what: 'Export', fallback: 'Export' },
       { key: 'adminAudit', what: 'Logboek', fallback: 'Logboek' },
+    ],
+  },
+  // §90 canvas
+  {
+    title: 'Tekenvlakken en Beheer',
+    note:
+      'Zinnen op een leeg prikbord, en drie in Beheer. Wat tussen accolades staat ' +
+      'wordt ingevuld; laat het staan als je de zin herschrijft.',
+    words: [
+      {
+        key: 'boardEmptyRead',
+        what: 'Een leeg prikbord, in Lezen',
+        fallback: 'Kies Bewerken om iets op dit {prikbord} te prikken.',
+      },
+      {
+        key: 'boardEmptyFind',
+        what: 'Een leeg prikbord, in Bewerken: zoeken',
+        fallback: 'Zoek hierboven een {artikel} om te prikken.',
+      },
+      {
+        key: 'boardEmptyMake',
+        what: 'Een leeg prikbord, in Bewerken: zelf iets maken',
+        fallback: 'Of begin een {notitie}, of een losse {punaise} op de muur.',
+      },
+      {
+        key: 'boardEmptyString',
+        what: 'Een leeg prikbord, in Bewerken op een groot scherm: een draad',
+        fallback: 'Sleep vanaf de kop van een {punaise} voor een {draad}.',
+        hint: 'Niet op een telefoon: daar kan een vinger geen draad spannen.',
+      },
+      {
+        key: 'keeperPromoteTitle',
+        what: 'De vraag vóór iemand Keeper wordt',
+        fallback: 'Van {naam} een {keeper} maken?',
+      },
+      {
+        key: 'keeperPromoteMessage',
+        what: 'Wat die vraag uitlegt',
+        fallback: '{naam} ziet dan alles, ook de {keeperkant}.',
+      },
+      { key: 'keeperPromoteYes', what: 'Het ja op die vraag', fallback: 'Ja, tot {keeper} maken' },
+      {
+        key: 'adminNewPasswordFor',
+        what: 'Boven het vak voor een nieuw wachtwoord',
+        fallback: 'Nieuw wachtwoord voor {naam}',
+      },
+      {
+        key: 'trashTypeName',
+        what: 'In het vak waarin je de naam overtypt om te vernietigen',
+        fallback: 'Typ de naam',
+      },
     ],
   },
   {
@@ -436,12 +529,13 @@ export const WORD_GROUPS: WordGroup[] = [
       {
         key: 'handoutAll',
         what: 'Het ene getal dat iedereen krijgt die je aanvinkt',
-        fallback: 'Voor wie je aanvinkt',
+        fallback: 'Bedrag voor wie je aanvinkt',
         hint:
           'Verander je dit, dan springt elk **aangevinkt** bedrag eronder mee — ook wat je ' +
           'met de hand had aangepast. §85: heette "Iedereen", en dat las als een kolomkop ' +
           'boven de lijst. §86: heette "Voor iedereen", en dat was niet meer waar toen de ' +
-          'lijst leeg begon — het vult wat je gekozen hebt.',
+          'lijst leeg begon — het vult wat je gekozen hebt. §90: "Voor wie je aanvinkt" ' +
+          'las als *wie*, boven een vak waar een bedrag in moet.',
       },
       {
         key: 'handoutAmount',
@@ -471,7 +565,7 @@ export const WORD_GROUPS: WordGroup[] = [
         what: 'Als er nog geen kamers zijn om aan uit te delen',
         fallback:
           'Er is nog niemand om aan uit te delen. Koppel een onderzoeker aan een speler, ' +
-          'of geef er zelf één een kamer op zijn artikel.',
+          'of maak er zelf een kamer voor op het artikel van een onderzoeker.',
         hint:
           '§86: zei "Er draagt nog niemand een onderzoeker", en dat is sinds deze ronde ' +
           'niet meer de enige manier om aan een kamer te komen.',
@@ -524,11 +618,12 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'toRoom', what: 'De deur terug naar de kamer', fallback: 'Naar de {kamer}' },
       {
         key: 'roomOpen',
-        what: 'De Keeper geeft een onderzoeker een kamer (de knop)',
-        fallback: 'Een kamer geven',
+        what: 'De Keeper maakt een kamer voor een onderzoeker (de knop)',
+        fallback: 'Kamer maken',
         hint:
           '§86: staat op het artikel van een onderzoeker die niemand draagt. Een kamer ' +
-          'van een gedragen karakter ontstaat vanzelf; deze maak jij.',
+          'van een gedragen karakter ontstaat vanzelf; deze maak jij. §90: heette ' +
+          '"Een kamer geven", en *Geven* is wat de Keeper met munten doet.',
       },
       { key: 'roomOpened', what: 'Nadat dat gelukt is', fallback: '{naam} heeft nu een kamer.' },
       {
@@ -568,6 +663,153 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'plekPlank', what: 'Een plek op een plank', fallback: 'plank' },
       { key: 'plekBureau', what: 'Een plek op het bureau', fallback: 'bureau' },
       { key: 'plekKist', what: 'Een plek in de kist', fallback: 'kist' },
+      // §90 economie
+      { key: 'toShop', what: 'De deur naar de winkel', fallback: 'Naar de {winkel}' },
+      { key: 'toHandout', what: 'De deur naar de uitdeler (alleen de Keeper)', fallback: 'Naar de uitdeler' },
+      {
+        key: 'shopForName',
+        what: 'De koopknop, als je meer dan één onderzoeker draagt',
+        fallback: 'Kopen voor {naam}',
+        hint: '{naam} is de onderzoeker wiens munten je uitgeeft. De prijs komt er vanzelf achter.',
+      },
+      {
+        key: 'buyLandsOn',
+        what: 'De koopknop zegt waar het ding terechtkomt',
+        fallback: '{knop} → {plek}',
+        hint: '{knop} is "Kopen · 3 munten", {plek} de soort plek waar het landt.',
+      },
+      { key: 'roomSwitch', what: 'Boven de knoppen om naar je andere kamer te gaan', fallback: 'Kamer van' },
+      {
+        key: 'roomEffectsNoneOf',
+        what: 'Als er in de kamer van een ander nog niets ligt dat iets doet',
+        fallback: 'Nog niets dat {naam} iets geeft.',
+      },
+      {
+        key: 'keeperGuestNobody',
+        what: 'Wat de Keeper leest in een kamer die niemand draagt',
+        fallback: 'Niemand draagt {naam}: jij richt deze kamer in.',
+      },
+      {
+        key: 'keeperGuestNobodyGift',
+        what: 'En wat dat voor zijn knoppen betekent',
+        fallback: 'Neerzetten is gratis; openen gaat van het saldo van deze kamer.',
+      },
+      {
+        key: 'grantDone',
+        what: 'Nadat de Keeper in het grootboek iets gegeven heeft',
+        fallback: '{bedrag} naar {naam}',
+        hint: '{bedrag} is bijvoorbeeld "+10 munten", {naam} de onderzoeker.',
+      },
+      { key: 'grantAmount', what: 'Het bedragvak in het grootboek (voorgelezen)', fallback: 'Hoeveel?' },
+      {
+        key: 'boughtThere',
+        what: 'Nadat je iets neergezet hebt in de kamer van een ander',
+        fallback: '{ding} ligt nu op de {plek} van {naam}.',
+      },
+      {
+        key: 'unlockedThere',
+        what: 'Nadat je een plek geopend hebt in de kamer van een ander',
+        fallback: 'De {plek} van {naam} is open.',
+      },
+      {
+        key: 'pickHave',
+        what: 'Het tabblad in de plek-kiezer met wat je al hebt',
+        fallback: 'Wat je al hebt',
+      },
+      { key: 'pickSearch', what: 'Het zoekvak in de plek-kiezer (voorgelezen)', fallback: 'Zoeken' },
+      { key: 'pickSearchHint', what: 'De grijze tekst in dat zoekvak', fallback: 'Zoeken…' },
+      { key: 'pickNothing', what: 'Als er niets is dat op deze plek past', fallback: 'Niets dat hier past.' },
+      { key: 'pickLoading', what: 'Terwijl de catalogus binnenkomt', fallback: 'Even kijken…' },
+      { key: 'roomNone', what: 'Een spelerspagina van iemand zonder kamer', fallback: 'Nog geen {kamer}.' },
+      { key: 'charactersNone', what: 'Een spelerspagina van iemand zonder karakter', fallback: 'Nog geen {karakters}.' },
+      {
+        key: 'keeperWearsNone',
+        what: 'Op de spelerspagina van een Keeper',
+        fallback: 'De {keeper} draagt geen {karakter}: die is overal de {keeper}.',
+      },
+      { key: 'wearsNow', what: 'Onder het karakter dat iemand nu speelt', fallback: 'Speelt nu' },
+      { key: 'playAs', what: 'De knop op een artikel om dit karakter te gaan spelen', fallback: 'Speel als {naam}' },
+      {
+        key: 'handoutLeft',
+        what: 'In de voet van de uitdeler, als er nog vinkjes staan maar geen bedrag',
+        fallback: 'Nog {n} aangevinkt',
+        hint: 'Na een uitdeling blijven de vinkjes staan; dit zegt dat een nieuw bedrag naar dezelfde mensen gaat.',
+      },
+      { key: 'feedRoomPlaced', what: 'In het feed: iemand zette iets in een kamer', fallback: 'zette' },
+      { key: 'feedRoomCleared', what: 'In het feed: iemand haalde iets uit een kamer', fallback: 'haalde' },
+      { key: 'feedRoomIn', what: 'Na het ding: in wiens kamer', fallback: 'in de kamer van {naam}' },
+      { key: 'feedRoomOut', what: 'Na het ding: uit wiens kamer', fallback: 'uit de kamer van {naam}' },
+      { key: 'feedRoomOwnIn', what: 'Idem, als het de eigen kamer was', fallback: 'in de eigen kamer' },
+      { key: 'feedRoomOwnOut', what: 'Idem, uit de eigen kamer', fallback: 'uit de eigen kamer' },
+      { key: 'feedRoomSome', what: 'Idem, als je niet mag zien wiens kamer het is', fallback: 'in een kamer' },
+      { key: 'feedRoomSomeOut', what: 'Idem, uit een kamer die je niet mag zien', fallback: 'uit een kamer' },
+    ],
+  },
+  // §91 jouw plek
+  {
+    title: 'Jouw plek',
+    note:
+      'De zijbalk op een computer, het Jij-blad op een telefoon en de rij bovenaan Start: ' +
+      'alles van jou op één plek. Wat tussen accolades staat wordt ingevuld.',
+    words: [
+      {
+        key: 'navGroupYours',
+        what: 'De kop boven kamer, winkel, spelerspagina en spelers in de zijbalk',
+        fallback: 'Jouw plek',
+      },
+      { key: 'navGroupArchive', what: 'De kop boven Start, Dossiers, Wiki en de tekenvlakken', fallback: 'Het archief' },
+      {
+        key: 'navMyPage',
+        what: 'De deur naar je eigen spelerspagina',
+        fallback: 'Mijn {spelerspagina}',
+        hint: '{spelerspagina} is jouw woord voor de pagina van één speler, in kleine letters.',
+      },
+      {
+        key: 'navSettings',
+        what: 'De deur naar je account: lettertype, kleuren, wachtwoord',
+        fallback: 'Instellingen',
+        hint: 'Op een computer staat hier "Jij" naast; op een telefoon is het een knop in het Jij-blad.',
+      },
+      {
+        key: 'searchBox',
+        what: 'Het zoekvak bovenaan de zijbalk (voorgelezen)',
+        fallback: 'Zoek in het archief',
+      },
+      { key: 'searchBoxHint', what: 'De grijze tekst in dat zoekvak', fallback: 'Zoek…' },
+      {
+        key: 'shortcutsLine',
+        what: 'De regel onder Nieuw artikel met de sneltoetsen',
+        fallback: '{n} nieuw · {zoek} zoeken',
+        hint: '{n} en {zoek} worden de toetsen zelf.',
+      },
+      { key: 'shortcutsKeeper', what: 'En voor de Keeper erachter', fallback: '{k} kant' },
+      { key: 'writesAs', what: 'Boven het karakter waarmee dit venster schrijft, als dat een ander is', fallback: 'Je schrijft als' },
+      {
+        key: 'switchPlay',
+        what: 'De knop in het Jij-blad die je karakters openklapt',
+        fallback: 'Speel als',
+      },
+      {
+        key: 'pickCharacter',
+        what: 'De deur voor wie nog geen karakter heeft',
+        fallback: 'Kies je {karakter}',
+        hint: '{karakter} is jouw woord voor karakter.',
+      },
+      {
+        key: 'onlineCount',
+        what: 'Achter Spelers: hoeveel anderen er nu zijn',
+        fallback: '{n} online',
+      },
+      {
+        key: 'homeJijRecent',
+        what: 'Op Start, boven de laatste drie dingen die jij bewerkte',
+        fallback: 'Laatst door jou',
+      },
+      {
+        key: 'homeJijNone',
+        what: 'Op Start, als je nog niets bewerkte',
+        fallback: 'Nog niets bewerkt.',
+      },
     ],
   },
 ];
