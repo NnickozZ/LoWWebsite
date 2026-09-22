@@ -129,6 +129,25 @@ export default async function YouPage() {
         </>
       )}
 
+      {/*
+        §96 (S18): lettertype en kleuren direct onder de karakters, als twee
+        compacte rijen. Ze stonden op y 943 en 1265 van een telefoonpagina van
+        2086 px, onder de voorstellen; wisselen van karakter en van licht zijn
+        de twee dingen waarvoor je hier komt. Per account, op elk apparaat.
+      */}
+      {user && (
+        <section className="you-prefs" aria-label="Lettertype en kleuren">
+          <ReadingFontForm current={user.readingFont} label="Lettertype" />
+          {/* §45: het licht waarin je leest. Per account, net als het lettertype. */}
+          <ColourSchemeForm
+            current={user.colourScheme}
+            isKeeper={user.isKeeper}
+            keeperWord={words.keeper}
+            label="Kleuren"
+          />
+        </section>
+      )}
+
       {proposals.length > 0 && (
         <>
           <hr className="rule" />
@@ -163,29 +182,6 @@ export default async function YouPage() {
               </li>
             ))}
           </ul>
-        </>
-      )}
-
-      {user && (
-        <>
-          <hr className="rule" />
-          <h2 id="lettertype">Lettertype</h2>
-          <p className="small muted">
-            Waarin je het archief leest. Alleen voor jou, op elk apparaat waar je inlogt.
-          </p>
-          <ReadingFontForm current={user.readingFont} />
-
-          <hr className="rule" />
-          {/* §45: het licht waarin je leest. Per account, net als het lettertype. */}
-          <h2 id="kleuren">Kleuren</h2>
-          <p className="small muted">
-            In welk licht je het archief leest. Alleen voor jou, op elk apparaat waar je inlogt.
-          </p>
-          <ColourSchemeForm
-            current={user.colourScheme}
-            isKeeper={user.isKeeper}
-            keeperWord={words.keeper}
-          />
         </>
       )}
 

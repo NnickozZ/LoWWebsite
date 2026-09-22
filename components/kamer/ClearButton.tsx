@@ -22,6 +22,8 @@ export function ClearButton({
   label,
   name,
   compact,
+  toDrawer = false,
+  guestOf = null,
   words,
 }: {
   roomId: string;
@@ -41,6 +43,13 @@ export function ClearButton({
    * `aria-label`, want een × op zichzelf zegt niet waarvan.
    */
   compact?: boolean;
+  /**
+   * §93: huisraad gaat de lade in, en de melding zegt dat — "ligt nu in je
+   * lade" is een andere belofte dan "is weggehaald".
+   */
+  toDrawer?: boolean;
+  /** §93: de onderzoeker, als dit de kamer van een ander is. */
+  guestOf?: string | null;
   words: Words;
 }) {
   const ui = useUi();
@@ -58,7 +67,13 @@ export function ClearButton({
       // §84: ook weghalen zegt iets. Het kost niets en geeft niets terug (§79),
       // maar het is wél een verandering aan je kamer, en een verandering zonder
       // woord is een verandering die je een keer per ongeluk doet.
-      ui.toast(fill(words.clearedHere, { ding: name }));
+      ui.toast(
+        toDrawer
+          ? guestOf
+            ? fill(words.clearedToDrawerOf, { ding: name, naam: guestOf })
+            : fill(words.clearedToDrawer, { ding: name })
+          : fill(words.clearedHere, { ding: name }),
+      );
       router.refresh();
     } finally {
       setBusy(false);

@@ -33,6 +33,7 @@ import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
  */
 export default function CanvasZoomControls({
   percent,
+  level,
   onOut,
   onIn,
   onFit,
@@ -41,6 +42,11 @@ export default function CanvasZoomControls({
 }: {
   /** What the readout says, already in per cent. */
   percent: number;
+  /**
+   * §94 (C7): the readout in words instead, where a percentage means nothing
+   * — the tijdlijn says how much time is on the glass ("≈ 6 maanden").
+   */
+  level?: string;
   onOut: () => void;
   onIn: () => void;
   onFit: () => void;
@@ -61,7 +67,7 @@ export default function CanvasZoomControls({
       >
         <Icon name="zoomOut" size={16} />
       </button>
-      <span className="canvas-zoom-level">{Math.round(percent)}%</span>
+      <span className="canvas-zoom-level">{level ?? `${Math.round(percent)}%`}</span>
       <button
         type="button"
         className="btn btn-small btn-ghost"

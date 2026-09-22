@@ -182,7 +182,10 @@ test('two people draw on one prikbord: live while the hand moves, the gum takes 
   // 3. The Keeper draws again and takes it back; the gum stays, the new line goes.
   await page.getByTestId('ink-pen').click();
   await page.getByTestId('ink-colour-6').click();
-  await stroke(page, box.x + 200, box.y + 400);
+  // §94 (C6): the wall is on the §34 shell now and gets the screen that is
+  // left, not a 380 px floor with a page that scrolls — on a phone in Bewerken
+  // that can be under 400 px, so the second line keeps inside the glass.
+  await stroke(page, box.x + 200, box.y + Math.min(300, box.height - 30));
   await waitForInk(other, (i) => i.count > erasedOnDisk.count + 50);
   await expect(page.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
   const more = await settled(other);
@@ -329,6 +332,9 @@ test('a landkaart takes ink under its spelden and keeps it', async ({ page }) =>
   const zoomed = await waitForInk(page, (i) => i.maxX - i.minX > (drawn.maxX - drawn.minX) * 1.2);
   expect(zoomed.count).toBeGreaterThan(drawn.count);
 
+  // §94 (C5): a reload keeps this tab's camera, so the view the line was
+  // measured in is put back first — what is asked here is the ink, not the zoom.
+  await page.getByRole('button', { name: 'Alles in beeld' }).click();
   await page.reload();
   await expect(page.getByRole('application')).toBeVisible();
   /*
@@ -388,6 +394,9 @@ test('a tijdlijn takes ink that sticks to the years', async ({ page }) => {
   const shifted = await waitForInk(page, (i) => Math.abs(i.maxX - (drawn.maxX - 150)) < 6);
   expect(Math.abs(shifted.maxY - drawn.maxY)).toBeLessThan(3);
 
+  // §94 (C5): a reload keeps this tab's camera; the view the line was measured
+  // in is put back first — what is asked here is the ink, not the pan.
+  await page.getByRole('button', { name: 'Alles in beeld' }).click();
   await page.reload();
   await expect(page.getByTestId('timeline-stage')).toBeVisible();
   await waitForInk(page, (i) => i.count > 0);

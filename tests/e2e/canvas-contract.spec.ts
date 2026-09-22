@@ -143,7 +143,9 @@ test.describe('§69 de camera is overal dezelfde', () => {
       // *means* is each surface's own (§69 question 11); that it is printed at
       // all is the part that is shared.
       const level = zoom.locator('.canvas-zoom-level');
-      await expect(level).toHaveText(/\d+%/);
+      // §94 (C7): a tijdlijn says how much time is on the glass ("≈ 6
+      // maanden") instead of a percentage that meant nothing on an axis.
+      await expect(level).toHaveText(surface.name === 'tijdlijn' ? /^≈ \d/ : /\d+%/);
 
       const before = await level.textContent();
       await zoom.getByRole('button', { name: 'Inzoomen' }).click();

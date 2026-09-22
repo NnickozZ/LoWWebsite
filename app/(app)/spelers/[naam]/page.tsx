@@ -1,13 +1,21 @@
 import '@/app/spelers.css';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Thumb } from '@/components/Cover';
+import { Icon } from '@/components/Icon';
+import { Beurs } from '@/components/kamer/Beurs';
+import { MEANING } from '@/components/kamer/plekWords';
+import { HalOnline } from '@/components/spelers/HalOnline';
+import { activeCharacter } from '@/lib/characters';
+import { visibleNamesOf, purseOf } from '@/lib/kamers/service';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
 import type { Viewer } from '@/lib/entries/visibility';
 import { spelerPagePlace } from '@/lib/live/keys';
-import { SPELER_PANELS } from '@/lib/spelers/panels';
+import { panelsFor } from '@/lib/spelers/panels';
 import { spelerBySlug } from '@/lib/spelers/service';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +48,19 @@ export default async function SpelerPage({ params }: { params: Promise<{ naam: s
   const viewer: Viewer = user ? { id: user.id, isKeeper: user.isKeeper, side: user.side } : null;
   const isSelf = Boolean(user && user.id === speler.id);
 
+  /*
+   * §93: de eerste rij is anders op je eigen pagina dan op die van een ander,
+   * want je komt er met een andere vraag (review onderzoek §5). Op je eigen:
+   * wie je speelt, je saldo, en de twee deuren die je hier het vaakst neemt.
+   * Bij een ander: of hij er is, en wie hij nu speelt — de naam alleen als
+   * jij dat artikel mag zien (§76: een naam die je niet mag zien, staat ook
+   * niet in een zin over iets anders).
+   */
+  const purse = isSelf && !speler.isKeeper ? purseOf(viewer) : null;
+  const playing = speler.isKeeper ? null : activeCharacter(speler.id);
+  const playingSeen =
+    playing && visibleNamesOf([playing.entryId], viewer).has(playing.entryId) ? playing : null;
+
   return (
     <div className="page speler-page" data-testid="speler-page">
       {/*
@@ -63,8 +84,47 @@ export default async function SpelerPage({ params }: { params: Promise<{ naam: s
         )}
       </p>
 
+      {isSelf && purse && playingSeen && (
+        <div className="speler-eerste row-wrap" data-testid="speler-eerste" data-self="ja">
+          <Link href={`/e/${playingSeen.slug}`} className="speler-eerste-wie" data-testid="speler-eerste-wie">
+            <Thumb
+              assetId={playingSeen.coverAssetId}
+              crop={playingSeen.coverCrop}
+              shape="portrait"
+              icon={playingSeen.typeIcon}
+              colour={playingSeen.typeColour}
+            />
+            <span className="speler-eerste-naam">{playingSeen.name}</span>
+          </Link>
+          <Beurs balance={purse.balance} words={words} />
+          <Link className="btn" href={`/kamer/${purse.slug}`} data-testid="speler-eerste-kamer">
+            <Icon name={MEANING.kamer} size={15} />
+            {fill(words.toRoom, { kamer: words.room })}
+          </Link>
+          <Link
+            className="btn"
+            href={`/winkel?kamer=${encodeURIComponent(purse.roomId)}`}
+            data-testid="speler-eerste-winkel"
+          >
+            <Icon name={MEANING.winkel} size={15} />
+            {fill(words.toShop, { winkel: words.shop.toLowerCase() })}
+          </Link>
+        </div>
+      )}
+      {!isSelf && (
+        <div className="speler-eerste row-wrap" data-testid="speler-eerste" data-self="nee">
+          <HalOnline href={`/spelers/${speler.slug}`} words={words} />
+          {playingSeen && (
+            <span className="small speler-eerste-speelt" data-testid="speler-eerste-speelt">
+              <span className="muted">{words.wearsNow}: </span>
+              <Link href={`/e/${playingSeen.slug}`}>{playingSeen.name}</Link>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="speler-panels">
-        {SPELER_PANELS.map((panel) => (
+        {panelsFor(isSelf).map((panel) => (
           <section
             key={panel.id}
             className="speler-panel"

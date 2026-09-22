@@ -101,6 +101,7 @@ beforeAll(async () => {
 beforeEach(() => {
   run('DELETE FROM room_ledger');
   run('DELETE FROM room_slots');
+  run('DELETE FROM room_drawer'); // §93
   run('DELETE FROM rooms');
   run('DELETE FROM activity');
   run(`UPDATE users SET active_character_id = NULL WHERE id = 'elsje'`);
@@ -196,6 +197,8 @@ describe('§90 E7: room:{id} beweegt', () => {
     const roomId = kamers.getOrCreateRoom('e-kramer')!;
     const bureau = slotAt(roomId, 'bureau', true)!;
 
+    // §93: Elsje zet neer wat in haar lade ligt — ongekocht huisraad mag niet meer.
+    run(`INSERT INTO room_drawer (id, room_id, entry_id) VALUES ('lade-1', ?, 'h-stoel')`, roomId);
     expect(heard(() => kamers.placeItem(bureau.id, 'h-stoel', ELSJE))).toContain(`room:${roomId}`);
     expect(heard(() => kamers.clearSlot(bureau.id, ELSJE))).toContain(`room:${roomId}`);
     expect(heard(() => kamers.grant(roomId, 20, 'Sessie 3', KEEPER))).toContain(`room:${roomId}`);
@@ -271,6 +274,8 @@ describe('§90 E21: een kamerhandeling staat op naam van de onderzoeker van die 
     const kramer = kamers.getOrCreateRoom('e-kramer')!;
     const bureau = slotAt(kramer, 'bureau', true)!;
 
+    // §93: uit haar lade — ongekocht huisraad zet een speler niet meer neer.
+    run(`INSERT INTO room_drawer (id, room_id, entry_id) VALUES ('lade-2', ?, 'h-stoel')`, kramer);
     kamers.placeItem(bureau.id, 'h-stoel', ELSJE);
     expect(lastRow('room.placed')?.characterId).toBe('e-kramer');
 
@@ -324,6 +329,9 @@ describe('§90 E4: kopen volgt het filter', () => {
     unique: false,
     owned: false,
     ownedCount: 0,
+    // §93: de lade en de plek op slot (E5) — hier niet aan de orde.
+    drawerCount: 0,
+    opens: null,
     takenElsewhere: false,
     landsIn,
     affordable: true,
@@ -345,7 +353,7 @@ describe('§90 E13: een gevulde tegel draagt zijn eerste effectregel', () => {
   it('puts the first line on the tile, and nothing when there is none', () => {
     const kramer = kamers.getOrCreateRoom('e-kramer')!;
     const bureau = slotAt(kramer, 'bureau', true)!;
-    kamers.placeItem(bureau.id, 'h-stoel', ELSJE);
+    kamers.placeItem(bureau.id, 'h-stoel', KEEPER);
     const view = kamers.viewRoomBySlug('dr-elsje-kramer', ELSJE)!;
     const filled = view.slots.find((slot) => slot.id === bureau.id)!;
     expect(filled.item?.effect).toBe('Een plek om te lezen.');

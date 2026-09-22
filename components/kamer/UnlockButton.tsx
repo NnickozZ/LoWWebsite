@@ -41,6 +41,7 @@ export function UnlockButton({
   kind,
   price,
   guestOf = null,
+  label,
   words,
 }: {
   roomId: string;
@@ -49,6 +50,11 @@ export function UnlockButton({
   price: number;
   /** §90: de onderzoeker, als dit niet je eigen kamer is — dan is het niet "je" plank. */
   guestOf?: string | null;
+  /**
+   * §93 (E5): een eigen woord voor de knop — in de winkel zegt hij welke plek
+   * hij opent (*Kist openen · 5 munten*), want daar staat hij niet op de tegel.
+   */
+  label?: string;
   words: Words;
 }) {
   const ui = useUi();
@@ -89,7 +95,7 @@ export function UnlockButton({
       onClick={() => void unlock()}
     >
       <Icon name={MEANING.openen} size={13} />
-      {withPrice(words.slotOpen, price, words)}
+      {withPrice(label ?? words.slotOpen, price, words)}
     </button>
   );
 }

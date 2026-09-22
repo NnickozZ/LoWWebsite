@@ -49,6 +49,9 @@ test('§73/§74: een telefoon leest, en een getikte tag opent een kleine peek', 
 
   await signIn(page, ...KEEPER);
   await newTimeline(page, `Telefoon ${stamp}`);
+  // §94 (O1): a tijdlijn you just made opens in Bewerken; §73's rule is about
+  // opening it again, so open it again.
+  await page.reload();
 
   /* ---- Lezen: nothing to make, and nothing that says there is ---- */
   await expect(modeRadio(page, 'Lezen')).toHaveAttribute('aria-checked', 'true');
@@ -71,7 +74,9 @@ test('§73/§74: een telefoon leest, en een getikte tag opent een kleine peek', 
   await expect(page.getByTestId('timeline-event')).toHaveCount(1);
 
   /* ---- a fresh visit is Lezen again, with every window shut ---- */
-  await page.reload();
+  // §94 (C5): the window in front is in the address (`?event=`), so a *fresh*
+  // visit is the bare address — a reload would fold it out again, on purpose.
+  await page.goto(new URL(page.url()).pathname);
   const tag = page.getByTestId('timeline-event').first().locator('.timeline-tag');
   await expect(tag).toHaveAttribute('title', '12 maart 1931');
   await expect(modeRadio(page, 'Lezen')).toHaveAttribute('aria-checked', 'true');

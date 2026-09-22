@@ -745,6 +745,94 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'feedRoomSomeOut', what: 'Idem, uit een kamer die je niet mag zien', fallback: 'uit een kamer' },
     ],
   },
+  // §96 zoeken, beheer en de losse eindjes
+  {
+    title: 'Zoeken, Beheer en de losse eindjes',
+    note:
+      'Zoeken over alles, de Keeperkant van een artikel in speler-termen, Beheer en /you. ' +
+      'Wat tussen accolades staat wordt ingevuld.',
+    words: [
+      { key: 'searchOthers', what: 'Op Zoeken: de kop boven dossiers, vlakken en spelers', fallback: 'Andere dingen' },
+      {
+        key: 'searchNone',
+        what: 'Op Zoeken, als niets overeenkomt',
+        fallback: 'Niets in het archief heet zo, en geen artikel noemt het.',
+      },
+      {
+        key: 'searchNoneInType',
+        what: 'Op Zoeken, als niets onder de gekozen soort overeenkomt',
+        fallback: 'Niets onder {soort}. Kies Alles om verder te zoeken.',
+      },
+      { key: 'wordsFilter', what: 'Beheer → Woorden: het zoekvak bovenaan', fallback: 'Zoek een woord…' },
+      {
+        key: 'wordsChanged',
+        what: 'Beheer → Woorden: naast een groep, hoeveel woorden afwijken',
+        fallback: '{n} aangepast',
+      },
+      {
+        key: 'wordsNoMatch',
+        what: 'Beheer → Woorden: als het zoekvak niets vindt',
+        fallback: 'Geen woord past bij je zoekopdracht.',
+      },
+      {
+        key: 'wordsDirty',
+        what: 'Beheer → Woorden: in de voet, als er iets niet is opgeslagen',
+        fallback: '{n} niet opgeslagen',
+      },
+      { key: 'typeTargetsPick', what: 'Beheer → Soorten: de knop die de doel-soorten openklapt', fallback: 'Kies soorten' },
+      { key: 'typeTargetsAll', what: 'Idem, als er geen soort gekozen is', fallback: 'Elke soort' },
+      {
+        key: 'youCharsWhy',
+        what: 'Op /you: de ene regel boven je karakters',
+        fallback: 'Kies wie je speelt; alles wat je doet draagt die naam.',
+      },
+      { key: 'youWhy', what: 'Op /you: de knop die de uitleg openklapt', fallback: 'Waarom?' },
+      {
+        key: 'keeperSeesTwin',
+        what: 'Keeperkant van een pagina voor de tafel: wat spelers zien',
+        fallback: 'Spelers zien: deze pagina, niet de {versie}.',
+        hint: '{versie} is jouw woord voor Keeperversie, in kleine letters.',
+      },
+      {
+        key: 'keeperSeesTwinOwn',
+        what: 'Idem, op de Keeperversie zelf',
+        fallback: 'Spelers zien: de {versie}, niet deze pagina.',
+        hint: '{versie} is jouw woord voor spelersversie, in kleine letters.',
+      },
+      {
+        key: 'keeperSeesPage',
+        what: 'Idem, als "Deze pagina is van de Keeper" aan staat',
+        fallback: 'Spelers zien: niets. De pagina bestaat voor hen niet.',
+      },
+      {
+        key: 'keeperSeesPageOff',
+        what: 'Idem, als dat vinkje uit staat',
+        fallback: 'Spelers zien deze pagina. Aangevinkt: niets meer.',
+      },
+      {
+        key: 'keeperSeesSection',
+        what: 'Idem, bij een sectie die alleen van de Keeper is',
+        fallback: 'Spelers zien: de pagina, zonder deze sectie.',
+      },
+      {
+        key: 'keeperSeesSome',
+        what: 'Idem, bij een sectie voor gekozen spelers',
+        fallback: 'Andere spelers zien: de pagina, zonder deze sectie.',
+      },
+      {
+        key: 'keeperSeesAll',
+        what: 'Idem, bij een sectie voor iedereen',
+        fallback: 'Spelers zien: de pagina, met deze sectie.',
+      },
+      { key: 'viewAsPlayer', what: 'De knop naast die zin', fallback: 'Bekijk als speler' },
+      {
+        key: 'characterFindHint',
+        what: 'Zonder karakter: de zin die zegt hoe je er één krijgt',
+        fallback: 'Maak het {artikel} van je {karakter} en koppel het hier.',
+        hint: '{artikel} en {karakter} zijn jouw woorden voor artikel en karakter.',
+      },
+    ],
+  },
   // §91 jouw plek
   {
     title: 'Jouw plek',
@@ -811,6 +899,226 @@ export const WORD_GROUPS: WordGroup[] = [
         fallback: 'Nog niets bewerkt.',
       },
     ],
+  },  // §94 tekenvlakken
+  {
+    title: 'Tekenvlakken: vinden en terug',
+    note:
+      'Zoeken op een prikbord of stamboom, de sprong naar een datum op een tijdlijn, en de ' +
+      'deur van een artikel naar zijn stamboom. Wat tussen accolades staat wordt ingevuld.',
+    words: [
+      {
+        key: 'findOnCanvas',
+        what: 'Het zoekvak op een prikbord of stamboom in Lezen (voorgelezen)',
+        fallback: 'Zoek op dit vlak',
+      },
+      { key: 'findOnCanvasHint', what: 'De grijze tekst in dat zoekvak', fallback: 'Vind een naam…' },
+      { key: 'findNothing', what: 'Als niets op het vlak zo heet', fallback: 'Niets op dit vlak heet zo.' },
+      { key: 'findOnBoard', what: 'De bovenste groep in de zoeklijst van een prikbord', fallback: 'Op dit {prikbord}' },
+      { key: 'findOnTree', what: 'De bovenste groep in de zoeklijst van een stamboom', fallback: 'Op deze {stamboom}' },
+      { key: 'goToDate', what: 'De sprong naar een datum op een tijdlijn', fallback: 'Ga naar…' },
+      {
+        key: 'goToDateHint',
+        what: 'De grijze tekst in dat vak',
+        fallback: '1934, of maart 1934',
+      },
+      { key: 'goToDateUnknown', what: 'Als die datum niet te lezen is', fallback: 'Die datum kan ik niet lezen.' },
+      {
+        key: 'entryInTree',
+        what: 'De deur van een artikel naar de stamboom waarin het staat',
+        fallback: 'In {stamboom}: {naam}',
+        hint: '{stamboom} is jouw woord voor stamboom, {naam} de naam van de stamboom.',
+      },
+      { key: 'treeHandleParent', what: 'Het woord op de +-knop boven een kaartje', fallback: 'Ouder' },
+      { key: 'treeHandleChild', what: 'Het woord op de +-knop onder een kaartje', fallback: 'Kind' },
+      { key: 'treeHandlePartner', what: 'Het woord op de +-knop rechts van een kaartje', fallback: 'Partner' },
+      { key: 'treeHandleSibling', what: 'Het woord op de +-knop links van een kaartje', fallback: 'Broer/zus' },
+      { key: 'boardStringStart', what: 'De knop in het paneel van een kaart die een draad begint', fallback: 'Touwtje' },
+      {
+        key: 'boardStringPick',
+        what: 'Wat er staat terwijl je de tweede kaart kiest',
+        fallback: 'Tik op de tweede {kaart} voor de {draad}.',
+      },
+      { key: 'boardStringCancel', what: 'De knop die dat afbreekt', fallback: 'Toch niet' },
+      { key: 'boardInCase', what: 'Onder de vouw: in welk dossier het prikbord hangt', fallback: 'Hangt in' },
+      { key: 'mapLinksOf', what: 'Op de telefoon, voor het artikel waar een landkaart van is', fallback: 'Van' },
+      { key: 'mapLinksOn', what: 'Op de telefoon, voor de grotere landkaart waar hij op staat', fallback: 'Op' },
+    ],
+  },
+  // §92 de korte vakken
+  {
+    title: 'Schrijven',
+    note:
+      'De korte vakken, het maakblad, een artikel op de telefoon en de wiki-lijst. ' +
+      'Wat tussen accolades staat wordt ingevuld; laat het staan als je de zin herschrijft.',
+    words: [
+      {
+        key: 'mentionHint',
+        what: 'Grijze tekst in een kort vak: hoe je een artikel noemt',
+        fallback: 'Typ @ of [[ om een {artikel} te noemen.',
+        hint: '{artikel} is jouw woord voor artikel.',
+      },
+      {
+        key: 'mentionHintShort',
+        what: 'Dezelfde hint, kort, in een smal vak van de infobox',
+        fallback: '@ of [[ noemt iets',
+      },
+      {
+        key: 'placeOnButton',
+        what: 'De knop op een artikel die het op een landkaart of tijdlijn zet',
+        fallback: 'Op een {landkaart} of {tijdlijn} zetten…',
+      },
+      {
+        key: 'placeOnTitle',
+        what: 'De kop van het blad dat die knop opent',
+        fallback: 'Waar zet je dit {artikel} op?',
+      },
+      {
+        key: 'placeOnOther',
+        what: 'Onderaan dat blad: een andere kiezen dan de laatste',
+        fallback: 'Alle {meervoud}…',
+        hint: '{meervoud} wordt landkaarten of tijdlijnen.',
+      },
+      {
+        key: 'fieldsFillEmpty',
+        what: 'In de bewerkstand: de knop die de lege velden van de infobox openklapt',
+        fallback: 'Veld invullen',
+      },
+      {
+        key: 'fieldsEmptyCount',
+        what: 'Achter die knop: hoeveel velden nog leeg zijn',
+        fallback: '{n} leeg',
+      },
+      {
+        key: 'infoboxMore',
+        what: 'Op een telefoon: de ingeklapte infobox openklappen',
+        fallback: 'Alle gegevens',
+      },
+      {
+        key: 'newEntryTypeMore',
+        what: 'In het maakblad: alle soorten tonen',
+        fallback: 'Alle soorten',
+      },
+      {
+        key: 'newEntryInCase',
+        what: 'In het maakblad: de regel met het dossier',
+        fallback: 'In {dossier}',
+        hint: '{dossier} is jouw woord voor dossier.',
+      },
+      {
+        key: 'newEntryNoCase',
+        what: 'Die regel, als er geen dossier gekozen is',
+        fallback: 'Geen',
+      },
+      {
+        key: 'newEntryDidYouMean',
+        what: 'Onder de naam in het maakblad, boven bestaande namen',
+        fallback: 'Bestaat al:',
+      },
+      { key: 'wikiViewList', what: 'Op de wiki: de lijst met één regel per artikel', fallback: 'Lijst' },
+      { key: 'wikiViewCards', what: 'Op de wiki: de kaarten', fallback: 'Kaarten' },
+      { key: 'wikiViewLabel', what: 'De naam van die twee knoppen samen (voorgelezen)', fallback: 'Weergave' },
+      { key: 'wikiTagRow', what: 'De rij tags onder de soorten (voorgelezen)', fallback: 'Tags' },
+    ],
+  },
+  // §95 één regel, één id
+  {
+    title: 'Eén regel, één id',
+    note: 'Het korte vak met chips: de korte beschrijving, de samenvatting en een Tekst of Lange tekst in de infobox.',
+    words: [
+      {
+        key: 'mentionListLabel',
+        what: 'De lijst met namen onder @ of [[ (voorgelezen)',
+        fallback: 'Artikelen',
+      },
+    ],
+  },
+  // §93 de kamer, tweede pas
+  {
+    title: 'De kamer: lade, verplaatsen en terugbrengen',
+    note:
+      'De lade van een kamer (wat je bezit en niet op een plek staat), Verplaatsen, en ' +
+      'Ongedaan maken vlak na een koop. Wat tussen accolades staat wordt ingevuld.',
+    words: [
+      { key: 'drawer', what: 'De lade van een kamer (kop)', fallback: 'In de lade' },
+      {
+        key: 'drawerTag',
+        what: 'Achter een ding in de plek-kiezer dat in je lade ligt',
+        fallback: 'In je lade',
+      },
+      {
+        key: 'drawerTagCount',
+        what: 'Idem, als er meer dan één ligt',
+        fallback: 'In je lade · {n}',
+      },
+      {
+        key: 'clearedToDrawer',
+        what: 'Nadat je huisraad weghaalde: het ligt in de lade',
+        fallback: '{ding} ligt nu in je lade.',
+      },
+      {
+        key: 'clearedToDrawerOf',
+        what: 'Idem, in de kamer van een ander',
+        fallback: '{ding} ligt nu in de lade van {naam}.',
+      },
+      { key: 'buyUndo', what: 'De knop in de koopmelding die de koop terugdraait', fallback: 'Ongedaan maken' },
+      {
+        key: 'buyReturned',
+        what: 'Nadat een koop ongedaan is gemaakt',
+        fallback: '{ding} teruggebracht: {bedrag} terug.',
+        hint: '{bedrag} is bijvoorbeeld "3 munten".',
+      },
+      { key: 'ledgerReturnLine', what: 'Een regel in het grootboek: een koop teruggedraaid', fallback: '{ding} teruggebracht' },
+      { key: 'slotMove', what: 'Iets naar een andere plek zetten (de knop)', fallback: 'Verplaatsen' },
+      { key: 'slotMoveOne', what: 'Idem, voorgelezen met de naam', fallback: 'Verplaats {ding}' },
+      {
+        key: 'moveHint',
+        what: 'Terwijl je verplaatst: wat je nu doet',
+        fallback: 'Kies een plek voor {ding}.',
+      },
+      { key: 'moveHere', what: 'Op een plek waar het heen kan', fallback: 'Hierheen' },
+      { key: 'moveHereOne', what: 'Idem, voorgelezen met de naam', fallback: '{ding} hierheen' },
+      { key: 'moveCancel', what: 'Stoppen met verplaatsen', fallback: 'Annuleren' },
+      {
+        key: 'moveNowhere',
+        what: 'Als er geen open plek is waar het heen kan',
+        fallback: 'Geen vrije plek waar dit past.',
+      },
+      {
+        key: 'shopOpenKind',
+        what: 'In de winkel, als er geen vrije plek is maar wel één op slot',
+        fallback: '{plek} openen',
+        hint: '{plek} is de soort plek. De prijs komt er vanzelf achter.',
+      },
+      { key: 'shopInDrawer', what: 'In de winkel: je hebt er een in je lade', fallback: 'Ligt in je lade' },
+      {
+        key: 'roomEffectsOf',
+        what: 'De kop boven de effecten, in de kamer van een ander',
+        fallback: 'Wat deze kamer {naam} geeft',
+      },
+      { key: 'feedRoomBought', what: 'In het feed: iemand kocht iets voor een kamer', fallback: 'kocht' },
+      {
+        key: 'feedRoomOpened',
+        what: 'In het feed: iemand opende een plek (daarna de onderzoeker)',
+        fallback: 'opende een plek in de kamer van',
+      },
+      { key: 'hallRoomOf', what: 'In de hal: de deur naar de kamer van een karakter', fallback: 'Naar de kamer van {naam}' },
+      {
+        key: 'newFurnishing',
+        what: 'In het Nieuw-blad voor huisraad: de kop boven plek, prijs en effect',
+        fallback: 'In de winkel',
+      },
+      {
+        key: 'newFurnishingDone',
+        what: 'Nadat de Keeper huisraad maakte',
+        fallback: '{naam} staat in de {winkel}.',
+      },
+      { key: 'toastShop', what: 'De knop in die melding', fallback: 'Bekijk in de {winkel}' },
+      {
+        key: 'furnishingNotForSale',
+        what: 'Nadat de Keeper huisraad maakte zonder plek of prijs',
+        fallback: '{naam} is nog niet te koop: geef het een plek en prijs.',
+      },
+    ],
   },
 ];
 
@@ -825,6 +1133,18 @@ export const DEFAULT_WORDS: Words = Object.fromEntries(
 const KNOWN_KEYS = new Set(WORD_DEFS.map((def) => def.key));
 
 /**
+ * §96: hoe lang een woord van de Keeper mag zijn.
+ *
+ * Tot ronde 57 was dat 60 tekens, uit de tijd dat elk woord hier een woord
+ * was. Sinds §84 staan er hele zinnen in, en zes standaardzinnen waren langer
+ * dan wat een Keeper mocht terugschrijven: wie *Er is nog niemand om aan uit te
+ * delen…* wilde herschrijven, kreeg zijn zin halverwege afgekapt. De langste
+ * standaardzin is 144 tekens; 200 laat ruimte, en
+ * `tests/unit/ronde-57-woorden.test.ts` zorgt dat elke standaardzin erin past.
+ */
+export const WORD_MAX = 200;
+
+/**
  * Keeps only the keys this file knows, trimmed and capped. A word that matches
  * its own default is dropped rather than stored, so the settings row holds the
  * Keeper's *changes* and a later change to a default reaches them.
@@ -835,7 +1155,7 @@ export function cleanWordOverrides(input: unknown): Words {
   for (const [key, raw] of Object.entries(input as Record<string, unknown>)) {
     if (!KNOWN_KEYS.has(key)) continue;
     if (typeof raw !== 'string') continue;
-    const value = raw.trim().slice(0, 60);
+    const value = raw.trim().slice(0, WORD_MAX);
     if (!value || value === DEFAULT_WORDS[key]) continue;
     out[key] = value;
   }

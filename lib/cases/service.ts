@@ -7,6 +7,7 @@ import { uniqueSlug } from '@/lib/slug';
 import type { AccessMode } from '@/lib/db/schema';
 import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 import { cleanDoc, docToText } from '@/lib/entries/doc';
+import { cleanShort } from '@/lib/entries/shortRefs';
 import { recomputeCaseMentions } from '@/lib/entries/mentions';
 import type { Author } from '@/lib/auth/author';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
@@ -92,6 +93,8 @@ export function createCase(input: {
   name: string;
   summary?: string;
   createdBy: string | null;
+  /** §95: whether the hand opening it is a Keeper's — what a mention in its summary may name. */
+  actorIsKeeper?: boolean;
   /** §18b: the onderzoeker it is being opened as. */
   characterId?: string | null;
 }): CaseSummary {
@@ -110,7 +113,10 @@ export function createCase(input: {
       id,
       name,
       slug,
-      summary: (input.summary ?? '').trim(),
+      // §95: a short text is cleaned where it comes in.
+      summary: cleanShort((input.summary ?? '').trim(), {
+        actor: input.createdBy ? { id: input.createdBy, isKeeper: Boolean(input.actorIsKeeper) } : 'system',
+      }),
       createdBy: input.createdBy,
     })
     .run();
@@ -422,7 +428,8 @@ export function updateCase(
 
   const values: Record<string, unknown> = {};
   if (patch.name !== undefined && patch.name.trim()) values.name = patch.name.trim();
-  if (patch.summary !== undefined) values.summary = patch.summary;
+  // §95: cleaned like a document is (`cleanShort`); the room follows below.
+  if (patch.summary !== undefined) values.summary = cleanShort(patch.summary, { prev: existing.summary, actor: user });
   if (patch.notes !== undefined) {
     values.notes = patch.notes;
     values.notesText = docToText(patch.notes);
@@ -452,6 +459,8 @@ export function updateCase(
     if (typeof values.name === 'string') fields.name = values.name;
     if (typeof values.summary === 'string') fields.summary = values.summary;
     resetFieldsInRoom(caseFieldsRoomKey(caseId), fields);
+  } else if (options.live && typeof values.summary === 'string' && values.summary !== patch.summary) {
+    resetFieldsInRoom(caseFieldsRoomKey(caseId), { summary: values.summary });
   }
   return getCaseById(caseId)!;
 }

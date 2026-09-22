@@ -38,6 +38,9 @@ const SCOPE = [
   'components/kamer/EffectenFold.tsx',
   'components/kamer/Uitdeler.tsx',
   'components/kamer/plekWords.ts',
+  // §93: verplaatsen en de koopmelding met *Ongedaan maken*.
+  'components/kamer/Verplaatsen.tsx',
+  'components/kamer/buyToast.ts',
   'components/winkel/WinkelRij.tsx',
   'components/winkel/WinkelFilter.tsx',
   'components/winkel/BuyButton.tsx',

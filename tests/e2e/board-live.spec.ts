@@ -344,6 +344,8 @@ test('a Keeper signs with their account name, in the feed as well as on the stri
   // §11: the Keeper renames the Keeper.
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Woorden' }).click();
+  // §96: the groups are folded; the filter opens the one that holds it.
+  await page.getByTestId('words-filter').fill('De spelleider');
   await page.getByLabel('De spelleider', { exact: true }).fill('Spelleider');
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page.getByText(/^Opgeslagen\./)).toBeVisible();
@@ -413,6 +415,8 @@ test('a Keeper signs with their account name, in the feed as well as on the stri
     // when something above fails.
     await page.goto('/admin');
     await page.getByRole('tab', { name: 'Woorden' }).click();
+    // §96: the groups are folded; the filter opens the one that holds it.
+    await page.getByTestId('words-filter').fill('De spelleider');
     await page.getByLabel('De spelleider', { exact: true }).fill('');
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.getByText(/^Opgeslagen\./)).toBeVisible();

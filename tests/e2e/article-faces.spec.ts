@@ -178,7 +178,8 @@ test('the reading face shows the facts that are filled in, and leaves the rest o
 
   // One field filled, the others left alone.
   const fields = page.locator('.entry-fields');
-  const first = fields.locator('input.input, select.select').first();
+  // §95: a Tekst is a short box (an editor) now, not an `<input>`.
+  const first = fields.locator('[data-short-box="true"], select.select').first();
   await first.waitFor({ state: 'visible' });
   const isSelect = (await first.evaluate((el) => el.tagName)) === 'SELECT';
   if (isSelect) {

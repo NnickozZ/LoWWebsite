@@ -433,7 +433,8 @@ test('a landkaart hangs on a landkaart, and there is a way back up', async ({ pa
   await expect(page.getByRole('heading', { name: small })).toBeVisible();
 
   // …and the heading of the small map carries the way back up.
-  await expect(page.getByText('Op de grotere landkaart:')).toBeVisible();
+  // §94 (C23): a sentence on a desk, a chip on a phone — the link is the same.
+  await expect(page.locator('.map-head-link', { hasText: big })).toBeVisible();
   await page.getByRole('link', { name: big }).click();
   await page.waitForURL((url) => new URL(url).pathname === bigUrl);
   await expect(page.getByRole('heading', { name: big })).toBeVisible();
@@ -688,6 +689,10 @@ test('§71: twee spelden op één plek worden er één met een +1, en de laag ze
   // Twee spelden, achttien plaatpixels uit elkaar: bij de openingszoom van een
   // plaat van 900 × 600 op welk scherm dan ook binnen één speldenkop.
   await note(eerst, 0.5, 0.5);
+  // `createdAt` telt in hele seconden, en bij gelijke laag én gelijke seconde
+  // beslist het (willekeurige) id (`compareDrawOrder`). Wie "de nieuwste ligt
+  // vóór" wil toetsen, zet de tweede dus in een latere seconde.
+  await page.waitForTimeout(1100);
   await note(daarna, 0.52, 0.5);
 
   /* ---- 1. Eén speld op het glas, met een +1 ernaast ---- */

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, inviteCode, newBoard, signIn } from './helpers';
+import { becomeInvestigator, editArticle, inviteCode, newBoard, signIn, expectBoxValue } from './helpers';
 
 /**
  * §17: who may look, and who may touch.
@@ -129,13 +129,13 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
   // Nothing landed on the fiche itself…
   await page.reload();
   await editArticle(page);
-  await expect(page.getByLabel('Korte beschrijving')).toHaveValue('');
+  await expectBoxValue(page.getByLabel('Korte beschrijving'), '');
   // …but the owner has it waiting, and takes it.
   await expect(page.locator('summary', { hasText: 'Voorstellen (1)' })).toBeVisible();
   await expect(page.getByText('Voorstel van een lezer')).toBeVisible();
   await page.getByRole('button', { name: 'Overnemen' }).click();
   await page.waitForTimeout(1500);
-  await expect(page.getByLabel('Korte beschrijving')).toHaveValue('Voorstel van een lezer');
+  await expectBoxValue(page.getByLabel('Korte beschrijving'), 'Voorstel van een lezer');
 });
 
 test('a private board is created private, and a chosen person may look but not pin', async ({

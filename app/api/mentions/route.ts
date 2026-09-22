@@ -1,12 +1,15 @@
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { resolveMentions } from '@/lib/entries/mentions';
+import { resolveHandles } from '@/lib/entries/shortRefs';
 
 export const dynamic = 'force-dynamic';
 
 /** A plain box holds at most a few thousand characters; a wall holds many boxes. */
 const MAX_TEXTS = 60;
 const MAX_LENGTH = 6000;
+/** §95: one page's worth of chips. */
+const MAX_HANDLES = 300;
 
 /**
  * Round 21: what a plain box's shorthand means, for the browser that has to
@@ -21,12 +24,22 @@ const MAX_LENGTH = 6000;
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const body = (await request.json().catch(() => null)) as { texts?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as { texts?: unknown; handles?: unknown } | null;
     const texts = Array.isArray(body?.texts)
       ? body.texts.filter((t): t is string => typeof t === 'string').slice(0, MAX_TEXTS).map((t) => t.slice(0, MAX_LENGTH))
       : [];
-    if (!texts.length) return json({ texts: [] });
-    return json({ texts: resolveMentions(user, texts).map((spans) => ({ spans })) });
+    /*
+     * §95: a short text's chips are handles, and a handle is looked up on its
+     * own — `⟦h⟧` → the artikel it names, *for this reader*. What the reader
+     * may not follow is absent from the answer, not marked: rule 1.
+     */
+    const handles = Array.isArray(body?.handles)
+      ? body.handles.filter((h): h is string => typeof h === 'string').slice(0, MAX_HANDLES)
+      : [];
+    return json({
+      texts: texts.length ? resolveMentions(user, texts).map((spans) => ({ spans })) : [],
+      handles: handles.length ? Object.fromEntries(resolveHandles(user, handles)) : {},
+    });
   } catch (error) {
     return apiError(error);
   }

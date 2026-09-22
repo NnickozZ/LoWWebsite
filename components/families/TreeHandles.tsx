@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Icon } from '@/components/Icon';
 import { flipsNeeded } from '@/lib/canvas/clamp';
+import { useUi } from '@/components/ui/UiProvider';
 
 /**
  * §66/§67 — the four `+`s and the `…` round the card a hand has chosen.
@@ -79,6 +80,7 @@ export function TreeHandles({
   onAdd: (role: HandleRole) => void;
   nodeName: string;
 }) {
+  const ui = useUi();
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -122,15 +124,42 @@ export function TreeHandles({
     sibling: 'plus',
   };
 
+  /*
+   * §94 (C8): and each `+` says which it is, in one short word. "Welke `+` is
+   * ouders?" was a guess on every visit (review canvas B8), and on a phone at
+   * 36 % the four circles covered the card they belonged to. With a word the
+   * handle is a pill, and it stands *outside* the card's edge rather than
+   * astride it — the side it grows away from is the side it is on — so the
+   * name under it stays readable.
+   */
+  const word: Record<HandleRole, string> = {
+    parent: ui.words.treeHandleParent,
+    child: ui.words.treeHandleChild,
+    partner: ui.words.treeHandlePartner,
+    sibling: ui.words.treeHandleSibling,
+  };
+  const outward: Record<HandleRole, { translate: string; origin: string }> = {
+    parent: { translate: 'translate(-50%, -100%)', origin: '50% 100%' },
+    child: { translate: 'translate(-50%, 0)', origin: '50% 0' },
+    partner: { translate: 'translate(0, -50%)', origin: '0 50%' },
+    sibling: { translate: 'translate(-100%, -50%)', origin: '100% 50%' },
+  };
+  const pinOut = (role: HandleRole) => ({
+    left: spot[role].x,
+    top: spot[role].y,
+    transform: `${outward[role].translate} scale(${1 / (zoom || 1)})`,
+    transformOrigin: outward[role].origin,
+  });
+
   return (
     <>
       {offers.map((offer) => (
         <button
           key={offer.role}
           type="button"
-          className={`tree-handle tree-handle-${offer.role}`}
+          className={`tree-handle tree-handle-worded tree-handle-${offer.role}`}
           data-testid={`tree-handle-${offer.role}`}
-          style={pin(spot[offer.role].x, spot[offer.role].y)}
+          style={pinOut(offer.role)}
           disabled={!offer.enabled}
           title={offer.enabled ? offer.label : offer.hint}
           aria-label={`${offer.label} bij ${nodeName}`}
@@ -138,7 +167,10 @@ export function TreeHandles({
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => offer.enabled && onAdd(offer.role)}
         >
-          <Icon name={glyph[offer.role]} size={16} />
+          <Icon name={glyph[offer.role]} size={14} />
+          <span className="tree-handle-word" aria-hidden="true">
+            {word[offer.role]}
+          </span>
           {!offer.enabled && offer.hint && (
             <span className="visually-hidden" id={`tree-handle-hint-${offer.role}`}>
               {offer.hint}

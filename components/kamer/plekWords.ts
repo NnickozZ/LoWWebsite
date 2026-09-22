@@ -64,6 +64,8 @@ export const MEANING = {
   catalogus: 'book',
   /** Eén onderzoeker, als beurshouder. */
   onderzoeker: 'person',
+  /** §93: een ding naar een andere plek in dezelfde kamer. */
+  verplaatsen: 'move',
 } as const;
 
 /** De vormen die deze feature bezet houdt: de vier plekken plus elke betekenis. */
@@ -135,8 +137,15 @@ export function roomFeedPhrase(
   own: boolean,
   words: Words,
 ): { verb: string; tail: string } | null {
-  if (verb !== 'room.placed' && verb !== 'room.cleared') return null;
-  const placed = verb === 'room.placed';
+  /*
+   * §93: een geopende plek. Het ding van de regel ís de onderzoeker (een plek is
+   * geen artikel), dus de zin eindigt op zijn naam: *opende een plek in de
+   * kamer van* **Dr. Kramer**.
+   */
+  if (verb === 'room.opened') return { verb: words.feedRoomOpened, tail: '' };
+  // §93: een koop leest als neerzetten, met zijn eigen werkwoord.
+  if (verb !== 'room.placed' && verb !== 'room.cleared' && verb !== 'room.bought') return null;
+  const placed = verb !== 'room.cleared';
   const tail = own
     ? placed
       ? words.feedRoomOwnIn
@@ -146,5 +155,8 @@ export function roomFeedPhrase(
       : placed
         ? words.feedRoomSome
         : words.feedRoomSomeOut;
-  return { verb: placed ? words.feedRoomPlaced : words.feedRoomCleared, tail };
+  return {
+    verb: verb === 'room.bought' ? words.feedRoomBought : placed ? words.feedRoomPlaced : words.feedRoomCleared,
+    tail,
+  };
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, newEntryButton, openRights, setPlekken, signIn } from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, newEntryButton, openRights, setPlekken, signIn, expectBoxValue } from './helpers';
 
 /**
  * §80: huisraad — de catalogus, het kopen, en wat een kamer je zegt te geven.
@@ -173,8 +173,8 @@ async function newHuisraad(
     await editArticle(page);
     await unfoldInfobox(page);
     await expectPlekken(page, [spec.plek]);
-    await expect(page.locator('#field-prijs')).toHaveValue(String(spec.prijs), { timeout: 5000 });
-    await expect(page.locator('#field-effect')).toHaveValue(effect, { timeout: 5000 });
+    await expectBoxValue(page.locator('#field-prijs'), String(spec.prijs), { timeout: 5000 });
+    await expectBoxValue(page.locator('#field-effect'), effect, { timeout: 5000 });
   }).toPass({ timeout: 60_000 });
 
   return { name: spec.name, slug, path, effect: spec.effect, prijs: spec.prijs };
@@ -224,6 +224,14 @@ async function openPicker(page: Page, sort: number): Promise<Locator> {
    * één keer gekozen wordt — een blad dat onder je hand blijft springen is
    * erger dan een leeg blad.
    */
+  /*
+   * §93: en pas kijken als het antwoord er is. Tot de lade bezat een speler
+   * hier altijd iets (elk stuk huisraad stond onder *Wat je al hebt*), dus
+   * sprong het blad nooit; nu wel, en het springt ná het antwoord — dat moet
+   * binnen zijn voordat "blijft staan" iets betekent.
+   */
+  await expect(picker).toHaveAttribute('data-answered', 'ja', { timeout: 20_000 });
+  await picker.page().waitForTimeout(300);
   const landed = await picker.getAttribute('data-tab');
   await picker.page().waitForTimeout(600);
   await expect(picker).toHaveAttribute('data-tab', landed!);

@@ -40,6 +40,11 @@ export function AsPlayerBanner({ on, words }: { on: boolean; words: Words }) {
   );
 }
 
+/** The one address that turns the preview on, landing on `to`. */
+export function asPlayerHref(to: string): string {
+  return `/api/keeper/as-player?on=1&to=${encodeURIComponent(to || '/')}`;
+}
+
 /** The way in, in the side menu, under who you are being. Real Keepers only. */
 export function AsPlayerLink({ show, words }: { show: boolean; words: Words }) {
   const pathname = usePathname();
@@ -47,11 +52,37 @@ export function AsPlayerLink({ show, words }: { show: boolean; words: Words }) {
   return (
     <a
       className="tiny muted who-as-player"
-      href={`/api/keeper/as-player?on=1&to=${encodeURIComponent(pathname || '/')}`}
+      href={asPlayerHref(pathname || '/')}
       data-testid="as-player-start"
     >
       <Icon name="eye" size={13} />
       {words.asPlayer}
     </a>
+  );
+}
+
+/**
+ * §96 (C35): de zin in speler-termen, en *Bekijk als speler* ernaast.
+ *
+ * De Keeperkant van een pagina heeft drie mechanismen — een Keeperversie, "deze
+ * pagina is van de Keeper" en per sectie "alleen de Keeper" — en geen van de
+ * drie zei wat een speler daarna ziet. Deze regel zegt het, en de knop laat
+ * het zien: dezelfde route als *Kijk als speler* in de zijbalk
+ * (`asPlayerHref`), geen tweede weg. `to` is de pagina die de spelers te zien
+ * krijgen — bij een Keeperversie de spelersversie, anders deze pagina.
+ *
+ * Alleen de Keeper krijgt dit te zien, en dat beslist de server: elke plek die
+ * dit rendert staat al achter `isKeeper`.
+ */
+export function PlayerSees({ sentence, to, words }: { sentence: string; to?: string; words: Words }) {
+  const pathname = usePathname();
+  return (
+    <p className="tiny keeper-sees" data-testid="keeper-sees">
+      <span>{sentence}</span>{' '}
+      <a className="btn btn-small btn-ghost keeper-sees-go" href={asPlayerHref(to ?? pathname ?? '/')} data-testid="view-as-player">
+        <Icon name="eye" size={13} />
+        {words.viewAsPlayer}
+      </a>
+    </p>
   );
 }

@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { CHARACTER_TYPE_SLUG } from '@/lib/newEntryType';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { canView, grantFor, loadAccessRow, viewerCanEdit } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -14,6 +15,7 @@ import {
   VOORWERP_FIELD_KEY,
   type PlekKind,
 } from './shape';
+import { BUY_UNDO_GRACE_SECONDS, BUY_UNDO_SECONDS } from './undo';
 
 /**
  * §79: de kamer — de plekken, het grootboek, en wie wat mag.
@@ -62,6 +64,16 @@ export type SlotView = {
      * Null als het ding niets zegt te doen.
      */
     effect: string | null;
+    /**
+     * §93: op welke soorten plek dit ding past — wat *Verplaatsen* laat
+     * oplichten. Dezelfde lezer als overal (`plekKinds`).
+     */
+    plekken: PlekKind[];
+    /**
+     * §93: huisraad (`keeper_made`). Weghalen legt het dan in de lade van deze
+     * kamer; een gevonden voorwerp gaat, zoals altijd, terug de wereld in.
+     */
+    huisraad: boolean;
   } | null;
   /**
    * §79, and it is §76's rule again in a new place: this plek holds something
@@ -104,7 +116,18 @@ export type RoomView = {
    * them, and never says which wins (rule 78).
    */
   effects: { name: string; href: string; lines: string[] }[];
+  /**
+   * §93: wat er in de lade ligt — huisraad dat deze kamer bezit en dat op geen
+   * plek staat, één regel per ding met hoeveel. Alleen wat deze kijker mag zien;
+   * een lade is geen plek, dus wat hij niet mag zien is afwezig en niet
+   * versluierd (een plek die leeg lijkt terwijl hij vol is, is een leugen; een
+   * lijst die een geheim weglaat is dat niet).
+   */
+  drawer: DrawerLine[];
 };
+
+/** §93: één ding in de lade, met hoeveel exemplaren. */
+export type DrawerLine = { id: string; name: string; slug: string; count: number };
 
 /**
  * §90: de onderzoeker van deze kamer — wat een `room.*`-regel in het feed als
@@ -269,7 +292,9 @@ export function openRoomFor(entryId: string, viewer: Viewer): string | null {
  * De knop op het artikel vraagt dit, en `openRoomFor` vraagt het nóg een keer
  * (§17 regel 4: de knop is beleefdheid, de service weigert).
  */
-export const CHARACTER_TYPE_SLUG = 'investigator';
+// §96: one home for this slug — `lib/newEntryType.ts`, which is pure, so the
+// shell and this service read the same constant.
+export { CHARACTER_TYPE_SLUG };
 
 export function mayHoldRoom(entryId: string): boolean {
   const row = db
@@ -350,7 +375,7 @@ export function balanceOf(roomId: string): number {
 export type LedgerLine = {
   id: string;
   delta: number;
-  kind: 'grant' | 'slot' | 'item';
+  kind: 'grant' | 'slot' | 'item' | 'return';
   reason: string;
   createdAt: number;
   /**
@@ -425,7 +450,8 @@ export function ledgerOf(roomId: string, viewer: Viewer, limit = 50): LedgerLine
 
   return rows.map(({ entryId, ...line }) => ({
     ...line,
-    veiled: line.kind === 'item' && Boolean(entryId) && !visible.has(entryId as string),
+    // §93: een teruggebrachte koop noemt hetzelfde ding, dus dezelfde sluier.
+    veiled: (line.kind === 'item' || line.kind === 'return') && Boolean(entryId) && !visible.has(entryId as string),
   }));
 }
 
@@ -494,13 +520,14 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
           coverCrop: schema.entries.coverCrop,
           typeIcon: schema.entryTypes.icon,
           typeColour: schema.entryTypes.colour,
+          keeperMade: schema.entryTypes.keeperMade,
         })
         .from(schema.entries)
         .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
         .where(and(inArray(schema.entries.id, itemIds), visibleEntryCondition(viewer)))
         .all()
     : [];
-  const byId = new Map(items.map((item) => [item.id, item]));
+  const byId = new Map(items.map(({ keeperMade, ...item }) => [item.id, { ...item, huisraad: Boolean(keeperMade) }]));
   // §84: wie deze onderzoeker draagt, en hoe die heet.
   const owner = ownerOf(entry.id);
   // §80: the effect lines come off the same rows, and only the visible ones —
@@ -528,7 +555,11 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
     slots: rows.map((row) => {
       const found = row.entryId ? (byId.get(row.entryId) ?? null) : null;
       const item = found
-        ? { ...found, effect: effectLines(fieldsById.get(found.id)?.[EFFECT_FIELD_KEY])[0] ?? null }
+        ? {
+            ...found,
+            effect: effectLines(fieldsById.get(found.id)?.[EFFECT_FIELD_KEY])[0] ?? null,
+            plekken: plekKinds(fieldsById.get(found.id)?.[VOORWERP_FIELD_KEY]),
+          }
         : null;
       return {
         id: row.id,
@@ -551,7 +582,184 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
         lines: effectLines(fieldsById.get(item.id)?.[EFFECT_FIELD_KEY]),
       }))
       .filter((thing) => thing.lines.length > 0),
+    drawer: drawerOf(roomId, viewer),
   };
+}
+
+/* ---------------------------------------------------------------- de lade */
+
+/**
+ * §93: wat er in de lade van deze kamer ligt, door de ogen van wie kijkt.
+ *
+ * Eén regel per ding, met hoeveel — de volgorde is die waarin ze erin gelegd
+ * zijn, zodat wat je net weghaalde bovenaan staat.
+ */
+export function drawerOf(roomId: string, viewer: Viewer): DrawerLine[] {
+  const rows = db
+    .select({ entryId: schema.roomDrawer.entryId, name: schema.entries.name, slug: schema.entries.slug })
+    .from(schema.roomDrawer)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.roomDrawer.entryId))
+    .where(and(eq(schema.roomDrawer.roomId, roomId), visibleEntryCondition(viewer)))
+    .orderBy(sql`${schema.roomDrawer.createdAt} DESC, ${schema.roomDrawer}.rowid DESC`)
+    .all();
+  const out = new Map<string, DrawerLine>();
+  for (const row of rows) {
+    const line = out.get(row.entryId);
+    if (line) line.count += 1;
+    else out.set(row.entryId, { id: row.entryId, name: row.name, slug: row.slug, count: 1 });
+  }
+  return [...out.values()];
+}
+
+/** §93: hoeveel exemplaren van elk ding in deze lade liggen. Zonder kijker: dit is een telling voor een schrijver. */
+function drawerCounts(roomId: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of db
+    .select({ entryId: schema.roomDrawer.entryId })
+    .from(schema.roomDrawer)
+    .where(eq(schema.roomDrawer.roomId, roomId))
+    .all()) {
+    counts.set(row.entryId, (counts.get(row.entryId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** §93: één exemplaar in de lade leggen. Een INSERT draagt `room_id`, dus `room:{id}` beweegt. */
+function putInDrawer(tx: Tx, roomId: string, entryId: string) {
+  tx.insert(schema.roomDrawer).values({ id: newId(), roomId, entryId }).run();
+}
+
+/**
+ * §93: één exemplaar uit de lade nemen. Waar als er één lag.
+ *
+ * De DELETE noemt `room_id` in zijn WHERE, en niet om te filteren: §21 leest de
+ * live-sleutels uit de SQL, en een DELETE op `id` alleen noemt de kamer niet.
+ */
+function takeFromDrawer(tx: Tx, roomId: string, entryId: string): boolean {
+  const row = tx
+    .select({ id: schema.roomDrawer.id })
+    .from(schema.roomDrawer)
+    .where(and(eq(schema.roomDrawer.roomId, roomId), eq(schema.roomDrawer.entryId, entryId)))
+    .orderBy(sql`${schema.roomDrawer}.rowid DESC`)
+    .get();
+  if (!row) return false;
+  const done = tx
+    .delete(schema.roomDrawer)
+    .where(and(eq(schema.roomDrawer.id, row.id), eq(schema.roomDrawer.roomId, roomId)))
+    .run();
+  return done.changes > 0;
+}
+
+/**
+ * §80/§93: wat er in de wereld al vergeven is — elk uniek ding dat op een plek
+ * ligt (`room_slots.claim`) **of in een lade**.
+ *
+ * Drie lezers stelden deze vraag elk met hun eigen query (de catalogus, de
+ * winkel en de plek-kiezer). Sinds §93 heeft hij twee helften, en een lezer die
+ * er één vergeet biedt een lantaarn aan die in iemands lade ligt. Dus is er één
+ * functie. De lade krijgt geen `claim`-kolom: de vlag `one_of_a_kind` wordt hier
+ * live aan de soort gevraagd, dus een Keeper die hem omzet hoeft geen lade bij
+ * te werken.
+ */
+export function claimedIds(): Set<string> {
+  const out = new Set<string>();
+  for (const row of db.select({ claim: schema.roomSlots.claim }).from(schema.roomSlots).all()) {
+    if (row.claim) out.add(row.claim);
+  }
+  for (const row of db
+    .select({ entryId: schema.roomDrawer.entryId })
+    .from(schema.roomDrawer)
+    .innerJoin(schema.entries, eq(schema.entries.id, schema.roomDrawer.entryId))
+    .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+    .where(eq(schema.entryTypes.oneOfAKind, true))
+    .all()) {
+    out.add(row.entryId);
+  }
+  return out;
+}
+
+/** §93: één rij in "Wat je al hebt". `inDrawer` is hoeveel er in de lade van deze kamer liggen. */
+export type PlaceCandidate = {
+  id: string;
+  slug: string;
+  name: string;
+  shortDescription: string;
+  typeLabel: string;
+  typeIcon: string;
+  typeColour: string;
+  inDrawer: number;
+};
+
+/**
+ * §93: wat er op een plek van deze soort neergezet mag worden — de lijst van
+ * *Wat je al hebt*, en nu is die naam waar.
+ *
+ * Tot §93 was dit élk zichtbaar ding dat paste en niet vergeven was, en dus
+ * ook huisraad dat niemand ooit kocht: de winkel was te omzeilen (review E1).
+ * Nu drie bronnen, in deze volgorde:
+ *
+ *  1. **de lade van deze kamer** — wat je kocht of kreeg en weghaalde;
+ *  2. **gevonden voorwerpen** — alles wat geen huisraad is, zoals altijd;
+ *  3. **voor de Keeper alleen**: al het andere huisraad, want hij deelt uit
+ *     (§80: cadeau doen kost niets en schrijft geen regel).
+ *
+ * Een beleefdheid, geen regel: `placeItem` weigert wat hier ontbreekt net zo
+ * goed. De drie voorwaarden die altijd gelden (zichtbaar, past, niet vergeven)
+ * zijn die van `placeItem`.
+ */
+export function placeCandidates(roomId: string, kind: PlekKind, viewer: Viewer, scan = 1000): PlaceCandidate[] {
+  const taken = claimedIds();
+  const inDrawer = drawerCounts(roomId);
+  const columns = {
+    id: schema.entries.id,
+    slug: schema.entries.slug,
+    name: schema.entries.name,
+    shortDescription: schema.entries.shortDescription,
+    typeLabel: schema.entryTypes.label,
+    typeIcon: schema.entryTypes.icon,
+    typeColour: schema.entryTypes.colour,
+    keeperMade: schema.entryTypes.keeperMade,
+  };
+  const drawerIds = [...inDrawer.keys()];
+  const fromDrawer = drawerIds.length
+    ? db
+        .select(columns)
+        .from(schema.entries)
+        .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+        .where(and(inArray(schema.entries.id, drawerIds), visibleEntryCondition(viewer), plekMatches(kind)))
+        .orderBy(desc(schema.entries.updatedAt))
+        .all()
+    : [];
+  const rest = db
+    .select(columns)
+    .from(schema.entries)
+    .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+    .where(
+      and(
+        visibleEntryCondition(viewer),
+        plekMatches(kind),
+        // Een speler krijgt alleen gevonden voorwerpen; de Keeper ook huisraad.
+        ...(viewer?.isKeeper ? [] : [eq(schema.entryTypes.keeperMade, false)]),
+      ),
+    )
+    .orderBy(desc(schema.entries.updatedAt))
+    .limit(scan)
+    .all();
+
+  const out: PlaceCandidate[] = [];
+  const seen = new Set<string>();
+  for (const row of [...fromDrawer, ...rest]) {
+    if (seen.has(row.id)) continue;
+    const mine = inDrawer.get(row.id) ?? 0;
+    // Een uniek ding in je eigen lade is van jou; elders vergeven is het niet.
+    if (taken.has(row.id) && mine === 0) continue;
+    seen.add(row.id);
+    const { keeperMade: _keeperMade, ...candidate } = row;
+    out.push({ ...candidate, inDrawer: mine });
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------ the catalogue */
@@ -594,13 +802,8 @@ export function catalogueFor(kind: PlekKind, viewer: Viewer): CatalogueEntry[] {
    * something there is one of (§80), so a unique thing lying *here* is in this
    * set too. One list, one rule, and `roomId` is no longer part of the answer.
    */
-  const claimed = db
-    .select({ claim: schema.roomSlots.claim })
-    .from(schema.roomSlots)
-    .all()
-    .map((row) => row.claim)
-    .filter((id): id is string => Boolean(id));
-  const taken = new Set(claimed);
+  // §93: plekken én laden — zie `claimedIds`.
+  const taken = claimedIds();
 
   return db
     .select({
@@ -669,6 +872,18 @@ export type ShopItem = {
    * groups.
    */
   landsIn: Partial<Record<PlekKind, string>>;
+  /**
+   * §93: hoeveel ervan in de lade van deze kamer liggen — al in `ownedCount`
+   * meegeteld. Een label: "Ligt in je lade" zegt waar je hem terugvindt.
+   */
+  drawerCount: number;
+  /**
+   * §93 (E5): als er geen vrije plek is (`landsIn` leeg), de goedkoopste plek
+   * op slot waar dit ding op past — zodat "Geen vrije plek" een handeling
+   * wordt (*Kist openen · 5 munten*) en geen doodlopende zin. Null als er geen
+   * is, of als er wél een vrije plek is.
+   */
+  opens: { slotId: string; kind: PlekKind; price: number } | null;
   affordable: boolean;
 };
 
@@ -729,6 +944,7 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
           entryId: schema.roomSlots.entryId,
           unlockedAt: schema.roomSlots.unlockedAt,
           sortOrder: schema.roomSlots.sortOrder,
+          price: schema.roomSlots.price,
         })
         .from(schema.roomSlots)
         .where(eq(schema.roomSlots.roomId, room.id))
@@ -740,22 +956,30 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
     if (!slot.entryId) continue;
     mine.set(slot.entryId, (mine.get(slot.entryId) ?? 0) + 1);
   }
+  // §93: wat in de lade ligt, is ook van deze kamer.
+  const drawn = room ? drawerCounts(room.id) : new Map<string, number>();
   const freeByKind = new Map<PlekKind, string>();
   for (const slot of slots) {
     if (slot.unlockedAt === null || slot.entryId) continue;
     const kind = slot.kind as PlekKind;
     if (!freeByKind.has(kind)) freeByKind.set(kind, slot.id);
   }
+  /*
+   * §93 (E5): de goedkoopste plek op slot per soort, voor een rij die geen
+   * vrije plek heeft. Bij gelijke prijs de vroegste sport van de ladder — de
+   * `slots` staan al in `sort_order`, dus de eerste die we tegenkomen wint.
+   */
+  const lockedByKind = new Map<PlekKind, { slotId: string; price: number }>();
+  for (const slot of slots) {
+    if (slot.unlockedAt !== null) continue;
+    const kind = slot.kind as PlekKind;
+    const best = lockedByKind.get(kind);
+    if (!best || slot.price < best.price) lockedByKind.set(kind, { slotId: slot.id, price: slot.price });
+  }
   // §80: a claim is only ever made for a thing there is one of, so this is
   // exactly the set of unique things that are spoken for.
-  const claimed = new Set(
-    db
-      .select({ claim: schema.roomSlots.claim })
-      .from(schema.roomSlots)
-      .all()
-      .map((row) => row.claim)
-      .filter((id): id is string => Boolean(id)),
-  );
+  // §93: en sinds de lade ook wat daarin ligt — zie `claimedIds`.
+  const claimed = claimedIds();
 
   const items = db
     .select({
@@ -787,7 +1011,9 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
     })
     .filter((row) => row.plekken.length > 0 && row.price > 0)
     .map((row) => {
-      const ownedCount = mine.get(row.id) ?? 0;
+      const drawerCount = drawn.get(row.id) ?? 0;
+      // §93: bezit is plekken plus lade.
+      const ownedCount = (mine.get(row.id) ?? 0) + drawerCount;
       const owned = ownedCount > 0;
       /*
        * §83: owning one no longer keeps you from buying another — that was the
@@ -816,12 +1042,26 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
           if (row.plekken.includes(kind)) landsIn[kind] = free;
         }
       }
+      /*
+       * §93 (E5): geen vrije plek, maar wel één op slot die past — dan is de
+       * rij geen doodlopende zin maar een handeling: die plek openen, en
+       * daarna kopen. De goedkoopste over alle soorten waar het ding op past.
+       */
+      let opens: ShopItem['opens'] = null;
+      if (!held && Object.keys(landsIn).length === 0) {
+        for (const kind of row.plekken) {
+          const locked = lockedByKind.get(kind);
+          if (locked && (!opens || locked.price < opens.price)) opens = { ...locked, kind };
+        }
+      }
       return {
         ...row,
         owned,
         ownedCount,
+        drawerCount,
         takenElsewhere: !owned && row.unique && claimed.has(row.id),
         landsIn,
+        opens,
         affordable: Boolean(room) && room!.balance >= row.price,
       };
     })
@@ -979,6 +1219,20 @@ export function unlockSlot(slotId: string, viewer: Viewer): { spent: number } {
         })
         .run();
     }
+    /*
+     * §93: een regel in het feed, zoals neerzetten er één heeft. Het ding van
+     * de regel is de onderzoeker zelf (een geopende plek is geen artikel), dus
+     * hij is zichtbaar voor precies wie die onderzoeker mag zien — dezelfde
+     * zichtbaarheid als elke andere `room.*`-regel, die aan zijn ding hangt.
+     */
+    const character = roomCharacterOf(slot.roomId);
+    logActivity({
+      actorId: viewer?.id ?? null,
+      characterId: character,
+      verb: 'room.opened',
+      entryId: character,
+      meta: { slotId, kind: slot.kind, roomId: slot.roomId },
+    });
     return { spent: slot.price };
   });
 }
@@ -1101,16 +1355,31 @@ export function plekKindsOf(entryId: string): PlekKind[] {
  * `placeItem` and `buyFurnishing` both call this, because they are two writers
  * of one sentence and §17's rule 4 is what happens when they drift apart.
  */
-function requireNotPlaced(facts: ThingFacts, entryId: string, roomId: string) {
+function requireNotPlaced(facts: ThingFacts, entryId: string, roomId: string, fromOwnDrawer = false) {
   if (!facts.oneOfAKind) return;
   const elsewhere = db
     .select({ roomId: schema.roomSlots.roomId })
     .from(schema.roomSlots)
     .where(eq(schema.roomSlots.entryId, entryId))
     .get();
-  if (!elsewhere) return;
+  if (elsewhere) {
+    throw new KamerError(
+      elsewhere.roomId === roomId ? 'Dat ligt al ergens in deze kamer.' : 'Dat ligt al in een andere kamer.',
+    );
+  }
+  /*
+   * §93: en de lade. Een uniek ding in de lade van een ander is net zo vergeven
+   * als een op zijn plank; een uniek ding in je éígen lade mag alleen vandaar
+   * weer neergezet worden, niet nog eens gekocht.
+   */
+  const drawn = db
+    .select({ roomId: schema.roomDrawer.roomId })
+    .from(schema.roomDrawer)
+    .where(eq(schema.roomDrawer.entryId, entryId))
+    .get();
+  if (!drawn || (fromOwnDrawer && drawn.roomId === roomId)) return;
   throw new KamerError(
-    elsewhere.roomId === roomId ? 'Dat ligt al ergens in deze kamer.' : 'Dat ligt al in een andere kamer.',
+    drawn.roomId === roomId ? 'Dat ligt al in de lade van deze kamer.' : 'Dat ligt al in een andere kamer.',
   );
 }
 
@@ -1153,25 +1422,66 @@ export function placeItem(slotId: string, entryId: string, viewer: Viewer) {
   if (!facts?.plekken.length) throw new KamerError('Dat hoort nergens in een kamer.');
   if (!facts.plekken.includes(slot.kind as PlekKind)) throw new KamerError('Dat hoort niet op deze plek.');
 
-  requireNotPlaced(facts, entryId, slot.roomId);
+  /*
+   * §93: het Keeper-slot (review E1). Huisraad zet je alleen neer als je het
+   * **bezit** — en wat je bezit en niet op een plek ligt, ligt in de lade van
+   * deze kamer. Tot §93 vroeg deze functie dat niet, en de plek-kiezer bood
+   * dus elk stuk huisraad aan: Bertus zette een Kaartenkast van 6 munten
+   * gratis op zijn plank met 4 in zijn beurs. De Keeper mag het wel zonder
+   * lade, want hij deelt uit (§80: cadeau doen kost niets en schrijft geen
+   * regel). Een gevonden voorwerp gaat, zoals altijd, zonder lade.
+   */
+  const inOwnDrawer =
+    facts.keeperMade &&
+    Boolean(
+      db
+        .select({ id: schema.roomDrawer.id })
+        .from(schema.roomDrawer)
+        .where(and(eq(schema.roomDrawer.roomId, slot.roomId), eq(schema.roomDrawer.entryId, entryId)))
+        .get(),
+    );
+  if (facts.keeperMade && !inOwnDrawer && !viewer?.isKeeper) {
+    throw new KamerError('Dat heb je niet. Koop het eerst in de winkel.');
+  }
 
-  db.update(schema.roomSlots)
-    .set({
-      entryId,
-      placedAt: Math.floor(Date.now() / 1000),
-      // §80: the claim is the unique index's business, and it is only ever made
-      // for a thing there is one of.
-      claim: facts.oneOfAKind ? entryId : null,
-    })
-    /*
-     * §90: `room_id` in de WHERE, en niet omdat hij iets filtert. §21 leest de
-     * live-sleutels uit de SQL zelf, en een UPDATE die alleen `id = ?` bindt
-     * noemt de kamer niet — dus bewoog `room:{id}` nooit bij neerzetten, en
-     * zag een Keeper die meekeek niets (§83: een lezer die op een schrijver
-     * wacht die niet bestaat).
-     */
-    .where(and(eq(schema.roomSlots.id, slotId), eq(schema.roomSlots.roomId, slot.roomId)))
-    .run();
+  requireNotPlaced(facts, entryId, slot.roomId, inOwnDrawer);
+
+  db.transaction((tx) => {
+    // §93: uit de lade, als het daar lag — en dat eerst, zodat de claim van een
+    // uniek ding nooit op twee plaatsen tegelijk staat.
+    if (inOwnDrawer && !takeFromDrawer(tx, slot.roomId, entryId) && !viewer?.isKeeper) {
+      throw new KamerError('Dat ligt niet meer in de lade.');
+    }
+    const done = tx
+      .update(schema.roomSlots)
+      .set({
+        entryId,
+        placedAt: Math.floor(Date.now() / 1000),
+        // §80: the claim is the unique index's business, and it is only ever made
+        // for a thing there is one of.
+        claim: facts.oneOfAKind ? entryId : null,
+      })
+      /*
+       * §90: `room_id` in de WHERE, en niet omdat hij iets filtert. §21 leest de
+       * live-sleutels uit de SQL zelf, en een UPDATE die alleen `id = ?` bindt
+       * noemt de kamer niet — dus bewoog `room:{id}` nooit bij neerzetten, en
+       * zag een Keeper die meekeek niets (§83: een lezer die op een schrijver
+       * wacht die niet bestaat).
+       *
+       * §93: en alleen op een lege plek. Wat hier lag, werd tot nu toe stil
+       * overschreven — en was daarmee van niemand meer. Dat was vóór de lade
+       * een onhandigheid en is er nu een lek.
+       */
+      .where(
+        and(
+          eq(schema.roomSlots.id, slotId),
+          eq(schema.roomSlots.roomId, slot.roomId),
+          sql`${schema.roomSlots.entryId} IS NULL`,
+        ),
+      )
+      .run();
+    if (done.changes === 0) throw new KamerError('Daar ligt al iets.');
+  });
   logActivity({
     actorId: viewer?.id ?? null,
     // §90: namens de onderzoeker van déze kamer, niet het karakter dat de
@@ -1198,19 +1508,39 @@ export function clearSlot(slotId: string, viewer: Viewer) {
     .get();
   if (!slot) throw new KamerError('Die plek bestaat niet.');
   requireArrange(slot.roomId, viewer);
-  if (!slot.entryId) return;
-  db.update(schema.roomSlots)
-    .set({ entryId: null, placedAt: null, claim: null })
-    // §90: zie `placeItem` — de kamer in de WHERE is wat `room:{id}` laat bewegen.
-    .where(and(eq(schema.roomSlots.id, slotId), eq(schema.roomSlots.roomId, slot.roomId)))
-    .run();
+  if (!slot.entryId) return { toDrawer: false };
+  const entryId = slot.entryId;
+  /*
+   * §93: huisraad gaat de lade in, en is dus nog steeds van deze kamer. Tot §93
+   * was een gekocht ding na weghalen van niemand, en kon iedereen het gratis
+   * neerzetten (review E1). Een gevonden voorwerp gaat, zoals altijd, terug de
+   * wereld in: dat is van het verhaal, niet van de beurs.
+   */
+  const toDrawer = Boolean(factsOf(entryId)?.keeperMade);
+  db.transaction((tx) => {
+    const done = tx
+      .update(schema.roomSlots)
+      .set({ entryId: null, placedAt: null, claim: null })
+      // §90: zie `placeItem` — de kamer in de WHERE is wat `room:{id}` laat bewegen.
+      .where(
+        and(
+          eq(schema.roomSlots.id, slotId),
+          eq(schema.roomSlots.roomId, slot.roomId),
+          eq(schema.roomSlots.entryId, entryId),
+        ),
+      )
+      .run();
+    // Een tweede klik vond de plek al leeg: er gaat dan ook niets de lade in.
+    if (done.changes > 0 && toDrawer) putInDrawer(tx, slot.roomId, entryId);
+  });
   logActivity({
     actorId: viewer?.id ?? null,
     characterId: roomCharacterOf(slot.roomId),
     verb: 'room.cleared',
-    entryId: slot.entryId,
+    entryId,
     meta: { slotId },
   });
+  return { toDrawer };
 }
 
 /**
@@ -1303,7 +1633,189 @@ export function buyFurnishing(slotId: string, entryId: string, viewer: Viewer): 
         entryId,
       })
       .run();
+    // §93: een koop staat in het feed, onder de onderzoeker van déze kamer.
+    logActivity({
+      actorId: viewer?.id ?? null,
+      characterId: roomCharacterOf(slot.roomId),
+      verb: 'room.bought',
+      entryId,
+      meta: { slotId },
+    });
     return { spent: price };
+  });
+}
+
+/**
+ * §93: een koop ongedaan maken — Nick, ronde 54: *"een correctie, geen
+ * terugverkoop"*.
+ *
+ * Vier vragen, allemaal ín de transactie, want twee tabbladen mogen niet twee
+ * keer terugkrijgen:
+ *
+ *  1. **de laatste koop van dít ding in déze kamer** — de nieuwste `item`- of
+ *     `return`-regel voor dit artikel. Is dat al een `return`, dan is er niets
+ *     meer terug te brengen (een tweede klik, of een oudere koop);
+ *  2. **door jou** — alleen wie kocht, niet een huisgenoot en niet de Keeper;
+ *  3. **binnen het venster** — daarna een nette zin, geen stille weigering;
+ *  4. **het ding ligt er nog** — op de plek waar het landde, of (als het in de
+ *     tussentijd weggehaald is) in de lade.
+ *
+ * Het grootboek krijgt een regel erbij (`kind: 'return'`, *Leesstoel
+ * teruggebracht*) en verandert er geen: het saldo blijft de som (rule 78, §79
+ * regel 1). De feedregel van de koop gaat wél weg — een correctie van tien
+ * seconden is geen bijdrage, en "kocht Leesstoel" zou blijven staan voor iets
+ * dat niet gebeurd is.
+ */
+export function undoPurchase(roomId: string, entryId: string, viewer: Viewer): { returned: number; name: string } {
+  if (!viewer) throw new KamerError('Dit is jouw kamer niet.');
+  requireArrange(roomId, viewer);
+  return db.transaction((tx) => {
+    const last = tx
+      .select({
+        id: schema.roomLedger.id,
+        kind: schema.roomLedger.kind,
+        delta: schema.roomLedger.delta,
+        reason: schema.roomLedger.reason,
+        actorId: schema.roomLedger.actorId,
+        slotId: schema.roomLedger.slotId,
+        createdAt: schema.roomLedger.createdAt,
+      })
+      .from(schema.roomLedger)
+      .where(
+        and(
+          eq(schema.roomLedger.roomId, roomId),
+          eq(schema.roomLedger.entryId, entryId),
+          inArray(schema.roomLedger.kind, ['item', 'return']),
+        ),
+      )
+      .orderBy(sql`${schema.roomLedger.createdAt} DESC, ${schema.roomLedger}.rowid DESC`)
+      .get();
+    if (!last || last.kind !== 'item') throw new KamerError('Er valt hier niets terug te brengen.');
+    if (last.actorId !== viewer.id) throw new KamerError('Alleen wie het kocht, kan het terugbrengen.');
+    const now = Math.floor(Date.now() / 1000);
+    if (now - last.createdAt > BUY_UNDO_SECONDS + BUY_UNDO_GRACE_SECONDS) {
+      throw new KamerError('Dat kan alleen vlak na het kopen. Haal het weg; het blijft in je lade.');
+    }
+
+    // Van de plek waar het landde — of, als het intussen weggehaald is, uit de lade.
+    const fromSlot = last.slotId
+      ? tx
+          .update(schema.roomSlots)
+          .set({ entryId: null, placedAt: null, claim: null })
+          .where(
+            and(
+              eq(schema.roomSlots.id, last.slotId),
+              eq(schema.roomSlots.roomId, roomId),
+              eq(schema.roomSlots.entryId, entryId),
+            ),
+          )
+          .run().changes > 0
+      : false;
+    if (!fromSlot && !takeFromDrawer(tx, roomId, entryId)) {
+      throw new KamerError('Dat ligt er niet meer.');
+    }
+
+    const price = Math.abs(last.delta);
+    tx.insert(schema.roomLedger)
+      .values({
+        id: newId(),
+        roomId,
+        delta: price,
+        kind: 'return',
+        reason: last.reason,
+        actorId: viewer.id,
+        slotId: last.slotId,
+        entryId,
+      })
+      .run();
+
+    const bought = tx
+      .select({ id: schema.activity.id })
+      .from(schema.activity)
+      .where(
+        and(
+          eq(schema.activity.verb, 'room.bought'),
+          eq(schema.activity.actorId, viewer.id),
+          eq(schema.activity.entryId, entryId),
+        ),
+      )
+      .orderBy(sql`${schema.activity.createdAt} DESC, ${schema.activity}.rowid DESC`)
+      .get();
+    if (bought) tx.delete(schema.activity).where(eq(schema.activity.id, bought.id)).run();
+
+    return { returned: price, name: last.reason };
+  });
+}
+
+/**
+ * §93 (E10): een ding naar een andere plek in dezelfde kamer — zonder slepen
+ * (WCAG 2.5.7): tik *Verplaatsen*, tik de plek.
+ *
+ * Eén transactie, twee rijen, en de volgorde is de reden: eerst de oude plek
+ * leeg (en zijn claim los), dán de nieuwe vullen, anders botst de unieke index
+ * op `claim` met zichzelf. Beide UPDATEs noemen `room_id` (§90, `room:{id}`)
+ * en dragen hun voorwaarde zelf: de oude plek moet dit ding nog dragen, de
+ * nieuwe moet nog leeg en open zijn. Een tweede klik verplaatst niets.
+ */
+export function moveItem(fromSlotId: string, toSlotId: string, viewer: Viewer) {
+  const pick = (id: string) =>
+    db
+      .select({
+        id: schema.roomSlots.id,
+        roomId: schema.roomSlots.roomId,
+        kind: schema.roomSlots.kind,
+        unlockedAt: schema.roomSlots.unlockedAt,
+        entryId: schema.roomSlots.entryId,
+        claim: schema.roomSlots.claim,
+        placedAt: schema.roomSlots.placedAt,
+      })
+      .from(schema.roomSlots)
+      .where(eq(schema.roomSlots.id, id))
+      .get();
+  const from = pick(fromSlotId);
+  const to = pick(toSlotId);
+  if (!from || !to || from.roomId !== to.roomId) throw new KamerError('Die plek bestaat niet.');
+  requireArrange(from.roomId, viewer);
+  if (from.id === to.id) throw new KamerError('Dat ligt daar al.');
+  if (!from.entryId) throw new KamerError('Daar ligt niets.');
+  if (to.unlockedAt === null) throw new KamerError('Die plek is nog op slot.');
+  if (to.entryId) throw new KamerError('Daar ligt al iets.');
+  const entryId = from.entryId;
+  const visible = db
+    .select({ id: schema.entries.id })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(viewer)))
+    .get();
+  if (!visible) throw new KamerError('Dat artikel bestaat niet.');
+  const facts = factsOf(entryId);
+  if (!facts?.plekken.includes(to.kind as PlekKind)) throw new KamerError('Dat hoort niet op die plek.');
+
+  db.transaction((tx) => {
+    const emptied = tx
+      .update(schema.roomSlots)
+      .set({ entryId: null, placedAt: null, claim: null })
+      .where(
+        and(
+          eq(schema.roomSlots.id, from.id),
+          eq(schema.roomSlots.roomId, from.roomId),
+          eq(schema.roomSlots.entryId, entryId),
+        ),
+      )
+      .run();
+    if (emptied.changes === 0) throw new KamerError('Dat ligt daar niet meer.');
+    const filled = tx
+      .update(schema.roomSlots)
+      .set({ entryId, placedAt: from.placedAt ?? Math.floor(Date.now() / 1000), claim: from.claim })
+      .where(
+        and(
+          eq(schema.roomSlots.id, to.id),
+          eq(schema.roomSlots.roomId, to.roomId),
+          sql`${schema.roomSlots.entryId} IS NULL`,
+          sql`${schema.roomSlots.unlockedAt} IS NOT NULL`,
+        ),
+      )
+      .run();
+    if (filled.changes === 0) throw new KamerError('Daar ligt al iets.');
   });
 }
 
@@ -1560,13 +2072,19 @@ export function handOut(rows: HandOutRow[], reason: string, viewer: Viewer): { r
           createdAt: now,
         })
         .run();
+      /*
+       * §93: één regel per kamer, met de onderzoeker erbij — zoals `grant` er
+       * één schrijft. Het was één regel voor de hele uitdeling, zonder
+       * `characterId`, en dus een gift aan niemand in het bijzonder.
+       */
+      logActivity({
+        actorId: viewer.id,
+        characterId: room.entryId,
+        verb: 'room.granted',
+        meta: { roomId: row.roomId, delta: row.delta },
+      });
       total += row.delta;
     }
-    logActivity({
-      actorId: viewer.id,
-      verb: 'room.granted',
-      meta: { rooms: giving.length, total },
-    });
     return { rooms: giving.length, total };
   });
 }

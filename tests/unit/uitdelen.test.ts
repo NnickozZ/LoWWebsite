@@ -191,6 +191,7 @@ beforeAll(async () => {
 beforeEach(() => {
   sqlite.prepare('DELETE FROM room_ledger').run();
   sqlite.prepare('DELETE FROM room_slots').run();
+  sqlite.prepare('DELETE FROM room_drawer').run(); // §93
   sqlite.prepare('DELETE FROM rooms').run();
   ROOM = kamers.getOrCreateRoom('e-bram')!;
   ROOM_B = kamers.getOrCreateRoom('e-aagje')!;
@@ -551,14 +552,14 @@ describe('§83: een ding dat op meerdere soorten plek past', () => {
   });
 
   it('may be put down on either kind', () => {
-    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-klok', BRAM);
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-klok', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-klok', KEEPER);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-klok', KEEPER);
     expect(plek(ROOM, FREE_MUUR).entryId).toBe('h-klok');
     expect(plek(ROOM, FREE_BUREAU).entryId).toBe('h-klok');
   });
 
   it('is still refused on a kind it does not ask for', () => {
-    expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-klok', BRAM)).toThrow(/niet op deze plek/);
+    expect(() => kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-klok', KEEPER)).toThrow(/niet op deze plek/);
     expect(plek(ROOM, FREE_PLANK).entryId).toBeNull();
   });
 
@@ -584,7 +585,7 @@ describe('§83: een ding dat op meerdere soorten plek past', () => {
    * *bureau*. One answer for both would make the shop lie in one of them.
    */
   it('is for sale under one kind and not the other when one is full', () => {
-    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-kaars', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-kaars', KEEPER);
     const row = kamers.shopFor(BRAM, ROOM).items.find((item) => item.id === 'h-klok')!;
     expect(row.landsIn.muur).toBeUndefined();
     expect(row.landsIn.bureau).toBe(plek(ROOM, FREE_BUREAU).id);
@@ -694,8 +695,8 @@ describe('§83: hetzelfde ding mag vaker in één kamer', () => {
 
   /** And the same thing twice on a grid is two lines in "wat deze kamer je geeft". */
   it('counts twice in the effects list, because there are two of them', () => {
-    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-klok', BRAM);
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-klok', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-klok', KEEPER);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-klok', KEEPER);
     const view = kamers.viewRoomBySlug('bram-kuiper', BRAM)!;
     expect(view.effects.filter((row) => row.name === 'Een staande klok')).toHaveLength(2);
   });

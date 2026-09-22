@@ -8,7 +8,8 @@ import { Icon } from '@/components/Icon';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
-import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
+import { CHOICE_PARAM, readCamera, writeCamera, writeChoice } from '@/lib/canvas/memory';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
@@ -88,6 +89,13 @@ const MAP_COLOUR = 'var(--link)';
 export type Legend = { key: string; label: string; icon: string; colour: string; count: number };
 
 type View = { zoom: number; tx: number; ty: number };
+
+/** §94 (C5): a view read back out of `sessionStorage` is anybody's JSON. */
+function isMapView(value: unknown): value is View & { w?: number; h?: number } {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Partial<View>;
+  return [v.zoom, v.tx, v.ty].every((n) => typeof n === 'number' && Number.isFinite(n)) && (v.zoom ?? 0) > 0;
+}
 
 /**
  * §69: one step back on a landkaart. See the note on `undoStackRef` for why
@@ -255,6 +263,8 @@ export function MapCanvas({
 
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
+  const stageSizeRef = useRef(stageSize);
+  stageSizeRef.current = stageSize;
   const [view, setView] = useState<View>({ zoom: 1, tx: 0, ty: 0 });
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -343,6 +353,14 @@ export function MapCanvas({
   );
   /** Waar de oude code `setSelectedId(x)` zei. */
   const setSelectedId = selectOnly;
+  /*
+   * §94 (C5): the speld of the blad is in the address, so Back from its
+   * artikel lands on the same speld. Written only once the `?pin=` that came
+   * in has been read (`deepLinked`), or the first empty render would wipe it.
+   */
+  useEffect(() => {
+    if (deepLinked.current) writeChoice(CHOICE_PARAM.map, selectedId);
+  }, [selectedId]);
   const [placing, setPlacing] = useState<Placing | null>(null);
   /*
    * §73: leaving Bewerken puts the crosshair down (the potlood is put down
@@ -422,11 +440,30 @@ export function MapCanvas({
 
   // Fit once the stage has a size; later resizes keep the view the person set.
   const fitted = useRef(false);
+  /** §94 (C5): the camera this tab left here, if it left one — Back lands on it. */
+  const resumed = useRef(false);
   useEffect(() => {
     if (fitted.current || !stageSize.w) return;
     fitted.current = true;
     fit(stageSize);
-  }, [fit, stageSize]);
+    const kept = readCamera('map', map.id, isMapView);
+    if (kept) {
+      resumed.current = true;
+      /*
+       * Kept by its middle, not its corner: the stage this view was left on
+       * may have been another height (Bewerken has a toolbar row Lezen has
+       * not, and a phone reopens in Lezen), and a corner carried over puts the
+       * picture off-centre by the difference.
+       */
+      const shiftX = kept.w ? (stageSize.w - kept.w) / 2 : 0;
+      const shiftY = kept.h ? (stageSize.h - kept.h) / 2 : 0;
+      setView({ zoom: kept.zoom, tx: kept.tx + shiftX, ty: kept.ty + shiftY });
+    }
+  }, [fit, stageSize, map.id]);
+  // §94 (C5): and every view after the first is remembered, per tab.
+  useEffect(() => {
+    if (fitted.current) writeCamera('map', map.id, { ...view, w: stageSizeRef.current.w, h: stageSizeRef.current.h });
+  }, [view, map.id]);
 
   const clampZoom = useCallback((zoom: number) => {
     const min = fitZoomRef.current * MIN_ZOOM_FACTOR;
@@ -534,11 +571,13 @@ export function MapCanvas({
   useEffect(() => {
     if (deepLinked.current || !stageSize.w) return;
     deepLinked.current = true;
-    const pinId = search.get('pin');
+    const pinId = search.get(CHOICE_PARAM.map);
     if (pinId) {
       const pin = pins.find((p) => p.id === pinId);
       if (pin) {
-        centreOn(pin);
+        // §94 (C5): a camera this tab left here is where Back should land;
+        // only a link from elsewhere brings the speld to the middle.
+        if (!resumed.current) centreOn(pin);
         setSelectedId(pin.id);
       }
     }
@@ -2225,7 +2264,8 @@ function PinSheet({
   // §21: a note pin's name and text are shared fields — typed into by whoever
   // may edit the pin, saved by the room. The sheet joins the pin's room when it
   // opens (no state is handed over: the room answers within the round trip).
-  if (pin.kind === 'note' && mayEdit) {
+  // §94 (O6): and only in Bewerken — in Lezen a notitie shows its words.
+  if (pin.kind === 'note' && mayEdit && arranging) {
     return (
       <LiveFields room={pinFieldsRoomKey(pin.id)} state="" user={liveUser} canEdit>
         <PinSheetBody
@@ -2321,7 +2361,7 @@ function PinSheetBody({
         <>
           {pin.entry.shortDescription && (
             <p className="small map-pin-summary" style={{ margin: 0 }}>
-              {pin.entry.shortDescription}
+              <MentionText text={pin.entry.shortDescription} tokens />
             </p>
           )}
           <p style={{ margin: 0 }}>
@@ -2349,8 +2389,12 @@ function PinSheetBody({
         </p>
       )}
 
+      {/* §94 (O6, r37's leftover): in Lezen a notitie-speld shows what it
+          says, not two input boxes — its peek opened on "Naam" and "Tekst".
+          The boxes are Bewerken's, like everything else that changes the
+          drawing. */}
       {pin.kind === 'note' &&
-        (mayEdit ? (
+        (mayEdit && arranging ? (
           <>
             <label className="label" htmlFor="pin-name">
               Naam
@@ -2369,7 +2413,6 @@ function PinSheetBody({
               onValue={(next) => setText(next)}
               mentions
             />
-            <MentionRow text={text} />
             {shared && (
               <p className="tiny muted" style={{ margin: 0 }}>
                 Wat je hier typt wordt meteen bewaard en ziet iedereen op deze {words.map}.
@@ -2450,7 +2493,7 @@ function PinSheetBody({
         </p>
       )}
 
-      {mayEdit && pin.kind === 'note' && (
+      {mayEdit && arranging && pin.kind === 'note' && (
         <p className="tiny muted" style={{ margin: 0 }}>
           De naam en de tekst hierboven worden de naam en de eerste regel van het {words.entry}; de{' '}
           {words.mapPin} blijft staan waar hij staat.

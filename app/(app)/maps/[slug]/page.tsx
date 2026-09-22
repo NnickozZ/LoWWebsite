@@ -9,6 +9,7 @@ import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { BinSlot } from '@/components/ui/BinSlot';
 import { sideOf } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
@@ -149,23 +150,34 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
             inputId="map-title-name"
             testId="map-title"
           />
-          {ofEntry && (
-            <p className="small canvas-head-of">
-              De {words.map} van <Link href={`/e/${ofEntry.slug}`}>{ofEntry.name}</Link>
-            </p>
-          )}
-          {/* §39: the chip back up, beside the §23 one. "Op de grotere
-              landkaart: Zeeland" — a plattegrond with no way out is a dead
-              end, and the browser's Back button is not always on a phone. */}
-          {pinnedOn.length > 0 && (
-            <p className="small canvas-head-of">
-              Op de grotere {words.map}:{' '}
-              {pinnedOn.map((parent, index) => (
-                <span key={parent.id}>
-                  {index > 0 && ', '}
-                  <Link href={`/maps/${parent.slug}`}>{parent.name}</Link>
+          {/*
+            §23/§39, and §94 (C23): what this is a map *of*, and the chip back
+            up to the bigger landkaart. On a desk they are two sentences; on a
+            phone they cost two lines of a 105 px heading, so there they are one
+            row of chips with a short word in front ("Van", "Op"). One link per
+            target either way — only the words around it change.
+          */}
+          {(ofEntry || pinnedOn.length > 0) && (
+            <p className="small canvas-head-of map-head-links">
+              {ofEntry && (
+                <span className="map-head-link">
+                  <span className="map-head-long">De {words.map} van </span>
+                  <span className="map-head-short">{words.mapLinksOf} </span>
+                  <Link href={`/e/${ofEntry.slug}`}>{ofEntry.name}</Link>
                 </span>
-              ))}
+              )}
+              {pinnedOn.length > 0 && (
+                <span className="map-head-link">
+                  <span className="map-head-long">Op de grotere {words.map}: </span>
+                  <span className="map-head-short">{words.mapLinksOn} </span>
+                  {pinnedOn.map((parent, index) => (
+                    <span key={parent.id}>
+                      {index > 0 && ', '}
+                      <Link href={`/maps/${parent.slug}`}>{parent.name}</Link>
+                    </span>
+                  ))}
+                </span>
+              )}
             </p>
           )}
           {map.description && <p className="small muted canvas-head-desc">{map.description}</p>}
@@ -250,6 +262,23 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
            */}
           <KeeperPanelServer kind="map" id={map.id} user={user} />
         </section>
+      )}
+      {/*
+       * §94 (C11): the bin, below the fold, for every hand that may edit this
+       * landkaart — the same `BinSlot` the prikbord, the tijdlijn and the
+       * stamboom have. It was a button in the Keeper's drawer, so a speler with
+       * the right had no way to use it (O4).
+       */}
+      {mayEditMap && (
+        <div className="keeper-underfold">
+          <BinSlot
+            endpoint={`/api/maps/${map.id}`}
+            noun={words.map}
+            redirectTo="/maps"
+            note={`De ${words.mapPinPlural} erop blijven bewaard en komen mee terug.`}
+            testId="map-bin"
+          />
+        </div>
       )}
     </div>
   );

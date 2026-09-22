@@ -878,3 +878,29 @@ a.tree-node-name:focus-visible {
     display: none;
   }
 }
+
+/* §94 tekenvlakken (C8): de vier `+`-handgrepen dragen een woord (Ouder, Kind,
+   Partner, Broer/zus) en zijn daardoor een pil, die buiten de rand van het
+   kaartje staat in plaats van erover (`TreeHandles`, `pinOut`). Nog steeds
+   32 px hoog op het glas, en de naam van de knop (`aria-label`) verandert niet
+   (§64): het woord is voor het oog. */
+.tree-handle.tree-handle-worded {
+  width: auto;
+  min-width: 32px;
+  gap: 0.2rem;
+  padding: 0 0.55rem 0 0.4rem;
+  border-radius: 16px;
+  white-space: nowrap;
+}
+.tree-handle-word {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+}
+@media (max-width: 767px) {
+  .tree-stage .tree-handle.tree-handle-worded {
+    width: auto;
+    min-width: var(--tap);
+    border-radius: 22px;
+  }
+}

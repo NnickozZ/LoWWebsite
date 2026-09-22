@@ -9,8 +9,48 @@ import { useUi } from './ui/UiProvider';
 import type { EntrySummary } from '@/lib/entries/service';
 import { entryDisplayName, isAdrift } from '@/lib/entries/caseName';
 import { AdriftChip } from './entry/AdriftChip';
+import { KIND_ICON, KIND_WORD } from '@/lib/keeper/kinds';
+import type { OtherHit, OtherKind } from '@/lib/search/others';
+import { capitalise, fill, type Words } from '@/lib/words';
 
-type Results = { names: EntrySummary[]; bodies: EntrySummary[] };
+type Results = { names: EntrySummary[]; bodies: EntrySummary[]; others: OtherHit[] };
+
+const EMPTY: Results = { names: [], bodies: [], others: [] };
+
+/** §96: what a kind of other thing is called and wears — its §11 word, never a noun in here. */
+function otherLook(kind: OtherKind, words: Words): { word: string; icon: string } {
+  if (kind === 'speler') return { word: capitalise(words.player), icon: 'person' };
+  return { word: capitalise(words[KIND_WORD[kind]]), icon: KIND_ICON[kind] };
+}
+
+/**
+ * §96: a dossier, a vlak, an overzicht or a speler — found by name. The row is
+ * the feed's row, so the list reads as one list; what kind of thing it is sits
+ * where an artikel's description would.
+ */
+function OtherRow({ hit, words }: { hit: OtherHit; words: Words }) {
+  const look = otherLook(hit.kind, words);
+  return (
+    <Link
+      href={hit.href}
+      className="feed-item search-other"
+      style={{ color: 'inherit', textDecoration: 'none' }}
+      data-testid="search-other"
+      data-kind={hit.kind}
+    >
+      <span className="feed-thumb search-other-mark" aria-hidden="true">
+        <Icon name={look.icon} size={18} />
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <strong>{hit.name}</strong>
+        <span className="tiny muted" style={{ display: 'block' }}>
+          {look.word}
+          {hit.caseName ? ` · ${hit.caseName}` : ''}
+        </span>
+      </span>
+    </Link>
+  );
+}
 
 export type SearchType = { slug: string; label: string; icon: string; colour: string };
 
@@ -40,7 +80,7 @@ function ResultRow({ entry }: { entry: EntrySummary }) {
         )}
         <span className="tiny muted clamp-2" style={{ display: 'block' }}>
           {/* §48: flat chips — the hit is a link. */}
-          <MentionText text={entry.shortDescription} flat />
+          <MentionText text={entry.shortDescription} flat tokens />
         </span>
       </span>
     </Link>
@@ -67,7 +107,7 @@ export function SearchScreen({
   const ui = useUi();
   const [query, setQuery] = useState(initialQuery);
   const [type, setType] = useState(types.some((t) => t.slug === initialType) ? initialType : '');
-  const [results, setResults] = useState<Results>({ names: [], bodies: [] });
+  const [results, setResults] = useState<Results>(EMPTY);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -78,7 +118,7 @@ export function SearchScreen({
   useEffect(() => {
     const typed = query.trim();
     if (!typed) {
-      setResults({ names: [], bodies: [] });
+      setResults(EMPTY);
       return;
     }
     const controller = new AbortController();
@@ -90,7 +130,10 @@ export function SearchScreen({
         const response = await fetch(`/api/search?${params.toString()}`, {
           signal: controller.signal,
         });
-        if (response.ok) setResults((await response.json()) as Results);
+        if (response.ok) {
+          const body = (await response.json()) as Partial<Results>;
+          setResults({ names: body.names ?? [], bodies: body.bodies ?? [], others: body.others ?? [] });
+        }
       } catch {
         /* aborted */
       } finally {
@@ -195,6 +238,16 @@ export function SearchScreen({
             </section>
           ))}
 
+          {/* §96: the other things in the archive, by name, under "Alles" only. */}
+          {!chosenType && results.others.length > 0 && (
+            <section style={{ marginBottom: '1.2rem' }} data-testid="search-others">
+              <p className="eyebrow">{ui.words.searchOthers}</p>
+              {results.others.map((hit) => (
+                <OtherRow key={`${hit.kind}:${hit.id}`} hit={hit} words={ui.words} />
+              ))}
+            </section>
+          )}
+
           {results.bodies.length > 0 && (
             <section style={{ marginBottom: '1.2rem' }}>
               <p className="eyebrow">Genoemd in de tekst</p>
@@ -204,11 +257,12 @@ export function SearchScreen({
             </section>
           )}
 
-          {!busy && !results.names.length && !results.bodies.length && (
-            <p className="muted small">
+          {!busy && !results.names.length && !results.bodies.length && !results.others.length && (
+            <p className="muted small" data-testid="search-none">
+              {/* §96: honest now — under "Alles" every kind of thing was asked. */}
               {chosenType
-                ? `Niets onder ${chosenType.label.toLowerCase()} komt daarmee overeen.`
-                : 'Niets in het archief komt daarmee overeen.'}
+                ? fill(ui.words.searchNoneInType, { soort: chosenType.label.toLowerCase() })
+                : ui.words.searchNone}
             </p>
           )}
 

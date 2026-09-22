@@ -253,7 +253,8 @@ test('a landkaart is the map of a place, and goes on a wall as a card', async ({
     .first()
     .click();
   await expect(page.locator('.entry-chip', { hasText: 'De Schorre' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/De landkaart van/)).toBeVisible({ timeout: 15_000 });
+  // §94 (C23): a sentence on a desk, a chip on a phone — the link is the same.
+  await expect(page.locator('.map-head-link', { hasText: 'De Schorre' })).toBeVisible({ timeout: 15_000 });
 
   // The place knows it, from its own page.
   await page.goto('/e/de-schorre');

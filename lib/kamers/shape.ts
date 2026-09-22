@@ -95,6 +95,19 @@ export const VOORWERP_FIELD_KEY = 'plek';
 export const PRICE_FIELD_KEY = 'prijs';
 export const EFFECT_FIELD_KEY = 'effect';
 
+/**
+ * §93 (E24): de drie velden die een stuk huisraad te koop maken — plek, prijs
+ * en wat het geeft — in die volgorde, uit de velden van een soort. Null als er
+ * één ontbreekt: dan heeft het Nieuw-blad niets te vragen, want een soort
+ * zonder die drie komt nooit in de winkel (§80). Het blad vraagt ze meteen,
+ * met dezelfde veldcomponenten als de infobox; dit zegt alleen wélke.
+ */
+export function shopFieldsOf<F extends { key: string }>(fields: readonly F[] | null | undefined): F[] | null {
+  const byKey = new Map((fields ?? []).map((field) => [field.key, field]));
+  const three = [VOORWERP_FIELD_KEY, PRICE_FIELD_KEY, EFFECT_FIELD_KEY].map((key) => byKey.get(key));
+  return three.every(Boolean) ? (three as F[]) : null;
+}
+
 export type SlotSeed = { kind: PlekKind; price: number };
 
 /**

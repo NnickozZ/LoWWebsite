@@ -32,6 +32,8 @@ import { listEntryTypes } from '@/lib/entries/service';
 import { planCaseTabs, type CaseTabSource } from '@/lib/cases/tabs';
 import { Icon } from '@/components/Icon';
 import { deleteCaseAction } from './actions';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
+import { ShortChips } from '@/components/ui/ShortChips';
 
 export const dynamic = 'force-dynamic';
 
@@ -252,6 +254,9 @@ export default async function CasePage({
         flipTo={twinOf('case', record.id, user)?.href}
         flipList="/cases"
       />
+      {/* §95: the chips of the samenvatting and of every korte beschrijving
+          on the shelves, for this reader — nothing for what they may not see. */}
+      <ShortChips map={shortChipsFor(user, [record.summary, ...entries.map((entry) => entry.shortDescription)])}>
       <CaseDossier
       data={{
         id: record.id,
@@ -335,6 +340,7 @@ export default async function CasePage({
         ) : null
       }
     />
+    </ShortChips>
     </>
   );
 }

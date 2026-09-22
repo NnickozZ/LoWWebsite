@@ -194,6 +194,20 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 
 **Doel.** Eén knop `Alles in beeld` met icoon + woord (woord verborgen op de telefoon zoals `.tree-tool-word`), `aria-label` én `title`, die alles wat op het glas ligt in beeld brengt met 48 px lucht, tot `MAX_ZOOM` — op het prikbord tot 1.2 (§67). *Waarom:* drie plekken heten al zo, twee gebruiken al `fitViewport`, en de dop van het prikbord heeft een regel.
 
+> **Ronde 55 (§94): openen is niet passend maken.** De knop blijft precies
+> wat hierboven staat: hij toont alles, ook als de namen dan 5 px zijn. Een
+> knop die "alles" zegt en de helft laat zien, zou liegen, en de specs leunen
+> erop (CLAUDE.md §6). Wat veranderde, is het **openen**. Het prikbord en de
+> stamboom openen op een leesvloer: nooit kleiner dan de zoom waarop een naam
+> 10 px hoog is (`readableFit`, `readingFloor`, `READ_MIN_PX` in
+> `lib/canvas/view.ts`). Past het dan niet, dan begint het vlak linksboven
+> (een as die wel past, blijft gecentreerd). Het plafond wint nog steeds van
+> de vloer (1.2 op het prikbord). Heeft dit tabblad een camera voor dit vlak
+> (`sessionStorage`), of staat er een keuze in het adres, dan opent het vlak
+> daarop in plaats van op de leesvloer. Een gedeelde muur leest
+> `state.viewport` niet meer bij het openen. De landkaart en de tijdlijn
+> openen nog op hun fit.
+
 ### Rij 5 — Waar de zoomknoppen staan
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -326,6 +340,17 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 - `Lijn verwijderen` bevestigt niet waar alle andere verwijderingen op de stamboom dat doen (`FC:1888-1906`). `TOEVAL` — volgt `OPEN` (vraag 6).
 
 **Doel.** `Delete`/`Backspace` haalt de selectie weg op alle vier; de knop staat één klik diep in het paneel van het ding; bevestigen-of-undo-toast is één regel voor alle vier (`OPEN` (vraag 6)). *Waarom:* de toets en de plaats volgen uit de selectie en het paneel; alleen de bevestiging is een keuze die Nick moet maken.
+
+> **Ronde 55 (§94): het vlak zelf weggooien gaat op alle vier via `BinSlot`**
+> (review O3, en O4 met hem). Deze rij gaat over wat er *op* een vlak ligt; het
+> vlak zelf ging tot nu toe langs drie eigen knoppen en één `BinSlot`. Nu staat
+> op alle vier dezelfde dichtgevouwen lade onder de vouw
+> (`components/ui/BinSlot.tsx`), voor iedereen die het vlak mag bewerken. De
+> prullenbak in de werkbalk van het prikbord, *Van de muur halen* in de
+> Keepertools van de landkaart en de verwijderknop in het blad van een
+> tijdlijn zijn weg. Een speler met bewerkrecht op een landkaart had tot nu toe
+> geen weg (O4); die heeft hij nu. Uitgevoerd wat `DECISIONS.md` ronde 36
+> "een ronde en geen reparatie" noemde.
 ### Rij 11 — Rechtermuisknop en lang drukken
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -379,7 +404,7 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 **Afwijkingen.**
 - Hoekwoord per plek: **`BEWUST`** (*Bewust anders*; CLAUDE.md §5 "the corner passed as a word"). Maar de **telefoon**-hoek volgt alleen uit de klasse `ink-toolbar-board` (`CSS:5529-5536`): op het prikbord en de stamboom linksboven, op de landkaart linksonder, op de tijdlijn linksboven. Dat de telefoonregel aan één klasse hangt is `TOEVAL` — het hoekwoord hoort ook op de telefoon te beslissen, of de telefoon één hoek te hebben (rij 14).
 - Eenheden: **`BEWUST`** (*Bewust anders*).
-- Keeper-schakelaar: onder de vouw (twee) tegenover in een blad (twee). De regel (§34/§66, CLAUDE.md §5 "goes under the fold on a full-screen canvas") geldt voor full-screen canvassen; het prikbord staat niet op de §34-shell (§8 debt), de tijdlijn wel. `TOEVAL` voor de tijdlijn → `UnderFold`; prikbord blijft in het Rechten-blad tot het op de shell staat.
+- Keeper-schakelaar: onder de vouw (twee) tegenover in een blad (twee). De regel (§34/§66, CLAUDE.md §5 "goes under the fold on a full-screen canvas") geldt voor full-screen canvassen; het prikbord staat niet op de §34-shell (§8 debt), de tijdlijn wel. `TOEVAL` voor de tijdlijn → `UnderFold`; prikbord blijft in het Rechten-blad tot het op de shell staat. *(Ronde 55, §94: het prikbord staat nu op de schil en heeft een `#board-underfold`, maar daar staan de dossierkeuze en `BinSlot`. De tekenlaag-schakelaar van de Keeper staat nog in het Rechten-blad.)*
 - Potlood-aan en het `…`-menu: de inventaris vermoedde dat het menu open bleef (`FC:382-386`); `gemeten D-S3` zegt van niet — vervalt.
 - Wiel onder het vel: zoomt (drie) / pant (tijdlijn) — consistent met rij 1. Geen afwijking.
 
@@ -432,6 +457,33 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 > - **De schrijfvraag komt nooit in Lezen** (O12). Zie README regel 90: de
 >   poort is `useCanvasAuthorGate(editing || inkActive)`, en de camera, de
 >   schakelaar en de legenda dragen `data-author-gate="off"`.
+
+> **Ronde 55 (§94): de schakelaar vooraan, vinden, en een draad met een
+> vinger.**
+> - **De schakelaar tussen Lezen en Bewerken is op alle vijf de eerste knop
+>   onder de kop.** Het prikbord staat sinds deze ronde op de §34-schil
+>   (`.page-canvas`, review O5), met een kop zoals de andere drie.
+> - **Een net gemaakt vlak opent in Bewerken, ook op de telefoon** (O1, Nicks
+>   besluit). De maker stuurt `?new=1` (`freshHref`), en herladen is weer
+>   Lezen (§73).
+> - **Vinden is op de telefoon een loep van 44 px** (`.canvas-find-toggle` in
+>   `CanvasFind.tsx`) die het vak openklapt, op het prikbord en de stamboom. Op
+>   een tijdlijn staat *Ga naar…* in het tandwielblad, voor iedereen; een lezer
+>   ziet in dat blad alleen dit.
+> - **Een draad kan met een vinger** (O10): *Touwtje* in de inspector, dan een
+>   balk *Tik op de tweede kaart…* met *Toch niet*. De grip en het kader
+>   blijven van de muis.
+> - **Een notitie-speld toont in Lezen zijn tekst** (O6), niet twee
+>   invoervakken, en gaat geen live kamer in.
+> - **De keuze staat in het adres** (O13: `?card=`, `?pin=`, `?event=`,
+>   `?node=`), en de camera per tabblad in `sessionStorage`, niet in het adres:
+>   een camera is nooit gedeeld (regel 20). Terug landt op dezelfde plek.
+> - **De `+`-handgrepen van een stamboom dragen een woord** (*Ouder*, *Kind*,
+>   *Partner*, *Broer/zus*), als pillen buiten de rand van het kaartje. Hun
+>   `aria-label`s zijn niet veranderd (§64).
+> - **Nog open** (`CLAUDE.md` §8, ronde 55): het prikbord in Bewerken op de
+>   telefoon geeft het glas ongeveer de helft van het scherm, en het prikbord
+>   heeft nog geen beschrijvingskolom (O8).
 
 ### Rij 15 — Lege staat, laadstaat, foutstaat
 
@@ -644,6 +696,11 @@ kost; er staat geen keuze in. Fase 2 begint pas als hier een antwoord op staat
     van de schaal** — 200 px per dag leest als 200 %, precies waar
     `maxPxPerSecond` (`time:571-573`) toch al ophoudt, en de vloer van 1 px per
     jaar leest als 1 %.
+    **Op de tijdlijn opnieuw beantwoord in ronde 55 (§94, review O11):** daar
+    staat geen percentage meer maar de tijd die op het glas staat, in woorden
+    (*≈ 6 maanden*, `spanWords` in `lib/timelines/span.ts`, via de prop `level`
+    van `CanvasZoomControls`). "2 %" zei een lezer niets. De andere drie tonen
+    nog een percentage.
 
 Twee dingen die géén vraag zijn maar wel een keuze van deze ronde, voor de
 volledigheid: de **woorden** (`Ophangen`/`Aanmaken`/`Openen`, `Passend maken`,

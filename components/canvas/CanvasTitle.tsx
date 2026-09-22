@@ -112,6 +112,10 @@ export function CanvasTitle({
         ref={boxRef}
         id={inputId}
         className="canvas-name-input"
+        /* §94: no wider than the name, and never wider than the browser's
+           own twenty characters — a wider box pushed *Verbindingen* onto a
+           row of its own on a phone and took that row off the glass. */
+        size={Math.min(20, Math.max(8, name.length + 1))}
         value={name}
         onChange={(event) => setName(event.target.value)}
         onBlur={() => void save()}

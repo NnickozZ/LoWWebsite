@@ -18,7 +18,9 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 113 files, 2022 tests as of round 52 (round 38: 99 / 1596)
+npx vitest run         # 119 files, 2110 tests as of round 56 (golf 2 with
+                       # rounds 53, 54, 55 and 57: 118 / 2095; round 52:
+                       # 113 / 2022; round 38: 99 / 1596)
 npm run build          # must exit 0
 npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -163,7 +165,44 @@ freely there.
 - **The numbered rules in `README.md` are binding**, and code carries `§n`
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5-9][0-9]" app components lib` before
-  choosing a number — the latest is **§91 / rule 91** (round 52: jouw plek. De
+  choosing a number — the latest is **§96 / rule 96**, and **§95 is built
+  now** (round 56, after 57: numbers are not in building order), so the next
+  rule is **§97**. **§95 / rule 95** (round 56: één regel, één id. In de korte
+  vakken — korte beschrijving, samenvatting, infobox Tekst en Lange tekst — is
+  een vermelding een token `⟦handvat⟧` (`lib/entries/shortTokens.mjs`) met
+  één rij per vermelding in `mention_handles`; de naam komt alleen via
+  `resolveHandles`, per kijker, en wat je niet mag zien is **niets**, ook in
+  de kamer; elke schrijfweg gaat door `cleanShort`; het vak is `ShortField` →
+  `ShortEditor` op dezelfde `Y.Text`. Migratie `0034_een_id`. Zie
+  `tests/unit/ronde-56-een-id.test.ts`.) Round 57, §96: zoeken,
+  Beheer en de losse eindjes. `/search` vindt onder *Alles* ook dossiers,
+  overzichten, landkaarten, tijdlijnen, stambomen, prikborden en spelers op
+  naam (`searchOthers` in `lib/search/others.ts`, elke soort door zijn eigen
+  `list*` zonder `bothSides`); een Keeper-woord mag 200 tekens (`WORD_MAX`);
+  Beheer → Woorden heeft een zoekvak, ingeklapte groepen en een plakkende voet;
+  een nieuwe soort opent zichzelf; `/you` zet Lettertype en Kleuren onder de
+  karakters; de Keeperkant zegt wat een speler ziet (`PlayerSees`,
+  `asPlayerHref`); *Wie is er?* bij de stip op een computer. Geen migratie. Zie
+  `tests/unit/ronde-57-*.test.ts` en `tests/e2e/ronde-57-zoeken-en-beheer.spec.ts`.
+  Daarvoor **§94 / rule 94** (round 55: de tekenvlakken, vinden en terug. De
+  keuze in het adres (`?card=`/`?pin=`/`?event=`/`?node=`, `writeChoice` met
+  `replaceState(null, …)`), de camera per vlak per tabblad in `sessionStorage`
+  (`lib/canvas/memory.ts`), een net gemaakt vlak opent in Bewerken via
+  `?new=1` (`freshHref`), openen op een leesvloer (`readableFit`), vinden op
+  het vlak (`CanvasFind`, `findOnCanvas`), *Ga naar…* op een tijdlijn, een deur
+  van een artikel naar zijn stamboom, het prikbord op de §34-schil, en
+  `BinSlot` op alle vier. Geen migratie.) Daarvoor **§93 / rule 93** (round
+  54: de kamer, tweede pas. Migratie `0033_de_lade`: bezit is plekken plus de
+  lade (`room_drawer`), `placeItem` weigert een speler huisraad buiten de lade
+  van die kamer, weghalen legt huisraad in de lade, uniek is `claimedIds()`,
+  een koop mag tien seconden terug (`undoPurchase`, een `return`-regel erbij),
+  en verplaatsen is tik-tik (`moveItem`).) Daarvoor **§92 / rule 92** (round
+  53: de korte vakken. Buiten focus ligt `MentionPreview` over een kort vak
+  (chips, geen haakjes), in focus de ruwe tekst; `MentionRow` bestaat niet
+  meer; een losse `[[` verdwijnt bij het verlaten en bij Escape
+  (`dropDanglingOpeners`); de namenlijst meet tegen `visualViewport`
+  (`placeSuggestList`); `enterLeaves` op een vak van één regel; op een telefoon
+  is de infobox ook in Lezen dicht. Geen migratie.) Daarvoor **§91 / rule 91** (round 52: jouw plek. De
   tweede bouwronde na de UI/UX-review, en weer **geen migratie** en geen
   verwijderd bestand. De speler heeft een vaste plek: op een computer de groep
   *Jouw plek* in de zijbalk (Kamer met saldo, Winkel met `?kamer=`, Mijn
@@ -350,11 +389,28 @@ freely there.
   Keeper can rename (`karakter`, `Keeper`, `artikel`, …) live in `lib/words.ts`
   and must never be hardcoded in a component.
 - **Migrations are appended and guarded**, numbered `NNNN_name` — latest is
-  `0032_sloten` (§89: `users.password_enc` leeggemaakt en gedropt, en alle
+  **`0034_een_id`**, so **the next is `0035_`** (both explained after the
+  0033 note). `0033_de_lade` (§93: de tabel `room_drawer (id, room_id, entry_id,
+  created_at)`, één rij per exemplaar huisraad dat een kamer bezit en op geen
+  plek heeft liggen. Hij vult niets in: een migratie die eigendom verzint,
+  geeft iemand iets waar hij nooit voor betaalde. `scripts/restore.mjs` leegt
+  `room_drawer` als een backup hem niet heeft, dus een backup van vóór 0033
+  opent met lege laden). Then **`0034_een_id`** (§95: de tabel
+  `mention_handles (handle, entry_id, created_by, created_at)`, plus een
+  **JavaScript-stap**: a migration may carry `run: (sqlite) => …` beside its
+  `sql`, and `lib/db/open.mjs` runs it in the same transaction. 0034's step is
+  `upgradeArchive` in `lib/entries/shortUpgrade.mjs`, which converts every
+  `[[Naam]]`/`@Naam` in the short texts, their revisions and voorstellen with
+  the reader's own old algorithm, wipes the stored room state of the
+  `entry:*:fields`/`case:*:fields` rooms and rewrites the FTS rows it touched.
+  `scripts/restore.mjs` runs the same conversion on a backup that does not
+  know 0034). Put a `run` step's logic in a
+  `.mjs` beside the code that reads the result, never inline in
+  `migrations.mjs` — restore needs it too. Before `0033`: `0032_sloten` (§89: `users.password_enc`
+  leeggemaakt en gedropt, en alle
   sessies weg omdat ze voortaan met een HMAC worden opgeslagen — iedereen logt
   één keer opnieuw in; `scripts/restore.mjs` slaat kolommen over die niet meer
-  bestaan, zodat een oude backup blijft openen), so **the next is `0033_`**.
-  Before it: `0031_eigen_naam_en_icoon` (§88: `site_settings.favicon_asset_id` erbij, plus
+  bestaan, zodat een oude backup blijft openen). Before it: `0031_eigen_naam_en_icoon` (§88: `site_settings.favicon_asset_id` erbij, plus
   een `UPDATE` die het archief hernoemt **alleen waar het nog 'Zeeland Case
   Files' heet** — een migratie die een naam overschrijft die iemand zelf koos,
   gooit data weg). Before it:
@@ -715,6 +771,12 @@ freely there.
   `MentionRow` under it while it is typed** (§54 round 27, §56 round 28) — or
   the same text will be chips on one screen and brackets on the next. Both live
   in `MentionPopover.tsx` and render nothing when no name resolves.
+  *(§92 removed `MentionRow`; §95 took the korte beschrijving, the
+  samenvatting, Tekst and Lange tekst off this road entirely — they are
+  `ShortField`s and store handles, see the §95 bullets below. What follows
+  still holds for the boxes that write `[[Naam]]`: a kaartje, a speld, a
+  gebeurtenis, the maakbladen of a landkaart, a tijdlijn and a stamboom, and an
+  overzicht's lead.)*
   `MentionOverlay` mirrors the box's *computed* typography (`MIRROR_PROPS`), and
   **its chip is the whole `[[Naam]]` run, brackets included** — drop the
   brackets and every glyph after a mention shifts out from under the caret.
@@ -826,6 +888,13 @@ freely there.
   `lib/db/seed.mjs` in **both** halves — the field in `ENTRY_TYPES` for a new
   archive **and** a marker block (`seed:round-32-stamboom-link`) for one that
   already exists. Miss the marker and only new archives ever see the field.
+  **A tenth, since §95, for a kind that holds text:** decide whether it is a
+  short box with chips (`ShortField` in `FieldsEditor`, `isShortFieldKind` in
+  `lib/entries/shortRefs.ts`, so `cleanShort` runs on it in `createEntry` and
+  `updateEntry`, and `MentionText tokens` on the reading face) or plain text
+  (`LiveField`). Only `text` and `longtext` are short boxes today; a kind that
+  is one on its writing face and not in `isShortFieldKind` stores handles that
+  nobody cleans.
 - **Nothing lands while a hand is on the page** (§59, round 29). Anything
   mid-gesture — a drag, an open sheet with half-typed fields, an ink stroke, an
   upload — calls `useHoldRefresh(busy)` from `components/live/refreshHold.ts`,
@@ -871,8 +940,12 @@ freely there.
   **through the ORM logger** (`setChangeDelivery` + `flushChanges`, as in
   `tests/unit/ronde-51-economie.test.ts`), not only with `keysOfStatement` on
   a hand-written string. A string test proves the mapping. It does not prove
-  that the writer produces a statement the mapping can read. One writer is
-  still blind: the claim reset in `lib/admin/types.ts` (see §8, round 51).
+  that the writer produces a statement the mapping can read. ~~One writer is
+  still blind: the claim reset in `lib/admin/types.ts` (see §8, round 51).~~
+  **Closed in round 54 (§93)**: the claim reset names `room_id` now. And
+  `room_drawer` is in `TABLES` too: an `INSERT` carries `room_id` by itself,
+  and the `DELETE` of one drawer row (`takeFromDrawer`) names the kamer in its
+  `WHERE` for the same reason `placeItem` does.
 - **`commit` takes an updater; never build the next board document from
   `cards` captured at render** (§61, round 29).
   `components/boards/BoardCanvas.tsx` keeps `cardsRef`/`stringsRef` beside its
@@ -1119,12 +1192,127 @@ freely there.
   a clock on that would call a healthy line dead. A failed autosave *request*
   is `offline`, not `error`. Its patch goes back into the queue under anything
   typed since and goes out again on the browser's `online`.
-- **A key in `lib/words.ts` is cut to 60 characters when the Keeper overrides
+- ~~**A key in `lib/words.ts` is cut to 60 characters when the Keeper overrides
   it** (`cleanWordOverrides`), and round 51 added sentences longer than that
   (`saveOffline`, `newEntryWhoReads`, `passwordReset`, `keeperGuestNobodyGift`,
   `keeperWearsNone`; `handoutEmpty` was already over). The fallback shows in
   full. A Keeper who rewrites one of them loses the tail. This is a leftover
-  (§8, round 51), not a licence: keep a new key under 60 until the cap moves.
+  (§8, round 51), not a licence: keep a new key under 60 until the cap moves.~~
+  **The cap moved in round 57 (§96): a Keeper's word may be 200 characters**
+  (`WORD_MAX` in `lib/words.ts`, the only place the number lives; `WordsForm`
+  reads it for its `maxLength`). The longest default is 144, and
+  `tests/unit/ronde-57-woorden.test.ts` fails if a default outgrows the cap.
+  `tests/unit/ronde-51-canvas.test.ts` still asks its own keys for ≤ 60,
+  which is stricter than needed and harmless.
+- **A preview over a box never takes the box's click** (§92). `MentionPreview`
+  lies over a short box while it has no focus, and it is `pointer-events: none`
+  everywhere except on its chips. A first version took the whole press and set
+  the caret itself; then every gesture meant for the box (a spec clicking it,
+  a tool pointing at it) hit the preview instead, and Playwright reported
+  "intercepts pointer events" until it timed out. The box is the thing; the
+  preview is a picture. It also stays out of the handover (§56, §7): it is an
+  ordinary child in a `.mention-field` that exists from the first render, and
+  it never touches the box's `value` or `onChange`. `MentionRow` is gone; do
+  not bring back a row under a box. ~~For round 56: `dropDanglingOpeners`,
+  `placeSuggestList`/`currentView`, `enterLeaves` and `.mention-field` stay;
+  `MentionPreview`, `previewSegments` and `useBoxFocus` go once the box draws
+  its own chips.~~ **Round 56 (§95):** the four short boxes and the two
+  maakbladen of an artikel and a dossier draw their own chips now and have no
+  preview, no `.mention-field` and no `useBoxFocus`. All of those — and
+  `dropDanglingOpeners`, `placeSuggestList`/`currentView`, `enterLeaves` — stay
+  for the boxes that still write `[[Naam]]` (a kaartje, a speld, a
+  gebeurtenis, the maakbladen of a landkaart, tijdlijn and stamboom, an
+  overzicht's lead). `ShortEditor` reuses `dropDanglingOpeners` and
+  `placeSuggestList`, and `lib/editor/shortBox.ts` gained `alignedDelta`.
+- **A suggest list places itself with `placeSuggestList`** (§92, pure, in
+  `lib/editor/shortBox.ts`), measured against `currentView()` — the
+  `visualViewport` where there is one, so a phone's keyboard is not "room
+  below". The rich editor's `SuggestionPopup` and the short boxes share it; a
+  third list does too, rather than measuring the window again.
+- **A name in a short box is a handle, and a handle is resolved per reader**
+  (§95). The korte beschrijving, a dossier's samenvatting and an infobox Tekst
+  or Lange tekst store `⟦handle⟧` (`lib/entries/shortTokens.mjs`), with one
+  row per *mention* in `mention_handles`. Never put an entry's id or name in
+  that string: the box is a `Y.Text` handed whole to every reader of the
+  record, and a CRDT cannot be scrubbed per viewer (rule 1). A name comes out
+  only through `resolveHandles(viewer, …)` in `lib/entries/shortRefs.ts`,
+  behind `visibleEntryCondition`, and what a reader may not follow is
+  **absent** — drawn as nothing, not as a dead chip. On the page that is
+  `<ShortChips map={shortChipsFor(user, texts)}>` around anything that prints
+  short texts, so the first paint has its chips; on the server where no chip
+  can be drawn (history, voorstellen, prullenbak) it is `plainShort`; in the
+  FTS it is `indexShort`. A new page that shows a korte beschrijving or a
+  samenvatting gets the `<ShortChips>` too, or every chip on it is one fetch
+  late. A new reader prints `MentionText tokens` (or `plain` in a flat row),
+  never the raw string: raw, a handle is `⟦Ab3…⟧` on the screen.
+- **Every road into a short text goes through `cleanShort`** (§95, the §89 of
+  a string): `createEntry`, `updateEntry`, `createCase`, `updateCase`. It drops
+  stray `⟦⟧` and control characters (a newline becomes a space except in a
+  Lange tekst), drops a *new* handle the writer may not see, puts back at the
+  end a handle the writer could not see and left out (§67), and turns a
+  typed-out `[[Naam]]` into a chip when the writer may see that artikel. When
+  its answer differs from what the room sent, `resetFieldsInRoom` brings the
+  room in line. A handle is minted only by `mintHandle` (`POST
+  /api/mentions/handle`), which asks the same visibility question. A sixth
+  road in is a sixth call to `cleanShort`, on the day it is built.
+- **A short box is `ShortField` → `ShortEditor`, and it is not `LiveField`**
+  (§95). Tiptap 2 via `next/dynamic` with `ssr: false` (keep it out of the
+  shell), its own schema (`inline*` plus an atomic `shortChip` that stores
+  only its `handle`; `hardBreak` only in a Lange tekst), bound as a *string*
+  to the same `Y.Text` with `BoundField`'s §25 handover — not y-prosemirror.
+  A remote change lands as one step outside history, widened to token
+  boundaries by `alignedDelta`, so a chip is never cut in half. Enter leaves
+  (Lange tekst: new line), paste is plain text, a picked name asks for a
+  handle before the chip is written. Kaartje, speld, gebeurtenis and the
+  canvases' descriptions still write `[[Naam]]`; `MentionText` reads both
+  forms, so moving one of them over is its own column, conversion and
+  readers — not a flag.
+- **Owning a stuk huisraad is a slot or a drawer row, and unique has one
+  reader** (§93). `placeItem` refuses a speler anything `keeper_made` that is
+  not in the drawer of *that* kamer; the Keeper may place anything but takes
+  from the drawer first. `clearSlot` puts huisraad in the drawer. Placing only
+  lands on an **empty** plek (`entry_id IS NULL` in the `UPDATE`). "Is this
+  unique thing taken?" is `claimedIds()` and nothing else: it reads
+  `room_slots.claim` *and* every drawer row of a `one_of_a_kind` soort, asking
+  the flag live. Never write a third query for it. *Wat je al hebt* is
+  `placeCandidates()`. A buy is undone only through `undoPurchase` (one
+  transaction, the buyer, the last buy of that thing in that kamer, within
+  `BUY_UNDO_SECONDS` + `BUY_UNDO_GRACE_SECONDS` from `lib/kamers/undo.ts`,
+  which is pure so the toast reads the same number), and it **adds** a
+  `return` line; it never edits one. `components/kamer/Verplaatsen.tsx` and
+  `components/kamer/buyToast.ts` are in the scope of
+  `tests/unit/kamer-contract.test.ts`, so their words are keys.
+- **A `replaceState` that Next must follow passes `null`, never
+  `history.state`** (§94). Next patches `history.replaceState` and copies the
+  new address into its router only when the data carries no `__NA`; pass the
+  old state and the next render of the app router puts the old URL back.
+  `writeChoice` in `lib/canvas/memory.ts` is the worked example, and
+  `AdminTabs.tsx` had the same bug from round 51 until after the golf-2 merge.
+- **A canvas remembers two things, one way** (§94). The choice goes in the
+  address (`writeChoice`/`readChoice` with `CHOICE_PARAM`), the camera in
+  `sessionStorage` (`readCamera`/`writeCamera`, key
+  `canvas:{kind}:{id}:camera`, validated on read because it is anybody's
+  JSON). Never `localStorage` for a camera: a new session opens on a readable
+  start, and a camera is never shared (rule 20). A new canvas calls those
+  three, and `tests/unit/ronde-55-tekenvlakken.test.ts` holds the pure halves.
+  A maker sends you to its new canvas through `freshHref(path)` (`?new=1`),
+  which `useCanvasMode` reads once and strips a frame later; do not invent a
+  second "just made" flag.
+- **Opening is not fitting** (§94). The prikbord and the stamboom open with
+  `readableFit(bounds, stage, readingFloor(nameSize))`, never below a 10 px
+  name; the *Alles in beeld* button still calls the plain fit and shows
+  everything. A spec that wants "everything on the glass" presses the button
+  (§6), it does not trust the opening view.
+- **A new kind of container belongs in `lib/search/others.ts` too** (§96),
+  read through its own `list*` without `bothSides`, with an entry in
+  `OTHER_KINDS` and a word and icon in `KIND_WORD`/`KIND_ICON`. That makes it
+  one more place on the §66 list of about twenty.
+- **In a form that posts everything, a folded or filtered row is `hidden`,
+  never unmounted** (§96). `saveWords` replaces the whole list with what the
+  form posts, so a box that is not rendered loses its word on save. And never
+  put a `<summary>` inside `details.admin-type`: a spec that finds a soort by
+  its summary's name then matches a picker in another soort (`TargetsPicker`
+  is a button with `aria-expanded` for that reason).
 
 ---
 
@@ -1487,8 +1675,10 @@ mistakes. Check yours against these before declaring a spec finished.
   to the screen through `getScreenCTM` because the drawing hangs under a CSS
   transform — and take the first point `elementFromPoint` says is still the
   line's (`clickLine` in `tests/e2e/family-trees-33.spec.ts`).
-- **On a phone the infobox is a folded `<details id="block-info">`** that only
-  springs open while *reading*, so a spec that switches to the editing face
+- **On a phone the infobox is a folded `<details id="block-info">`**, and since
+  §92 (round 53) it is folded while *reading* too, with a `FieldsPeek` under
+  it (until then it sprang open while reading). A spec that reads a fact on a
+  phone opens it first, and a spec that switches to the editing face still
   finds every field attached, laid out and `hidden`. Call `openInfobox()`
   (`family-trees-33.spec.ts`) before touching a field — it is a no-op at
   1440 px, where the same block is a `<section>` — and press the summary until
@@ -1528,6 +1718,58 @@ mistakes. Check yours against these before declaring a spec finished.
   before that reads the server's guess and returns just before the phone turns
   to Lezen. Some specs also wait for a Bewerken-only control to appear
   (`tree-add-loose`, `Speld zetten`), which is the belt to that pair of braces.
+  **Since §94 (round 55) a canvas you just made opens in Bewerken** (`?new=1`,
+  stripped a frame later), so a spec that tests §73's Lezen on a fresh canvas
+  reloads first. `editCanvas` stays harmless on a canvas that is already in
+  Bewerken.
+- **A reload keeps the choice and the camera** (§94). The choice is in the
+  address (`?card=`, `?pin=`, `?event=`, `?node=`) and the camera in this
+  tab's `sessionStorage`. A spec that wants a *fresh visit* opens the bare
+  path (`page.goto('/timelines/x')`, not `reload()`), and one that wants the
+  original camera presses *Alles in beeld* first. The ink specs set the camera
+  back before they reload, for this reason. And an opening view is a
+  readable fit on the prikbord and the stamboom, not "everything": press
+  *Alles in beeld* before asserting that a far card is visible.
+- **Finding on a canvas is a loep on a phone** (§94). The box is behind a
+  44 px `.canvas-find-toggle`; press it before you fill. On the prikbord in
+  Bewerken the find is not a box at all but the *Op dit prikbord* group at the
+  top of the `BoardPicker`.
+- **The new-entry sheet is name first, then a soort strip** (§92). The name box
+  is on top and has the focus; the soort is a scrolling row of radios with
+  *Alle soorten* to fold it out, so `getByRole('radio', { name, exact: true })`
+  still works, but a soort scrolled out of view is attached and not visible
+  until the strip scrolls it in. The sheet keeps a draft of name and
+  description (`DRAFT_ENTRY`, §69), so a spec that opens it twice in one page
+  finds what it typed the first time.
+- ~~**A short box shows chips while it has no focus** (§92). Its raw text,
+  brackets included, is in the box and visible only in focus; out of focus
+  `[data-testid="mention-preview"]` draws it. Assert `toHaveValue` on the box,
+  or press Tab away and look at the preview.~~ Since §95 that is true only of
+  the boxes that still write `[[Naam]]` (a kaartje, a speld, a gebeurtenis,
+  the maakbladen of a landkaart, tijdlijn and stamboom). Never click a chip to
+  put the caret in the box, in either kind: a chip is a link.
+- **The korte beschrijving, a samenvatting and an infobox Tekst / Lange tekst
+  are a `contenteditable` since §95**, not an `<input>` — `inputValue()`
+  throws on one and `toHaveValue` never passes. Read them with `boxValue` /
+  `expectBoxValue` from `tests/e2e/helpers.ts` (they read `.value` off a real
+  input and `innerText` off an editor, so one helper serves both).
+  `fillWhenReady` already goes through `boxValue`, and `locator.fill()` works
+  on the editor. The old ids are on the editable element (`#entry-lead`,
+  `#case-summary`, `#field-<key>`, `#new-entry-description`,
+  `#new-case-summary`). The chip is
+  `.short-chip` **inside** the box, and there is no raw `[[…]]` to assert in
+  focus any more. The name list is the rich editor's `SuggestionPopup` now,
+  but it keeps `data-testid="mention-pop"`. `End` goes to the end of the
+  *visible* line in a wrapped box, not of the text. And the *Nieuw artikel*
+  sheet keeps an unsent draft (§69), chips included, so a spec that opens it
+  twice in one page takes `.last()` of the chip it just made.
+- **A picker helper waits for `data-answered="ja"`** (§93) before it judges
+  which tab the plek-kiezer landed on. The picker opens on *Wat je al hebt* and
+  switches to the catalogue only once its answer is in (K29), so a helper that
+  looks straight away sees the wrong tab (`huisraad.spec.ts`).
+- **A new soort in Beheer opens itself** (§96). Clicking its summary after
+  making it *closes* it. Assert `toHaveAttribute('open', '')` instead of
+  clicking.
 - **Fingers go through CDP, and a released finger is named.**
   `Input.dispatchTouchEvent`: `touchStart`/`touchMove` list every finger that
   is down, and `touchEnd` lists **the finger that leaves** — leaving it out of a
@@ -1591,21 +1833,160 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51 and 52
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56 and 57
+
+*Rounds 53, 54, 55 and 57 were built at the same time, in four worktrees on
+`ronde-52`, and merged as `golf-2`. ~~Round 56 (§95, the one-line editor with
+migration `0034_`) is not built yet.~~ Round 56 (§95, migration `0034_een_id`)
+was built on `golf-2` after them, so its block stands first. The blocks below
+are newest first.*
+
+**Round 56 (§95) leaves these, all named on purpose:**
+
+- **The running text has the leak this round closed for the short boxes.** An
+  `entryLink` in `entries.body` carries its `label` and its `id` to everyone
+  who may see the artikel — in the RSC and in the room — also when the linked
+  artikel is one they may not see. The same handle idea would close it, but
+  it is a document, a second live shape and every reader of `body`: a round
+  of its own, and the first one to pick up here.
+- **Short texts do not count under "Genoemd in".** They never did (only
+  `body`, the link fields and the canvases write `entry_mentions`), but now
+  that a short text holds handles it is cheap: `handlesIn` + one join onto
+  `mention_handles`, in `recomputeFieldMentions` and the case half.
+- **`restoreCaseRevision` puts a samenvatting back without touching the
+  `case:{id}:fields` room** (`lib/admin/trash.ts`). Older than this round —
+  it never did — but a restored summary can now be overwritten by a room that
+  still holds the newer one. `restoreRevision` for an artikel does reset its
+  room.
+- **A plain left click on a chip in Bewerken opens the artikel** (§68,
+  `handleClickOn`). On a phone a tap meant to put the caret next to a chip can
+  therefore walk away. Tap beside it, or the chip needs a "tap once to select,
+  twice to open" rule.
+- **A hidden chip a player sweeps out comes back at the end of the text**
+  (§67 via `cleanShort`). Correct and ugly: where it stood, the player could
+  not see, so there is no better place.
+- **A draft in the maakblad keeps its chips**, and comes back in the *next*
+  Nieuw artikel of that page if it was never sent (§69's `DRAFT_ENTRY`). Same
+  as a typed name always did; with chips it is more noticeable.
+- **Kaartje, speld, gebeurtenis, the descriptions of a landkaart, a tijdlijn
+  and a stamboom and an overzicht's lead still write `[[Naam]]`**, with A2
+  and A3 still true there. Each is its own column, conversion and readers;
+  `MentionText` reads both forms, so they can move one at a time.
+- **A `[[Naam]]` the migration could not resolve stays letters** — a typo, a
+  name in the trash on the day, a name renamed before the migration. It is
+  drawn as the dead chip it always was, and becomes a real chip only when
+  somebody edits that text and may see an artikel of that name (`cleanShort`
+  upgrades a typed-out `[[Naam]]`). An `@Naam` that found nothing on the day
+  stays letters for good.
+- **`mention_handles` is never swept.** A handle whose text was edited away
+  keeps its row. It names nothing to anybody who cannot see the artikel, so
+  it is harmless; a sweep would have to read every short text, revision and
+  voorstel first.
+
+
+**Round 57 (§96) leaves these, all named on purpose:**
+
+- **A player's notes on `/you` moved into a `title`**, to make room for the
+  two rows of chips (S18). A `title` does not exist on a phone (K5's reason),
+  so there they cannot be read. Give them a *Waarom?* of their own if anybody
+  misses them.
+- **Search matches only the name of anything that is not an artikel.** A
+  dossier's samenvatting, a tijdlijn's description and a stamboom's members
+  are not searched. That would be a query per kind with its own visibility,
+  and `searchOthers` exists precisely so that there is none.
+- **The rest of the search screen's text is still hard-coded.** The §96 keys
+  cover the new section and the empty sentences; the older labels on
+  `SearchScreen` are not keys yet.
+- **`tests/unit/ronde-51-canvas.test.ts` still asks its keys for ≤ 60
+  characters.** Stricter than `WORD_MAX` and harmless; loosen it when somebody
+  is in that file.
+- **`listSpelers` includes Keeper accounts**, as the hal does, so a search for
+  a Keeper's name finds him under *Spelers*. That is the hal's answer and it
+  was kept, not decided.
+
+**Round 55 (§94) leaves these, all named on purpose:**
+
+- ***Alles in beeld* has no reading floor.** Opening does (`readableFit`); the
+  button shows everything, even at 5 px names. That is deliberate: a button
+  that says "everything" must not show half, and specs lean on it (§6).
+- **The prikbord still has no description column** (review O8; see round 35
+  below). It moved onto §34 without one, because only round 54 was allowed a
+  migration in this wave.
+- **On a phone in Bewerken the prikbord gives the glass about half the
+  screen.** The inspector and the bar take the rest. Measured on screenshots,
+  not fixed.
+- **The prikbord's tekenlaag switch for the Keeper is still in the Rechten
+  sheet**, not under the fold. The wall has a `#board-underfold` now, but only
+  the dossier choice and `BinSlot` went there (§5's under-the-fold rule).
+- **A los kaartje in a brand-new stamboom has no word at its `+` yet.** The
+  four handles of a card got their words (*Ouder*, *Kind*, …); the loose
+  card's maker did not.
+- **Flakes seen in round 55's runs, green when re-run alone:**
+  `round-6.spec.ts:37` on the phone (red in two batches) and
+  `canvas-contract.spec.ts:444`. Re-run alone before believing either.
+
+**Round 54 (§93) leaves these, all named on purpose:**
+
+- **`room.opened` and `room.bought` in a private §86 kamer show in a player's
+  feed**, the same leftover as `room.placed` (round 51 below). The row names
+  nobody the reader may not see, but the event is there.
+- ***Ongedaan maken* after a buy is not live for somebody watching**, as the
+  round's builder reported it. Not re-checked in the docs pass: both writes in
+  `undoPurchase` name `room_id` and a write to `activity` moves the feed list,
+  so whoever picks this up starts with what the watcher's screen reads, not
+  with the keys.
+- **The Keeper cannot put something straight into a drawer.** He places it on
+  a plek (free, §80) or hands out munten. A "give this, but in the lade" is a
+  new road and was not asked for.
+- **`scripts/restore.mjs` empties only `room_drawer`** when a backup does not
+  carry it. A general "empty every table the backup lacks" would be better,
+  and it must skip the FTS shadow tables, which is why it was not written in
+  passing.
+- **The × on a 160 px tile partly covers the plek's label** (*BUREAU*). Older
+  than this round; *Verplaatsen* was put under the × so it would not make it
+  worse.
+- **"Er is iets misgegaan." is hard-coded in `components/kamer/post.ts`**, the
+  fallback when the server gives no sentence of its own.
+
+**Round 53 (§92) leaves these, all named on purpose:**
+
+- ~~**A2 and A3 wait for round 56.** Two artikelen with the same name: the
+  oldest wins a `[[Naam]]`. And renaming an artikel breaks every
+  `[[oude naam]]` written before. Both need an id in the box, which is what
+  round 56's one-line editor brings (§95, migration `0034_`).~~ **Closed in
+  round 56** (§95, `0034_een_id`) for the four short boxes; still true on the
+  boxes that write `[[Naam]]` (see round 56 above).
+- **B25 is not done: empty infobox fields are not folded away.** It broke at
+  least nine specs. The words `fieldsFillEmpty` and `fieldsEmptyCount` are in
+  `lib/words.ts`, unused, ready.
+- **A click beside a chip puts the caret where the browser puts it in the
+  raw text**, and the raw text has brackets the preview did not show, so the
+  caret can land a couple of letters off from where the finger was. *Closed
+  in round 56 for the four short boxes (the chip is in the text, there is no
+  raw form); still true on the boxes that keep `MentionPreview`.*
+- **"Uitgetekend op: Landkaart koppelen / nog niets" also shows on a Persoon**
+  for the Keeper, where it means little.
+- **An empty *Tekst* block shows in Lezen on a phone.**
+- **The soort strip does not show the chosen soort when it is scrolled out of
+  view** (a prefilled soort far down the list). *Alle soorten* shows it.
 
 **Round 52 (§91) leaves these, all named on purpose.** Rounds 53–56 of the
 review are still the plan for what comes next, and are not repeated here.
 
-- **A long name in the Jij-blad is cut off without an ellipsis.**
+- ~~**A long name in the Jij-blad is cut off without an ellipsis.**
   `.jij-who-name` is `inline-flex`, and a player's name is a bare text node
   inside it, so the name becomes an anonymous flex item and
   `text-overflow: ellipsis` never applies to it. The fix is one `<span>` round
-  the name, carrying the overflow rules.
+  the name, carrying the overflow rules.~~ **Closed in round 57 (§96):** the
+  name is in a `.jij-who-text` span that carries the overflow rules.
 - **The saldo in the side menu is not `Beurs.tsx`.** It is a `<span
   class="nav-tail">` with the same shape (coin first, upright, ink, never
   `.stamp`), because a menu line has no room for the component's padding.
   K1 says a saldo *is* `Beurs.tsx`, so the contract now names this as an
   exception. If the two shapes ever drift, the side menu drifts first.
+  *Settled by Nick on 21 September, after round 52:* the tail in the side menu
+  and on the Jij tab (`tab-jij-saldo`) is a recorded exception to K1, not a
+  leftover. The drift risk stays.
 - **On a phone your kamer is two taps away, not one**: the Jij tab, then
   *Naar de kamer*. Only Start's Jij-rij makes it one. That is the price of
   keeping eight tabs (Nick, 21 September), paid on purpose. See DECISIONS,
@@ -1620,9 +2001,11 @@ review are still the plan for what comes next, and are not repeated here.
   whose last edit is older than that is told *Nog niets bewerkt.* A query of
   its own would fix it and would also be a second set of visibility rules,
   which is why it was not written.
-- **The side menu's search box searches what `/search` searches**, which is
+- ~~**The side menu's search box searches what `/search` searches**, which is
   still only artikelen (review S3). A search over everything, and a palette
-  (`⌘K`), are "later" in the review.
+  (`⌘K`), are "later" in the review.~~ **Closed in round 57 (§96)** for the
+  search: `/search` finds every other kind of thing and the spelers by name
+  under *Alles*. There is still no palette.
 - **The handelingstelling was derived, not measured.** The round note
   (`claude/round-52-jouw-plek.md`) gives before → after for the review's core
   tasks, worked out from the code. The review's method (Playwright scripts on
@@ -1635,12 +2018,14 @@ round after the UI/UX review (`claude/review-ui-ux-de-wrijving.md`). Rounds
 *those* rounds is not repeated here. These are the things round 51 touched and
 left open, or found on the way.
 
-- **The plek-kiezer still offers huisraad nobody bought** (review E1).
+- ~~**The plek-kiezer still offers huisraad nobody bought** (review E1).
   `placeItem` checks the plek and the visibility, but not the price or who
   owns it, so *Wat je al hebt* lists every stuk huisraad. Nick decided the fix
   (a lade per kamer, a `keeper_made` slot in `placeItem`, and *Ongedaan
   maken* in the koopmelding) and put it in **round 54**. Until then it is a
-  known hole, not a surprise.
+  known hole, not a surprise.~~ **Closed in round 54 (§93)**: the lade
+  (`room_drawer`, migration `0033_de_lade`), the slot in `placeItem`,
+  `placeCandidates()` behind *Wat je al hebt*, and `undoPurchase`.
 - ~~**Two items from round 51's own list were only half done.** Review S5/C30
   asked for Beheer and Uitdelen in the side menu *and* the tab in the address.
   Only the second half was built: `?tab=` via `history.replaceState`, with
@@ -1655,38 +2040,50 @@ left open, or found on the way.
 - **A Keeper's `room.placed` / `room.cleared` in a private kamer (§86) shows
   in a player's feed** once the thing placed is visible to them. The row names
   nobody (`visibleNamesOf` drops the onderzoeker, so it reads "in een
-  kamer"), but the event itself is there.
-- **Three kamer writes are still silent in the feed or on the live line.**
+  kamer"), but the event itself is there. *Wider since round 54:* the same
+  goes for the new `room.opened` and `room.bought` rows.
+- ~~**Three kamer writes are still silent in the feed or on the live line.**
   `buyFurnishing` and `unlockSlot` write no activity row, so a koop is in
   nobody's feed. `handOut` writes one `room.granted` with neither `entryId`
   nor `characterId`. The claim reset in `lib/admin/types.ts` (when a soort's
   `one_of_a_kind` flips) updates `room_slots` by `id` alone, so `room:{id}`
-  does not move (§5, the TABLES rule).
-- **"Wat deze kamer je geeft" still says *je* in somebody else's kamer.** The
+  does not move (§5, the TABLES rule).~~ **Closed in round 54 (§93).**
+  `room.bought` and `room.opened` are feed rows (*kocht*, *opende een plek in
+  de kamer van*), `handOut` writes one `room.granted` per kamer with its
+  onderzoeker, and the claim reset names `room_id`.
+- ~~**"Wat deze kamer je geeft" still says *je* in somebody else's kamer.** The
   empty sentence and the toasts were fixed. The heading (`roomEffects`) was
-  not. K48 carries the exception.
+  not. K48 carries the exception.~~ **Closed in round 54 (§93):** in somebody
+  else's kamer the heading is `roomEffectsOf` (*Wat deze kamer Kees geeft*).
 - **`CHARACTER_TYPE_SLUG = 'investigator'` is written twice**, in
   `lib/kamers/service.ts` (for `mayHoldRoom`) and in `lib/newEntryType.ts` (for
   the `+`). Both hard-code the seed's slug, so a Keeper who renames the soort's
   slug breaks both. The real fix is a "wearable" flag on `entry_types`. That is
   a migration and touches §18b and E3 at once, so it is a round of its own.
-- **Sentences over 60 characters cannot be fully rewritten in Beheer**
-  (`cleanWordOverrides` cuts at 60; see §5).
-- **`CharacterSwitcher.tsx` still says *onderzoeker* in plain text** in the
+  *Half closed in round 57 (§96):* it is written once now, in
+  `lib/newEntryType.ts`, and `lib/kamers/service.ts` imports and re-exports it.
+  It is still the seed's slug; the flag is still a round of its own.
+- ~~**Sentences over 60 characters cannot be fully rewritten in Beheer**
+  (`cleanWordOverrides` cuts at 60; see §5).~~ **Closed in round 57 (§96):**
+  the cap is `WORD_MAX` = 200.
+- ~~**`CharacterSwitcher.tsx` still says *onderzoeker* in plain text** in the
   paragraph a new player reads first ("maak het {artikel} van je onderzoeker
-  en zoek hem"), while the banner and the toast now say `{words.character}`.
+  en zoek hem"), while the banner and the toast now say `{words.character}`.~~
+  **Closed in round 57 (§96):** that paragraph is `characterFindHint`, with
+  the Keeper's words for artikel and karakter.
 - **The focus-on-mount bug `NewEntrySheet` had is probably in other sheets
   too.** `Sheet` draws nothing on its first commit, so a `useEffect` that
   focuses a box on mount finds no box. `NewEntrySheet` now uses a callback ref
   (`attachName`). Nobody has checked the other sheets.
-- **O1 is still open** (see round 37 below): a new canvas opens in Lezen on a
-  phone.
+- ~~**O1 is still open** (see round 37 below): a new canvas opens in Lezen on a
+  phone.~~ **Closed in round 55 (§94).**
 - **Two small canvas trade-offs.** The prikbord's inspector and bar picker
   sit outside `.board-viewport`, as before. The phone-only 44 px tap rim on a
   tijdlijn tag (`::after`) can cover a few pixels of a neighbouring tag, which
-  was accepted in exchange for a tag you can hit. `.web-hint` in
+  was accepted in exchange for a tag you can hit. ~~`.web-hint` in
   `app/globals.css` is no longer drawn by anything (the hint moved into the
-  web's side column), and neither is the `web:hint-seen` storage key.
+  web's side column), and neither is the `web:hint-seen` storage key.~~
+  *(`.web-hint` is gone from the stylesheet since round 57.)*
 - **Flakes seen in round 51's runs, all green when re-run alone.** On the
   untouched baseline under load (two cores): `timelines.spec.ts:224`,
   `timeline-coop.spec.ts:269` and `round-28-mention-overlay.spec.ts:54`
@@ -1778,11 +2175,14 @@ they are repeated here because that is where somebody looks.**
 - **The hall has no saldo column.** It would fit and it would break §76: the
   beurs shows only your own balance, never somebody else's. Do not add it
   without deciding that rule has changed.
-- **The presence dot is still an unlabelled 12 px circle on desktop.** The
+- ~~**The presence dot is still an unlabelled 12 px circle on desktop.** The
   contract asked for a button with a word (*Wie is er?* + dot + count). It sits
   in the **shell** of every page in the archive, not on these seven screens, so
   it is a round about the shell rather than a line in this one. It did get its
-  44 px on a phone.
+  44 px on a phone.~~ **Closed in round 57 (§96)**, except on a canvas: on a
+  desk the strip says *Wie is er?* beside the count and the dot
+  (`.live-strip-who`, `presenceHeading`). A canvas heading keeps room for the
+  strip as it was, and a phone keeps the dot.
 - **The e2e suite has two reds that are not damage.**
   `per-place-crops.spec.ts:13` is the documented one from round 19 (see below),
   and `round-28-mention-overlay.spec.ts:54` on the **phone** project lost once
@@ -1798,10 +2198,11 @@ they are repeated here because that is where somebody looks.**
 
 **Round 38 (§75) leaves four, all named on purpose:**
 
-- **An overzicht is not in `/search`.** The Start tab and the strip at the foot
+- ~~**An overzicht is not in `/search`.** The Start tab and the strip at the foot
   of every overzicht are the whole of its findability. It is a kind of its own
   in `lib/search/service.ts` plus a chip in `SearchScreen` — half an hour, and
-  the first thing to pick up here.
+  the first thing to pick up here.~~ **Closed in round 57 (§96)**, by name,
+  under *Andere dingen* (`lib/search/others.ts`).
 - **There is no link *grid*.** References inside a sectie are chips in running
   prose. A real block of chosen artikelen, drawn as the cards the wiki already
   has with a line of context each, is the next step and the one that makes
@@ -1817,14 +2218,17 @@ they are repeated here because that is where somebody looks.**
   (§90, review O2).** It is visible and grey in Lezen on all four canvases now.
   On the tijdlijn it is `canUndo={handsOn && …}`, and on the stamboom it moved
   out of the making group and is `canUndo={editOn && …}`.
-- **A canvas you just made opens in Lezen on a phone.** The spec helpers press
+- ~~**A canvas you just made opens in Lezen on a phone.** The spec helpers press
   Bewerken for you; the app does not. Whether a fresh canvas should land in
   Bewerken (like an artikel on `?new=1`) is an open question for Nick. *Still
   open after round 51: the review (O1) advises Bewerken, and Nick has not
-  decided yet.*
-- **A notitie-speld's Naam and Tekst are still input boxes in Lezen**, so its
+  decided yet.*~~ **Closed in round 55 (§94, O1).** Nick chose Bewerken; every
+  maker sends `?new=1` (`freshHref`), and a reload is Lezen again.
+- ~~**A notitie-speld's Naam and Tekst are still input boxes in Lezen**, so its
   peek opens on two fields rather than on its words. The panel's own controls
-  were kept on purpose; showing the text read-only in Lezen is a small follow-up.
+  were kept on purpose; showing the text read-only in Lezen is a small follow-up.~~
+  **Closed in round 55 (§94, O6).** In Lezen a notitie-speld shows its text and
+  joins no live room.
 - **The edit sheets are still modal `Sheet`s** on a phone (gebeurtenis
   bewerken, los kaartje) — a form is a deliberate step.
 - ~~**A tijdlijn window in the peek has its own `Sluiten`** beside the peek's.~~
@@ -1903,11 +2307,16 @@ And the leftovers:
   "Tabbladen: 17" while the row still held five).
 - **The prikbord has no `description` column**, so §69 (4.8)'s one shape of
   description field reached the tijdlijn and the stamboom and not the wall. That
-  is a migration, and it was out of an S-sized item's scope.
+  is a migration, and it was out of an S-sized item's scope. *Still open after
+  round 55 (review O8): the prikbord moved onto §34 without it, because only
+  round 54 was allowed a migration in that wave.*
 - **Strings, the resize grip and the marquee are still desktop-only on the
   prikbord.** §69 (6.2) split `interactive` in two: a finger may now carry a
   *card*, because a card is the biggest thing on the cork. The other three hang
-  off a few pixels or off a key a phone does not have.
+  off a few pixels or off a key a phone does not have. *Strings: closed in
+  round 55 (§94, O10)* — *Touwtje* in the inspector, then a bar *Tik op de
+  tweede kaart…* with *Toch niet*. The grip and the marquee are still a
+  mouse's.
 - **The long press has no e2e**, for the reason in
   `tests/unit/make-on-empty.test.ts`: Playwright taps and drags but cannot
   press-and-hold. The timer's rules are unit-tested and the wiring is asserted
@@ -2086,6 +2495,10 @@ Round 22 (§44, §45) leaves two, both named on purpose:
 - "Kijk als speler" has a control only in the **desktop side menu**
   (`AsPlayerLink` inside `.sidenav`). A phone can be *in* the preview — the
   banner that turns it off is in the shell everywhere — but cannot start one.
+  *Narrowed in round 57 (§96):* beside the Keeperversie switch, the Keeper
+  panel and each sectie's dial, a page now says what the players see and
+  offers *Bekijk als speler* (`PlayerSees`, the same `asPlayerHref`), and that
+  sits in the page, so a phone can start the preview from there.
 - The leak audit knowingly left four things as they are: collection-key change
   signals still fire for a keeper-only record (they name no row; accepted since
   §21); `isAdrift` in `lib/entries/caseName.ts`; `SUMMARY_COLUMNS` shipping
@@ -2139,10 +2552,12 @@ Genuine debt, worth picking up. Round 13 narrowed one of these (the
 `router.refresh()` gap) and added two of its own at the bottom; the rest it went
 nowhere near, because it was seven features and about twenty-seven hours.
 
-- The prikbord is not on the §34 canvas shell; `.board-viewport` still carries
+- ~~The prikbord is not on the §34 canvas shell; `.board-viewport` still carries
   the old magic heights. Round 13 made cards resizable on that same wall without
   touching it, so the two do not block each other — but a wall of 250% cards is
-  a better argument for the full-screen shell than it was.
+  a better argument for the full-screen shell than it was.~~ **Closed in round
+  55 (§94).** The prikbord is on `.page-canvas`, with its heading in
+  `BoardCanvas` and its dossier choice under the fold.
 - ~~`MapCanvas` does not `router.refresh()` after a pin **move**.~~ **Closed in
   round 35 (§69).**
 - Six places open a sheet from inside a sheet (`MapCanvas`, `TimelineCanvas`,

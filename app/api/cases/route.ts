@@ -31,6 +31,8 @@ export async function POST(request: Request) {
       name: body.name,
       summary: body.summary ?? '',
       createdBy: user.id,
+      // §95: what a mention in the summary may name.
+      actorIsKeeper: Boolean(user.isKeeper),
       // §18b: opened *as* somebody — recorded on the dossier's first revision.
       characterId: user.characterId,
     });

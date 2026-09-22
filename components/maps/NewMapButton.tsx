@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { freshHref } from '@/lib/canvas/memory';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, uploadLimitLabel, SHRUNK_NOTICE } from '@/lib/upload';
 
@@ -99,7 +100,8 @@ export function NewMapButton() {
         return;
       }
       setOpen(false);
-      router.push(`/maps/${result.data.map.slug}`);
+      // §94 (O1): een vlak dat je net maakte opent in Bewerken.
+      router.push(freshHref(`/maps/${result.data.map.slug}`));
       router.refresh();
     } finally {
       setBusy(false);
@@ -178,6 +180,7 @@ export function NewMapButton() {
               <label className="label" htmlFor="new-map-description">
                 Omschrijving
               </label>
+              <div className="mention-field">
               <textarea
                 id="new-map-description"
                 ref={descriptionRef}
@@ -190,10 +193,11 @@ export function NewMapButton() {
               {/* §48: `@` here as well — an omschrijving is a description like
                   any other, and this one names places for a living. */}
               <MentionPopover forRef={descriptionRef} />
-              {/* §56: a chip over the name in the box itself. */}
+              {/* §56: a chip over the name in the box itself, while you type. */}
               <MentionOverlay forRef={descriptionRef} value={description} />
-              {/* §54: and the chips under it, clickable while you write. */}
-              <MentionRow text={description} />
+              {/* §92: out of focus, the chips without brackets; no row under it. */}
+              <MentionPreview forRef={descriptionRef} value={description} />
+              </div>
             </div>
             <SideChoice show={ui.isKeeper} keeper={keeperSide} onChange={setKeeperSide} words={words} />
             {error && <p className="error-note">{error}</p>}

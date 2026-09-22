@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { AccessEditor, accessLabel, type AccessSettings } from '@/components/access/AccessEditor';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 import { NewBoardButton } from '@/components/boards/NewBoardButton';
 import { NewTimelineButton } from '@/components/timelines/NewTimelineButton';
 import { NewFamilyTreeButton } from '@/components/families/NewFamilyTreeButton';
@@ -15,7 +15,7 @@ import { Cover } from '@/components/Cover';
 import { CoverEditor } from '@/components/entry/CoverEditor';
 import type { ArticleMode } from '@/lib/entries/mode';
 import dynamic from 'next/dynamic';
-import { LiveField, LiveFields } from '@/components/live/LiveFields';
+import { LiveField, LiveFields, ShortField } from '@/components/live/LiveFields';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useIsPhone } from '@/components/useIsPhone';
@@ -25,7 +25,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
   ssr: false,
   loading: () => <div className="editor-body" aria-busy="true" />,
 });
-import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useIAmTheCase, useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { useAutosave, useSaveWord } from '@/components/entry/useAutosave';
@@ -240,7 +240,6 @@ export function CaseDossier({
   // §21: the name and the one-liner are a room too; its save state joins the one word.
   const [fieldsLive, setFieldsLive] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
-  const summaryRef = useRef<HTMLTextAreaElement>(null);
 
   const save = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -282,7 +281,6 @@ export function CaseDossier({
   const activeTab = tabs.some((t) => t.key === tab) ? tab : 'overview';
   const refresh = useCallback(() => router.refresh(), [router]);
 
-  useEffect(() => autosize(summaryRef.current), [summary, isPhone]);
 
   const recent = useMemo(
     () =>
@@ -815,7 +813,7 @@ export function CaseDossier({
                 archive — a name in it is a chip you can walk through. */}
             {summary.trim() && (
               <p className="entry-lead">
-                <MentionText text={summary} />
+                <MentionText text={summary} tokens />
               </p>
             )}
           </>
@@ -837,31 +835,24 @@ export function CaseDossier({
               onBlur={() => void flush()}
             />
 
-            <label className="visually-hidden" htmlFor="case-summary">
+            <label className="visually-hidden" id="case-summary-label" htmlFor="case-summary">
               Samenvatting
             </label>
-            {/* A textarea rather than an input: one line on desktop, but it wraps
-              instead of clipping on a phone. */}
-            <LiveField
-              as="textarea"
-              mentions
+            {/* §95: a chip in the box, with its artikel in it (`ShortField`). */}
+            <ShortField
               field="summary"
               id="case-summary"
-              ref={summaryRef}
               className="lead-input"
-              rows={1}
+              ariaLabelledBy="case-summary-label"
               value={summary}
               readOnly={readOnly}
-              placeholder="Eén regel: wat wordt er onderzocht?"
+              placeholder={`Eén regel: wat wordt er onderzocht? ${fill(ui.words.mentionHint, { artikel: ui.words.entry })}`}
               onValue={(next, meta) => {
                 setSummary(next);
                 if (!meta.live && !readOnly) set({ summary: next });
               }}
               onBlur={() => void flush()}
             />
-            {/* §54: the chips of the samenvatting, under the box and clickable
-                while it is being written. */}
-            <MentionRow text={summary} />
           </>
         )}
 

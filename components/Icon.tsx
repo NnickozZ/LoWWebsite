@@ -62,6 +62,8 @@ const PATHS: Record<string, string> = {
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 3l1.5 2.5h2.8l.7 2.7 2.4 1.4-.7 2.7 .7 2.7-2.4 1.4-.7 2.7h-2.8L12 21l-1.5-2.5H7.7L7 15.8l-2.4-1.4.7-2.7-.7-2.7L7 7.6l.7-2.7h2.8z',
   mask: 'M4 5c2.5-1.3 5.3-2 8-2s5.5.7 8 2v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10zM8.5 11h2M13.5 11h2M9 15.5c1 .8 2 1.2 3 1.2s2-.4 3-1.2',
   swap: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4',
+  // §93: verplaatsen in de kamer — vier pijlen, want het ding gaat naar een andere plek.
+  move: 'M12 3v18M3 12h18M12 3 9 6m3-3 3 3M12 21l-3-3m3 3 3-3M3 12l3-3m-3 3 3 3M21 12l-3-3m3 3-3 3',
   sort: 'M4 6h16M7 12h10M10 18h4',
   filter: 'M3 5h18l-7 8v6l-4-2v-4z',
   crosshair: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 3v4M12 17v4M3 12h4M17 12h4',

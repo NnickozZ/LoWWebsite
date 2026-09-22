@@ -17,6 +17,7 @@ import { documentExtensions } from '@/lib/editor/extensions';
 import { useMentionFiling } from '@/components/cases/useMentionFiling';
 import { makeEntrySuggestion, type SuggestionEntry, type SuggestionRenderState } from './entrySuggestion';
 import { SuggestionPopup } from './SuggestionPopup';
+import { useRequestCreate } from './useRequestCreate';
 import type { LiveUser } from './useLiveDoc';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { fitUpload } from '@/components/shrinkImage';
@@ -167,50 +168,8 @@ export function RichEditor({
   const offerFilingRef = useRef(offerFiling);
   offerFilingRef.current = offerFiling;
 
-  /** Opens the New entry sheet and resolves with the created entry. */
-  const requestCreate = useCallback(
-    (name: string) =>
-      new Promise<SuggestionEntry | null>((resolve) => {
-        let settled = false;
-        ui.openNewEntry({
-          name,
-          caseId: here?.id,
-          // §49: made from the dossier's own writing is made *in* the dossier,
-          // and therefore filed in it — the sheet has no question about that
-          // left to ask. What it does ask is whether the dossier's name goes in
-          // front of the new artikel's.
-          onCreated: (entry) => {
-            settled = true;
-            resolve({
-              id: entry.id,
-              slug: entry.slug,
-              name: entry.name,
-              shortDescription: entry.shortDescription,
-              typeSlug: entry.typeSlug,
-              typeLabel: entry.typeLabel,
-              typeIcon: entry.typeIcon,
-              typeColour: entry.typeColour,
-              // §48: whether the sheet already put it in the dossier, so the
-              // question is not asked a second time.
-              filed: entry.filed,
-            });
-          },
-        });
-        // If the sheet is dismissed the promise would hang; give it a bounded
-        // life so the editor never ends up waiting forever.
-        const check = setInterval(() => {
-          if (settled) {
-            clearInterval(check);
-            return;
-          }
-          if (!document.querySelector('.sheet-backdrop')) {
-            clearInterval(check);
-            resolve(null);
-          }
-        }, 400);
-      }),
-    [ui, here],
-  );
+  /** Opens the New entry sheet and resolves with the created entry (§95: shared with the short boxes). */
+  const requestCreate = useRequestCreate();
 
   const suggestionExtension = useMemo(
     () =>

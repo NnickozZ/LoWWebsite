@@ -127,7 +127,7 @@ export default async function AdminPage({
   }));
 
   const settings = db.select().from(schema.siteSettings).where(eq(schema.siteSettings.id, 1)).get();
-  const pending = listPendingEdits();
+  const pending = listPendingEdits(undefined, me);
   const types = listTypesForAdmin();
   // §24: the clues and voorwerpen that ended up in no dossier at all.
   const adrift = listAdriftEntries();
@@ -284,10 +284,11 @@ export default async function AdminPage({
             wat ze hadden; een veld of lijst die je weghaalt en terugzet, brengt zijn waarde weer
             mee.
           </p>
+          {/* §96: *Nieuwe soort* bovenaan de lijst, niet eronder. */}
+          <NewTypeForm />
           {types.map((type) => (
             <TypeEditor key={type.id} type={type} types={typeChoices} words={words} />
           ))}
-          <NewTypeForm />
 
           {/*
             §24: the loose ends. A soort that only exists inside a dossier can

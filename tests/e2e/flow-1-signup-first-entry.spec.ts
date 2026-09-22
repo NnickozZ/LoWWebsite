@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { newEntryButton, signUp } from './helpers';
+import { newEntryButton, signUp, expectBoxValue } from './helpers';
 
 /**
  * Golden flow 1 (§15): enter invite code, pick a username and password, tap +,
@@ -27,8 +27,9 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
     .fill('Met on the Vlissingen quay at dusk; watchful, two ledgers, salt-stained coat.');
 
   // The placeholder is the brief's wording, verbatim.
+  // §95: the box is an editor now, and its placeholder is `aria-placeholder`.
   await expect(sheet.getByLabel('Korte beschrijving')).toHaveAttribute(
-    'placeholder',
+    'aria-placeholder',
     'Waar kwam je ze tegen, wat was de sfeer, wat was de context van de eerste ontmoeting, en hoe zagen ze eruit?',
   );
 
@@ -36,7 +37,7 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
 
   await page.waitForURL('**/e/**');
   await expect(page.getByLabel('Naam', { exact: true })).toHaveValue(entryName);
-  await expect(page.getByLabel('Korte beschrijving')).toHaveValue(/Vlissingen quay/);
+  await expectBoxValue(page.getByLabel('Korte beschrijving'), /Vlissingen quay/);
   // The page is already valid and published — "Meer info" is there to fill,
   // open: a card beside the text on a wide screen, unfolded under the
   // header on a phone.

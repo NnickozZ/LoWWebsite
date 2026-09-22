@@ -80,7 +80,9 @@ export function RoomEffects({
       {/* §90 (E13): op een telefoon ingeklapt tot één regel met een telling —
           het blok duwde bij zes dingen het hele raster onder de vouw. */}
       <EffectenFold
-        title={words.roomEffects}
+        /* §93: in de kamer van een ander noemt ook de kop de naam (K48's
+           laatste uitzondering) — "je" is daar niet waar. */
+        title={addressee ? fill(words.roomEffectsOf, { naam: addressee }) : words.roomEffects}
         count={effects.length}
         titleId="kamer-effecten-title"
       >

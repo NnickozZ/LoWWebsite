@@ -5,6 +5,8 @@ import { EntryCard } from '@/components/EntryCard';
 import { NewOfTypeButton } from '@/components/NewOfTypeButton';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { TypeTabs } from '@/components/TypeTabs';
+import { WikiViewToggle } from '@/components/WikiViewToggle';
+import { tagListHref } from '@/lib/entries/tagHref';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
 import { readListFilters, wikiFilterGroups, WIKI_SORTS } from '@/lib/entries/browseFilters';
@@ -71,6 +73,30 @@ export default async function BrowseTypePage({
         query={query}
       />
 
+      {/*
+        §92 (F31): the tags of this soort as one row that scrolls sideways,
+        straight under the tabs — on a phone they were behind "Filters" and a
+        "Klaar". The same `?tag=` the filter writes (§12), from `tagListHref`
+        (§90), and the chosen one says so. The filter sheet keeps them too.
+      */}
+      {tags.length > 0 && (
+        <nav className="wiki-tag-row" aria-label={words.wikiTagRow}>
+          {tags.map((item) => {
+            const on = filters.tag === item.tag;
+            return (
+              <a
+                key={item.tag}
+                className={`tag${on ? ' tag-active' : ''}`}
+                href={on ? `/wiki/${encodeURIComponent(type.slug)}` : tagListHref(item.tag, type.slug)}
+                aria-current={on ? 'true' : undefined}
+              >
+                {item.tag}
+              </a>
+            );
+          })}
+        </nav>
+      )}
+
       <SortFilterBar
         sorts={WIKI_SORTS}
         defaultSort="recent"
@@ -78,8 +104,12 @@ export default async function BrowseTypePage({
         summary={`${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`}
       />
 
+      {entries.length > 0 && <WikiViewToggle target="wiki-entries" />}
+
       {entries.length ? (
-        <div className="card-grid">
+        /* §92 (F31): one line per artikel on a phone, cards elsewhere — the
+           default is the stylesheet's, a choice is `data-view`. */
+        <div className="card-grid wiki-entries" id="wiki-entries">
           {entries.map((entry) => (
             <EntryCard key={entry.id} entry={entry} showType={false} />
           ))}

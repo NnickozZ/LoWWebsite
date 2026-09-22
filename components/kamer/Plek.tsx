@@ -6,6 +6,7 @@ import type { Words } from '@/lib/words';
 import { ClearButton } from './ClearButton';
 import { PlaceButton } from './PlaceButton';
 import { UnlockButton } from './UnlockButton';
+import { MoveButton, MoveHere } from './Verplaatsen';
 import { MEANING, munt, plekIcon, plekWord, shortfall } from './plekWords';
 
 export type PlekState = 'locked' | 'empty' | 'filled' | 'veiled';
@@ -171,6 +172,11 @@ export function Plek({
           <p className="tiny muted plek-empty-line" data-testid="plek-empty">
             {words.slotEmpty}
           </p>
+          {/* §93 (E10): terwijl er iets verplaatst wordt, is een passende lege
+              plek een bestemming. Buiten die stand tekent dit niets. */}
+          {canArrange && (
+            <MoveHere roomId={roomId} slotId={slot.id} kind={slot.kind} guestOf={guestOf} words={words} />
+          )}
           {canArrange && (
             <PlaceButton
               roomId={roomId}
@@ -216,14 +222,22 @@ export function Plek({
             )}
           </Link>
           {canArrange && (
-            <ClearButton
-              roomId={roomId}
-              slotId={slot.id}
-              label={words.slotClear}
-              name={slot.item.name}
-              compact
-              words={words}
-            />
+            <>
+              {/* §93 (E10): verplaatsen, linksboven — het kruisje blijft rechts
+                  (K21). Twee kleine knoppen in twee hoeken kosten minder dan
+                  een menu en zeggen allebei in één oogopslag wat ze doen. */}
+              <MoveButton slotId={slot.id} name={slot.item.name} plekken={slot.item.plekken} words={words} />
+              <ClearButton
+                roomId={roomId}
+                slotId={slot.id}
+                label={words.slotClear}
+                name={slot.item.name}
+                toDrawer={slot.item.huisraad}
+                guestOf={guestOf}
+                compact
+                words={words}
+              />
+            </>
           )}
         </>
       )}

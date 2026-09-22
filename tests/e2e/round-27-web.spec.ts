@@ -50,7 +50,9 @@ async function mention(page: Page, box: ReturnType<Page['locator']>, name: strin
     .filter({ hasText: name })
     .first();
   await hit.click({ timeout: 20_000 });
-  await expect(box).toHaveValue(new RegExp(`\\[\\[${name}\\]\\]`), { timeout: 10_000 });
+  // §95: the short box is an editor, and a picked name is a chip in it.
+  // `.last()`: the sheet keeps an unsent draft, so a box may already hold one.
+  await expect(box.locator('.short-chip', { hasText: name }).last()).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('§54 een chipje terwijl je typt', () => {
@@ -67,8 +69,12 @@ test.describe('§54 een chipje terwijl je typt', () => {
     await page.goto('/');
     const sheet = await openNewEntry(page, 'Clues', `Vraag ${stamp}`);
     await mention(page, sheet.locator('#new-entry-description'), target);
-    await expect(sheet.getByText('Verwijst naar')).toBeVisible({ timeout: 20_000 });
-    await expect(sheet.locator('a.entry-chip').filter({ hasText: target })).toBeVisible();
+    // §95: the chip is in the box, in focus and out of it — no row under it.
+    await page.keyboard.press('Tab');
+    await expect(sheet.locator('#new-entry-description .short-chip').filter({ hasText: target })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(sheet.getByText('Verwijst naar')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden({ timeout: 10_000 });
 
@@ -79,7 +85,9 @@ test.describe('§54 een chipje terwijl je typt', () => {
     const lead = page.locator('#entry-lead');
     await expect(lead).toBeVisible({ timeout: 20_000 });
     await mention(page, lead, target);
-    const chip = page.locator('a.entry-chip').filter({ hasText: target }).first();
+    // §95: the chip is in the box, and a press on it walks to its artikel.
+    await page.keyboard.press('Tab');
+    const chip = lead.locator('.short-chip').filter({ hasText: target }).first();
     await expect(chip).toBeVisible({ timeout: 20_000 });
     await chip.click();
     await page.waitForURL(`**${new URL(targetUrl).pathname}`, { timeout: 20_000 });

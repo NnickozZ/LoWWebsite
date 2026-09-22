@@ -383,12 +383,14 @@ test('one click on a board card selects; only a double-click opens it', async ({
   await expect(page.locator('.board-inspector')).toBeVisible();
   // Still on the wall: a stray click must never navigate.
   await page.waitForTimeout(400);
-  expect(page.url()).toBe(boardUrl);
+  // §94 (C5): choosing writes `?card=` into the address; the page stays put.
+  expect(new URL(page.url()).pathname).toBe(new URL(boardUrl).pathname);
 
   // A second single click, on an already-selected card, still does not open.
   await cover.click();
   await page.waitForTimeout(400);
-  expect(page.url()).toBe(boardUrl);
+  // §94 (C5): choosing writes `?card=` into the address; the page stays put.
+  expect(new URL(page.url()).pathname).toBe(new URL(boardUrl).pathname);
 
   await cover.dblclick();
   await page.waitForURL('**/e/**');

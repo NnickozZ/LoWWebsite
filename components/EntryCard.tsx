@@ -47,7 +47,7 @@ export function EntryCard({
           <p className="tiny muted clamp-2" style={{ margin: 0 }}>
             {/* §48: the beschrijving reads like every other text in the
                 archive. Flat chips: this whole card is one link already. */}
-            <MentionText text={entry.shortDescription} flat />
+            <MentionText text={entry.shortDescription} flat tokens />
           </p>
         )}
         {note && (

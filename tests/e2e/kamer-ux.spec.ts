@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn } from './helpers';
+import { becomeInvestigator, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue } from './helpers';
 
 /**
  * §84: het geld spreekt — door een echte hand.
@@ -82,7 +82,7 @@ async function newHuisraad(
     await page.getByRole('button', { name: 'Bewerken' }).first().click({ timeout: 5000 });
     await unfoldInfobox(page);
     await expectPlekken(page, spec.plekken);
-    await expect(page.locator('#field-prijs')).toHaveValue(String(spec.prijs), { timeout: 5000 });
+    await expectBoxValue(page.locator('#field-prijs'), String(spec.prijs), { timeout: 5000 });
   }).toPass({ timeout: 60_000 });
 
   return { name: spec.name, path };
@@ -552,6 +552,25 @@ test.describe('§85 De kamer in de hand', () => {
      * "niets gevonden" aanziet springt élke keer weg, ook voor iemand met een
      * plank vol. (Zo was het één middag lang, deze ronde.)
      */
+    /*
+     * §93: *Wat je al hebt* is sinds de lade echt wat je hebt — ongekocht
+     * huisraad staat er niet meer (review E1). Dus eerst de lamp kopen, op het
+     * bureau, en weer weghalen: dan ligt hij in de lade, en is dit een plek
+     * waar wél iets voor is.
+     */
+    await openOp('bureau');
+    await owner.getByTestId('plek-picker-tab-catalogus').click();
+    await picker
+      .getByTestId('plek-catalogus-rij')
+      .filter({ hasText: `Lamp ${stamp}` })
+      .getByTestId('plek-koop')
+      .click({ timeout: 20_000 });
+    await expect(picker).toHaveCount(0, { timeout: 20_000 });
+    const gekocht = owner.locator('[data-state="filled"][data-kind="bureau"]').filter({ hasText: `Lamp ${stamp}` });
+    await expect(gekocht).toHaveCount(1, { timeout: 20_000 });
+    await gekocht.getByTestId('plek-clear').click();
+    await expect(owner.getByTestId('kamer-lade')).toContainText(`Lamp ${stamp}`, { timeout: 20_000 });
+
     await openOp('bureau');
     await expect(picker.getByTestId('plek-picker-optie')).not.toHaveCount(0, { timeout: 20_000 });
     await expect(picker).toHaveAttribute('data-tab', 'bezit');

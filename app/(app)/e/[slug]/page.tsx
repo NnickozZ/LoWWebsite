@@ -10,6 +10,7 @@ import { sideOf } from '@/lib/keeper/kinds';
 import { queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { PreferredCases } from '@/components/entry/PreferredCases';
+import { EntryTreesProvider } from '@/components/families/InTreeDoor';
 import { caseIdsInFields } from '@/lib/entries/caseFields';
 import { EntryCard } from '@/components/EntryCard';
 import { Icon } from '@/components/Icon';
@@ -30,6 +31,8 @@ import {
 // one road to one.
 import { listSections } from '@/lib/sections/service';
 import { listDerivedEntries, resolveFieldRefs, scrubUnseenRefs } from '@/lib/entries/derived';
+import { plainShort, shortChipsFor } from '@/lib/entries/shortRefs';
+import { ShortChips } from '@/components/ui/ShortChips';
 // §67: broers en zussen die uit de ouders volgen, per lezer op de server.
 import { siblingsOf } from '@/lib/families/service';
 import { refIdsIn } from '@/lib/families/roles';
@@ -39,6 +42,7 @@ import { groupMentions, listMentions } from '@/lib/entries/mentions';
 import {
   getBacklinks,
   getEntryBySlug,
+  getEntryType,
   getRevision,
   listAllTags,
   listEntryTypes,
@@ -143,7 +147,7 @@ export default async function EntryPage({
     canEdit: mayEdit,
     viewerId: user?.id ?? '',
   };
-  const proposals = user && canReview(entry.id, user) ? listPendingEdits(entry.id) : [];
+  const proposals = user && canReview(entry.id, user) ? listPendingEdits(entry.id, user) : [];
 
   const backlinks = getBacklinks(entry.id, user);
   /*
@@ -156,6 +160,17 @@ export default async function EntryPage({
    */
   const mentions = listMentions(entry.id, user);
   const mentionGroups = groupMentions(mentions);
+  /*
+   * §94 (C20): the stambomen this artikel stands in, for the door beside
+   * *Verbindingen* — the same rows as *Genoemd in*, so the same reader's rules.
+   */
+  const inTrees = [
+    ...new Map(
+      mentions
+        .filter((mention) => mention.kind === 'family_tree')
+        .map((mention) => [mention.id, { id: mention.id, name: mention.name, href: mention.href }] as const),
+    ).values(),
+  ];
   const revisionRows = listRevisions(entry.id, Boolean(user?.isKeeper));
   const knownTags = listAllTags(user);
   const cases = listCasesForEntry(entry.id, user);
@@ -266,9 +281,17 @@ export default async function EntryPage({
    * one and the same question, and a sided list is exactly the landkaarten this
    * artikel may be pinned to.
    */
-  const mapsToPlace = listMaps(user)
-    .filter((map) => !pinnedMapIds.has(map.id))
-    .map((map) => ({ slug: map.slug, name: map.name }));
+  /*
+   * §93 (E24): huisraad is een ding voor in een kamer, geen plaats in de
+   * wereld. "Zet op de landkaart" en "Zet op de tijdlijn" stonden er vijf keer
+   * op en lazen als ruis; wat er al op een kaart staat, blijft wel staan.
+   */
+  const furnishing = Boolean(getEntryType(entry.typeSlug)?.keeperMade);
+  const mapsToPlace = furnishing
+    ? []
+    : listMaps(user)
+        .filter((map) => !pinnedMapIds.has(map.id))
+        .map((map) => ({ slug: map.slug, name: map.name }));
   // §23: and the landkaarten that are a drawing *of* this artikel.
   const mapsOfThis = listMapsOfEntry(entry.id, user).map((map) => ({ slug: map.slug, name: map.name }));
   // §32: where this artikel is on the tijdlijnen, and which it could still go on.
@@ -281,9 +304,11 @@ export default async function EntryPage({
   }));
   const onTimelineIds = new Set(entryEvents.map((row) => row.timelineId));
   // §50: sided, for the same reason as the landkaarten above.
-  const timelinesToPlace = listTimelines(user)
-    .filter((timeline) => !onTimelineIds.has(timeline.id) && viewerCanEdit('timeline', timeline.id, user))
-    .map((timeline) => ({ slug: timeline.slug, name: timeline.name }));
+  const timelinesToPlace = furnishing
+    ? []
+    : listTimelines(user)
+        .filter((timeline) => !onTimelineIds.has(timeline.id) && viewerCanEdit('timeline', timeline.id, user))
+        .map((timeline) => ({ slug: timeline.slug, name: timeline.name }));
   // §21: the dossiers this artikel's own fields point at. Only ids are stored;
   // the names are looked up here, behind the same visibility rule as every
   // other read, so a dossier the reader may not open is not named in their HTML.
@@ -342,6 +367,16 @@ export default async function EntryPage({
    * even where no chip is drawn (rule 1). `scrubUnseenRefs` says the rest.
    */
   const shownFields = scrubUnseenRefs(refSpec, resolvedRefs);
+  /*
+   * §95: the chips of the short texts on this page — the korte beschrijving and
+   * the infobox's Tekst and Lange tekst — resolved for *this* reader, so the
+   * first paint has them. A handle this reader may not follow is `null` here:
+   * nothing to draw, with no name and no id next to it (rule 1).
+   */
+  const shortChips = shortChipsFor(user, [
+    entry.shortDescription,
+    ...Object.values((entry.fields ?? {}) as Record<string, unknown>).filter((value): value is string => typeof value === 'string'),
+  ]);
   /*
    * §67: en de broers en zussen die niemand hoefde te typen.
    *
@@ -473,6 +508,8 @@ export default async function EntryPage({
       fields: entry.typeFields ?? [],
       typeLabels,
       showKeeper: isKeeper,
+      // §95: a chip in a quoted short text is the name *this reader* may see.
+      shortText: (text: string) => plainShort(user, text),
     };
     /*
      * `listRevisions` reads one row past the page. So the last row the page
@@ -492,6 +529,7 @@ export default async function EntryPage({
       ? describeRevision(selectedFacts, nowFacts, {
           fields: entry.typeFields ?? [],
           showKeeper: isKeeper,
+          shortText: (text: string) => plainShort(user, text),
         })
       : null;
 
@@ -848,6 +886,8 @@ export default async function EntryPage({
         the server for any dossier this viewer may not open.
       */}
       <PreferredCases ids={cases.map((item) => item.id)}>
+      <EntryTreesProvider entryId={entry.id} trees={inTrees}>
+      <ShortChips map={shortChips}>
       <EntryView
         entry={{
           id: entry.id,
@@ -920,6 +960,8 @@ export default async function EntryPage({
           confidential: item.viewMode !== 'all',
         }))}
       />
+      </ShortChips>
+      </EntryTreesProvider>
       </PreferredCases>
     </>
   );

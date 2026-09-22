@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { MentionOverlay, MentionPopover, MentionRow } from './MentionPopover';
+import { ShortField } from '@/components/live/LiveFields';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { useUi } from './UiProvider';
 import { Sheet } from './Sheet';
 import { clearDraft, readDraft, writeDraft, DRAFT_CASE } from '@/lib/sheetDraft';
+import { fill } from '@/lib/words';
 
 export type CreatedCase = {
   id: string;
@@ -48,7 +49,6 @@ export function NewCaseSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const summaryRef = useRef<HTMLInputElement>(null);
   // §48: a dossier hangs in nothing, so its side is simply the side the hand
   // is standing on — and a Keeper may say otherwise before it is opened.
   const ui = useUi();
@@ -131,32 +131,23 @@ export function NewCaseSheet({
       </div>
 
       <div className="field">
-        <label className="label" htmlFor="new-case-summary">
+        <label className="label" id="new-case-summary-label" htmlFor="new-case-summary">
           Samenvatting
         </label>
-        <input
+        {/* §95: the dossier page's own box — a picked name is a chip with its
+            artikel in it. Enter opens the dossier, as it always did here. */}
+        <ShortField
+          noRoom
+          ungated
+          field="summary"
           id="new-case-summary"
-          ref={summaryRef}
           className="input"
+          ariaLabelledBy="new-case-summary-label"
           value={summary}
-          placeholder="Eén regel: wat wordt er onderzocht?"
-          onChange={(event) => setSummary(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              void create();
-            }
-          }}
+          placeholder={`Eén regel: wat wordt er onderzocht? ${fill(ui.words.mentionHint, { artikel: ui.words.entry })}`}
+          onValue={(next) => setSummary(next)}
+          onEnter={() => void create()}
         />
-        {/* §48: `@` in the one line a dossier opens with, like everywhere else.
-            The popover swallows Enter while it is open, so the key above still
-            belongs to the sheet the moment there is no list. */}
-        <MentionPopover forRef={summaryRef} />
-        {/* §56: and in the line itself — the overlay mirrors this `<input>`'s
-            own characters and draws the chip over them. */}
-        <MentionOverlay forRef={summaryRef} value={summary} />
-        {/* §54: the chips of the one line, under it and clickable. */}
-        <MentionRow text={summary} />
       </div>
 
       <SideChoice show={ui.isKeeper} keeper={keeperSide} onChange={setKeeperSide} words={ui.words} />

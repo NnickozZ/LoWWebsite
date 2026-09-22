@@ -8,6 +8,7 @@ import { activeCharacter, listCharacters } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { listEntryTypes } from '@/lib/entries/service';
 import { purseOf } from '@/lib/kamers/service';
+import { shopFieldsOf } from '@/lib/kamers/shape';
 import { spelerHref } from '@/lib/spelers/service';
 import { cleanTypeText } from '@/lib/pageBlocks';
 import { readingFontAttr } from '@/lib/readingFont';
@@ -43,6 +44,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // down — an artikel of this soort is ordinary to read, and its icon and
     // colour come from here — but the nieuw-artikel sheet leaves it out.
     keeperMade: t.keeperMade,
+    // §93 (E24): de drie velden die het Nieuw-blad voor huisraad meteen vraagt.
+    // Alleen voor de Keeper — niemand anders maakt deze soort, en de
+    // velddefinities horen niet in ieders payload.
+    shopFields: user.isKeeper && t.keeperMade ? (shopFieldsOf(t.fields) ?? undefined) : undefined,
   }));
 
   // §11: the Keeper's words, resolved once here so every client component in

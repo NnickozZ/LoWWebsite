@@ -88,7 +88,7 @@ export function BijdragenPanel({ rows, viewer, words }: { rows: FeedItem[]; view
                 </span>
                 <span className="tiny muted clamp-2" style={{ display: 'block' }}>
                   {/* §48: flat chips — the whole row is a link. */}
-                  <MentionText text={row.entry!.shortDescription} flat />
+                  <MentionText text={row.entry!.shortDescription} flat tokens />
                 </span>
                 <span className="tiny muted" style={{ display: 'block' }}>
                   {relativeTime(row.createdAt)}

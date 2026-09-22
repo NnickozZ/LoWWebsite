@@ -16,6 +16,7 @@ import { openSheetCount } from '@/lib/sheetStack';
 import { PLAYER_UPLOAD_BYTES } from '@/lib/upload';
 import { CHARACTER_TYPE_SLUG } from '@/lib/newEntryType';
 import { DEFAULT_WORDS, type Words } from '@/lib/words';
+import type { FieldDef } from '@/lib/db/schema';
 import { FLIP_EVENT } from '@/components/keeper/SideToggle';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
 import { NewCaseSheet, type NewCasePrefill, type CreatedCase } from './NewCaseSheet';
@@ -59,6 +60,11 @@ export type EntryTypeLite = {
    * is about a side and lives on an artikel.
    */
   keeperMade?: boolean;
+  /**
+   * §93 (E24): plek, prijs en effect, als dit een soort is die in de winkel kan
+   * staan — het Nieuw-blad vraagt ze dan meteen. Alleen voor de Keeper gevuld.
+   */
+  shopFields?: FieldDef[];
 };
 
 type Toast = {
@@ -66,7 +72,18 @@ type Toast = {
   message: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** §93: een tweede knop — *Ongedaan maken* naast *Bekijk* in een koopmelding. */
+  also?: ToastAction;
 };
+
+type ToastAction = { label: string; onAction: () => void };
+
+/**
+ * §93: hoe lang een melding blijft, en een tweede knop erin. Een koopmelding
+ * draagt *Ongedaan maken* tien seconden lang (het venster van `undoPurchase`),
+ * dus hij mag niet na zes seconden verdwijnen.
+ */
+export type ToastOptions = { ms?: number; also?: ToastAction };
 
 /**
  * §48, round 25: the dossier this screen *is*.
@@ -117,7 +134,7 @@ type UiValue = {
    * the gate is `/api/assets`, which weighs the bytes that arrived.
    */
   uploadLimit: number;
-  toast: (message: string, action?: { label: string; onAction: () => void }) => void;
+  toast: (message: string, action?: { label: string; onAction: () => void }, options?: ToastOptions) => void;
   /** Asks, in a sheet; resolves true for the yes, false for the no or a dismissal. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   openNewEntry: (prefill?: NewEntryPrefill) => void;
@@ -226,14 +243,17 @@ export function UiProvider({
     });
   }, []);
 
-  const toast = useCallback((message: string, action?: { label: string; onAction: () => void }) => {
-    const id = nextId.current++;
-    setToasts((current) => [
-      ...current.slice(-2),
-      { id, message, actionLabel: action?.label, onAction: action?.onAction },
-    ]);
-    setTimeout(() => setToasts((current) => current.filter((t) => t.id !== id)), 6000);
-  }, []);
+  const toast = useCallback(
+    (message: string, action?: { label: string; onAction: () => void }, options?: ToastOptions) => {
+      const id = nextId.current++;
+      setToasts((current) => [
+        ...current.slice(-2),
+        { id, message, actionLabel: action?.label, onAction: action?.onAction, also: options?.also },
+      ]);
+      setTimeout(() => setToasts((current) => current.filter((t) => t.id !== id)), options?.ms ?? 6000);
+    },
+    [],
+  );
 
   /*
    * §18b: a speler with no onderzoeker cannot make a dossier, so that sheet
@@ -497,6 +517,18 @@ export function UiProvider({
                 }}
               >
                 {t.actionLabel}
+              </button>
+            )}
+            {t.also && (
+              <button
+                type="button"
+                data-testid="toast-also"
+                onClick={() => {
+                  t.also?.onAction();
+                  setToasts((current) => current.filter((x) => x.id !== t.id));
+                }}
+              >
+                {t.also.label}
               </button>
             )}
           </div>

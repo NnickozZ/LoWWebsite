@@ -14,6 +14,8 @@ import { capitalise, fill, type Words } from '@/lib/words';
 import { Beurs } from './Beurs';
 import { MEANING, munt, plekWord, shortfall, withPrice } from './plekWords';
 import { kamerPost } from './post';
+import { buyToast } from './buyToast';
+import { MentionText } from '@/components/ui/MentionPopover';
 
 type Voorwerp = {
   id: string;
@@ -23,6 +25,8 @@ type Voorwerp = {
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
+  /** §93: hoeveel ervan in de lade van deze kamer liggen (`placeCandidates`). */
+  inDrawer: number;
 };
 
 /** The two halves of the sheet. `bezit` is what you own; `catalogus` is what is for sale. */
@@ -229,7 +233,13 @@ export function PlaceButton({
         ui.toast(error);
         return;
       }
-      ui.toast(`${landed(entry.name)} −${munt(entry.price, words)}`);
+      // §93: met *Ongedaan maken* erbij — de correctie van tien seconden.
+      buyToast(ui, router, {
+        message: `${landed(entry.name)} −${munt(entry.price, words)}`,
+        roomId,
+        entryId: entry.id,
+        words,
+      });
       done();
     } finally {
       setBusy(false);
@@ -256,7 +266,7 @@ export function PlaceButton({
 
       {open && (
         <Sheet onClose={() => setOpen(false)} labelledBy={titleId}>
-          <div data-testid="plek-picker" data-tab={tab}>
+          <div data-testid="plek-picker" data-tab={tab} data-answered={answered ? 'ja' : 'nee'}>
             <h2 id={titleId} style={{ margin: '0 0 0.2rem', fontSize: '1.2rem' }}>
               {words.slotPlace} &mdash; {kindLabel}
             </h2>
@@ -366,9 +376,18 @@ export function PlaceButton({
                           <span style={{ flex: 1, minWidth: 0 }}>
                             <strong>{entry.name}</strong>
                             <span className="tiny muted clamp-2" style={{ display: 'block' }}>
-                              {entry.shortDescription || entry.typeLabel}
+                              {entry.shortDescription ? <MentionText text={entry.shortDescription} tokens plain /> : entry.typeLabel}
                             </span>
                           </span>
+                          {/* §93: wat uit je lade komt, zegt dat — het is van jou, en
+                              neerzetten haalt het eruit. */}
+                          {entry.inDrawer > 0 && (
+                            <span className="tiny kamer-lade-tag" data-testid="plek-picker-lade">
+                              {entry.inDrawer > 1
+                                ? fill(words.drawerTagCount, { n: String(entry.inDrawer) })
+                                : words.drawerTag}
+                            </span>
+                          )}
                         </button>
                       </li>
                     ))}
@@ -475,7 +494,7 @@ function Catalogus({
                 </Link>
               </p>
               {entry.shortDescription && (
-                <p className="tiny muted clamp-2 kamer-koop-line">{entry.shortDescription}</p>
+                <p className="tiny muted clamp-2 kamer-koop-line"><MentionText text={entry.shortDescription} tokens plain /></p>
               )}
               {entry.effect.length > 0 && (
                 <ul className="tiny kamer-koop-effect" aria-label={words.roomEffects}>

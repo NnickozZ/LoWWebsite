@@ -195,13 +195,6 @@ export const SPELER_PANELS: Panel[] = [
     ),
   }),
   definePanel({
-    id: 'nu-bezig',
-    title: (words) => words.presence,
-    // Nothing to load: presence is the live line's, not the database's.
-    load: () => null,
-    Component: ({ speler, words }) => <NuBezigPanel speler={speler} words={words} />,
-  }),
-  definePanel({
     id: 'dossiers',
     title: (words) => capitalise(words.casePlural),
     load: casesShared,
@@ -216,4 +209,34 @@ export const SPELER_PANELS: Panel[] = [
     load: contributionsOf,
     Component: ({ data, viewer, words }) => <BijdragenPanel rows={data} viewer={viewer} words={words} />,
   }),
+  /*
+   * §93: Aanwezig staat achteraan. Het dubbelt de hal (K40: één roster), en
+   * op de pagina van een ander staat het woord *online* sinds §93 al in de
+   * eerste rij. Op je eigen pagina valt het weg (`panelsFor`).
+   */
+  definePanel({
+    id: 'nu-bezig',
+    title: (words) => words.presence,
+    // Nothing to load: presence is the live line's, not the database's.
+    load: () => null,
+    Component: ({ speler, words }) => <NuBezigPanel speler={speler} words={words} />,
+  }),
 ];
+
+/**
+ * §93: welke panelen, in welke volgorde — voor je eigen pagina en die van een
+ * ander een andere, want je komt er met een andere vraag (review onderzoek §5).
+ *
+ *  - **eigen:** Kamer, Karakters, Dossiers, Bijdragen. Aanwezig valt weg: dat
+ *    je er bent weet je, en de hal zegt het van de rest.
+ *  - **een ander:** Karakters eerst (wie is dat aan tafel), dan Kamer,
+ *    Dossiers, Bijdragen, en Aanwezig onderaan — het woord *online* staat al in
+ *    de eerste rij.
+ */
+export function panelsFor(isSelf: boolean): Panel[] {
+  const byId = new Map(SPELER_PANELS.map((panel) => [panel.id, panel]));
+  const order = isSelf
+    ? ['kamer', 'karakters', 'dossiers', 'bijdragen']
+    : ['karakters', 'kamer', 'dossiers', 'bijdragen', 'nu-bezig'];
+  return order.map((id) => byId.get(id)).filter((panel): panel is Panel => Boolean(panel));
+}

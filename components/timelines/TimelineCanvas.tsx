@@ -47,6 +47,9 @@ import {
 } from '@/lib/timelines/time';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
+import { CHOICE_PARAM, readCamera, writeCamera, writeChoice } from '@/lib/canvas/memory';
+import { goToView, spanWords } from '@/lib/timelines/span';
+import { TimelineGoTo } from '@/components/timelines/TimelineGoTo';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
@@ -182,6 +185,19 @@ function opensElsewhere(event: React.MouseEvent) {
 const TAG_LINK_RESET: React.CSSProperties = { textDecoration: 'none' };
 
 type View = { origin: number; pxPerSecond: number };
+
+/** §94 (C5): a view read back out of `sessionStorage` is anybody's JSON. */
+function isTimelineView(value: unknown): value is View {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Partial<View>;
+  return (
+    typeof v.origin === 'number' &&
+    Number.isFinite(v.origin) &&
+    typeof v.pxPerSecond === 'number' &&
+    Number.isFinite(v.pxPerSecond) &&
+    v.pxPerSecond > 0
+  );
+}
 
 type Placed = {
   event: TimelineEvent;
@@ -391,11 +407,21 @@ export function TimelineCanvas({
       moveView(fitView(list.map((e) => e.at), w || 900, timeline.scale, span ? (span.from + span.to) / 2 : undefined)),
     [timeline.scale, span, moveView],
   );
-  // The first view: everything on the tijdlijn, once the stage has a width.
+  // The first view: everything on the tijdlijn, once the stage has a width —
+  // or, §94 (C5), the view this tab left here, so Back lands where it was.
+  const resumed = useRef(false);
   useEffect(() => {
-    if (view === null && width > 0) fit(events, width);
+    if (view !== null || width <= 0) return;
+    const kept = readCamera('timeline', timeline.id, isTimelineView);
+    if (kept) {
+      resumed.current = true;
+      moveView(kept);
+    } else fit(events, width);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width]);
+  useEffect(() => {
+    if (view) writeCamera('timeline', timeline.id, view);
+  }, [view, timeline.id]);
   // A stage that changed shape, or a tijdlijn that has just been anchored,
   // re-fences what is already on screen. `moveView` is stable now, so the
   // things the fence is made of have to be the deps.
@@ -413,6 +439,14 @@ export function TimelineCanvas({
    */
   const [open, setOpen] = useState<string[]>(() => (focusEventId ? [focusEventId] : []));
   const isOpen = useCallback((id: string) => open.includes(id), [open]);
+  /*
+   * §94 (C5): the window in front is in the address (`?event=`), so Back from
+   * its artikel folds it out again. `replaceState` — the page is already here.
+   */
+  const front = open.length ? open[open.length - 1] : null;
+  useEffect(() => {
+    writeChoice(CHOICE_PARAM.timeline, front);
+  }, [front]);
   /*
    * §35: `?place=` no longer opens the date form on sight. The moment is
    * looked for first — in the artikel's own infobox, or in the tijdlijn's
@@ -813,6 +847,12 @@ export function TimelineCanvas({
   const focused = useRef(false);
   useEffect(() => {
     if (focused.current || !view || !focusEventId || !width) return;
+    // §94 (C5): coming back to a view this tab left, the gebeurtenis is
+    // already where the hand left it.
+    if (resumed.current) {
+      focused.current = true;
+      return;
+    }
     const target = events.find((e) => e.id === focusEventId);
     if (!target) return;
     focused.current = true;
@@ -820,6 +860,14 @@ export function TimelineCanvas({
   }, [view, focusEventId, events, width]);
 
   /* ---------------------------------------------------------------- zoom */
+
+  /** §94 (C16): "Ga naar…" — the moment in the middle, its own unit filling the glass. */
+  const goTo = useCallback(
+    (at: number, precision: Precision) => {
+      moveView(goToView(at, precision, widthRef.current || width, timeline.scale));
+    },
+    [moveView, timeline.scale, width],
+  );
 
   const zoomAt = useCallback(
     (factor: number, stageX: number) => {
@@ -2057,29 +2105,9 @@ export function TimelineCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline.scale, anchorAt, anchorUnit]);
 
-  const deleteTimeline = useCallback(async () => {
-    const yes = await ui.confirm({
-      title: `${timeline.name} in de prullenbak?`,
-      message: `De ${words.timeline} gaat met alles erop naar de prullenbak; een ${words.keeper} kan hem terugzetten.`,
-      confirmLabel: 'In de prullenbak',
-      danger: true,
-    });
-    if (!yes) return;
-    setSaving(true);
-    try {
-      const response = await fetch(`/api/timelines/${timeline.id}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
-        ui.toast(data.error ?? 'Verwijderen is niet gelukt.');
-        return;
-      }
-      router.push(timeline.caseSlug ? `/c/${timeline.caseSlug}` : '/timelines');
-    } catch {
-      ui.toast('Geen verbinding.');
-    } finally {
-      setSaving(false);
-    }
-  }, [ui, timeline, words.timeline, words.keeper, router]);
+  /* §94 (C11): a tijdlijn into the bin is the page's `BinSlot` below the
+     fold now, as on the other three — it was a button at the foot of this
+     canvas's Instellingen sheet. */
 
   /* -------------------------------------------------------------- render */
 
@@ -2203,10 +2231,16 @@ export function TimelineCanvas({
           </button>
         )}
         <span className="spacer" />
+        {/* §94 (C16): "Ga naar…" — here on a desk; on a phone it is in the
+            sheet behind the gear, where a keyboard has room. */}
+        <TimelineGoTo onGo={goTo} className="timeline-goto-bar" />
         {/* §69: the shared block. The number is pixels per unit of this
             tijdlijn's own scale — there is no "zoom 1" on an axis, and 200 %
-            is exactly where `maxPxPerSecond` already stops. */}
+            is exactly where `maxPxPerSecond` already stops. §94 (C7): and it
+            is said in words, how much time is on the glass ("≈ 6 maanden");
+            "2 %" read as broken. */}
         <CanvasZoomControls
+          level={view && width ? spanWords(width / view.pxPerSecond) : undefined}
           percent={view ? view.pxPerSecond * UNIT_SECONDS[timeline.scale] : 0}
           onOut={() => zoomAt(1 / ZOOM_STEP, width / 2)}
           onIn={() => zoomAt(ZOOM_STEP, width / 2)}
@@ -2215,7 +2249,8 @@ export function TimelineCanvas({
         {/* §69: a tijdlijn had no undo at all before this round. */}
         {/* §90: grey in Lezen, as on the other three — it was still pressable here (r37). */}
         {canEdit && <CanvasUndoButton onUndo={() => void undo()} canUndo={handsOn && undoDepth > 0} />}
-        {canEdit && (
+        {/* §94 (C16): on a phone the gear is everybody's — "Ga naar…" lives behind it. */}
+        {(canEdit || isPhone) && (
           <button type="button" className="btn btn-ghost btn-small" onClick={() => setSheet({ mode: 'settings' })} data-testid="timeline-settings" aria-label="Instellingen" title="Instellingen">
             <Icon name="gear" size={16} />
             <span className="canvas-tool-word">Instellingen</span>
@@ -2709,16 +2744,31 @@ export function TimelineCanvas({
 
       {sheet?.mode === 'settings' && (
         <Sheet onClose={() => setSheet(null)} labelledBy="timeline-settings-title">
-          <TimelineSettingsSheet
-            timeline={timeline}
-            busy={saving}
-            canManage={access.canManage}
-            isKeeper={isKeeper}
-            viewerId={viewerId}
-            access={access.settings}
-            onSave={saveSettings}
-            onDelete={() => void deleteTimeline()}
-          />
+          {/* §94 (C16): the jump first, on a phone — it is what a reader opens this for. */}
+          {isPhone && (
+            <TimelineGoTo
+              testId="timeline-goto-sheet"
+              onGo={(at, precision) => {
+                goTo(at, precision);
+                setSheet(null);
+              }}
+            />
+          )}
+          {canEdit ? (
+            <TimelineSettingsSheet
+              timeline={timeline}
+              busy={saving}
+              canManage={access.canManage}
+              isKeeper={isKeeper}
+              viewerId={viewerId}
+              access={access.settings}
+              onSave={saveSettings}
+            />
+          ) : (
+            <h2 id="timeline-settings-title" className="visually-hidden">
+              {words.goToDate}
+            </h2>
+          )}
           {isKeeper && ink.keeperControls}
         </Sheet>
       )}
@@ -2934,7 +2984,7 @@ function Popout({
       {event.text ? (
         <p className="small timeline-popout-text"><MentionText text={event.text} /></p>
       ) : event.kind === 'entry' && event.entry?.shortDescription ? (
-        <p className="small muted timeline-popout-text">{event.entry.shortDescription}</p>
+        <p className="small muted timeline-popout-text"><MentionText text={event.entry.shortDescription} tokens /></p>
       ) : null}
       <div className="row-wrap" style={{ gap: '0.3rem', marginTop: '0.4rem' }}>
         {event.kind === 'entry' && event.entry && (

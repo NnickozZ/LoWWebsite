@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn } from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue } from './helpers';
 
 /**
  * §82: de winkel — de etalage, de beurs, en wat er met een klik gebeurt.
@@ -129,8 +129,8 @@ async function newHuisraad(
     await editArticle(page);
     await unfoldInfobox(page);
     await expectPlekken(page, plekken);
-    await expect(page.locator('#field-prijs')).toHaveValue(String(spec.prijs), { timeout: 5000 });
-    await expect(page.locator('#field-effect')).toHaveValue(effect, { timeout: 5000 });
+    await expectBoxValue(page.locator('#field-prijs'), String(spec.prijs), { timeout: 5000 });
+    await expectBoxValue(page.locator('#field-effect'), effect, { timeout: 5000 });
   }).toPass({ timeout: 60_000 });
 
   return { name: spec.name, slug, path, effect: spec.effect, prijs: spec.prijs };
@@ -673,7 +673,8 @@ test.describe('§82 De winkel', () => {
       .locator('details.admin-type')
       .filter({ has: page.locator('summary', { hasText: soort }) });
     await expect(editor).toHaveCount(1, { timeout: 30_000 });
-    await editor.locator('summary').click();
+    // §96: a soort you just made opens by itself — pressing its summary would shut it.
+    await expect(editor).toHaveAttribute('open', '', { timeout: 20_000 });
     await expect(editor.getByTestId('soort-keeper-made')).toBeVisible({ timeout: 20_000 });
 
     // Twee velden met de sleutels die `lib/kamers/shape.ts` vraagt. De sleutel
@@ -742,8 +743,8 @@ test.describe('§82 De winkel', () => {
       await page.goto(dingPad);
       await editArticle(page);
       await unfoldInfobox(page);
-      await expect(page.locator('#field-plek')).toHaveValue('plank', { timeout: 5000 });
-      await expect(page.locator('#field-prijs')).toHaveValue('2', { timeout: 5000 });
+      await expectBoxValue(page.locator('#field-plek'), 'plank', { timeout: 5000 });
+      await expectBoxValue(page.locator('#field-prijs'), '2', { timeout: 5000 });
     }).toPass({ timeout: 60_000 });
 
     /* ------------------------------------------------------- twee gegadigden */

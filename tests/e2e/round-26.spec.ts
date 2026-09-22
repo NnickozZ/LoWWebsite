@@ -207,9 +207,9 @@ test.describe('§49 overal te maken, en er weer uit te halen', () => {
     await page.locator('.entry-origin-set').click();
     await page.getByRole('menuitem', { name: 'Uit dit dossier halen' }).click();
     // The page comes back without the eyebrow's dossier: nothing to print.
-    await expect(page.locator('.entry-origin')).toContainText('Zonder dossier', {
-      timeout: 20_000,
-    });
+    // §92 (B23): and with no dossier left the line itself goes — "Dossier voor
+    // de naam" is only offered for an artikel that is in one.
+    await expect(page.locator('.entry-origin')).toHaveCount(0, { timeout: 20_000 });
 
     await page.goto(caseUrl);
     await shelved(page, filed, false);

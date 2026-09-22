@@ -156,6 +156,8 @@ test('renaming a word renames it everywhere, and clearing the box puts it back',
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Woorden' }).click();
 
+  // §96: the groups are folded; the filter opens the one that holds it.
+  await page.getByTestId('words-filter').fill('Prikborden');
   await page.getByLabel('Prikborden', { exact: true }).fill('Muren');
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
 
@@ -168,6 +170,8 @@ test('renaming a word renames it everywhere, and clearing the box puts it back',
   // An empty box means "the default", so this is also how a word is undone.
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Woorden' }).click();
+  // §96: the groups are folded; the filter opens the one that holds it.
+  await page.getByTestId('words-filter').fill('Prikborden');
   await page.getByLabel('Prikborden', { exact: true }).fill('');
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(nav.getByRole('link', { name: 'Prikborden' }).first()).toBeVisible();

@@ -55,6 +55,10 @@ function reasonOf(line: LedgerLine, words: Words): string {
     const kind = isPlekKind(line.reason) ? plekWord(line.reason, words) : line.reason;
     return capitalise(fill(words.ledgerSlotLine, { plek: kind }));
   }
+  // §93: een koop die binnen het venster ongedaan is gemaakt — een regel erbij.
+  if (line.kind === 'return') {
+    return capitalise(fill(words.ledgerReturnLine, { ding: line.reason.trim() }));
+  }
   if (line.kind === 'item') {
     return capitalise(fill(words.ledgerItemLine, { ding: line.reason.trim() }));
   }

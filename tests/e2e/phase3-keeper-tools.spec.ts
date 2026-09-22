@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, openRights, signIn } from './helpers';
+import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, openRights, signIn, expectBoxValue } from './helpers';
 
 /**
  * Phase 3 (§9–§11) beyond golden flow 5: entry-level visibility and its leaks,
@@ -121,7 +121,7 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
 
   // The entry itself is untouched.
   await page.reload();
-  await expect(page.getByLabel('Korte beschrijving')).toHaveValue(
+  await expectBoxValue(page.getByLabel('Korte beschrijving'), 
     'Pompt sinds de drift de verkeerde kant op.',
   );
 
@@ -139,7 +139,7 @@ test('a locked entry sends a player edit to the review queue', async ({ page, br
   await page.goto(url);
   // §22: a Keeper lands on the reading face too, and this reads the *input*.
   await editArticle(page);
-  await expect(page.getByLabel('Korte beschrijving')).toHaveValue('Pompt zout water het land in.');
+  await expectBoxValue(page.getByLabel('Korte beschrijving'), 'Pompt zout water het land in.');
 
   // And the author reads the outcome, with the note, on their own page.
   await player.goto('/you');
@@ -193,7 +193,8 @@ test('the Keeper can add a type, give it a field, and use it', async ({ page }, 
     .locator('details.admin-type')
     .filter({ has: page.locator('summary', { hasText: typeName }) });
   await expect(editor).toBeVisible();
-  await editor.locator('summary').click();
+  // §96: a soort you just made opens by itself — pressing its summary would shut it.
+  await expect(editor).toHaveAttribute('open', '');
   await editor.getByRole('button', { name: 'Veld toevoegen' }).click();
   await editor.getByLabel('Naam van veld 1').fill('Tonnage');
   await editor.getByRole('button', { name: 'Opslaan', exact: true }).click();
@@ -233,7 +234,8 @@ test('a Getal, a Ja/nee and a Meerkeuze, from the type editor to the reading fac
     .locator('details.admin-type')
     .filter({ has: page.locator('summary', { hasText: typeName }) });
   await expect(editor).toBeVisible();
-  await editor.locator('summary').click();
+  // §96: a soort you just made opens by itself — pressing its summary would shut it.
+  await expect(editor).toHaveAttribute('open', '');
 
   for (const [index, label, kind] of [
     [1, 'Tonnage', 'Getal'],

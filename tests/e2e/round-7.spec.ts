@@ -45,11 +45,12 @@ test('a prikbord can be thrown away, and put back', async ({ page }, info) => {
   await page.locator('#board-name').blur();
   await page.waitForTimeout(400);
 
-  // It had no way out at all before this round.
-  await page.getByRole('button', { name: /verwijderen/i }).click();
-  const ask = page.getByRole('dialog', { name: new RegExp(`${boardName} weggooien`) });
-  await expect(ask).toBeVisible();
-  await ask.getByRole('button', { name: 'Naar de prullenbak' }).click();
+  // It had no way out at all before this round. §94 (C11): the way out is
+  // the folded lade below the wall now, the same `BinSlot` all four have.
+  const bin = page.getByTestId('board-bin');
+  await bin.scrollIntoViewIfNeeded();
+  await bin.locator('summary').click();
+  await bin.getByTestId('board-bin-button').click();
   await page.waitForURL('**/boards**');
   await expect(page.getByText(boardName)).toHaveCount(0);
 
@@ -82,13 +83,13 @@ test('a landkaart lands in the bin instead of vanishing', async ({ page }, info)
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
   await page.waitForURL('**/maps/**');
 
-  await page.locator('summary', { hasText: /Deze landkaart/ }).click();
-  await page.getByRole('button', { name: 'Van de muur halen' }).click();
-  const ask = page.getByRole('dialog', { name: new RegExp(`${mapName} van de muur halen`) });
-  await expect(ask).toBeVisible();
-  // The sheet used to promise it could never be got back. It can now.
-  await expect(ask.getByText(/prullenbak/)).toBeVisible();
-  await ask.getByRole('button', { name: 'Weghalen' }).click();
+  // §94 (C11): the folded lade below the map, the same `BinSlot` all four
+  // have — and it says the landkaart can be got back.
+  const bin = page.getByTestId('map-bin');
+  await bin.scrollIntoViewIfNeeded();
+  await bin.locator('summary').click();
+  await expect(bin.locator('p', { hasText: /prullenbak/ })).toBeVisible();
+  await bin.getByTestId('map-bin-button').click();
   // The map's own URL also matches "**/maps**", so wait for the shelf itself —
   // otherwise this walks on to Beheer while the DELETE is still in flight.
   await page.waitForURL(/\/maps(\?.*)?$/);

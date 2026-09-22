@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef, useState, type FormEvent } from 'react';
+import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { slugify } from '@/lib/slug';
@@ -18,6 +18,7 @@ import {
   type TypeText,
 } from '@/lib/pageBlocks';
 import { capitalise, type Words } from '@/lib/words';
+import { claimNewType, onNewType } from './newType';
 import type { FieldDef, FieldKind } from '@/lib/db/schema';
 import type { FieldRole } from '@/lib/families/types';
 import {
@@ -177,6 +178,45 @@ export function TypeEditor({
    */
   const formRef = useRef<HTMLFormElement>(null);
   const confirmed = useRef(false);
+
+  /*
+   * §96: de soort die je net maakte klapt open, schuift in beeld en zet de
+   * focus op *Veld toevoegen* — het eerste wat je met een lege soort doet.
+   * Zie `components/admin/newType.ts` voor waarom het id op twee manieren
+   * binnenkomt.
+   */
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const addFieldRef = useRef<HTMLButtonElement>(null);
+  const focusField = useRef<number | null>(null);
+  useEffect(() => {
+    const reveal = () => {
+      const details = detailsRef.current;
+      if (!details) return;
+      details.open = true;
+      requestAnimationFrame(() => {
+        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        // The button, not the top of the editor: on a phone the editor is
+        // taller than the screen, and the button is what you press next.
+        const target = addFieldRef.current ?? details;
+        target.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+        addFieldRef.current?.focus({ preventScroll: true });
+      });
+    };
+    if (claimNewType(type.id)) reveal();
+    return onNewType((id) => {
+      if (id === type.id && claimNewType(id)) reveal();
+    });
+  }, [type.id]);
+
+  // §96: a field just added gets the caret in its name, where the typing starts.
+  useEffect(() => {
+    if (focusField.current === null) return;
+    detailsRef.current
+      ?.querySelector<HTMLInputElement>(`[data-field-name="${focusField.current}"]`)
+      ?.focus();
+    focusField.current = null;
+  }, [fields.length]);
+
   const slugChanged = Boolean(slug.trim()) && slugify(slug) !== type.slug;
   // The nudge that fixes Relieken and Voorwerpen: the seed could rename the
   // words but not the addresses, so `object` still sits under "Relieken".
@@ -286,6 +326,7 @@ export function TypeEditor({
   }
 
   function addField() {
+    focusField.current = fields.length;
     setFields((current) => [
       ...current,
       { key: `veld_${current.length + 1}`, label: '', kind: 'text' },
@@ -307,7 +348,7 @@ export function TypeEditor({
   );
 
   return (
-    <details className="section admin-type">
+    <details className="section admin-type" ref={detailsRef} data-type-id={type.id}>
       <summary>
         <Icon name={icon} size={15} style={{ color: colour }} />
         {type.label}
@@ -539,6 +580,7 @@ export function TypeEditor({
                 <input
                   className="input"
                   aria-label={`Naam van veld ${index + 1}`}
+                  data-field-name={index}
                   value={field.label}
                   onChange={(event) => setFieldLabel(index, event.target.value)}
                   style={{ flex: '1 1 8rem', minHeight: 38 }}
@@ -636,30 +678,17 @@ export function TypeEditor({
                 )}
                 {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
                   <div style={{ flex: '1 1 100%', order: 1 }}>
-                    <span className="tiny muted">Alleen deze soorten mogen erin (leeg = alles)</span>
-                    <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
-                      {types.map((option) => {
-                        const on = field.ofType?.includes(option.slug) ?? false;
-                        return (
-                          <button
-                            key={option.slug}
-                            type="button"
-                            className={`chip chip-selectable${on ? ' chip-active' : ''}`}
-                            aria-pressed={on}
-                            onClick={() => {
-                              const current = field.ofType ?? [];
-                              patchField(index, {
-                                ofType: on
-                                  ? current.filter((slug) => slug !== option.slug)
-                                  : [...current, option.slug],
-                              });
-                            }}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {/*
+                      §96: negentien chips per koppelveld maakten van Personen
+                      een scherm van 298 bedieningselementen. Ze staan nu achter
+                      één kiezer die zegt wat er gekozen is.
+                    */}
+                    <TargetsPicker
+                      types={types}
+                      chosen={field.ofType ?? []}
+                      words={words}
+                      onChange={(ofType) => patchField(index, { ofType })}
+                    />
                   </div>
                 )}
                 {/* §80: dezelfde sleutel als een ander veld. `cleanFields`
@@ -703,6 +732,7 @@ export function TypeEditor({
             ))}
           </ul>
           <button
+            ref={addFieldRef}
             type="button"
             className="btn btn-small"
             style={{ marginTop: '0.4rem' }}
@@ -820,13 +850,16 @@ export function TypeEditor({
           </p>
         )}
 
-        {save.error && <p className="error-note">{save.error}</p>}
-        {save.ok && <p className="small muted">{save.ok}</p>}
-
-        <div className="row-wrap">
+        {/*
+          §96: de voet plakt onderaan in beeld zolang deze editor open en
+          langer dan het scherm is — Opslaan stond 1.700 px onder de naam.
+        */}
+        <div className="admin-sticky-foot admin-type-foot">
           <button className="btn btn-small btn-primary" type="submit" disabled={saving}>
             {saving ? 'Opslaan…' : 'Opslaan'}
           </button>
+          {save.error && <span className="error-note small">{save.error}</span>}
+          {save.ok && <span className="small muted">{save.ok}</span>}
           <div className="spacer" />
           {type.entryCount === 0 && (
             <button className="btn btn-small btn-danger" type="submit" formAction={removeAction}>
@@ -845,6 +878,67 @@ export function TypeEditor({
       */}
       <OldValues typeId={type.id} orphans={type.orphans} words={words} />
     </details>
+  );
+}
+
+/**
+ * §96 (C32): de doel-soorten van een koppelveld, achter één kiezer.
+ *
+ * Negentien chips per koppelveld maakten van Personen een editor van 298
+ * bedieningselementen. De rij zegt nu wat er gekozen is en klapt de chips pas
+ * open als je erom vraagt. Een knop met `aria-expanded` en geen `<details>`:
+ * een tweede `<summary>` binnen de soort zou elke zoektocht naar "de soort
+ * wiens kop X heet" laten matchen op de kiezer van een andere soort.
+ */
+function TargetsPicker({
+  types,
+  chosen,
+  words,
+  onChange,
+}: {
+  types: TypeLite[];
+  chosen: string[];
+  words: Words;
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const names = types.filter((option) => chosen.includes(option.slug)).map((option) => option.label);
+  return (
+    <div className="admin-oftype" data-testid="veld-soorten">
+      <div className="row-wrap admin-oftype-head">
+        <span className="tiny muted">Alleen deze soorten mogen erin (leeg = alles):</span>
+        <span className="small admin-oftype-chosen">{names.length ? names.join(', ') : words.typeTargetsAll}</span>
+        <button
+          type="button"
+          className="btn btn-small btn-ghost admin-oftype-pick"
+          aria-expanded={open}
+          onClick={() => setOpen((was) => !was)}
+        >
+          <Icon name="chevron" size={13} />
+          {words.typeTargetsPick}
+        </button>
+      </div>
+      {open && (
+        <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
+          {types.map((option) => {
+            const on = chosen.includes(option.slug);
+            return (
+              <button
+                key={option.slug}
+                type="button"
+                className={`chip chip-selectable${on ? ' chip-active' : ''}`}
+                aria-pressed={on}
+                onClick={() =>
+                  onChange(on ? chosen.filter((slug) => slug !== option.slug) : [...chosen, option.slug])
+                }
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

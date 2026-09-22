@@ -123,7 +123,9 @@ test.describe('§48 @ in een beschrijving', () => {
       .filter({ hasText: 'Jacob den Hollander' })
       .first()
       .click();
-    await expect(lead).toHaveValue('Gezien bij [[Jacob den Hollander]] ');
+    // §95: a chip in the box, with its artikel in it — no brackets.
+    await expect(lead.locator('.short-chip')).toHaveText('Jacob den Hollander', { timeout: 20_000 });
+    await expect(lead).not.toContainText('[[');
     await lead.blur();
 
     // Reading, the shorthand is the chip every other text in the archive gets.

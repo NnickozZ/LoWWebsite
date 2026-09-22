@@ -5,7 +5,8 @@ import { db, schema } from '@/lib/db';
 import { docToText } from '@/lib/entries/doc';
 import type { Author } from '@/lib/auth/author';
 import { logActivity, logAudit, updateEntry, type EntryPatch } from '@/lib/entries/service';
-import { visibleEntryCondition } from '@/lib/entries/visibility';
+import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
+import { plainShort } from '@/lib/entries/shortRefs';
 
 /**
  * §10: a player's edit to a locked entry lands in `pending_edits` instead of on
@@ -74,15 +75,24 @@ const FIELD_LABELS: Record<string, string> = {
   typeSlug: 'Soort artikel',
 };
 
-function asText(key: string, value: unknown): string {
+function asText(key: string, value: unknown, read: (text: string) => string): string {
   if (value === null || value === undefined) return '';
   if (key === 'body') return docToText(value);
   if (key === 'tags' && Array.isArray(value)) return value.join(', ');
-  if (typeof value === 'string') return value;
+  // §95: a short text's chips are handles; the reviewer reads the names they may see.
+  if (typeof value === 'string') return key === 'shortDescription' ? read(value) : value;
+  if (key === 'fields' && typeof value === 'object' && !Array.isArray(value)) {
+    const shown = Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, typeof v === 'string' ? read(v) : v]),
+    );
+    return JSON.stringify(shown, null, 2);
+  }
   return JSON.stringify(value, null, 2);
 }
 
-export function listPendingEdits(entryId?: string): PendingEdit[] {
+/** §95: `viewer` is the reviewer, for the names of the chips in a short text. */
+export function listPendingEdits(entryId: string | undefined, viewer: Viewer): PendingEdit[] {
+  const read = (text: string) => plainShort(viewer, text);
   const rows = db
     .select({
       id: schema.pendingEdits.id,
@@ -144,8 +154,8 @@ export function listPendingEdits(entryId?: string): PendingEdit[] {
       .map((key) => ({
         key,
         label: FIELD_LABELS[key],
-        before: key === 'body' ? row.entryBodyText : asText(key, current[key]),
-        after: asText(key, snapshot[key]),
+        before: key === 'body' ? row.entryBodyText : asText(key, current[key], read),
+        after: asText(key, snapshot[key], read),
       }))
       .filter((field) => field.before !== field.after);
 

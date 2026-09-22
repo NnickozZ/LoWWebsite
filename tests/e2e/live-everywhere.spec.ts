@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editCase, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editCase, inviteCode, signIn, expectBoxValue } from './helpers';
 
 /**
  * §21: live is every page.
@@ -112,7 +112,7 @@ test('a list grows on the other screen, people see each other, and a name typed 
   const lead = other.locator('#case-summary');
   await lead.click();
   await other.keyboard.type('Wie stal de klok?');
-  await expect(page.locator('#case-summary')).toHaveValue('Wie stal de klok?', { timeout: 5000 });
+  await expectBoxValue(page.locator('#case-summary'), 'Wie stal de klok?', { timeout: 5000 });
 
   await freshCtx.close();
   await otherCtx.close();

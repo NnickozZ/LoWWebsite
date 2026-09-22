@@ -15,8 +15,8 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   try {
     const user = await requireUser();
     const { slotId } = await ctx.params;
-    clearSlot(slotId, user);
-    return json({ ok: true });
+    // §93: en zeg of het de lade in ging — huisraad wel, een gevonden voorwerp niet.
+    return json({ ok: true, ...clearSlot(slotId, user) });
   } catch (err) {
     if (err instanceof KamerError) return json({ error: err.message }, { status: 400 });
     return apiError(err);

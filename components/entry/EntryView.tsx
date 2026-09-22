@@ -14,13 +14,14 @@ import { ConnectMapButton } from './ConnectMapButton';
 import { ProposalsPanel } from './ProposalsPanel';
 import { PinToBoardButton } from '@/components/boards/PinToBoardButton';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
+import { InTreeDoors } from '@/components/families/InTreeDoor';
 import dynamic from 'next/dynamic';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
-import { LiveField, LiveFields } from '@/components/live/LiveFields';
+import { LiveField, LiveFields, ShortField } from '@/components/live/LiveFields';
 import { useLiveChanges } from '@/components/live/LiveProvider';
 import { entryKey } from '@/lib/live/keys';
-import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorOptional } from '@/components/you/AuthorProvider';
 import { useIsWide } from '@/components/useIsPhone';
@@ -46,8 +47,10 @@ import { tagListHref } from '@/lib/entries/tagHref';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
 import { OriginLine, type OriginCaseLite } from './OriginLine';
+import { PlaceOnButton } from './PlaceOnButton';
 import {
   FieldsEditor,
+  FieldsPeek,
   FieldsView,
   fieldValue,
   type CaseRefs,
@@ -422,7 +425,6 @@ export function EntryView({
     },
     [entry.id, entry.name, router, ui, followPlay],
   );
-  const leadRef = useRef<HTMLTextAreaElement>(null);
   const notifiedFor = useRef<string | null>(null);
 
   const save = useCallback(
@@ -545,7 +547,6 @@ export function EntryView({
   const readingRef = useRef(reading);
   readingRef.current = reading;
 
-  useEffect(() => autosize(leadRef.current), [shortDescription, reading]);
 
   const words = ui.words;
 
@@ -675,6 +676,9 @@ export function EntryView({
   );
 
   const showInfobox = Boolean(fieldsBlock) && (!reading || hasReadableInfo);
+  // §92 (B11): on a narrow screen the fold is closed while reading unless the
+  // hand opened it; editing, the soort's own "open" still decides.
+  const infoboxShownOpen = infoboxOpen ?? ((Boolean(fieldsBlock?.open) && !reading) || openAddMore);
 
   const infobox = showInfobox ? (
     wide ? (
@@ -685,16 +689,27 @@ export function EntryView({
         {infoboxBody}
       </section>
     ) : (
-      <details
-        id="block-info"
-        className="section entry-infobox entry-infobox-folded"
-        open={infoboxOpen ?? (fieldsBlock!.open || openAddMore || reading)}
-        // §90: whatever the hand did last is what survives Lezen ↔ Bewerken.
-        onToggle={(event) => setInfoboxOpen(event.currentTarget.open)}
-      >
-        <summary>{infoboxHeading}</summary>
-        <div style={{ padding: '0.6rem 0 0.8rem' }}>{infoboxBody}</div>
-      </details>
+      <>
+        <details
+          id="block-info"
+          className="section entry-infobox entry-infobox-folded"
+          /*
+           * §92 (B11): folded while reading too. It used to spring open on the
+           * reading face, and on a phone that put a full list of facts between
+           * the title and the first sentence — the text started 1.7 screens
+           * down. The peek under it says what is in it; a tap opens the rest.
+           */
+          open={infoboxShownOpen}
+          // §90: whatever the hand did last is what survives Lezen ↔ Bewerken.
+          onToggle={(event) => setInfoboxOpen(event.currentTarget.open)}
+        >
+          <summary>{infoboxHeading}</summary>
+          <div style={{ padding: '0.6rem 0 0.8rem' }}>{infoboxBody}</div>
+        </details>
+        {reading && !infoboxShownOpen && (
+          <FieldsPeek fields={entry.typeFields} values={fields} cases={caseRefs} refs={resolvedRefs} tags={tags} />
+        )}
+      </>
     )
   ) : null;
 
@@ -942,7 +957,10 @@ export function EntryView({
           per artikel; the page has room to say it properly and link it. The
           "In: …" chips lower down are a different fact and stay where they are.
         */}
-        {(origin.case || origin.offer) && (
+        {/* §92 (B23): only for an artikel that is in a dossier. The tickbox
+            "Dossier voor de naam" with nothing to point at was two lines above
+            the title for a setting that had no meaning yet. */}
+        {origin.offer && (origin.case || origin.cases.length > 0) && (
           <OriginLine
             entryId={entry.id}
             origin={origin.case}
@@ -967,7 +985,7 @@ export function EntryView({
                 it is a chip, and the box that writes it offers the names. */}
             {shortDescription.trim() && (
               <p className="entry-lead">
-                <MentionText text={shortDescription} />
+                <MentionText text={shortDescription} tokens />
               </p>
             )}
           </>
@@ -988,18 +1006,17 @@ export function EntryView({
               onBlur={() => void flush()}
             />
 
-            <label className="visually-hidden" htmlFor="entry-lead">
+            <label className="visually-hidden" id="entry-lead-label" htmlFor="entry-lead">
               Korte beschrijving
             </label>
-            <LiveField
-              as="textarea"
-              mentions
+            {/* §95: a chip in the box, with its artikel in it — the same
+                gesture as the text below, stored as a handle (`ShortField`). */}
+            <ShortField
               field="shortDescription"
               id="entry-lead"
-              ref={leadRef}
               className="lead-input"
-              rows={1}
-              placeholder={entry.typeText.descriptionPlaceholder || DEFAULT_DESCRIPTION_PLACEHOLDER}
+              ariaLabelledBy="entry-lead-label"
+              placeholder={`${entry.typeText.descriptionPlaceholder || DEFAULT_DESCRIPTION_PLACEHOLDER} ${fill(words.mentionHint, { artikel: words.entry })}`}
               value={shortDescription}
               onValue={(next, meta) => {
                 setShortDescription(next);
@@ -1007,12 +1024,6 @@ export function EntryView({
               }}
               onBlur={() => void flush()}
             />
-            {/* §54: the chips of the korte beschrijving, under the box and
-                clickable while it is being written. A textarea holds
-                characters, so a chip can never live inside one — the reading
-                face prints `MentionText` in the text itself, and this is the
-                editing face's answer to the same wish. */}
-            <MentionRow text={shortDescription} />
           </>
         )}
 
@@ -1038,8 +1049,18 @@ export function EntryView({
             inCaseIds={cases.map((item) => item.id)}
           />
           <PinToBoardButton entryId={entry.id} entryName={entry.name} />
+          {!reading && (
+            <PlaceOnButton
+              entryId={entry.id}
+              entryName={name || entry.name}
+              maps={mapsToPlace}
+              timelines={timelinesToPlace}
+            />
+          )}
           {/* §43: the web, with this artikel in the middle. */}
           <ConnectionsLink kind="entry" id={entry.id} />
+          {/* §94 (C20): and the stamboom this artikel stands in, with it chosen. */}
+          <InTreeDoors />
           {/* §18c: offered only while there is nobody on the peg. A speler's
               first onderzoeker is theirs to tie on; the next one is handed to
               them from Beheer, so no button stands here that would only be
@@ -1119,7 +1140,10 @@ export function EntryView({
 
         {/* Same rule: where it *is* on the maps is a fact; "zet op…" is an
             action, and the reading face has none. */}
-        {(onMaps.length > 0 || (mapsToPlace.length > 0 && !reading)) && (
+        {/* §92 (B12): the fact only. The "zet op…" pills that stood here on the
+            editing face are one button beside the other actions now
+            (`PlaceOnButton`). */}
+        {onMaps.length > 0 && (
           <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
             <span className="muted">{words.onTheMap}:</span>
             {onMaps.map((item) => (
@@ -1128,32 +1152,12 @@ export function EntryView({
                 {item.mapName}
               </Link>
             ))}
-            {!reading && mapsToPlace.slice(0, mapsToPlace.length > 3 ? 2 : 3).map((item) => (
-              <Link
-                key={item.slug}
-                className="chip chip-selectable"
-                href={`/maps/${item.slug}?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
-                title={`Zet dit ${words.entry} op ${item.name}`}
-              >
-                <Icon name="mapPin" size={12} />
-                Zet op {item.name}
-              </Link>
-            ))}
-            {!reading && mapsToPlace.length > 3 && (
-              <Link
-                className="chip chip-selectable"
-                href={`/maps?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
-              >
-                <Icon name="map" size={12} />
-                Zet op een andere {words.map}…
-              </Link>
-            )}
           </p>
         )}
 
         {/* §32: the same two sentences for tijdlijnen — where it *is* is a
             fact, "zet op…" is an action. */}
-        {(onTimelines.length > 0 || (timelinesToPlace.length > 0 && !reading)) && (
+        {onTimelines.length > 0 && (
           <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
             <span className="muted">{words.onTheTimeline}:</span>
             {onTimelines.map((item) => (
@@ -1168,26 +1172,6 @@ export function EntryView({
                 <span className="muted"> · {item.when}</span>
               </Link>
             ))}
-            {!reading && timelinesToPlace.slice(0, timelinesToPlace.length > 3 ? 2 : 3).map((item) => (
-              <Link
-                key={item.slug}
-                className="chip chip-selectable"
-                href={`/timelines/${item.slug}?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
-                title={`Zet dit ${words.entry} op ${item.name}`}
-              >
-                <Icon name="timeline" size={12} />
-                Zet op {item.name}
-              </Link>
-            ))}
-            {!reading && timelinesToPlace.length > 3 && (
-              <Link
-                className="chip chip-selectable"
-                href={`/timelines?place=${entry.id}&name=${encodeURIComponent(name || entry.name)}`}
-              >
-                <Icon name="timeline" size={12} />
-                Zet op een andere {words.timeline}…
-              </Link>
-            )}
           </p>
         )}
 
@@ -1400,9 +1384,12 @@ export function EntryView({
 
       {/* On a narrow screen the picture and the facts sit under the header,
           where a phone wiki puts them, and above the jump chips. */}
-      {!wide && asideBox}
-
+      {/* §92 (B11): the jump chips straight under the header, before what
+          they are there to skip — they used to come after the picture and the
+          facts, so you only saw them once you were past them. */}
       {!wide && <EntryOutline items={phoneOutline} shape="row" label={words.onThisPage} />}
+
+      {!wide && asideBox}
 
       <div className={`entry-layout${wide ? ' entry-layout-wide' : ''}`}>
         {/* §25: the outline is the first column, not the middle one. It is a

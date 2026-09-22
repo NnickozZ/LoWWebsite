@@ -917,6 +917,40 @@ a.card:hover {
 .canvas-head .canvas-head-of {
   white-space: nowrap;
 }
+/* §94 tekenvlakken (C23): wat een landkaart ís en waar hij op hangt — op een
+   computer twee zinnen naast elkaar, op een telefoon één rij chips met een kort
+   woord ervoor, in plaats van twee regels van de kop. */
+.map-head-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.8rem;
+}
+.map-head-short {
+  display: none;
+}
+@media (max-width: 767px) {
+  .map-head-links {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .map-head-long {
+    display: none;
+  }
+  .map-head-short {
+    display: inline;
+  }
+  .map-head-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.05rem 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+}
 .canvas-head .canvas-head-desc {
   display: none;
   flex: 1 1 12rem;
@@ -1375,6 +1409,158 @@ body:has(.sheet-backdrop) .fab {
   -webkit-text-fill-color: transparent;
 }
 
+/* §92 ronde 53: de korte vakken (c+). Een kort vak met `@`/`[[` staat in een
+   `.mention-field`; buiten focus ligt `.mention-preview` erover en toont de
+   tekst met chips en zonder haakjes, zoals de leeskant. De typografie en de
+   maten van het vak worden in `MentionPreview` van het vak zelf gekopieerd,
+   dus hier staat niets dat bepaalt waar een letter landt. */
+.mention-field {
+  position: relative;
+}
+/* Een textarea en een input zijn inline-block: zonder dit krijgt de doos
+   eromheen de ruimte onder de letters erbij, en schuift alles eronder 4 px. */
+.mention-field > textarea,
+.mention-field > input {
+  vertical-align: top;
+}
+.mention-preview {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  overflow: hidden;
+  border-style: solid;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  z-index: 1;
+  /* Het vak is het ding, dit is een plaatje: een klik naast een chip valt
+     door naar het vak (caret erin, §18b's poort hoort het). Alleen de chips
+     nemen de aanwijzer — een klik erop volgt de link. */
+  pointer-events: none;
+  user-select: none;
+}
+.mention-preview a.entry-chip {
+  pointer-events: auto;
+}
+.mention-preview > .mention-preview-text {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Het vak houdt zijn rand, zijn achtergrond en zijn plek; alleen zijn letters
+   tekent de voorvertoning. */
+.mention-previewed {
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* §95 ronde 56: één regel, één id. Een kort vak is een editor van één regel
+   (`ShortEditor`) met echte chips erin, geen textarea met een spiegel erover.
+   Het draagt de klassen van het vak dat het vervangt (`.lead-input`, `.input`,
+   `.textarea`), dus maat, rand en focus komen van daar; hier staat alleen wat
+   een contenteditable anders nodig heeft. */
+.short-box {
+  position: relative;
+}
+.short-box .short-editor {
+  display: block;
+  box-sizing: border-box;
+  cursor: text;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.short-box .ProseMirror.short-editor {
+  /* `.ProseMirror` staat verderop op 160 px, voor de lopende tekst. Een kort
+     vak is zo hoog als de doos die het vervangt. */
+  min-height: 0;
+}
+.short-box .textarea.short-editor {
+  resize: none;
+  min-height: 96px;
+}
+.short-box .input.short-editor {
+  line-height: 1.5;
+  min-height: var(--tap);
+}
+/* Een vak van één regel in een maakblad: drie regels hoog, zoals de textarea
+   die er stond, zodat het blad niet verspringt. */
+.short-box .short-editor.short-editor-sheet {
+  min-height: 4.6em;
+}
+/* De plaatshouder: `data-empty` zet de editor zelf (ProseMirror beheert
+   `class`). Zweeft, zodat de caret aan het begin blijft staan. */
+.short-box .short-editor[data-empty]::before {
+  content: attr(data-placeholder);
+  color: var(--ink-muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+/* Tot de editor er is, staat op zijn plek wat hij gaat tonen. */
+.short-box .short-fallback {
+  pointer-events: none;
+}
+/* Een chip in het vak: het chipje van de lopende tekst in de bewerkstand —
+   kader, stip, vet. Zwaarder geschreven dan §68's `span.entry-chip[data-entry-slug]`,
+   die een naam die je *leest* blauw en kaal maakt; dit is er een die je schrijft. */
+.short-box span.entry-chip.short-chip {
+  display: inline-flex;
+  padding: 0.02em 0.35em;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper-dark);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.short-box span.entry-chip.short-chip::before {
+  content: '';
+}
+.short-box .short-chip.ProseMirror-selectednode {
+  outline: 2px solid var(--ink-muted);
+  outline-offset: 1px;
+}
+/* Een handvat waar voor deze lezer niets achter zit: niets, ook geen breedte. */
+.short-box .short-chip-none {
+  display: inline-block;
+  width: 0;
+  overflow: hidden;
+}
+
+/* §92 (A5): de lijst onder een kort vak. Een rij is een duim hoog, de naam
+   staat op één regel, en de rij "aanmaken" staat vast onderaan — ook als de
+   namen erboven scrollen. */
+.mention-pop .suggest-item {
+  min-height: var(--tap);
+}
+.mention-pop-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.mention-pop-name,
+.mention-pop-kind {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mention-pop-create {
+  position: sticky;
+  bottom: 0;
+  background: var(--paper-raised);
+  border-top: 1px solid var(--rule);
+}
+
 /* ------------------------------------------------------------------ prose */
 .prose {
   font-size: 1.02rem;
@@ -1540,10 +1726,14 @@ a.entry-chip:focus-visible {
  * 3. **Op een kaartje.** §45/§66: een kaart is papier *op* de pagina en leest
  *    nooit de inkt van de pagina. `--card-face` is in elk schema licht, dus
  *    `--link` uit een donker schema zou lichtblauw op licht beige zijn.
+ * 4. **§92: in een kort vak in de bewerkstand, buiten focus.** Daar staat het
+ *    chipje zoals in de lopende tekst ernaast (punt 1): wie een artikel
+ *    bewerkt, ziet in de korte beschrijving hetzelfde ding als in de secties.
  */
 .ProseMirror[contenteditable='true'] a.entry-chip,
 a.entry-chip:has(+ button),
-.board-card-text a.entry-chip {
+.board-card-text a.entry-chip,
+.mention-preview a.entry-chip {
   display: inline-flex;
   padding: 0.02em 0.35em;
   border: 1px solid var(--rule);
@@ -1554,18 +1744,21 @@ a.entry-chip:has(+ button),
 }
 .ProseMirror[contenteditable='true'] a.entry-chip::before,
 a.entry-chip:has(+ button)::before,
-.board-card-text a.entry-chip::before {
+.board-card-text a.entry-chip::before,
+.mention-preview a.entry-chip::before {
   content: '';
 }
 .ProseMirror[contenteditable='true'] a.entry-chip > svg,
 a.entry-chip:has(+ button) > svg,
-.board-card-text a.entry-chip > svg {
+.board-card-text a.entry-chip > svg,
+.mention-preview a.entry-chip > svg {
   margin-right: 0;
   vertical-align: baseline;
 }
 .ProseMirror[contenteditable='true'] a.entry-chip:hover,
 a.entry-chip:has(+ button):hover,
-.board-card-text a.entry-chip:hover {
+.board-card-text a.entry-chip:hover,
+.mention-preview a.entry-chip:hover {
   text-decoration: none;
 }
 
@@ -2080,6 +2273,177 @@ details.section[open] > summary::before {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* §94 tekenvlakken (C6): het prikbord op de §34-schil, de laatste van de vier.
+   De kop is `.canvas-head` (zoals op de andere drie), de balk eronder begint
+   met Lezen/Bewerken, en de muur krijgt wat er over is — geen magische hoogte
+   meer (`100dvh − 320px` op een telefoon, `− 205px` op een computer), die raadde
+   wat erboven stond en de pagina liet scrollen. */
+.page-canvas > .board-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0.5rem;
+}
+.page-canvas .board-bar,
+.page-canvas .board-tools,
+.page-canvas .board-hint {
+  flex: 0 0 auto;
+}
+.page-canvas .board-viewport {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 220px;
+}
+/* §94 (O10): "Tik op de tweede kaart" — boven de kurk en buiten de stroom, zodat
+   de muur niet verspringt onder de hand die kiest (§64). */
+.board-page {
+  position: relative;
+}
+.board-string-pick {
+  position: absolute;
+  left: 50%;
+  bottom: 0.75rem;
+  z-index: 44;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: max-content;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.35rem 0.4rem 0.35rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+}
+.board-string-pick .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* De dossierkeuze onder de vouw, bij de prullenbak (`#board-underfold`). */
+.board-case-under {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0;
+}
+.board-case-under .board-case-select {
+  display: inline-block;
+  max-width: 20rem;
+  min-height: var(--tap);
+}
+
+/* §94 tekenvlakken (C4): vinden op het vlak — het zoekvak in Lezen op het
+   prikbord, en op de stamboom in beide standen; en de kop van een groep in een
+   zoeklijst ("Op dit prikbord"), die geen rij is en dus geen knop. */
+.canvas-find {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+  max-width: 26rem;
+  color: var(--ink-muted);
+}
+.canvas-find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.85rem;
+  padding-block: 0.2rem;
+}
+.canvas-find-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.suggest-group {
+  padding: 0.3rem 0.6rem 0.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.suggest-empty {
+  padding: 0.4rem 0.6rem;
+}
+.canvas-find-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.canvas-find-toggle {
+  display: none;
+}
+/* Op een telefoon (en waar hij `compact` is) een loep, en pas na een tik het vak
+   — over het glas, niet als een rij die elke keer hoogte van het glas afneemt
+   (§34). De rij eronder is het anker. */
+.board-bar,
+.tree-tools {
+  position: relative;
+}
+.canvas-find.is-compact {
+  position: static;
+  flex: 0 0 auto;
+  max-width: none;
+}
+.canvas-find.is-compact .canvas-find-toggle {
+  display: inline-flex;
+}
+.canvas-find.is-compact .canvas-find-box {
+  display: none;
+}
+.canvas-find.is-compact.is-open .canvas-find-box {
+  display: flex;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 35;
+  max-width: 28rem;
+  padding: 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+}
+@media (max-width: 767px) {
+  .canvas-find {
+    position: static;
+    flex: 0 0 auto;
+    max-width: none;
+  }
+  .canvas-find-toggle {
+    display: inline-flex;
+  }
+  .canvas-find-box {
+    display: none;
+  }
+  .canvas-find.is-open .canvas-find-box {
+    display: flex;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 35;
+    max-width: none;
+    padding: 0.35rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.22);
+  }
+  .canvas-find-input {
+    min-height: var(--tap);
+  }
 }
 
 .board-hint {
@@ -2689,6 +3053,12 @@ details.section[open] > summary::before {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* §96 ronde 57: een hit op Zoeken die geen artikel is — het merkteken van zijn
+   soort op de plek van een omslag, vierkant. */
+.search-other-mark {
+  height: 42px;
+  color: var(--ink-muted);
 }
 .feed-thumb img {
   width: 100%;
@@ -3685,6 +4055,82 @@ details.section[open] > summary::before {
   border-bottom: 1px dashed var(--rule);
 }
 
+/* §96 ronde 57: Beheer → Woorden en Soorten — een zoekvak, groepen die
+   inklappen, en een voet met Opslaan die onderaan in beeld plakt (dezelfde
+   vorm als de voet van de uitdeler, §85). */
+.admin-words-filter {
+  max-width: 28rem;
+}
+/* `hidden` must win over the row's own `display: flex`. */
+.admin-word-row[hidden] {
+  display: none;
+}
+.admin-words-group {
+  border-bottom: 1px solid var(--rule);
+}
+.admin-words-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.25rem 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-words-toggle .admin-words-chevron {
+  flex: none;
+  transition: transform 120ms ease;
+}
+.admin-words-toggle[aria-expanded='true'] .admin-words-chevron {
+  transform: rotate(90deg);
+}
+.admin-words-count {
+  margin-left: auto;
+  font-weight: normal;
+}
+.admin-sticky-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+}
+.admin-sticky-foot > .btn {
+  margin-left: auto;
+}
+.admin-type-foot > .btn {
+  margin-left: 0;
+}
+.admin-oftype-head {
+  align-items: center;
+  gap: 0.35rem;
+}
+.admin-oftype-pick[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+/* §85's rule, for the same reason: the foot's button is the last thing touched. */
+body:has(.admin-sticky-foot) .fab {
+  display: none;
+}
+@media (max-width: 767px) {
+  .admin-sticky-foot {
+    bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom));
+    padding-bottom: 0.6rem;
+  }
+}
+
 /*
  * §11's page builder. Each block of a soort's page is a card in a list the
  * Keeper reorders; a hidden one fades rather than vanishing, because it is
@@ -3951,6 +4397,56 @@ details.section[open] > summary::before {
 .who-row .feed-thumb {
   width: 32px;
   height: 42px;
+}
+
+/* §96 ronde 57 (S18): /you — één regel uitleg met *Waarom?*, en lettertype en
+   kleuren als twee compacte rijen onder de karakters. */
+.you-why-line {
+  margin: 0;
+}
+.you-why {
+  display: inline;
+}
+.you-why > summary {
+  display: inline;
+  cursor: pointer;
+  color: var(--ink);
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+  list-style: none;
+}
+.you-why > summary::-webkit-details-marker {
+  display: none;
+}
+.you-why[open] .you-why-body {
+  display: block;
+  margin-top: 0.3rem;
+  max-width: 46rem;
+}
+.you-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+.you-pref-row {
+  align-items: center;
+  gap: 0.4rem;
+}
+.you-pref-label {
+  margin: 0;
+  min-width: 6.5rem;
+}
+.you-pref-hint {
+  margin: 0.3rem 0 0;
+}
+@media (max-width: 767px) {
+  .you-pref-label {
+    flex-basis: 100%;
+    min-width: 0;
+  }
 }
 
 /* --------------------------------------------- §18b who is writing, in here */
@@ -4253,6 +4749,193 @@ details.section[open] > summary::before {
 }
 .entry-infobox-folded > summary {
   color: var(--ink);
+}
+/* §92 ronde 53 (F31): de wiki op de telefoon. Een lijst met één regel per
+   artikel is daar de standaard (onder 768 px), kaarten elders; wie kiest,
+   krijgt `data-view` op de lijst en dat wint op elke breedte. De tags van de
+   soort staan als één rij die opzij scrolt onder de tabs. */
+.wiki-tag-row {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  margin: 0.5rem 0 0.6rem;
+  padding-bottom: 0.2rem;
+}
+.wiki-tag-row > .tag {
+  flex: 0 0 auto;
+}
+.wiki-tag-row > .tag-active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.wiki-view-toggle {
+  gap: 0.2rem;
+  justify-content: flex-end;
+  margin: 0 0 0.5rem;
+}
+.wiki-view-toggle > .btn[aria-pressed='true'] {
+  background: var(--paper-dark);
+  border-color: var(--rule);
+}
+@media (min-width: 768px) {
+  .wiki-tag-row {
+    display: none;
+  }
+}
+.wiki-entries[data-view='list'] {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.wiki-entries[data-view='list'] > .card {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--tap);
+  padding: 0.3rem 0.5rem;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+.wiki-entries[data-view='list'] > .card:hover {
+  transform: none;
+  box-shadow: none;
+}
+.wiki-entries[data-view='list'] > .card > .card-cover {
+  width: 2.6rem;
+  height: 2.6rem;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--rule);
+}
+.wiki-entries[data-view='list'] .card-body {
+  padding: 0;
+  min-width: 0;
+}
+.wiki-entries[data-view='list'] .card-name {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wiki-entries[data-view='list'] .card-body .clamp-2 {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+.wiki-entries[data-view='list'] .card-body > p:not(.card-name):not(.clamp-2) {
+  display: none;
+}
+@media (max-width: 767px) {
+  .wiki-entries:not([data-view='cards']) {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .wiki-entries:not([data-view='cards']) > .card {
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+    min-height: var(--tap);
+    padding: 0.3rem 0.5rem;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .wiki-entries:not([data-view='cards']) > .card > .card-cover {
+    width: 2.6rem;
+    height: 2.6rem;
+    aspect-ratio: 1 / 1;
+    border: 1px solid var(--rule);
+  }
+  .wiki-entries:not([data-view='cards']) .card-body {
+    padding: 0;
+    min-width: 0;
+  }
+  .wiki-entries:not([data-view='cards']) .card-name {
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wiki-entries:not([data-view='cards']) .card-body .clamp-2 {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  .wiki-entries:not([data-view='cards']) .card-body > p:not(.card-name):not(.clamp-2) {
+    display: none;
+  }
+}
+
+/* §92 ronde 53 (C26–C28): het maakblad. De soorten staan op één regel die
+   opzij scrolt (de gekozen soort in beeld); "Alle soorten" vouwt ze uit tot
+   het raster dat het was. De chips blijven radio's in één groep. */
+.new-entry-types-strip {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-bottom: 0.25rem;
+}
+.new-entry-types-strip > .chip {
+  flex: 0 0 auto;
+}
+.new-entry-types-strip.new-entry-types-open {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+.new-entry-types-more .icon,
+.new-entry-types-more svg {
+  transition: transform 0.15s ease;
+}
+.new-entry-types-caret-open {
+  transform: rotate(90deg);
+}
+.new-entry-similar-list .suggest-item {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+.new-entry-similar-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* §92 ronde 53 (B11): een artikel op de telefoon. De infobox is ook in Lezen
+   dichtgevouwen, en eronder staan de eerste twee gevulde velden op ten hoogste
+   twee regels; de omslag neemt niet meer dan 40 % van de schermhoogte, zodat
+   de eerste zin tekst niet twee schermen diep ligt. */
+.infobox-peek {
+  margin: -0.35rem 0 0.6rem;
+  font-size: 0.9rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.infobox-peek-row {
+  margin: 0;
+  display: inline;
+}
+.infobox-peek-row + .infobox-peek-row::before {
+  content: ' · ';
+  color: var(--ink-muted);
+}
+.infobox-peek-label {
+  color: var(--ink-muted);
+}
+.infobox-peek-label::after {
+  content: ':';
+}
+@media (max-width: 767px) {
+  .entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
+    max-height: 40vh;
+  }
 }
 .entry-infobox-body {
   gap: 0.55rem;
@@ -5543,6 +6226,18 @@ body:has(.tree-picker) .fab {
     margin-top: -0.6rem;
   }
 }
+/* §96 ronde 57: op een computer een woord bij de stip — niet op een canvas,
+   waarvan de kop ruimte houdt voor de strip zoals die was. */
+.live-strip-who {
+  display: none;
+}
+@media (min-width: 768px) {
+  .main:not(:has(.page-canvas)) .live-strip-who {
+    display: inline;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+  }
+}
 
 /* ------------------------------------------------------------------ §84: de beurs */
 
@@ -5836,6 +6531,47 @@ a.beurs:focus-visible {
 .timeline-toolbar {
   margin-bottom: 0.5rem;
   flex: 0 0 auto;
+}
+/* §94 tekenvlakken: "Ga naar…" (C16) — in de werkbalk op een computer, in het
+   blad achter het tandwiel op een telefoon — en de spanne in woorden (C7),
+   die niet mag breken. */
+.timeline-goto {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  color: var(--ink-muted);
+}
+.timeline-goto-input {
+  width: 13rem;
+  max-width: 100%;
+  font-size: 0.85rem;
+  padding-block: 0.2rem;
+}
+.timeline-goto-wrong {
+  flex-basis: 100%;
+  color: var(--stamp-red);
+}
+.timeline-goto-bar {
+  display: none;
+}
+@media (min-width: 768px) {
+  .timeline-goto-bar {
+    display: flex;
+  }
+}
+.sheet .timeline-goto {
+  margin: 0 0 1rem;
+  /* Het kruisje van het blad staat rechtsboven; het vak blijft ervan weg. */
+  padding-right: 2.75rem;
+}
+.sheet .timeline-goto-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-height: var(--tap);
+}
+.canvas-zoom-level {
+  white-space: nowrap;
 }
 /* The line of counts under the axis, and the last thing in the column. */
 .timeline-count {
@@ -6900,21 +7636,6 @@ a.beurs:focus-visible {
 .web-legend-absent .web-legend-row {
   opacity: 0.7;
 }
-.web-hint {
-  position: absolute;
-  left: 50%;
-  top: 0.8rem;
-  transform: translateX(-50%);
-  z-index: 3;
-  max-width: 34rem;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--rule);
-  background: var(--paper-raised);
-  box-shadow: var(--shadow);
-  font-size: 0.86rem;
-  line-height: 1.4;
-  cursor: pointer;
-}
 .web-phone-search {
   padding: 0.2rem 0 1rem;
 }
@@ -6992,6 +7713,22 @@ a.beurs:focus-visible {
 }
 .keeper-panel-hint {
   margin: 0;
+}
+/* §96 ronde 57 (C35): "Spelers zien: …" met *Bekijk als speler* ernaast. */
+.keeper-sees {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+  margin: 0.3rem 0 0.4rem;
+  color: var(--ink);
+}
+.keeper-sees > span {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.keeper-sees-go {
+  flex: none;
 }
 .keeper-side-toggle {
   gap: 0.5rem;
@@ -7574,6 +8311,14 @@ a.beurs:focus-visible {
   font-family: var(--serif);
   font-size: 1.1rem;
   font-weight: 600;
+}
+/* §96 ronde 57: the ellipsis lives on an element, not on the flex box — a bare
+   text node in an inline-flex is an anonymous item that clips without "…". */
+.jij-who-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .jij-who-switch {
   min-height: var(--tap);

@@ -47,7 +47,7 @@ export function DossiersPanel({
                 {item.summary && (
                   <span className="tiny muted clamp-2" style={{ display: 'block' }}>
                     {/* §48: flat chips — the whole row is a link. */}
-                    <MentionText text={item.summary} flat />
+                    <MentionText text={item.summary} flat tokens />
                   </span>
                 )}
                 <span className="tiny muted" style={{ display: 'block' }}>

@@ -108,7 +108,13 @@ export function WebView({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [legendOpen, setLegendOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [panelOpen, setPanelOpen] = useState(false);
+  /*
+   * §94 (C21): a web opened *on* something (`?focus=`, the Verbindingen door)
+   * opens with that thing's panel already up. On a phone that panel is the
+   * list a reader came for, and it used to wait behind a tap on a knot that
+   * first had to be found among fifteen labels.
+   */
+  const [panelOpen, setPanelOpen] = useState(Boolean(initialFocus));
 
   // Remembered choices — per browser, a convenience and nothing more.
   useEffect(() => {

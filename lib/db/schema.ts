@@ -1183,7 +1183,11 @@ export const roomLedger = sqliteTable(
     roomId: text('room_id').notNull(),
     /** Signed. A grant is positive; opening a plek or buying a thing is negative. */
     delta: integer('delta').notNull(),
-    kind: text('kind').$type<'grant' | 'slot' | 'item'>().notNull(),
+    /**
+     * §93: `return` is een koop die binnen het venster ongedaan is gemaakt —
+     * een regel erbij, nooit een regel die verandert (§79 regel 1).
+     */
+    kind: text('kind').$type<'grant' | 'slot' | 'item' | 'return'>().notNull(),
     reason: text('reason').notNull().default(''),
     actorId: text('actor_id'),
     slotId: text('slot_id'),
@@ -1191,4 +1195,50 @@ export const roomLedger = sqliteTable(
     createdAt: integer('created_at').notNull().default(now),
   },
   (t) => [index('room_ledger_room_idx').on(t.roomId, t.createdAt)],
+);
+
+/**
+ * §93: de lade van een kamer — huisraad dat deze onderzoeker bezit en dat nu
+ * op geen plek ligt.
+ *
+ * Eén rij is één exemplaar. Twee leesstoelen in de lade zijn twee rijen, want
+ * §83 staat twee van hetzelfde toe en een telling in een kolom zou een getal
+ * zijn dat iemand bijwerkt. Er staat niets in dat rekent (rule 78): geen prijs,
+ * geen waarde, alleen *welk ding* en *welke kamer*.
+ *
+ * Bezit is **plekken plus lade**, en niets anders. Een koop legt het ding op een
+ * plek; weghalen legt het hier; neerzetten uit de lade haalt de rij weer weg.
+ * Alleen huisraad (`keeper_made`) komt hier: een gevonden voorwerp is van de
+ * wereld en blijft, zoals vóór §93, van niemand als het van de plank gaat.
+ */
+export const roomDrawer = sqliteTable(
+  'room_drawer',
+  {
+    id: text('id').primaryKey(),
+    roomId: text('room_id').notNull(),
+    entryId: text('entry_id').notNull(),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [index('room_drawer_room_idx').on(t.roomId, t.entryId)],
+);
+
+/**
+ * §95, ronde 56: wat een vermelding in een kort vak bedoelt.
+ *
+ * Een korte beschrijving, een samenvatting of een infoboxveld Tekst / Lange
+ * tekst bewaart een vermelding als `⟦handle⟧` (`lib/entries/shortTokens.mjs`).
+ * Deze tabel zegt welk artikel dat handvat bedoelt; de naam wordt bij het lezen
+ * per kijker opgezocht (`resolveHandles` in `lib/entries/shortRefs.ts`), zodat
+ * een hernoeming de chip meeneemt en een artikel dat de lezer niet mag zien
+ * voor hem niets is. Eén rij per vermelding: het handvat zegt niet wie.
+ */
+export const mentionHandles = sqliteTable(
+  'mention_handles',
+  {
+    handle: text('handle').primaryKey(),
+    entryId: text('entry_id').notNull(),
+    createdBy: text('created_by'),
+    createdAt: integer('created_at').notNull().default(now),
+  },
+  (t) => [index('mention_handles_entry_idx').on(t.entryId)],
 );

@@ -17,6 +17,7 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
 });
 import type { SectionOwnerKind, Visibility } from '@/lib/db/schema';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
+import { PlayerSees } from '@/components/keeper/AsPlayer';
 import { fill } from '@/lib/words';
 
 export type SectionLite = {
@@ -354,6 +355,19 @@ export function SectionsEditor({
               </button>
             ))}
           </div>
+          )}
+          {/* §96 (C35): what the table sees of this sectie, and the way to look. */}
+          {isKeeper && (
+            <PlayerSees
+              words={ui.words}
+              sentence={
+                section.visibility === 'keeper'
+                  ? ui.words.keeperSeesSection
+                  : section.visibility === 'players'
+                    ? ui.words.keeperSeesSome
+                    : ui.words.keeperSeesAll
+              }
+            />
           )}
 
           {/* §90: a speler has no dial here (§70), and was told nothing at all.

@@ -98,6 +98,13 @@ export type DescribeOptions = {
   typeLabels?: Map<string, string> | Record<string, string>;
   /** May this reader be told about zichtbaarheid and Keeper-aantekeningen? */
   showKeeper?: boolean;
+  /**
+   * §95: a short text as *this reader* reads it — its handles turned into the
+   * names they may see, and into nothing where they may not (`plainShort`).
+   * This module is pure, so the caller brings the reading. Absent: the text as
+   * stored, which is only right for a text without chips.
+   */
+  shortText?: (text: string) => string;
 };
 
 const LINK_KINDS = new Set([
@@ -347,6 +354,7 @@ function fieldChange(
   before: unknown,
   after: unknown,
   mayQuote: boolean,
+  read: (text: string) => string = (text) => text,
 ): Change {
   const label = def?.label || key;
   const kind = def?.kind ?? 'text';
@@ -366,8 +374,8 @@ function fieldChange(
     return { kind: 'field', label, detail: parts.join(', ') };
   }
 
-  const from = asText(before);
-  const to = asText(after);
+  const from = read(asText(before));
+  const to = read(asText(after));
   if (!from && to) return { kind: 'field', label, detail: mayQuote ? `ingevuld: ${quote(to)}` : 'ingevuld' };
   if (from && !to) return { kind: 'field', label, detail: 'leeggemaakt' };
   if (!from && !to) return { kind: 'field', label, detail: 'gewijzigd' };
@@ -420,7 +428,11 @@ export function describeRevision(
     out.push({
       kind: 'short',
       label: 'Eerste regel',
-      detail: !after.shortDescription ? 'weggehaald' : mayQuote ? quote(after.shortDescription) : 'gewijzigd',
+      detail: !after.shortDescription
+        ? 'weggehaald'
+        : mayQuote
+          ? quote((options.shortText ?? ((text: string) => text))(after.shortDescription))
+          : 'gewijzigd',
     });
   }
   if (before.bodyText !== after.bodyText) {
@@ -452,7 +464,7 @@ export function describeRevision(
   }
   for (const key of keys) {
     if (sameValue(before.fields[key], after.fields[key])) continue;
-    out.push(fieldChange(defs.get(key), key, before.fields[key], after.fields[key], mayQuote));
+    out.push(fieldChange(defs.get(key), key, before.fields[key], after.fields[key], mayQuote, options.shortText));
   }
 
   const tagsBefore = new Set(before.tags);

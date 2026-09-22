@@ -138,3 +138,56 @@ export function zoomAbout(view: CanvasView, factor: number, stageX: number, stag
 export function toWorld(view: CanvasView, stageX: number, stageY: number): { x: number; y: number } {
   return { x: (stageX - view.x) / view.zoom, y: (stageY - view.y) / view.zoom };
 }
+
+/**
+ * §94 (C7) — een leesbaar begin.
+ *
+ * "Alles in beeld" op een groot vlak gaf namen van 5 px: de stamboom van het
+ * pantheon opende op 30 %, en de eerste handeling op elk vlak was zoomen. Een
+ * vlak **opent** daarom nooit kleiner dan de zoom waarop een naam
+ * `READ_MIN_PX` hoog op het scherm staat. Past het dan niet, dan begint het
+ * linksboven in de wereld (een as die wel past blijft gecentreerd) en schuift
+ * de rest. De knop *Alles in beeld* zelf blijft alles tonen — een knop die
+ * "alles" zegt en de helft laat zien zou liegen, en de specs (CLAUDE.md §6)
+ * leunen erop.
+ */
+export const READ_MIN_PX = 10;
+
+/** De kleinste zoom waarop een naam van `nameSize` wereld-px nog `minPx` is. */
+export function readingFloor(nameSize: number, minPx = READ_MIN_PX): number {
+  if (!Number.isFinite(nameSize) || nameSize <= 0) return MIN_ZOOM;
+  return clampZoom(minPx / nameSize);
+}
+
+export function readableFit(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  stage: { width: number; height: number },
+  floor: number,
+  padding = FIT_PADDING,
+  ceiling = MAX_ZOOM,
+): CanvasView {
+  const fit = fitViewport(bounds, stage, padding, ceiling);
+  const zoom = Math.min(ceiling, clampZoom(floor));
+  if (fit.zoom >= zoom || stage.width <= 0 || stage.height <= 0) return fit;
+  const width = Math.max(0, bounds.maxX - bounds.minX) * zoom;
+  const height = Math.max(0, bounds.maxY - bounds.minY) * zoom;
+  const x =
+    width + padding * 2 <= stage.width
+      ? (stage.width - width) / 2 - bounds.minX * zoom
+      : padding - bounds.minX * zoom;
+  const y =
+    height + padding * 2 <= stage.height
+      ? (stage.height - height) / 2 - bounds.minY * zoom
+      : padding - bounds.minY * zoom;
+  return { x: tidy(x), y: tidy(y), zoom };
+}
+
+/** §94 (C4/C5): een wereldpunt in het midden van het glas, op deze zoom. */
+export function centreView(
+  point: { x: number; y: number },
+  stage: { width: number; height: number },
+  zoom: number,
+): CanvasView {
+  const z = clampZoom(zoom);
+  return { x: tidy(stage.width / 2 - point.x * z), y: tidy(stage.height / 2 - point.y * z), zoom: z };
+}

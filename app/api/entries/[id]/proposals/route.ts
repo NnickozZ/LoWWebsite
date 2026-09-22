@@ -19,7 +19,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     const user = await requireUser();
     const { id } = await ctx.params;
     if (!canReview(id, user)) return json({ proposals: [] });
-    return json({ proposals: listPendingEdits(id) });
+    return json({ proposals: listPendingEdits(id, user) });
   } catch (err) {
     return apiError(err);
   }
@@ -44,7 +44,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (body.decision === 'approve') approvePendingEdit(body.pendingId, user, note);
     else if (body.decision === 'reject') rejectPendingEdit(body.pendingId, user, note);
     else return json({ error: 'Onbekend besluit.' }, { status: 400 });
-    return json({ ok: true, proposals: listPendingEdits(id) });
+    return json({ ok: true, proposals: listPendingEdits(id, user) });
   } catch (err) {
     return apiError(err);
   }

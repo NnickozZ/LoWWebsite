@@ -1333,3 +1333,116 @@
     white-space: nowrap;
   }
 }
+
+/* §93 de kamer, tweede pas: verplaatsen en de lade ------------------------ */
+
+/*
+ * *Verplaatsen* staat rechts in een gevulde tegel, ónder het kruisje (K21) —
+ * ernaast zou hij het etiket van de soort afdekken (de screenshot van ronde 54
+ * liet "BUREAU" als "BURE" zien). Klein getekend, gedempt, een raakvlak van
+ * `--tap`, en altijd in beeld — ook met een muis, want een knop die pas bij
+ * hover verschijnt is raden (review E9).
+ */
+.plek .plek-move {
+  position: absolute;
+  top: var(--tap);
+  right: 0;
+  z-index: 1;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-color: var(--rule);
+  background: var(--paper);
+  color: var(--ink-muted);
+  opacity: 0.6;
+}
+.plek .plek-move:hover,
+.plek .plek-move:focus-visible,
+.plek .plek-move[aria-pressed='true'] {
+  opacity: 1;
+  color: var(--ink);
+}
+/* De tegel die bewogen wordt, draagt de rand van "hier wordt naar gewezen". */
+.plek:has(.plek-move[aria-pressed='true']) {
+  border-color: var(--stamp-red);
+  box-shadow: 0 0 0 2px var(--stamp-red);
+}
+
+/*
+ * Een bestemming vult de hele lege tegel: één tik, en het is de grootste knop
+ * op het scherm terwijl je kiest. Wat niet kan, wordt stiller — het raster
+ * houdt zijn vorm (K17) en er verschuift niets.
+ */
+.plek .plek-move-here {
+  position: absolute;
+  inset: 0.35rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: var(--tap);
+  white-space: normal;
+}
+.kamer-grid[data-moving] .plek:not(:has(.plek-move-here)):not(:has(.plek-move[aria-pressed='true'])) {
+  opacity: 0.45;
+}
+
+/* De regel boven het raster terwijl je verplaatst: wat je doet, en hoe je stopt. */
+.kamer-move-bar {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.6rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow);
+}
+.kamer-move-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+.kamer-move-bar .btn {
+  min-height: var(--tap);
+}
+
+/* Het etiket achter een ding in de plek-kiezer dat uit je lade komt. */
+.kamer-lade-tag {
+  flex: none;
+  align-self: center;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* De lade onder het raster: een regel namen, geen tweede raster. */
+.kamer-lade {
+  margin: 0.9rem 0 0;
+}
+.kamer-lade-title {
+  margin: 0 0 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--stamp-face);
+  font-weight: normal;
+}
+.kamer-lade-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+}

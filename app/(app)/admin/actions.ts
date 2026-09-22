@@ -19,7 +19,12 @@ import { createType, deleteType, purgeOrphanField, updateType } from '@/lib/admi
 import { saveWords } from '@/lib/admin/words';
 import { makeInviteCode } from '@/lib/db/seed.mjs';
 
-export type AdminState = { error?: string; ok?: string };
+export type AdminState = {
+  error?: string;
+  ok?: string;
+  /** §96: the id of what was just made, so the screen can open it (a new soort). */
+  created?: string;
+};
 
 export async function setPasswordAction(_prev: AdminState, formData: FormData): Promise<AdminState> {
   const keeper = await requireKeeper();
@@ -415,14 +420,16 @@ export async function saveSchemesAction(
 
 export async function createTypeAction(_prev: AdminState, formData: FormData): Promise<AdminState> {
   const keeper = await requireKeeper();
+  let created: string;
   try {
-    createType({ label: String(formData.get('label') ?? '') }, keeper.id);
+    created = createType({ label: String(formData.get('label') ?? '') }, keeper.id);
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Aanmaken is niet gelukt.' };
   }
   revalidatePath('/admin');
   revalidatePath('/', 'layout');
-  return { ok: 'Soort aangemaakt.' };
+  // §96: the id travels back so the new editor opens itself and comes into view.
+  return { ok: 'Soort aangemaakt.', created };
 }
 
 /**

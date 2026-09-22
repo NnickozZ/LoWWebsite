@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { createContext, useCallback, useContext, useState, type ComponentType, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
-import { MentionPopover, type MentionBox } from '@/components/ui/MentionPopover';
+import { MentionPopover, MentionPreview, MentionText, type MentionBox } from '@/components/ui/MentionPopover';
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
@@ -53,6 +53,8 @@ export function useLiveFields(): FieldsValue | null {
 }
 
 const LiveFieldsRoom = dynamic(() => import('./LiveFieldsRoom').then((m) => m.LiveFieldsRoom), { ssr: false });
+// §95: the short box is Tiptap, and Tiptap stays out of the shell until a box is on screen.
+const ShortEditor = dynamic(() => import('@/components/editor/ShortEditor'), { ssr: false });
 
 export function LiveFields({
   room,
@@ -100,6 +102,13 @@ type Common = {
    * where somebody reaches for a name.
    */
   mentions?: boolean;
+  /**
+   * §92 (A8): a box that promises one line — de korte beschrijving, de
+   * samenvatting, een infoboxveld Tekst. Enter leaves the box instead of
+   * starting a second line that every list and card would then have to hide.
+   * Not on a Lange tekst, which is where a new line belongs.
+   */
+  enterLeaves?: boolean;
 };
 
 export type InputProps = Common & { as?: 'input' } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onBlur' | 'ref'>;
@@ -107,7 +116,23 @@ export type TextareaProps = Common & { as: 'textarea' } & Omit<TextareaHTMLAttri
 export type FieldProps = InputProps | TextareaProps;
 
 export function LiveField(props: FieldProps) {
-  const { mentions, ...plain } = props;
+  const { mentions, enterLeaves, ...rest } = props;
+  // §92 (A8): Enter leaves a one-line box. The `@`-list swallows Enter itself
+  // while it is open (in the capture phase, on the box), so a pick still lands.
+  const ownKeyDown = rest.onKeyDown as ((event: React.KeyboardEvent<MentionBox>) => void) | undefined;
+  const plain = (
+    enterLeaves
+      ? {
+          ...rest,
+          onKeyDown: (event: React.KeyboardEvent<MentionBox>) => {
+            ownKeyDown?.(event);
+            if (event.defaultPrevented || event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            event.currentTarget.blur();
+          },
+        }
+      : rest
+  ) as FieldProps;
   const fields = useContext(FieldsContext);
   // Round 18: a textarea that offers artikel names on `@` — the popover
   // attaches to the element through a ref and writes into it like a
@@ -130,24 +155,25 @@ export function LiveField(props: FieldProps) {
   const field = <LiveFieldInner {...withRef} fields={fields} />;
   if (!mentions) return field;
   return (
-    <>
+    /*
+     * §92: the box and its preview in one positioned block, from the very
+     * first render — so the §7 handover (plain box → the room's bound one)
+     * swaps one child inside a block that never moves, exactly as it swapped
+     * one child inside a fragment before.
+     */
+    <div className="mention-field">
       {field}
       <MentionPopover element={mentionEl} disabled={plain.readOnly} />
-      {/* §56: no `MentionOverlay` here, and that is a decision, not an
-          oversight. A box in a `LiveFields` room is handed over from a plain
-          element to the room's bound one (§7), and anything mounted beside it
-          shifts that moment: the still-empty room won, and what had just been
-          typed was gone — no error, no failed save, nothing on screen. Moving
-          the mirror's portal to the body (where it belongs) fixed the worst of
-          it, but the rooms stayed marginal: saves that used to land in two
-          seconds were still timing out at fifteen under load. A chip in the
-          box is a decoration; the writing is the archive. So the live boxes —
-          de korte beschrijving, de samenvatting, Tekst en Lange tekst — keep
-          their clickable chips *under* the box (`MentionRow`, §54), and the
-          overlay is used only where there is no room to race: the sheets, een
-          kaartje op de muur, een speld, een gebeurtenis. Making it safe here
-          means making that handover safe first. */}
-    </>
+      {/* §92, c+: out of focus the box shows its chips, like the reading face;
+          in focus it holds the raw text. This is what §56 could not do here
+          and why: its mirror was a portal that re-measured on every keystroke
+          while the handover ran. `MentionPreview` is an ordinary child of this
+          block, touches neither the box's value nor its events, and is gone
+          the moment the box has the focus — see its own comment. §56's
+          `MentionOverlay` stays off the live boxes, for §56's reason. And the
+          row under the box (§54, `MentionRow`) is gone everywhere. */}
+      <MentionPreview element={mentionEl} value={plain.value} />
+    </div>
   );
 }
 
@@ -192,5 +218,91 @@ function PlainField(props: FieldProps) {
       onChange={(event) => onValue(event.target.value, { live: false })}
       onBlur={onBlur}
     />
+  );
+}
+
+/* ---------------------------------------------------- §95: a short box */
+
+export type ShortFieldProps = {
+  /** The Y.Text's name in the room: `shortDescription`, `summary`, `field.<key>`. */
+  field: string;
+  id: string;
+  className?: string;
+  value: string;
+  onValue: (next: string, meta: { live: boolean }) => void;
+  onBlur?: () => void;
+  /** A Lange tekst: Enter is a new line. Everything else leaves on Enter. */
+  multiline?: boolean;
+  placeholder?: string;
+  readOnly?: boolean;
+  ariaLabel?: string;
+  ariaLabelledBy?: string;
+  ariaDescribedBy?: string;
+  autoFocus?: boolean;
+  /** A maakblad: the record does not exist yet, so there is no room to join. */
+  noRoom?: boolean;
+  onElement?: (el: HTMLElement | null) => void;
+  /** Enter does this instead of leaving the box (a sheet whose Enter submits). */
+  onEnter?: () => void;
+  /**
+   * A maakblad's box is not behind §18b's gate: making an artikel is the one
+   * write a speler with no onderzoeker may do, and its description comes with
+   * it. The plain textarea that stood here was never gated either.
+   */
+  ungated?: boolean;
+};
+
+/**
+ * §95, ronde 56: een kort vak met chips — de korte beschrijving, de
+ * samenvatting, een infoboxveld Tekst of Lange tekst, en de twee maakbladen.
+ *
+ * Wat `LiveField` is voor een naam, is dit voor een tekst waarin je een artikel
+ * noemt: in een `<LiveFields>` bindt het vak aan dezelfde `Y.Text` van dezelfde
+ * kamer (§21, en de overdracht van §25 is dezelfde), daarbuiten is het een gewoon
+ * vak op de autosave van de ouder. Het verschil zit in wat erin staat: geen
+ * `[[Naam]]` meer, maar een chip met een handvat (`ShortEditor`).
+ *
+ * De editor is Tiptap en wordt pas geladen als er een vak op het scherm staat;
+ * tot hij er is, staat op zijn plek wat hij gaat tonen — dezelfde tekst met
+ * dezelfde chips, zonder caret — zodat de bladzijde niet verspringt.
+ */
+export function ShortField(props: ShortFieldProps) {
+  const fields = useContext(FieldsContext);
+  const mayType = useMayType() || Boolean(props.ungated);
+  const authorGate = useAuthorGate();
+  const gate = props.ungated ? {} : authorGate;
+  const [mounted, setMounted] = useState(false);
+  const onMounted = useCallback(() => setMounted(true), []);
+  const room =
+    fields && !props.noRoom
+      ? { doc: fields.doc, awareness: fields.awareness, field: props.field, canEdit: fields.canEdit, synced: fields.synced }
+      : null;
+  const className = props.className ?? 'input';
+  return (
+    <div className="short-box" {...gate}>
+      {!mounted && (
+        <div className={`${className} short-editor short-fallback`} aria-hidden="true" data-placeholder={props.placeholder} data-empty={props.value ? undefined : 'true'}>
+          <MentionText text={props.value} tokens />
+        </div>
+      )}
+      <ShortEditor
+        id={props.id}
+        className={className}
+        value={props.value}
+        onValue={props.onValue}
+        onBlur={props.onBlur}
+        multiline={props.multiline}
+        placeholder={props.placeholder}
+        readOnly={props.readOnly || !mayType}
+        ariaLabel={props.ariaLabel}
+        ariaLabelledBy={props.ariaLabelledBy}
+        ariaDescribedBy={props.ariaDescribedBy}
+        autoFocus={props.autoFocus}
+        room={room}
+        onMounted={onMounted}
+        onElement={props.onElement}
+        onEnter={props.onEnter}
+      />
+    </div>
   );
 }

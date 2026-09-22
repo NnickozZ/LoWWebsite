@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CharacterLite } from '@/lib/characters';
+import { fill } from '@/lib/words';
 import { useAuthorOptional } from './AuthorProvider';
 
 /**
@@ -214,7 +215,7 @@ export function JijWho({ me, onPicked }: { me: Me; onPicked?: () => void }) {
       <div className="jij-who" title={me.username}>
         <span className="jij-who-name">
           <Icon name="shield" size={18} />
-          {words.keeper}
+          <span className="jij-who-text">{words.keeper}</span>
         </span>
       </div>
     );
@@ -224,7 +225,12 @@ export function JijWho({ me, onPicked }: { me: Me; onPicked?: () => void }) {
     <div className="jij-who">
       <div className="jij-who-row">
         {active ? <TypeMark character={active} /> : <Icon name="you" size={20} />}
-        <span className="jij-who-name">{active?.name ?? me.username}</span>
+        {/* §96: the name in a box of its own — a bare text node in an
+            inline-flex is an anonymous flex item, which ellipsis cannot reach,
+            so a long name was cut off without its "…". */}
+        <span className="jij-who-name" title={active?.name ?? me.username}>
+          <span className="jij-who-text">{active?.name ?? me.username}</span>
+        </span>
         {state.characters.length > 0 && (
           <button
             type="button"
@@ -336,26 +342,37 @@ export function CharacterWardrobe({ me }: { me: Me }) {
           karakters you hold is your own choice; koppelen is the Keeper's. The
           one exception is the first one, and the paragraph says so only while
           it is true — a speler holding nobody. */}
+      {/*
+        §96 (S18): één regel, en *Waarom?* voor wie de rest wil lezen. De uitleg
+        van zes regels stond er bij elk bezoek, boven de knoppen waarvoor je
+        kwam. Zonder karakter komt de zin uit `words` (hij noemde het karakter
+        hard "onderzoeker"); het woord is een het-woord, dus "het" en "dat".
+      */}
       {state.characters.length === 0 ? (
-        /* "artikel" is een het-woord, dus "het" en "dat" — dit stond er twee
-           keer fout ("maak de …", "op die …") en het is de eerste alinea die
-           een nieuwe speler op de Jij-pagina leest. De rest van het archief
-           schrijft het goed ("Het {words.entry} komt in de wiki", "Op dat
-           {words.entry} komt dan"), dus dit week als enige af. */
-        <p className="small muted" style={{ margin: 0 }}>
-          Je hebt nog geen {words.character}. Je eerste koppel je zelf: maak het {words.entry} van je
-          onderzoeker en zoek hem hieronder op, of gebruik de knop &lsquo;
-          {words.thisIsMyCharacter}&rsquo; op dat {words.entry}. Daarna geeft de {words.keeper} je
-          {' '}
-          {words.characterPlural} uit.
-        </p>
+        <div className="small muted you-why-line">
+          {fill(words.characterFindHint, { artikel: words.entry, karakter: words.character })}{' '}
+          <details className="you-why">
+            <summary>{words.youWhy}</summary>
+            <span className="you-why-body">
+              Je eerste {words.character} koppel je zelf: zoek het {words.entry} hieronder op, of gebruik
+              de knop &lsquo;{words.thisIsMyCharacter}&rsquo; op dat {words.entry}. Daarna geeft de{' '}
+              {words.keeper} je {words.characterPlural} uit.
+            </span>
+          </details>
+        </div>
       ) : (
-        <p className="small muted" style={{ margin: 0 }}>
-          Hier kies je wie je bent. Alles wat je in het archief doet draagt die naam — ook wat je
-          eerder deed. Welke {words.characterPlural} aan je account hangen bepaalt de{' '}
-          {words.keeper}; welke daarvan je draagt, bepaal je zelf. Rechten horen bij je account,
-          niet bij een {words.character}: wisselen verandert niets aan wat je mag zien.
-        </p>
+        <div className="small muted you-why-line">
+          {words.youCharsWhy}{' '}
+          <details className="you-why">
+            <summary>{words.youWhy}</summary>
+            <span className="you-why-body">
+              Alles wat je in het archief doet draagt die naam — ook wat je eerder deed. Welke{' '}
+              {words.characterPlural} aan je account hangen bepaalt de {words.keeper}; welke daarvan je
+              draagt, bepaal je zelf. Rechten horen bij je account, niet bij een {words.character}:
+              wisselen verandert niets aan wat je mag zien.
+            </span>
+          </details>
+        </div>
       )}
 
       {state.characters.length > 0 && (

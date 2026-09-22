@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
-import { LiveField, useLiveFields } from '@/components/live/LiveFields';
+import { LiveField, ShortField, useLiveFields } from '@/components/live/LiveFields';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import type { FieldDef } from '@/lib/db/schema';
 import type { CaseRef } from '@/lib/cases/service';
@@ -13,7 +13,9 @@ import type { StoredTreeRef } from '@/lib/entries/fieldValues';
 import { EntryPicker, type EntryRef } from './EntryPicker';
 import { CasePicker } from './CasePicker';
 import { FamilyTreePicker } from '@/components/families/FamilyTreePicker';
-import { MentionRow, MentionText } from '@/components/ui/MentionPopover';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { useUi } from '@/components/ui/UiProvider';
+import { fill } from '@/lib/words';
 
 type Values = Record<string, unknown>;
 
@@ -194,6 +196,7 @@ function StringField({
   describedBy,
   multiline = false,
   mentions = false,
+  label,
   onChange,
 }: {
   id: string;
@@ -207,6 +210,8 @@ function StringField({
   multiline?: boolean;
   /** §48: offer artikel names on `@`. On the free-text kinds, not on a date. */
   mentions?: boolean;
+  /** §95: the field's label, the short box's accessible name. */
+  label?: string;
   onChange: (patch: Values, meta?: { live: boolean }) => void;
 }) {
   const room = useLiveFields();
@@ -231,16 +236,30 @@ function StringField({
       if (!shared && draft !== value) onChange({ [fieldKey]: draft });
     },
   };
-  return (
-    <>
-      {multiline ? <LiveField as="textarea" mentions={mentions} {...common} /> : <LiveField mentions={mentions} {...common} />}
-      {/* §54: the chips of what is in the box, under it and clickable while
-          you type. `MentionRow` draws nothing at all when the words name
-          nobody, so a tidy infobox with no `[[Naam]]` in it stays tidy — the
-          row only ever appears under the one field that earned it. */}
-      {mentions && <MentionRow text={draft} />}
-    </>
-  );
+  /*
+   * §95: a Tekst or Lange tekst is a short box with chips (`ShortField`) —
+   * a name picked from the list is stored as a handle, not as `[[Naam]]`. A
+   * Tekst is one line, so Enter leaves it (A8); a Lange tekst keeps its Enter.
+   * A date stays a plain `LiveField`: it holds no names.
+   */
+  if (mentions) {
+    return (
+      <ShortField
+        field={common.field}
+        id={id}
+        className={className}
+        multiline={multiline}
+        readOnly={readOnly}
+        placeholder={placeholder}
+        ariaLabel={label}
+        ariaDescribedBy={describedBy}
+        value={draft}
+        onValue={common.onValue}
+        onBlur={common.onBlur}
+      />
+    );
+  }
+  return multiline ? <LiveField as="textarea" {...common} /> : <LiveField enterLeaves {...common} />;
 }
 
 /**
@@ -346,10 +365,10 @@ export function fieldValue(
       if (!text) return null;
       return field.kind === 'longtext' ? (
         <span style={{ whiteSpace: 'pre-wrap' }}>
-          <MentionText text={text} />
+          <MentionText text={text} tokens />
         </span>
       ) : field.kind === 'text' ? (
-        <MentionText text={text} />
+        <MentionText text={text} tokens />
       ) : (
         text
       );
@@ -511,6 +530,46 @@ export function FieldsView({
   );
 }
 
+/**
+ * §92 (B11): the infobox folded on a phone, while reading — and under the fold
+ * the first two facts that are filled in, so a folded box still says what it
+ * holds. Not `.fields-view`: that is the open box's markup, and a spec (or a
+ * reader) looking for a row must find it once.
+ */
+export function FieldsPeek({
+  fields,
+  values,
+  cases = {},
+  refs = {},
+  tags = [],
+}: {
+  fields: FieldDef[];
+  values: Values;
+  cases?: CaseRefs;
+  refs?: EntryRefs;
+  tags?: string[];
+}) {
+  const rows = fields
+    .map((field) => ({ field, shown: fieldValue(field, values[field.key], cases, refs) }))
+    .filter((row) => row.shown !== null)
+    .slice(0, 2);
+  if (!rows.length && !tags.length) return null;
+  return (
+    <div className="infobox-peek" data-testid="infobox-peek">
+      {rows.map(({ field, shown }) => (
+        <p key={field.key} className="infobox-peek-row">
+          <span className="infobox-peek-label">{field.label}</span> {shown}
+        </p>
+      ))}
+      {!rows.length && tags.length > 0 && (
+        <p className="infobox-peek-row">
+          <span className="infobox-peek-label">Tags</span> {tags.join(', ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Renders the Keeper-configured fields for this entry type (§5). */
 export function FieldsEditor({
   fields,
@@ -560,6 +619,10 @@ export function FieldsEditor({
   const mayType = useMayType();
   const gate = useAuthorGate();
   const readOnly = locked || !mayType;
+  // §92 (A7): a box that understands `@` and `[[` says so.
+  const ui = useUi();
+  // In the infobox's narrow column the short one, or it is cut off mid-word.
+  const mentionHint = compact ? ui.words.mentionHintShort : fill(ui.words.mentionHint, { artikel: ui.words.entry });
 
   /*
    * §67: what this hand picked *since the page was read*. `refs` is the
@@ -618,6 +681,8 @@ export function FieldsEditor({
                 className="input"
                 readOnly={readOnly}
                 mentions
+                label={field.label}
+                placeholder={mentionHint}
                 value={typeof value === 'string' ? value : ''}
                 onChange={onChange}
               />
@@ -631,6 +696,8 @@ export function FieldsEditor({
                 readOnly={readOnly}
                 multiline
                 mentions
+                label={field.label}
+                placeholder={mentionHint}
                 value={typeof value === 'string' ? value : ''}
                 onChange={onChange}
               />
@@ -728,6 +795,7 @@ export function FieldsEditor({
                 it knows is standing there. */}
             {field.kind === 'entry_link' && (
               <EntryPicker
+                id={`field-${field.key}`}
                 value={resolveOne(value, known)}
                 ofType={field.ofType}
                 onPick={(entry) => {
@@ -775,6 +843,7 @@ export function FieldsEditor({
                 </div>
                 {!readOnly && (
                   <EntryPicker
+                    id={`field-${field.key}`}
                     value={null}
                     ofType={field.ofType}
                     placeholder="Nog een toevoegen…"

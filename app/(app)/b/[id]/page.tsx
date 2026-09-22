@@ -4,6 +4,8 @@ import { LivePage } from '@/components/live/LivePage';
 import { BoardCanvas } from '@/components/boards/BoardCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { BinSlot } from '@/components/ui/BinSlot';
+import { getWords } from '@/lib/admin/words';
 import { sideOf } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
@@ -89,18 +91,30 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   // on this wall yet.
   const caseEntries = board.caseId ? listCaseEntries(board.caseId, user) : [];
 
+  const words = getWords();
+
   return (
-    <>
+    /*
+     * §94 (C6): the prikbord on the §34 shell, the last of the four — the
+     * restant CLAUDE.md §8 carried since round 12. One wrapping line of
+     * heading (drawn by `BoardCanvas`, which owns the live name and the mode),
+     * then the wall, as tall as what is left; the dossier choice and the bin
+     * below the fold, like a stamboom's.
+     */
+    <div className="page-wide">
+      <div className="page-canvas board-page-canvas">
       <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
-      {/* §44/§45/§46: which side this prikbord is on — the word and the
-          colours. §57: and where the toggle goes from here, with the list kept
-          apart from the tweeling so a flip that lands on it can say why. */}
-      <KeeperStamp
-        side={sideOf(Boolean(user?.isKeeper && keeperRef('board', board.id, user)?.keeperOnly))}
-        flipTo={twinOf('board', board.id, user)?.href}
-        flipList="/boards"
-      />
       <BoardCanvas
+      stamp={
+        /* §44/§45/§46: which side this prikbord is on — the word and the
+           colours. §57: and where the toggle goes from here, with the list
+           kept apart from the tweeling so a flip that lands on it can say why. */
+        <KeeperStamp
+          side={sideOf(Boolean(user?.isKeeper && keeperRef('board', board.id, user)?.keeperOnly))}
+          flipTo={twinOf('board', board.id, user)?.href}
+          flipList="/boards"
+        />
+      }
       boardId={board.id}
       boardName={board.name}
       caseId={board.caseId}
@@ -150,6 +164,26 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         inWeb: board.inWeb,
       }}
     />
+      </div>
+    {/*
+     * §94 (C6/C11): below the fold, for a hand that may hang cards on this
+     * wall — which dossier it hangs in (`BoardCanvas` portals the choice into
+     * `#board-underfold`, as a stamboom does its tekenlaag switch) and the
+     * bin, the same `BinSlot` all four surfaces have now. It was a trash icon
+     * beside Ongedaan maken, the nearest thumb-target on the whole wall.
+     */}
+    {mayEdit && (
+      <div className="keeper-underfold">
+        <div id="board-underfold" />
+        <BinSlot
+          endpoint={`/api/boards/${board.id}`}
+          noun={words.board}
+          redirectTo={board.caseSlug ? `/c/${board.caseSlug}` : '/boards'}
+          note={`De ${words.entryPlural} die eraan hangen blijven gewoon staan.`}
+          testId="board-bin"
+        />
+      </div>
+    )}
     {/*
      * §44: the Keeper's corner, under the wall — the switch to its other face,
      * the "this prikbord is mine" toggle, its touwtjes and the shared notes.
@@ -161,6 +195,6 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
         <KeeperPanelServer kind="board" id={board.id} user={user} />
       </div>
     )}
-    </>
+    </div>
   );
 }

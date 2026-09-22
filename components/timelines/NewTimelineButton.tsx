@@ -4,9 +4,10 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { freshHref } from '@/lib/canvas/memory';
 import { SCALES, SCALE_HINTS, SCALE_LABELS, type Scale } from '@/lib/timelines/time';
 
 /**
@@ -69,7 +70,8 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
       }
       const data = (await response.json()) as { timeline: { slug: string } };
       setOpen(false);
-      router.push(`/timelines/${data.timeline.slug}`);
+      // §94 (O1): een vlak dat je net maakte opent in Bewerken.
+      router.push(freshHref(`/timelines/${data.timeline.slug}`));
       // §69: the shelf behind this sheet is server-rendered — without this the
       // Back button lands on the list from before this tijdlijn existed.
       router.refresh();
@@ -127,6 +129,7 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
               <label className="label" htmlFor="new-timeline-description">
                 Omschrijving
               </label>
+              <div className="mention-field">
               <textarea
                 id="new-timeline-description"
                 ref={descriptionRef}
@@ -138,7 +141,9 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
               />
               <MentionPopover forRef={descriptionRef} />
               <MentionOverlay forRef={descriptionRef} value={description} />
-              <MentionRow text={description} />
+              {/* §92: out of focus, the chips without brackets; no row under it. */}
+              <MentionPreview forRef={descriptionRef} value={description} />
+              </div>
             </div>
             <fieldset className="timeline-scale-picker">
               <legend className="label">Gemeten in</legend>

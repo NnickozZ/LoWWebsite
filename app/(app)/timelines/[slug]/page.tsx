@@ -14,6 +14,7 @@ import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { TimelineCanvas } from '@/components/timelines/TimelineCanvas';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
+import { BinSlot } from '@/components/ui/BinSlot';
 import { sideOf } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
@@ -178,6 +179,19 @@ export default async function TimelinePage({
       {user?.isKeeper && (
         <div className="keeper-underfold">
           <KeeperPanelServer kind="timeline" id={timeline.id} user={user} />
+        </div>
+      )}
+      {/* §94 (C11): the bin, below the fold like the other three — it was at
+          the foot of the Instellingen sheet. */}
+      {mayEdit && (
+        <div className="keeper-underfold">
+          <BinSlot
+            endpoint={`/api/timelines/${timeline.id}`}
+            noun={words.timeline}
+            redirectTo={timeline.caseSlug ? `/c/${timeline.caseSlug}` : '/timelines'}
+            note={`De ${words.eventPlural} erop komen mee terug.`}
+            testId="timeline-bin"
+          />
         </div>
       )}
     </div>

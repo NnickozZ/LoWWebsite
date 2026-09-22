@@ -4,8 +4,10 @@ import { Icon } from '@/components/Icon';
 import { munt, plekIcon, plekWord, shortfall } from '@/components/kamer/plekWords';
 import type { ShopItem } from '@/lib/kamers/service';
 import type { PlekKind } from '@/lib/kamers/shape';
-import { fill, type Words } from '@/lib/words';
+import { capitalise, fill, type Words } from '@/lib/words';
 import { BuyButton } from './BuyButton';
+import { UnlockButton } from '@/components/kamer/UnlockButton';
+import { MentionText } from '@/components/ui/MentionPopover';
 
 /**
  * §84: welke van de zes dingen een rij in de etalage is — nu één keer per ding.
@@ -154,7 +156,7 @@ export function WinkelRij({
           </Link>
         </p>
         {item.shortDescription && (
-          <p className="tiny muted clamp-2 kamer-koop-line">{item.shortDescription}</p>
+          <p className="tiny muted clamp-2 kamer-koop-line"><MentionText text={item.shortDescription} tokens plain /></p>
         )}
         {item.effect.length > 0 && (
           <ul className="tiny kamer-koop-effect" aria-label={words.roomEffects}>
@@ -193,9 +195,12 @@ export function WinkelRij({
         */}
         {item.owned && (
           <span className="tiny muted winkel-state" data-testid="winkel-owned">
-            {item.ownedCount > 1
-              ? fill(words.shopOwnedCount, { n: String(item.ownedCount) })
-              : words.shopOwned}
+            {/* §93: wat alleen in de lade ligt, staat niet "in je kamer". */}
+            {item.drawerCount === item.ownedCount
+              ? words.shopInDrawer
+              : item.ownedCount > 1
+                ? fill(words.shopOwnedCount, { n: String(item.ownedCount) })
+                : words.shopOwned}
           </span>
         )}
 
@@ -205,21 +210,38 @@ export function WinkelRij({
           </span>
         )}
 
-        {state === 'noslot' && (
-          <span className="tiny muted winkel-state" data-testid="winkel-geen-plek">
-            {roomSlug ? (
-              /* De weg terug: er moet eerst een plek van de goede soort open,
-                 en dat gebeurt in de kamer zelf. Een knop en geen kale link —
-                 een zin die navigeert hoort eruit te zien als iets wat je
-                 indrukt (§84). */
-              <Link className="btn btn-ghost btn-small" href={`/kamer/${roomSlug}`} data-testid="winkel-geen-plek-deur">
-                {words.shopNoSlot}
-              </Link>
-            ) : (
-              words.shopNoSlot
-            )}
-          </span>
-        )}
+        {/*
+          §93 (E5): de zin zonder vrije plek (`shopNoSlot`) zei niet wat je moest
+          doen, terwijl het antwoord er vaak al lag: een kist op slot
+          voor vijf munten. Nu is het een handeling — de goedkoopste plek op slot
+          waar het ding op past, *Kist openen · 5 munten*, en daarna staat hier
+          *Kopen*. Kun je die niet betalen (of is er geen), dan de deur naar de
+          kamer, met een werkwoord (K11).
+        */}
+        {state === 'noslot' &&
+          (roomId && item.opens && balance >= item.opens.price ? (
+            <UnlockButton
+              roomId={roomId}
+              slotId={item.opens.slotId}
+              kind={item.opens.kind}
+              price={item.opens.price}
+              label={capitalise(fill(words.shopOpenKind, { plek: plekWord(item.opens.kind, words) }))}
+              words={words}
+            />
+          ) : (
+            <span className="tiny muted winkel-state" data-testid="winkel-geen-plek">
+              <span>{words.shopNoSlot}</span>
+              {roomSlug && (
+                <Link
+                  className="btn btn-ghost btn-small"
+                  href={`/kamer/${roomSlug}`}
+                  data-testid="winkel-geen-plek-deur"
+                >
+                  {fill(words.toRoom, { kamer: words.room })}
+                </Link>
+              )}
+            </span>
+          ))}
 
         {state === 'dear' && (
           <span className="tiny winkel-short" data-testid="winkel-short">

@@ -83,6 +83,15 @@ const TABLES: Record<string, { row?: string; refs?: Record<string, string>; list
   rooms: { row: 'room', lists: [] },
   room_slots: { refs: { room_id: 'room' }, lists: [] },
   room_ledger: { refs: { room_id: 'room' }, lists: [] },
+  /*
+   * §93: de lade. Een INSERT draagt `room_id` vanzelf; een DELETE van één rij
+   * noemt hem óók in zijn WHERE (`takeFromDrawer`), om dezelfde reden als
+   * `placeItem` dat doet — anders ziet wie meekijkt de lade niet leeglopen.
+   */
+  room_drawer: { refs: { room_id: 'room' }, lists: [] },
+  // §95: een nieuw handvat verandert geen pagina — de tekst die het draagt,
+  // meldt zichzelf al als hij bewaard wordt.
+  mention_handles: { lists: [] },
 };
 
 const VERB = /^\s*(insert\s+into|update|delete\s+from)\s+"?([A-Za-z_]+)"?/i;

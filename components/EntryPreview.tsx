@@ -154,7 +154,7 @@ export function EntryPreview() {
         </p>
         <p className="tiny clamp-2" style={{ margin: 0 }}>
           {/* §48: flat chips — this card floats over a link and is not one. */}
-          <MentionText text={data.shortDescription} flat />
+          <MentionText text={data.shortDescription} flat tokens />
         </p>
       </div>
     </div>

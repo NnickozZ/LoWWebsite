@@ -46,6 +46,13 @@ type Host = {
    * dossier's shelves; everywhere else the host hands in a no-op.
    */
   onLinked: (entry: { id: string; name: string }, filed?: boolean) => void;
+  /**
+   * §95: how a picked artikel goes into the text, when it is not an `entryLink`.
+   * A short box (`ShortEditor`) asks the archive for a handle first and writes a
+   * `shortChip`; the range is already gone when this is called. Absent: the
+   * rich text's own chip, as always.
+   */
+  insert?: (editor: Editor, entry: SuggestionEntry) => Promise<void>;
 };
 
 function insertEntry(editor: Editor, range: Range, entry: SuggestionEntry) {
@@ -119,8 +126,14 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
         const range = currentRange;
 
         if (item.kind === 'entry') {
-          insertEntry(editor, range, item.entry);
-          host.update(null);
+          if (host.insert) {
+            editor.chain().focus().deleteRange(range).run();
+            host.update(null);
+            await host.insert(editor, item.entry);
+          } else {
+            insertEntry(editor, range, item.entry);
+            host.update(null);
+          }
           host.onLinked(item.entry);
           return;
         }
@@ -130,7 +143,10 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
         editor.chain().focus().deleteRange(range).run();
         host.update(null);
         const created = await host.requestCreate(item.name);
-        if (created) {
+        if (created && host.insert) {
+          await host.insert(editor, created);
+          host.onLinked(created, created.filed);
+        } else if (created) {
           editor
             .chain()
             .focus()
@@ -191,6 +207,18 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
           }
           if (props.event.key === 'Escape') {
             host.update(null);
+            /*
+             * §92 (A4, `22d`): Escape sloot de lijst en liet `[[Jac` als tekst
+             * staan — een half getypte vermelding die zo het archief in ging en
+             * daarna met haakjes op de leespagina stond. Het korte vak zet een
+             * losse `[[` bij het verlaten terug naar `Jac`; hier doet Escape
+             * hetzelfde. Alleen voor `[[`: een `@` is ook gewoon een teken.
+             */
+            if (char === '[[' && currentEditor && currentRange) {
+              const from = currentRange.from;
+              const opener = currentEditor.state.doc.textBetween(from, Math.min(from + 2, currentRange.to), '\0');
+              if (opener === '[[') currentEditor.chain().deleteRange({ from, to: from + 2 }).run();
+            }
             return true;
           }
           return false;

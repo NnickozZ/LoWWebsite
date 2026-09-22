@@ -23,3 +23,22 @@ export async function kamerPost(url: string, body?: unknown): Promise<string | n
     return 'Er is iets misgegaan.';
   }
 }
+
+/**
+ * §93: dezelfde weg, voor een knop die ook het antwoord nodig heeft — *Ongedaan
+ * maken* zegt hoeveel er terugkwam, en dat getal is dat van de server (K2).
+ */
+export async function kamerPostFor<T>(url: string, body?: unknown): Promise<{ error: string | null; data: T | null }> {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+    const data = (await response.json().catch(() => ({}))) as T & { error?: string };
+    if (response.ok) return { error: null, data };
+    return { error: data.error ?? 'Er is iets misgegaan.', data: null };
+  } catch {
+    return { error: 'Er is iets misgegaan.', data: null };
+  }
+}

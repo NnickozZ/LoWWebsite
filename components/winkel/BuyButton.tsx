@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { MEANING, munt, plekWord, withPrice } from '@/components/kamer/plekWords';
 import { kamerPost } from '@/components/kamer/post';
+import { buyToast } from '@/components/kamer/buyToast';
 import { useUi } from '@/components/ui/UiProvider';
 import type { PlekKind } from '@/lib/kamers/shape';
 import { fill, type Words } from '@/lib/words';
@@ -85,10 +86,16 @@ export function BuyButton({
        * scherm rekent nooit een saldo uit (§79 regel 1).
        */
       const where = fill(words.boughtHere, { ding: name, plek: plekWord(kind, words) });
-      ui.toast(
-        `${where} −${munt(price, words)}`,
-        roomSlug ? { label: words.toastShow, onAction: () => router.push(`/kamer/${roomSlug}#plek-${slotId}`) } : undefined,
-      );
+      // §93: met *Ongedaan maken* erbij, tien seconden lang (`buyToast`).
+      buyToast(ui, router, {
+        message: `${where} −${munt(price, words)}`,
+        roomId,
+        entryId,
+        show: roomSlug
+          ? { label: words.toastShow, onAction: () => router.push(`/kamer/${roomSlug}#plek-${slotId}`) }
+          : undefined,
+        words,
+      });
       router.refresh();
     } finally {
       setBusy(false);

@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { freshHref } from '@/lib/canvas/memory';
 
 /**
  * §17: a new prikbord — and since §69, through a sheet, like the other three.
@@ -78,7 +79,8 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
       }
       const data = (await response.json()) as { board: { id: string } };
       setOpen(false);
-      router.push(`/b/${data.board.id}`);
+      // §94 (O1): een vlak dat je net maakte opent in Bewerken.
+      router.push(freshHref(`/b/${data.board.id}`));
       // §69: the shelf behind this sheet is server-rendered, so the Back button
       // would otherwise land on a list from before this wall existed.
       router.refresh();

@@ -5,6 +5,7 @@ import { logActivity, logAudit, reindexEntry } from '@/lib/entries/service';
 import { entryIdsInCase, reconcileOrigin } from '@/lib/entries/origin';
 import { forgetStoredState } from '@/lib/live/docs';
 import type { SectionOwnerKind } from '@/lib/db/schema';
+import { plainShort } from '@/lib/entries/shortRefs';
 
 /**
  * §2.6 and §11: nothing is deleted by accident. Everything soft-deleted is
@@ -158,7 +159,9 @@ export function listTrash(limit = 200): TrashItem[] {
       kind: 'case' as const,
       name: row.name,
       href: `/c/${row.slug}`,
-      detail: row.detail,
+      // §95: a samenvatting's chips are handles; the bin is the Keeper's, so
+      // the Keeper's eyes read them.
+      detail: plainShort({ id: '', isKeeper: true }, row.detail),
       deletedAt: row.deletedAt ?? 0,
     })),
     ...boards.map((row) => ({
@@ -590,6 +593,9 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
       .set({ entryId: null, placedAt: null })
       .where(eq(schema.roomSlots.entryId, id))
       .run();
+    // §93: and out of every lade — a drawer row naming nothing would list a
+    // thing that can never be put down again.
+    db.delete(schema.roomDrawer).where(eq(schema.roomDrawer.entryId, id)).run();
     const ownRooms = db
       .select({ id: schema.rooms.id })
       .from(schema.rooms)
@@ -599,6 +605,7 @@ export function destroyFromTrash(kind: TrashItem['kind'], id: string, keeperId: 
     if (ownRooms.length) {
       db.delete(schema.roomSlots).where(inArray(schema.roomSlots.roomId, ownRooms)).run();
       db.delete(schema.roomLedger).where(inArray(schema.roomLedger.roomId, ownRooms)).run();
+      db.delete(schema.roomDrawer).where(inArray(schema.roomDrawer.roomId, ownRooms)).run();
       db.delete(schema.rooms).where(inArray(schema.rooms.id, ownRooms)).run();
       db.delete(schema.accessGrants)
         .where(and(eq(schema.accessGrants.targetType, 'room'), inArray(schema.accessGrants.targetId, ownRooms)))

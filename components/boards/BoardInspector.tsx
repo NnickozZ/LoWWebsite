@@ -138,6 +138,7 @@ export function BoardInspector({
   onRename,
   onOpenEntry,
   onRemoveCards,
+  onStartString,
   onClose,
   openLabel,
   subjectName,
@@ -180,6 +181,11 @@ export function BoardInspector({
   onRename: (name: string) => void;
   onOpenEntry: () => void;
   onRemoveCards: () => void;
+  /**
+   * §94 (O10): start a draad from the one card chosen — the next card pressed
+   * is the other end. Absent in Lezen and for more than one card.
+   */
+  onStartString?: () => void;
   onClose: () => void;
   /**
    * What the "open it" button says, or null when this card stands for nothing
@@ -392,6 +398,13 @@ export function BoardInspector({
           Sleep hem aan het label. Span draad vanaf de kop.
         </span>
 
+        {onStartString && (
+          <button type="button" className="btn btn-small" onClick={onStartString} data-testid="board-string-start">
+            <Icon name="link" size={14} />
+            {words.boardStringStart}
+          </button>
+        )}
+
         <button type="button" className="btn btn-small btn-danger" onClick={onRemoveCards}>
           <Icon name="trash" size={14} />
           Verwijderen
@@ -472,6 +485,13 @@ export function BoardInspector({
       {hasOwnPhoto && (
         <button type="button" className="btn btn-small btn-ghost" onClick={onRemovePhoto}>
           Foto verwijderen
+        </button>
+      )}
+
+      {single && onStartString && (
+        <button type="button" className="btn btn-small" onClick={onStartString} data-testid="board-string-start">
+          <Icon name="link" size={14} />
+          {words.boardStringStart}
         </button>
       )}
 

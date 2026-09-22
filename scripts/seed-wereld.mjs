@@ -885,6 +885,13 @@ const schrijf = db.transaction(() => {
         fields: row.velden,
         tags: row.tags,
         typeId: row.typeId,
+        // §96 (B30): de rest van wat `recordRevision` in een snapshot zet. De
+        // geschiedenis vergelijkt met de vorige revisie, dus een omslag die hier
+        // ontbrak kwam bij de eerste bewerker terecht: "omslag · toegevoegd".
+        coverAssetId: row.cover ?? null,
+        coverCrop: null,
+        visibility: row.visibility,
+        keeperNotes: row.keeperNotes,
       }),
       keeper.id,
       'aangemaakt',

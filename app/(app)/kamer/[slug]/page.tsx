@@ -7,6 +7,7 @@ import { GrantForm } from '@/components/kamer/GrantForm';
 import { Grootboek } from '@/components/kamer/Grootboek';
 import { Plek } from '@/components/kamer/Plek';
 import { RoomEffects } from '@/components/kamer/RoomEffects';
+import { KamerGrid } from '@/components/kamer/Verplaatsen';
 import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
@@ -206,7 +207,15 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
        */}
       <RoomEffects effects={room.effects} words={words} addressee={addressee} />
 
-      <ul className="kamer-grid" data-testid="kamer-grid" aria-label={words.slotPlural}>
+      {/* §93 (E10): het raster weet wat er verplaatst wordt — `KamerGrid` is de
+          `<ul>`, met de staat van *Verplaatsen* eromheen. */}
+      <KamerGrid
+        label={words.slotPlural}
+        targets={room.slots
+          .filter((slot) => !slot.locked && !slot.item && !slot.veiled)
+          .map((slot) => ({ id: slot.id, kind: slot.kind }))}
+        words={words}
+      >
         {room.slots.map((slot) => (
           <Plek
             key={slot.id}
@@ -218,7 +227,28 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
             words={words}
           />
         ))}
-      </ul>
+      </KamerGrid>
+
+      {/*
+        §93: de lade — wat deze kamer bezit en nergens heeft staan. Alleen als er
+        iets in ligt; neerzetten gaat via *Neerzetten* op een lege plek, waar het
+        onder *Wat je al hebt* bovenaan staat.
+      */}
+      {room.drawer.length > 0 && (
+        <section className="kamer-lade" data-testid="kamer-lade" aria-labelledby="kamer-lade-title">
+          <h2 id="kamer-lade-title" className="tiny muted kamer-lade-title">
+            {words.drawer}
+          </h2>
+          <ul className="kamer-lade-list">
+            {room.drawer.map((thing) => (
+              <li key={thing.id} data-testid="kamer-lade-ding" data-entry-id={thing.id}>
+                <Link href={`/e/${thing.slug}`}>{thing.name}</Link>
+                {thing.count > 1 && <span className="tiny muted"> ×{thing.count}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <Grootboek lines={lines} canGrant={room.canGrant} words={words} />
     </div>

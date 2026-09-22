@@ -210,7 +210,7 @@ export function CaseEntryCard({
           {entry.shortDescription && (
             <p className="tiny muted clamp-2" style={{ margin: 0 }}>
               {/* §48: flat chips — the card body is a link. */}
-              <MentionText text={entry.shortDescription} flat />
+              <MentionText text={entry.shortDescription} flat tokens />
             </p>
           )}
         </Link>

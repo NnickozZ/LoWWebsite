@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { readCanvas, signIn } from './helpers';
 
 /**
  * §34: a landkaart and a tijdlijn fill the screen.
@@ -124,6 +124,9 @@ test('a tijdlijn fills the screen', async ({ page }, info) => {
   await sheet.getByRole('button', { name: /Openbare tijdlijn|Tijdlijn aanmaken/ }).click();
   await page.waitForURL('**/timelines/**');
   await expect(page.getByTestId('timeline-stage')).toBeVisible();
+  // §94 (O1): a tijdlijn you just made opens in Bewerken; the shell is measured
+  // where it is looked at, in Lezen (a phone's own start on every later visit).
+  await readCanvas(page);
   await page.waitForTimeout(500);
 
   await expectFillsTheScreen(page, '.timeline-stage');
@@ -158,6 +161,8 @@ test('een stamboom vult het scherm', async ({ page }, info) => {
   await sheet.getByRole('button', { name: /Openbare stamboom|Stamboom aanmaken/ }).click();
   await page.waitForURL('**/stambomen/**');
   await expect(page.getByTestId('tree-stage')).toBeVisible();
+  // §94 (O1): made just now, so Bewerken — measured in Lezen, as the tijdlijn is.
+  await readCanvas(page);
   // The stage is measured by a ResizeObserver; give it the frame.
   await page.waitForTimeout(500);
 
@@ -184,4 +189,31 @@ test('een stamboom vult het scherm', async ({ page }, info) => {
    */
   await expectFillsTheScreen(page, '.tree-stage');
   await expectStandsUpSideways(page, '.tree-stage');
+});
+
+/**
+ * §94 (C6): and the prikbord, the last of the four to come onto the §34 shell
+ * (CLAUDE.md §8 carried it as debt from round 12). It used to be 57 % of a
+ * phone with a page that scrolled 75 px under a pan, because `.board-viewport`
+ * had a magic height (`100dvh − 320px`) that guessed at what stood above it.
+ *
+ * Measured in Lezen, which is where a wall is looked at and where a phone
+ * reopens it (§73); Bewerken adds the row that hangs cards up, and that row is
+ * the price of making things, not a regression in the shell.
+ */
+test('een prikbord vult het scherm', async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await signIn(page, ...KEEPER);
+  const made = await page.request.post('/api/boards', { data: { name: `Volle muur ${info.project.name} ${Date.now()}` } });
+  expect(made.ok()).toBe(true);
+  const { board } = (await made.json()) as { board: { id: string } };
+  await page.goto(`/b/${board.id}`);
+  await readCanvas(page);
+  await expect(page.locator('.board-viewport')).toBeVisible();
+  await page.waitForTimeout(500);
+  await expectFillsTheScreen(page, '.board-viewport');
+  // The page itself does not scroll beside the wall.
+  const scroll = await page.evaluate(() => document.querySelector('.page-canvas')!.getBoundingClientRect().bottom);
+  expect(scroll).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+  await expectStandsUpSideways(page, '.board-viewport');
 });

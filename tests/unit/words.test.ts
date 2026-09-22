@@ -57,7 +57,8 @@ describe('cleanWordOverrides', () => {
 
   it('trims, caps, and ignores anything that is not text', () => {
     expect(cleanWordOverrides({ entry: '  kaart  ' })).toEqual({ entry: 'kaart' });
-    expect(cleanWordOverrides({ entry: 'x'.repeat(400) }).entry).toHaveLength(60);
+    // §96: the cap is WORD_MAX (200) since ronde 57, so every default sentence fits.
+    expect(cleanWordOverrides({ entry: 'x'.repeat(400) }).entry).toHaveLength(200);
     expect(cleanWordOverrides({ entry: 42 })).toEqual({});
     expect(cleanWordOverrides(['entry'])).toEqual({});
     expect(cleanWordOverrides(null)).toEqual({});

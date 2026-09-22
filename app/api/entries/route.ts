@@ -36,6 +36,12 @@ export async function POST(request: Request) {
        * made inside a Keeper-only dossier is the Keeper's whatever this says.
        */
       keeperOnly?: boolean;
+      /**
+       * §93 (E24): plek, prijs en effect van nieuw huisraad, in het blad zelf
+       * gevraagd. Alleen gehoord voor een soort die alleen de Keeper maakt, en
+       * door dezelfde poort als elke opslag (`cleanFieldPatch` in `createEntry`).
+       */
+      fields?: Record<string, unknown>;
     };
 
     if (!body.name?.trim()) return json({ error: 'Geef het artikel eerst een naam.' }, { status: 400 });
@@ -76,6 +82,10 @@ export async function POST(request: Request) {
       originCaseId,
       // §49: the tickbox, or the soort's own habit when the caller says nothing.
       casePrefix: typeof body.casePrefix === 'boolean' ? body.casePrefix : undefined,
+      fields:
+        type.keeperMade && body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields)
+          ? body.fields
+          : undefined,
     });
 
     /*

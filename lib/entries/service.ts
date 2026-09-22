@@ -9,6 +9,7 @@ import { newId } from '@/lib/ids';
 import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
 import { cleanDoc, docToText, EMPTY_DOC, extractEntryLinks } from './doc';
+import { cleanShort, indexShort, isShortFieldKind } from './shortRefs';
 import { checkFieldPatch, cleanFieldPatch, listBlockKeys, type StoredEntryRef } from './fieldValues';
 // §66: the pure half of the mirror — what should be written on the other page.
 import { mirrorPlan, refIdsOf } from '@/lib/families/mirror';
@@ -172,7 +173,8 @@ export function reindexEntry(entryId: string) {
   insertFts.run(
     entryId,
     row.name,
-    row.shortDescription,
+    // §95: the names as they are now, not the handles.
+    indexShort(row.shortDescription),
     row.bodyText,
     (row.tags ?? []).join(' '),
   );
@@ -376,6 +378,13 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
     listBlockKeys(resolveBlocks(type.blocks)),
     input.fields ?? {},
   );
+  // §95: a short text is cleaned where it comes in, exactly as a document is.
+  const actor = input.createdBy ? { id: input.createdBy, isKeeper: Boolean(input.actorIsKeeper) } : ('system' as const);
+  for (const def of type.fields ?? []) {
+    if (isShortFieldKind(def.kind) && typeof fields[def.key] === 'string') {
+      fields[def.key] = cleanShort(fields[def.key], { actor, multiline: def.kind === 'longtext' });
+    }
+  }
 
   db.insert(schema.entries)
     .values({
@@ -383,7 +392,7 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
       typeId: type.id,
       name,
       slug,
-      shortDescription: (input.shortDescription ?? '').trim(),
+      shortDescription: cleanShort((input.shortDescription ?? '').trim(), { actor }),
       body,
       bodyText: docToText(body),
       fields,
@@ -1040,7 +1049,17 @@ export function updateEntry(
     const name = patch.name.trim();
     if (name) values.name = name;
   }
-  if (patch.shortDescription !== undefined) values.shortDescription = patch.shortDescription;
+  /*
+   * §95: a short text is cleaned on its way in (`cleanShort`, §89 for a
+   * string). What the room sent and what the archive keeps can then differ —
+   * a handle this hand may not add, one it could not see and left out — and
+   * the room is brought into line below, exactly as `cleanDoc` does for prose.
+   */
+  const cleanedInRoom: Record<string, string> = {};
+  if (patch.shortDescription !== undefined) {
+    values.shortDescription = cleanShort(patch.shortDescription, { prev: entry.shortDescription, actor: user });
+    if (values.shortDescription !== patch.shortDescription) cleanedInRoom.shortDescription = values.shortDescription as string;
+  }
   if (patch.body !== undefined) {
     values.body = patch.body;
     values.bodyText = docToText(patch.body);
@@ -1082,6 +1101,16 @@ export function updateEntry(
     if (!options.live) rejectedFields = checked.rejected;
     // §67: and what this hand could not see, it may not have removed.
     keepUnseenRefs(spec, (entry.fields ?? {}) as Record<string, unknown>, checked.fields, user);
+    // §95: and a Tekst or Lange tekst is a short text, cleaned like one.
+    const before = (entry.fields ?? {}) as Record<string, unknown>;
+    for (const def of spec.defs) {
+      const raw = checked.fields[def.key];
+      if (!isShortFieldKind(def.kind) || typeof raw !== 'string') continue;
+      const prev = before[def.key];
+      const clean = cleanShort(raw, { prev: typeof prev === 'string' ? prev : '', actor: user, multiline: def.kind === 'longtext' });
+      checked.fields[def.key] = clean;
+      if (clean !== raw) cleanedInRoom[`field.${def.key}`] = clean;
+    }
     // Nothing survived the gate: no write, no revision, no feed row. A patch of
     // pure rubbish is not an edit of this artikel.
     if (Object.keys(checked.fields).length) {
@@ -1170,6 +1199,9 @@ export function updateEntry(
       values.fields !== undefined ? (values.fields as Record<string, unknown>) : undefined,
     );
     if (Object.keys(fields).length) resetFieldsInRoom(entryFieldsRoomKey(entryId), fields);
+  } else if (Object.keys(cleanedInRoom).length) {
+    // §95: the room wrote something the archive cleaned — the room follows.
+    resetFieldsInRoom(entryFieldsRoomKey(entryId), cleanedInRoom);
   }
 
   return {

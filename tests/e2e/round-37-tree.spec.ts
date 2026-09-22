@@ -60,6 +60,9 @@ test('§73: op een telefoon opent de stamboom in Lezen, en Bewerken zet de geree
   await signIn(page, ...KEEPER);
   const name = `Telefoonboom ${Date.now().toString(36)}`;
   await newTree(page, name);
+  // §94 (O1): a tree you just made opens in Bewerken; §73's rule is about
+  // opening it again, so open it again.
+  await page.reload();
 
   // Web-first: the page is a desk's for the beat before it hydrates.
   await expect(modeRadio(page, 'Lezen')).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 });

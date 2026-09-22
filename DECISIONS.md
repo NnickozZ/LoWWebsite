@@ -2782,6 +2782,14 @@ the two cannot be told apart and rule 1 of `mentions.ts` still holds: no id, no
 slug, no name of an artikel the reader may not see leaves the server. The name
 in the sentence was the writer's to show either way.
 
+*(Reversed in round 56 (§95) for the short boxes — de korte beschrijving, de
+samenvatting, Tekst en Lange tekst. There a mention is a handle to one artikel,
+chosen by the hand, so "the oldest that carries it" no longer decides anything,
+and a chip the reader may not follow is drawn as nothing rather than as a dead
+chip with the writer's name in it. The reading above still holds for the boxes
+that write `[[Naam]]`: a kaartje, a speld, a gebeurtenis, the maakbladen of a
+landkaart, a tijdlijn and a stamboom, and an overzicht's lead.)*
+
 **A textarea cannot hold a chip.** So the two sheets whose only face is a box
 being typed in — the gebeurtenis sheet, the notitie-speld sheet — print the
 chips underneath it ("Verwijst naar …", `MentionRow`), clickable while you
@@ -3643,7 +3651,9 @@ aanklikken waar hij hem geschreven heeft.
 De redenering van §54 klopte wel — een `<textarea>` bevat letters en verder
 niets, en de vier vakken die het meest tellen zijn `LiveField`s die een `Y.Text`
 diffen, dus er kan geen echt element in staan en er mag geen contenteditable
-voor in de plaats komen. Wat er niet stond is dat je er wél een *overheen* kunt
+voor in de plaats komen. *(Omgekeerd in ronde 56, §95: het vak blijft een
+`Y.Text`, maar de editor erbovenop is een contenteditable, `ShortEditor`, die
+zelf chips tekent. Zie het blok van ronde 56.)* Wat er niet stond is dat je er wél een *overheen* kunt
 leggen. Dat is nu `MentionOverlay`: een spiegel met dezelfde tekst, die zijn
 typografie en doosmaten van het element zélf afleest (`getComputedStyle`, niet
 een gedeelde class — een class drijft weg zodra iemand één veld anders opmaakt),
@@ -5109,7 +5119,8 @@ stamboompagina. Een tweede deur naar dezelfde prullenbak op de andere drie zou
 erger zijn dan het gat dat hier gedicht werd: twee knoppen die hetzelfde doen en
 anders heten is precies wat §69 een ronde lang aan het weghalen was. Echte
 eenheid betekent alle vier op `BinSlot` zetten en hun eigen knoppen weghalen, en
-dat is een ronde en geen reparatie.
+dat is een ronde en geen reparatie. *(Uitgevoerd in ronde 55, §94: alle vier
+staan op `BinSlot` onder de vouw, en de drie eigen knoppen zijn weg.)*
 
 Twee dingen die erbij hoorden. Op een tekenvlak van schermbreedte staat de lade
 **buiten** `.page-canvas`, onder de vouw, waar `#tree-underfold` de
@@ -5184,6 +5195,9 @@ aangeraakt behalve de §73-poorten.
   `timelines.spec.ts`); de app zelf doet dat niet — een telefoon die net een
   prikbord maakte landt in Lezen. Open vraag voor Nick: moet een glas dat je
   zelf net maakte in Bewerken openen, zoals een nieuw artikel op `?new=1`?
+  *(Beantwoord op 21 september 2026 (O1): ja. Gebouwd in ronde 55, §94.)*
+- *(Ronde 55, §94: een notitie-speld toont in Lezen zijn tekst in plaats van
+  twee invoervakken (O6).)*
 
 ### §74 — waarom een peek en geen `Sheet`
 
@@ -5258,7 +5272,9 @@ komt — en die wordt voor deze soort niet getekend.
 - **Zoeken.** Een overzicht is niet te vinden via `/search`. De strip onderaan
   elke overzichtpagina en de Start-tab zijn voorlopig de hele vindbaarheid. Het
   is een eigen soort in `lib/search/service.ts` plus een chip in `SearchScreen`,
-  en dat is een half uur dat niet in deze ronde paste.
+  en dat is een half uur dat niet in deze ronde paste. *(Omgekeerd in ronde 57,
+  §96: een overzicht staat in `/search`, onder *Andere dingen*, gevonden via
+  `listOverzichten` in `lib/search/others.ts`.)*
 - **Een blok met kaartjes.** Verwijzingen in een sectie zijn chips in lopende
   tekst. Een echt *linkraster* (kies artikelen, toon ze als de kaartjes die de
   wiki al heeft, met een regel context per rij) is de volgende stap en de
@@ -5370,7 +5386,9 @@ ongelabelde stip van 12 px. Dat is niet gebouwd: die stip staat in de **schil**
 van elke pagina in het archief en niet alleen op de zeven schermen van deze
 feature. Het is een ronde over de schil waard, met een eigen doorloop, en niet
 een regel aan het eind van deze. Wat hij wél kreeg is zijn 44 px op een
-telefoon.
+telefoon. *(Ronde 57, §96: op een computer draagt de stip nu het woord *Wie is
+er?* en de telling, behalve op een tekenvlak. Op een telefoon blijft het de
+stip.)*
 
 **En één keuze die in beslissing 7 verstopt zat.** Het grootboek kreeg drie
 zinnen in plaats van drie veldnamen — maar de **vierde** vorm, een versluierde
@@ -5617,13 +5635,15 @@ waar de vraag vandaan kwam.
   is, want dan doen ze hetzelfde als het kruisje van de peek.
 - **O1 blijft open:** een nieuw tekenvlak opent op een telefoon nog in Lezen.
   De review adviseert Bewerken, zoals een artikel op `?new=1`, maar dat is
-  Nicks keuze en die is nog niet gemaakt.
+  Nicks keuze en die is nog niet gemaakt. *(Nick koos Bewerken; gebouwd in
+  ronde 55, §94.)*
 
 ### De FAB wijkt op elk tekenvlak (breidt §74 en K35 uit)
 
 K35 liet de FAB wijken op `/uitdelen` en boven een open blad. §74 liet hem
 wijken voor een peek. Nu wijkt hij op elk tekenvlak en voor elk gedokt paneel:
-de pagina's op de §34-schil, het prikbord (dat daar nog niet op staat), een
+de pagina's op de §34-schil, het prikbord (dat daar nog niet op staat; sinds
+ronde 55 wel), een
 vlak in een dossier, de inspector van het prikbord en de kiezer van de
 stamboom. Een tekenvlak heeft zijn eigen `+` (*Speld zetten*, *Gebeurtenis
 toevoegen*, *Nieuwe notitie*, *Los kaartje*). De FAB was daar een tweede
@@ -5685,7 +5705,10 @@ is leeg: wie er iets bij zet, schrijft erbij waarom.
   390, achter een veeg die niemand kende. De gekozen tab komt in het adres via
   `history.replaceState` en niet via `router.replace`. Dat laatste zou bij elke
   tik de hele Beheer-pagina, met alle tien panelen, opnieuw op de server
-  laten renderen, terwijl ze al op de pagina staan.
+  laten renderen, terwijl ze al op de pagina staan. *(Na de merge van golf 2
+  rechtgezet: `AdminTabs.tsx` gaf `history.state` mee aan `replaceState`, en
+  dan zet Next's router het oude adres terug. Het is nu `null`, dezelfde
+  regel als op de tekenvlakken; zie ronde 55.)*
 - ***Tot Keeper maken* vraagt eerst.** Dit keert §69 niet om: dat weghalen
   niet vraagt, geldt voor dingen die een melding met *Ongedaan maken* kunnen
   terugzetten. Wie Keeper wordt, ziet meteen de Keeperkant, en geen melding
@@ -5819,6 +5842,8 @@ LANDKAARTEN) niet meer worden afgekapt.
   deuren knoppen zijn, staat wél *Naar de kamer* en *Naar de winkel*.
 - **Zoeken wordt een vak, geen palet.** Enter gaat naar `/search?q=`. Een
   palet dat alles doorzoekt (S3, `⌘K`) staat bij "later" in de review.
+  *(Ronde 57, §96: `/search` doorzoekt nu alles, dus het vak ook. Het palet
+  kwam er niet.)*
 - **De Keeper-groep wordt niet gerenderd voor wie geen Keeper is** (§44),
   en in het blad alleen voor een echte Keeper die niet als speler kijkt.
 - **De zijbalk is op een computer niet 44 px per regel.** Met `--tap` viel
@@ -5833,3 +5858,485 @@ LANDKAARTEN) niet meer worden afgekapt.
   eigen query. Zo kan hij regel 1 niet breken, en er zijn geen twee stel
   regels om gelijk te houden. De spelerspagina doet voor *Bijdragen* precies
   hetzelfde.
+
+---
+
+## Golf 2 — rondes 53, 54, 55 en 57 (§92, §93, §94, §96)
+
+Na ronde 52 zei Nick op 21 september: *"continue with the other part"*, dus de
+rondes 53 tot en met 56 uit de review, en wat de review "later" noemde. Vier
+bouwers werkten tegelijk, elk in een eigen worktree op `ronde-52`, en de vier
+takken zijn samengevoegd tot `golf-2`. Nicks besluiten van die dag, die de
+blokken hieronder dragen:
+
+- **Ronde 56 komt ná 53.** De editor van één regel, met een id in de korte
+  vakken en een migratie, is een eigen ronde. Ronde 53 is zo gebouwd dat 56
+  erop verder kan. ~~**§95 is voor ronde 56 gereserveerd**, en die krijgt
+  migratie `0034_`, want ronde 54 nam `0033`.~~ *Gebouwd in ronde 56: §95,
+  migratie `0034_een_id`.*
+- **O1: een net gemaakt tekenvlak opent in Bewerken**, ook op een telefoon.
+  Bij opnieuw openen begint een telefoon weer in Lezen (§73).
+- **De K1-uitzondering is vastgelegd.** Het saldo als staart in de zijbalk
+  (`.nav-tail`) en op de Jij-tab (`tab-jij-saldo`) is een benoemde
+  uitzondering op K1, geen restpunt meer.
+- Eerder al beslist: acht tabs blijven en er komt geen *Kaarten*-tab; een lade
+  per kamer met een Keeper-slot in `placeItem`; en *Ongedaan maken* na een
+  koop, als correctie en niet als terugverkoop.
+
+De merge gaf drie conflicten, alle drie in importregels of woordblokken en geen
+in gedrag: `lib/words.ts` (de blokken van §92 en §93 kwamen allebei achteraan),
+`MapCanvas.tsx` (ronde 53 haalde `MentionRow` weg, ronde 55 importeerde hem nog)
+en `lib/kamers/service.ts` (de imports van `desc` en `CHARACTER_TYPE_SLUG`).
+
+---
+
+## Ronde 53 (§92) — de korte vakken: een voorvertoning buiten focus, en de regel eronder weg
+
+De derde bouwronde na de review (variant c+ uit sectie 3). Geen migratie.
+
+### Omgekeerd: geen regel onder het vak (§54)
+
+§54 zette onder elk kort vak een regel *Verwijst naar …* met klikbare chips
+(`MentionRow`), omdat een `<textarea>` geen chip kan bevatten. §56 legde er een
+spiegel over, maar niet op de live vakken, en daar bleef de regel. Nick las die
+regel als *"gekke hyperlinks"*, en de review zag dat hij de hoogte van elk vak
+verdubbelde. **Het besluit: de regel verdwijnt overal**, en een kort vak toont
+zijn chips zelf zolang het geen focus heeft (`MentionPreview`). In focus staat
+de ruwe tekst. Wie in een vak typt, ziet `[[Naam]]`; wie ernaar kijkt, ziet de
+naam als chip.
+
+### Uitgebreid: §56's spiegel alleen in focus, en de live vakken krijgen de voorvertoning
+
+§56 hield de spiegel van de live vakken af, omdat hij in een portal hing en
+de overdracht van het vak aan de room verstoorde. De voorvertoning heeft dat
+bezwaar niet: hij is een gewoon kind naast het vak, in een `.mention-field` die
+er vanaf de eerste render staat, en hij raakt het vak niet aan. Daarom mag hij
+wél op de live vakken. De spiegel tekent alleen nog in focus, op de gewone
+vakken. **De voorvertoning neemt nooit de klik**: `pointer-events: none`
+behalve op de chips. Een eerste versie nam de hele klik en zette de caret zelf,
+en toen raakte elke spec die in het vak klikte de voorvertoning in plaats van
+het vak.
+
+### Omgekeerd op een smal scherm: de infobox is ook in Lezen dicht (§18/§22, §90)
+
+Op een telefoon is de infobox een `<details>` die in Lezen vanzelf openging.
+Dan stond er een volle lijst feiten tussen de titel en de eerste zin, en begon
+de tekst 1,7 scherm lager. **Nu is hij in Lezen ook dicht**, met een
+samenvatting eronder (`FieldsPeek`: de eerste twee gevulde velden, of de tags).
+Een tik opent de rest, en wat de hand het laatst deed, overleeft de wissel
+tussen Lezen en Bewerken (§90). Op een breed scherm verandert er niets.
+
+### Verfijnd: *Dossier voor de naam* alleen waar er een dossier is (§49)
+
+De keuze van §49 blijft van het artikel. Alleen de regel erover staat er nog
+maar als het artikel in een dossier zit. Zonder dossier was het een vinkje
+twee regels boven de titel, voor een instelling die nog niets betekende.
+
+### Escape haalt een losse `[[` weg
+
+Escape sloot de lijst en liet `[[Jac` staan, en die belandde met haakjes in het
+archief. Erger: de `keyup` na Escape opende de lijst weer. Escape zegt nu *dit
+is geen naam*: de `[[` gaat weg en de letters blijven, in een kort vak en in de
+rijke editor. Bij het verlaten van een kort vak gebeurt hetzelfde
+(`dropDanglingOpeners`). Een `@` blijft staan, want een `@` is ook gewoon een
+teken.
+
+### De soort in het maakblad is een strook, geen dropdown (C26)
+
+De review stelde een dropdown voor. Het werd één scrollende strook onder het
+naamvak, met *Alle soorten* om hem uit te klappen, omdat ongeveer vijftig
+`getByRole('radio')` in zesentwintig specs de soort op die manier kiezen. Een
+dropdown zou ze allemaal breken voor een verschil dat een mens nauwelijks
+voelt. Het naamvak staat nu bovenaan en heeft de focus.
+
+### Kleinere keuzes
+
+- **Eén knop *Op een landkaart of tijdlijn zetten…*** (`PlaceOnButton`) in
+  plaats van vijf pillen. De feitenregels (*Op de landkaart: …*) blijven staan,
+  want die zeggen iets over het artikel.
+- **Een vak van één regel laat Enter los** (`enterLeaves`): de korte
+  beschrijving, de samenvatting en een infoboxveld Tekst. Lange tekst houdt
+  zijn Enter.
+- **Het maakblad kan een dossier kiezen** (*In {dossier}*, een `<select>` van
+  de open dossiers). Het is optioneel, en de server controleert het opnieuw
+  zoals bij elke `caseId`.
+- **Lijst of Kaarten op de wiki**, met de lijst als standaard onder 768 px.
+  De keuze is per browser (`localStorage`), want het is een gemak en geen
+  staat.
+- **Lege infoboxvelden inklappen (B25) is niet gedaan.** Het brak minstens
+  negen specs. De woorden `fieldsFillEmpty` en `fieldsEmptyCount` staan
+  ongebruikt klaar.
+- ~~**A2 en A3 zijn bewust niet gedaan** (de oudste naam wint; hernoemen breekt
+  `[[oude naam]]`). Dat is precies wat ronde 56 oplost met een id in het vak.~~
+  *Gesloten in ronde 56 (§95), met een handvat in het vak.*
+- **Voor ronde 56** blijven `dropDanglingOpeners`, `placeSuggestList`/
+  `currentView`, `enterLeaves` en `.mention-field` staan.
+  `MentionPreview`, `previewSegments` en `useBoxFocus` vervallen zodra het vak
+  zelf chips tekent. *(Ronde 56: ze vervielen van de vier korte vakken en de
+  maakbladen van een artikel en een dossier, maar blijven bestaan voor de
+  vakken die nog `[[Naam]]` schrijven. Ook `.mention-field` staat alleen nog
+  om die vakken.)*
+
+---
+
+## Ronde 54 (§93) — de kamer, tweede pas: de lade, terugbrengen en verplaatsen
+
+Migratie `0033_de_lade`.
+
+### Een tabel, geen staat op een bestaande rij
+
+Bezit dat nergens staat, kon niet in `room_slots`: een rij daar is een vaste
+plek in de ladder (§79), en een plek zonder plek bestaat niet. Het kon ook
+niet als vlag op het artikel, want §80 staat twee exemplaren van hetzelfde
+huisraad toe (§83: hetzelfde stuk mag vaker in één kamer). Dus is het een
+tabel, `room_drawer`, met één rij per exemplaar en niets dat rekent (rule 78).
+De migratie vult hem niet: wat vóór vandaag weggehaald werd, was van niemand,
+en een migratie die eigendom verzint, geeft iemand iets waar hij nooit voor
+betaalde.
+
+### Omgekeerd voor huisraad: weghalen maakt het niet van niemand (§79)
+
+§79 zei dat weghalen niets teruggeeft, en in de praktijk was een gekocht ding
+daarna van niemand: iedereen die mocht inrichten, kon het gratis neerzetten.
+**Nu gaat huisraad bij het weghalen de lade in** en blijft het van die kamer.
+Een gevonden voorwerp gaat nog steeds terug de wereld in. Er komen nog steeds
+geen munten terug.
+
+### Versmald: alleen de Keeper doet cadeau met `placeItem` (§80)
+
+§80 liet de Keeper iets cadeau doen met `placeItem`, zonder kosten en zonder
+regel. Maar `placeItem` vroeg dat aan niemand, dus kon iedereen het (review
+E1). Nu weigert de server een speler huisraad dat niet in de lade van die
+kamer ligt. De Keeper mag nog steeds alles, want hij deelt uit, maar neemt
+eerst uit de lade als het daar ligt. Neerzetten kan bovendien alleen nog op
+een lege plek; wat er lag, werd tot nu toe stil overschreven.
+
+### Omgekeerd: een koop mag binnen tien seconden terug (§79, §84)
+
+§79 en §84 zeiden allebei: een koop gaat niet terug, want een teruggave is een
+tweede economie. Nick besliste dat een **correctie** wel mag: *"een correctie,
+geen terugverkoop"*. Alleen wie kocht, alleen de laatste koop van dat ding in
+die kamer, en binnen tien seconden (met vijf seconden speling op de server).
+Het grootboek krijgt een regel erbij (`return`) en verandert er geen, dus het
+saldo blijft de som. De feedregel van de koop gaat wel weg: een correctie van
+tien seconden is geen bijdrage. Na het venster blijft §79 staan: weghalen, en
+het ligt in je lade.
+
+### Omgekeerd: de volgorde van de panelen hangt af van wie kijkt (K42)
+
+K42 zette één volgorde: Kamer, Karakters, Aanwezig, Dossiers, Bijdragen. De
+review (onderzoek §5) zag dat je op je eigen pagina met een andere vraag komt
+dan op die van een ander. **`panelsFor(isSelf)`**: op je eigen pagina eerst
+een rij met wie je speelt, je saldo en de deuren naar kamer en winkel, dan
+Kamer, Karakters, Dossiers en Bijdragen, zonder Aanwezig. Op die van een ander
+eerst *online* en *Speelt nu* (de naam alleen als je dat artikel mag zien,
+§76), dan Karakters, Kamer, Dossiers, Bijdragen, en Aanwezig onderaan.
+
+### Kleinere keuzes
+
+- **Verplaatsen staat onder het kruisje, niet ernaast.** Ernaast dekte het
+  het etiket van de plek af: de screenshot liet *BUREAU* als *BURE* zien.
+- **Eén lezer voor uniek: `claimedIds()`.** Drie lezers stelden de vraag met
+  hun eigen query. Met de lade heeft de vraag twee helften, en een lezer die er
+  één vergeet, biedt een lantaarn aan die in iemands lade ligt.
+- **K48's uitzondering vervalt.** De kop van het effectenblok noemt in de
+  kamer van een ander de naam (*Wat deze kamer Kees geeft*).
+- **De kamerschrijvers zijn niet meer stil.** Kopen en een plek openen staan in
+  het feed (`room.bought`, `room.opened`), `handOut` schrijft één
+  `room.granted` per kamer met de onderzoeker, en de claim-reset in
+  `lib/admin/types.ts` noemt `room_id`.
+- **Huisraad maken vraagt meteen plek, prijs en effect**, in het Nieuw-blad
+  zelf en alleen voor de Keeper. `POST /api/entries` neemt `fields` alleen aan
+  voor een `keeper_made` soort, door dezelfde poort als elke opslag. Op een
+  stuk huisraad staan geen landkaart- en tijdlijnknoppen meer: het is een ding
+  voor in een kamer, geen plaats in de wereld.
+- **Een winkelrij zonder vrije plek biedt de goedkoopste gesloten plek aan**
+  (E5), met de prijs op de knop (K3).
+- **De hal wijst naar elke kamer die iemand draagt**, niet alleen naar het
+  karakter dat hij nu speelt, en alleen naar wat de kijker mag zien (§76).
+
+---
+
+## Ronde 55 (§94) — de tekenvlakken: vinden en terug
+
+Geen migratie. De *Kaarten*-tab uit de review is er niet, want Nick hield de
+acht tabs.
+
+### §73 krijgt één uitzondering: `?new=1` (O1)
+
+§73 zei: elke keer vers, niets onthouden, een telefoon begint in Lezen. Nick
+besliste dat een vlak dat je net maakte in Bewerken opent, zoals een artikel
+op `?new=1`. De maker stuurt door met `freshHref`, `useCanvasMode` leest de
+parameter één keer en haalt hem een frame later uit het adres. Herladen is
+weer Lezen. Dat houdt §73's reden intact: een ongeluk kan niet van gisteren
+meekomen, want er wordt niets bewaard.
+
+### De keuze in het adres, de camera per tabblad
+
+Terug naar een vlak zette tot deze ronde alles terug op het begin. Nu staat de
+keuze in het adres (`?card=`, `?pin=`, `?event=`, `?node=`) en de camera in
+`sessionStorage`, per vlak. Niet in `localStorage`: een nieuwe sessie hoort op
+een leesbaar begin te openen, en een camera is nooit gedeeld (regel 20). **De
+stamboom verhuist daarom van `localStorage` naar `sessionStorage`**, zodat er
+één manier is. Het adres wordt geschreven met `replaceState(null, …)`, niet
+met `history.state`: met de data van Next erin neemt zijn router het nieuwe
+adres niet over en zet de volgende render het oude terug. Dezelfde fout zat in
+Beheer's `?tab=` uit ronde 51, en is na de merge rechtgezet.
+
+### Een gedeelde muur leest `state.viewport` niet meer bij het openen
+
+§61 hield de viewport in het document van het prikbord. Wie een muur opende,
+kreeg dus het beeld van wie er het laatst schoof. Nu opent hij op zijn eigen
+camera als dit tabblad er een heeft, anders op de gekozen kaart, en anders op
+een leesbare fit. `state.viewport` wordt nog wel geschreven, want het is een
+veld van het document en §61 houdt dat heel.
+
+### Een leesvloer bij openen, maar *Alles in beeld* blijft alles (C7, deels)
+
+Het prikbord en de stamboom openen nooit kleiner dan een naam van 10 px
+(`readableFit`). De knop *Alles in beeld* blijft wel alles tonen: een knop die
+"alles" zegt en de helft laat zien, zou liegen, en de specs leunen erop
+(CLAUDE.md §6). Voor de tijdlijn is vraag 11 van §69 anders beantwoord dan in
+ronde 35: het getal naast de zoomknoppen is daar de tijd op het glas in
+woorden (*≈ 6 maanden*), niet een percentage.
+
+### Uitgevoerd: alle vier op `BinSlot` (ronde 36, O3/O4)
+
+Ronde 36 zette `BinSlot` alleen op de stamboom en schreef op dat echte eenheid
+een ronde zou zijn. Dat is deze. De prullenbak in de werkbalk van het
+prikbord, *Van de muur halen* in de Keepertools van de landkaart en de
+verwijderknop in het blad van een tijdlijn zijn weg.
+
+### Het prikbord op §34 (C6, C9)
+
+§34 liet het prikbord er bewust buiten, *"in its own round"*. Het staat nu op
+`.page-canvas`, met een kop zoals de andere drie en de dossierkeuze onder de
+vouw. Op alle vijf de vlakken is de schakelaar tussen Lezen en Bewerken de
+eerste knop onder de kop.
+
+### Gesloten uit de open punten van de canvas-bijlage (O1, O3–O6, O10, O11, O13)
+
+- **O1**: zie boven.
+- **O3 en O4**: `BinSlot` op alle vier, zie boven. Een speler met bewerkrecht
+  op een landkaart heeft daarmee ook een weg naar de prullenbak.
+- **O5**: het prikbord op §34, zie boven.
+- **O6**: een notitie-speld toont in Lezen zijn tekst, en gaat geen live kamer
+  in.
+- **O10**: een draad kan op een telefoon, met *Touwtje* in de inspector en een
+  balk *Tik op de tweede kaart…* met *Toch niet*. De grip en het kader blijven
+  alleen voor een muis.
+- **O11**: de tijdlijn toont de spanne in woorden, zie boven.
+- **O13**: de keuze landt in het adres, zoals geadviseerd. De camera níét: die
+  staat in `sessionStorage`, want een camera in een gedeelde link zou iemand
+  anders jouw beeld geven (regel 20).
+
+**O8 blijft open** (het prikbord heeft geen beschrijvingskolom): dat is een
+migratie, en alleen ronde 54 mocht er een maken. **O9 ook** (tijdlijnen en
+landkaarten wisselen niet van dossier).
+
+Eén kleine erbij: het naamvak in de kop is niet breder dan de naam (hoogstens
+twintig tekens). Een breder vak duwde *Verbindingen* op een telefoon naar een
+eigen rij.
+
+### Kleinere keuzes
+
+- **De `+`-handgrepen van een stamboom dragen een woord** (*Ouder*, *Kind*,
+  *Partner*, *Broer/zus*) en staan als pillen buiten de rand. De
+  `aria-label`s zijn niet veranderd (§64).
+- **Vinden is op een telefoon een loep van 44 px** die het vak openklapt, want
+  de werkbalk heeft geen ruimte voor een vak.
+- ***Ga naar…* op een tijdlijn staat op een telefoon in het tandwielblad, voor
+  iedereen.** Een lezer ziet in dat blad alleen dit.
+- **Een artikel wijst naar zijn stamboom** naast *Verbindingen*, met dezelfde
+  rijen als *Genoemd in* (per lezer, per kant, met `in_web`). Op een telefoon
+  staat `/stambomen` niet in de tabbalk, dus dit is de deur.
+- **Een web dat op iets opent, opent met het paneel van dat ding.**
+
+---
+
+## Ronde 57 (§96) — zoeken, Beheer en de losse eindjes
+
+Geen migratie. Ronde 56 is nog niet gebouwd, daarom springt het nummer van §94
+naar §96. *(Ronde 56 is daarna gebouwd, als §95.)*
+
+### Omgekeerd: een overzicht staat in `/search` (ronde 38)
+
+Ronde 38 liet een overzicht bewust buiten `/search`. Nu vindt zoeken alles wat
+een naam heeft: dossiers, overzichten, landkaarten, tijdlijnen, stambomen,
+prikborden en spelers. **Elke soort wordt gelezen door zijn eigen `list*`**,
+zonder `bothSides`, dus met zijn eigen zichtbaarheid en de kant (§46: een
+zoeklijst is een lijst). Er is met opzet geen eigen query: een tweede stel
+regels zou regel 1 op een dag breken. Alleen onder *Alles*, want een gekozen
+soort is een soort artikel. Zoeken zoekt voor die dingen alleen op de naam.
+
+### `cleanWordOverrides`: van 60 naar 200 tekens
+
+Ronde 51 vond zes standaardzinnen die een Keeper niet helemaal kon
+herschrijven, want de grens stamde uit de tijd dat elk woord een woord was.
+`WORD_MAX = 200` staat in `lib/words.ts`; de langste standaardzin is 144
+tekens. Een test houdt vast dat elke standaardzin erin past, zodat de volgende
+lange zin niet stil een staart verliest.
+
+### Woorden: een plakkende voet, geen autosave per vak
+
+De review stelde voor om elk woord bij het verlaten op te slaan. `saveWords`
+schrijft de héle lijst in één keer. Een vak dat zichzelf opslaat, moet dus óf
+alle vakken meesturen (dezelfde knop met een timer ervoor) óf een tweede
+schrijfweg krijgen die één sleutel samenvoegt (§5: geen tweede weg). Een voet
+die altijd in beeld is, lost de wrijving op (twaalfduizend pixels scrollen naar
+de knop) zonder aan het schrijven te komen. Een ingeklapte of weggefilterde rij
+is `hidden` en blijft in het formulier, want een vak dat er niet staat, zou bij
+het opslaan zijn woord verliezen.
+
+### Soorten: de nieuwe soort opent zichzelf
+
+`createTypeAction` geeft het id van de nieuwe soort terug, en de editor opent,
+schuift *Veld toevoegen* in beeld en zet de caret erin. De doel-soorten van een
+koppelveld staan achter één knop met `aria-expanded`, en niet in een tweede
+`<details>`: een tweede `<summary>` in de soort zou elke zoektocht naar "de
+soort wiens kop X heet" laten matchen op de kiezer van een andere soort.
+
+### `/you`: Lettertype en Kleuren boven de voorstellen en het wachtwoord
+
+Ze stonden op een telefoon op y 943 en 1265 van een pagina van 2086 px, onder
+de voorstellen. Wisselen van karakter en van licht zijn de twee dingen waarvoor
+je daar komt, dus staan ze nu direct onder de karakters, als twee rijen chips.
+De uitleg is één regel met *Waarom?* erachter.
+
+### De Keeperkant zegt wat een speler ziet (C35)
+
+Drie mechanismen (een Keeperversie, "deze pagina is van de Keeper", en per
+sectie "alleen de Keeper") zeiden geen van drieën wat een speler daarna ziet.
+`PlayerSees` zegt het in speler-termen, met *Bekijk als speler* ernaast. Die
+knop is `asPlayerHref`, dezelfde route als *Kijk als speler* in de zijbalk,
+geen tweede weg.
+
+### Kleinere keuzes
+
+- ***Wie is er?* alleen op een computer, en niet op een tekenvlak.** De kop
+  van een tekenvlak houdt ruimte voor de strip zoals die was, en de hoek van
+  een telefoon is te smal. Dit sluit het restpunt van ronde 46.
+- **`CHARACTER_TYPE_SLUG` staat op één plek**, `lib/newEntryType.ts`, dat
+  puur is. `lib/kamers/service.ts` importeert en her-exporteert hem. Het blijft
+  de slug van de seed; een vlag "draagbare soort" op `entry_types` is nog
+  steeds een eigen ronde.
+- **`seed-wereld` schrijft een volledige eerste revisie**, met omslag,
+  uitsnede, zichtbaarheid en Keeper-notities. De geschiedenis vergelijkt met
+  de vorige revisie, dus een omslag die daar ontbrak, kwam bij de eerste
+  bewerker terecht als *omslag · toegevoegd*.
+
+---
+
+## Ronde 56 (§95) — één regel, één id
+
+Migratie `0034_een_id`. Geen verwijderd bestand. Nick koos op 21 september
+voor variant (a) uit de review (`claude/review-ui-ux-bijlage-schrijven.md`,
+§3.Z): in een kort vak is een vermelding een echte chip met een verwijzing
+erin, en dat ná ronde 53. Dit sluit A2 en A3.
+
+### Omgekeerd: een naam betekent niet meer "de oudste" (ronde 21)
+
+Ronde 21 las een `[[Naam]]` in een plat vak op naam, archiefbreed: de oudste
+die hem draagt, en pas daarna gehouden tegen wat de lezer mag zien. Dat was
+goed zolang de naam het enige was dat de schrijver kon opgeven. Sinds §48
+biedt de lijst onder `@` en `[[` twee gelijke namen allebei aan. Koos je de
+jongste, dan schreef het vak toch `[[Naam]]` en wees de chip naar de oudste:
+**de chip loog over wat je gekozen had (A2).** En na een hernoeming vond een
+`[[oude naam]]` niets meer, dus elke vermelding van vóór de hernoeming werd
+een dode chip (A3). Beide volgen uit één feit: de tekst bewaarde een woord en
+geen verwijzing. Nu bewaart een kort vak per vermelding een token `⟦h⟧`, en
+`mention_handles` zegt welk artikel dat handvat bedoelt. De naam wordt bij het
+lezen per kijker opgezocht (`resolveHandles`), dus een hernoeming staat meteen
+op elke chip.
+
+Voor de vakken die nog `[[Naam]]` schrijven (een kaartje, een speld, een
+gebeurtenis, de maakbladen van een landkaart, een tijdlijn en een stamboom,
+de lead van een overzicht) geldt ronde 21 nog precies zoals hij er staat.
+
+### Omgekeerd: er mag wél een contenteditable op het vak (rondes 27 en 28)
+
+Ronde 27 (§54) zei dat een chip niet ín een `<textarea>` kan, en ronde 28
+(§56) voegde eraan toe dat er "geen contenteditable voor in de plaats mag
+komen", omdat de vier vakken die het meest tellen `LiveField`s op een
+`Y.Text` zijn. De eerste helft klopt nog steeds. De tweede helft wordt
+omgekeerd, maar alleen voor wat erboven zit: het vak blijft een `Y.Text` en
+een string, alleen de editor erbovenop is een contenteditable (`ShortEditor`,
+Tiptap 2 met een eigen schema van één regel). Die editor praat zelf met de
+`Y.Text`, als een string-binding zoals `BoundField` en niet via
+y-prosemirror, met de §25-overdracht regel voor regel. Een wijziging van een
+ander komt binnen uitgelijnd op tokengrenzen (`alignedDelta`). Daarmee is de
+overdracht waar §56 voor waarschuwde niet anders geworden, en de spiegel en de
+voorvertoning zijn op deze vakken overbodig.
+
+### Een handvat, geen id en geen JSON
+
+Een kaal id in de tekst (`[[Naam|id]]`, `⟦id⟧`) viel af op rule 1. De kamer
+van een record gaat heel naar iedereen die het record mag zien, en een CRDT is
+één document dat niet per kijker geschrapt kan worden. Het id, en zeker de
+naam, van een artikel dat een speler niet mag zien, zou dan in zijn live-frame
+staan. Met een id zou de RSC per kijker geschrapt en bij het schrijven op zijn
+plek teruggezet moeten worden, en dat kan in een tekst niet precies.
+ProseMirror-JSON in de kolom (optie i) viel om dezelfde reden af, want een
+`entryLink` draagt `label` en `id`. Daar kwamen nog bij: een tweede live-vorm
+(`Y.XmlFragment`), een tweede kolom op twee tabellen en ruim zestig lezers die
+een object zouden krijgen in plaats van een string. Een willekeurig handvat
+**per vermelding** zegt niet wíé er genoemd wordt, en ook niet of twee chips
+hetzelfde artikel noemen. De tekst gaat dus ongewijzigd heen en weer, en de
+naam komt alleen via een opzoeking per kijker.
+
+### Een onzichtbare chip is niets, geen dode chip
+
+Ronde 21 tekende een naam die de lezer niet mocht openen als dode chip,
+`.entry-chip-missing`, met de naam die de schrijver had getypt ("die was
+toch al van de schrijver om te tonen"). Voor een handvat geldt dat niet meer:
+de naam staat niet in de tekst, en een dode chip zou zeggen *hier staat iets
+wat jij niet mag zien*. `resolveHandles` laat een handvat dat de kijker niet
+mag volgen weg, net als een vernietigd artikel, een artikel in de prullenbak
+en een handvat dat nooit bestond, en op het scherm staat op die plek niets.
+
+### De migratie leest zoals gisteren
+
+`0034_een_id` zet de bestaande teksten om met **precies het algoritme van de
+lezer van gisteren** (`legacySpans` in `shortTokens.mjs`, dat `mentionSpans`
+nu ook aanroept): de oudste van twee gelijke namen, niet uit de prullenbak.
+Wie het archief na de uitrol opent, ziet dus geen enkele chip naar een ander
+artikel springen. A2 wordt niet met terugwerkende kracht rechtgezet, want
+niemand weet meer wat er ooit gekozen was. Wat niets vindt, blijft letter voor
+letter staan. De runner kreeg daarvoor een JavaScript-stap (`run`, in
+dezelfde transactie als de SQL): het leesalgoritme is niet in SQL te zeggen,
+en een tweede kopie ervan zou op een dag afwijken.
+
+**Zichtbaar anders door de migratie:** een `[[Geheim]]` die een Keeper in een
+voor spelers zichtbare korte tekst zette, toonde spelers tot nu toe een grijze
+dode chip *Geheim*. Na 0034 is dat een echte chip naar een artikel dat zij niet
+mogen zien, en op die plek staat voor hen niets. Dat is rule 1 zoals bedoeld:
+de naam lekte, en nu niet meer.
+
+### Kleinere keuzes
+
+- **Een getypte `@Naam` blijft letters.** Alleen een naam die je uit de lijst
+  kiest, wordt een chip. In een kort vak is een `@` die je niet koos een `@`
+  waar je nee tegen zei. Een volledig getypte `[[Naam]]` wordt bij het
+  schrijven wél een chip (`cleanShort`, de oudste van die naam), maar alleen
+  als de schrijver dat artikel mag zien. Zo blijft een voorinvulling uit een
+  kaartje of een speld, die nog `[[Naam]]` schrijven, een chip.
+- **`cleanShort` is §89 voor een string**, op elke schrijfweg. Een nieuw
+  handvat naar iets wat de schrijver niet ziet, gaat weg. Een handvat dat hij
+  niet kon zien en wegliet, komt achteraan terug (§67). Achteraan is niet
+  mooi, maar waar het stond kon hij niet zien, dus er is geen betere plek.
+- **Enter verlaat een vak van één regel** (A8), en Lange tekst houdt Enter
+  als nieuwe regel. Plakken is platte tekst.
+- **De kamerstaat van de velden wordt gewist**, niet omgezet. Een `Y.Text`
+  met `[[Naam]]` erin omzetten is een tweede omzetting in een andere vorm, en
+  de kamer zaait zich toch opnieuw uit de rij.
+- **Kaartje, speld, gebeurtenis en de beschrijvingen van de vlakken blijven
+  buiten deze ronde.** Dat zijn eigen kolommen met eigen lezers, en meenemen
+  kost per tabel een omzetting, een lezersronde en een schrijfweg.
+  `MentionText` leest beide vormen, dus ze kunnen later één voor één
+  overstappen.
+- **Het maakblad heeft geen poort.** `ShortField ungated` in *Nieuw artikel*
+  en *Nieuw dossier*, want een artikel maken is de ene schrijfactie die een
+  speler zonder onderzoeker mag doen (§18b), en de platte textarea die er
+  stond had ook geen poort.
+- **Eén nieuw woord**, `mentionListLabel` (*Artikelen*): de voorgelezen naam
+  van de lijst onder `@` of `[[`, in een eigen groep *Eén regel, één id*.

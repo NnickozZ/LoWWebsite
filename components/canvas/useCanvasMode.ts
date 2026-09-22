@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useIsPhone } from '@/components/useIsPhone';
+import { FRESH_PARAM, isFreshHref, withChoice } from '@/lib/canvas/memory';
 
 /**
  * §73 — lezen en bewerken, op elk glas.
@@ -45,6 +46,35 @@ export type CanvasMode = 'read' | 'edit';
 export function useCanvasMode(canEdit: boolean) {
   const isPhone = useIsPhone();
   const [choice, setChoice] = useState<CanvasMode | null>(null);
+  /*
+   * §94 (O1, Nick): een vlak dat je net maakte opent in Bewerken, ook op een
+   * telefoon — je maakte het om er iets op te zetten, zoals een artikel op
+   * `?new=1`. De maker stuurt met `?new=1`; dat wordt hier gelezen en een frame
+   * later uit het adres gehaald (`writeChoice`'s weg, `replaceState`), zodat
+   * opnieuw openen weer bij §73's regel begint. Het is een eenmalige keuze, en
+   * dus nog steeds niets dat onthouden wordt.
+   */
+  const [fresh, setFresh] = useState(false);
+  useEffect(() => {
+    if (!isFreshHref(window.location.search)) return;
+    setFresh(true);
+    const id = requestAnimationFrame(() => {
+      const here = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const next = withChoice(here, FRESH_PARAM, null);
+      // `null`, not `history.state`: Next's patched `replaceState` only copies a
+      // new address into its own router state when the data carries no `__NA` —
+      // with it, the next render of the app router puts the old URL back.
+      if (next !== here) window.history.replaceState(null, '', next);
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+  // Het recht kan een tel later komen (de schrijfvraag, §18b): wacht erop.
+  useEffect(() => {
+    if (fresh && canEdit) {
+      setChoice((current) => current ?? 'edit');
+      setFresh(false);
+    }
+  }, [fresh, canEdit]);
   const mode: CanvasMode = !canEdit ? 'read' : (choice ?? (isPhone ? 'read' : 'edit'));
   const setMode = useCallback((next: CanvasMode) => setChoice(next), []);
   return { mode, editing: mode === 'edit', canEdit, setMode };

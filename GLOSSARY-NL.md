@@ -1013,7 +1013,7 @@ Beheer → Soorten, zoals bij elke soort.
 | Woord | Waar het staat | Wat het is |
 |---|---|---|
 | **chipje in het vak** | in de maak-sheets, op een kaartje op de muur, bij een speld en bij een gebeurtenis | Een naam die je noemt wordt meteen een klikbaar chipje, terwijl je typt — niet pas als je op *lezen* klikt (§56). |
-| **Verwijst naar** | onder elk plat vak waar je `@` of `[[` kunt typen | De rij klikbare chips onder het vak (§54). In de vakken die live gedeeld worden — de korte beschrijving, de samenvatting, Tekst en Lange tekst — is dit de plek waar de chips staan; daar kan er geen spiegel over het vak, zie §56. |
+| **Verwijst naar** | onder elk plat vak waar je `@` of `[[` kunt typen | De rij klikbare chips onder het vak (§54). In de vakken die live gedeeld worden — de korte beschrijving, de samenvatting, Tekst en Lange tekst — is dit de plek waar de chips staan; daar kan er geen spiegel over het vak, zie §56. *(Weg sinds §92; en sinds §95 tekenen die vier vakken hun chips zelf, zie Ronde 56.)* |
 | **Er is geen {spelersversie} van deze pagina — je staat nu aan de {spelerskant}.** | de melding na een omslag | Wat de zij-knop zegt als de pagina waar je stond geen tweeling heeft: je bent wél omgeslagen, maar je landt op de lijst en niet op een andere gedaante van diezelfde pagina (§57). Zonder tweeling-geval is de melding gewoon *Je staat nu aan de {Keeperkant}.* |
 | **Geschriften & Kunstwerken** | soort (`werken`, voorheen `lore`) | Schilderijen, tekeningen, beelden, boeken, handschriften, grimoires, toneelstukken, liederen en overleveringen. Het oude adres `/wiki/lore` werkt niet meer. |
 | **Soort werk** | veld op een geschrift of kunstwerk | Keuze uit: *schilderij* · *tekening of prent* · *beeld* · *boek* · *handschrift* · *grimoire* · *toneelstuk* · *lied of gedicht* · *overlevering* · *anders*. |
@@ -1102,7 +1102,7 @@ zinnen komen uit die lijst.
 | **Zoek een {artikel} om erbij te zetten…** · **{Artikel} toevoegen aan deze {stamboom}** | het zoekvakje in de werkbalk, en zijn onzichtbare naam | (§66) |
 | **{Los kaartje}** · **Verwanten erbij ({n})** · **Opnieuw schikken** · **Ongedaan maken** | de vier bewerkknoppen in de werkbalk (de derde heeft *Ongedaan maken (Ctrl+Z)* als tooltip) | Het aantal staat *in* de naam en de knop staat er altijd: niets in die balk dat aan en uit kan mag ruimte innemen (§64). Onder 600 px vallen de **letters** weg en blijven het pictogram, het aantal en de voorgelezen naam staan — §64 verbiedt het veranderen van die naam, niet het verbergen van de letters (§66). |
 | **{Stamboom} {naam} — sleep om te schuiven, scroll om te zoomen** | de onzichtbare naam van het doek zelf | (§66) |
-| **Ouder toevoegen** · **Kind toevoegen** · **Partner toevoegen** · **{veldlabel} toevoegen bij {naam}** | de drie ronde `+`-handvatten aan een gekozen kaartje | Boven, onder, opzij. Draagt de soort een veld met die rol, dan staat het label van dát veld erop (§66). |
+| **Ouder toevoegen** · **Kind toevoegen** · **Partner toevoegen** · **{veldlabel} toevoegen bij {naam}** | de drie ronde `+`-handvatten aan een gekozen kaartje | Boven, onder, opzij. Draagt de soort een veld met die rol, dan staat het label van dát veld erop (§66). Dit zijn de voorgelezen namen, en die bleven. Sinds ronde 55 (§94) staat er ook een woord op de knop zelf; zie *Tekenvlakken: vinden en terug* onderaan. |
 | **Deze soort heeft geen veld met de rol Ouder — voeg het toe in Beheer → Soorten.** | onder een handvat dat uit staat | Het handvat blijft staan en zegt waarom het niets doet, in plaats van te verdwijnen (§66). |
 | **Meer bij {naam}** | het `…`-handvat | (§66) |
 | **Openen** · **Uit de stamboom** · **Erbij** · **Bewerken** · **{Artikel} aanmaken** · **Weghalen** | het menu achter dat handvat | *Erbij* staat op een schim, *Bewerken* / *Artikel aanmaken* / *Weghalen* op een los kaartje (§66). |
@@ -1248,7 +1248,7 @@ of **{stamboom}** staat, staat op het scherm het woord van de Keeper.
 
 | Woord | Waar het staat | Wat het is |
 |---|---|---|
-| **Lezen** · **Bewerken** | twee radio's vooraan in de werkbalk van elk glas (prikbord, landkaart, tijdlijn, stamboom, web); groep voorgelezen als *Lezen of bewerken* | Een bureau begint in Bewerken, een telefoon in Lezen, en niets wordt onthouden (§73). Radio's, geen knoppen, zodat ze nooit botsen met een `Bewerken`-knop in een paneel. Wie het glas niet mag bewerken ziet ze niet. |
+| **Lezen** · **Bewerken** | twee radio's vooraan in de werkbalk van elk glas (prikbord, landkaart, tijdlijn, stamboom, web); groep voorgelezen als *Lezen of bewerken* | Een bureau begint in Bewerken, een telefoon in Lezen, en niets wordt onthouden (§73). Sinds ronde 55 (§94) opent een vlak dat je net maakte in Bewerken, ook op een telefoon; herladen is weer Lezen. Sinds dezelfde ronde zijn de radio's op alle vijf de eerste knop onder de kop. Radio's, geen knoppen, zodat ze nooit botsen met een `Bewerken`-knop in een paneel. Wie het glas niet mag bewerken ziet ze niet. |
 | **Lezen — niets verschuift per ongeluk** · **Bewerken — slepen, maken en tekenen** | de tooltips van die twee | Zegt in één regel wat de stand doet (§73). |
 | **Nog geen {spelden} op deze {landkaart}. Kies Bewerken om er een te zetten.** | de lege landkaart, in Lezen | In Bewerken blijft de oude zin met *Speld zetten* (§73). |
 | **Nog geen {gebeurtenissen}. Kies Bewerken om er een te zetten.** | de lege tijdlijn, in Lezen | Idem (§73). |
@@ -1262,8 +1262,8 @@ of **{stamboom}** staat, staat op het scherm het woord van de Keeper.
 
 Veel kleine reparaties, en daarom veel kleine woorden. **Alles hieronder staat
 in `lib/words.ts`**, in de drie blokken met `// §90`, en is dus te herschrijven
-in Beheer → Woorden. Een zin die je daar herschrijft, wordt na 60 tekens
-afgekapt; zie `CLAUDE.md` §8. Waar **{kamer}**, **{winkel}**, **{keeper}** of
+in Beheer → Woorden. Een zin die je daar herschrijft, werd na 60 tekens
+afgekapt; sinds ronde 57 (§96) is de grens 200 tekens (`WORD_MAX`). Waar **{kamer}**, **{winkel}**, **{keeper}** of
 **{karakter}** staat, staat op het scherm het woord van de Keeper. Hieronder
 staan alleen de begrippen: namen van knoppen, deuren en tabs. De zinnen
 eromheen (meldingen, lege staten, uitleg) staan in `lib/words.ts` bij hun
@@ -1313,3 +1313,84 @@ staat, staat op het scherm het woord van de Keeper.
 | **Je schrijft als** (`writesAs`) | onder wie je speelt, alleen als dit venster bewust een ander koos; en altijd op Jij | Was vaste tekst in de code en is nu een sleutel. Zie *Met wie je schrijft (§18b)* hierboven. |
 | **Laatst door jou** (`homeJijRecent`) · **Nog niets bewerkt.** (`homeJijNone`) | in de Jij-rij op Start | Je laatste drie {artikelen}, met hoe lang geleden. Alleen wat je schreef of bewerkte, niet wat je in een {kamer} zette. |
 | **Naar de {kamer}** · **Naar de {winkel}** (`toRoom`, `toShop`) | als knoppen in het Jij-blad en in de Jij-rij op Start | Dezelfde deuren als in ronde 51 (K11). In de zijbalk heten ze gewoon *{Kamer}* en *{Winkel}*, zoals elke regel in een menu. |
+
+## Golf 2 — rondes 53, 54, 55 en 57 (§92, §93, §94, §96)
+
+Vier rondes tegelijk gebouwd. Elke ronde heeft een eigen groep in
+`lib/words.ts` (de blokken met `// §92`, `// §93`, `// §94` en `// §96`), en
+alles is dus te herschrijven in Beheer → Woorden, tot 200 tekens
+(`WORD_MAX`). Waar **{artikel}**, **{dossier}**, **{kamer}**, **{winkel}**,
+**{prikbord}**, **{stamboom}** of **{karakter}** staat, staat op het scherm het
+woord van de Keeper. Hieronder staan de begrippen; de volledige zinnen staan in
+`lib/words.ts` bij hun sleutel.
+
+### Ronde 53 — de korte vakken (§92): groep *Schrijven*, 16 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Voorvertoning** | geen woord op het scherm maar een begrip: wat een kort vak toont zolang het geen focus heeft | De tekst zoals de leeskant hem toont, met chips en zonder haakjes. In focus staat de ruwe tekst met `[[…]]`. De regel *Verwijst naar …* onder een vak (§54) bestaat niet meer. *Sinds §95 (ronde 56) alleen nog op een kaartje, een speld, een gebeurtenis en de maakbladen van een landkaart, tijdlijn en stamboom: de vier korte vakken hebben geen voorvertoning en geen ruwe tekst meer.* |
+| **Typ @ of [[ om een {artikel} te noemen.** (`mentionHint`) · **@ of [[ noemt iets** (`mentionHintShort`) | de grijze tekst in een kort vak; de korte vorm in een smal vak van de infobox | Zegt hoe je iets noemt, op de plek waar je het doet. |
+| **Op een {landkaart} of {tijdlijn} zetten…** (`placeOnButton`) · **Waar zet je dit {artikel} op?** (`placeOnTitle`) · **Alle {meervoud}…** (`placeOnOther`) | de ene knop op een artikel in Bewerken, de kop van het blad dat hij opent, en de regel onderaan dat blad | Eén knop in plaats van vijf pillen. De feitenregels (*Op de landkaart: …*) blijven staan. |
+| **Alle soorten** (`newEntryTypeMore`) | aan het eind van de soortstrook in het maakblad | Klapt de strook uit tot alle soorten. De strook zelf staat onder het naamvak. |
+| **In {dossier}** (`newEntryInCase`) · **Geen** (`newEntryNoCase`) | de regel met een keuzelijst onder de soort in het maakblad | Maakt het artikel meteen in een open dossier. Optioneel; de server kijkt opnieuw of dat mag. |
+| **Bestaat al:** (`newEntryDidYouMean`) | onder de naam in het maakblad | Hoogstens drie namen die al bestaan, één regel per naam. |
+| **Lijst** · **Kaarten** (`wikiViewList`, `wikiViewCards`), samen voorgelezen als **Weergave** (`wikiViewLabel`) | boven de lijst van één soort in de wiki | Lijst is de standaard op een telefoon. De keuze onthoudt deze browser. |
+| **Tags** (`wikiTagRow`) | de voorgelezen naam van de tagrij onder de soorten | Op de telefoon staat de rij onder de tabs. |
+| `fieldsFillEmpty`, `fieldsEmptyCount`, `infoboxMore` | nergens, nog | Staan klaar voor wie lege infoboxvelden inklapt (B25, niet gedaan). Tot dan leest geen scherm ze. |
+
+### Ronde 54 — de kamer, tweede pas (§93): groep *De kamer: lade, verplaatsen en terugbrengen*, 25 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Lade** · **In de lade** (`drawer`) | de kop boven wat een kamer bezit en nergens heeft staan | Wat je kocht of kreeg en weghaalde. Alleen daaruit zet een speler huisraad opnieuw neer. Er zit geen getal in dat rekent. |
+| **In je lade** · **In je lade · {n}** (`drawerTag`, `drawerTagCount`) · **Ligt in je lade** (`shopInDrawer`) | achter een ding in de plek-kiezer; in de winkel | Zegt dat je het al hebt. |
+| **{ding} ligt nu in je lade.** · **… in de lade van {naam}.** (`clearedToDrawer`, `clearedToDrawerOf`) | de melding na weghalen | Huisraad gaat de lade in. Een gevonden voorwerp gaat terug de wereld in en krijgt de oude zin. |
+| **Ongedaan maken** (`buyUndo`) | de tweede knop in de melding na een koop, tien seconden lang | Draait de koop terug, alleen voor wie kocht. |
+| **Terugbrengen** · **{ding} teruggebracht** (`ledgerReturnLine`) · **{ding} teruggebracht: {bedrag} terug.** (`buyReturned`) | een regel in het grootboek; de melding erna | Een koop die ongedaan is gemaakt. Het is een regel erbij, geen regel die verandert. Geen terugverkoop: na tien seconden bestaat het niet meer. |
+| **Verplaats {ding}** (`slotMoveOne`) | de voorgelezen naam van het kleine knopje onder het kruisje op een gevulde tegel | Tik, dan tik de plek. De sleutel `slotMove` (*Verplaatsen*) staat klaar maar wordt nu niet getekend: de knop is een icoon. |
+| **Kies een plek voor {ding}.** (`moveHint`) · **Annuleren** (`moveCancel`) · **Geen vrije plek waar dit past.** (`moveNowhere`) | de statusbalk terwijl je verplaatst | Escape of een tik ernaast breekt ook af. |
+| **Hierheen** (`moveHere`), voorgelezen als **{ding} hierheen** (`moveHereOne`) | op elke vrije plek waar het ding past, terwijl je verplaatst | |
+| **{plek} openen** (`shopOpenKind`) | in de winkel, als er geen vrije plek is maar wel een op slot die past | Opent de goedkoopste; de prijs komt er vanzelf achter (K3). |
+| **Wat deze kamer {naam} geeft** (`roomEffectsOf`) | de kop boven de effecten in de kamer van een ander | In je eigen kamer blijft het *Wat deze kamer je geeft*. |
+| **kocht** · **opende een plek in de kamer van** (`feedRoomBought`, `feedRoomOpened`) | het werkwoord in het feed | Kopen en openen stonden tot nu toe in niemands feed. |
+| **Naar de kamer van {naam}** (`hallRoomOf`) | de voorgelezen naam van elke kamerdeur in de hal | Eén deur per gedragen karakter dat je mag zien. |
+| **In de winkel** (`newFurnishing`) · **{naam} staat in de {winkel}.** (`newFurnishingDone`) · **Bekijk in de {winkel}** (`toastShop`) · **{naam} is nog niet te koop: geef het een plek en prijs.** (`furnishingNotForSale`) | het blok voor plek, prijs en effect in het Nieuw-blad voor huisraad; de melding erna | Alleen voor de Keeper. |
+
+### Ronde 55 — de tekenvlakken (§94): groep *Tekenvlakken: vinden en terug*, 19 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Zoek op dit vlak** (`findOnCanvas`) · **Vind een naam…** (`findOnCanvasHint`) · **Niets op dit vlak heet zo.** (`findNothing`) | het vindvak op een prikbord (in Lezen) of een stamboom; op een telefoon achter een loep | Vindt een kaart of kaartje op naam, zet het in het midden en kiest het. |
+| **Op dit {prikbord}** · **Op deze {stamboom}** (`findOnBoard`, `findOnTree`) | de bovenste groep in de zoeklijst | Op een prikbord in Bewerken staat die groep bovenaan de kiezer van de balk. |
+| **Ga naar…** (`goToDate`) · **1934, of maart 1934** (`goToDateHint`) · **Die datum kan ik niet lezen.** (`goToDateUnknown`) | op een tijdlijn; op een telefoon in het tandwielblad | Zet de as om die datum. |
+| **≈ 6 maanden** | naast de zoomknoppen van een tijdlijn | Hoeveel tijd er op het glas staat. De eenheden (dag, maand, jaar …) staan in `lib/timelines/span.ts` en niet in `lib/words.ts`, zoals de maandnamen. |
+| **In {stamboom}: {naam}** (`entryInTree`) | naast *Verbindingen* op een artikel dat in een stamboom staat | Opent de stamboom met deze persoon gekozen. |
+| **Ouder** · **Kind** · **Partner** · **Broer/zus** (`treeHandleParent`, `treeHandleChild`, `treeHandlePartner`, `treeHandleSibling`) | het woord op de `+`-knoppen boven, onder, rechts en links van een gekozen kaartje | De voorgelezen namen (*Ouder toevoegen* …) bleven. |
+| **Touwtje** (`boardStringStart`) · **Tik op de tweede {kaart} voor de {draad}.** (`boardStringPick`) · **Toch niet** (`boardStringCancel`) | de knop in de inspector van een kaart, en de balk erna | Een draad trekken zonder slepen, ook op een telefoon. |
+| **Hangt in** (`boardInCase`) | onder de vouw van een prikbord | In welk {dossier} het hangt, met de keuzelijst ernaast. |
+| **Van** · **Op** (`mapLinksOf`, `mapLinksOn`) | op de telefoon onder de kop van een landkaart | Voor het artikel waar de landkaart van is, en voor de grotere landkaart waar hij op staat. Op een computer zijn het twee zinnen. |
+
+### Ronde 57 — zoeken, Beheer en de losse eindjes (§96): groep *Zoeken, Beheer en de losse eindjes*, 20 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Andere dingen** (`searchOthers`) | op Zoeken, onder *Alles*, boven dossiers, overzichten, vlakken en spelers | Gevonden op naam, alleen wat jij mag zien. |
+| **Niets in het archief heet zo, en geen artikel noemt het.** (`searchNone`) · **Niets onder {soort}. Kies Alles om verder te zoeken.** (`searchNoneInType`) | op Zoeken, als niets overeenkomt | Eerlijk: onder *Alles* is nu elke soort ding gevraagd. |
+| **Zoek een woord…** (`wordsFilter`) · **{n} aangepast** (`wordsChanged`) · **Geen woord past bij je zoekopdracht.** (`wordsNoMatch`) · **{n} niet opgeslagen** (`wordsDirty`) | Beheer → Woorden: het zoekvak, naast een ingeklapte groep, en in de plakkende voet | |
+| **Kies soorten** · **Elke soort** (`typeTargetsPick`, `typeTargetsAll`) | Beheer → Soorten: de knop die de doel-soorten van een koppelveld openklapt | |
+| **Waarom?** (`youWhy`) | op `/you`, achter de ene regel boven je karakters (`youCharsWhy`) | Klapt de uitleg open. |
+| **Spelers zien: …** (`keeperSeesTwin`, `keeperSeesTwinOwn`, `keeperSeesPage`, `keeperSeesPageOff`, `keeperSeesSection`, `keeperSeesSome`, `keeperSeesAll`) | onder de Keeperversie-schakelaar, het Keeperpaneel en de zichtbaarheid van elke sectie; alleen voor de Keeper | Wat de tafel ziet, in speler-termen. |
+| **Bekijk als speler** (`viewAsPlayer`) | naast die zin | Dezelfde weg als *Kijk als speler* in de zijbalk. |
+| **Maak het {artikel} van je {karakter} en koppel het hier.** (`characterFindHint`) | op `/you`, voor wie nog geen karakter heeft | Zei tot nu toe een hard *onderzoeker*. |
+| **Wie is er?** (`presenceHeading`, al bestaand) | op een computer naast de online-stip, niet op een tekenvlak | Dezelfde kop als boven het lijstje dat de stip opent. |
+
+## Ronde 56 — één regel, één id (§95): groep *Eén regel, één id*, 1 sleutel
+
+Eén nieuwe sleutel in `lib/words.ts` (het blok met `// §95`); de rest zijn
+begrippen, geen woorden op het scherm.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **kort vak** | geen woord op het scherm maar een begrip: de korte beschrijving van een {artikel}, de samenvatting van een {dossier}, een infoboxveld *Tekst* of *Lange tekst*, en dezelfde vakken in de maakbladen *Nieuw {artikel}* en *Nieuw {dossier}* | Een vak van één regel (Lange tekst: van meer regels) waarin je met `@` of `[[` een {artikel} noemt. De naam wordt een echte chip ín het vak, zoals in de lopende tekst. Enter verlaat het vak; in een Lange tekst is Enter een nieuwe regel. |
+| **handvat** | geen woord op het scherm: wat een chip in een kort vak opslaat | Een willekeurige code van twaalf tekens die zegt *hier staat een vermelding*, en niet van wie. Welk {artikel} ermee bedoeld is, staat in het archief (`mention_handles`) en wordt bij het lezen per lezer opgezocht. Een hernoemd {artikel} heet daardoor meteen overal zo, en van twee {artikelen} met dezelfde naam blijft de chip die je koos. Een chip naar iets wat jij niet mag zien, is voor jou niets: geen grijze chip en geen naam. |
+| **Artikelen** (`mentionListLabel`) | de voorgelezen naam van de lijst die onder `@` of `[[` openklapt, in een kort vak en in de lopende tekst | De lijst zelf is dezelfde als in de lopende tekst, met *‘…’ aanmaken* onderaan. |

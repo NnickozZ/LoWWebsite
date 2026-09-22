@@ -116,7 +116,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
                 {item.summary && (
                   <p className="tiny muted clamp-2" style={{ margin: 0 }}>
                     {/* §48: flat chips — the card is a link. */}
-                    <MentionText text={item.summary} flat />
+                    <MentionText text={item.summary} flat tokens />
                   </p>
                 )}
                 <p

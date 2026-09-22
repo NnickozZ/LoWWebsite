@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn } from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue } from './helpers';
 
 /**
  * §90 (ronde 51, "De deuren") — de economie-helft, van de kant die de review
@@ -78,7 +78,7 @@ async function newHuisraad(page: Page, spec: { name: string; plek: 'muur' | 'pla
     await editArticle(page);
     await unfoldInfobox(page);
     await expectPlekken(page, [spec.plek]);
-    await expect(page.locator('#field-prijs')).toHaveValue(String(spec.prijs), { timeout: 5000 });
+    await expectBoxValue(page.locator('#field-prijs'), String(spec.prijs), { timeout: 5000 });
   }).toPass({ timeout: 60_000 });
   return { name: spec.name, path };
 }

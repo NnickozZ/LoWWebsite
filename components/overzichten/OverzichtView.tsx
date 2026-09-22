@@ -7,7 +7,7 @@ import { Icon } from '@/components/Icon';
 import { SectionsEditor, type SectionLite } from '@/components/entry/SectionsEditor';
 import type { RevealableCase, RevealableUser } from '@/components/entry/RevealPicker';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
-import { MentionOverlay, MentionPopover, MentionRow, MentionText } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionPreview, MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 
 export type OverzichtLite = {
@@ -164,6 +164,7 @@ export function OverzichtView({
             {/* §54/§56: een gewoon tekstvak krijgt de lijst, de chip over de
                 letters en de rij eronder — of dezelfde tekst is hier een chip
                 en op het volgende scherm een paar haken. */}
+            <div className="mention-field">
             <textarea
               id="overzicht-lead"
               ref={leadRef}
@@ -176,7 +177,9 @@ export function OverzichtView({
             />
             <MentionPopover forRef={leadRef} />
             <MentionOverlay forRef={leadRef} value={lead} />
-            <MentionRow text={lead} />
+            {/* §92: out of focus, the chips without brackets; no row under it. */}
+            <MentionPreview forRef={leadRef} value={lead} />
+            </div>
           </div>
         </>
       )}

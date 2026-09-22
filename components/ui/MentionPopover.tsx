@@ -5,7 +5,17 @@ import { createPortal } from 'react-dom';
 import { Icon } from '@/components/Icon';
 import { useMentionFiling } from '@/components/cases/useMentionFiling';
 import { closePopover, openPopover } from '@/lib/popoverStack';
+import {
+  currentView,
+  dropDanglingOpeners,
+  placeSuggestList,
+  previewSegments,
+  previewWorth,
+  type ListPlace,
+} from '@/lib/editor/shortBox';
 import { useUi } from './UiProvider';
+import { useShortChips } from './ShortChips';
+import { hasTokens, splitShort } from '@/lib/entries/shortTokens.mjs';
 
 /**
  * §27, round 18: `@` in a plain text box.
@@ -60,13 +70,13 @@ function triggerBefore(value: string, caret: number): { start: number; query: st
 export type MentionBox = HTMLTextAreaElement | HTMLInputElement;
 
 /** Puts `text` in place of [from, to) and fires the event the box's owner listens to. */
-function replaceRange(el: MentionBox, from: number, to: number, text: string) {
+function replaceRange(el: MentionBox, from: number, to: number, text: string, caretAt?: number) {
   const next = el.value.slice(0, from) + text + el.value.slice(to);
   const proto = el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   if (setter) setter.call(el, next);
   else el.value = next;
-  const caret = from + text.length;
+  const caret = caretAt ?? from + text.length;
   el.setSelectionRange(caret, caret);
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
@@ -83,7 +93,26 @@ export function MentionPopover({
   disabled?: boolean;
 }) {
   const target = element ?? forRef?.current ?? null;
-  const [open, setOpen] = useState<{ start: number; query: string; rect: { left: number; top: number; width: number } } | null>(null);
+  const [open, setOpen] = useState<{ start: number; query: string; rect: { left: number; top: number; bottom: number; width: number } } | null>(null);
+  /*
+   * §92: waar de lijst hangt, apart van `open` — hij wordt opnieuw uitgerekend
+   * als het toetsenbord opkomt (`visualViewport`), en dat is geen nieuwe
+   * vraag aan het archief.
+   */
+  const [place, setPlace] = useState<ListPlace | null>(null);
+  /*
+   * §92 (A4): "'Jan' aanmaken" opent een blad, en het vak verliest zijn focus
+   * terwijl `[[Jan` nog op het antwoord wacht. Dat is geen verlaten vak; de
+   * losse haakjes blijven staan tot het blad de naam terugschrijft.
+   */
+  const creating = useRef(false);
+  /*
+   * §92: an `@` the hand said no to (Escape). The list was closed on the key
+   * and opened again on its `keyup`, because the `@Jan` was still before the
+   * caret — so Escape never really closed it. Remembered by where it starts;
+   * a new trigger somewhere else opens as always.
+   */
+  const dismissed = useRef<number | null>(null);
   const [items, setItems] = useState<Suggestion[]>([]);
   const [active, setActive] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -133,10 +162,12 @@ export function MentionPopover({
     const look = () => {
       const caret = el.selectionStart ?? el.value.length;
       const hit = triggerBefore(el.value, caret);
-      if (!hit) {
+      if (!hit || hit.start === dismissed.current) {
+        if (!hit) dismissed.current = null;
         if (openRef.current) setOpen(null);
         return;
       }
+      dismissed.current = null;
       const r = el.getBoundingClientRect();
       /*
        * §69 (5.4): dezelfde staat is geen nieuwe staat.
@@ -155,10 +186,11 @@ export function MentionPopover({
         current.start === hit.start &&
         current.query === hit.query &&
         current.rect.left === r.left &&
-        current.rect.top === r.bottom &&
+        current.rect.top === r.top &&
+        current.rect.bottom === r.bottom &&
         current.rect.width === r.width
           ? current
-          : { start: hit.start, query: hit.query, rect: { left: r.left, top: r.bottom, width: r.width } },
+          : { start: hit.start, query: hit.query, rect: { left: r.left, top: r.top, bottom: r.bottom, width: r.width } },
       );
     };
     const close = () => setOpen(null);
@@ -186,7 +218,21 @@ export function MentionPopover({
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
+        const state = openRef.current!;
         close();
+        /*
+         * §92 (A4): Escape says "this is not a name". For `[[` that means the
+         * brackets go — the same answer the rich editor now gives, and the one
+         * leaving the box gives — and the letters stay where the caret is.
+         * An `@` stays (it is also just a character) and is left alone until
+         * the hand starts another one.
+         */
+        if (el.value.slice(state.start, state.start + 2) === '[[') {
+          const caret = el.selectionStart ?? el.value.length;
+          replaceRange(el, state.start, state.start + 2, '', Math.max(state.start, caret - 2));
+        } else {
+          dismissed.current = state.start;
+        }
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
         setActive((activeRef.current + 1) % total);
@@ -204,6 +250,28 @@ export function MentionPopover({
     const onBlur = () => {
       // After the click on an item has had its chance (it uses mousedown).
       setTimeout(close, 120);
+      /*
+       * §92 (A4): een `[[` zonder `]]` is geen vermelding. Wie het vak verlaat
+       * met `[[Jac` erin, bedoelde `Jac` — of had nog niet gekozen — en wat er
+       * stond ging tot deze ronde letterlijk het archief in en stond daarna
+       * met haakjes op de leespagina. Nu gaan de haakjes eraf, op dezelfde weg
+       * als een keuze uit de lijst (de native setter plus een `input`), dus de
+       * kamer en de autosave horen het als een toets.
+       *
+       * Synchroon, in `blur`: dat komt vóór React's `onBlur` (die luistert op
+       * `focusout`), zodat een vak dat bij het verlaten bewaart de schone tekst
+       * bewaart. Niet als het venster zelf de focus verliest (een andere app,
+       * een ander tabblad): wie terugkomt, typt verder waar hij was.
+       */
+      if (creating.current) return;
+      if (typeof document !== 'undefined' && !document.hasFocus()) return;
+      if (el.readOnly || el.disabled) return;
+      const cleaned = dropDanglingOpeners(el.value);
+      if (cleaned === el.value) return;
+      replaceRange(el, 0, el.value.length, cleaned);
+    };
+    const onFocus = () => {
+      creating.current = false;
     };
     /*
      * §69 (5.4): hermeten als er iets schuift.
@@ -228,10 +296,16 @@ export function MentionPopover({
     el.addEventListener('keyup', look);
     el.addEventListener('keydown', onKey, true);
     el.addEventListener('blur', onBlur);
+    el.addEventListener('focus', onFocus);
     // Capture, so a scroll inside any ancestor (a sheet, a panel) is heard —
     // scroll does not bubble.
     window.addEventListener('scroll', remeasure, true);
     window.addEventListener('resize', remeasure);
+    // §92 (A5): het toetsenbord van een telefoon verkleint het zichtbare deel
+    // zonder dat het venster een `resize` krijgt.
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', remeasure);
+    vv?.addEventListener('scroll', remeasure);
     (el as MentionBox & { __mentionPick?: (item: Suggestion) => void }).__mentionPick = pick;
     return () => {
       el.removeEventListener('input', look);
@@ -239,10 +313,38 @@ export function MentionPopover({
       el.removeEventListener('keyup', look);
       el.removeEventListener('keydown', onKey, true);
       el.removeEventListener('blur', onBlur);
+      el.removeEventListener('focus', onFocus);
       window.removeEventListener('scroll', remeasure, true);
       window.removeEventListener('resize', remeasure);
+      vv?.removeEventListener('resize', remeasure);
+      vv?.removeEventListener('scroll', remeasure);
     };
   }, [target, disabled]);
+
+  /*
+   * §92 (A5): de lijst hangt bij het vak en klapt om als er onder te weinig
+   * ruimte is — `placeSuggestList`, hetzelfde algoritme als de lijst in de
+   * lopende tekst (`SuggestionPopup`). Gemeten tegen het zichtbare deel van
+   * het scherm: op een telefoon met open toetsenbord hing de lijst tot deze
+   * ronde voor het grootste deel onder dat toetsenbord.
+   */
+  useEffect(() => {
+    if (!open) {
+      setPlace(null);
+      return;
+    }
+    const next = placeSuggestList(open.rect, currentView());
+    setPlace((current) =>
+      current &&
+      current.left === next.left &&
+      current.width === next.width &&
+      current.top === next.top &&
+      current.bottom === next.bottom &&
+      current.maxHeight === next.maxHeight
+        ? current
+        : next,
+    );
+  }, [open]);
 
   // The names, fetched a beat after the last keystroke.
   useEffect(() => {
@@ -283,10 +385,12 @@ export function MentionPopover({
     const el = target;
     if (!el || !name) return;
     setOpen(null);
+    creating.current = true;
     ui.openNewEntry({
       name,
       caseId: here?.id,
       onCreated: (entry) => {
+        creating.current = false;
         const caret = Math.max(start, Math.min(el.value.length, el.selectionStart ?? el.value.length));
         replaceRange(el, start, caret, `[[${entry.name}]] `);
         el.focus();
@@ -296,24 +400,34 @@ export function MentionPopover({
   };
   createRef.current = create;
 
-  if (!open || (!items.length && !typed)) return null;
+  if (!open || !place || (!items.length && !typed)) return null;
   const pick = (item: Suggestion) => (target as (MentionBox & { __mentionPick?: (item: Suggestion) => void }) | null)?.__mentionPick?.(item);
   // In a portal: a `position: fixed` box inside a transformed ancestor (a
   // prikbord's canvas, a sheet sliding in) is fixed to that ancestor, not to
   // the screen, and lands under whatever is drawn over it.
   return createPortal(
     <ul
-      className="suggest-list mention-pop"
+      className={`suggest-list mention-pop${place.up ? ' mention-pop-up' : ''}`}
       role="listbox"
       aria-label="Artikelen"
-      style={{ position: 'fixed', left: open.rect.left, top: open.rect.top + 2, width: Math.max(220, Math.min(360, open.rect.width)), zIndex: 60, margin: 0 }}
+      style={{
+        position: 'fixed',
+        left: place.left,
+        top: place.top,
+        bottom: place.bottom,
+        width: place.width,
+        maxHeight: place.maxHeight,
+        zIndex: 60,
+        margin: 0,
+      }}
       data-testid="mention-pop"
+      data-up={place.up ? 'true' : undefined}
     >
       {items.map((item, i) => (
         <li key={item.id}>
           <button
             type="button"
-            className="suggest-item"
+            className="suggest-item mention-pop-item"
             role="option"
             aria-selected={i === active}
             onPointerDown={(event) => {
@@ -326,18 +440,24 @@ export function MentionPopover({
             onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActive(i)}
           >
-            <Icon name={item.typeIcon || 'file'} size={14} style={{ color: item.typeColour || 'var(--ink-muted)' }} />
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block' }}>{item.name}</span>
+            {/* §92 (A5): één regel naam, en daaronder het icoon en het woord
+                van de soort — de rij is een duim hoog (`--tap`) en een lange
+                naam wordt afgekapt in plaats van drie regels hoog. */}
+            <Icon name={item.typeIcon || 'file'} size={16} style={{ color: item.typeColour || 'var(--ink-muted)' }} />
+            <span className="mention-pop-text">
+              <span className="mention-pop-name">{item.name}</span>
               {(item.typeLabel || item.originCaseName) && (
-                <span className="tiny muted">{[item.typeLabel, item.originCaseName].filter(Boolean).join(' · ')}</span>
+                <span className="tiny muted mention-pop-kind">{[item.typeLabel, item.originCaseName].filter(Boolean).join(' · ')}</span>
               )}
             </span>
           </button>
         </li>
       ))}
       {typed && (
-        <li>
+        // §92 (A5): de rij "aanmaken" staat vast onderaan de lijst, ook als de
+        // namen erboven scrollen — op een telefoon aan tafel is dit juist de
+        // reden om `[[` te typen.
+        <li className="mention-pop-create">
           <button
             type="button"
             className="suggest-item"
@@ -351,9 +471,11 @@ export function MentionPopover({
             onMouseDown={(event) => event.preventDefault()}
             onMouseEnter={() => setActive(items.length)}
           >
-            <Icon name="plus" size={14} style={{ color: 'var(--stamp-red)' }} />
-            <span>
-              &lsquo;<strong>{typed}</strong>&rsquo; aanmaken
+            <Icon name="plus" size={16} style={{ color: 'var(--stamp-red)' }} />
+            <span className="mention-pop-text">
+              <span className="mention-pop-name">
+                &lsquo;<strong>{typed}</strong>&rsquo; aanmaken
+              </span>
             </span>
           </button>
         </li>
@@ -476,7 +598,7 @@ export function useMentionSpans(text: string, settle = 0): Span[] | null {
  * and `no-console-warnings.spec.ts` fails on it. The chip still *looks* like a
  * chip there, and the card it sits in is what the reader clicks.
  */
-export function MentionChip({ span, flat }: { span: Span; flat?: boolean }) {
+export function MentionChip({ span, flat, tabIndex }: { span: Span; flat?: boolean; tabIndex?: number }) {
   const style = span.colour ? ({ ['--chip-colour' as string]: span.colour } as React.CSSProperties) : undefined;
   if (!span.slug || !span.entryId) {
     return (
@@ -500,6 +622,7 @@ export function MentionChip({ span, flat }: { span: Span; flat?: boolean }) {
       data-entry-slug={span.slug}
       data-entry-icon={span.icon ?? ''}
       style={style}
+      tabIndex={tabIndex}
     >
       {span.name}
     </a>
@@ -511,8 +634,84 @@ export function MentionChip({ span, flat }: { span: Span; flat?: boolean }) {
  * gebeurtenis prints what was typed into it. Until the answer arrives the
  * brackets are already off, so the text never flashes its punctuation.
  */
-export function MentionText({ text, flat }: { text: string; flat?: boolean }) {
+export function MentionText({
+  text,
+  flat,
+  tokens,
+  plain,
+}: {
+  text: string;
+  flat?: boolean;
+  /**
+   * §95: this text is one of the short boxes that write handles — a korte
+   * beschrijving, a samenvatting, an infobox Tekst. Its chips are `⟦h⟧` and
+   * only those: an `@Naam` in it is the letters somebody typed, and it is not
+   * looked up by name (A2). A text that already holds a handle is read this
+   * way whatever the caller says.
+   */
+  tokens?: boolean;
+  /** §95: names as words, no chips — for a row that prints the text small and flat (a shop row, a picker). */
+  plain?: boolean;
+}) {
+  if (tokens || hasTokens(text)) return <ShortTextView text={text} flat={flat} plain={plain} />;
+  return <LegacyMentionText text={text} flat={flat} plain={plain} />;
+}
+
+/**
+ * §95: a short text read aloud — its handles as chips, resolved per reader
+ * (`useShortChips`). A handle there is nothing to draw for leaves nothing, not
+ * a dead chip: a dead chip would say *something is here that you may not see*.
+ * A leftover `[[typo]]` that the migration could not resolve is still drawn as
+ * the dead chip it has always been, so nobody sees a text change on the day.
+ */
+function ShortTextView({ text, flat, plain }: { text: string; flat?: boolean; plain?: boolean }) {
+  const parts = useMemo(() => splitShort(text), [text]);
+  const handles = useMemo(() => parts.flatMap((part) => (part.kind === 'chip' ? [part.handle] : [])), [parts]);
+  const chips = useShortChips(handles);
+  const out: React.ReactNode[] = [];
+  parts.forEach((part, i) => {
+    if (part.kind === 'text') {
+      let at = 0;
+      for (const match of part.text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) {
+        const start = match.index ?? 0;
+        if (start > at) out.push(<span key={`t${i}-${at}`}>{part.text.slice(at, start)}</span>);
+        const name = match[1].trim();
+        out.push(
+          plain ? (
+            <span key={`d${i}-${start}`}>{name}</span>
+          ) : (
+            <MentionChip
+              key={`d${i}-${start}`}
+              span={{ start: 0, end: 0, name, entryId: null, slug: null, icon: null, colour: null }}
+              flat={flat}
+            />
+          ),
+        );
+        at = start + match[0].length;
+      }
+      if (at < part.text.length) out.push(<span key={`t${i}-${at}`}>{part.text.slice(at)}</span>);
+      return;
+    }
+    const chip = chips.get(part.handle);
+    if (!chip) return;
+    out.push(
+      plain ? (
+        <span key={`c${i}`}>{chip.name}</span>
+      ) : (
+        <MentionChip
+          key={`c${i}`}
+          span={{ start: 0, end: 0, name: chip.name, entryId: chip.entryId, slug: chip.slug, icon: chip.icon, colour: chip.colour }}
+          flat={flat}
+        />
+      ),
+    );
+  });
+  return <>{out}</>;
+}
+
+function LegacyMentionText({ text, flat, plain }: { text: string; flat?: boolean; plain?: boolean }) {
   const spans = useMentionSpans(text);
+  if (plain) return <>{text.replace(/\[\[([^\]\n]{1,120})\]\]/g, (_, name: string) => name.trim())}</>;
   if (!spans) return <>{text.replace(/\[\[([^\]\n]{1,120})\]\]/g, (_, name: string) => name.trim())}</>;
   if (!spans.length) return <>{text}</>;
   const out: React.ReactNode[] = [];
@@ -526,31 +725,13 @@ export function MentionText({ text, flat }: { text: string; flat?: boolean }) {
   return <>{out}</>;
 }
 
-/**
- * The chips of a text on their own line, for the one place a chip cannot live
- * in the text itself: a box you are typing in. A textarea holds characters and
- * nothing else, so the gebeurtenis sheet and the speld sheet print what the
- * writing refers to underneath it, clickable while you write.
+/*
+ * §92: `MentionRow` — de regel "Verwijst naar" onder een vak (§54) — is weg.
+ * Het waren de "gekke hyperlinks onder dit vakje" uit Nicks melding. Buiten
+ * focus toont het vak nu zelf zijn chips (`MentionPreview` hieronder), in
+ * focus staat de ruwe tekst, en een regel eronder die hetzelfde nog eens zegt
+ * duwde alles eronder omlaag terwijl je typte.
  */
-export function MentionRow({ text }: { text: string }) {
-  const spans = useMentionSpans(text, 400);
-  // While the next answer is on its way the row keeps the last one, so a chip
-  // does not blink out from under the hand between two keystrokes.
-  const last = useRef<Span[]>([]);
-  if (spans) last.current = spans;
-  // One chip per artikel, however often the writing names it.
-  const seen = new Set<string>();
-  const named = (spans ?? last.current).filter((s) => s.entryId && !seen.has(s.entryId) && seen.add(s.entryId));
-  if (!named.length) return null;
-  return (
-    <p className="tiny row-wrap" style={{ gap: '0.3rem', margin: '0.35rem 0 0', alignItems: 'baseline' }}>
-      <span className="muted">Verwijst naar</span>
-      {named.map((span, i) => (
-        <MentionChip key={i} span={span} />
-      ))}
-    </p>
-  );
-}
 
 /* ------------------------------------------------- §56: a chip in the box */
 
@@ -729,7 +910,14 @@ export function MentionOverlay({
   if (spans) last.current = spans;
   const current = spans ?? last.current;
   const segments = useMemo(() => mirrorSegments(text, current), [text, current]);
-  const active = Boolean(box) && !disabled && segments.some((segment) => segment.span);
+  /*
+   * §92: the mirror is for the box you are *in*. Out of focus the box shows
+   * `MentionPreview` — chips without brackets, like the reading face — and a
+   * mirror with dimmed brackets on top of that would be two pictures of one
+   * box. So the mirror only measures, and only draws, while the box has focus.
+   */
+  const focused = useBoxFocus(box);
+  const active = Boolean(box) && focused && !disabled && segments.some((segment) => segment.span);
 
   const mirrorRef = useRef<HTMLDivElement | null>(null);
   const [place, setPlace] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -921,6 +1109,13 @@ export function MentionOverlay({
         visibility: place ? 'visible' : 'hidden',
       }}
       onPointerDown={onPointerDown}
+      // §92: a press on a chip must not take the focus off the box — the
+      // mirror is only there while the box has it, so a chip that stole it
+      // would take the mirror (and itself) away between press and click. The
+      // click still comes, and the `<a>` still navigates.
+      onMouseDown={(event) => {
+        if ((event.target as HTMLElement).closest('a.mention-live')) event.preventDefault();
+      }}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
@@ -949,8 +1144,8 @@ export function MentionOverlay({
             className="mention-live"
             // The mirror is `aria-hidden` — it is a picture of the box, and a
             // screen reader must hear the box itself — so its chips are out of
-            // the tab order too. The row under the box (§54) is the same chips
-            // for a keyboard and for a reader.
+            // the tab order too. The box itself is what a keyboard and a
+            // reader get (§92: the row under it is gone).
             tabIndex={-1}
             href={`/e/${span.slug}`}
             data-entry-id={span.entryId}
@@ -994,4 +1189,157 @@ function chipRuns(raw: string): React.ReactNode[] {
     ];
   }
   return [raw];
+}
+
+/* ------------------------------------------ §92: het vak buiten focus (c+) */
+
+/**
+ * §92: does this box have the focus? Follows the element through `focus` and
+ * `blur`, and starts from `document.activeElement` so a box that mounts with
+ * the caret already in it (a sheet's first field) is not drawn over.
+ */
+export function useBoxFocus(box: MentionBox | null): boolean {
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!box) {
+      setFocused(false);
+      return;
+    }
+    setFocused(document.activeElement === box);
+    const on = () => setFocused(true);
+    const off = () => setFocused(false);
+    box.addEventListener('focus', on);
+    box.addEventListener('blur', off);
+    return () => {
+      box.removeEventListener('focus', on);
+      box.removeEventListener('blur', off);
+    };
+  }, [box]);
+  return focused;
+}
+
+/** The typography of the box, so the preview's letters land where the box's do. */
+const PREVIEW_STYLES = MIRROR_STYLES;
+
+/**
+ * §92, ronde 53 — **variant c+**: een kort vak toont zich buiten focus als wat
+ * het is.
+ *
+ * Nick: *"in de korte descriptions wordt `[[]]` gebruikt en tijdens het editen
+ * is het allemaal niet zo netjes als in de rest van de secties."* Wat er
+ * stond: `[[Pier Boone]]` letterlijk in het vak, en daaronder een regel
+ * "Verwijst naar Pier Boone" (§54) die de "gekke hyperlinks" waren.
+ *
+ * Nu: zolang het vak geen focus heeft, ligt hier een voorvertoning over — in
+ * dezelfde doos, met de typografie van het vak zelf gekopieerd — die de tekst
+ * toont zoals de leeskant hem toont: chips, geen haakjes. De voorvertoning
+ * neemt de aanwijzer niet (`pointer-events: none`), alleen haar chips doen dat:
+ * klik je ernaast, dan klik je in het vak zelf — de caret staat erin, de poort
+ * van §18b hoort het zoals altijd, en in focus staat de ruwe tekst. Klik je óp
+ * een chip, dan volg je de link, net als in de lopende tekst in Lezen.
+ *
+ * (Een eerste versie nam de hele klik en zette de caret zelf op de letter die
+ * je aanwees. Dat lag dan óver het vak, en elk gebaar dat het vak zelf wil
+ * raken — een test die erin klikt, een hulpmiddel dat het aanwijst — raakte de
+ * voorvertoning in plaats van het vak. Het vak is het ding; dit is een plaatje.)
+ *
+ * **Waarom dit wél op de live vakken mag, waar §56's spiegel niet mocht.** De
+ * spiegel hing in een portal en mat zich elke toets opnieuw, terwijl het vak
+ * van een gewoon element naar het kamervak van de room werd overgedragen (§7).
+ * Deze voorvertoning is een gewoon React-kind naast het vak, in een eigen
+ * `.mention-field` die er vanaf de eerste render staat, dus de overdracht
+ * verandert niets aan de boom eromheen. Hij raakt het vak niet aan (geen
+ * `value`, geen `onChange`, geen listener behalve `focus`/`blur`), meet alleen
+ * als het vak van maat verandert, en is weg zolang er getypt wordt — dan is er
+ * dus ook geen enkele vraag aan het archief per toets.
+ *
+ * Ronde 56 vervangt dit door een editor van één regel die de chip zelf in de
+ * tekst houdt; tot die tijd is dit de brug.
+ */
+export function MentionPreview({
+  element,
+  forRef,
+  value,
+}: {
+  /** The box as state — a `LiveField`, whose element is swapped when the room arrives. */
+  element?: MentionBox | null;
+  /** Or through a ref, for a plain box a component owns. */
+  forRef?: RefObject<MentionBox | null>;
+  /** The text the box holds; the parent's copy, which the room keeps current. */
+  value: string;
+}) {
+  const [fromRef, setFromRef] = useState<MentionBox | null>(null);
+  useEffect(() => {
+    if (forRef) setFromRef(forRef.current ?? null);
+  });
+  const box = element ?? fromRef ?? null;
+  const focused = useBoxFocus(box);
+
+  const worth = /@|\[\[/.test(value);
+  const spans = useMentionSpans(worth && !focused ? value : '');
+  const segments = useMemo(() => previewSegments(value, worth ? spans : []), [value, worth, spans]);
+  const show = Boolean(box) && !focused && worth && previewWorth(segments);
+
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const [place, setPlace] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const el = box;
+    if (!el || !show) return;
+    const sync = () => {
+      /*
+       * The box's offsets inside `.mention-field`, which is positioned and is
+       * therefore its `offsetParent`: margins, a negative indent and a box that
+       * grows as it is typed all come along without a single scroll listener,
+       * because the preview is laid out in the same containing block.
+       */
+      const next = { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
+      setPlace((previous) =>
+        previous && previous.left === next.left && previous.top === next.top && previous.width === next.width && previous.height === next.height
+          ? previous
+          : next,
+      );
+      const preview = previewRef.current;
+      if (!preview) return;
+      const computed = getComputedStyle(el);
+      for (const key of PREVIEW_STYLES) preview.style[key] = computed[key];
+      const single = el instanceof HTMLInputElement;
+      preview.style.whiteSpace = single ? 'pre' : 'pre-wrap';
+      preview.style.alignItems = single ? 'center' : 'flex-start';
+    };
+    sync();
+    const observer = new ResizeObserver(() => sync());
+    observer.observe(el);
+    // The box's text is not drawn while the preview is — the preview draws it.
+    el.classList.add('mention-previewed');
+    return () => {
+      observer.disconnect();
+      el.classList.remove('mention-previewed');
+    };
+  }, [box, show]);
+
+  if (!show || !box) return null;
+
+  return (
+    <div
+      ref={previewRef}
+      className="mention-preview"
+      aria-hidden="true"
+      data-testid="mention-preview"
+      style={{
+        left: place?.left ?? 0,
+        top: place?.top ?? 0,
+        width: place?.width ?? 0,
+        height: place?.height ?? 0,
+        visibility: place ? 'visible' : 'hidden',
+      }}
+    >
+      <div className="mention-preview-text">
+        {segments.map((segment, i) => {
+          if (segment.kind === 'chip') return <MentionChip key={i} span={segment.span} tabIndex={-1} />;
+          return <span key={i}>{segment.text}</span>;
+        })}
+      </div>
+    </div>
+  );
 }

@@ -267,7 +267,7 @@ export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
    */
   if (patch.oneOfAKind !== undefined) {
     const placed = db
-      .select({ slotId: schema.roomSlots.id, entryId: schema.roomSlots.entryId })
+      .select({ slotId: schema.roomSlots.id, roomId: schema.roomSlots.roomId, entryId: schema.roomSlots.entryId })
       .from(schema.roomSlots)
       .innerJoin(schema.entries, eq(schema.entries.id, schema.roomSlots.entryId))
       .where(eq(schema.entries.typeId, id))
@@ -275,7 +275,9 @@ export function updateType(typeId: string, patch: TypePatch, keeperId: string) {
     for (const row of placed) {
       db.update(schema.roomSlots)
         .set({ claim: patch.oneOfAKind ? row.entryId : null })
-        .where(eq(schema.roomSlots.id, row.slotId))
+        // §93: `room_id` in de WHERE, zodat `room:{id}` beweegt (§5, de
+        // TABLES-regel) — het filtert niets, het laat de logger de kamer zien.
+        .where(and(eq(schema.roomSlots.id, row.slotId), eq(schema.roomSlots.roomId, row.roomId)))
         .run();
     }
   }

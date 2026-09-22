@@ -151,27 +151,12 @@ export function MapKeeperTools({
     return () => document.removeEventListener('paste', onPaste);
   }, [panelOpen]);
 
-  async function takeDown() {
-    const yes = await ui.confirm({
-      title: `${map.name} van de muur halen?`,
-      message: `De ${words.mapPinPlural} erop verdwijnen mee uit het zicht, maar worden niet gewist. De ${words.map} gaat naar de prullenbak in Beheer, en een ${words.keeper} kan hem daar terughangen — met alle ${words.mapPinPlural} nog op hun plek.`,
-      confirmLabel: 'Weghalen',
-      danger: true,
-    });
-    if (!yes) return;
-    setBusy(true);
-    try {
-      const response = await fetch(`/api/maps/${map.id}`, { method: 'DELETE' });
-      if (!response.ok) {
-        ui.toast('Weghalen is niet gelukt.');
-        return;
-      }
-      router.push('/maps');
-      router.refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
+  /*
+   * §94 (C11): "Van de muur halen" lived here, in the Keeper's drawer only, so
+   * a speler who may edit this landkaart had no way to throw it away at all
+   * (review O4). It is the page's `BinSlot` now, below the fold like the other
+   * three, for every hand that may edit it.
+   */
 
   return (
     // §53: no margin of its own — the block around it (`.map-manage`) owns the
@@ -238,11 +223,6 @@ export function MapKeeperTools({
             />
           </label>
           <span className="tiny muted">of plak een afbeelding</span>
-          <span className="spacer" />
-          <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={() => void takeDown()}>
-            <Icon name="trash" size={14} />
-            Van de muur halen
-          </button>
         </div>
 
         <hr style={{ border: 0, borderTop: '1px solid var(--rule)', margin: '0.2rem 0' }} />

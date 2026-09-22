@@ -251,6 +251,7 @@ beforeAll(async () => {
 beforeEach(() => {
   sqlite.prepare('DELETE FROM room_ledger').run();
   sqlite.prepare('DELETE FROM room_slots').run();
+  sqlite.prepare('DELETE FROM room_drawer').run(); // §93
   sqlite.prepare('DELETE FROM rooms').run();
   ROOM = kamers.getOrCreateRoom('e-bram')!;
   ROOM_B = kamers.getOrCreateRoom('e-aagje')!;
@@ -373,7 +374,7 @@ describe('§80: de claim — één ding in de wereld, of niet', () => {
   });
 
   it('claims nothing at all for huisraad', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     const shelf = plek(ROOM, FREE_PLANK);
     expect(shelf.entryId).toBe('h-stoel');
     expect(shelf.claim).toBeNull();
@@ -381,8 +382,8 @@ describe('§80: de claim — één ding in de wereld, of niet', () => {
 
   /** The whole point of §80: two onderzoekers, one leesstoel each, same leesstoel. */
   it('lets two onderzoekers own the same stuk huisraad', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
-    expect(() => kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', AAGJE)).not.toThrow();
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
+    expect(() => kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', KEEPER)).not.toThrow();
 
     expect(plek(ROOM, FREE_PLANK).entryId).toBe('h-stoel');
     expect(plek(ROOM_B, FREE_PLANK).entryId).toBe('h-stoel');
@@ -409,8 +410,8 @@ describe('§80: de claim — één ding in de wereld, of niet', () => {
   it('allows the same stuk huisraad twice in one kamer (§83, was refused in §80)', () => {
     kamers.grant(ROOM, 10, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
-    expect(() => kamers.placeItem(plek(ROOM, PAID_PLANK).id, 'h-stoel', BRAM)).not.toThrow();
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
+    expect(() => kamers.placeItem(plek(ROOM, PAID_PLANK).id, 'h-stoel', KEEPER)).not.toThrow();
     expect(plek(ROOM, PAID_PLANK).entryId).toBe('h-stoel');
     expect(plek(ROOM, FREE_PLANK).entryId).toBe('h-stoel');
     // En geen van beide claimt iets: een claim is alleen voor wat uniek is.
@@ -711,18 +712,18 @@ describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faal
    */
   it('keeps offering what is already lying here, because you may have two (§83)', () => {
     expect(ids('plank', BRAM)).toContain('h-stoel');
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     expect(ids('plank', BRAM)).toContain('h-stoel');
   });
 
   it('still offers the neighbours’ huisraad, because there may be more than one of it', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', KEEPER);
     expect(ids('plank', BRAM)).toContain('h-stoel');
   });
 
   it('but a claimed one is gone from every catalogue in the archive', () => {
     expect(ids('bureau', BRAM)).toContain('u-bureaulamp');
-    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     expect(plek(ROOM_B, FREE_BUREAU).claim).toBe('u-bureaulamp');
     expect(ids('bureau', BRAM)).not.toContain('u-bureaulamp');
     expect(ids('bureau', AAGJE)).not.toContain('u-bureaulamp');
@@ -731,7 +732,7 @@ describe('§80: de catalogus — vijf voorwaarden, gevraagd van de kant die faal
   /** And a unique thing in your *own* kamer is gone too — the claim covers it. */
   it('drops a unique thing you placed yourself, because a claim is a claim', () => {
     expect(ids('bureau', BRAM)).toContain('u-bureaulamp');
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     expect(ids('bureau', BRAM)).not.toContain('u-bureaulamp');
   });
 
@@ -780,14 +781,14 @@ describe('§80: wat de kamer geeft, en wat hij nooit verraadt', () => {
   const view = (viewer: Parameters<typeof kamers.viewRoomBySlug>[1]) => kamers.viewRoomBySlug('bram-kuiper', viewer)!;
 
   it('lists the lines of what lies here, with the thing that says them', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     expect(view(BRAM).effects).toEqual([
       { name: 'Een leesstoel', href: '/e/leesstoel', lines: ['Een plek om te lezen.', 'Rust bij het haardvuur'] },
     ]);
   });
 
   it('says nothing about something that gives nothing', () => {
-    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-kast', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_MUUR).id, 'h-kast', KEEPER);
     kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'v-lantaarn', BRAM);
     expect(view(BRAM).effects).toEqual([]);
   });
@@ -795,7 +796,7 @@ describe('§80: wat de kamer geeft, en wat hij nooit verraadt', () => {
   it('adds up nothing: two things are two entries, in the order they lie', () => {
     kamers.grant(ROOM, 10, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     kamers.placeItem(plek(ROOM, PAID_PLANK).id, 'h-wiki', KEEPER);
     const effects = view(BRAM).effects;
     expect(effects.map((thing) => thing.name)).toEqual(['Een leesstoel', 'Een barometer']);
@@ -867,7 +868,7 @@ describe('§80: wat de kamer geeft, en wat hij nooit verraadt', () => {
 
   /** And the near side of a tweeling is nobody's secret. */
   it('keeps the near side of a tweeling listed for everybody', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-wiki', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-wiki', KEEPER);
     expect(view(AAGJE).effects).toEqual([
       { name: 'Een barometer', href: '/e/barometer', lines: ['Hij wijst altijd op storm.'] },
     ]);

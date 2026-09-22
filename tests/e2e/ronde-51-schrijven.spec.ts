@@ -19,8 +19,11 @@ test('B21: a tag chip on an artikel opens its soort’s list, filtered on that t
   expect(made.ok()).toBe(true);
   const { entry } = (await made.json()) as { entry: { slug: string } };
 
-  // Reading, the tag is a row of the infobox (open on a phone while reading).
+  // Reading, the tag is a row of the infobox. §92: on a phone that box is
+  // folded while reading too, so unfold it first — as a thumb would.
   await page.goto(`/e/${entry.slug}`);
+  const folded = page.locator('details#block-info:not([open]) > summary');
+  if (await folded.count()) await folded.click();
   const chip = page.locator('.infobox-tags a.tag', { hasText: tag });
   await expect(chip).toHaveAttribute('href', `/wiki/character?tag=${tag}`);
   await chip.click();

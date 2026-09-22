@@ -206,6 +206,7 @@ beforeAll(async () => {
 beforeEach(() => {
   sqlite.prepare('DELETE FROM room_ledger').run();
   sqlite.prepare('DELETE FROM room_slots').run();
+  sqlite.prepare('DELETE FROM room_drawer').run(); // §93
   sqlite.prepare('DELETE FROM rooms').run();
   // A test that bins an artikel puts it back; this is the net under that.
   sqlite.prepare('UPDATE entries SET deleted_at = NULL').run();

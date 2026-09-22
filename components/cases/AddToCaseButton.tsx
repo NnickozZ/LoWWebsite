@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { fuzzyScore } from '@/lib/search/fuzzy';
+import { MentionText } from '@/components/ui/MentionPopover';
 
 type CaseLite = { id: string; slug: string; name: string; summary: string; status: string };
 
@@ -112,7 +113,7 @@ export function AddToCaseButton({
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <strong>{item.name}</strong>
                     <span className="tiny muted clamp-2" style={{ display: 'block' }}>
-                      {item.summary}
+                      <MentionText text={item.summary} tokens plain />
                     </span>
                   </span>
                   <span className="stamp stamp-muted" style={{ fontSize: '0.6rem' }}>

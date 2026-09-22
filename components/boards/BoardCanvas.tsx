@@ -1,12 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { assetUrl } from '@/components/Cover';
 import { borderLabel } from '@/components/borders';
 import { Icon } from '@/components/Icon';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
+import { CanvasTitle } from '@/components/canvas/CanvasTitle';
+import { CanvasFind } from '@/components/canvas/CanvasFind';
+import { UnderFold } from '@/components/ink/UnderFold';
+import type { Findable } from '@/lib/canvas/find';
 import { AccessEditor, type AccessSettings } from '@/components/access/AccessEditor';
 import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
@@ -43,14 +47,19 @@ import {
   type Viewport,
 } from '@/lib/boards/merge';
 import { changedIds, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
+import { CHOICE_PARAM, readCamera, readChoice, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { groupDelta } from '@/lib/canvas/select';
 import {
+  centreView,
   clampZoom,
   FIT_PADDING,
   fitViewport,
+  isCanvasView,
   passedSlop,
+  readableFit,
+  readingFloor,
   wheelFactor,
   zoomAbout,
   ZOOM_STEP,
@@ -105,6 +114,13 @@ import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 /** How far in "Alles in beeld" is allowed to go. A wall of four cards blown up
  *  two and a half times reads as broken rather than as helpful. */
 const FIT_MAX_ZOOM = 1.2;
+/**
+ * §94 (C7): the zoom a wall opens at, at least — where a card's name
+ * (`.board-card-name`, 0.86rem ≈ 14 board units) is ten screen pixels.
+ */
+const BOARD_READ_FLOOR = readingFloor(14);
+/** §94 (C7): and at most its natural size — never blown up on arrival. */
+const OPEN_MAX_ZOOM = 1;
 /** Size of the SVG layer the red string is drawn on, centred on the origin. */
 const STRING_LAYER = 40000;
 
@@ -189,7 +205,14 @@ export function BoardCanvas({
   readOnly: locked,
   access,
   initialInk,
+  stamp,
 }: {
+  /**
+   * §94 (C6): the page's side stamp (§44/§45), a server-rendered element the
+   * wall's own heading carries — the heading is drawn here because this is
+   * where the live name and the mode are.
+   */
+  stamp?: ReactNode;
   boardId: string;
   boardName: string;
   /** §33: the tekenlaag, as this viewer may see it. */
@@ -291,6 +314,14 @@ export function BoardCanvas({
   const viewportNow = useRef(viewport);
   viewportNow.current = viewport;
   const [selectedStringId, setSelectedStringId] = useState<string | null>(null);
+  /*
+   * §94 (O10): a draad without a drag. Draden were desktop-only (CLAUDE.md §8,
+   * r35: they hang off the pin head, a few pixels a finger cannot find), so on
+   * a phone "tie these two together" could not be done at all. *Touwtje* in the
+   * inspector remembers the card here, the next card pressed is the other end,
+   * and the draad is made the way a drag makes one — one commit, one undo.
+   */
+  const [stringFrom, setStringFrom] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     assetId: string;
     name: string;
@@ -727,6 +758,78 @@ export function BoardCanvas({
    */
   const viewportSize = useElementSize(viewportRef);
   /*
+   * §94 (C5, C7): where this wall opens.
+   *
+   * It used to open on `state.viewport` — the view of whoever panned it last,
+   * which on a shared wall is somebody else's corner at somebody else's zoom
+   * (two of thirteen cards in sight, on a phone). Now, in this order:
+   *
+   * 1. the camera **this tab** left here (`sessionStorage`), so Back from an
+   *    artikel lands where it was;
+   * 2. a card the address asks for (`?card=`), in the middle at a zoom its
+   *    name can be read at;
+   * 3. everything in view — but never below the reading floor; a wall too big
+   *    for that starts at its top-left and the rest scrolls.
+   *
+   * `state.viewport` is still written (§61 keeps it one field of the
+   * document) and simply no longer read on the way in.
+   */
+  const cameraStarted = useRef(false);
+  useEffect(() => {
+    if (cameraStarted.current || viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    cameraStarted.current = true;
+    const stage = { width: viewportSize.width, height: viewportSize.height };
+    const asked = readChoice(CHOICE_PARAM.board);
+    const card = asked ? cardsRef.current.find((one) => one.id === asked) : undefined;
+    if (card) setSelected(new Set([card.id]));
+    const kept = readCamera('board', boardId, isCanvasView);
+    let next: Viewport | null = null;
+    if (kept) next = { ...kept, zoom: clampZoom(kept.zoom) };
+    else if (card) {
+      const box = cardBox(card, card.kind === 'pin' ? undefined : CARD_SIZE);
+      next = centreView(
+        { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+        stage,
+        Math.max(1, BOARD_READ_FLOOR),
+      );
+    } else if (cardsRef.current.length) {
+      const bounds = boardBounds(cardsRef.current);
+      /*
+       * The ceiling on the way *in* is 1, not the button's 1.2: a wall of three
+       * kaartjes opened blown up is every card a fifth bigger than it was hung,
+       * and a hand reaching for a card's top edge lands on its punaise-kop
+       * instead — a draad where it meant a drag (board-delete-sticks found it).
+       * "Alles in beeld" keeps its 1.2.
+       */
+      next = readableFit(
+        { minX: bounds.x, minY: bounds.y, maxX: bounds.x + bounds.width, maxY: bounds.y + bounds.height },
+        stage,
+        BOARD_READ_FLOOR,
+        FIT_PADDING,
+        OPEN_MAX_ZOOM,
+      );
+    }
+    if (next) {
+      viewportNow.current = next;
+      setViewport(next);
+    }
+    // Once, when the cork first has a size.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportSize.width, viewportSize.height]);
+  // §94 (C5): every view after that is remembered, per tab …
+  useEffect(() => {
+    if (cameraStarted.current) writeCamera('board', boardId, viewport);
+  }, [viewport, boardId]);
+  // §73: Lezen does not make things, so leaving Bewerken puts the lead down.
+  useEffect(() => {
+    if (handsOff) setStringFrom(null);
+  }, [handsOff]);
+  // … and the one card chosen is in the address (`?card=`), so Back chooses it again.
+  const onlyCard = selected.size === 1 ? [...selected][0] : null;
+  useEffect(() => {
+    if (cameraStarted.current) writeChoice(CHOICE_PARAM.board, onlyCard);
+  }, [onlyCard]);
+  /*
    * §67: the cork's own pan-and-zoom pair, from the shared helper — and it is
    * the wall's `toBoard` as well (below), so a card and a streek land on the
    * same point of the cork.
@@ -783,6 +886,43 @@ export function BoardCanvas({
     [entries, maps, caseFacts, timelineFacts, boardFacts, familyTreeFacts],
   );
   const subjectFor = useCallback((card: BoardCard) => subjectOf(card, refs), [refs]);
+
+  /*
+   * §94 (C4): vinden op het bord. Every card by the name the wall shows for it
+   * — the artikel's, the landkaart's, the notitie's own — and a pick brings it
+   * to the middle at a zoom it can be read at, and chooses it.
+   */
+  const findable = useMemo<Findable[]>(
+    () =>
+      cards.map((card) => {
+        const subject = subjectOf(card, refs);
+        return {
+          id: card.id,
+          name: subject?.name ?? card.name ?? '',
+          hint: subject ? capitalise(subject.noun) : capitalise(card.kind === 'pin' ? ui.words.pin : ui.words.note),
+          icon: subject?.icon ?? (card.kind === 'pin' ? 'mapPin' : 'note'),
+        };
+      }),
+    [cards, refs, ui.words.pin, ui.words.note],
+  );
+  const findCard = useCallback(
+    (cardId: string) => {
+      const card = cardsRef.current.find((one) => one.id === cardId);
+      const rect = viewportRef.current;
+      if (!card || !rect) return;
+      const box = cardBox(card, card.kind === 'pin' ? undefined : CARD_SIZE);
+      const next = centreView(
+        { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+        { width: rect.clientWidth, height: rect.clientHeight },
+        Math.max(viewportNow.current.zoom, BOARD_READ_FLOOR, 1),
+      );
+      viewportNow.current = next;
+      setViewport(next);
+      setSelected(new Set([card.id]));
+      setSelectedStringId(null);
+    },
+    [setSelected],
+  );
 
   /** §69: only so the shared button can go grey; the stack itself is the truth. */
   const [undoDepth, setUndoDepth] = useState(0);
@@ -1327,8 +1467,36 @@ export function BoardCanvas({
    * nothing at all, here or anywhere else on the page. The one place on a card
    * that is a drag and nothing else — the pin head — does refuse it.
    */
+  /** §94 (O10): the draad a *Touwtje* asked for, from one card to another. */
+  function tieString(from: string, to: string) {
+    setStringFrom(null);
+    if (from === to || readOnly) return;
+    const cardsNow = cardsRef.current;
+    if (!cardsNow.some((card) => card.id === from) || !cardsNow.some((card) => card.id === to)) return;
+    const line: BoardString = {
+      id: newStringId(),
+      from: { card: from },
+      to: { card: to },
+      label: '',
+      colour: 'red',
+      width: DEFAULT_STRING_WIDTH,
+      style: DEFAULT_STRING_STYLE,
+    };
+    commit((prev) => ({ strings: [...prev.strings, line] }));
+    setSelected(new Set());
+    // Chosen, so the inspector is right there to label and colour it.
+    setSelectedStringId(line.id);
+  }
+
   function onCardPointerDown(event: React.PointerEvent, cardId: string) {
     if (event.button !== 0) return;
+
+    // §94 (O10): the second end of a *Touwtje*.
+    if (stringFrom) {
+      event.stopPropagation();
+      tieString(stringFrom, cardId);
+      return;
+    }
 
     const additive = event.shiftKey;
     const alreadySelected = selected.has(cardId);
@@ -1429,6 +1597,11 @@ export function BoardCanvas({
   }
 
   function onPinPointerDown(event: React.PointerEvent, cardId: string) {
+    // §94 (O10): a pin head is a card too, for the second end of a *Touwtje*.
+    if (stringFrom && event.button === 0) {
+      tieString(stringFrom, cardId);
+      return;
+    }
     // §73: the grip and a draad are arranging — Bewerken only.
     if (!mayArrange) return;
     /*
@@ -1975,6 +2148,7 @@ export function BoardCanvas({
         // and the string exactly as they were — nothing is placed and nothing
         // is taken back. §64: nor is the question forgotten; see `onCancel`.
         if (picker) setPicker(null);
+        else if (stringFrom) setStringFrom(null);
         else if (lightbox) setLightbox(null);
         else if (onInkKey(event)) return;
         else if (drawing) setDrawing(null);
@@ -2542,37 +2716,10 @@ export function BoardCanvas({
     offerToFile(entryId, entryName);
   }
 
-  /**
-   * §11: a prikbord into the bin. It had no way out at all — a wall made by
-   * mistake stayed on the shelf for ever — and every other thing the archive
-   * makes has one. Soft, like the rest: a Keeper puts it back from Beheer, or
-   * takes it off the shelf for good after typing its name.
+  /*
+   * §11: a prikbord into the bin — since §94 (C11) through the page's
+   * `BinSlot` below the fold, the one road all four surfaces share.
    */
-  const [removing, setRemoving] = useState(false);
-  const removeBoard = useCallback(async () => {
-    const yes = await ui.confirm({
-      title: `${name || `Dit ${ui.words.board}`} weggooien?`,
-      message: (
-        <>
-          Het {ui.words.board} gaat naar de prullenbak; een {ui.words.keeper} kan het terugzetten.
-          De {ui.words.entryPlural} die eraan hangen blijven gewoon staan — alleen deze muur
-          verdwijnt.
-        </>
-      ),
-      confirmLabel: 'Naar de prullenbak',
-      danger: true,
-    });
-    if (!yes) return;
-    setRemoving(true);
-    const response = await fetch(`/api/boards/${boardId}`, { method: 'DELETE' }).catch(() => null);
-    if (!response?.ok) {
-      setRemoving(false);
-      ui.toast('Weggooien is niet gelukt.');
-      return;
-    }
-    router.push(caseSlug ? `/c/${caseSlug}` : '/boards');
-    router.refresh();
-  }, [boardId, caseSlug, name, router, ui]);
 
   /*
    * §47: hang this wall in a dossier, or take it out of one.
@@ -2650,42 +2797,49 @@ export function BoardCanvas({
   }, [strings]);
 
   return (
-    <div className="board-page">
-      <div className="board-bar">
-        {/* §73: first in the bar, so a 390 px phone sees which hand it has
-            before anything else. Nothing at all for a hand without rights. */}
-        <CanvasModeToggle mode={mode} />
-        {/* §90: in Lezen, and for a hand that may only look, the name is
-            print — as the stamboom's is (§73, `CanvasTitle`). A box a thumb
-            can land in is an edit, and Lezen does not edit. */}
-        {handsOff ? (
-          <span className="board-name-input board-name-text" data-testid="board-name-text">
-            {name}
-          </span>
-        ) : (
+    <>
+    {/*
+      §94 (C6): the §34 heading, as on the other three — the way back to the
+      shelf (and the dossier), the name *as* the heading (a box in Bewerken,
+      print in Lezen: `CanvasTitle`, which the stamboom's §73 rule already
+      follows), and Verbindingen. It used to be a bar of its own with the
+      switch in front of the name, 221 px of a phone.
+    */}
+    <header className="canvas-head board-head">
+      {stamp}
+      <p className="eyebrow">
+        <Link href="/boards" style={{ color: 'inherit' }}>
+          <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} /> {ui.words.navBoards}
+        </Link>
+        {caseSlug && caseName && (
           <>
-            <label className="visually-hidden" htmlFor="board-name">
-              Naam van het prikbord
-            </label>
-            <input
-              id="board-name"
-              className="board-name-input"
-              value={name}
-              readOnly={readOnly}
-              onChange={(event) => setName(event.target.value)}
-              onBlur={() =>
-                !readOnly &&
-                void fetch(`/api/boards/${boardId}`, {
-                  method: 'PATCH',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ name, clientId }),
-                })
-              }
-            />
+            {' · '}
+            <span className="canvas-head-of">
+              <Link href={`/c/${caseSlug}`} style={{ color: 'inherit' }}>
+                <Icon name="folder" size={12} /> {caseName}
+              </Link>
+            </span>
           </>
         )}
-        {/* §43: the web, with this prikbord in the middle. */}
-        <ConnectionsLink kind="board" id={boardId} as="chip" />
+      </p>
+      {/* §73/§90: a box only in Bewerken, and only for a hand that may. The
+          id and the label are the ones specs have always typed into. */}
+      <CanvasTitle
+        name={name}
+        canEdit={!handsOff}
+        endpoint={`/api/boards/${boardId}`}
+        noun={`het ${ui.words.board}`}
+        inputId="board-name"
+        testId="board-title"
+      />
+      {/* §43: the web, with this prikbord in the middle. */}
+      <ConnectionsLink kind="board" id={boardId} />
+    </header>
+    <div className="board-page">
+      <div className="board-bar">
+        {/* §73/§94 (C9): first in the row under the heading, on all five
+            glasses. Nothing at all for a hand without rights. */}
+        <CanvasModeToggle mode={mode} />
         {readOnly && (
           <span className="chip" title="Je kunt dit prikbord bekijken, niet bewerken.">
             <Icon name="lock" size={12} />
@@ -2703,31 +2857,17 @@ export function BoardCanvas({
             Rechten
           </button>
         )}
-        {caseSlug && (
-          <Link className="chip" href={`/c/${caseSlug}`}>
-            <Icon name="folder" size={12} />
-            {caseName}
-          </Link>
-        )}
-        {/* §47: which dossier this wall hangs in — and the way out of one.
-            Only a hand that may hang cards on it may move it, and the list is
-            already this viewer's own (the page filters it). */}
-        {!readOnly && (
-          <select
-            className="select board-case-select"
-            aria-label={`In welk ${ui.words.case} hangt dit ${ui.words.board}?`}
-            data-testid="board-case-select"
-            value={filedIn ?? ''}
-            disabled={filing}
-            onChange={(event) => void fileInCase(event.target.value || null)}
-          >
-            <option value="">Geen {ui.words.case}</option>
-            {pickableCases.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+        {/* §94 (C4): in Lezen there is nothing to add, so the wall's search
+            *finds* — the same list the Bewerken picker puts on top. In the
+            bar, not a row of its own: on a phone it is a loep that opens over
+            the cork. */}
+        {handsOff && (
+          <CanvasFind
+            items={findable}
+            onFind={findCard}
+            group={fill(ui.words.findOnBoard, { prikbord: ui.words.board })}
+            testId="board-find"
+          />
         )}
         <div className="spacer" />
 
@@ -2769,22 +2909,37 @@ export function BoardCanvas({
         {/* §73: grey in Lezen rather than gone — undo changes the wall, and the
             bar should not jump when the switch is pressed. */}
         <CanvasUndoButton onUndo={undo} canUndo={!handsOff && undoDepth > 0} />
-        {!readOnly && (
-          <button
-            type="button"
-            className="btn btn-small btn-ghost"
-            disabled={removing}
-            onClick={() => void removeBoard()}
-            title={`Dit ${ui.words.board} naar de prullenbak`}
-            /* The word is hidden on a phone, where the bar is crowded, so the
-               button needs a name of its own — an icon is not a label. */
-            aria-label={`${capitalise(ui.words.board)} verwijderen`}
-          >
-            <Icon name="trash" size={14} />
-            <span className="board-bar-wide-only">{capitalise(ui.words.board)} verwijderen</span>
-          </button>
-        )}
+        {/* §94 (C11): no bin here any more. Throwing the whole wall away is the
+            `BinSlot` below the fold, as on the other three — it was the
+            nearest thumb-target on the wall, beside Ongedaan maken. */}
       </div>
+
+      {/* §47/§94 (C6): which dossier this wall hangs in — and the way out of
+          one — is below the fold now, with the bin. Only a hand that may hang
+          cards on it may move it, and the list is this viewer's own. */}
+      {!readOnly && (
+        <UnderFold slotId="board-underfold">
+          <label className="board-case-under">
+            <span className="small muted">{ui.words.boardInCase}</span>
+            <select
+              className="select board-case-select"
+              aria-label={`In welk ${ui.words.case} hangt dit ${ui.words.board}?`}
+              data-testid="board-case-select"
+              value={filedIn ?? ''}
+              disabled={filing}
+              onChange={(event) => void fileInCase(event.target.value || null)}
+            >
+              <option value="">Geen {ui.words.case}</option>
+              {pickableCases.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </UnderFold>
+      )}
+
 
       {/*
         §73: the whole row is making — the search that hangs a card, Nieuwe
@@ -2814,6 +2969,12 @@ export function BoardCanvas({
           <BoardPicker
             variant="bar"
             cards={cards}
+            findable={findable}
+            findGroup={fill(ui.words.findOnBoard, { prikbord: ui.words.board })}
+            onFind={(cardId) => {
+              closePicker();
+              findCard(cardId);
+            }}
             holding={holdingAPin}
             pickableMaps={pickableMaps}
             pickableCases={pickableCases}
@@ -3510,6 +3671,15 @@ export function BoardCanvas({
           onOpenEntry={() => selectedSubject && router.push(selectedSubject.href)}
           subjectName={selectedSubject?.name ?? null}
           onRemoveCards={() => removeCards(selectedCards.map((card) => card.id))}
+          onStartString={
+            // §94 (O10): Bewerken only — a draad is making.
+            !handsOff && singleSelected
+              ? () => {
+                  setStringFrom(singleSelected.id);
+                  setSelected(new Set());
+                }
+              : undefined
+          }
           onClose={() => {
             setSelected(new Set());
             setSelectedStringId(null);
@@ -3517,6 +3687,17 @@ export function BoardCanvas({
         />
         )}
       </div>
+
+      {/* §94 (O10): the second end of a *Touwtje* — said over the wall, and
+          out of the flow, so the cork does not move under the hand (§64). */}
+      {stringFrom && (
+        <div className="board-string-pick" role="status" data-testid="board-string-pick">
+          <span className="small">{fill(ui.words.boardStringPick, { kaart: ui.words.card, draad: ui.words.string })}</span>
+          <button type="button" className="btn btn-small" onClick={() => setStringFrom(null)}>
+            {ui.words.boardStringCancel}
+          </button>
+        </div>
+      )}
 
       {accessOpen && (
         <Sheet onClose={() => setAccessOpen(false)} labelledBy="board-access-title">
@@ -3627,5 +3808,6 @@ export function BoardCanvas({
         }}
       />
     </div>
+    </>
   );
 }

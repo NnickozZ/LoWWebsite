@@ -6,9 +6,10 @@ import { HalOnline } from '@/components/spelers/HalOnline';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
-import { charactersWorn } from '@/lib/characters';
+import { charactersWorn, listCharacters } from '@/lib/characters';
+import { visibleNamesOf } from '@/lib/kamers/service';
 import { listSpelers } from '@/lib/spelers/service';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,20 @@ export default async function SpelersPage() {
    * server beslist dit en niet de browser: de lijst die binnenkomt is dan al
    * goed, in plaats van een tel later te verspringen.
    */
+  /*
+   * §93 (E22): élk karakter dat iemand draagt, als een kleine deur naar zijn
+   * kamer — niet alleen het karakter dat hij nu speelt. Kees' kamer was vanaf
+   * hier twee tikken. Alleen wat deze kijker mag zien (§76): een onderzoeker
+   * die je niet mag zien, heeft voor jou geen kamer.
+   */
+  const heldBy = new Map(
+    spelers.filter((speler) => !speler.isKeeper).map((speler) => [speler.id, listCharacters(speler.id)]),
+  );
+  const seen = visibleNamesOf(
+    [...heldBy.values()].flat().map((character) => character.entryId),
+    user,
+  );
+
   const inHall = [...spelers].sort((a, b) => {
     if (a.id === user?.id) return -1;
     if (b.id === user?.id) return 1;
@@ -125,6 +140,26 @@ export default async function SpelersPage() {
                   )}
                 </span>
               </Link>
+              {(() => {
+                const kamers = (heldBy.get(speler.id) ?? []).filter((character) => seen.has(character.entryId));
+                if (!kamers.length) return null;
+                return (
+                  <nav className="tiny spelers-kamers" aria-label={capitalise(words.roomPlural)} data-testid="spelers-kamers">
+                    <Icon name={MEANING.kamer} size={12} />
+                    {kamers.map((character) => (
+                      <Link
+                        key={character.entryId}
+                        href={`/kamer/${character.slug}`}
+                        className="spelers-kamer"
+                        data-testid="spelers-kamer"
+                        aria-label={fill(words.hallRoomOf, { naam: character.name })}
+                      >
+                        {character.name}
+                      </Link>
+                    ))}
+                  </nav>
+                );
+              })()}
             </li>
           );
         })}

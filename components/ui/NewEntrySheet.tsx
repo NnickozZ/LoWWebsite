@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useMayStartEntry } from '@/components/you/AuthorProvider';
-import { MentionOverlay, MentionPopover, MentionRow } from './MentionPopover';
+import { ShortField } from '@/components/live/LiveFields';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
@@ -48,6 +50,22 @@ const DESCRIPTION_PLACEHOLDER =
   'Waar kwam je ze tegen, wat was de sfeer, wat was de context van de eerste ontmoeting, en hoe zagen ze eruit?';
 
 const LAST_TYPE_KEY = 'zcf:last-type';
+
+/*
+ * §93 (E24): de infobox-velden van huisraad, pas geladen als het blad ze
+ * vraagt — dit blad hangt in de schil van elke pagina, en de veldcomponenten
+ * zijn voor bijna iedereen nooit nodig.
+ */
+const FieldsEditor = dynamic(() => import('@/components/entry/FieldsEditor').then((mod) => mod.FieldsEditor), {
+  ssr: false,
+});
+
+/** §93: staat dit ding na het maken in de winkel? Dezelfde twee vragen als `shopFor`: een plek en een prijs. */
+function forSale(values: Record<string, unknown>): boolean {
+  const plek = values.plek;
+  const price = Number(values.prijs);
+  return (Array.isArray(plek) ? plek.length > 0 : Boolean(plek)) && Number.isFinite(price) && price > 0;
+}
 
 type Suggestion = {
   id: string;
@@ -126,13 +144,41 @@ export function NewEntrySheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [typeSlug, setTypeSlug] = useState(initialType);
+  /** §92 (C26): the soort strip folded out to every chip. */
+  const [typesOpen, setTypesOpen] = useState(false);
+  const typeStripRef = useRef<HTMLDivElement | null>(null);
+  // The chosen soort in view in the strip, once, when the sheet opens.
+  useEffect(() => {
+    const chosenChip = typeStripRef.current?.querySelector<HTMLElement>('[data-chosen="true"]');
+    const strip = typeStripRef.current;
+    if (chosenChip && strip) strip.scrollLeft = Math.max(0, chosenChip.offsetLeft - strip.offsetLeft - 8);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /** §92 (C27): the open dossiers, for the optional "In dossier" line. */
+  const [openCases, setOpenCases] = useState<{ id: string; name: string }[]>([]);
+  const [chosenCase, setChosenCase] = useState('');
+  useEffect(() => {
+    if (prefill.caseId) return;
+    let alive = true;
+    void fetch('/api/cases')
+      .then((r) => (r.ok ? r.json() : { cases: [] }))
+      .then((data: { cases?: { id: string; name: string; status: string }[] }) => {
+        if (alive) setOpenCases((data.cases ?? []).filter((item) => item.status === 'open'));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [prefill.caseId]);
   const [name, setName] = useState(prefill.name ?? draft.name ?? '');
   const [description, setDescription] = useState(prefill.shortDescription ?? draft.description ?? '');
   const [similar, setSimilar] = useState<Suggestion[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** §93 (E24): plek, prijs en effect van nieuw huisraad — leeg tot de Keeper iets kiest. */
+  const [shopValues, setShopValues] = useState<Record<string, unknown>>({});
+  const router = useRouter();
   const nameRef = useRef<HTMLInputElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   /*
    * §49: the dossier is not a question any more — made in it is filed in it,
@@ -236,7 +282,8 @@ export function NewEntrySheet({
           name: name.trim(),
           shortDescription: description,
           // §49: made here is filed here. Always, by every road in.
-          caseId: prefill.caseId,
+          // §92 (C27): or in the dossier chosen on the line above.
+          caseId: prefill.caseId ?? (chosenCase || undefined),
           // §49: and whether that dossier's name is printed in front of this
           // one's. Only asked where there is a dossier to print — outside one
           // the soort's own habit decides, on the server.
@@ -244,6 +291,8 @@ export function NewEntrySheet({
           // §48: which side it is born on. Ignored by the server for anyone
           // who is not a Keeper, and overruled by a Keeper-only dossier.
           keeperOnly: ui.isKeeper ? sideLocked || keeperSide : undefined,
+          // §93 (E24): de winkelvelden, alleen voor een soort die ze heeft.
+          fields: chosen?.shopFields ? shopValues : undefined,
         }),
       });
       const data = await response.json();
@@ -253,6 +302,25 @@ export function NewEntrySheet({
         return;
       }
       window.localStorage.setItem(LAST_TYPE_KEY, typeSlug);
+      /*
+       * §93 (E24): zeggen waar het huisraad nu staat, met de deur erheen — of
+       * dat het nog niet te koop is, want een stuk zonder plek of prijs staat
+       * nergens en dat zag niemand.
+       */
+      if (chosen?.shopFields) {
+        const made = (data.entry as CreatedEntry | undefined)?.name ?? name.trim();
+        if (forSale(shopValues)) {
+          ui.toast(
+            fill(words.newFurnishingDone, { naam: made, winkel: words.shop.toLowerCase() }),
+            {
+              label: fill(words.toastShop, { winkel: words.shop.toLowerCase() }),
+              onAction: () => router.push('/winkel'),
+            },
+          );
+        } else {
+          ui.toast(fill(words.furnishingNotForSale, { naam: made }));
+        }
+      }
       // §69 (4.5): it exists now, so the draft of it is done. Without this the
       // next `+` opens pre-filled with the artikel that was just made.
       clearDraft(DRAFT_ENTRY);
@@ -269,27 +337,6 @@ export function NewEntrySheet({
         <h2 id="new-entry-title" style={{ margin: 0, fontSize: '1.3rem' }}>
           {words.newEntry}
         </h2>
-      </div>
-
-      <div
-        className="row-wrap"
-        role="radiogroup"
-        aria-label={capitalise(words.entryType)}
-        style={{ marginBottom: '0.9rem' }}
-      >
-        {types.map((type) => (
-          <button
-            key={type.slug}
-            type="button"
-            role="radio"
-            aria-checked={type.slug === typeSlug}
-            className={`chip chip-selectable${type.slug === typeSlug ? ' chip-active' : ''}`}
-            onClick={() => setTypeSlug(type.slug)}
-          >
-            <Icon name={type.icon} size={15} />
-            {type.label}
-          </button>
-        ))}
       </div>
 
       <div className="field">
@@ -312,13 +359,16 @@ export function NewEntrySheet({
           enterKeyHint="done"
         />
 
+        {/* §92 (C28): one line per name, and at most three — it is a warning
+            against a double, not a search, and at two lines a row it pushed
+            the rest of the sheet down while the name was being typed. */}
         {similar.length > 0 && (
-          <>
-            <p className="tiny muted" style={{ margin: '0.5rem 0 0' }}>
-              Bedoel je…
+          <div className="new-entry-similar">
+            <p className="tiny muted" style={{ margin: '0.4rem 0 0.2rem' }}>
+              {words.newEntryDidYouMean}
             </p>
-            <ul className="suggest-list">
-              {similar.map((entry) => (
+            <ul className="suggest-list new-entry-similar-list">
+              {similar.slice(0, 3).map((entry) => (
                 <li key={entry.id}>
                   <Link
                     href={`/e/${entry.slug}`}
@@ -326,45 +376,134 @@ export function NewEntrySheet({
                     style={{ color: 'inherit', textDecoration: 'none' }}
                     onClick={onClose}
                   >
-                    <Icon name={entry.typeIcon} size={16} style={{ color: entry.typeColour }} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
+                    <Icon name={entry.typeIcon} size={15} style={{ color: entry.typeColour }} />
+                    <span className="new-entry-similar-name">
                       <strong>{entry.name}</strong>
-                      <span className="tiny muted" style={{ display: 'block' }}>
-                        {entry.typeLabel}
-                      </span>
+                      <span className="tiny muted"> · {entry.typeLabel}</span>
                     </span>
-                    <Icon name="chevron" size={16} />
+                    <Icon name="chevron" size={15} />
                   </Link>
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         )}
       </div>
 
+      {/*
+        §92 (C26): the soort is one line, under the name. Seventeen chips
+        wrapped over eight rows put the name box 1.7 screens down on a phone,
+        while the soort remembered from last time was already chosen. The chips
+        are still radios in one group (and every spec and screen reader finds
+        them by name) — they stand in a strip that scrolls sideways, with the
+        chosen one scrolled into view, and "Alle soorten" folds the strip out.
+      */}
+      <div className="field new-entry-types">
+        <div className="row" style={{ gap: '0.5rem', alignItems: 'baseline', marginBottom: '0.3rem' }}>
+          <span className="label" id="new-entry-type-label" style={{ margin: 0 }}>
+            {capitalise(words.entryType)}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-small new-entry-types-more"
+            aria-expanded={typesOpen}
+            onClick={() => setTypesOpen((current) => !current)}
+          >
+            {words.newEntryTypeMore}
+            <Icon name="chevron" size={12} className={typesOpen ? 'new-entry-types-caret-open' : undefined} />
+          </button>
+        </div>
+        <div
+          ref={typeStripRef}
+          className={`new-entry-types-strip${typesOpen ? ' new-entry-types-open' : ''}`}
+          role="radiogroup"
+          aria-labelledby="new-entry-type-label"
+        >
+          {types.map((type) => (
+            <button
+              key={type.slug}
+              type="button"
+              role="radio"
+              aria-checked={type.slug === typeSlug}
+              data-chosen={type.slug === typeSlug ? 'true' : undefined}
+              className={`chip chip-selectable${type.slug === typeSlug ? ' chip-active' : ''}`}
+              onClick={() => setTypeSlug(type.slug)}
+            >
+              <Icon name={type.icon} size={15} />
+              {type.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/*
+        §92 (C27): a dossier to put it in, from here — optional, and only where
+        the sheet was not already opened inside one (then it goes there, §49).
+        The open dossiers this hand may see, from the same list "Aan dossier
+        toevoegen" shows; the server asks the dossier's own dials again (§17).
+      */}
+      {!inCase && openCases.length > 0 && (
+        <div className="field row new-entry-case" style={{ gap: '0.5rem', alignItems: 'center' }}>
+          <label className="label" htmlFor="new-entry-case" style={{ margin: 0, flex: '0 0 auto' }}>
+            {fill(words.newEntryInCase, { dossier: words.case })}
+          </label>
+          <select
+            id="new-entry-case"
+            className="input"
+            style={{ flex: 1, minWidth: 0 }}
+            value={chosenCase}
+            onChange={(event) => setChosenCase(event.target.value)}
+          >
+            <option value="">{words.newEntryNoCase}</option>
+            {openCases.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="field">
-        <label className="label" htmlFor="new-entry-description">
+        <label className="label" id="new-entry-description-label" htmlFor="new-entry-description">
           Korte beschrijving
         </label>
-        <textarea
+        {/* §95: the same box as on the artikel's own page — a name picked
+            from the list is a chip with its artikel in it, and the artikel
+            this sheet makes is born with it. No room yet: it does not exist. */}
+        <ShortField
+          noRoom
+          ungated
+          field="shortDescription"
           id="new-entry-description"
-          ref={descriptionRef}
-          className="textarea"
+          className="textarea short-editor-sheet"
+          ariaLabelledBy="new-entry-description-label"
           value={description}
           placeholder={DESCRIPTION_PLACEHOLDER}
-          onChange={(event) => setDescription(event.target.value)}
-          rows={4}
+          onValue={(next) => setDescription(next)}
         />
-        {/* §48: `@` here too. Every plain box in the archive offers names now,
-            and the first description somebody writes is exactly where they
-            reach for one. */}
-        <MentionPopover forRef={descriptionRef} />
-        {/* §56: the names in the box are chips *in* the box, on an overlay
-            that mirrors its characters — and, since §54, on a row under it as
-            well, which is where a chip goes on reading it back. */}
-        <MentionOverlay forRef={descriptionRef} value={description} />
-        <MentionRow text={description} />
       </div>
+
+      {/*
+        §93 (E24): een stuk huisraad maken was negen handelingen, en de drie
+        velden die het tot huisraad maken kwamen pas ná het aanmaken — op een
+        telefoon onder de landkaart- en tijdlijnchips. Nu vraagt het blad ze
+        meteen, met dezelfde veldcomponenten als de infobox. Een eigen blok
+        onder de gewone velden, zodat de bovenkant van dit blad van ronde 53
+        blijft.
+      */}
+      {chosen?.shopFields && (
+        <section className="field new-entry-winkel" data-testid="new-entry-winkel" aria-labelledby="new-entry-winkel-title">
+          <h3 id="new-entry-winkel-title" className="label" style={{ margin: '0 0 0.4rem' }}>
+            {words.newFurnishing}
+          </h3>
+          <FieldsEditor
+            fields={chosen.shopFields}
+            values={shopValues}
+            onChange={(patch) => setShopValues((current) => ({ ...current, ...patch }))}
+          />
+        </section>
+      )}
 
       {/* §49: the one question left about the dossier. Not *whether* it goes in
           there — that is settled by being here — but whether every list in the

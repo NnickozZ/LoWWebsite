@@ -245,7 +245,7 @@ describe('a voorstel queue is not a back door into a hidden artikel', () => {
     expect(deps.canReview('e-van-bram', BRAM)).toBe(false);
     expect(deps.canReview('e-van-bram', KEEPER)).toBe(true);
     // What it would have handed over: the fiche's current words.
-    const queue = deps.listPendingEdits('e-van-bram');
+    const queue = deps.listPendingEdits('e-van-bram', KEEPER);
     expect(JSON.stringify(queue)).toContain('Wat hij die nacht zag');
   });
 

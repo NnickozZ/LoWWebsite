@@ -308,3 +308,66 @@
   align-items: center;
   gap: 0.6rem;
 }
+
+/* §93 de kamer, tweede pas: de eerste rij van een spelerspagina ----------- */
+
+/*
+ * Op je eigen pagina: wie je speelt, je beurs, en de twee deuren die je hier
+ * het vaakst neemt. Op die van een ander: *online* en wie hij speelt. Eén rij
+ * boven de panelen, zodat het antwoord op de vraag waarmee je binnenkomt boven
+ * de vouw staat — ook op een telefoon.
+ */
+.speler-eerste {
+  gap: 0.6rem 0.9rem;
+  align-items: center;
+  margin: 0.6rem 0 0;
+}
+.speler-eerste:empty {
+  display: none;
+}
+.speler-eerste-wie {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  min-height: var(--tap);
+}
+.speler-eerste-wie:hover .speler-eerste-naam {
+  text-decoration: underline;
+}
+.speler-eerste .btn {
+  min-height: var(--tap);
+}
+
+/*
+ * §93 (E22): onder elke regel van de hal de kamers van wie iemand draagt, als
+ * kleine deuren. Een eigen rij onder de deur en niet erin: een link in een
+ * link is geen HTML (§48).
+ */
+.spelers-kamers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.7rem;
+  padding: 0.15rem 0.7rem 0;
+  color: var(--ink-muted);
+}
+.spelers-kamer {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+}
+@media (hover: hover) and (min-width: 768px) {
+  /* Met een muis hoeft een tekstlink geen duim te dragen. */
+  .spelers-kamer {
+    min-height: 0;
+    padding: 0.15rem 0;
+  }
+}
+.speler-eerste-speelt {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}

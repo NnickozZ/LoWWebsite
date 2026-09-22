@@ -47,9 +47,20 @@ async function mention(page: Page, box: ReturnType<Page['locator']>, name: strin
   await box.pressSequentially(`@${name.split(' ')[0]}`, { delay: 30 });
   const hit = page.locator('.suggest-item').filter({ hasNotText: 'aanmaken' }).filter({ hasText: name }).first();
   await hit.click({ timeout: 20_000 });
-  await expect(box).toHaveValue(new RegExp(`\\[\\[${name}\\]\\]`), { timeout: 10_000 });
+  await expect(box.locator('.short-chip', { hasText: name })).toBeVisible({ timeout: 10_000 });
 }
 
+/*
+ * §95 (ronde 56): this box is no longer a textarea with a mirror over it. The
+ * korte beschrijving in the sheet is the one-line editor every short box is
+ * now, and the chip is a real element in it — so the three traps this spec
+ * was written for (letters drawn through the mirror, an invisible caret, a
+ * chip that swallows a drag) cannot happen here any more, and what is left to
+ * prove is the wish itself: a chip where the name stands, no brackets, a caret
+ * that selects, and a click that goes to the artikel. §56's mirror still hangs
+ * on the boxes outside this round (the maakbladen of a landkaart, a tijdlijn,
+ * a stamboom and the lead of an overzicht).
+ */
 test.describe('§56 een chipje in het vak zelf', () => {
   test('de beschrijving in de maak-sheet toont een klikbaar chipje in het vak', async ({ page }) => {
     test.setTimeout(240_000);
@@ -65,58 +76,21 @@ test.describe('§56 een chipje in het vak zelf', () => {
     await expect(lead).toBeVisible({ timeout: 20_000 });
     await mention(page, lead, target);
 
-    // 1. The chip is in the mirror, over the box — not only on the row under it.
-    const mirror = page.locator('.mention-mirror').first();
-    await expect(mirror).toBeVisible({ timeout: 20_000 });
-    const chip = mirror.locator('a.mention-live').filter({ hasText: target }).first();
+    // 1. The chip is in the box, and there are no brackets anywhere.
+    const chip = lead.locator('.short-chip').filter({ hasText: target }).first();
     await expect(chip).toBeVisible({ timeout: 20_000 });
+    await expect(lead).not.toContainText('[[');
+    await expect(page.locator('.mention-mirror')).toHaveCount(0);
 
-    // The mirror holds the box's characters, brackets included — that is what
-    // keeps the caret under its letter — and lies exactly over the box.
-    await expect(chip).toHaveText(`[[${target}]]`);
-    const boxBox = (await lead.boundingBox())!;
-    const mirrorBox = (await mirror.boundingBox())!;
-    expect(Math.abs(mirrorBox.x - boxBox.x)).toBeLessThan(1.5);
-    expect(Math.abs(mirrorBox.y - boxBox.y)).toBeLessThan(1.5);
-    expect(Math.abs(mirrorBox.width - boxBox.width)).toBeLessThan(1.5);
-
-    // 2. Trap one: the box's own text must not be drawn through the chip.
-    const ink = await lead.evaluate((el) => {
-      const style = getComputedStyle(el);
-      return { colour: style.color, fill: style.webkitTextFillColor, caret: style.caretColor };
-    });
-    expect(ink.colour === 'rgba(0, 0, 0, 0)' || ink.fill === 'rgba(0, 0, 0, 0)').toBe(true);
-
-    // 3. Trap two: the caret and the selection are still the box's, and visible.
-    expect(ink.caret).not.toBe('rgba(0, 0, 0, 0)');
+    // 2. The box's letters are its own, and the caret selects.
+    const ink = await lead.evaluate((el) => getComputedStyle(el).webkitTextFillColor);
+    expect(ink).not.toBe('rgba(0, 0, 0, 0)');
     await lead.click();
     await page.keyboard.press('ControlOrMeta+a');
-    const selected = await lead.evaluate((el) => {
-      const box = el as HTMLTextAreaElement;
-      return box.selectionEnd - box.selectionStart;
-    });
-    expect(selected).toBeGreaterThan(0);
-    // The mirror never takes the pointer where there is no chip, so the click
-    // above landed in the box.
+    expect(await page.evaluate(() => window.getSelection()?.toString().length ?? 0)).toBeGreaterThan(0);
     await expect(lead).toBeFocused();
 
-    // 4. Trap three: a drag that starts on the chip selects text; it does not
-    //    navigate and it is not swallowed.
-    const chipBox = (await chip.boundingBox())!;
-    const urlBefore = page.url();
-    await page.mouse.move(chipBox.x + 4, chipBox.y + chipBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(chipBox.x + chipBox.width - 2, chipBox.y + chipBox.height / 2, { steps: 8 });
-    await page.mouse.up();
-    await page.waitForTimeout(500);
-    expect(page.url()).toBe(urlBefore);
-    const dragged = await lead.evaluate((el) => {
-      const box = el as HTMLTextAreaElement;
-      return box.selectionEnd - box.selectionStart;
-    });
-    expect(dragged).toBeGreaterThan(0);
-
-    // 5. And a plain click on the chip goes to the artikel it names.
+    // 3. And a plain click on the chip goes to the artikel it names.
     await chip.click();
     await page.waitForURL(`**${new URL(targetUrl).pathname}`, { timeout: 20_000 });
   });

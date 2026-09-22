@@ -42,7 +42,9 @@ export function AdminTabs({ panes: given }: { panes: AdminPane[] }) {
     url.searchParams.set('tab', key);
     const next = `${url.pathname}${url.search}${url.hash}`;
     if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
-      window.history.replaceState(window.history.state, '', next);
+      // §94: `null`, not `history.state` — Next's patched replaceState only adopts
+      // the new address when the data carries no `__NA` (see lib/canvas/memory.ts).
+      window.history.replaceState(null, '', next);
     }
   }, []);
 

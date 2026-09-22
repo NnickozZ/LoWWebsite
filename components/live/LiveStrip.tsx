@@ -64,6 +64,14 @@ export function LiveStrip({ words }: { words: Words }) {
         data-testid="roster-open"
         onClick={() => setOpen((was) => !was)}
       >
+        {/* §96: on a computer the button says what it is — *Wie is er?*, the
+            count, the dot — instead of an unlabelled 12 px circle (§85's
+            leftover). Not on a canvas, whose heading keeps room for the strip
+            as it was; and never on a phone, where the corner is too narrow.
+            The accessible name is the same word, so nothing reads it twice. */}
+        <span className="live-strip-who" aria-hidden="true">
+          {words.presenceHeading}
+        </span>
         {here.length > 0 && (
           <span className="board-people" aria-label={`Ook hier: ${here.map((p) => p.name).join(', ')}`}>
             {here.slice(0, 6).map((person) => (

@@ -11,6 +11,7 @@ import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
 import { KIND_ICON, KIND_WORD, type KeeperKind, type KeeperRef } from '@/lib/keeper/kinds';
 import { KeeperSwitch } from './KeeperSwitch';
 import { KeeperTiePicker } from './KeeperTiePicker';
+import { PlayerSees } from './AsPlayer';
 
 /** One rope, with the id needed to cut it. */
 export type KeeperRope = { tieId: string; other: KeeperRef };
@@ -66,7 +67,13 @@ export function KeeperPanel(props: KeeperPanelProps) {
           twinTieId={twinTieId}
           ropes={ropes.map((rope) => rope.other)}
         />
-        <SideToggle kind={kind} id={id} keeperOnly={keeperOnly} hasTwin={Boolean(twin)} />
+        <SideToggle
+          kind={kind}
+          id={id}
+          keeperOnly={keeperOnly}
+          hasTwin={Boolean(twin)}
+          playerHref={keeperOnly && twin ? twin.href : undefined}
+        />
         <Ropes kind={kind} id={id} ropes={ropes} />
         <Notes kind={kind} id={id} notes={notes} live={live} sharedWith={twin} />
       </div>
@@ -81,11 +88,14 @@ function SideToggle({
   id,
   keeperOnly,
   hasTwin,
+  playerHref,
 }: {
   kind: KeeperKind;
   id: string;
   keeperOnly: boolean;
   hasTwin: boolean;
+  /** §96: where the table lands instead — the spelersversie, when there is one. */
+  playerHref?: string;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -140,6 +150,12 @@ function SideToggle({
           : `Zet dit aan en de pagina verdwijnt voor iedereen behalve de ${words.keeper}.`}
         {hasTwin && ' De andere kant blijft staan waar hij stond.'}
       </p>
+      {/* §96 (C35): the same answer in the table's terms. */}
+      <PlayerSees
+        words={words}
+        sentence={on ? words.keeperSeesPage : words.keeperSeesPageOff}
+        to={playerHref}
+      />
     </div>
   );
 }

@@ -181,13 +181,20 @@ describe('the panel registry', () => {
    * spullen bewaart, wie hij is, of hij er is, en dan twee lijsten.
    */
   it('is five panels with unique ids, in the order the page draws them', () => {
+    // §93: Aanwezig achteraan — het dubbelt de hal, en `panelsFor` kiest per pagina.
     expect(deps.SPELER_PANELS.map((p) => p.id)).toEqual([
       'kamer',
       'karakters',
-      'nu-bezig',
       'dossiers',
       'bijdragen',
+      'nu-bezig',
     ]);
+  });
+
+  it('draws your own page and somebody else\'s in a different order (§93)', async () => {
+    const { panelsFor } = await import('@/lib/spelers/panels');
+    expect(panelsFor(true).map((p) => p.id)).toEqual(['kamer', 'karakters', 'dossiers', 'bijdragen']);
+    expect(panelsFor(false).map((p) => p.id)).toEqual(['karakters', 'kamer', 'dossiers', 'bijdragen', 'nu-bezig']);
   });
 
   it('every panel has a title, and it comes out of the words', () => {

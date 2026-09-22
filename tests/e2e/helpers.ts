@@ -309,8 +309,28 @@ export async function fillWhenReady(field: Locator, text: string) {
   await expect(async () => {
     await field.fill(text);
     await field.page().waitForTimeout(300);
-    expect(await field.inputValue()).toBe(text);
+    expect(await boxValue(field)).toBe(text);
   }).toPass({ timeout: 20_000 });
+}
+
+/**
+ * §95: what a box holds, whichever kind it is. A korte beschrijving, a
+ * samenvatting and an infobox Tekst / Lange tekst are an editor now
+ * (`contenteditable`), and `inputValue()` throws on one — so this reads its
+ * text instead, a Lange tekst's line breaks included.
+ */
+export async function boxValue(field: Locator): Promise<string> {
+  return field.evaluate((el) => {
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return el.value;
+    return (el as HTMLElement).innerText.replace(/\u00a0/g, ' ').replace(/\n$/, '');
+  });
+}
+
+/** §95: `toHaveValue` for any box — an `<input>` or a short box's editor. */
+export async function expectBoxValue(field: Locator, text: string | RegExp, options: { timeout?: number } = {}) {
+  const poll = expect.poll(() => boxValue(field), { timeout: options.timeout ?? 10_000 });
+  if (typeof text === 'string') await poll.toBe(text);
+  else await poll.toMatch(text);
 }
 
 /**

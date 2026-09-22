@@ -4,9 +4,10 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { freshHref } from '@/lib/canvas/memory';
 
 /** What comes back when a stamboom has been made. */
 export type CreatedFamilyTree = { id: string; name: string; slug: string };
@@ -100,7 +101,8 @@ export function NewFamilyTreeSheet({
         onCreated(data.tree);
         return;
       }
-      router.push(`/stambomen/${data.tree.slug}`);
+      // §94 (O1): een vlak dat je net maakte opent in Bewerken.
+      router.push(freshHref(`/stambomen/${data.tree.slug}`));
       // §69: the shelf behind this sheet is server-rendered — without this the
       // Back button lands on the list from before this stamboom existed.
       router.refresh();
@@ -149,6 +151,7 @@ export function NewFamilyTreeSheet({
           <label className="label" htmlFor="new-family-tree-description">
             Omschrijving
           </label>
+          <div className="mention-field">
           <textarea
             id="new-family-tree-description"
             ref={descriptionRef}
@@ -160,7 +163,9 @@ export function NewFamilyTreeSheet({
           />
           <MentionPopover forRef={descriptionRef} />
           <MentionOverlay forRef={descriptionRef} value={description} />
-          <MentionRow text={description} />
+          {/* §92: out of focus, the chips without brackets; no row under it. */}
+          <MentionPreview forRef={descriptionRef} value={description} />
+          </div>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           Wie familie van wie is staat op de {words.entryPlural} zelf, in velden als Ouders en Partner. Een{' '}

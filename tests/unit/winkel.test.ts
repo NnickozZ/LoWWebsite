@@ -272,6 +272,7 @@ beforeAll(async () => {
 beforeEach(() => {
   sqlite.prepare('DELETE FROM room_ledger').run();
   sqlite.prepare('DELETE FROM room_slots').run();
+  sqlite.prepare('DELETE FROM room_drawer').run(); // §93
   sqlite.prepare('DELETE FROM rooms').run();
   ROOM = kamers.getOrCreateRoom('e-bram')!;
   ROOM_B = kamers.getOrCreateRoom('e-aagje')!;
@@ -323,22 +324,22 @@ describe('§82: de winkel is het eens met de catalogus', () => {
   });
 
   it('still agrees once this kamer owns something', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     agreesWithTheCatalogue(BRAM, ROOM);
     // And from the other kamer, where the same two rows read differently.
     agreesWithTheCatalogue(AAGJE, ROOM_B);
   });
 
   it('still agrees once somebody else has claimed a one-of-a-kind thing', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', AAGJE);
-    kamers.placeItem(plek(ROOM_B, FREE_MUUR).id, 'u-schilderij', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
+    kamers.placeItem(plek(ROOM_B, FREE_MUUR).id, 'u-schilderij', KEEPER);
     agreesWithTheCatalogue(BRAM, ROOM);
     agreesWithTheCatalogue(AAGJE, ROOM_B);
   });
 
   it('still agrees once the neighbours own the same stuk huisraad', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', KEEPER);
     agreesWithTheCatalogue(BRAM, ROOM);
   });
 
@@ -509,14 +510,14 @@ describe('§82: wat niet te koop is, staat niet in de winkel', () => {
 
 describe('§82: owned — alleen wat in déze kamer ligt', () => {
   it('flags what lies in this kamer and nothing else', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     const shop = kamers.shopFor(BRAM, ROOM);
     expect(shopItem(shop, 'h-stoel').owned).toBe(true);
     expect(shopItem(shop, 'h-duur').owned).toBe(false);
   });
 
   it('does not flag the neighbours’ copy as yours', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', KEEPER);
     expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel').owned).toBe(false);
     expect(shopItem(kamers.shopFor(AAGJE, ROOM_B), 'h-stoel').owned).toBe(true);
   });
@@ -524,7 +525,7 @@ describe('§82: owned — alleen wat in déze kamer ligt', () => {
   /** Two purses, two kamers: what one owns the other does not. */
   it('keeps owned per kamer, even for one pair of hands', () => {
     const rooms = kamers.roomsOf(DAAN);
-    kamers.placeItem(plek(rooms[0].id, FREE_PLANK).id, 'h-stoel', DAAN);
+    kamers.placeItem(plek(rooms[0].id, FREE_PLANK).id, 'h-stoel', KEEPER);
 
     expect(shopItem(kamers.shopFor(DAAN, rooms[0].id), 'h-stoel').owned).toBe(true);
     expect(shopItem(kamers.shopFor(DAAN, rooms[1].id), 'h-stoel').owned).toBe(false);
@@ -533,7 +534,7 @@ describe('§82: owned — alleen wat in déze kamer ligt', () => {
 
 describe('§82: takenElsewhere — alleen voor het ding waar er één van is', () => {
   it('flags a one-of-a-kind thing another kamer has claimed', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     expect(plek(ROOM_B, FREE_BUREAU).claim).toBe('u-bureaulamp');
 
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp');
@@ -543,7 +544,7 @@ describe('§82: takenElsewhere — alleen voor het ding waar er één van is', (
 
   /** And it is not "elsewhere" when it is here: the two flags never both stand. */
   it('says owned rather than taken when the claim is this kamer’s own', () => {
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp');
     expect(row.owned).toBe(true);
     expect(row.takenElsewhere).toBe(false);
@@ -554,7 +555,7 @@ describe('§82: takenElsewhere — alleen voor het ding waar er één van is', (
    * so somebody else's leesstoel takes nothing away from yours.
    */
   it('does not flag huisraad somebody else also owns', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', KEEPER);
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel');
     expect(row.takenElsewhere).toBe(false);
     expect(row.owned).toBe(false);
@@ -566,10 +567,18 @@ describe('§82: takenElsewhere — alleen voor het ding waar er één van is', (
   });
 
   /** A claim taken back frees the row again, for everybody. */
-  it('unflags it when the claim is given back', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', AAGJE);
+  /*
+   * §93 keerde de helft hiervan om. Weghalen gaf de claim terug aan de wereld,
+   * en een uniek stuk huisraad was daarna van niemand. Nu legt weghalen het in
+   * Aagjes lade: het blijft van haar, dus ook vergeven. Pas als het de lade
+   * uit gaat (hier met de hand, zoals de prullenbak het doet) is het weer vrij.
+   */
+  it('keeps it taken while it lies in the other kamer’s lade, and unflags it once it is gone', () => {
+    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').takenElsewhere).toBe(true);
     kamers.clearSlot(plek(ROOM_B, FREE_BUREAU).id, AAGJE);
+    expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').takenElsewhere).toBe(true);
+    sqlite.prepare('DELETE FROM room_drawer').run();
     expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').takenElsewhere).toBe(false);
   });
 });
@@ -596,7 +605,7 @@ describe('§82: landsIn — de plek waar het zou landen', () => {
 
   it('is empty when every open plek of that kind is full', () => {
     // The one free bureau, filled — and the other one still locked.
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-schrijfmap', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'h-schrijfmap', KEEPER);
     expect(plek(ROOM, PAID_BUREAU).unlockedAt).toBeNull();
     expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').landsIn.bureau).toBeUndefined();
   });
@@ -615,7 +624,7 @@ describe('§82: landsIn — de plek waar het zou landen', () => {
   it('still points somewhere for something this kamer already owns (§83)', () => {
     kamers.grant(ROOM, 50, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_PLANK).id, BRAM);
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     expect(plek(ROOM, PAID_PLANK).entryId).toBeNull();
     expect(shopItem(kamers.shopFor(BRAM, ROOM), 'h-stoel').landsIn.plank).toBe(plek(ROOM, PAID_PLANK).id);
   });
@@ -624,14 +633,14 @@ describe('§82: landsIn — de plek waar het zou landen', () => {
   it('points nowhere for a unique thing you already hold', () => {
     kamers.grant(ROOM, 50, 'sparen', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_BUREAU).id, BRAM);
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
     expect(plek(ROOM, PAID_BUREAU).entryId).toBeNull();
     expect(shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp').landsIn).toEqual({});
   });
 
   /** A plek it points at is always this kamer's, open and empty. */
   it('never points anywhere but at an open, empty plek of this kamer', () => {
-    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_PLANK).id, 'h-stoel', KEEPER);
     const here = new Map(slotsOf(ROOM).map((slot) => [slot.id, slot]));
     for (const row of kamers.shopFor(BRAM, ROOM).items) {
       for (const [kind, slotId] of Object.entries(row.landsIn)) {
@@ -791,7 +800,7 @@ describe('§82: de gekozen kamer — en die van een ander', () => {
 
   /** `owned` follows the fallback too: her shelves are not his. */
   it('reads your own shelves rather than the stranger’s', () => {
-    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_PLANK).id, 'h-stoel', KEEPER);
     const shop = kamers.shopFor(BRAM, ROOM_B);
     expect(shop.roomId).toBe(ROOM);
     expect(shopItem(shop, 'h-stoel').owned).toBe(false);
@@ -822,7 +831,7 @@ describe('§82: de gekozen kamer — en die van een ander', () => {
 describe('§82: elke vlag tegen de weigering waar hij over gaat', () => {
   it('means what it says about a thing another kamer has claimed', () => {
     kamers.grant(ROOM, 50, 'genoeg', KEEPER);
-    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', AAGJE);
+    kamers.placeItem(plek(ROOM_B, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
 
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp');
     expect(row.takenElsewhere).toBe(true);
@@ -839,7 +848,7 @@ describe('§82: elke vlag tegen de weigering waar hij over gaat', () => {
   it('means what it says about a unique thing you hold yourself', () => {
     kamers.grant(ROOM, 50, 'genoeg', KEEPER);
     kamers.unlockSlot(plek(ROOM, PAID_BUREAU).id, BRAM);
-    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', BRAM);
+    kamers.placeItem(plek(ROOM, FREE_BUREAU).id, 'u-bureaulamp', KEEPER);
 
     const row = shopItem(kamers.shopFor(BRAM, ROOM), 'u-bureaulamp');
     expect(row.owned).toBe(true);

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp } from './helpers';
+import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp, expectBoxValue } from './helpers';
 
 /**
  * §32: tijdlijnen.
@@ -110,10 +110,11 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await page.getByTestId('mention-pop').getByRole('option', { name: /Sister Clasina/ }).click();
   await expect(bound).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]] en [[Sister Clasina]] ');
   await expect(edit.getByText('wordt meteen bewaard')).toBeVisible();
-  // Round 21: a textarea cannot hold a chip, so the sheet prints what the
-  // writing refers to underneath it — clickable while you type.
-  await expect(edit.getByText('Verwijst naar')).toBeVisible();
-  await expect(edit.locator('.entry-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
+  // §92: no row under the box any more ("Verwijst naar", §54). Out of focus
+  // the box shows its own chips, without brackets — leave it and look.
+  await page.keyboard.press('Tab');
+  await expect(edit.getByText('Verwijst naar')).toHaveCount(0);
+  await expect(edit.getByTestId('mention-preview').locator('.entry-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
   // The last edit leaves in the next batch (`UPDATE_BATCH_MS`, 80 ms); a
   // sheet closed inside that window takes it with it. Older than this round.
   await page.waitForTimeout(300);
@@ -247,11 +248,12 @@ test('a private tijdlijn is nobody else\'s, and the bin gives one back', async (
   expect(response?.status()).toBe(404);
   await other.close();
 
-  // Into the bin from its settings, and back out from Beheer.
-  await page.getByTestId('timeline-settings').click();
-  await page.getByRole('button', { name: 'Tijdlijn verwijderen' }).click();
-  const ask = page.getByRole('dialog', { name: new RegExp(`${name} in de prullenbak`) });
-  await ask.getByRole('button', { name: 'In de prullenbak' }).click();
+  // Into the bin, and back out from Beheer. §94 (C11): the bin is the folded
+  // lade below the axis now, the same `BinSlot` all four surfaces have.
+  const bin = page.getByTestId('timeline-bin');
+  await bin.scrollIntoViewIfNeeded();
+  await bin.locator('summary').click();
+  await bin.getByTestId('timeline-bin-button').click();
   await page.waitForURL('**/timelines');
   await expect(page.getByText(name)).toHaveCount(0);
 
@@ -326,7 +328,7 @@ test('a gebeurtenis is dragged along the axis, and the artikel moves with it', a
   await page.getByTestId('timeline-read-more').click();
   await page.waitForURL('**/e/**');
   await editArticle(page);
-  await expect(page.locator('#field-date')).toHaveValue(moved);
+  await expectBoxValue(page.locator('#field-date'), moved);
 
   // Back on the tijdlijn it is still there, from the archive and not from
   // this tab's memory: the address is asked for again from the top, so what
@@ -421,7 +423,8 @@ test('een gebeurtenis gaat er in één klik af, en komt terug', async ({ page },
    * came back with it — the whole point of burying the row rather than
    * deleting it and re-making one.
    */
-  await page.reload();
+  // §94 (C5): the bare address — `?event=` would fold the window out again.
+  await page.goto(new URL(page.url()).pathname);
   await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
   await page.locator('.timeline-tag').first().click();
   await expect(page.getByTestId('timeline-popout')).toContainText(what);
@@ -539,7 +542,9 @@ test('een geplakte afbeelding wordt een losse gebeurtenis met die afbeelding', a
   // The picture survives a reload: it is on the gebeurtenis, not in this tab.
   // The tag is what is clicked — a `.timeline-event` is a positioning box with
   // its stem and its tag inside it, and has no box of its own to aim at.
-  await page.reload();
+  // §94 (C5): the bare address — with `?event=` the window is already out,
+  // and the click below would fold it back in.
+  await page.goto(new URL(page.url()).pathname);
   await page.getByTestId('timeline-event').first().locator('.timeline-tag').click();
   await expect(page.getByTestId('timeline-popout').locator('img')).toHaveCount(1);
 });

@@ -8,6 +8,8 @@ loadEnv();
 
 const { openDb, assetsDir } = await import('../lib/db/open.mjs');
 const { readZip } = await import('../lib/zip.mjs');
+const { upgradeArchive } = await import('../lib/entries/shortUpgrade.mjs');
+const { projectShort } = await import('../lib/entries/shortTokens.mjs');
 
 const file = process.argv[2];
 if (!file || !existsSync(file)) {
@@ -65,8 +67,44 @@ const restore = db.transaction(() => {
     for (const row of rows) insert.run(row);
   }
 
+  /*
+   * §93: a backup made before migration 0033 has no `room_drawer` at all, and
+   * the loop above only touches tables the zip carries — so the drawers of the
+   * archive being replaced would survive, pointing at kamers that no longer
+   * exist. Before 0033 nothing lay in a drawer (the migration invents no
+   * ownership), so an old backup restores with every drawer empty.
+   */
+  if (knownTables.has('room_drawer') && !zip.has('json/room_drawer.json')) {
+    db.prepare('DELETE FROM room_drawer').run();
+  }
+
+  /*
+   * §95: a backup made before migration 0034 holds its short texts as the
+   * letters `[[Naam]]` / `@Naam` and carries no `mention_handles` — while the
+   * archive it lands in has the migration behind it and will never run it
+   * again. So the handles of the archive being replaced go (they point into a
+   * database that is no longer there), and the same conversion the migration
+   * makes runs here, on the restored rows. A backup made after 0034 carries its
+   * own handles and its texts already hold them; it is left exactly as it was.
+   */
+  let migrations = [];
+  try {
+    migrations = JSON.parse(zip.get('json/schema_migrations.json')?.toString('utf8') ?? '[]');
+  } catch {
+    migrations = [];
+  }
+  const knowsHandles = zip.has('json/mention_handles.json') || migrations.some((row) => row?.name === '0034_een_id');
+  if (knownTables.has('mention_handles') && !knowsHandles) {
+    db.prepare('DELETE FROM mention_handles').run();
+    upgradeArchive(db);
+  }
+
   // Rebuild the search index rather than trusting a backed-up copy of it.
   db.prepare('DELETE FROM entries_fts').run();
+  const handleName = knownTables.has('mention_handles')
+    ? db.prepare('SELECT e.name AS name FROM mention_handles h JOIN entries e ON e.id = h.entry_id WHERE h.handle = ?')
+    : null;
+  const nameOfHandle = (handle) => handleName?.get(handle)?.name ?? null;
   const reindex = db.prepare(
     'INSERT INTO entries_fts (entry_id, name, short_description, body_text, tags) VALUES (?, ?, ?, ?, ?)',
   );
@@ -79,7 +117,8 @@ const restore = db.transaction(() => {
     } catch {
       tags = [];
     }
-    reindex.run(entry.id, entry.name, entry.short_description, entry.body_text, tags.join(' '));
+    // §95: the names of a short text's chips, not its handles.
+    reindex.run(entry.id, entry.name, projectShort(entry.short_description ?? '', nameOfHandle), entry.body_text, tags.join(' '));
   }
 });
 

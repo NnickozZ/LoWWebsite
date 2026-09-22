@@ -6,6 +6,7 @@ import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { cardRef, normaliseState, type BoardCard } from '@/lib/boards/merge';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { extractEntryLinks } from './doc';
+import { legacySpans } from './shortTokens.mjs';
 import { sideCondition } from '@/lib/keeper/side';
 import { listTimelines } from '@/lib/timelines/service';
 import { livePinCondition } from '@/lib/maps/service';
@@ -200,54 +201,13 @@ export type MentionSpan = {
   source: 'bracket' | 'at';
 };
 
-/** Where the n-th whitespace-separated word of `rest` ends, counted in `rest`. */
-function endOfWord(rest: string, n: number): number {
-  const word = /\S+/g;
-  let end = 0;
-  for (let i = 0; i < n; i++) {
-    const m = word.exec(rest);
-    if (!m) break;
-    end = m.index + m[0].length;
-  }
-  return end;
-}
-
+/**
+ * §95: the reading itself now lives in `shortTokens.mjs` (`legacySpans`), so
+ * that migration `0034_een_id` converts a short text with *exactly* the
+ * algorithm the reader used — one reading, three callers.
+ */
 export function mentionSpans(text: string, byName: ReadonlyMap<string, string>): MentionSpan[] {
-  if (!text) return [];
-  const spans: MentionSpan[] = [];
-  const idFor = (name: string) => byName.get(name.trim().toLowerCase()) ?? null;
-
-  for (const match of text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) {
-    const start = match.index ?? 0;
-    spans.push({ start, end: start + match[0].length, name: match[1].trim(), entryId: idFor(match[1]), source: 'bracket' });
-  }
-
-  /*
-   * The `@` scan walks the text one `@` at a time rather than matching a
-   * hundred and twenty characters at once, which is what it used to do — and
-   * which quietly meant that only the first `@` of every such window was ever
-   * read: "@Jan en @Piet" found Jan and lost Piet. Each `@` now gets its own
-   * look, and the scan resumes after whatever it took.
-   */
-  for (let at = text.indexOf('@'); at !== -1; at = text.indexOf('@', at + 1)) {
-    if (spans.some((s) => at >= s.start && at < s.end)) continue;
-    const line = text.slice(at + 1, at + 1 + 120).split('\n')[0];
-    const words = line.split(/\s+/).filter(Boolean).slice(0, 8);
-    // Longest first: a name is allowed to contain another name.
-    for (let n = words.length; n > 0; n--) {
-      // Trailing punctuation belongs to the sentence, not to the name.
-      const raw = words.slice(0, n).join(' ');
-      const candidate = raw.replace(/[.,;:!?)\]}'"]+$/, '');
-      const id = idFor(candidate);
-      if (!id) continue;
-      const end = at + 1 + endOfWord(line, n) - (raw.length - candidate.length);
-      spans.push({ start: at, end, name: candidate, entryId: id, source: 'at' });
-      at = end - 1;
-      break;
-    }
-  }
-
-  return spans.sort((a, b) => a.start - b.start);
+  return legacySpans(text, byName);
 }
 
 /**

@@ -20,11 +20,14 @@ import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
+import { CanvasFind } from '@/components/canvas/CanvasFind';
+import type { Findable } from '@/lib/canvas/find';
 import { useFloatBox } from '@/components/canvas/useFloatBox';
 import { clampFloat } from '@/lib/canvas/clamp';
 import type { AccessSettings } from '@/lib/access';
 import { groupDelta, pressSelection } from '@/lib/canvas/select';
-import { passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
+import { centreView, passedSlop, readableFit, readingFloor, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
+import { CHOICE_PARAM, readCamera, readChoice, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { FRAME_LABELS } from '@/lib/families/frames';
 import {
   betweenBoxes,
@@ -65,7 +68,7 @@ import {
 } from '@/lib/families/types';
 import type { InkLayerView } from '@/lib/ink/types';
 import { entryKey, familyTreeKey } from '@/lib/live/keys';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 import { usePinch } from '@/components/canvas/usePinch';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
@@ -174,6 +177,11 @@ export type FamilyTreeCanvasProps = {
 const POINTER_CARD_LIMIT = 40;
 /** The stage before it has been measured; the floor lives in `.tree-stage`. */
 const UNMEASURED = { width: 900, height: 520 };
+/**
+ * §94 (C7): the zoom a stamboom opens at, at least — where a name
+ * (`.tree-node-name`, 0.86rem ≈ 14 world px) is ten screen pixels.
+ */
+const TREE_READ_FLOOR = readingFloor(14);
 
 /** What one commit may change. Absence is never a deletion; a tombstone is (§61). */
 type TreeChange = Partial<Pick<FamilyTreeState, 'members' | 'loose' | 'ties'>> & {
@@ -587,17 +595,15 @@ export function FamilyTreeCanvas({
     refreshArchive();
   }, [canEdit, setState, refreshArchive, clearSelection]);
 
-  /** Every viewer's own glass, in their own browser. Never state (rule 20). */
-  const viewKey = `tree:${tree.id}:view`;
+  /**
+   * Every viewer's own glass, in their own browser. Never state (rule 20).
+   * §94 (C5): per tab now (`sessionStorage`, `lib/canvas/memory.ts`), the same
+   * road the other three take — it was `localStorage` since §66, which also
+   * meant a stamboom opened next week on last week's corner.
+   */
   const rememberView = useCallback(
-    (next: TreeView) => {
-      try {
-        window.localStorage.setItem(viewKey, JSON.stringify(next));
-      } catch {
-        /* a browser without storage still pans */
-      }
-    },
-    [viewKey],
+    (next: TreeView) => writeCamera('family_tree', tree.id, next),
+    [tree.id],
   );
   const moveView = useCallback(
     (make: (current: TreeView) => TreeView) => {
@@ -815,19 +821,72 @@ export function FamilyTreeCanvas({
   }, [base.bounds, size, rememberView]);
 
   const startedView = useRef(false);
+  /** §94 (C5): whether the address's `?node=` has been read yet. */
+  const choiceRead = useRef(false);
   useEffect(() => {
-    if (startedView.current || size.width <= 0 || !graph.nodes.length) return;
+    // §94: not on the guess (`UNMEASURED`, 900 wide) — a first view worked
+    // out for a stage that is not there put a phone's chosen card off the glass.
+    if (startedView.current || size === UNMEASURED || size.width <= 0 || !graph.nodes.length) return;
     startedView.current = true;
-    let stored: unknown = null;
-    try {
-      const raw = window.localStorage.getItem(viewKey);
-      stored = raw ? JSON.parse(raw) : null;
-    } catch {
-      stored = null;
-    }
+    const stored = readCamera('family_tree', tree.id, isTreeView);
+    /*
+     * §94 (C5): `?node=` chooses a card — the one Back left, or the one the
+     * door on an artikel ("In stamboom: …") asked for. A camera this tab left
+     * here wins (Back lands exactly where it was); without one, the card is
+     * brought to the middle at a zoom a name can be read at.
+     */
+    const asked = readChoice(CHOICE_PARAM.family_tree);
+    const node = asked ? graph.nodes.find((one) => one.id === asked && one.standing !== 'ghost') : undefined;
+    choiceRead.current = true;
+    if (node) selectOne(node.id);
     if (isTreeView(stored)) setView({ ...stored, zoom: clampZoom(stored.zoom) });
-    else setView(fitViewport(base.bounds, size));
-  }, [size, graph.nodes.length, base.bounds, viewKey]);
+    else if (node && base.positions[node.id]) {
+      const at = base.positions[node.id];
+      const card = sizes[node.id] ?? NODE_SIZE.mortal;
+      setView(centreView({ x: at.x + card.width / 2, y: at.y + card.height / 2 }, size, Math.max(1, TREE_READ_FLOOR)));
+    }
+    // §94 (C7): a readable start, never names of five pixels.
+    else setView(readableFit(base.bounds, size, TREE_READ_FLOOR));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size, graph.nodes.length, base.bounds, tree.id]);
+  /*
+   * §94 (C4): vinden op de stamboom. Every kaartje that stands in it (a ghost
+   * is not in it, so it is not offered), by the name it wears; a pick brings
+   * it to the middle at a zoom a name can be read at, and chooses it — so the
+   * `+`s hang off it straight away.
+   */
+  const findable = useMemo<Findable[]>(
+    () =>
+      graph.nodes
+        .filter((node) => node.standing !== 'ghost')
+        .map((node) => ({
+          id: node.id,
+          name: node.name,
+          hint: node.kind === 'entry' ? node.typeLabel : capitalise(words.looseCard),
+          icon: node.kind === 'entry' ? (node.icon ?? 'person') : 'note',
+        })),
+    [graph.nodes, words.looseCard],
+  );
+  const findNode = useCallback(
+    (id: GraphNodeId) => {
+      const at = layoutRef.current.positions[id];
+      if (!at || size.width <= 0) return;
+      const card = sizesRef.current[id] ?? NODE_SIZE.mortal;
+      const next = centreView(
+        { x: at.x + card.width / 2, y: at.y + card.height / 2 },
+        size,
+        Math.max(viewRef.current?.zoom ?? 1, TREE_READ_FLOOR, 1),
+      );
+      setView(next);
+      rememberView(next);
+      selectOne(id);
+    },
+    [size, rememberView, selectOne],
+  );
+  // §94 (C5): the one card chosen is in the address, so Back chooses it again.
+  useEffect(() => {
+    if (choiceRead.current) writeChoice(CHOICE_PARAM.family_tree, onlySelected);
+  }, [onlySelected]);
   // An empty tree still needs a view, or nothing has coordinates at all.
   useEffect(() => {
     if (view === null && size.width > 0 && !graph.nodes.length) setView({ x: 0, y: 0, zoom: 1 });
@@ -2395,6 +2454,17 @@ export function FamilyTreeCanvas({
             Alleen kijken
           </span>
         )}
+        {/* §94 (C4): always in the row — in Lezen too, where finding is what
+            a reader does; it writes nothing, so it never asks §18b. */}
+        <CanvasFind
+          items={findable}
+          onFind={findNode}
+          group={fill(words.findOnTree, { stamboom: words.familyTree })}
+          testId="tree-find"
+          /* In Bewerken the row already has a box — the one that *adds*
+             somebody — so finding is a loep beside it, never a second box. */
+          compact={editOn}
+        />
 
         <span className="spacer" />
 

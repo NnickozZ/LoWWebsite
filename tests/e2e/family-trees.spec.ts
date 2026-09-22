@@ -334,7 +334,8 @@ test('de handgreep onderaan maakt een kind, en dat is een veld op allebei de art
   await expect(childCard).not.toHaveClass(/is-selected/);
   await name0.click();
   await expect(childCard).toHaveClass(/is-selected/);
-  expect(page.url()).toBe(treeUrl);
+  // §94 (C5): choosing writes `?node=` into the address; the page stays put.
+  expect(new URL(page.url()).pathname).toBe(new URL(treeUrl).pathname);
 
   // The line is not stored in the tree: it is a field, on both pages, because
   // the server mirrors. The child's own page first.

@@ -139,7 +139,10 @@ test('§73/§74: een bureau opent in Bewerken, een telefoon in Lezen met een pee
   /* ---- the map above the peek is still the map: a tap on bare paper puts it away ---- */
   const stage = (await page.locator('.map-stage').boundingBox())!;
   const top = (await page.locator('.canvas-peek').boundingBox())!.y;
-  const bare = { x: stage.x + stage.width * 0.12, y: stage.y + (top - stage.y) * 0.5 };
+  // §94 (O6): a notitie's peek shows its words now, not two boxes, so it is
+  // shorter and the half-way line lands on the spelden' labels — aim near the
+  // top of the glas instead, which is bare paper at any height of peek.
+  const bare = { x: stage.x + stage.width * 0.12, y: stage.y + Math.min(40, (top - stage.y) * 0.2) };
   const hit = await page.evaluate(({ x, y }) => {
     const el = document.elementFromPoint(x, y);
     return { inStage: Boolean(el?.closest('.map-stage')), onPin: Boolean(el?.closest('.map-pin')) };

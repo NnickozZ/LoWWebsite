@@ -10,6 +10,7 @@ import { capitalise } from '@/lib/words';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { BoardCard } from '@/lib/boards/merge';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
+import { findOnCanvas, type Findable } from '@/lib/canvas/find';
 
 /** Anything the wall can be told to point at: an id and a name, no more. */
 export type PickableItem = { id: string; name: string };
@@ -57,6 +58,9 @@ export function BoardPicker({
   onCreateEntry,
   onCancel,
   style,
+  findable,
+  findGroup,
+  onFind,
 }: {
   /**
    * `bar` is the search box in the board's toolbar, which is always there and
@@ -94,6 +98,14 @@ export function BoardPicker({
   /** Escape, or a click on nothing. Only the floating one has one. */
   onCancel?: () => void;
   style?: React.CSSProperties;
+  /**
+   * §94 (C4): what already hangs on this wall, by the name it shows. The bar
+   * lists the matches as its **top** group ("Op dit prikbord"); a pick zooms to
+   * the card and chooses it rather than hanging a second one.
+   */
+  findable?: Findable[];
+  findGroup?: string;
+  onFind?: (cardId: string) => void;
 }) {
   const ui = useUi();
   const [search, setSearch] = useState('');
@@ -176,6 +188,10 @@ export function BoardPicker({
   ]);
 
   const typed = search.trim();
+  const found = useMemo(
+    () => (variant === 'bar' && findable && onFind ? findOnCanvas(findable, typed, 5) : []),
+    [variant, findable, onFind, typed],
+  );
 
   /** Every pick clears the box: the picker is finished with, either way. */
   const after = (run: () => void) => {
@@ -308,6 +324,17 @@ export function BoardPicker({
       )}
       {typed && (
         <ul className="suggest-list" style={{ position: 'absolute', zIndex: 30, left: 0, right: 0 }}>
+          {/* §94 (C4): what is already up comes first — finding before adding. */}
+          {found.length > 0 && (
+            <li className="suggest-group tiny muted" data-testid="board-find-group">
+              {findGroup}
+            </li>
+          )}
+          {found.map((item) =>
+            row(`on-${item.id}`, item.icon ?? 'crosshair', 'var(--ink-muted)', item.name, item.hint ?? '', () =>
+              onFind?.(item.id),
+            ),
+          )}
           {suggestions.map((item) =>
             row(item.id, item.typeIcon, item.typeColour, item.name, item.typeLabel, () =>
               onPickEntry(item),

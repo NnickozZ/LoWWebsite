@@ -8,6 +8,8 @@ import { useUi } from '@/components/ui/UiProvider';
 import { KIND_ICON, type KeeperKind, type KeeperRef } from '@/lib/keeper/kinds';
 import { createTwinAction } from './actions';
 import { KeeperTiePicker } from './KeeperTiePicker';
+import { PlayerSees } from './AsPlayer';
+import { fill } from '@/lib/words';
 
 /**
  * §44: the button between the two faces.
@@ -194,6 +196,16 @@ export function KeeperSwitch({
         </div>
       )}
     </div>
+    {/* §96 (C35): what the table sees, in their terms — and the way to look. */}
+    {(!keeperOnly || twin) && (
+      <PlayerSees
+        words={words}
+        sentence={fill(keeperOnly ? words.keeperSeesTwinOwn : words.keeperSeesTwin, {
+          versie: (keeperOnly ? words.playerVersion : words.keeperVersion).toLowerCase(),
+        })}
+        to={keeperOnly && twin ? twin.href : undefined}
+      />
+    )}
     {/* §53: the picker for the other face, under the row rather than in a
         popover — it is a search box with a list, and a list of pages is a
         thing to read. */}

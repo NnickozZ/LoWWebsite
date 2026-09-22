@@ -6,7 +6,7 @@ import { AccessEditor } from '@/components/access/AccessEditor';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
-import { MentionOverlay, MentionPopover, MentionRow } from '@/components/ui/MentionPopover';
+import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
@@ -449,6 +449,7 @@ export function NewEventSheet({
             <label className="label" htmlFor="new-event-text">
               Wat de {words.timeline} erover zegt
             </label>
+            <div className="mention-field">
             <textarea
               id="new-event-text"
               ref={newTextRef}
@@ -461,7 +462,9 @@ export function NewEventSheet({
             <MentionPopover forRef={newTextRef} />
             {/* §56: a chip over the name in the box itself. */}
             <MentionOverlay forRef={newTextRef} value={text} />
-            <MentionRow text={text} />
+            {/* §92: out of focus, the chips without brackets; no row under it. */}
+            <MentionPreview forRef={newTextRef} value={text} />
+            </div>
           </div>
           <p style={{ margin: 0 }}>
             <button type="button" className="btn btn-primary" disabled={!ready || !mayType} onClick={() => void submit()} data-testid="new-event-submit">
@@ -675,7 +678,6 @@ function EditEventBody({
           Wat de {words.timeline} erover zegt
         </label>
         <LiveField as="textarea" field="text" id="event-text" className="input" rows={4} value={text} onValue={(next) => setText(next)} mentions />
-        <MentionRow text={text} />
         {shared ? (
           <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
             Wat je hier typt wordt meteen bewaard en ziet iedereen op deze {words.timeline}.
@@ -837,7 +839,8 @@ export function TimelineSettingsSheet({
     anchorAt?: number | null;
     anchorUnit?: AnchorUnit | null;
   }) => Promise<boolean>;
-  onDelete: () => void;
+  /** §94 (C11): gone from the sheet — the page's `BinSlot` is the one road. Optional for that reason. */
+  onDelete?: () => void;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -1097,16 +1100,20 @@ export function TimelineSettingsSheet({
         nouns={{ this: `deze ${words.timeline}` }}
       />
 
-      <hr style={{ border: 0, borderTop: '1px solid var(--rule)', margin: '0.2rem 0' }} />
-      <div className="row-wrap">
-        <span className="tiny muted" style={{ flex: 1 }}>
-          In de prullenbak kan de {words.keeper} hem terugzetten of voorgoed weghalen.
-        </span>
-        <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={onDelete}>
-          <Icon name="trash" size={14} />
-          {cap(words.timeline)} verwijderen
-        </button>
-      </div>
+      {onDelete && (
+        <>
+          <hr style={{ border: 0, borderTop: '1px solid var(--rule)', margin: '0.2rem 0' }} />
+          <div className="row-wrap">
+            <span className="tiny muted" style={{ flex: 1 }}>
+              In de prullenbak kan de {words.keeper} hem terugzetten of voorgoed weghalen.
+            </span>
+            <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={onDelete}>
+              <Icon name="trash" size={14} />
+              {cap(words.timeline)} verwijderen
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

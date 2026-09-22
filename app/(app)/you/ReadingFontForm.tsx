@@ -24,8 +24,13 @@ import { setReadingFontAction, type ReadingFontState } from './actions';
  * The chosen face lands on the whole archive by way of the signed-in layout,
  * which reads it off the session, so this page changes with everything else
  * the moment the action returns.
+ *
+ * §96 (S18): one compact row under the karakters on `/you` — the label, the
+ * chips, and the specimen line under them. The note about what stays in the
+ * archive's own letter moved into the group's `title`; it was a paragraph
+ * between you and the next setting on every visit.
  */
-export function ReadingFontForm({ current }: { current: ReadingFont }) {
+export function ReadingFontForm({ current, label }: { current: ReadingFont; label: string }) {
   const [state, action, pending] = useActionState<ReadingFontState, FormData>(
     setReadingFontAction,
     {},
@@ -38,8 +43,16 @@ export function ReadingFontForm({ current }: { current: ReadingFont }) {
     READING_FONT_CHOICES.find((item) => item.value === showing) ?? READING_FONT_CHOICES[0];
 
   return (
-    <form action={action}>
-      <div className="row-wrap" role="group" aria-label="Lettertype om in te lezen">
+    <form action={action} className="you-pref" id="lettertype">
+      <div
+        className="row-wrap you-pref-row"
+        role="group"
+        aria-label="Lettertype om in te lezen"
+        title="De stempels, de tabbladen en de letter op een omslag blijven staan — die zijn het archief zelf."
+      >
+        <span className="label you-pref-label" aria-hidden="true">
+          {label}
+        </span>
         {READING_FONT_CHOICES.map((item) => {
           const on = item.value === chosen;
           return (
@@ -67,19 +80,13 @@ export function ReadingFontForm({ current }: { current: ReadingFont }) {
       </div>
 
       <p
-        className="small"
+        className="tiny you-pref-hint"
         style={{
-          margin: '0.55rem 0 0',
           fontFamily: readingFontStack(showing),
           color: showing === chosen ? 'var(--ink-muted)' : 'var(--ink)',
         }}
       >
         {choice.hint}
-      </p>
-
-      <p className="tiny muted" style={{ margin: '0.35rem 0 0' }}>
-        De stempels, de tabbladen en de letter op een omslag blijven staan — die zijn het archief
-        zelf.
       </p>
 
       {state.error && <p className="error-note">{state.error}</p>}
