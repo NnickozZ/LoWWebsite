@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Icon } from '@/components/Icon';
 import { flipsNeeded } from '@/lib/canvas/clamp';
+import { AUTHOR_GATE_OFF, useCanvasMaker } from '@/components/canvas/useCanvasAuthorGate';
 import { useUi } from '@/components/ui/UiProvider';
 
 /**
@@ -81,6 +82,13 @@ export function TreeHandles({
   nodeName: string;
 }) {
   const ui = useUi();
+  /*
+   * §101: de vier `+`s zijn maakknoppen, dus ze vragen §18b's vraag zélf en
+   * vóórdat ze de kiezer openen. Ze hingen aan de schrijfvraag van het hele
+   * vlak, en die komt op de `pointerdown`: het blad stond er, de `click` erna
+   * landde op de achtergrond, en *+ Ouder* moest twee keer. Gemeten in rij 18.
+   */
+  const maker = useCanvasMaker();
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -165,7 +173,9 @@ export function TreeHandles({
           aria-label={`${offer.label} bij ${nodeName}`}
           aria-describedby={offer.enabled ? undefined : `tree-handle-hint-${offer.role}`}
           onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => offer.enabled && onAdd(offer.role)}
+          {...maker(() => {
+            if (offer.enabled) onAdd(offer.role);
+          })}
         >
           <Icon name={glyph[offer.role]} size={14} />
           <span className="tree-handle-word" aria-hidden="true">
@@ -278,6 +288,9 @@ function TreeCornerMenu({
         type="button"
         className="tree-handle tree-handle-menu"
         data-testid="tree-handle-menu"
+        /* §101: het openklappen van een lijstje is kijken. Wat eruit gekozen
+           wordt schrijft soms wél, en vraagt op zijn eigen regel. */
+        {...AUTHOR_GATE_OFF}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label={label}
@@ -302,6 +315,7 @@ function TreeCornerMenu({
           role="menu"
           aria-label={label}
           data-testid="tree-menu"
+          {...AUTHOR_GATE_OFF}
         >
           {menu.map((item) => (
             <button
@@ -355,10 +369,13 @@ export function TreeSharedHandle({
   enabled: boolean;
   onAdd: () => void;
 }) {
+  const ui = useUi();
+  /* §101: een maakknop, dus dezelfde weg als de vier `+`s hierboven. */
+  const maker = useCanvasMaker();
   return (
     <button
       type="button"
-      className="tree-handle tree-handle-both"
+      className="tree-handle tree-handle-worded tree-handle-both"
       data-testid="tree-handle-child-both"
       style={{ left: at.x, top: at.y, transform: `translate(-50%, -50%) scale(${1 / (zoom || 1)})` }}
       disabled={!enabled}
@@ -366,9 +383,15 @@ export function TreeSharedHandle({
       aria-label={label}
       aria-describedby={enabled ? undefined : 'tree-handle-hint-both'}
       onPointerDown={(event) => event.stopPropagation()}
-      onClick={() => enabled && onAdd()}
+      {...maker(() => {
+        if (enabled) onAdd();
+      })}
     >
       <Icon name="plus" size={16} />
+      {/* §99 (C8-restant): the shared `+` says what it makes, as the four do. */}
+      <span className="tree-handle-word" aria-hidden="true">
+        {ui.words.treeHandleBoth}
+      </span>
       {!enabled && hint && (
         <span className="visually-hidden" id="tree-handle-hint-both">
           {hint}

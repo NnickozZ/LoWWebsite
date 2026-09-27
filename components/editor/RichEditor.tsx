@@ -22,6 +22,9 @@ import type { LiveUser } from './useLiveDoc';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
+import { knownChip, rememberChip, requestChips, usePageChips, type ShortChip } from '@/components/ui/ShortChips';
+import type { Editor } from '@tiptap/core';
+import type { EntryLinkChips } from './EntryLink';
 
 /**
  * §20: when the text is a room, the editor binds to the shared Yjs document
@@ -171,6 +174,68 @@ export function RichEditor({
   /** Opens the New entry sheet and resolves with the created entry (§95: shared with the short boxes). */
   const requestCreate = useRequestCreate();
 
+  /*
+   * §97: a reference in the running text is a handle, and its name comes from
+   * the page (`ShortChips`) or from `/api/mentions` — the same two roads a short
+   * box has. Through a ref, because the node views are made once per node and
+   * would otherwise keep the page's answer as it was at that moment.
+   */
+  const page = usePageChips();
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const repaints = useRef(new Set<() => void>());
+  const chipsRef = useRef<EntryLinkChips | null>(null);
+  if (!chipsRef.current) {
+    chipsRef.current = {
+      known: (handle) => knownChip(pageRef.current, handle),
+      request: (handles) => requestChips(handles),
+      subscribe: (repaint) => {
+        repaints.current.add(repaint);
+        return () => repaints.current.delete(repaint);
+      },
+    };
+  }
+  useEffect(() => {
+    for (const repaint of repaints.current) repaint();
+  }, [page]);
+
+  const insertLink = useCallback(async (instance: Editor, entry: SuggestionEntry) => {
+    let handle: string | null = null;
+    let chip: ShortChip | null = null;
+    try {
+      const response = await fetch('/api/mentions/handle', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ entryId: entry.id }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { handle?: string; chip?: ShortChip | null };
+        handle = data.handle ?? null;
+        chip = data.chip ?? null;
+      }
+    } catch {
+      /* offline */
+    }
+    if (instance.isDestroyed) return;
+    // Without an answer (offline) the name goes in as words, as in a short box.
+    if (!handle) {
+      instance.chain().focus().insertContent(`${entry.name} `).run();
+      return;
+    }
+    rememberChip(
+      handle,
+      chip ?? { entryId: entry.id, name: entry.name, slug: entry.slug, icon: entry.typeIcon ?? null, colour: entry.typeColour ?? null },
+    );
+    instance
+      .chain()
+      .focus()
+      .insertContent([
+        { type: 'entryLink', attrs: { handle } },
+        { type: 'text', text: ' ' },
+      ])
+      .run();
+  }, []);
+
   const suggestionExtension = useMemo(
     () =>
       Extension.create({
@@ -184,6 +249,12 @@ export function RichEditor({
             // offered a place in the dossier this text belongs to.
             onLinked: (entry: { id: string; name: string }, filed?: boolean) =>
               offerFilingRef.current(entry, filed),
+            /*
+             * §97: a picked name goes in as a handle, asked for first — so the
+             * artikel's id and name never enter the shared document, not even
+             * for the second and a half before the room writes itself back.
+             */
+            insert: insertLink,
           };
           // Each Suggestion instance needs its own plugin key, or ProseMirror
           // refuses the second one ("different instances of a keyed plugin").
@@ -201,7 +272,7 @@ export function RichEditor({
           ];
         },
       }),
-    [requestCreate],
+    [requestCreate, insertLink],
   );
 
   // Read once: an editor is either shared or its own for as long as it exists.
@@ -212,7 +283,7 @@ export function RichEditor({
     immediatelyRender: false,
     editable,
     extensions: [
-      ...documentExtensions({ history: binding ? false : undefined }),
+      ...documentExtensions({ history: binding ? false : undefined, chips: chipsRef.current }),
       Placeholder.configure({ placeholder }),
       suggestionExtension,
       ...(binding
@@ -248,9 +319,12 @@ export function RichEditor({
        * `click` handler, where a `preventDefault` still means something.
        */
       handleClickOn: (_view, _pos, node, _nodePos, event) => {
-        if (node.type.name !== 'entryLink' || !node.attrs.slug) return false;
+        if (node.type.name !== 'entryLink') return false;
+        // §97: the slug is this reader's to know, not the node's to carry.
+        const slug = knownChip(pageRef.current, String(node.attrs.handle ?? ''))?.slug;
+        if (!slug) return false;
         if (!mineToAnswer(event) || opensElsewhere(event)) return false;
-        window.location.href = `/e/${node.attrs.slug}`;
+        window.location.href = `/e/${slug}`;
         return true;
       },
       handleDOMEvents: {

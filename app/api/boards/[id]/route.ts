@@ -3,7 +3,7 @@ import { canSeeCase } from '@/lib/cases/visibility';
 import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { getBoard, renameBoard, saveBoard, setBoardCase, setBoardInWeb, softDeleteBoard } from '@/lib/boards/service';
+import { getBoard, renameBoard, saveBoard, setBoardCase, setBoardDescription, setBoardInWeb, softDeleteBoard } from '@/lib/boards/service';
 import { resolveBoardBoards, resolveBoardCases, resolveBoardEntries, resolveBoardFamilyTrees, resolveBoardMaps, resolveBoardTimelines } from '@/lib/boards/service';
 import { publishChange } from '@/lib/boards/live';
 import { deletedAtOfCase } from '@/lib/cases/service';
@@ -58,6 +58,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
     return json({
       name: board.name,
+      // §99 (O8): handles only; the names come per reader from /api/mentions.
+      description: board.description,
       state: board.state,
       ...referencesOf(board.state, user),
       updatedAt: board.updatedAt,
@@ -142,7 +144,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (!viewerCanEdit('board', id, user)) {
       return json({ error: 'Je mag dit prikbord niet bewerken.' }, { status: 403 });
     }
-    const body = (await request.json()) as { name?: string; clientId?: string; inWeb?: boolean; caseId?: string | null };
+    const body = (await request.json()) as {
+      name?: string;
+      description?: string;
+      clientId?: string;
+      inWeb?: boolean;
+      caseId?: string | null;
+    };
+    let description: string | null | undefined;
+    if (body.description !== undefined) {
+      // §99 (O8): the same hand that may rename the wall may describe it,
+      // through `cleanShort` like every other short box (§95).
+      description = setBoardDescription(id, body.description, user);
+      publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
+    }
     if (body.name !== undefined) {
       renameBoard(id, body.name);
       // A rename is a change like any other: everyone else's title bar follows.
@@ -178,7 +193,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       setBoardCase(id, wanted, user);
       publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
     }
-    return json({ ok: true });
+    return json(description === undefined ? { ok: true } : { ok: true, description: description ?? '' });
   } catch (err) {
     return apiError(err);
   }

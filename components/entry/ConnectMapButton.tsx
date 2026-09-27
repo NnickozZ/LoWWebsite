@@ -25,9 +25,12 @@ import type { MapSummary } from '@/lib/maps/service';
 export function ConnectMapButton({
   entryId,
   entryName,
+  asAction = false,
 }: {
   entryId: string;
   entryName: string;
+  /** §101: drawn as one of the artikel's action buttons rather than a chip in the "Uitgetekend op" row. */
+  asAction?: boolean;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -82,11 +85,12 @@ export function ConnectMapButton({
     <>
       <button
         type="button"
-        className="chip chip-selectable"
+        className={asAction ? 'btn btn-small' : 'chip chip-selectable'}
         onClick={() => setOpen(true)}
+        data-testid="connect-map"
         title={`Kies de ${words.map} die dit ${words.entry} uittekent`}
       >
-        <Icon name="map" size={12} />
+        <Icon name="map" size={asAction ? 15 : 12} />
         {capitalise(words.map)} koppelen
       </button>
 

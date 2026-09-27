@@ -29,10 +29,17 @@ const doc = {
 };
 
 describe('docToText', () => {
-  it('flattens text and uses the visible label of a link', () => {
+  // §97 (ronde 58): a link is its handle's token, never its name — a legacy
+  // link with a label contributes nothing, so no plain text carries a name.
+  it('flattens text; a link is its token, and a legacy label is never printed', () => {
     const text = docToText(doc);
-    expect(text).toContain('The light at Westkapelle Lighthouse has not been wound.');
-    expect(text).toContain('Jacob den Hollander');
+    expect(text).toContain('The light at has not been wound.');
+    expect(text).not.toContain('Jacob den Hollander');
+    const withHandle = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Zie ' }, { type: 'entryLink', attrs: { handle: 'abcdef123456' } }] }],
+    };
+    expect(docToText(withHandle)).toBe('Zie ⟦abcdef123456⟧');
   });
 
   it('separates blocks with a newline so a diff is line-by-line', () => {

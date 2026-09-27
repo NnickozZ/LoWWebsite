@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { borderClass } from '@/components/borders';
 import { Icon } from '@/components/Icon';
-import { MentionOverlay, MentionPopover, MentionText } from '@/components/ui/MentionPopover';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortField } from '@/components/live/LiveFields';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
 import {
@@ -379,15 +380,19 @@ export function BoardCardView({
     onWriteStarted?.();
   }, [writeNow, canWrite, onWriteStarted]);
   const [draft, setDraft] = useState(card.text);
-  const textRef = useRef<HTMLTextAreaElement>(null);
+  /*
+   * §98: the editor's blur can come before React has the last keystroke in
+   * this closure, and Escape must not save on the blur that follows it — so
+   * the draft and the "put it back" are read through refs.
+   */
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const cancelled = useRef(false);
 
   useEffect(() => {
     if (!editing) setDraft(card.text);
+    else cancelled.current = false;
   }, [card.text, editing]);
-
-  useEffect(() => {
-    if (editing) textRef.current?.focus();
-  }, [editing]);
 
   // Three kinds of card stand for something in the archive; all three go
   // MISSING the same way when what they stand for is gone or out of reach.
@@ -665,35 +670,44 @@ export function BoardCardView({
 
         {editing ? (
           <>
-          <textarea
-            ref={textRef}
-            className="board-card-text-input"
-            value={draft}
-            rows={3}
+          {/* §98: a kaartje's text holds chips with their artikel in them
+              (`ShortField`), not `[[Naam]]`. No room: a kaartje lives in the
+              wall's own state, and is saved when the box is left. */}
+          <div
+            className="board-card-text-box"
             onPointerDown={(event) => event.stopPropagation()}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={(event) => {
-              // A tap on a name in the @-list takes focus for a moment; the
-              // popover hands it straight back, and the writing goes on.
-              if ((event.relatedTarget as HTMLElement | null)?.closest?.('.mention-pop')) return;
-              setEditing(false);
-              if (draft !== card.text) onTextChange(draft);
-            }}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.stopPropagation();
-                setDraft(card.text);
-                setEditing(false);
-              }
+              if (event.key !== 'Escape') return;
+              /*
+               * §101 naden: the editor marks every Escape as handled, so
+               * `defaultPrevented` cannot tell "the name list closed" from
+               * "leave the text". Ask the list itself: while it is open,
+               * Escape is its; once it is gone, Escape leaves the kaartje.
+               */
+              if (document.querySelector('[data-testid="mention-pop"]')) return;
+              event.stopPropagation();
+              cancelled.current = true;
+              setDraft(card.text);
+              setEditing(false);
             }}
-          />
-          {/* Round 18: `@` offers a name; `[[Naam]]` is what lands in the text. */}
-          <MentionPopover forRef={textRef} />
-          {/* §56: it can, after all — an overlay that mirrors the box's own
-              characters puts the chip over the name where it stands. */}
-          <MentionOverlay forRef={textRef} value={draft} />
-          {/* §92: no row under it any more. A kaartje has always been c+: out
-              of focus it is not a box at all but `MentionText` below. */}
+          >
+            <ShortField
+              noRoom
+              ungated
+              multiline
+              autoFocus
+              field="text"
+              id={`board-card-text-${card.id}`}
+              className="board-card-text-input"
+              value={draft}
+              onValue={(next) => setDraft(next)}
+              onBlur={() => {
+                if (cancelled.current) return;
+                setEditing(false);
+                if (draftRef.current !== card.text) onTextChange(draftRef.current);
+              }}
+            />
+          </div>
           </>
         ) : (
           <p
@@ -705,7 +719,7 @@ export function BoardCardView({
             }}
           >
             {card.text ? (
-              <MentionText text={card.text} />
+              <MentionText text={card.text} tokens />
             ) : !canWrite ? (
               '…'
             ) : interactive ? (

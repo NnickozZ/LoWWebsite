@@ -114,7 +114,8 @@ export function Plek({
     >
       <p className="tiny plek-kind" data-testid="plek-kind">
         <Icon name={plekIcon(slot.kind)} size={12} />
-        {kind}
+        {/* §101: een element, zodat het woord met "…" kan afkappen naast het kruisje. */}
+        <span className="plek-kind-word">{kind}</span>
       </p>
 
       {state === 'locked' && (

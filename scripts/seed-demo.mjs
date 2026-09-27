@@ -475,5 +475,11 @@ const run = db.transaction(() => {
 
 run();
 
+// §97: the documents above are written with the old link shape (an id and a
+// name); the same conversion migration 0035 makes turns them into handles and
+// writes the plain texts and the search index without the names.
+const { upgradeDocs } = await import('../lib/entries/docUpgrade.mjs');
+db.transaction(() => upgradeDocs(db))();
+
 console.log(`Seeded ${SEED.length} entries, 1 open case and 1 board.`);
 console.log('Run `npm run dev` and open http://localhost:3000');

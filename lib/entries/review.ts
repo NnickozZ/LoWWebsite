@@ -77,7 +77,8 @@ const FIELD_LABELS: Record<string, string> = {
 
 function asText(key: string, value: unknown, read: (text: string) => string): string {
   if (value === null || value === undefined) return '';
-  if (key === 'body') return docToText(value);
+  // §97: the body's links are tokens in its text; the reviewer reads the names they may see.
+  if (key === 'body') return read(docToText(value));
   if (key === 'tags' && Array.isArray(value)) return value.join(', ');
   // §95: a short text's chips are handles; the reviewer reads the names they may see.
   if (typeof value === 'string') return key === 'shortDescription' ? read(value) : value;
@@ -154,7 +155,7 @@ export function listPendingEdits(entryId: string | undefined, viewer: Viewer): P
       .map((key) => ({
         key,
         label: FIELD_LABELS[key],
-        before: key === 'body' ? row.entryBodyText : asText(key, current[key], read),
+        before: key === 'body' ? read(row.entryBodyText) : asText(key, current[key], read),
         after: asText(key, snapshot[key], read),
       }))
       .filter((field) => field.before !== field.after);

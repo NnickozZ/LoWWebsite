@@ -174,25 +174,32 @@ export function SearchScreen({
 
   const typed = query.trim();
   const chosenType = types.find((t) => t.slug === type);
+  // §101: every sentence on this screen is the Keeper's to rewrite (`lib/words.ts`).
+  const words = ui.words;
+  const [hintBefore, hintAfter = ''] = words.searchHint.split('{toets}');
 
   return (
     <div className="page">
       <label className="visually-hidden" htmlFor="search-input">
-        Zoeken in het archief
+        {words.searchLabel}
       </label>
       <input
         id="search-input"
         ref={inputRef}
         className="input"
         value={query}
-        placeholder={chosenType ? `Zoek in ${chosenType.label.toLowerCase()}…` : 'Zoek op naam, tag, wat dan ook…'}
+        placeholder={
+          chosenType
+            ? fill(words.searchPlaceholderIn, { soort: chosenType.label.toLowerCase() })
+            : words.searchPlaceholder
+        }
         onChange={(event) => setQuery(event.target.value)}
         autoComplete="off"
         style={{ fontSize: '1.1rem', marginBottom: '0.6rem' }}
       />
 
       {types.length > 0 && (
-        <div className="chip-strip search-types" role="radiogroup" aria-label="Zoek in" style={{ marginBottom: '1rem' }}>
+        <div className="chip-strip search-types" role="radiogroup" aria-label={words.searchIn} style={{ marginBottom: '1rem' }}>
           <button
             type="button"
             role="radio"
@@ -200,7 +207,7 @@ export function SearchScreen({
             className={`chip chip-selectable${type === '' ? ' chip-active' : ''}`}
             onClick={() => setType('')}
           >
-            Alles
+            {words.searchAll}
           </button>
           {types.map((item) => (
             <button
@@ -220,7 +227,9 @@ export function SearchScreen({
 
       {!typed && (
         <p className="muted small">
-          Typ om te zoeken. Druk overal op <kbd>/</kbd> om hier te komen.
+          {hintBefore}
+          {words.searchHint.includes('{toets}') && <kbd>/</kbd>}
+          {hintAfter}
         </p>
       )}
 
@@ -250,7 +259,7 @@ export function SearchScreen({
 
           {results.bodies.length > 0 && (
             <section style={{ marginBottom: '1.2rem' }}>
-              <p className="eyebrow">Genoemd in de tekst</p>
+              <p className="eyebrow">{words.searchInText}</p>
               {results.bodies.map((entry) => (
                 <ResultRow key={entry.id} entry={entry} />
               ))}
@@ -273,7 +282,7 @@ export function SearchScreen({
             onClick={() => ui.openNewEntry({ name: typed, typeSlug: type || undefined })}
           >
             <Icon name="plus" size={16} />
-            &lsquo;{typed}&rsquo; aanmaken
+            {fill(words.searchCreate, { naam: typed })}
           </button>
         </>
       )}

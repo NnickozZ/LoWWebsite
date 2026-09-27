@@ -22,6 +22,15 @@ JSON-antwoord, geen live-frame en geen Yjs-snapshot bevat iets dat de lezer niet
 mag zien (rule 1). De CSP (`next.config.mjs`) zorgt dat een pagina niets laadt
 dat niet van het archief komt.
 
+**De gedeelde staat van een tekstkamer bevat geen naam of id van een genoemd
+artikel, alleen handvatten** (§95 voor de korte vakken, §97 voor de lopende
+tekst, §98 voor elk ander kort vak). Een Yjs-document gaat heel naar iedereen
+in de kamer en is niet per kijker te schrappen, dus wat erin staat, is wat
+iedereen daar mag zien. De naam komt per lezer (`resolveHandles`, `ShortChips`,
+`POST /api/mentions`); een handvat dat de lezer niet mag volgen, tekent niets.
+— *`ronde-56-een-id.test.ts`, `ronde-58-lopende-tekst.test.ts`,
+`ronde-59-elk-kort-vak.test.ts`*
+
 ## Wat bewust open staat
 
 - **`'unsafe-inline'` in `script-src`.** Next's bootstrap is inline; een nonce

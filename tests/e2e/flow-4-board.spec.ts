@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { editArticle, newBoard, signIn } from './helpers';
+import { editArticle, fillWhenReady, newBoard, signIn } from './helpers';
 
 /**
  * Golden flow 4 (§15): open a board, add three entry cards via search, add a
@@ -58,24 +58,29 @@ test('board: cards, a note, string and persistence', async ({ page }, testInfo) 
     else await note.locator('.board-card-text').dblclick();
   };
   await writeOn();
-  await page.locator('.board-card-text-input').fill('Kept in his coat.');
+  // §98: the box is a short editor with chips now (a contenteditable).
+  await fillWhenReady(page.locator('.board-card-text-input'), 'Kept in his coat.');
   await page.locator('.board-card-text-input').blur();
   await expect(note.locator('.board-card-text')).toHaveText('Kept in his coat.');
 
-  // -- round 18: `@` offers a name, and what lands is `[[Naam]]`, shown as a chip
+  // -- round 18: `@` offers a name; §98: what lands is a chip with its artikel in it
   await writeOn();
   const box = page.locator('.board-card-text-input');
-  await box.fill('Kept in his coat. Seen by @Jacob');
+  await expect(box).toBeFocused({ timeout: 10_000 });
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Seen by @Jacob', { delay: 20 });
   const pop = page.getByTestId('mention-pop');
   await expect(pop).toBeVisible();
-  await pop.getByRole('option', { name: /Jacob den Hollander/ }).click();
-  await expect(box).toHaveValue('Kept in his coat. Seen by [[Jacob den Hollander]] ');
+  await pop.getByRole('option', { name: /Jacob den Hollander/ }).dispatchEvent('mousedown');
+  await expect(box.locator('.short-chip')).toHaveText('Jacob den Hollander');
+  await expect(box).not.toContainText('[[');
   await box.blur();
   await expect(note.locator('.board-card-text .entry-chip')).toHaveText('Jacob den Hollander');
 
   if (isPhone) {
-    // §8: the hint replaces dragging and string-drawing on a small screen.
-    await expect(page.getByText('Verschuiven werkt het best op een tablet of computer.')).toBeVisible();
+    // §99: the phone's hint row is gone — a finger carries a card (§69) and
+    // ties a draad with *Touwtje* (§94), so the glass has the line back.
+    await expect(page.getByText('Verschuiven werkt het best op een tablet of computer.')).toHaveCount(0);
   } else {
     // -- drag a card, then run a labelled string between two ------------------
     const pier = page.locator('.board-card', { hasText: 'Pier Boone' }).first();

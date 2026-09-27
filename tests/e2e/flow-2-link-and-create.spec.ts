@@ -16,7 +16,8 @@ test('link and create in one motion', async ({ page }, testInfo) => {
   // body to type in until the toggle has been asked for the other one.
   await editArticle(page);
 
-  const body = page.locator('.ProseMirror');
+  // Scoped to the running text: since §95 the short boxes are a ProseMirror too.
+  const body = page.locator('.entry-body-block .ProseMirror');
   await body.click();
   await page.keyboard.press('End');
   await page.keyboard.type(' Ask the ');

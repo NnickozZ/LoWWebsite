@@ -6340,3 +6340,256 @@ de naam lekte, en nu niet meer.
   stond had ook geen poort.
 - **Eén nieuw woord**, `mentionListLabel` (*Artikelen*): de voorgelezen naam
   van de lijst onder `@` of `[[`, in een eigen groep *Eén regel, één id*.
+
+---
+
+## Golf 3 — rondes 58 tot en met 62 (§97–§101), en de naden
+
+Nick zei na golf 2: *"maak het af"*. Alles wat na de UI/UX-review nog openlag,
+kwam in deze golf. Vijf bouwers werkten tegelijk, elk in een eigen worktree op
+`golf-3-base` (rondes 51–57 gebouwd en uitgeleverd), en de takken zijn
+samengevoegd tot `golf-3`. Drie migraties, in deze volgorde:
+`0035_de_lopende_tekst` (58), `0036_elk_kort_vak` (59) en
+`0037_prikbord_beschrijving` (60). Geen verwijderd bestand.
+
+Wat Nick eerder besliste en niet werd heropend: acht tabs, geen Kaarten-tab;
+een net gemaakt vlak opent in Bewerken; de saldo-staart is een uitzondering op
+K1; een kort vak bewaart een handvat, en die weg wordt uitgebreid, niet
+vervangen.
+
+De merge van 58 en 59 raakte één plek in gedrag: allebei zetten ze een
+verborgen verwijzing "op zijn plek" terug, 58 in een document en 59 in een
+string. Ze staan nu naast elkaar in `lib/entries/shortRefs.ts` (`putBackInDoc`
+en `putBack`). Na de merge kwamen de naden (zie ronde 62).
+
+---
+
+## Ronde 58 (§97) — het lek in de lopende tekst
+
+Migratie `0035_de_lopende_tekst`, geen nieuwe tabel.
+
+### Een handvat in de node, geen id en geen naam
+
+Een `entryLink` in `entries.body`, `sections.body` en `cases.notes` bewaart
+alleen `{ handle }`, uit dezelfde `mention_handles` als §95. De naam, de slug en
+de kleur staan alleen in de node-view in de browser. De reden is dezelfde als
+bij §95, een verdieping lager: node-attributen zijn precies wat y-prosemirror
+naar iedereen in de kamer stuurt, en een Yjs-document is niet per kijker te
+schrappen. Een id in de node zou volstaan voor de server, maar staat dan in het
+live-frame van iedereen, en een naam al helemaal.
+
+### Omgekeerd: de zoekindex leest de namen van nu (§95)
+
+§95 liet `indexShort` de namen achter de chips in de zoekindex zetten, "zoals
+`body_text` de labels van de lopende tekst leest". De index is één tabel voor
+iedereen, dus een verborgen naam erin maakt hem een vindplaats: een speler die
+de naam van een geheim zoekt, vond het artikel dat hem noemde. Nu laat
+`indexShort` een chip weg. Wie een naam zoekt, vindt per kijker wie die naam
+noemt, via `entry_links`, met aan beide kanten de zichtbaarheid en de kant van
+de lezer (`lib/search/service.ts`).
+
+### Omgekeerd: "Entry links contribute their visible label" (`docToText`)
+
+Het commentaar boven `docToText` in `lib/entries/doc.ts` zei dat een link zijn
+label aan de platte tekst gaf, zodat zoeken op een gelinkte naam werkte. Een
+platte tekst draagt nooit meer een naam: `body_text` en `notes_text` dragen het
+token, en een lezer projecteert het per kijker met `plainShort`.
+
+### Omgekeerd: een verwijzing naar een vernietigd artikel is een grijze chip
+
+Een link naar een vernietigd artikel tekende zijn naam als dode chip. Die naam
+kwam uit de node, en die heeft er geen meer. Het is nu niets, zoals in §95, en
+de migratie laat zo'n link weg.
+
+### Kleinere keuzes
+
+- **Verborgen links komen terug op hun plek**, niet achteraan: na de woorden
+  ervoor of vóór de woorden erna, en alleen achteraan als die er niet meer
+  zijn. In een document is die plek goed te vinden; in een string kwam 59 op
+  hetzelfde uit (`putBack`).
+- **`restore.mjs` zet `live_docs` niet meer terug.** De BLOB werd als
+  `{ type: 'Buffer', data: [...] }`-JSON weggeschreven en liet zich niet binden,
+  dus een backup met één open kamer liet zich helemaal niet terugzetten. Een
+  kamer zaait zichzelf uit zijn rij, dus er gaat niets verloren.
+- **De migratie raadt niets.** Een oude link wist zijn id; alleen een link naar
+  een vernietigd artikel valt weg.
+- **Een body met `{ id, label }` via de API werkt nog**: de server maakt er een
+  handvat van als de schrijver het artikel mag zien.
+
+---
+
+## Ronde 59 (§98) — een id in elk kort vak
+
+Migratie `0036_elk_kort_vak`, geen nieuwe tabel.
+
+- **Het prikbordkaartje kwam erbij**, hoewel het niet op de lijst stond: het
+  viel onder "alle overige korte vakken".
+- **Omgekeerd: §68 voor de korte vakken.** In Bewerken zet een klik op een chip
+  de caret erachter in plaats van het artikel te openen. De chip wordt niet
+  geselecteerd, want de volgende letter zou hem vervangen. Openen doe je in
+  Lezen. Dit sluit een restpunt van ronde 56: op een telefoon liep een tik die
+  de caret naast een chip moest zetten, weg naar het artikel.
+- **Omgekeerd: §67 "achteraan".** Een verborgen handvat dat een speler
+  wegveegde, komt terug waar het stond (`putBack`, met `alignedDelta`). Alleen
+  als de hele tekst vervangen is, is er geen plek meer, en dan gaat het
+  achteraan zoals in §95.
+- **Een maakblad-concept bewaart woorden, geen chips** (`chipsAsWords`). Een
+  concept komt terug in het volgende maakblad van die pagina (§69), en een chip
+  die daar opduikt, is een vermelding die niemand op dat moment koos.
+- **Het opruimen leest de hele database**, met een marge van 30 dagen en alleen
+  bij de start (`sweepMentionHandles`). Een handvat kan in elke tekst- of
+  blobkolom staan, ook in een revisie of een kamer; een lijst van kolommen zou
+  op een dag een kolom missen, en een handvat dat onterecht weggaat, maakt een
+  chip tot niets.
+- **`entry_mentions` wordt geleegd** door 0036 en bij de start opnieuw
+  opgebouwd, nu met de chips uit alle korte vakken erbij.
+- **Omschrijvingen zijn één regel.** Een speld, een gebeurtenis, een los
+  kaartje, een inleiding en een prikbordkaartje mogen er meer hebben.
+- **De naam van een knoop in het web laat chips weg.**
+- **Bewust niet verwijderd:** `MentionPopover`, `MentionOverlay`,
+  `MentionPreview` en `useBoxFocus` hebben geen gebruikers meer.
+
+---
+
+## Ronde 60 (§99) — de vlakken, derde pas
+
+Migratie `0037_prikbord_beschrijving`.
+
+- **O8: een prikbord krijgt een beschrijving.** Dat maakt het restpunt van
+  rondes 35 en 55 af. Het vak is meteen een kort vak met handvatten (§98), en
+  bewaard wordt het via `setBoardDescription`, door de hand die het bord mag
+  hernoemen.
+- **C10: *Ongedaan maken* is voor wie mag bewerken.** In Lezen grijs, voor wie
+  alleen mag kijken afwezig, nu op alle vier gelijk. Dat maakt het restpunt van
+  ronde 37 af.
+- **Omgekeerd: de telefoontip van het prikbord.** "Verschuiven werkt het best
+  op een tablet of computer" (ronde 12, en onder §73 blijven staan) is weg. Een
+  vinger draagt sinds §69 een kaart en legt sinds §94 een touwtje; de tip was
+  een regel glas voor een zin die niet meer waar was.
+- **Een stamboom opent op hoogstens zoom 1** (`TREE_OPEN_MAX_ZOOM`), net als
+  het prikbord. Een nieuwe stamboom met één los kaartje opende twee keer zo
+  groot: het kaartje vulde het glas en zijn beletterde handgrepen hingen op een
+  telefoon over de randen. Op 1 passen kaartje en woorden op 390 px.
+- **C7 bevestigt ronde 55**: *Alles in beeld* krijgt geen leesvloer. Een knop
+  die "alles" zegt, toont niet de helft.
+- **C8: beletterd, geen menu.** De `+`-handgrepen van een kaartje dragen hun
+  woord, en de gedeelde `+` heet *Kind van beide*. Een menu achter de `+` zou
+  één klik meer kosten voor iets wat een woord al zegt.
+- **De tekenlaag-schakelaar van de Keeper op het prikbord gaat onder de vouw**
+  (`#board-ink-underfold`), zoals op de landkaart en de stamboom.
+
+---
+
+## Ronde 61 (§100) — het palet en één opslaan-woord
+
+Geen migratie.
+
+- **Omgekeerd: §91 voor `/`.** Ronde 52 besliste "Zoeken is een vak, en `/`
+  zet de cursor erin". Nu opent `/` (en Ctrl/⌘K) overal het palet, een dialoog
+  op de pagina, en het vak in de zijbalk is een knop die het opent. Het palet
+  doet wat het vak deed (typen zoekt, Enter op de laatste regel gaat naar
+  `/search?q=`) en daarnaast *Onlangs* en de handelingen.
+- **Verplaatst: B13/§90's opslaan-woord staat in de schil.** Eén woord naast
+  de live-stip (`SaveStatus`), in plaats van één per pagina of per blad. De
+  zinnen en de klasse `.save-state` blijven, en de volgorde van `combinedSave`
+  (een weigering, dan offline, dan bezig) ook: een fout wint van bezig. Elke
+  schrijver meldt zich in `saveRegister`.
+- **Onlangs zonder servertabel.** Het is een gemak van één browser, zoals een
+  onthouden tabblad. Er staan alleen adressen in `localStorage`, per account;
+  de namen komen van de server (`resolveRecent`), met de ogen van wie nu kijkt.
+- **Een vlak maken vanuit het palet gaat via `?maak=1`** op de lijst van dat
+  vlak (`useMakeOnArrival`), die daar zijn eigen maakblad opent. Geen tweede
+  maakweg.
+- **Het prikbord meldt een dode lijn als `offline`**; de stamboom en de
+  tekenlaag melden `error`. Dat is wat hun sync-hooks al wisten, en niet
+  rechtgetrokken in deze ronde.
+
+---
+
+## Ronde 62 (§101) — de losse eindjes, en de naden van golf 3
+
+Geen migratie.
+
+- **Omgekeerd: §76's naamloze feedregel "in een kamer".** Ronde 51 liet een
+  handeling in een privé-kamer (§86) in het feed staan, zonder de naam van de
+  onderzoeker. Het feit dat er iets gebeurde, is ook iets wat je niet mag zien.
+  Wie de kamer niet mag zien, krijgt de regel niet (`roomRowCondition`, dezelfde
+  vraag als `canSeeRoom`, in SQL).
+- **Omgekeerd: de lege staat van *Uitgetekend op*.** "Uitgetekend op:
+  Landkaart koppelen / nog niets" stond ook op een Persoon. De regel is een
+  feit en staat er alleen als er een landkaart is; *Landkaart koppelen* staat
+  bij de handelingen.
+- **B25: de vouw beslist bij het openen**, als een `<details>`, vanaf twee lege
+  velden. Beslissen per toetsaanslag zou een veld onder de vinger laten
+  verdwijnen. Ronde 53 probeerde het en brak negen specs; die volgen nu de vouw
+  (`openEmptyFields`).
+- **Een lege Tekst krijgt `hidden`**, niet weglaten, zodat de lopende tekst zijn kamer en zijn
+  editor houdt tussen Lezen en Bewerken, zoals altijd.
+- **De lade-gift van de Keeper is `room.placed` met `drawer: true`**, gratis en
+  zonder grootboekregel. Geen nieuw werkwoord: het is neerzetten in de kamer,
+  en `roomRowCondition` vindt de kamer via `meta.roomId`.
+- ***Ongedaan maken* na een koop was al live voor een meekijker.** Ronde 54
+  twijfelde; nagemeten, en er was niets te repareren.
+- **`data-autofocus` is de ene weg** waarlangs een blad zijn eerste caret zet.
+  Een effect bij het mounten vond geen vak, want `Sheet` tekent niets bij zijn
+  eerste commit, en een `setTimeout` is een gok.
+
+### De naden
+
+Na de merge bleken zes dingen tussen de rondes in te vallen:
+
+- **Een dubbel voorstel.** Wie alleen mag voorstellen en een kort vak bewerkte,
+  stuurde na goedkeuren hetzelfde voorstel opnieuw in. De kamerwaarnemer
+  meldde de goedgekeurde wijziging, die uit de kamer kwam, als eigen opslag
+  (`live: canEdit`, voor wie alleen mag voorstellen `false`). Nu is
+  wat uit de kamer komt nooit een eigen opslag van deze hand (`ShortEditor`,
+  `LiveFieldsRoom`). Er is geen weigering aan de serverkant bijgekomen.
+- **De beschrijving van een prikbord telt mee onder *Genoemd in*.** Ronde 60
+  bouwde het vak, ronde 59 de lezer; ze kenden elkaar niet.
+- **Chips met de pagina.** Het prikbord (beschrijving en kaartjes) en een
+  overzicht (inleiding en secties) geven `ShortChips` mee.
+- **Opslaan.** Het speldblad, het gebeurtenisblad en de secties melden zich bij
+  het ene woord van §100.
+- **Eén spatie.** Waar `cleanDocRefs` een link laat wegvallen, stonden er twee;
+  `closeGaps` laat er één.
+- **E3 blijft zoals ronde 51 besliste**, met één reparatie: een karakter in de
+  prullenbak draagt niemand, dus `mayHoldRoom` telt alleen levende karakters.
+
+## Ronde 64 (§101) — vraag eerst, doe daarna
+
+Na golf 3 is de handelingstelling van de review opnieuw gemeten (zie
+`claude/meting-na-golf-3.md` in het project: 20 van de 23 taken korter op een
+computer, 22 van de 23 op een telefoon, geen enkele langer). Die meting vond vijf
+dingen die stuk waren; deze ronde repareert ze, onder de bestaande regel §101.
+Geen nieuwe regel, geen migratie, geen verwijderd bestand.
+
+- **De blokkerende schrijfvraag heeft een uitgang.** Ronde 51 (S7) koos: geen
+  kruisje, geen Escape, niets dan een antwoord — met als argument dat er op een
+  schrijfvlak niets achter de vraag wacht om te annuleren. **Dat argument is
+  omgekeerd** doordat deze ronde elke maker over `ensureAuthor` legt: er wacht nu
+  precies één handeling achter de vraag, en annuleren maakt niets. Escape
+  annuleert en geeft de caret terug; het kruisje en de achtergrond blijven stil,
+  want een tik naast het blad is geen antwoord.
+- **Een maakknop vraagt zelf, het glas niet meer voor hem.** De vraag hing met
+  één `{...gate}` om het hele vlak, dus het blad verscheen in dezelfde commit
+  als de `pointerdown` en at de `click` op: je antwoordde en er gebeurde niets.
+  `useCanvasMaker` geeft `AUTHOR_GATE_OFF` en de vragende `onClick` samen uit,
+  zodat een nieuwe knop de helft niet kan vergeten. Gemeten op alle vier de
+  vlakken: 2 handelingen → 1.
+- **Een blad over het glas valt niet onder de gate van het glas.** Een portal
+  stuurt zijn gebeurtenissen langs de React-boom, dus de legenda van de
+  landkaart vroeg naar de schrijver zodra hij de focus pakte. In een blad geldt
+  §18b's eigen regel: alleen een vak waar je echt in kunt typen. Dat repareert de
+  hele klasse, niet alleen de legenda.
+- **De camera van de stamboom blijft staan.** Een stamboom bewaart alleen zijn
+  pinnen (§66), dus de opmaak schuift onder een stilstaande camera door.
+  `markPlace` + `followPoint`/`panIntoView` houden het kaartje dat je vasthad op
+  zijn plek en halen het nieuwe erbij. Er wordt niet gezoomd.
+- **De FAB op Beheer is terug, en weg op de winkel.** §85's "de FAB wijkt waar de
+  pagina zijn eigen laatste knop heeft" telde op `/admin` achttien voeten die in
+  dichtgeklapte `<details>` zaten; die tellen niet meer mee. Beheer krijgt geen
+  eigen maakknop, want de soortenrij heeft er al een. De winkel krijgt de andere
+  helft: daar wijkt de FAB helemaal, zoals op `/uitdelen`.
+- **Tab vanuit een sectietitel gaat naar de sectietekst.** Met een pure functie
+  en niet met een positieve `tabIndex`, die een veld uit de documentvolgorde
+  haalt en op een pagina met een infobox een ergere raadpartij oplevert.

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, imageMenu, inviteCode, signIn } from './helpers';
+import { editArticle, imageMenu, inviteCode, openEmptyFields, signIn } from './helpers';
 
 /**
  * §22: the artikel's two faces.
@@ -176,7 +176,9 @@ test('the reading face shows the facts that are filled in, and leaves the rest o
   await signIn(page, 'Keeper', 'abbeytower34');
   const path = await newEntry(page, `Getuige ${stamp}`);
 
-  // One field filled, the others left alone.
+  // One field filled, the others left alone. §101 (B25): a new artikel's
+  // empty fields stand behind "Veld invullen" in Bewerken.
+  await openEmptyFields(page);
   const fields = page.locator('.entry-fields');
   // §95: a Tekst is a short box (an editor) now, not an `<input>`.
   const first = fields.locator('[data-short-box="true"], select.select').first();

@@ -3,6 +3,7 @@ import { viewableCondition, viewerCanEdit } from '@/lib/access';
 import type { Author } from '@/lib/auth/author';
 import { db, schema } from '@/lib/db';
 import { logActivity, logAudit } from '@/lib/entries/service';
+import { cleanShort } from '@/lib/entries/shortRefs';
 import type { Viewer } from '@/lib/entries/visibility';
 import { newId } from '@/lib/ids';
 import { bornSide, keeperOnlyForNew, placeNewOnSide, sideCondition } from '@/lib/keeper/side';
@@ -233,7 +234,15 @@ export function updateOverzicht(id: string, patch: OverzichtPatch, actor: Author
     if (!name) throw new Error('Een overzicht heeft een naam nodig.');
     values.name = name;
   }
-  if (typeof patch.lead === 'string') values.lead = patch.lead.slice(0, LEAD_MAX);
+  if (typeof patch.lead === 'string') {
+    /*
+     * §98: the inleiding holds chips, cleaned where it comes in. Not trimmed:
+     * it never was, and an overzicht's lead is saved on blur, not per key.
+     * Still no "Genoemd in" — an overzicht names outward only (§75).
+     */
+    const before = db.select({ lead: schema.overzichten.lead }).from(schema.overzichten).where(eq(schema.overzichten.id, id)).get();
+    values.lead = cleanShort(patch.lead.slice(0, LEAD_MAX), { prev: before?.lead ?? '', actor, multiline: true });
+  }
   if (typeof patch.icon === 'string' && patch.icon.trim()) values.icon = patch.icon.trim().slice(0, 40);
   if (typeof patch.sortOrder === 'number' && Number.isFinite(patch.sortOrder)) {
     values.sortOrder = Math.trunc(patch.sortOrder);

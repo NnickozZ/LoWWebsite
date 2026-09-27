@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FamilyGraph, FamilyTreePatch, FamilyTreeState } from '@/lib/families/types';
+import { useReportSave, type SaveReport } from '@/components/live/saveRegister';
 
 /**
  * §66 — the stamboom's save and its pull, in one hook.
@@ -87,6 +88,8 @@ export function useTreeSync({
 }) {
   const [state, setState] = useState<SyncState>('idle');
   const [error, setError] = useState<string | null>(null);
+  // §100 (B14): the stamboom's word is the shell's now, beside the live dot.
+  useReportSave(syncReport(state), error);
 
   const dirty = useRef<Dirty>(emptyDirty());
   const inFlightDirty = useRef<Dirty>(emptyDirty());
@@ -352,6 +355,15 @@ export function useTreeSync({
   );
 
   return { state, error, pending, markDirty, saveNow, noteDeleted, flush, pull };
+}
+
+/**
+ * §100: a `SyncState` as the shell's one save word takes it. The stamboom
+ * does not retry a failed save on its own, so an error stays an error — with
+ * the archive's sentence when it gave one — and never B15's "wordt bewaard".
+ */
+export function syncReport(state: SyncState): SaveReport {
+  return state === 'dirty' ? 'saving' : state;
 }
 
 export function syncLabel(state: SyncState, message?: string | null): string {

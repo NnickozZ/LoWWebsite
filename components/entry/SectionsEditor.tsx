@@ -8,7 +8,11 @@ import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useUi } from '@/components/ui/UiProvider';
+import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
+import { SECTION_TEXT_SELECTOR, movesToSectionText } from '@/lib/entries/sectionTab';
+import { useAskAuthorFirst } from '@/components/canvas/useCanvasAuthorGate';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
+import { useReportRoomSave, type SaveState } from '@/components/entry/useAutosave';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
@@ -53,6 +57,9 @@ function SectionText({
   onChange: (doc: unknown) => void;
 }) {
   const [status, setStatus] = useState<{ others: LivePerson[]; status: LiveStatus; save: LiveSave }>({ others: [], status: 'connecting', save: 'idle' });
+  // §101 naden: a sectie's room tells the shell's one save word (§100) —
+  // while it is typed in, and only when it is a room (the rest is `patch`).
+  useReportRoomSave(Boolean(section.live && user && editable && !readOnly), [status]);
   if (!section.live || !user) {
     return (
       <RichEditor
@@ -162,6 +169,15 @@ export function SectionsEditor({
    */
   const mayType = useMayType();
   const gate = useAuthorGate();
+  /*
+   * §101: *Sectie toevoegen* is een maakknop op een schrijfvlak, en dit vlak
+   * draagt `useAuthorGate` — dus de vraag kwam op de `pointerdown`, het blad
+   * stond er vóór de `click`, en de klik landde op de achtergrond: je drukte,
+   * antwoordde, en er was geen sectie. Nu vraagt de knop het zelf en maakt hij
+   * daarna. (De vakken eronder houden de vraag waar hij hoort: op de eerste
+   * toets, met de caret waar hij was.)
+   */
+  const askThen = useAskAuthorFirst();
   const readOnly = locked || !mayType;
   /**
    * §90: the sectie "Sectie toevoegen" just made. Its title box gets the caret
@@ -207,13 +223,37 @@ export function SectionsEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections]);
 
+  /*
+   * §101 naden: what `patch` has on its way — a title, the dial, a text
+   * without a room — for the shell's one save word. A count, because a title
+   * and a dial can both be out at once; the last answer says how it ended.
+   */
+  const [asked, setAsked] = useState<SaveState>('idle');
+  const inFlight = useRef(0);
+  const failed = useRef(false);
+  useReportRoomSave(canEdit && !readOnly, [], asked);
+
   async function patch(id: string, body: Record<string, unknown>) {
-    const response = await fetch(`/api/sections/${id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) ui.toast('Opslaan is niet gelukt.');
+    inFlight.current += 1;
+    setAsked('saving');
+    let ok = false;
+    try {
+      const response = await fetch(`/api/sections/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      ok = response.ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) failed.current = true;
+    inFlight.current -= 1;
+    if (inFlight.current === 0) {
+      setAsked(failed.current ? 'error' : 'saved');
+      failed.current = false;
+    }
+    if (!ok) ui.toast('Opslaan is niet gelukt.');
   }
 
   function update(id: string, next: Partial<SectionLite>) {
@@ -295,7 +335,13 @@ export function SectionsEditor({
       <div className="row" style={{ marginBottom: '0.5rem' }}>
         <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{ui.words.sectionPlural.charAt(0).toUpperCase() + ui.words.sectionPlural.slice(1)}</h2>
         <div className="spacer" />
-        <button type="button" className="btn btn-small" onClick={() => void add()} disabled={busy}>
+        <button
+          type="button"
+          className="btn btn-small"
+          {...AUTHOR_GATE_OFF}
+          onClick={() => askThen(() => void add())}
+          disabled={busy}
+        >
           <Icon name="plus" size={15} />
           Sectie toevoegen
         </button>
@@ -324,6 +370,19 @@ export function SectionsEditor({
               placeholder="Titel van de sectie"
               onChange={(event) => update(section.id, { title: event.target.value })}
               onBlur={(event) => void patch(section.id, { title: event.target.value })}
+              /* §101: en `Tab` gaat naar de tekst van déze sectie, niet langs
+                 de prullenbak en de chips. Staat de editor er nog niet (hij
+                 komt via `dynamic`), dan doet `Tab` gewoon wat hij altijd
+                 deed — liever de oude volgorde dan een toets die niets doet. */
+              onKeyDown={(event) => {
+                if (!movesToSectionText(event)) return;
+                const box = document
+                  .getElementById(`section-${section.id}`)
+                  ?.querySelector<HTMLElement>(SECTION_TEXT_SELECTOR);
+                if (!box) return;
+                event.preventDefault();
+                box.focus();
+              }}
             />
             <button
               type="button"

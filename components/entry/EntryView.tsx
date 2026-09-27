@@ -44,6 +44,7 @@ import type { CoverCrops } from '@/lib/images/shapes';
 import { capitalise, fill } from '@/lib/words';
 import type { ArticleMode } from '@/lib/entries/mode';
 import { tagListHref } from '@/lib/entries/tagHref';
+import { isEmptyDoc } from '@/lib/entries/doc';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
 import { OriginLine, type OriginCaseLite } from './OriginLine';
@@ -60,7 +61,8 @@ import {
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
 import { TagsEditor } from './TagsEditor';
-import { useAutosave, useSaveWord } from './useAutosave';
+import { toSaveReport, useAutosave, useSaveState } from './useAutosave';
+import { useReportSave } from '@/components/live/saveRegister';
 
 export type EntryViewData = {
   id: string;
@@ -484,8 +486,10 @@ export function EntryView({
     status: 'connecting',
     save: 'idle',
   });
-  // §90: the one word beside Lezen, for the autosave and both rooms together.
-  const saveWord = useSaveWord(state, [liveStatus, fieldsStatus], ui.words);
+  // §90: one answer for the autosave and both rooms together — and §100: the
+  // shell says it, beside the live dot, and only while this face writes.
+  const saveState = useSaveState(state, [liveStatus, fieldsStatus]);
+  useReportSave(reading ? null : toSaveReport(saveState));
 
   /**
    * Someone else saved the rest of the record — name, description, tags,
@@ -563,12 +567,28 @@ export function EntryView({
   const showManage =
     access.canManage || access.settings.locked || proposals.length > 0 || isKeeper || Boolean(slots.delete);
 
+  /*
+   * §101: a Tekst with nothing in it is a heading over a blank while reading —
+   * on a phone a whole screen of it. It is drawn on the editing face (that is
+   * where you fill it) and dropped on the reading one. Asked of what the server
+   * sent; a text somebody fills meanwhile comes in with the page's refresh.
+   */
+  const [bodyTouched, setBodyTouched] = useState(!reading);
+  useEffect(() => {
+    if (!reading) setBodyTouched(true);
+  }, [reading]);
+  // Once this page was in Bewerken the text may have been filled here, and
+  // `entry.body` is still the server's copy — so from then on it stays drawn.
+  const bodyEmpty = !bodyTouched && isEmptyDoc(entry.body);
+
   const outline = useMemo<OutlineItem[]>(() => {
     const items: OutlineItem[] = [];
     for (const block of entry.typeBlocks) {
       if (block.hidden || block.kind === 'fields') continue;
       const heading = block.title || defaultBlockTitle(block.kind, words);
       if (block.kind === 'body') {
+        // §101: an empty Tekst is not drawn while reading, so nothing to jump to.
+        if (reading && bodyEmpty) continue;
         items.push({ id: `block-${block.id}`, label: heading || 'Tekst', icon: 'file' });
       } else if (block.kind === 'sections') {
         // Nobody without sections has anything to jump to here — and while
@@ -591,7 +611,7 @@ export function EntryView({
     }
     if (showManage) items.push({ id: 'block-manage', label: words.manage, icon: 'shield' });
     return items;
-  }, [access.canEdit, entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
+  }, [access.canEdit, bodyEmpty, entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
 
   /** On a phone the infobox is one more thing to jump to. */
   const phoneOutline = useMemo<OutlineItem[]>(
@@ -648,6 +668,8 @@ export function EntryView({
         <FieldsEditor
           key={fieldsVersion}
           compact
+          /* §101 (B25): the empty ones behind "+ Veld invullen". */
+          foldEmpty
           fields={entry.typeFields}
           values={fields}
           cases={caseRefs}
@@ -771,8 +793,15 @@ export function EntryView({
         return null;
 
       case 'body':
+        /* §101: `hidden`, not left out — the live text keeps its room and its
+           editor across Lezen ↔ Bewerken, as it always did. */
         return (
-          <section key={block.id} id={anchor} className="entry-block entry-body-block">
+          <section
+            key={block.id}
+            id={anchor}
+            className="entry-block entry-body-block"
+            hidden={(reading && bodyEmpty) || undefined}
+          >
             <h2 className="entry-block-title">{heading || 'Tekst'}</h2>
             {note}
             {live ? (
@@ -915,18 +944,11 @@ export function EntryView({
           )}
           <div className="spacer" />
           {/*
-            One word for both roads to the archive: the autosave of the
-            fields, and the room the text lives in. "Opslaan…" while either
-            is on its way; "Opgeslagen" once both have landed. Reading, there
-            is nothing on its way, so the word is not there either.
+            §100 (B14): the save word used to stand here, beside Lezen. It is
+            the shell's now — one word beside the live dot, on every page that
+            writes (`SaveStatus`, fed by `useReportSave` above) — so the head
+            no longer grows a line for it on a phone.
           */}
-          {/* §90: a refusal and a line that is down now outrank "Opslaan…" —
-              see `combinedSave`. */}
-          {!reading && (
-            <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-              {saveWord}
-            </p>
-          )}
           {/* §22: the two faces. Wikipedia's own pair of words, in ours. */}
           {canToggle && (
             <button
@@ -1057,6 +1079,11 @@ export function EntryView({
               timelines={timelinesToPlace}
             />
           )}
+          {/* §101: a landkaart that draws this artikel, hooked up from here —
+              the Keeper's, on the editing face, while there is none yet. */}
+          {isKeeper && !reading && mapsOfThis.length === 0 && (
+            <ConnectMapButton entryId={entry.id} entryName={name || entry.name} asAction />
+          )}
           {/* §43: the web, with this artikel in the middle. */}
           <ConnectionsLink kind="entry" id={entry.id} />
           {/* §94 (C20): and the stamboom this artikel stands in, with it chosen. */}
@@ -1117,7 +1144,11 @@ export function EntryView({
         {/* §22 rule 2: reading, this row is a fact — the landkaarten that draw
             this place — and prints only when there are any. The button that
             hooks one up is an action, and actions live on the other face. */}
-        {(mapsOfThis.length > 0 || (isKeeper && !reading)) && (
+        {/* §101: the row is a fact, so it prints only when there is one. With
+            no landkaart yet it said "Uitgetekend op: Landkaart koppelen · nog
+            niets" on every artikel for the Keeper, a Persoon included; the
+            button for that case stands with the other actions above. */}
+        {mapsOfThis.length > 0 && (
           <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
             <span className="muted">Uitgetekend op:</span>
             {mapsOfThis.map((item) => (
@@ -1131,9 +1162,6 @@ export function EntryView({
                 place is on the place's page. */}
             {isKeeper && !reading && (
               <ConnectMapButton entryId={entry.id} entryName={name || entry.name} />
-            )}
-            {!mapsOfThis.length && isKeeper && !reading && (
-              <span className="muted">nog niets — voor een plattegrond van deze plek</span>
             )}
           </p>
         )}

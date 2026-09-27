@@ -7,7 +7,7 @@ import { uniqueSlug } from '@/lib/slug';
 import type { AccessMode } from '@/lib/db/schema';
 import { normaliseCrops, type CoverCrops } from '@/lib/images/shapes';
 import { cleanDoc, docToText } from '@/lib/entries/doc';
-import { cleanShort } from '@/lib/entries/shortRefs';
+import { cleanDocRefs, cleanShort } from '@/lib/entries/shortRefs';
 import { recomputeCaseMentions } from '@/lib/entries/mentions';
 import type { Author } from '@/lib/auth/author';
 import { logActivity, type EntrySummary } from '@/lib/entries/service';
@@ -131,6 +131,8 @@ export function createCase(input: {
   }
 
   writeCaseRevision(id, input.createdBy, input.characterId ?? null);
+  // §98: a samenvatting's chips count under "Genoemd in" from the first save.
+  recomputeCaseMentions(id);
   logActivity({
     actorId: input.createdBy,
     characterId: input.characterId ?? null,
@@ -425,6 +427,12 @@ export function updateCase(
   if (!existing) throw new Error('Dossier niet gevonden');
   // §89: cleaned where it comes in.
   if (patch.notes !== undefined) patch = { ...patch, notes: cleanDoc(patch.notes) };
+  // §97: a link is a handle this hand may name; one it could not see stays.
+  let notesFromRoom: unknown = undefined;
+  if (patch.notes !== undefined) {
+    notesFromRoom = patch.notes;
+    patch = { ...patch, notes: cleanDocRefs(patch.notes, { prev: existing.notes, actor: user }) };
+  }
 
   const values: Record<string, unknown> = {};
   if (patch.name !== undefined && patch.name.trim()) values.name = patch.name.trim();
@@ -449,10 +457,12 @@ export function updateCase(
   writeCaseRevision(caseId, user.id, user.characterId ?? null);
   // §27: the artikelen these working notes name. Hung off the service, not off
   // the room, so a save from either road is counted (rule 13).
-  if (patch.notes !== undefined) recomputeCaseMentions(caseId);
+  if (patch.notes !== undefined || values.summary !== undefined) recomputeCaseMentions(caseId);
   logActivity({ actorId: user.id, characterId: user.characterId ?? null, verb: 'case.edited', caseId });
   // §20: the shared notes follow the archive when written around the room.
   if (patch.notes !== undefined && !options.live) resetRoom(`case:${caseId}:notes`, patch.notes);
+  // §97: the room wrote a link the archive put back or took out — the room follows.
+  else if (patch.notes !== undefined && JSON.stringify(patch.notes) !== JSON.stringify(notesFromRoom)) resetRoom(`case:${caseId}:notes`, patch.notes);
   // §21: so do the name and the one-liner, which are shared fields.
   if (!options.live && (values.name !== undefined || values.summary !== undefined)) {
     const fields: Record<string, string> = {};

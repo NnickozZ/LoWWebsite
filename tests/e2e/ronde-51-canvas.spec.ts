@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editCanvas, newBoard, readCanvas, signIn, signUp } from './helpers';
+import { becomeInvestigator, editCanvas, expectBoxValue, newBoard, readCanvas, signIn, signUp } from './helpers';
 
 /**
  * §90, ronde 51 — "De deuren", de helft van de tekenvlakken en Beheer.
@@ -135,7 +135,8 @@ test('C2/C3: Nieuwe notitie landt in tekstmodus, de n opent niets, en in Lezen i
   const words = `Een notitie ${stamp}`;
   await page.keyboard.type(words);
   await expect(page.getByRole('dialog', { name: /Nieuw artikel/ }), 'de n in wat je typt opent niets').toHaveCount(0);
-  await expect(box).toHaveValue(words);
+  // §98: a short editor, not a textarea — read with `boxValue`.
+  await expectBoxValue(box, words);
   await box.blur();
   const card = page.locator('.board-card', { hasText: words });
   await expect(card).toBeVisible();

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, openRights, signIn, expectBoxValue } from './helpers';
+import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, openRights, signIn, expectBoxValue, openEmptyFields } from './helpers';
 
 /**
  * Phase 3 (§9–§11) beyond golden flow 5: entry-level visibility and its leaks,
@@ -35,6 +35,8 @@ async function signUpWriting(page: Page, name: string) {
 async function unfoldInfobox(page: Page) {
   const folded = page.locator('details#block-info:not([open]) > summary');
   if (await folded.count()) await folded.click();
+  // §101 (B25): en de lege velden achter "Veld invullen".
+  await openEmptyFields(page);
 }
 
 async function signUpPlayer(page: Page, name: string, password = 'duikerklok') {

@@ -198,7 +198,7 @@ Geschiedenis · Site · Export · Logboek
 | Recently updated | Onlangs bijgewerkt |
 | Nothing pinned yet. | Nog niets geprikt. |
 | Double-click to write / Double-tap to write | Dubbelklik om te schrijven / Dubbeltik om te schrijven |
-| Rearranging works best on a tablet or desktop. | Verschuiven werkt het best op een tablet of computer. |
+| ~~Rearranging works best on a tablet or desktop.~~ | ~~Verschuiven werkt het best op een tablet of computer.~~ *Weg sinds §99: een vinger draagt een kaart en legt een touwtje.* |
 | Saved / Saving… | Opgeslagen / Opslaan… |
 | Not saved — check your connection | Niet opgeslagen — controleer je verbinding |
 | Sent to the Keeper for review | Naar de Keeper gestuurd ter beoordeling |
@@ -1121,7 +1121,7 @@ zinnen komen uit die lijst.
 | **Naamloos {los kaartje}** | op een kaartje zonder naam | (§66) |
 | **Nog niemand in deze {stamboom}. Zoek een {artikel} hierboven, of maak een {los kaartje}.** · **Deze {stamboom} is nog leeg.** | het lege doek, met en zonder recht om te bewerken | (§66) |
 | **{n} kaartjes** · **{n} verwanten erbuiten** · **sleep om te schuiven, scroll of knijp om te zoomen** · **sleep een kaartje om het vast te zetten** | de regel onder het doek | *erbuiten* zijn de schimmen; de laatste zin staat er niet op een telefoon, en op een telefoon gaat de hele regel weg — hij zegt daar niets dat de vorm niet al zegt (§66). |
-| **Opslaan…** · **Opgeslagen** · **Niet opgeslagen — controleer je verbinding** | de opslagstrip, in de werkbalk | Die van het prikbord (§61). Op een telefoon staat hij er niet: de strip in de schil zegt het ook (§66). |
+| **Opslaan…** · **Opgeslagen** · **Niet opgeslagen — controleer je verbinding** | ~~de opslagstrip, in de werkbalk~~ *sinds §100 in de schil* | Die van het prikbord (§61). ~~Op een telefoon staat hij er niet: de strip in de schil zegt het ook (§66).~~ Sinds §100 staat hij niet meer in de werkbalk: het ene woord in de schil zegt het, op elke breedte. |
 | **Rol in een stamboom: —** · **… Ouder** · **… Kind** · **… Partner** · **… Verwant** | het keuzevakje onder een koppelingsveld in Beheer → Soorten | Leeg is het gewone geval. Eronder: *"Met een rol tekent elke stamboom deze lijn, en vult het archief de andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner). Verwant wordt wel getekend en niet gespiegeld."* (§66) |
 | **Ouders** · **Kinderen** · **Partner** | geleverde velden op Personen en Onderzoekers | De *band* is het bestaande veld **Familie** (§51), dat de rand kleurt (§66). Er stond in ronde 31 ook een **Achternaam** naast — een gewoon tekstveld voor de geprinte naam van wie ingetrouwd of gevonden is — en dat is in ronde 33 teruggedraaid: zie §67. Sinds §67 staat er wél **Broers en zussen** bij. |
 | **Geschapen door** · **Schepselen** · **Aspect van** | geleverde velden op Abnormaliteiten en de vier pantheon-soorten, naast Ouders/Kinderen/Partner | Scheppen is ouderschap met een ander woord erop, dus dezelfde rol met een eigen label. *Aspect van* is *Verwant*: het wordt getekend en met opzet niet gespiegeld (§66). |
@@ -1392,5 +1392,49 @@ begrippen, geen woorden op het scherm.
 | Woord | Waar het staat | Wat het is |
 |---|---|---|
 | **kort vak** | geen woord op het scherm maar een begrip: de korte beschrijving van een {artikel}, de samenvatting van een {dossier}, een infoboxveld *Tekst* of *Lange tekst*, en dezelfde vakken in de maakbladen *Nieuw {artikel}* en *Nieuw {dossier}* | Een vak van één regel (Lange tekst: van meer regels) waarin je met `@` of `[[` een {artikel} noemt. De naam wordt een echte chip ín het vak, zoals in de lopende tekst. Enter verlaat het vak; in een Lange tekst is Enter een nieuwe regel. |
-| **handvat** | geen woord op het scherm: wat een chip in een kort vak opslaat | Een willekeurige code van twaalf tekens die zegt *hier staat een vermelding*, en niet van wie. Welk {artikel} ermee bedoeld is, staat in het archief (`mention_handles`) en wordt bij het lezen per lezer opgezocht. Een hernoemd {artikel} heet daardoor meteen overal zo, en van twee {artikelen} met dezelfde naam blijft de chip die je koos. Een chip naar iets wat jij niet mag zien, is voor jou niets: geen grijze chip en geen naam. |
+| **handvat** | geen woord op het scherm: wat een chip in een kort vak opslaat | Een willekeurige code van twaalf tekens die zegt *hier staat een vermelding*, en niet van wie. Welk {artikel} ermee bedoeld is, staat in het archief (`mention_handles`) en wordt bij het lezen per lezer opgezocht. Een hernoemd {artikel} heet daardoor meteen overal zo, en van twee {artikelen} met dezelfde naam blijft de chip die je koos. Een chip naar iets wat jij niet mag zien, is voor jou niets: geen grijze chip en geen naam. Sinds §97 en §98: een willekeurige sleutel per vermelding, in elk kort vak (`⟦h⟧`) en in de lopende tekst (`entryLink {handle}`). |
 | **Artikelen** (`mentionListLabel`) | de voorgelezen naam van de lijst die onder `@` of `[[` openklapt, in een kort vak en in de lopende tekst | De lijst zelf is dezelfde als in de lopende tekst, met *‘…’ aanmaken* onderaan. |
+
+## Golf 3 — rondes 58 tot en met 62 (§97–§101)
+
+Rondes 58 en 59 hebben geen eigen woordblok: een handvat is geen woord op het
+scherm, en de vakken die ze omzetten hielden hun namen. De andere drie hebben
+elk een blok achteraan in `lib/words.ts`.
+
+### Rondes 58 en 59 — een handvat overal (§97, §98): begrippen, geen sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **handvat** | geen woord op het scherm: wat een chip opslaat | Zie ronde 56. Sinds §97 ook in de lopende tekst (een `entryLink` bewaart alleen zijn handvat), en sinds §98 in elk kort vak: de tekst van een speld, een gebeurtenis, een los kaartje en een kaartje op een {prikbord}, de omschrijving van een {landkaart}, {tijdlijn}, {stamboom} en {prikbord}, en de inleiding van een overzicht. |
+| **kort vak** | begrip | Sinds §98 is dat elk vak waarin je met `@` of `[[` een {artikel} noemt, behalve de lopende tekst. In Bewerken zet een tik op een chip de caret erachter; openen doe je in Lezen. |
+
+### Ronde 60 — de vlakken, derde pas (§99): groep *Tekenvlakken: derde pas*, 4 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Beschrijving** (`boardDescriptionLabel`) · **Waar gaat dit {prikbord} over? Typ @ om een {artikel} te noemen.** (`boardDescriptionPlaceholder`) | onder de vouw van een {prikbord} | De beschrijving van een {prikbord}, zoals de andere drie vlakken er een hebben. Een kort vak: een {artikel} noemen wordt een chip. De tekst staat daarna in de kop, op de lijst en in het web. |
+| **De beschrijving van dit {prikbord} is niet opgeslagen.** (`boardDescriptionRefused`) | als melding, als het archief de beschrijving weigert | |
+| **Kind van beide** (`treeHandleBoth`) | op de gedeelde `+` tussen twee gekozen kaartjes in een {stamboom} | Het woord bij de knop die een kind van allebei maakt, zoals *Ouder*, *Kind*, *Partner* en *Broer/zus* op de andere vier. |
+
+### Ronde 61 — het palet en één opslaan (§100): groep *Het palet*, 16 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Palet** | begrip; voorgelezen als **Zoek of ga naar** (`paletteTitle`) | Het venster dat `/` en Ctrl/⌘K overal openen: zoeken, *Onlangs* en de handelingen, zonder van de pagina weg te gaan. |
+| **Zoek of ga naar…** (`paletteDoor`) | de knop in de zijbalk en in het Jij-blad | De deur naar het palet. Tot §100 was het in de zijbalk een zoekvak. |
+| **Onlangs** (`paletteRecent`) · **Wat je opent, staat hier de volgende keer.** (`paletteRecentNone`) | in een leeg palet | Wat je laatst opende, in deze browser, met de namen zoals jij ze nu mag zien. |
+| **Handelingen** (`paletteActions`) | na `>` in het palet | Wat je kunt *doen*: **Nieuw {dossier}** (`actNewCase`), **Nieuw {prikbord}** (`actNewBoard`), **Nieuwe {tijdlijn}** (`actNewTimeline`), **Nieuwe {landkaart}** (`actNewMap`), **Nieuwe {stamboom}** (`actNewTree`), **Speel als {naam}** (`actPlayAs`). Wat van de {keeper} is, staat er voor een speler niet. |
+| **Zoeken…** (`paletteSearching`) · **Niets in het archief heet zo.** (`paletteNone`) · **Zoek ‘{q}’ in het hele archief** (`paletteSearchAll`) | in het palet, terwijl het zoekt, als niets past, en als laatste regel | De laatste regel gaat naar Zoeken. |
+| **↑↓ kiezen · Enter openen · Esc terug · > handelingen** (`paletteKeys`) · **{slash} of {mod}** (`shortcutsPalette`) | onderaan het palet, en in de uitleg van de sneltoetsen | |
+| **Opslaan…** · **Opgeslagen** · **Nog niet opgeslagen — …** (`saveOffline`) | sinds §100 één keer, in de schil naast de online-stip | Dezelfde zinnen als in §90 (`saveLabel`), alleen niet meer op de pagina of in een blad. |
+
+### Ronde 62 — de losse eindjes (§101): groep *De losse eindjes*, 19 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **In de lade leggen** (`drawerGiveLabel`) · **Zoek huisraad…** (`drawerGivePlaceholder`) · **In de lade** (`drawerGiveButton`) · **{ding} ligt nu in de lade van {naam}.** (`drawerGiveDone`) | in een kamer, alleen voor de {keeper} | De {keeper} legt huisraad rechtstreeks in de lade van een kamer, gratis. |
+| **Alleen de {keeper} legt iets rechtstreeks in een lade.** (`drawerGiveOnlyKeeper`) · **Die kamer bestaat niet.** (`drawerGiveNoRoom`) · **Alleen huisraad gaat in een lade. Een voorwerp zet je op een plek.** (`drawerGiveNotFurnishing`) | als het archief die gift weigert | |
+| **Veld invullen** · **{n} leeg** (`fieldsFillEmpty`, `fieldsEmptyCount`, al sinds ronde 53) | in Bewerken, onder de infobox, als twee of meer velden leeg waren | Klapt de lege velden open. |
+| **Er is iets misgegaan.** (`somethingWrong`) | als melding in de kamer, als het archief geen eigen zin gaf | Stond hard in de code. |
+| `fontNote`, `colourNoteKeeper`, `colourNotePlayer` | op `/you`, achter *Waarom?* bij Lettertype en Kleuren | Stonden in een `title`, en dat bestaat op een telefoon niet. |
+| **Zoeken in het archief** (`searchLabel`) · **Zoek op naam, tag, wat dan ook…** (`searchPlaceholder`) · **Zoek in {soort}…** (`searchPlaceholderIn`) · **Zoek in** (`searchIn`) · **Alles** (`searchAll`) · **Typ om te zoeken. Druk overal op {toets} om hier te komen.** (`searchHint`) · **Genoemd in de tekst** (`searchInText`) · **‘{naam}’ aanmaken** (`searchCreate`) | op Zoeken | Stonden hard in `SearchScreen`. |

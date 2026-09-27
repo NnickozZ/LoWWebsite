@@ -39,6 +39,7 @@ export function buyToast(
     const { error, data } = await kamerPostFor<{ returned: number; name: string }>(
       `/api/kamers/${roomId}/terug`,
       { entryId },
+      words,
     );
     if (error || !data) {
       if (error) ui.toast(error);

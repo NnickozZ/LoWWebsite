@@ -26,6 +26,11 @@ en een ding kan verplaatst worden. K21, K22, K42 en K48 veranderden, K49, K50
 en K51 zijn nieuw (sectie 10), en E1 is uit *Wat open staat*. K1's
 uitzondering is sinds 21 september door Nick vastgelegd.
 
+Bijgewerkt in ronde 62 (§101, *De losse eindjes*). De Keeper legt huisraad
+rechtstreeks in een lade (K52), en een handeling in een kamer die je niet mag
+zien staat niet meer in je feed (K53). K21 kreeg een zin bij. Twee punten zijn
+uit *Wat open staat*.
+
 ## Hoe je dit leest
 
 - Elke regel is **genummerd** (`K1`, `K2`, …) en bindend, zoals de regels in
@@ -81,7 +86,7 @@ uitzondering is sinds 21 september door Nick vastgelegd.
 | **K18** | **Een gevulde tegel toont een vierkante uitsnede** (`shape="square"`), nooit hoger dan breed. Die maat hoort bij de *tegel* (`.plek .plek-cover`) en niet bij de klasse, want een winkelrij draagt dezelfde klasse op een andere breedte. | bewaakt (`kamer-contract.test.ts`) |
 | **K19** | **Een lege en een gesloten tegel dragen een groot gedempt merk** — de soort plek, respectievelijk het slot — op de plek waar bij een gevulde tegel de omslag staat. Een raster van lege vakjes met één woord erin leest als een pagina die nog laadt. | |
 | **K20** | **De ladder is de volgorde.** `sort_order` bepaalt waar een tegel staat; niets herordent open tegels vóór gesloten, en `landsIn` landt op de eerste vrije plek in de volgorde van de ladder — niet in die van `PLEK_KINDS`. (§84's vierde fout.) | bewaakt (`winkel.test.ts`) |
-| **K21** | **Weghalen is geen gelijke van Neerzetten.** Het is een klein kruisje rechtsboven in de gevulde tegel, met een volwaardig raakvlak en met de naam van wat het weghaalt in zijn `aria-label` — je zet tien dingen neer voor je er één weghaalt. Sinds §90 staat het kruisje ook op een scherm met een muis altijd in beeld, gedempt, met een raakvlak van `--tap`. Tot dan verscheen het pas bij hover (review E9). **Sinds §93 staat er *Verplaatsen* onder het kruisje**, net zo klein getekend, gedempt en altijd in beeld, met een raakvlak van `--tap` (`Verplaatsen.tsx`). Onder en niet ernaast, want ernaast dekte het het etiket van de plek af. Verplaatsen is tik-tik en geen sleep (WCAG 2.5.7): een statusbalk met *Annuleren*, *Hierheen* op elke vrije plek waar het ding past, en Escape of een tik ernaast breekt af. Weghalen legt huisraad in de lade (K49) en de melding zegt dat. | bewaakt (`ronde-54-de-kamer.spec.ts`) |
+| **K21** | **Weghalen is geen gelijke van Neerzetten.** Het is een klein kruisje rechtsboven in de gevulde tegel, met een volwaardig raakvlak en met de naam van wat het weghaalt in zijn `aria-label` — je zet tien dingen neer voor je er één weghaalt. Sinds §90 staat het kruisje ook op een scherm met een muis altijd in beeld, gedempt, met een raakvlak van `--tap`. Tot dan verscheen het pas bij hover (review E9). **Sinds §93 staat er *Verplaatsen* onder het kruisje**, net zo klein getekend, gedempt en altijd in beeld, met een raakvlak van `--tap` (`Verplaatsen.tsx`). Onder en niet ernaast, want ernaast dekte het het etiket van de plek af. Verplaatsen is tik-tik en geen sleep (WCAG 2.5.7): een statusbalk met *Annuleren*, *Hierheen* op elke vrije plek waar het ding past, en Escape of een tik ernaast breekt af. Weghalen legt huisraad in de lade (K49) en de melding zegt dat. **Sinds §101 houdt het plekwoord de hoek van het kruisje vrij**: het woord (*BUREAU*) staat in een eigen element en kapt af met "…" vóór het kruisje, in plaats van eronder door te lopen. | bewaakt (`ronde-54-de-kamer.spec.ts`) |
 | **K22** | **Wat deze kamer je geeft staat bóven het raster**, en wordt ook getekend als er nog niets ligt. Een lege kamer zonder die zin leest als een pagina die stuk is. Sinds §90 is de lege variant **alleen de zin**, zonder winkelknop: de deur naast de beurs is de enige (review E12). In de kamer van een ander noemt die zin de naam (*Nog niets dat Kees iets geeft*), en sinds §93 ook de kop (*Wat deze kamer Kees geeft*, `roomEffectsOf`). Op een telefoon is het gevulde blok een `<details>` die dicht begint, met een telling *· n* achter de kop die alleen daar zichtbaar is (`EffectenFold`). Elke gevulde tegel draagt bovendien zijn eerste effectregel klein onder de naam. | bewaakt (`huisraad.spec.ts`: op een breed scherm is het blok precies de kop, de namen en de regels, zonder telling, rule 78; `ronde-51-economie.spec.ts` zaak 3 voor de lege zin met de naam) |
 | **K23** | **Het grootboek staat onderaan en ingeklapt** op de laatste drie regels, met één knop die de rest toont. Dat is een gemak en geen recht — de sluier van §76 zit in `ledgerOf` en niet in de knop. | bewaakt (`kamer-ux.spec.ts`, zaak 8) |
 
@@ -142,6 +147,8 @@ uitzondering is sinds 21 september door Nick vastgelegd.
 | **K49** | **Wat een kamer bezit, is wat op zijn plekken ligt plus wat in zijn lade ligt.** De lade (`room_drawer`) heeft één rij per exemplaar en niets dat rekent (rule 78). Weghalen legt huisraad in de lade; een gevonden voorwerp gaat terug de wereld in. `placeItem` weigert een speler huisraad dat niet in de lade van díé kamer ligt (*Dat heb je niet. Koop het eerst in de winkel.*); de Keeper mag alles (§80), maar neemt eerst uit de lade. Neerzetten gebeurt alleen op een lege plek. *Wat je al hebt* is `placeCandidates()`, en of een uniek ding al vergeven is, zegt alleen `claimedIds()`: de plekken én de laden. De migratie verzon geen bezit: wat vóór §93 weggehaald werd, is van niemand. | bewaakt (`ronde-54-de-lade.test.ts`, `ronde-54-de-kamer.spec.ts` zaken 2 en 3) |
 | **K50** | **Een koop mag vlak erna terug, en dat is een regel erbij.** *Ongedaan maken* staat tien seconden in de melding na een koop (`BUY_UNDO_SECONDS`, met vijf seconden speling op de server). Alleen wie kocht, alleen de laatste koop van dat ding in die kamer, en alleen als het er nog ligt (op zijn plek of in de lade). Het grootboek krijgt een regel `return` (*Leesstoel teruggebracht*) en verandert er geen: het saldo blijft de som (K2). Een teruggebrachte regel krijgt dezelfde sluier als de koop (K9). Na het venster is er geen terugweg: weghalen, en het ligt in je lade. Dit is een correctie, geen terugverkoop (Nick, ronde 54). | bewaakt (`ronde-54-de-lade.test.ts`, `ronde-54-de-kamer.spec.ts` zaak 2) |
 | **K51** | **Een winkelrij zonder vrije plek biedt de goedkoopste gesloten plek aan die past** (`ShopItem.opens`, review E5), met de prijs op de knop (K3), in plaats van alleen te zeggen dat er geen plek is. Waar er een vrije plek is, staat er niets extra. | bewaakt (`ronde-54-de-lade.test.ts`) |
+| **K52** | **De Keeper legt iets rechtstreeks in een lade** (sinds §101, `giveToDrawer`, *In de lade leggen* in de kamer, `POST /api/kamers/[id]/lade`). Alleen hij, alleen huisraad dat ergens in een kamer hoort, en alleen wat niet al ligt waar het uniek is. Het is gratis en schrijft geen grootboekregel (§80: cadeau doen kost niets), en in het feed één `room.placed` met `meta.roomId` en `drawer: true`: het is neerzetten in de kamer, geen nieuw werkwoord. Daarna is het van die kamer zoals een koop (K49). | bewaakt (`ronde-62-eindjes.test.ts`, `ronde-62-eindjes.spec.ts`) |
+| **K53** | **Een regel in het feed over een kamer vraagt de kamer** (sinds §101). Een `room.*`-regel hangt aan zijn voorwerp, dus een handeling in een privé-kamer (§86) stond naamloos in het feed van wie het voorwerp mocht zien. Nu stelt `recentActivity` dezelfde vraag als `canSeeRoom`, in SQL (`roomRowCondition`): de draaiknop van de kamer en de onderzoeker erachter. De kamer komt uit `meta.roomId` of uit de plek in `meta.slotId`; een regel waarvan de kamer niet te vinden is, valt weg. Een nieuwe `room.*`-regel draagt dus een van die twee. Dit keert §76's naamloze regel "in een kamer" om. | bewaakt (`ronde-62-eindjes.test.ts`) |
 
 ---
 
@@ -181,8 +188,10 @@ uitzondering is sinds 21 september door Nick vastgelegd.
   kamer, een `keeper_made`-slot in `placeItem`, en *Ongedaan maken* in de
   koopmelding) en zette hem in ronde 54.~~ **Gesloten in ronde 54 (§93)**, zie
   K49 en K50.
-- **De Keeper kan niets rechtstreeks in een lade leggen.** Hij zet het op een
-  plek (gratis, §80) of geeft munten. Zie `CLAUDE.md` §8, ronde 54.
-- **"Er is iets misgegaan." staat nog hard in `components/kamer/post.ts`**, als
+- ~~**De Keeper kan niets rechtstreeks in een lade leggen.** Hij zet het op een
+  plek (gratis, §80) of geeft munten. Zie `CLAUDE.md` §8, ronde 54.~~
+  **Gesloten in ronde 62 (§101)**, zie K52.
+- ~~**"Er is iets misgegaan." staat nog hard in `components/kamer/post.ts`**, als
   terugval wanneer de server geen eigen zin meegeeft. Het bestand valt buiten
-  de scope van `kamer-contract.test.ts`.
+  de scope van `kamer-contract.test.ts`.~~ **Gesloten in ronde 62 (§101):** het
+  is `words.somethingWrong`, dat de knop meegeeft.

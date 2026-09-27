@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiveSave, LiveStatus } from '@/components/editor/useLiveDoc';
+import { useReportSave } from '@/components/live/saveRegister';
 import { DEFAULT_WORDS, type Words } from '@/lib/words';
 
 /**
@@ -215,6 +216,15 @@ export function combinedSave(input: {
  * Returns the sentence for `.save-state`.
  */
 export function useSaveWord(state: SaveState, rooms: readonly RoomSave[], words?: Words): string {
+  return saveLabel(useSaveState(state, rooms), words);
+}
+
+/**
+ * §100: the same answer as `useSaveWord`, before it became a sentence — what
+ * the artikel and the dossier hand to the shell's one save word
+ * (`useReportSave` in `components/live/saveRegister.ts`).
+ */
+export function useSaveState(state: SaveState, rooms: readonly RoomSave[]): SaveState {
   const [online, setOnline] = useState(true);
   useEffect(() => {
     const read = () => setOnline(typeof navigator === 'undefined' || navigator.onLine !== false);
@@ -247,5 +257,25 @@ export function useSaveWord(state: SaveState, rooms: readonly RoomSave[], words?
     return () => clearTimeout(timer);
   }, [waiting, movement]);
 
-  return saveLabel(combinedSave({ state, rooms, online, stuck }), words);
+  return combinedSave({ state, rooms, online, stuck });
+}
+
+/**
+ * §100: a `SaveState` as the shell's register takes it. `dirty` is "on its
+ * way" (the word says "Opslaan…" for it, as `combinedSave` does), and `idle`
+ * is a writer with nothing to say yet.
+ */
+export function toSaveReport(state: SaveState): 'idle' | 'saving' | 'saved' | 'pending' | 'offline' | 'error' {
+  return state === 'dirty' ? 'saving' : state;
+}
+
+/**
+ * §101 naden: what the artikel and the dossier do in two lines
+ * (`useSaveState` + `useReportSave`), for a writer that has only rooms and
+ * perhaps a request of its own — a speld's or a gebeurtenis's blad, a sectie.
+ * `active` false is Lezen, or a blad with nothing to type in: no word at all.
+ */
+export function useReportRoomSave(active: boolean, rooms: readonly RoomSave[], state: SaveState = 'idle') {
+  const combined = useSaveState(state, rooms);
+  useReportSave(active ? toSaveReport(combined) : null);
 }

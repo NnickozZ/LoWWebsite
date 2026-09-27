@@ -208,6 +208,13 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 > `state.viewport` niet meer bij het openen. De landkaart en de tijdlijn
 > openen nog op hun fit.
 
+> **Ronde 60 (§99): een plafond van 1.** Het prikbord opent nooit groter dan
+> zoom 1 (`OPEN_MAX_ZOOM`, sinds golf 2; de 1.2 hierboven is het plafond van
+> *Alles in beeld*), en de stamboom nu ook niet (`TREE_OPEN_MAX_ZOOM`): een
+> nieuwe stamboom met één los kaartje opende twee keer zo groot, en de
+> beletterde handgrepen hingen dan op een telefoon over de rand. C7 bevestigt
+> ronde 55: *Alles in beeld* krijgt geen leesvloer.
+
 ### Rij 5 — Waar de zoomknoppen staan
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -324,6 +331,11 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 > Lezen verdwijnt. Beslist als O2 in de canvas-bijlage van de review; bewaakt
 > in `round-37-tree.spec.ts`.
 
+> **Ronde 60 (§99, C10): alleen voor wie mag bewerken.** Wie het vlak mag
+> bewerken, heeft de knop, in Lezen grijs. Voor wie alleen mag kijken, is hij
+> afwezig: er valt niets terug te nemen. Op alle vier hetzelfde; het prikbord
+> was de laatste die hem iedereen liet zien (`!locked`).
+
 ### Rij 10 — Verwijderen
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -405,6 +417,11 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 - Hoekwoord per plek: **`BEWUST`** (*Bewust anders*; CLAUDE.md §5 "the corner passed as a word"). Maar de **telefoon**-hoek volgt alleen uit de klasse `ink-toolbar-board` (`CSS:5529-5536`): op het prikbord en de stamboom linksboven, op de landkaart linksonder, op de tijdlijn linksboven. Dat de telefoonregel aan één klasse hangt is `TOEVAL` — het hoekwoord hoort ook op de telefoon te beslissen, of de telefoon één hoek te hebben (rij 14).
 - Eenheden: **`BEWUST`** (*Bewust anders*).
 - Keeper-schakelaar: onder de vouw (twee) tegenover in een blad (twee). De regel (§34/§66, CLAUDE.md §5 "goes under the fold on a full-screen canvas") geldt voor full-screen canvassen; het prikbord staat niet op de §34-shell (§8 debt), de tijdlijn wel. `TOEVAL` voor de tijdlijn → `UnderFold`; prikbord blijft in het Rechten-blad tot het op de shell staat. *(Ronde 55, §94: het prikbord staat nu op de schil en heeft een `#board-underfold`, maar daar staan de dossierkeuze en `BinSlot`. De tekenlaag-schakelaar van de Keeper staat nog in het Rechten-blad.)*
+
+> **Ronde 60 (§99):** ook op het prikbord staat de tekenlaag-schakelaar van de
+> Keeper nu onder de vouw, via `UnderFold` in `#board-ink-underfold`. Op de
+> drie vlakken met de §34-schil is dat gelijk; de tijdlijn toont hem in zijn
+> Instellingen-blad. Elke Keeper-tool van een vlak gaat via `UnderFold`.
 - Potlood-aan en het `…`-menu: de inventaris vermoedde dat het menu open bleef (`FC:382-386`); `gemeten D-S3` zegt van niet — vervalt.
 - Wiel onder het vel: zoomt (drie) / pant (tijdlijn) — consistent met rij 1. Geen afwijking.
 
@@ -457,6 +474,21 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 > - **De schrijfvraag komt nooit in Lezen** (O12). Zie README regel 90: de
 >   poort is `useCanvasAuthorGate(editing || inkActive)`, en de camera, de
 >   schakelaar en de legenda dragen `data-author-gate="off"`.
+>
+> **Ronde 64 (§101): vraag eerst, doe daarna.**
+> - **Een maakknop op de balk vraagt vóóraf en houdt zijn handeling vast**
+>   (`useCanvasMaker`): je antwoordt één keer en de knop doet wat hij belooft.
+>   Vóór deze ronde at het blad de `click` op en kostte elke maker op de
+>   landkaart, de tijdlijn en de stamboom twee handelingen in plaats van één.
+> - **Een leesknop vraagt nooit** — de camera, de schakelaar, de legenda, de
+>   loep: `AUTHOR_GATE_OFF`, en sinds deze ronde ook de balk zelf.
+> - **Een blad over het glas is het glas niet.** Een `Sheet` hangt in een
+>   portal maar valt in de React-boom onder de poort van het vlak; daar vraagt
+>   alleen een vak waar je echt in typt.
+> - **Escape annuleert de vraag**, geeft de caret terug en maakt niets.
+> - **De camera blijft staan bij een `+`**: het kaartje dat je vasthad houdt
+>   zijn plek op het glas en het nieuwe wordt erbij gehaald (`markPlace`,
+>   `followPoint`, `panIntoView`). Er wordt niet gezoomd.
 
 > **Ronde 55 (§94): de schakelaar vooraan, vinden, en een draad met een
 > vinger.**
@@ -481,9 +513,12 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 > - **De `+`-handgrepen van een stamboom dragen een woord** (*Ouder*, *Kind*,
 >   *Partner*, *Broer/zus*), als pillen buiten de rand van het kaartje. Hun
 >   `aria-label`s zijn niet veranderd (§64).
-> - **Nog open** (`CLAUDE.md` §8, ronde 55): het prikbord in Bewerken op de
+> - ~~**Nog open** (`CLAUDE.md` §8, ronde 55): het prikbord in Bewerken op de
 >   telefoon geeft het glas ongeveer de helft van het scherm, en het prikbord
->   heeft nog geen beschrijvingskolom (O8).
+>   heeft nog geen beschrijvingskolom (O8).~~ **Dicht in ronde 60 (§99):** het
+>   glas is 61 % (was 50 %), de werkbalk is één rij en de maakknoppen tonen
+>   onder 768 px alleen hun icoon, met hun naam; de tip "Verschuiven werkt het
+>   best op een tablet" is weg. En het prikbord heeft een beschrijving.
 
 ### Rij 15 — Lege staat, laadstaat, foutstaat
 
@@ -557,6 +592,12 @@ Kolommen: **Prikbord** `NewBoardButton.tsx` (NBB) · **Landkaart** `NewMapButton
 - Sluiten: `Annuleren` (landkaart) / × `Sluiten` (artikel, dossier) / niets (tijdlijn, stamboom). `TOEVAL` → het kruisje komt in `Sheet` zelf (tafel 3) en `Annuleren` vervalt.
 - De primaire knop: `Openbare X` + `Privé X` (prikbord, tijdlijn, stamboom) tegenover één knop (landkaart, artikel, dossier). Twee patronen voor twee soorten dingen (containers met rechten; artikelen/dossiers zonder). Niet gestempeld als vorm; de **woorden** (`Ophangen` / `Aanmaken` / `Openen` / `Openbare …`) zijn ronde 36.
 - Beschrijvingsveld: `Omschrijving` (textarea) / `Waar gaat het over?` (input) / `Korte beschrijving` (textarea) / `Samenvatting` (input) / geen (tijdlijn). Woorden → ronde 36; vorm: `TOEVAL` → één veld, één rol (`@` overal).
+  *Ronde 60 (§99): alle vier de vlakken hebben nu een beschrijving, het
+  prikbord als laatste (`boards.description`, migratie
+  `0037_prikbord_beschrijving`). Sinds §98 is elk ervan een kort vak met
+  handvatten (`ShortField` → `cleanShort` → `MentionText tokens`), één regel,
+  gelezen in de kop (`canvas-head-desc`), op de lijst en in het web. Het
+  prikbord vraagt hem niet in het maakblad maar onder de vouw.*
 - `NewOfTypeButton` zonder `btn-primary`; landkaart-icoon `upload`. `TOEVAL`.
 - De vier container-knoppen slaan `ensureAuthor` over → twee meldingen tegelijk. `TOEVAL` → door `askThen`.
 - `keeperOnly`: overal aanwezig, overal vóór de knoppen; alleen het prikbord zet hem op de pagina. `TOEVAL` (volgt uit het blad).

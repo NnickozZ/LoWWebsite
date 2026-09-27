@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessEditor } from '@/components/access/AccessEditor';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
-import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
-import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
+import { LiveField, LiveFields, ShortField, useLiveFields } from '@/components/live/LiveFields';
+import { useReportRoomSave, type RoomSave, type SaveState } from '@/components/entry/useAutosave';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
@@ -257,7 +257,6 @@ export function NewEventSheet({
    */
   const [askDate, setAskDate] = useState(initialAt === null);
   const [text, setText] = useState('');
-  const newTextRef = useRef<HTMLTextAreaElement>(null);
   const typed = query.trim();
 
   useEffect(() => {
@@ -446,27 +445,28 @@ export function NewEventSheet({
             )}
           </div>
           <div>
-            <label className="label" htmlFor="new-event-text">
+            <label className="label" htmlFor="new-event-text" id="new-event-text-label">
               Wat de {words.timeline} erover zegt
             </label>
-            <div className="mention-field">
-            <textarea
+            {/* §98: a chip in the box (`ShortField`), no room yet — the
+                gebeurtenis does not exist until this sheet makes it. */}
+            <ShortField
+              noRoom
+              multiline
+              field="text"
               id="new-event-text"
-              ref={newTextRef}
-              className="input"
-              rows={3}
+              className="input short-editor-sheet"
+              ariaLabelledBy="new-event-text-label"
               value={text}
               placeholder={chosen.kind === 'entry' ? `Kort, voor op de ${words.timeline}; het ${words.entry} zelf blijft wat het is.` : `Optioneel. Typ @ om een ${words.entry} te noemen.`}
-              onChange={(event) => setText(event.target.value)}
+              onValue={(next) => setText(next)}
             />
-            <MentionPopover forRef={newTextRef} />
-            {/* §56: a chip over the name in the box itself. */}
-            <MentionOverlay forRef={newTextRef} value={text} />
-            {/* §92: out of focus, the chips without brackets; no row under it. */}
-            <MentionPreview forRef={newTextRef} value={text} />
-            </div>
           </div>
-          <p style={{ margin: 0 }}>
+          {/* §99 (C15): on a phone the button sticks to the bottom of the sheet,
+              as the nieuwe-tijdlijn sheet's row does (§90), so it is on screen
+              with the keyboard up. It is filled as soon as a date is in the
+              boxes — and the boxes arrive with one (§90). */}
+          <p className="sheet-actions-stick new-event-actions">
             <button type="button" className="btn btn-primary" disabled={!ready || !mayType} onClick={() => void submit()} data-testid="new-event-submit">
               <Icon name="plus" size={15} />
               Op de {words.timeline} zetten
@@ -514,14 +514,25 @@ export function EditEventSheet({
   onRemove: () => void;
   onConvert: (seed: { name: string; text: string }) => void;
 }) {
+  // §101 naden: the room's save goes to the shell's one save word (§100).
+  const [fieldsSave, setFieldsSave] = useState<RoomSave>({ status: 'connecting', save: 'idle' });
+  // …and so do the blad's own requests (the date, the picture, Opslaan).
+  const [asked, setAsked] = useState<SaveState>('idle');
+  const save = async (patch: EventPatchInput) => {
+    setAsked('saving');
+    const ok = await onSave(patch);
+    setAsked(ok ? 'saved' : 'error');
+    return ok;
+  };
+  useReportRoomSave(true, [fieldsSave], asked);
   return (
-    <LiveFields room={eventFieldsRoomKey(event.id)} state="" user={liveUser} canEdit>
+    <LiveFields room={eventFieldsRoomKey(event.id)} state="" user={liveUser} canEdit onStatus={setFieldsSave}>
       <EditEventBody
         timeline={timeline}
         event={event}
         busy={busy}
         setBy={setBy}
-        onSave={onSave}
+        onSave={save}
         onRemove={onRemove}
         onConvert={onConvert}
       />
@@ -674,10 +685,19 @@ function EditEventBody({
       )}
 
       <div>
-        <label className="label" htmlFor="event-text">
+        <label className="label" htmlFor="event-text" id="event-text-label">
           Wat de {words.timeline} erover zegt
         </label>
-        <LiveField as="textarea" field="text" id="event-text" className="input" rows={4} value={text} onValue={(next) => setText(next)} mentions />
+        {/* §98: the same `Y.Text` of the same room, with chips (`ShortField`). */}
+        <ShortField
+          multiline
+          field="text"
+          id="event-text"
+          className="input short-editor-sheet"
+          ariaLabelledBy="event-text-label"
+          value={text}
+          onValue={(next) => setText(next)}
+        />
         {shared ? (
           <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
             Wat je hier typt wordt meteen bewaard en ziet iedereen op deze {words.timeline}.
@@ -952,17 +972,20 @@ export function TimelineSettingsSheet({
         />
       </div>
       <div>
-        <label className="label" htmlFor="timeline-description">
+        <label className="label" htmlFor="timeline-description" id="timeline-description-label">
           Korte beschrijving
         </label>
-        <textarea
+        {/* §98: an omschrijving holds chips (`ShortField`, one line). */}
+        <ShortField
+          noRoom
+          field="description"
           id="timeline-description"
           className="input"
-          rows={2}
+          ariaLabelledBy="timeline-description-label"
           value={description}
-          onChange={(event) => {
+          onValue={(next) => {
             touch('description');
-            setDescription(event.target.value);
+            setDescription(next);
           }}
         />
       </div>

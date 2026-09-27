@@ -144,7 +144,10 @@ describe('the token', () => {
 
 describe('0034_een_id', () => {
   it('is appended, guarded and carries its step in JavaScript', () => {
-    const last = deps.MIGRATIONS[deps.MIGRATIONS.length - 1] as { name: string; sql: string; run?: unknown };
+    // §99: no longer the last one (0037 came after it); found by name.
+    const all = deps.MIGRATIONS as { name: string; sql: string; run?: unknown }[];
+    const last = all.find((m) => m.name === '0034_een_id')!;
+    expect(all.indexOf(last)).toBeGreaterThan(all.findIndex((m) => m.name.startsWith('0033_')));
     expect(last.name).toBe('0034_een_id');
     expect(last.sql).toContain('CREATE TABLE IF NOT EXISTS mention_handles');
     expect(typeof last.run).toBe('function');

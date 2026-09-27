@@ -59,7 +59,7 @@ export function ClearButton({
   async function clear() {
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/clear`);
+      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/clear`, undefined, words);
       if (error) {
         ui.toast(error);
         return;

@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { notFound, redirect } from 'next/navigation';
 /*
  * §66: the stamboom's own stylesheet, brought in by the one page that is a
@@ -92,6 +95,8 @@ export default async function FamilyTreePage({
   const liveName = windowPresenceName(user, words.keeper);
 
   return (
+    // §98: the omschrijving and every los kaartje's text, chips resolved for this reader.
+    <ShortChips map={shortChipsFor(user, [tree.description, ...tree.state.loose.map((card) => card.text ?? '')])}>
     <div className="page-wide tree-page-shell">
       {/* §34: the stamboom takes the screen, like a tijdlijn and a landkaart. */}
       <div className="page-canvas">
@@ -147,7 +152,11 @@ export default async function FamilyTreePage({
               here and again in the canvas's own bar, which on a telephone was
               two rows of screen saying one thing. */}
           <TreeTitle id={tree.id} name={tree.name} canEdit={mayEdit} />
-          {tree.description && <p className="small muted canvas-head-desc">{tree.description}</p>}
+          {tree.description && (
+            <p className="small muted canvas-head-desc">
+              <MentionText text={tree.description} tokens />
+            </p>
+          )}
           {/* §43/§66: the web, with this stamboom in the middle. */}
           <ConnectionsLink kind="family_tree" id={tree.id} />
         </header>
@@ -214,5 +223,6 @@ export default async function FamilyTreePage({
         </div>
       )}
     </div>
+    </ShortChips>
   );
 }

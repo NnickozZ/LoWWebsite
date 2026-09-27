@@ -7,6 +7,9 @@ import { CanvasTitle } from '@/components/canvas/CanvasTitle';
 import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { MapCanvas } from '@/components/maps/MapCanvas';
 import { MapKeeperTools } from '@/components/maps/MapKeeperTools';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { BinSlot } from '@/components/ui/BinSlot';
@@ -116,6 +119,9 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
   const liveName = windowPresenceName(user, words.keeper);
 
   return (
+    // §98: every short text on this page — the omschrijving and what the
+    // spelden say — with its chips resolved for this reader.
+    <ShortChips map={shortChipsFor(user, [map.description, ...pins.map((pin) => pin.text)])}>
     <div className="page-wide">
       {/*
        * §34: the map takes the screen. Everything that used to stand above it
@@ -180,7 +186,11 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
               )}
             </p>
           )}
-          {map.description && <p className="small muted canvas-head-desc">{map.description}</p>}
+          {map.description && (
+            <p className="small muted canvas-head-desc">
+              <MentionText text={map.description} tokens />
+            </p>
+          )}
           {/* §43: the web, with this landkaart in the middle. */}
           <ConnectionsLink kind="map" id={map.id} />
         </header>
@@ -281,5 +291,6 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
         </div>
       )}
     </div>
+    </ShortChips>
   );
 }

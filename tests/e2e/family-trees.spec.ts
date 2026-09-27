@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   becomeInvestigator,
   editArticle,
+  openEmptyFields,
   editCanvas,
   editCase,
   fillWhenReady,
@@ -205,7 +206,10 @@ const readRow = (page: Page, label: string) =>
 
 /** And the same row on the editing face, where a koppelingsveld has a picker in it. */
 const editRow = (page: Page, key: string) =>
-  page.locator('.entry-fields .fields-compact > div').filter({ has: page.locator(`label[for="field-${key}"]`) });
+  page
+    // §101 (B25): an empty one stands inside the "Veld invullen" fold.
+    .locator('.entry-fields .fields-compact > div, .entry-fields .fields-compact .fields-empty-body > div')
+    .filter({ has: page.locator(`label[for="field-${key}"]`) });
 
 /* ============================================================ a. the shelf */
 
@@ -365,6 +369,7 @@ test('een Partner in de infobox wordt een schim in de stamboom, en de lijn kan e
   await page.goto('/e/jacob-den-hollander');
   // Rule 18: nobody lands on an editing page, a Keeper included.
   await editArticle(page);
+  await openEmptyFields(page);
   const partner = editRow(page, 'partner');
   await expect(partner).toBeVisible();
   await fillWhenReady(partner.getByPlaceholder('Nog een toevoegen…'), 'Clasina');
@@ -607,6 +612,7 @@ test('een Familie wijst naar zijn stamboom, en de stamboom zegt van wie hij is',
 
   // Rule 18 all the same: ask for the editing face rather than assuming it.
   await editArticle(page);
+  await openEmptyFields(page);
   const row = editRow(page, 'stamboom');
   await expect(row).toBeVisible();
   await fillWhenReady(row.locator('#field-stamboom'), treeName);

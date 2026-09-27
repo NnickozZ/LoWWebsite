@@ -157,6 +157,14 @@ type UiValue = {
   caseHere: CaseHere | null;
   /** Set by the dossier's page on mount; called with null on unmount. */
   setCaseHere: (value: CaseHere | null) => void;
+  /**
+   * §100: het palet — open (with what is already typed in it) or null. The
+   * shell draws it (`CommandPalette` in `AppShell`), because it needs who you
+   * are and your kamer; the keys that open it live here, with the others.
+   */
+  palette: { query: string } | null;
+  openPalette: (query?: string) => void;
+  closePalette: () => void;
 };
 
 const UiContext = createContext<UiValue | null>(null);
@@ -224,6 +232,12 @@ export function UiProvider({
   const [question, setQuestion] = useState<{ options: ConfirmOptions; settle: (yes: boolean) => void } | null>(null);
   // §48: the dossier the screen is. A plain state, written by one component.
   const [caseHere, setCaseHere] = useState<CaseHere | null>(null);
+  // §100: the palet.
+  const [palette, setPalette] = useState<{ query: string } | null>(null);
+  const paletteOpen = useRef(false);
+  paletteOpen.current = palette !== null;
+  const openPalette = useCallback((query?: string) => setPalette({ query: query ?? '' }), []);
+  const closePalette = useCallback(() => setPalette(null), []);
   const nextId = useRef(1);
 
   const confirm = useCallback((options: ConfirmOptions) => {
@@ -358,10 +372,29 @@ export function UiProvider({
   const caseHereRef = useRef(caseHere);
   caseHereRef.current = caseHere;
 
-  // §6: `n` opens a new entry, `/` goes to search, and §46's `k` turns the
+  // §6: `n` opens a new entry, `/` opens the palet (§100), and §46's `k` turns the
   // archive over — one guard for all three.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      /*
+       * §100: Ctrl/⌘K opens the palet from anywhere — a field, the running
+       * text, a canvas — because that is what the chord is for (Superhuman's
+       * first rule: the same shortcut wherever you are). The page keeps the
+       * press (`preventDefault`), or the browser would put the caret in its
+       * own address bar. Pressed again it closes. A sheet that is not the
+       * palet still owns the keyboard (§18b), so it does nothing over one.
+       */
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+        if (paletteOpen.current) {
+          event.preventDefault();
+          setPalette(null);
+          return;
+        }
+        if (openSheetCount() > 0) return;
+        event.preventDefault();
+        setPalette({ query: '' });
+        return;
+      }
       const target = event.target as HTMLElement | null;
       const typing =
         target &&
@@ -393,19 +426,17 @@ export function UiProvider({
       } else if (event.key === '/') {
         event.preventDefault();
         /*
-         * §91: on a desk the side menu has a search box, and `/` puts the
-         * caret in it instead of leaving the page you were on. "Is it on the
-         * screen" is the whole test — the side menu is `display: none` on a
-         * phone, where `/` still goes to Zoeken as it always did.
+         * §100: `/` opens the palet, on a desk and on a phone with a
+         * keyboard alike — one gesture, where §91 had two (the caret in the
+         * side menu's box on a desk, a trip to Zoeken on a phone). The box in
+         * the side menu is the palet's door now, not a second search.
          */
-        const box = document.querySelector<HTMLInputElement>('[data-search-box]');
-        if (box && box.getClientRects().length > 0) box.focus();
-        else router.push('/search');
+        setPalette({ query: '' });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [router]);
+  }, []);
 
   const handleEntryCreated = useCallback(
     (entry: CreatedEntry) => {
@@ -453,8 +484,11 @@ export function UiProvider({
       side,
       caseHere,
       setCaseHere,
+      palette,
+      openPalette,
+      closePalette,
     }),
-    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase, openMaker, isKeeper, side, caseHere],
+    [types, words, uploadLimit, toast, confirm, openNewEntry, openNewCase, openMaker, isKeeper, side, caseHere, palette, openPalette, closePalette],
   );
 
   return (

@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon';
 import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
 import { useShellBeurs } from '@/components/kamer/ShellBeurs';
+import { CommandPalette, useRememberRecent } from '@/components/palette/CommandPalette';
 import {
   ArchiveHead,
   JijSheet,
@@ -113,6 +114,8 @@ function Nav({
    * corner that used to carry it is gone on both sizes.
    */
   useShellBeurs(purse?.roomId ?? null);
+  // §100: *Onlangs* — the addresses of the things you open, in this browser.
+  useRememberRecent(me.id);
   // §91: the Jij-blad, and the tab it hands the focus back to.
   const [jijOpen, setJijOpen] = useState(false);
   const jijTab = useRef<HTMLButtonElement>(null);
@@ -212,6 +215,16 @@ function Nav({
         {/* §91: the eighth tab opens the Jij-blad, and wears the saldo. */}
         <JijTab purse={purse} open={jijOpen} onOpen={() => setJijOpen(true)} tabRef={jijTab} />
       </nav>
+      {/* §100: the palet — `/`, Ctrl/⌘K, the box in the side menu, the Jij-blad. */}
+      {ui.palette && (
+        <CommandPalette
+          me={me}
+          purse={purse}
+          myPage={myPage}
+          initialQuery={ui.palette.query}
+          onClose={ui.closePalette}
+        />
+      )}
       {jijOpen && (
         <JijSheet
           me={me}

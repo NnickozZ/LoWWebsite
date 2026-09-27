@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { viewerCanEdit } from '@/lib/access';
 import { db, schema } from '@/lib/db';
 import { cleanDoc, docToText } from '@/lib/entries/doc';
+import { cleanDocRefs } from '@/lib/entries/shortRefs';
 import { recomputeCaseMentions, recomputeSectionMentions } from '@/lib/entries/mentions';
 import { logActivity, logAudit } from '@/lib/entries/service';
 import { canSeeSection, type Viewer } from '@/lib/entries/visibility';
@@ -246,6 +247,12 @@ export function updateSection(
   if (!existing) throw new Error('Sectie niet gevonden');
   // §89: cleaned where it comes in.
   if (patch.body !== undefined) patch = { ...patch, body: cleanDoc(patch.body) };
+  // §97: a link is a handle this hand may name; one it could not see stays.
+  let bodyFromRoom: unknown = undefined;
+  if (patch.body !== undefined) {
+    bodyFromRoom = patch.body;
+    patch = { ...patch, body: cleanDocRefs(patch.body, { prev: existing.body, actor }) };
+  }
 
   const values: Record<string, unknown> = {};
   if (patch.title !== undefined) values.title = patch.title.slice(0, 200);
@@ -291,6 +298,8 @@ export function updateSection(
   }
   // §20: a body written around the room rewrites the shared document.
   if (patch.body !== undefined && !options.live) resetRoom(`section:${sectionId}`, patch.body);
+  // §97: the room wrote a link the archive put back or took out — the room follows.
+  else if (patch.body !== undefined && JSON.stringify(patch.body) !== JSON.stringify(bodyFromRoom)) resetRoom(`section:${sectionId}`, patch.body);
 }
 
 export function deleteSection(sectionId: string, actor: SectionActor) {

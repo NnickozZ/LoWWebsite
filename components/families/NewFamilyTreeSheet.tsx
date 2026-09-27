@@ -1,10 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
+import { ShortField } from '@/components/live/LiveFields';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { freshHref } from '@/lib/canvas/memory';
@@ -58,7 +58,6 @@ export function NewFamilyTreeSheet({
   const words = ui.words;
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState('');
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   /* §69: the refusal stays in the sheet — see `NewTimelineButton` for why. */
   const [error, setError] = useState<string | null>(null);
@@ -148,24 +147,23 @@ export function NewFamilyTreeSheet({
           rij eronder (§54).
         */}
         <div>
-          <label className="label" htmlFor="new-family-tree-description">
+          <label className="label" htmlFor="new-family-tree-description" id="new-family-tree-description-label">
             Omschrijving
           </label>
-          <div className="mention-field">
-          <textarea
+          {/* §98: an omschrijving holds chips (`ShortField`, one line). A maakblad has
+              no room — the thing does not exist yet — and no §18b gate, like
+              *Nieuw artikel*: what may make the thing may describe it. */}
+          <ShortField
+            noRoom
+            ungated
+            field="description"
             id="new-family-tree-description"
-            ref={descriptionRef}
             className="input"
-            rows={2}
+            ariaLabelledBy="new-family-tree-description-label"
             value={description}
             placeholder="Eén regel, om hem terug te vinden"
-            onChange={(event) => setDescription(event.target.value)}
+            onValue={(next) => setDescription(next)}
           />
-          <MentionPopover forRef={descriptionRef} />
-          <MentionOverlay forRef={descriptionRef} value={description} />
-          {/* §92: out of focus, the chips without brackets; no row under it. */}
-          <MentionPreview forRef={descriptionRef} value={description} />
-          </div>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           Wie familie van wie is staat op de {words.entryPlural} zelf, in velden als Ouders en Partner. Een{' '}

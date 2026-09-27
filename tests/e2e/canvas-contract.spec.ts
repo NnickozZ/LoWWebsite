@@ -464,7 +464,13 @@ test.describe('§69 Escape laat los', () => {
        * `family-trees-33.spec.ts` doet het om dezelfde reden).
        */
       const fresh = made.last();
-      await fresh.click({ position: { x: 6, y: 6 } });
+      /*
+       * §99: the bottom-left corner, not the top-left. A new stamboom now
+       * opens at 1 rather than blown up (`TREE_OPEN_MAX_ZOOM`), and at 1 the
+       * top-left corner of a los kaartje is its pencil, which opens a sheet.
+       */
+      const card = (await fresh.boundingBox())!;
+      await fresh.click({ position: { x: 6, y: card.height - 6 } });
       await expect(fresh).toHaveClass(new RegExp(surface.chosen));
       await page.keyboard.press('Escape');
       await expect(fresh, 'Escape laat los, op alle vier').not.toHaveClass(new RegExp(surface.chosen));

@@ -90,6 +90,17 @@ import type { Me } from './CharacterSwitcher';
  *    to the sheet *below* it and closed that instead, leaving the question
  *    standing over a page nobody had asked for. The order is turned round —
  *    the question first, alone, and the action released by the answer.
+ *
+ * **§101: and that second door is now every maker's, not only the two "nieuw"
+ * roads.** A button is not a surface. The question is painted in the same
+ * commit as the `pointerdown` that raised it, so the `click` that would have
+ * followed lands on the sheet's backdrop and the button is never pressed: you
+ * answer, nothing happens, and you press it again. Measured on *Legenda*,
+ * *+ Ouder*, *Gebeurtenis toevoegen*, *Sectie toevoegen* and *Nieuwe notitie*.
+ * So `ask()` is for carets and `ensureAuthor` is for presses —
+ * `useCanvasMaker` / `useAskAuthorFirst` in `components/canvas` are how a
+ * canvas says it, and a control that only looks carries `AUTHOR_GATE_OFF` and
+ * asks nothing at all.
  */
 
 export type AuthorValue = {
@@ -127,7 +138,7 @@ export type AuthorValue = {
    * there, so the keystroke or tap that raised the question has somewhere to
    * land instead of `<body>`.
    */
-  ask: (origin?: EventTarget | null) => void;
+  ask: (origin?: EventTarget | null, viaFocus?: boolean) => void;
   /**
    * "Ask first, then do." The same question as `ask`, with the thing that
    * asked it waiting behind it.
@@ -220,9 +231,11 @@ export function useAuthorGate(): AuthorGateProps {
   const ask = value?.ask;
   // §90: each handler passes what it was aimed at, so the answer can put the
   // caret back there. Same three handlers, same shape — only the argument is new.
+  // §101: focus says which of the three it was. A caret *coming back* after
+  // Escape is not a new attempt to write — see `dismiss`.
   return useMemo(
     () => ({
-      onFocusCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target),
+      onFocusCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target, true),
       onKeyDownCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target),
       onPointerDownCapture: (event?: { target: EventTarget | null }) => ask?.(event?.target),
     }),
@@ -343,13 +356,28 @@ export function AuthorProvider({
    * *opened*, and a tap that raised the question never got to give it any.
    */
   const origin = useRef<HTMLElement | null>(null);
+  /**
+   * §101: one focus to let through — the caret coming home after Escape.
+   *
+   * Cancelling puts the caret back where it was, and on an editing surface
+   * that focus is itself a gate event, so the question a person just walked
+   * away from sprang straight back up and Escape looked broken. A *key* or a
+   * *press* after that is a real attempt to write and asks again, which is the
+   * rule as it always was.
+   */
+  const letFocusPass = useRef(false);
 
   const ask = useCallback(
-    (from?: EventTarget | null) => {
+    (from?: EventTarget | null, viaFocus = false) => {
       // Exactly the `ask` stance: a Keeper has nothing to answer, somebody with
       // no onderzoeker has nothing to answer it with (and has the banner
       // instead), and a window that has answered is not asked twice.
       if (!shouldPrompt(stanceNow())) return;
+      if (viaFocus && letFocusPass.current) {
+        letFocusPass.current = false;
+        return;
+      }
+      letFocusPass.current = false;
       // The first touch is the one that counts; a second while the question
       // stands is the same person, still looking at it.
       if (!origin.current) origin.current = focusableFrom(from);
@@ -374,6 +402,13 @@ export function AuthorProvider({
       // one answer releases one action, and the person is looking at the
       // question, not at whatever they clicked before it.
       pending.current = then;
+      /*
+       * §101: and where to put the caret back if the answer is Escape. This
+       * road is called from a `click`, so the button that was pressed is what
+       * has the focus — there is no event to read a target off, and there does
+       * not need to be.
+       */
+      if (!origin.current) origin.current = focusableFrom(document.activeElement);
       setSheet((current) => current ?? 'blocking');
     },
     [stanceNow],
@@ -384,11 +419,30 @@ export function AuthorProvider({
     setSheet('change');
   }, [me.isKeeper, characterIds.length]);
 
-  /** Dismissing the question throws away whatever was waiting behind it. */
+  /**
+   * Dismissing the question throws away whatever was waiting behind it.
+   *
+   * §101: and hands the caret back to the button that raised it, exactly as
+   * `choose` does — Escape on the blocking question now means *annuleren*:
+   * nothing is made, and the person is standing where they were. Until this
+   * round the blocking question had no exit at all, which was the one place in
+   * the archive where Escape did not peel a layer; it could not have an exit
+   * before, because half the makers asked *after* they had already started.
+   */
   const dismiss = useCallback(() => {
     pending.current = null;
+    const from = origin.current;
     origin.current = null;
+    // The caret is about to go home — to the button, or to the paragraph the
+    // question interrupted. That arrival is not an attempt to write.
+    letFocusPass.current = true;
     setSheet(null);
+    if (from) {
+      requestAnimationFrame(() => {
+        if (!from.isConnected || openSheetCount() > 0) return;
+        from.focus({ preventScroll: true });
+      });
+    }
   }, []);
 
   const choose = useCallback((id: string) => {
@@ -543,8 +597,11 @@ export function AuthorProvider({
           words={words}
           characters={me.characters}
           chosen={chosen}
-          /* Blocking typing means blocking: there is no way out but an answer. */
-          onClose={sheet === 'change' ? dismiss : null}
+          /* §101: Escape annuleert nu ook de blokkerende vraag — maar alleen
+             Escape. Er komt geen kruisje bij en de achtergrond blijft stil:
+             een tik naast het blad is geen antwoord. */
+          blocking={sheet !== 'change'}
+          onClose={dismiss}
           onChoose={choose}
           /* §90: the account's own karakter, ready to confirm with one press. */
           preselected={chosen ?? (me.activeId && characterIds.includes(me.activeId) ? me.activeId : null)}
@@ -568,6 +625,7 @@ function WritingAsSheet({
   characters,
   chosen,
   preselected,
+  blocking,
   onClose,
   onChoose,
 }: {
@@ -581,22 +639,34 @@ function WritingAsSheet({
    * tap on the biggest thing in the sheet.
    */
   preselected: string | null;
-  /** Null while the sheet is blocking typing: nothing dismisses it. */
-  onClose: (() => void) | null;
+  /**
+   * §101: true while the question stands in front of somebody's keyboard —
+   * no cross, no backdrop, and the footer with *Annuleren* is the indicator's
+   * own road rather than this one's.
+   */
+  blocking: boolean;
+  /** Cancel: nothing is made, and the caret goes back to what raised it. */
+  onClose: () => void;
   onChoose: (id: string) => void;
 }) {
   const ready = characters.find((character) => character.entryId === preselected) ?? null;
   return (
     /*
      * §90: `closable` false while it blocks. It drew a cross that did nothing
-     * (`onClose` was a no-op), and Escape and the backdrop stay no-ops on
-     * purpose — §18b's "no way out but an answer", which the characters spec
-     * holds on both roads in. Turning the cross into "annuleren" was the other
-     * choice and the worse one: on an editing surface nothing is held behind
-     * the question to cancel, and the surface asks again on the very next
-     * touch, so the cross would have reopened what it closed.
+     * (`onClose` was a no-op), and the backdrop stays a no-op on purpose —
+     * §18b's "no way out but an answer", which the characters spec holds on
+     * both roads in.
+     *
+     * §101: Escape is the exception, and it is one because the reason against
+     * it has gone. Ronde 51 wrote: "on an editing surface nothing is held
+     * behind the question to cancel, and the surface asks again on the very
+     * next touch". That is still true of a caret landing in a paragraph — and
+     * there Escape simply costs a keystroke. It is no longer true of a
+     * *button*: since this round every maker on every vlak holds its action
+     * behind `ensureAuthor`, so there is exactly one thing to cancel and
+     * cancelling it makes nothing. Escape peels one layer, here as everywhere.
      */
-    <Sheet onClose={onClose ?? (() => undefined)} labelledBy="writing-as-title" closable={onClose !== null}>
+    <Sheet onClose={onClose} labelledBy="writing-as-title" closable={!blocking}>
       <h2 id="writing-as-title" style={{ marginTop: 0, fontSize: '1.25rem' }}>
         Met wie ben je nu aan het schrijven?
       </h2>
@@ -634,7 +704,7 @@ function WritingAsSheet({
         })}
       </ul>
 
-      {!onClose && ready && (
+      {blocking && ready && (
         <button
           type="button"
           className="btn btn-primary"
@@ -648,7 +718,7 @@ function WritingAsSheet({
         </button>
       )}
 
-      {onClose && (
+      {!blocking && (
         <p className="row-wrap" style={{ margin: '0.9rem 0 0' }}>
           <Link className="btn btn-small" href="/you#karakters" onClick={onClose}>
             <Icon name="mask" size={15} />

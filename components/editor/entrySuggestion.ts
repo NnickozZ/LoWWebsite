@@ -47,32 +47,21 @@ type Host = {
    */
   onLinked: (entry: { id: string; name: string }, filed?: boolean) => void;
   /**
-   * §95: how a picked artikel goes into the text, when it is not an `entryLink`.
-   * A short box (`ShortEditor`) asks the archive for a handle first and writes a
-   * `shortChip`; the range is already gone when this is called. Absent: the
-   * rich text's own chip, as always.
+   * §95: how a picked artikel goes into the text. A short box (`ShortEditor`)
+   * asks the archive for a handle first and writes a `shortChip`; since §97 the
+   * rich text (`RichEditor`) does the same and writes an `entryLink {handle}`.
+   * The range is already gone when this is called. Absent: the name as words.
    */
   insert?: (editor: Editor, entry: SuggestionEntry) => Promise<void>;
 };
 
+/*
+ * §97: without an `insert` a host has no way to ask for a handle, and a link
+ * with an id and a name in it would carry both into a shared document. So the
+ * name goes in as words. Both editors pass `insert` (`RichEditor`, `ShortEditor`).
+ */
 function insertEntry(editor: Editor, range: Range, entry: SuggestionEntry) {
-  editor
-    .chain()
-    .focus()
-    .insertContentAt(range, [
-      {
-        type: 'entryLink',
-        attrs: {
-          id: entry.id,
-          label: entry.name,
-          slug: entry.slug,
-          icon: entry.typeIcon,
-          colour: entry.typeColour,
-        },
-      },
-      { type: 'text', text: ' ' },
-    ])
-    .run();
+  editor.chain().focus().insertContentAt(range, `${entry.name} `).run();
 }
 
 /**
@@ -147,23 +136,7 @@ export function makeEntrySuggestion(char: string, host: Host): Omit<SuggestionOp
           await host.insert(editor, created);
           host.onLinked(created, created.filed);
         } else if (created) {
-          editor
-            .chain()
-            .focus()
-            .insertContent([
-              {
-                type: 'entryLink',
-                attrs: {
-                  id: created.id,
-                  label: created.name,
-                  slug: created.slug,
-                  icon: created.typeIcon,
-                  colour: created.typeColour,
-                },
-              },
-              { type: 'text', text: ' ' },
-            ])
-            .run();
+          editor.chain().focus().insertContent(`${created.name} `).run();
           host.onLinked(created, created.filed);
         }
       };

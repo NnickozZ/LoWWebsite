@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
+import { ShortField } from '@/components/live/LiveFields';
 import { useUi } from '@/components/ui/UiProvider';
 import { AccessEditor, type AccessSettings } from '@/components/access/AccessEditor';
 import { EntryPicker, type EntryRef } from '@/components/entry/EntryPicker';
@@ -176,15 +177,18 @@ export function MapKeeperTools({
           <input id="map-name" className="input" value={name} onChange={(event) => setName(event.target.value)} />
         </div>
         <div>
-          <label className="label" htmlFor="map-description">
+          <label className="label" htmlFor="map-description" id="map-description-label">
             Omschrijving
           </label>
-          <textarea
+          {/* §98: an omschrijving holds chips (`ShortField`), saved with the button below. */}
+          <ShortField
+            noRoom
+            field="description"
             id="map-description"
             className="input"
-            rows={2}
+            ariaLabelledBy="map-description-label"
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            onValue={(next) => setDescription(next)}
           />
         </div>
         <div>

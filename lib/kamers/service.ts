@@ -16,6 +16,8 @@ import {
   type PlekKind,
 } from './shape';
 import { BUY_UNDO_GRACE_SECONDS, BUY_UNDO_SECONDS } from './undo';
+import { getWords } from '@/lib/admin/words';
+import { fill } from '@/lib/words';
 
 /**
  * §79: de kamer — de plekken, het grootboek, en wie wat mag.
@@ -309,7 +311,10 @@ export function mayHoldRoom(entryId: string): boolean {
     .select({ entryId: schema.userCharacters.entryId })
     .from(schema.userCharacters)
     .innerJoin(schema.entries, eq(schema.entries.id, schema.userCharacters.entryId))
-    .where(eq(schema.entries.typeId, row.typeId))
+    // §101 naden: a karakter in the prullenbak is worn by nobody at this
+    // table — its row in `user_characters` only waits for a restore, and must
+    // not keep a Persoon soort "wearable" (E3) after it was thrown away.
+    .where(and(eq(schema.entries.typeId, row.typeId), isNull(schema.entries.deletedAt)))
     .get();
   return Boolean(worn);
 }
@@ -1745,6 +1750,66 @@ export function undoPurchase(roomId: string, entryId: string, viewer: Viewer): {
 
     return { returned: price, name: last.reason };
   });
+}
+
+/**
+ * §101: de Keeper legt iets rechtstreeks in een lade.
+ *
+ * Tot nu toe kon hij huisraad alleen op een *plek* zetten (gratis, §80) of
+ * munten geven. Wie iets mist — een speler wiens aankoop van vóór de lade van
+ * de plank gehaald was (ronde 54, uitrolregel 3), een cadeau voor een figuur
+ * die nog geen vrije plek heeft — kreeg het dus op een plek die de Keeper
+ * moest kiezen, of niet.
+ *
+ * Dezelfde vragen als `placeItem` stelt, min de plek:
+ *
+ *  - **alleen de Keeper** (§17 regel 4: de knop staat alleen bij hem, en deze
+ *    functie weigert zelf);
+ *  - **alleen huisraad** (`keeper_made`). Een gevonden voorwerp gaat nooit de
+ *    lade in — het is van het verhaal, niet van de beurs (zie `clearSlot`);
+ *  - **het moet ergens passen**, anders kan het de lade nooit meer uit;
+ *  - **een uniek ding nergens anders** — `requireNotPlaced`, dezelfde zin als
+ *    bij neerzetten.
+ *
+ * Eén regel in het feed, `room.placed` met `meta.roomId` en `drawer` — het is
+ * neerzetten in de kamer, en §101's `roomRowCondition` vindt de kamer via
+ * `roomId`. Geen grootboekregel: cadeau doen kost niets (§80).
+ */
+export function giveToDrawer(roomId: string, entryId: string, viewer: Viewer): { name: string } {
+  const words = getWords();
+  if (!viewer?.isKeeper) throw new KamerError(fill(words.drawerGiveOnlyKeeper, { keeper: words.keeper }));
+  const character = roomCharacterOf(roomId);
+  if (!character) throw new KamerError(words.drawerGiveNoRoom);
+  const entry = db
+    .select({ id: schema.entries.id, name: schema.entries.name })
+    .from(schema.entries)
+    .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(viewer)))
+    .get();
+  if (!entry) throw new KamerError('Dat artikel bestaat niet.');
+  const facts = factsOf(entryId);
+  if (!facts?.keeperMade) throw new KamerError(words.drawerGiveNotFurnishing);
+  if (!facts.plekken.length) throw new KamerError('Dat hoort nergens in een kamer.');
+  requireNotPlaced(facts, entryId, roomId);
+  db.transaction((tx) => putInDrawer(tx, roomId, entryId));
+  logActivity({
+    actorId: viewer.id,
+    characterId: character,
+    verb: 'room.placed',
+    entryId,
+    meta: { roomId, drawer: true },
+  });
+  return { name: entry.name };
+}
+
+/** §101: de soorten waarvan een ding in een lade mag — wat de Keeper daar zoekt. */
+export function furnishingTypeSlugs(): string[] {
+  return db
+    .select({ slug: schema.entryTypes.slug })
+    .from(schema.entryTypes)
+    .where(eq(schema.entryTypes.keeperMade, true))
+    .orderBy(asc(schema.entryTypes.sortOrder))
+    .all()
+    .map((row) => row.slug);
 }
 
 /**

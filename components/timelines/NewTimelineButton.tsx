@@ -1,12 +1,13 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
+import { ShortField } from '@/components/live/LiveFields';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMakeOnArrival } from '@/components/palette/useMakeOnArrival';
 import { freshHref } from '@/lib/canvas/memory';
 import { SCALES, SCALE_HINTS, SCALE_LABELS, type Scale } from '@/lib/timelines/time';
 
@@ -25,11 +26,12 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
   const router = useRouter();
   const words = ui.words;
   const [open, setOpen] = useState(false);
+  // §100: the palet's *Nieuw …* lands here with `?maak=1`; on the list, not in a dossier.
+  useMakeOnArrival(() => ui.openMaker(() => setOpen(true)), !caseId);
   const [name, setName] = useState('');
   const [scale, setScale] = useState<Scale>('day');
   /* §69 (4.8): de omschrijving, in de vorm van de landkaart. */
   const [description, setDescription] = useState('');
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState<'public' | 'private' | null>(null);
   /*
    * §69: the refusal stays in the sheet, beside the button that caused it. A
@@ -126,54 +128,51 @@ export function NewTimelineButton({ caseId }: { caseId?: string } = {}) {
               bewerken.
             */}
             <div>
-              <label className="label" htmlFor="new-timeline-description">
+              <label className="label" htmlFor="new-timeline-description" id="new-timeline-description-label">
                 Omschrijving
               </label>
-              <div className="mention-field">
-              <textarea
+              {/* §98: an omschrijving holds chips (`ShortField`, one line). A maakblad has
+                  no room — the thing does not exist yet — and no §18b gate, like
+                  *Nieuw artikel*: what may make the thing may describe it. */}
+              <ShortField
+                noRoom
+                ungated
+                field="description"
                 id="new-timeline-description"
-                ref={descriptionRef}
                 className="input"
-                rows={2}
+                ariaLabelledBy="new-timeline-description-label"
                 value={description}
                 placeholder="Waar gaat deze tijdlijn over?"
-                onChange={(event) => setDescription(event.target.value)}
+                onValue={(next) => setDescription(next)}
               />
-              <MentionPopover forRef={descriptionRef} />
-              <MentionOverlay forRef={descriptionRef} value={description} />
-              {/* §92: out of focus, the chips without brackets; no row under it. */}
-              <MentionPreview forRef={descriptionRef} value={description} />
-              </div>
             </div>
-            <fieldset className="timeline-scale-picker">
+            {/*
+              §99 (C15): the six measures as one row of chips, with the
+              sentence of the chosen one under the row — six radios with a
+              sentence each were a whole phone screen, and put the button that
+              makes the tijdlijn under the keyboard. Still radios, still named
+              by the word alone (§64); the sentence is the group's description.
+            */}
+            <fieldset className="timeline-scale-picker" aria-describedby="new-timeline-scale-hint">
               <legend className="label">Gemeten in</legend>
-              {SCALES.map((option) => (
-                <label key={option} className={`timeline-scale-option${scale === option ? ' timeline-scale-option-on' : ''}`}>
-                  {/*
-                   * The measure is the name of this choice; the line under it
-                   * is what the choice *means*. Without saying so the two run
-                   * together into one accessible name — "Seconden. Tot op de
-                   * seconde. De laatste twee minuten." is then a radio called
-                   * "minuten" as much as the one above it is — so the name is
-                   * the word and the sentence is its description.
-                   */}
-                  <input
-                    type="radio"
-                    name="new-timeline-scale"
-                    value={option}
-                    checked={scale === option}
-                    onChange={() => setScale(option)}
-                    aria-label={SCALE_LABELS[option]}
-                    aria-describedby={`new-timeline-scale-${option}-hint`}
-                  />
-                  <span>
-                    <strong>{SCALE_LABELS[option]}</strong>
-                    <span className="tiny muted" id={`new-timeline-scale-${option}-hint`} style={{ display: 'block' }}>
-                      {SCALE_HINTS[option]}
-                    </span>
-                  </span>
-                </label>
-              ))}
+              <div className="timeline-scale-chips">
+                {SCALES.map((option) => (
+                  <label key={option} className={`timeline-scale-chip${scale === option ? ' timeline-scale-chip-on' : ''}`}>
+                    <input
+                      type="radio"
+                      name="new-timeline-scale"
+                      value={option}
+                      checked={scale === option}
+                      onChange={() => setScale(option)}
+                      aria-label={SCALE_LABELS[option]}
+                    />
+                    <span aria-hidden="true">{SCALE_LABELS[option]}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="tiny muted" id="new-timeline-scale-hint" style={{ margin: '0.3rem 0 0' }} data-testid="new-timeline-scale-hint">
+                {SCALE_HINTS[scale]}
+              </p>
             </fieldset>
             <p className="tiny muted" style={{ margin: 0 }}>
               De maat is later te veranderen in de instellingen van de {words.timeline}.

@@ -44,7 +44,7 @@ export function PinToBoardButton({
       .then((r) => (r.ok ? r.json() : { boards: [] }))
       .then((data) => setBoards(data.boards ?? []))
       .catch(() => undefined);
-    setTimeout(() => searchRef.current?.focus(), 60);
+    // §101: the caret goes into the search box through `data-autofocus` (see `Sheet`).
   }, [open, entryId]);
 
   const matches = useMemo(() => {
@@ -148,6 +148,7 @@ export function PinToBoardButton({
           <input
             id="board-search"
             ref={searchRef}
+            data-autofocus
             className="input"
             value={query}
             placeholder="Zoek een prikbord…"

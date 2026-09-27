@@ -195,7 +195,11 @@ export function InkToolbar({
           >
             <Icon name="undo" size={18} />
           </button>
-          {saving && <span className="ink-saving" aria-live="polite">Opslaan…</span>}
+          {/* §100 (B14): the word is the shell's now, beside the live dot. What
+              stays is a quiet marker, not read aloud and not drawn, that says
+              a stroke is on its way — `ink.spec.ts` waits on it before a
+              reload, and it is the layer's own answer, not the page's. */}
+          {saving && <span className="ink-saving" hidden data-save="saving" />}
         </>
       )}
     </div>

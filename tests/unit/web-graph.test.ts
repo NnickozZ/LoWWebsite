@@ -232,8 +232,11 @@ beforeAll(async () => {
   run(`INSERT INTO map_pins (id, map_id, kind, entry_id, x, y, created_by) VALUES ('p-jan', 'm-eiland', 'entry', 'e-jan', 0.5, 0.5, 'bram')`);
   run(`INSERT INTO map_pins (id, map_id, kind, entry_id, x, y, created_by) VALUES ('p-geheim', 'm-eiland', 'entry', 'e-geheim', 0.2, 0.2, 'keeper-1')`);
   run(`INSERT INTO map_pins (id, map_id, kind, target_map_id, x, y, created_by) VALUES ('p-huis', 'm-eiland', 'map', 'm-geheim', 0.3, 0.3, 'aagje')`);
+  // §98: a speld, a gebeurtenis and a kaartje hold chips, not names — one
+  // handle per mention, as the editor and migration 0036 write them.
+  run(`INSERT INTO mention_handles (handle, entry_id) VALUES ('webpin01', 'e-jan'), ('webevent1', 'e-jan'), ('webcard01', 'e-jan')`);
   run(
-    `INSERT INTO map_pins (id, map_id, kind, name, text, x, y, created_by) VALUES ('p-boot', 'm-eiland', 'note', 'Hier lag de boot', 'van @Jan Vermeer', 0.7, 0.7, 'aagje')`,
+    `INSERT INTO map_pins (id, map_id, kind, name, text, x, y, created_by) VALUES ('p-boot', 'm-eiland', 'note', 'Hier lag de boot', 'van ⟦webpin01⟧', 0.7, 0.7, 'aagje')`,
   );
 
   // A tijdlijn inside the open dossier.
@@ -247,7 +250,7 @@ beforeAll(async () => {
     `INSERT INTO timeline_events (id, timeline_id, kind, entry_id, at, precision, created_by) VALUES ('ev-geheim', 't-week', 'entry', 'e-geheim', 0, 'day', 'keeper-1')`,
   );
   run(
-    `INSERT INTO timeline_events (id, timeline_id, kind, name, text, at, precision, created_by) VALUES ('ev-brand', 't-week', 'note', 'De brand', 'met [[Jan Vermeer]]', 86400, 'day', 'bram')`,
+    `INSERT INTO timeline_events (id, timeline_id, kind, name, text, at, precision, created_by) VALUES ('ev-brand', 't-week', 'note', 'De brand', 'met ⟦webevent1⟧', 86400, 'day', 'bram')`,
   );
 
   // Prikborden: the open wall in the open dossier, and Aagje's private one.
@@ -262,7 +265,7 @@ beforeAll(async () => {
         card('card-huis', { kind: 'map', mapId: 'm-geheim', name: 'Het huis' }),
         card('card-case', { kind: 'case', caseId: 'c-open', name: 'Zaak Vlissingen' }),
         card('card-tl', { kind: 'timeline', timelineId: 't-week', name: 'De week' }),
-        card('card-note', { kind: 'note', name: 'Wie had de sleutel?', text: 'Volgens de havenmeester was [[Jan Vermeer]] er.' }),
+        card('card-note', { kind: 'note', name: 'Wie had de sleutel?', text: 'Volgens de havenmeester was ⟦webcard01⟧ er.' }),
         card('card-naamloos', { kind: 'note', name: '', text: 'Een notitie zonder naam maar met een heel lange tekst erin.' }),
         card('card-leeg', { kind: 'note', name: '', text: '' }),
         card('card-pin', { kind: 'pin', name: 'Lead' }),

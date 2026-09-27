@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSuggestKeys } from '@/components/ui/useSuggestKeys';
 import { useFloatBox } from '@/components/canvas/useFloatBox';
+import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 import { clampInside } from '@/lib/canvas/clamp';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
@@ -264,6 +265,11 @@ export function BoardPicker({
   return (
     <div
       ref={rootRef}
+      /* §101: de zwevende kiezer staat óp het glas, dus hij valt onder de
+         schrijfvraag van het vlak; en een blad dat vóór zijn eigen klik
+         springt eet die klik op. Elk pad hieruit vraagt zelf (`askThen` in
+         `BoardCanvas`), dus de laag eromheen vraagt niets. */
+      {...AUTHOR_GATE_OFF}
       className={variant === 'float' ? 'board-picker board-picker-float' : 'board-picker'}
       style={placed ? { ...style, ...placed } : style}
       onKeyDown={(event) => {

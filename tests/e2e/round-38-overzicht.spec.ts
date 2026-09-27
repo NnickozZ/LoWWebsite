@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { becomeInvestigator, editArticle, fillWhenReady, signIn, signUp } from './helpers';
+import { becomeInvestigator, boxValue, editArticle, fillWhenReady, signIn, signUp } from './helpers';
 
 /**
  * §75, ronde 38: het overzicht.
@@ -203,7 +203,9 @@ test.describe('§87 een voordeur per kant', () => {
     await editArticle(page, '#overzicht-name');
 
     // De kern: wat hij hier leest is *niet* wat hij net op de andere kant typte.
-    await expect(page.locator('#overzicht-lead')).not.toHaveValue(vanHen);
+    // §98: the inleiding is a short box with chips (a contenteditable), so read it with `boxValue`.
+    await expect(page.locator('#overzicht-lead')).toBeVisible({ timeout: 20_000 });
+    expect(await boxValue(page.locator('#overzicht-lead'))).not.toBe(vanHen);
 
     await fillWhenReady(page.locator('#overzicht-lead'), geheim);
     await page.locator('#overzicht-name').click();

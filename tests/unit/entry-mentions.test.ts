@@ -321,8 +321,10 @@ describe('a card on a wall', () => {
             entryId: vuurtoren,
             name: 'De Vuurtoren',
             // Round 18: the scribble under an artikel card names another
-            // artikel — and its own, which says nothing new.
-            text: 'Hier stond @Jan Vermeer op de avond zelf, bij [[De Vuurtoren]].',
+            // artikel — and its own, which says nothing new. §98: written out
+            // as `[[Naam]]`, which the wall's save turns into a chip; a typed
+            // `@Naam` nobody picked from the list is letters in a short box.
+            text: 'Hier stond [[Jan Vermeer]] op de avond zelf, bij [[De Vuurtoren]].',
             showImage: true,
             x: 0,
             y: 0,

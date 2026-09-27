@@ -6,6 +6,8 @@ import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { BinSlot } from '@/components/ui/BinSlot';
 import { getWords } from '@/lib/admin/words';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { sideOf } from '@/lib/keeper/kinds';
 import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
@@ -101,6 +103,8 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
      * then the wall, as tall as what is left; the dossier choice and the bin
      * below the fold, like a stamboom's.
      */
+    // §101 naden: the kaartjes' chips too, with the page — not one fetch later.
+    <ShortChips map={shortChipsFor(user, [board.description, ...board.state.cards.map((card) => card.text)])}>
     <div className="page-wide">
       <div className="page-canvas board-page-canvas">
       <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
@@ -117,6 +121,7 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
       }
       boardId={board.id}
       boardName={board.name}
+      boardDescription={board.description}
       caseId={board.caseId}
       caseName={board.caseName}
       caseSlug={board.caseSlug}
@@ -192,9 +197,13 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
      */}
     {user?.isKeeper && (
       <div className="keeper-underfold">
+        {/* §99: where `BoardCanvas` puts the tekenlaag switch, as a stamboom's
+            `#tree-underfold` and a landkaart's `#map-underfold` do. */}
+        <div id="board-ink-underfold" />
         <KeeperPanelServer kind="board" id={board.id} user={user} />
       </div>
     )}
     </div>
+    </ShortChips>
   );
 }

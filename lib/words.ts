@@ -860,10 +860,10 @@ export const WORD_GROUPS: WordGroup[] = [
       },
       {
         key: 'searchBox',
-        what: 'Het zoekvak bovenaan de zijbalk (voorgelezen)',
+        what: 'Het zoekvak bovenin het palet (voorgelezen)',
         fallback: 'Zoek in het archief',
       },
-      { key: 'searchBoxHint', what: 'De grijze tekst in dat zoekvak', fallback: 'Zoek…' },
+      { key: 'searchBoxHint', what: 'De grijze tekst in het zoekvak van het palet', fallback: 'Zoek…' },
       {
         key: 'shortcutsLine',
         what: 'De regel onder Nieuw artikel met de sneltoetsen',
@@ -1118,6 +1118,131 @@ export const WORD_GROUPS: WordGroup[] = [
         what: 'Nadat de Keeper huisraad maakte zonder plek of prijs',
         fallback: '{naam} is nog niet te koop: geef het een plek en prijs.',
       },
+    ],
+  },
+  // §99 de vlakken, derde pas
+  {
+    title: 'Tekenvlakken: derde pas',
+    note: 'De beschrijving van een prikbord en de woorden bij de knoppen van de stamboom.',
+    words: [
+      { key: 'boardDescriptionLabel', what: 'Onder de vouw van een prikbord: het vak voor de beschrijving', fallback: 'Beschrijving' },
+      {
+        key: 'boardDescriptionPlaceholder',
+        what: 'Grijze tekst in dat vak zolang het leeg is',
+        fallback: 'Waar gaat dit {prikbord} over? Typ @ om een {artikel} te noemen.',
+        hint: '{prikbord} en {artikel} zijn jouw woorden.',
+      },
+      {
+        key: 'boardDescriptionRefused',
+        what: 'Als het archief de beschrijving niet bewaart',
+        fallback: 'De beschrijving van dit {prikbord} is niet opgeslagen.',
+      },
+      { key: 'treeHandleBoth', what: 'Het woord op de +-knop tussen twee gekozen kaartjes', fallback: 'Kind van beide' },
+    ],
+  },
+  // §100 ronde 61 — het palet en één opslaan
+  {
+    title: 'Het palet',
+    note:
+      'Het venster dat / of Ctrl/⌘K opent, op elke pagina: zoeken, wat je onlangs opende, en handelingen. Wat tussen accolades staat wordt ingevuld.',
+    words: [
+      { key: 'paletteTitle', what: 'De naam van het palet (voorgelezen)', fallback: 'Zoek of ga naar' },
+      { key: 'paletteDoor', what: 'De knop die het palet opent (zijbalk en Jij-blad)', fallback: 'Zoek of ga naar…' },
+      { key: 'paletteRecent', what: 'De kop boven wat je laatst opende', fallback: 'Onlangs' },
+      {
+        key: 'paletteRecentNone',
+        what: 'Als je nog niets opende',
+        fallback: 'Wat je opent, staat hier de volgende keer.',
+      },
+      { key: 'paletteActions', what: 'De kop boven de handelingen', fallback: 'Handelingen' },
+      { key: 'paletteSearching', what: 'Terwijl het palet zoekt', fallback: 'Zoeken…' },
+      { key: 'paletteNone', what: 'Als niets op naam past', fallback: 'Niets in het archief heet zo.' },
+      {
+        key: 'paletteSearchAll',
+        what: 'De laatste regel: naar de zoekpagina',
+        fallback: 'Zoek ‘{q}’ in het hele archief',
+      },
+      {
+        key: 'paletteKeys',
+        what: 'De regel onderaan het palet met de toetsen',
+        fallback: '↑↓ kiezen · Enter openen · Esc terug · > handelingen',
+      },
+      { key: 'actNewCase', what: 'Handeling: een nieuw dossier', fallback: 'Nieuw {dossier}' },
+      { key: 'actNewBoard', what: 'Handeling: een nieuw prikbord', fallback: 'Nieuw {prikbord}' },
+      { key: 'actNewTimeline', what: 'Handeling: een nieuwe tijdlijn', fallback: 'Nieuwe {tijdlijn}' },
+      { key: 'actNewMap', what: 'Handeling: een nieuwe landkaart (alleen de Keeper)', fallback: 'Nieuwe {landkaart}' },
+      { key: 'actNewTree', what: 'Handeling: een nieuwe stamboom', fallback: 'Nieuwe {stamboom}' },
+      { key: 'actPlayAs', what: 'Handeling: een ander karakter spelen', fallback: 'Speel als {naam}' },
+      {
+        key: 'shortcutsPalette',
+        what: 'De toetsen voor het palet in de sneltoetsregel',
+        fallback: '{slash} of {mod}',
+        hint: '{slash} en {mod} worden de toetsen zelf: / en Ctrl K (⌘K op een Mac).',
+      },
+    ],
+  },
+  // §101 de losse eindjes
+  {
+    title: 'De losse eindjes',
+    words: [
+      {
+        key: 'drawerGiveLabel',
+        what: 'In een kamer, voor de Keeper: de kop boven het vak waarmee hij huisraad in de lade legt',
+        fallback: 'In de lade leggen',
+      },
+      { key: 'drawerGivePlaceholder', what: 'Het zoekvak daaronder', fallback: 'Zoek huisraad…' },
+      { key: 'drawerGiveButton', what: 'De knop die het gekozen ding in de lade legt', fallback: 'In de lade' },
+      {
+        key: 'drawerGiveDone',
+        what: 'De melding daarna',
+        fallback: '{ding} ligt nu in de lade van {naam}.',
+        hint: '{ding} is wat erin ging, {naam} de onderzoeker van de kamer.',
+      },
+      {
+        key: 'drawerGiveOnlyKeeper',
+        what: 'Als een speler toch iets rechtstreeks in een lade probeert te leggen',
+        fallback: 'Alleen de {keeper} legt iets rechtstreeks in een lade.',
+      },
+      { key: 'drawerGiveNoRoom', what: 'Als de kamer niet (meer) bestaat', fallback: 'Die kamer bestaat niet.' },
+      {
+        key: 'drawerGiveNotFurnishing',
+        what: 'Als het gekozen artikel geen huisraad is',
+        fallback: 'Alleen huisraad gaat in een lade. Een voorwerp zet je op een plek.',
+      },
+      {
+        key: 'somethingWrong',
+        what: 'Als een knop in de kamer mislukt en de server geen eigen zin gaf',
+        fallback: 'Er is iets misgegaan.',
+      },
+      {
+        key: 'fontNote',
+        what: 'Op /you, achter Waarom? bij Lettertype',
+        fallback: 'De stempels, de tabbladen en de letter op een omslag blijven staan — die zijn het archief zelf.',
+      },
+      {
+        key: 'colourNoteKeeper',
+        what: 'Op /you, achter Waarom? bij Kleuren, voor de Keeper',
+        fallback:
+          'De kleuren van de {keeper} verschijnen vanzelf op de pagina’s die alleen van de {keeper} zijn — daar hoef je niets voor te kiezen, licht of donker blijft jouw keuze.',
+      },
+      {
+        key: 'colourNotePlayer',
+        what: 'Op /you, achter Waarom? bij Kleuren, voor een speler',
+        fallback: 'De {keeper} kiest de kleuren van het archief zelf; jij kiest alleen of je ze licht of donker leest.',
+      },
+      { key: 'searchLabel', what: 'Op het zoekscherm: de naam van het zoekvak', fallback: 'Zoeken in het archief' },
+      { key: 'searchPlaceholder', what: 'Het zoekvak, onder Alles', fallback: 'Zoek op naam, tag, wat dan ook…' },
+      { key: 'searchPlaceholderIn', what: 'Het zoekvak, met een soort gekozen', fallback: 'Zoek in {soort}…' },
+      { key: 'searchIn', what: 'De naam van de rij soorten onder het zoekvak', fallback: 'Zoek in' },
+      { key: 'searchAll', what: 'De eerste keuze in die rij', fallback: 'Alles' },
+      {
+        key: 'searchHint',
+        what: 'Onder een leeg zoekvak',
+        fallback: 'Typ om te zoeken. Druk overal op {toets} om hier te komen.',
+        hint: '{toets} wordt de toets / getekend.',
+      },
+      { key: 'searchInText', what: 'De kop boven artikelen waarin het woord in de tekst staat', fallback: 'Genoemd in de tekst' },
+      { key: 'searchCreate', what: 'De knop onder de resultaten', fallback: '‘{naam}’ aanmaken' },
     ],
   },
 ];

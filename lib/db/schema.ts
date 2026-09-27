@@ -561,6 +561,8 @@ export const caseRevisions = sqliteTable('case_revisions', {
 export const boards = sqliteTable('boards', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  /** §99 (O8, migration 0037): a short box (§95) — mentions are handles, not names. */
+  description: text('description').notNull().default(''),
   caseId: text('case_id'),
   state: text('state', { mode: 'json' }).$type<unknown>().notNull().default({}),
   /** §17 */

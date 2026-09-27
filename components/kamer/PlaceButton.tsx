@@ -100,10 +100,7 @@ export function PlaceButton({
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setTimeout(() => boxRef.current?.focus(), 60);
-  }, [open]);
+  // §101: the caret goes into the search box through `data-autofocus` (see `Sheet`).
 
   /*
    * §85: open op het tabblad dat iets te zeggen heeft.
@@ -206,7 +203,7 @@ export function PlaceButton({
   async function place(entry: Voorwerp) {
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/place`, { entryId: entry.id });
+      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/place`, { entryId: entry.id }, words);
       if (error) {
         ui.toast(error);
         return;
@@ -228,7 +225,7 @@ export function PlaceButton({
   async function buy(entry: CatalogueEntry) {
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/buy`, { entryId: entry.id });
+      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/buy`, { entryId: entry.id }, words);
       if (error) {
         ui.toast(error);
         return;
@@ -342,6 +339,7 @@ export function PlaceButton({
             <input
               id={`${titleId}-zoek`}
               ref={boxRef}
+              data-autofocus
               className="input kamer-zoek"
               data-testid="plek-picker-zoek"
               value={query}

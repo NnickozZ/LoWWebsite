@@ -268,7 +268,8 @@ test('the Keeper turns drawing off for everyone, and wipes the layer', async ({ 
   await expect(other.locator('.ink-saving')).toHaveCount(0, { timeout: 20_000 });
 
   // Off. The toolbar leaves the other screen without a reload; the strokes stay.
-  await page.getByRole('button', { name: 'Rechten' }).click();
+  // §99: below the fold on the prikbord too, as on the landkaart and the stamboom.
+  await expect(page.locator('#board-ink-underfold').getByTestId('ink-enabled')).toBeAttached();
   await page.getByTestId('ink-enabled').uncheck();
   await expect(other.getByTestId('ink-toolbar')).toHaveCount(0, { timeout: 15_000 });
   await expect(other.getByTestId('ink-capture')).toHaveCount(0);

@@ -100,6 +100,23 @@ function useWardrobe(me: Me) {
   return { state, busy, call };
 }
 
+/**
+ * §100: the palet's *Speel als …* — the same wissel as the list in the side
+ * menu and the Jij-blad, through the same `useWardrobe` (so `followPlay` comes
+ * along, §91). Not a second road: a second hand on this one.
+ */
+export function usePlayAs(me: Me) {
+  const { state, busy, call } = useWardrobe(me);
+  const playAs = useCallback(
+    (characterId: string | null) => {
+      if (characterId === state.activeId) return;
+      void call('PATCH', { active: characterId });
+    },
+    [call, state.activeId],
+  );
+  return { characters: state.characters, activeId: state.activeId, busy, playAs };
+}
+
 function TypeMark({ character }: { character: CharacterLite }) {
   return (
     <Thumb

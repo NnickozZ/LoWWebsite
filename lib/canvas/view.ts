@@ -182,6 +182,94 @@ export function readableFit(
   return { x: tidy(x), y: tidy(y), zoom };
 }
 
+/**
+ * §101 — de camera blijft staan terwijl de wereld eronder verschuift.
+ *
+ * Een stamboom bewaart geen opmaak: de plaatsing wordt uitgerekend uit de
+ * feiten (`layoutTree`). Eén ouder erbij duwt dus iedereen een generatie op,
+ * en de wereldcoördinaten van het kaartje waar je mee bezig was zijn daarna
+ * andere getallen dan ervoor. De camera stond stil in wereldcoördinaten, dus
+ * op het glas sprong hij weg: na *+ Ouder* keek je naar twee vreemden. Gemeten
+ * na golf 3, rij 18.
+ *
+ * Dit is de rekensom die dat rechtzet: houd het *wereldpunt* `before` op de
+ * plek van het glas waar het stond, terwijl datzelfde ding nu op `after`
+ * ligt. De zoom verandert niet — er is niets gebeurd wat om een andere zoom
+ * vraagt, en een camera die ongevraagd zoomt leest als een fout.
+ */
+export function followPoint(
+  view: CanvasView,
+  before: { x: number; y: number },
+  after: { x: number; y: number },
+): CanvasView {
+  if (!Number.isFinite(before.x) || !Number.isFinite(after.x)) return view;
+  if (!Number.isFinite(before.y) || !Number.isFinite(after.y)) return view;
+  return {
+    x: tidy(view.x + (before.x - after.x) * view.zoom),
+    y: tidy(view.y + (before.y - after.y) * view.zoom),
+    zoom: view.zoom,
+  };
+}
+
+/**
+ * §101 — en het nieuwe kaartje hoort in beeld te staan.
+ *
+ * Schuif zo min mogelijk: een doos die er al helemaal op staat beweegt niets,
+ * en een doos die er half af valt komt er net op, met `padding` lucht. Alleen
+ * schuiven, nooit zoomen — en een doos die zelfs op deze zoom niet past legt
+ * zijn linker- en bovenkant tegen de rand, want dat is de hoek waar een naam
+ * staat.
+ *
+ * `hold` is de doos die niet van het glas geduwd mag worden om deze binnen te
+ * halen: het kaartje waar de hand mee bezig was. Ver ingezoomd passen twee
+ * generaties niet tegelijk op het scherm, en dan wint "blijf staan waar je
+ * was" — het nieuwe kaartje is één veegje verderop, de plek kwijtraken is een
+ * hele zoektocht. Past `hold` zelf al niet op het glas, dan valt er niets te
+ * beschermen en gebeurt er niets.
+ */
+export function panIntoView(
+  view: CanvasView,
+  box: { x: number; y: number; width: number; height: number },
+  stage: { width: number; height: number },
+  padding = FIT_PADDING,
+  hold?: { x: number; y: number; width: number; height: number },
+): CanvasView {
+  if (!(stage.width > 0) || !(stage.height > 0)) return view;
+  /** Hoe ver mag er geschoven worden zonder `hold` van het glas te duwen? */
+  const limit = (wanted: number, near: number, size: number, origin: number, room: number): number => {
+    if (!hold || !wanted) return wanted;
+    const low = origin + near * view.zoom;
+    const high = low + Math.max(0, size) * view.zoom;
+    const least = -low;
+    const most = room - high;
+    if (!Number.isFinite(least) || !Number.isFinite(most) || least > most) return 0;
+    return Math.min(most, Math.max(least, wanted));
+  };
+  const shift = (near: number, size: number, origin: number, room: number): number => {
+    const span = Math.max(0, size) * view.zoom;
+    // A box wider than the glass gets no air: there is none to give.
+    const pad = Math.min(padding, Math.max(0, (room - span) / 2));
+    const low = origin + near * view.zoom;
+    const high = low + span;
+    if (!Number.isFinite(low) || !Number.isFinite(high)) return 0;
+    if (high > room - pad) {
+      const dx = room - pad - high;
+      // Never push the near edge off the other side while chasing the far one.
+      return low + dx < pad ? pad - low : dx;
+    }
+    if (low < pad) return pad - low;
+    return 0;
+  };
+  const dx = hold
+    ? limit(shift(box.x, box.width, view.x, stage.width), hold.x, hold.width, view.x, stage.width)
+    : shift(box.x, box.width, view.x, stage.width);
+  const dy = hold
+    ? limit(shift(box.y, box.height, view.y, stage.height), hold.y, hold.height, view.y, stage.height)
+    : shift(box.y, box.height, view.y, stage.height);
+  if (!dx && !dy) return view;
+  return { x: tidy(view.x + dx), y: tidy(view.y + dy), zoom: view.zoom };
+}
+
 /** §94 (C4/C5): een wereldpunt in het midden van het glas, op deze zoom. */
 export function centreView(
   point: { x: number; y: number },

@@ -22,7 +22,7 @@ export async function register() {
    * never been built, and nobody is going to re-save four hundred dossiers by
    * hand to build it. This is next to the migrations in spirit but not in
    * `migrations.mjs`: reading a board's cards or a dossier's notes needs
-   * `normaliseState` and `extractEntryLinks`, which are TypeScript the `.mjs`
+   * `normaliseState` and `linkedEntryIds`, which are TypeScript the `.mjs`
    * files may not import (rule 4), and a second reading of those documents
    * written in plain JS is exactly how two readings start to disagree.
    *
@@ -60,6 +60,13 @@ export async function register() {
     if (sessions) {
       const { logEvent } = await import('./lib/diagnostics');
       logEvent('info', 'swept expired sessions', { sessions });
+    }
+    // §98: and the handles no text uses any more.
+    const { sweepMentionHandles } = await import('./lib/db/sweep');
+    const handles = sweepMentionHandles();
+    if (handles) {
+      const { logEvent } = await import('./lib/diagnostics');
+      logEvent('info', 'swept mention handles nothing points at', { handles });
     }
   } catch (err) {
     const { logEvent } = await import('./lib/diagnostics');

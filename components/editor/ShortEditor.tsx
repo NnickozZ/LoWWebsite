@@ -4,7 +4,7 @@ import { Extension, Node, mergeAttributes, type Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Node as PmNode } from '@tiptap/pm/model';
-import { PluginKey } from '@tiptap/pm/state';
+import { PluginKey, TextSelection } from '@tiptap/pm/state';
 import type { EditorProps, EditorView } from '@tiptap/pm/view';
 import Suggestion from '@tiptap/suggestion';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -411,11 +411,29 @@ export default function ShortEditor(props: ShortEditorProps) {
           },
         },
         handleDrop: () => true,
-        // A plain left press on a chip walks to its artikel, like a chip in the
-        // rich text (§68). Every other button is the browser's.
-        handleClickOn: (_view, _pos, node, _nodePos, event) => {
+        /*
+         * §98 (open since §95): in Bewerken a chip is a word in the sentence
+         * you are writing, not a door. A plain click or tap on it puts the
+         * caret right after it — where a tap beside a word puts it — so a tap
+         * meant for the caret on a phone no longer walks off the page, and
+         * the next letter typed does not replace the chip either (a selected
+         * atom would be). Opening the artikel is Lezen's — there every chip is
+         * a link (`MentionText`) — and a box that is only shown, never typed
+         * in, still opens on a plain press. Ctrl/⌘-click opens it in a new tab.
+         */
+        handleClickOn: (view, _pos, node, nodePos, event) => {
           if (node.type.name !== 'shortChip' || !node.attrs.slug) return false;
-          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+          if (event.button !== 0 || event.shiftKey || event.altKey) return false;
+          if (event.metaKey || event.ctrlKey) {
+            window.open(`/e/${node.attrs.slug}`, '_blank', 'noopener');
+            return true;
+          }
+          if (view.editable) {
+            const after = TextSelection.create(view.state.doc, nodePos + node.nodeSize);
+            view.dispatch(view.state.tr.setSelection(after));
+            view.focus();
+            return true;
+          }
           window.location.href = `/e/${node.attrs.slug}`;
           return true;
         },
@@ -597,7 +615,14 @@ export default function ShortEditor(props: ShortEditorProps) {
       const next = text.toString();
       if (transaction.origin !== origin && next !== serialise(editor.state.doc)) setString(editor, next, true);
       lastString.current = next;
-      onValueRef.current(next, { live: room.canEdit });
+      /*
+       * §101 naden: what arrives from the room was saved by somebody else —
+       * the server after a Keeper approved a voorstel, say. For a viewer who
+       * may only propose, `live: canEdit` called that their own edit, and the
+       * parent filed the approved text as a second voorstel. A change that is
+       * not this box's own is always the room's, so the parent never saves it.
+       */
+      onValueRef.current(next, { live: room.canEdit || transaction.origin !== origin });
     };
     text.observe(onChange);
     // §25: the handover, exactly as `BoundField` makes it.
@@ -610,7 +635,8 @@ export default function ShortEditor(props: ShortEditorProps) {
     } else if (room.synced && now !== serialise(editor.state.doc)) {
       setString(editor, now, true);
       lastString.current = now;
-      onValueRef.current(now, { live: room.canEdit });
+      // §101 naden: the room's text, not a keystroke here — never a save.
+      onValueRef.current(now, { live: true });
     }
     return () => text.unobserve(onChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps

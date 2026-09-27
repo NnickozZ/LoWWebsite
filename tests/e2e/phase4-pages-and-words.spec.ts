@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { editArticle, signIn } from './helpers';
+import { editArticle, openEmptyFields, signIn } from './helpers';
 
 /**
  * §11's two new powers, end to end.
@@ -33,6 +33,8 @@ test('a self-filling list fills itself from a field on another fiche', async ({ 
   // "Meer info" is folded on a phone and a card beside the text on a desktop.
   const folded = page.locator('details#block-info:not([open]) > summary');
   if (await folded.count()) await folded.click();
+  // §101 (B25): and an empty field stands behind "Veld invullen".
+  await openEmptyFields(page);
   // An entry_link field's picker has no id of its own, so the field is found by
   // the label that names it rather than by getByLabel.
   const faction = page.locator('div:has(> label[for="field-faction"])');

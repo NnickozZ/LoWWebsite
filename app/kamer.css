@@ -1446,3 +1446,45 @@
   flex-wrap: wrap;
   gap: 0.3rem 0.9rem;
 }
+
+/* §101 de losse eindjes ---------------------------------------------------
+   De Keeper legt iets rechtstreeks in de lade: een zoekvak en een knop, onder
+   de namen in de lade. */
+.kamer-lade-gift {
+  margin-top: 0.6rem;
+  max-width: 32rem;
+}
+.kamer-lade-gift-label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+.kamer-lade-gift-row {
+  gap: 0.4rem;
+  align-items: center;
+}
+.kamer-lade-gift-pick {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.kamer-lade-gift-row .btn {
+  min-height: var(--tap);
+}
+/* Het kruisje op een gevulde tegel is een raakvlak van --tap in de hoek
+   rechtsboven, en dat vlak lag over het plekwoord (*BUREAU*) op een tegel
+   van 160 px. Het woord krijgt die hoek nu vrij, en kapt af met "…" als het
+   niet past — het raakvlak blijft 44 px. */
+.plek-filled .plek-kind {
+  padding-right: calc(var(--tap) - 0.6rem);
+  min-width: 0;
+}
+.plek-kind-word {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (max-width: 767px) {
+  .plek-filled .plek-kind {
+    padding-right: calc(var(--tap) - 0.5rem);
+  }
+}

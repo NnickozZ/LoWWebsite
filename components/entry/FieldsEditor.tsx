@@ -571,6 +571,9 @@ export function FieldsPeek({
 }
 
 /** Renders the Keeper-configured fields for this entry type (§5). */
+/** §101 (B25): how many empty fields it takes before they fold — one is as tall as the line that hides it. */
+const FOLD_MIN = 2;
+
 export function FieldsEditor({
   fields,
   values,
@@ -578,6 +581,7 @@ export function FieldsEditor({
   readOnly: locked = false,
   hideLabels = false,
   compact = false,
+  foldEmpty = false,
   cases = {},
   refs = {},
   derived = {},
@@ -610,6 +614,8 @@ export function FieldsEditor({
    * printing the name twice.
    */
   hideLabels?: boolean;
+  /** §101 (B25): fold the fields that were empty when this opened behind one line. The artikel's infobox only. */
+  foldEmpty?: boolean;
 }) {
   /*
    * §18b: without an onderzoeker there is no name to file a change under, so
@@ -640,11 +646,58 @@ export function FieldsEditor({
       [entry.id]: { id: entry.id, name: entry.name, slug: entry.slug, icon: entry.icon ?? null, colour: entry.colour ?? null },
     }));
 
+  /*
+   * §101 (B25): the empty fields of a new artikel fold into one line.
+   *
+   * A new Persoon opened in Bewerken as a form of twelve boxes, seven of them
+   * "Nog een toevoegen…", which reads as twelve questions that must be
+   * answered. Now the boxes that were empty **when this editor opened** sit
+   * behind *+ Veld invullen ▾ (7 leeg)*, a `<details>` — native, so a screen
+   * reader hears a button that says whether it is open, and Enter or Space
+   * opens it. Filled fields stay where they are.
+   *
+   * Decided once, at open, and not on every keystroke: a box you are typing in
+   * must not jump out of the fold under your fingers. A folded field that gets
+   * a value while the fold is shut (somebody else, live) moves out of it; one
+   * that gets a value while it is open stays put until it closes. Fewer than
+   * two empty fields fold nothing — a line that says "1 leeg" is as tall as
+   * the box. Only where the page asks (`foldEmpty`, the artikel's infobox):
+   * the maakblad and a hand-filled list keep every box.
+   */
+  const foldable = foldEmpty && !readOnly && !hideLabels;
+  const isEmptyField = (field: FieldDef): boolean => {
+    if (derived[field.key]) return false;
+    const value = values[field.key];
+    if (field.kind === 'map_pin') return true;
+    if (field.kind === 'entry_link') return !resolveOne(value, known);
+    if (field.kind === 'entry_links') return resolveMany(value, known).length === 0;
+    if (field.kind === 'boolean') return value !== true;
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string') return value.trim() === '';
+    if (Array.isArray(value)) return value.length === 0;
+    return false;
+  };
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => {
+    if (!foldable) return new Set();
+    const empty = fields.filter(isEmptyField).map((field) => field.key);
+    return new Set(empty.length >= FOLD_MIN ? empty : []);
+  });
+  const [foldOpen, setFoldOpen] = useState(false);
+  useEffect(() => {
+    if (foldOpen || folded.size === 0) return;
+    const still = [...folded].filter((key) => {
+      const field = fields.find((item) => item.key === key);
+      return field ? isEmptyField(field) : false;
+    });
+    if (still.length !== folded.size) setFolded(new Set(still));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, foldOpen, refs, derived]);
+
   if (!fields.length) return null;
 
-  return (
-    <div className={compact ? 'stack fields-compact' : 'stack'} {...gate}>
-      {fields.map((field) => {
+  /* The body below is the one `fields.map` had, left at its old indent on
+     purpose: a fold around some of the fields should not re-draw every line. */
+  const renderField = (field: FieldDef) => {
         const value = values[field.key];
         const set = (next: unknown) => onChange({ [field.key]: next });
         /*
@@ -911,7 +964,30 @@ export function FieldsEditor({
             {derived[field.key] ?? null}
           </div>
         );
-      })}
+  };
+
+  const open = foldable ? fields.filter((field) => !folded.has(field.key)) : fields;
+  const shut = foldable ? fields.filter((field) => folded.has(field.key)) : [];
+
+  return (
+    <div className={compact ? 'stack fields-compact' : 'stack'} {...gate}>
+      {open.map(renderField)}
+      {shut.length > 0 && (
+        <details
+          className="fields-empty"
+          data-testid="fields-empty"
+          open={foldOpen}
+          onToggle={(event) => setFoldOpen(event.currentTarget.open)}
+        >
+          <summary className="fields-empty-summary">
+            <Icon name="plus" size={13} />
+            <span>{ui.words.fieldsFillEmpty}</span>
+            <span className="tiny muted">{fill(ui.words.fieldsEmptyCount, { n: String(shut.length) })}</span>
+            <Icon name="chevron" size={12} className="fields-empty-caret" />
+          </summary>
+          <div className="stack fields-empty-body">{shut.map(renderField)}</div>
+        </details>
+      )}
     </div>
   );
 }

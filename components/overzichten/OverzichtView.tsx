@@ -1,13 +1,14 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { ShortField } from '@/components/live/LiveFields';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SectionsEditor, type SectionLite } from '@/components/entry/SectionsEditor';
 import type { RevealableCase, RevealableUser } from '@/components/entry/RevealPicker';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
-import { MentionOverlay, MentionPopover, MentionPreview, MentionText } from '@/components/ui/MentionPopover';
+import { MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 
 export type OverzichtLite = {
@@ -75,7 +76,9 @@ export function OverzichtView({
   const [reading, setReading] = useState(true);
   const [name, setName] = useState(overzicht.name);
   const [lead, setLead] = useState(overzicht.lead);
-  const leadRef = useRef<HTMLTextAreaElement>(null);
+  // §98: the editor's blur comes before this closure has the last keystroke.
+  const leadRef = useRef(overzicht.lead);
+  leadRef.current = lead;
   const [busy, setBusy] = useState(false);
 
   async function save(patch: { name?: string; lead?: string }) {
@@ -141,7 +144,7 @@ export function OverzichtView({
           <h1 className="entry-title">{name}</h1>
           {shownLead && (
             <p className="entry-lead">
-              <MentionText text={shownLead} />
+              <MentionText text={shownLead} tokens />
             </p>
           )}
         </>
@@ -158,28 +161,25 @@ export function OverzichtView({
             onBlur={(event) => void save({ name: event.target.value })}
           />
           <div style={{ margin: '0.6rem 0 1rem' }}>
-            <label className="label" htmlFor="overzicht-lead">
+            <label className="label" htmlFor="overzicht-lead" id="overzicht-lead-label">
               Inleiding
             </label>
-            {/* §54/§56: een gewoon tekstvak krijgt de lijst, de chip over de
-                letters en de rij eronder — of dezelfde tekst is hier een chip
-                en op het volgende scherm een paar haken. */}
-            <div className="mention-field">
-            <textarea
+            {/* §98: de inleiding bewaart chips met hun artikel erin
+                (`ShortField`), zoals een korte beschrijving — geen haken meer
+                die op het volgende scherm een andere naam kunnen vinden. */}
+            <ShortField
+              noRoom
+              ungated
+              multiline
+              field="lead"
               id="overzicht-lead"
-              ref={leadRef}
-              className="input"
-              rows={3}
+              className="input short-editor-sheet"
+              ariaLabelledBy="overzicht-lead-label"
               value={lead}
               placeholder="Waar gaat dit deel van de wiki over? Wat moet iemand hier eerst lezen?"
-              onChange={(event) => setLead(event.target.value)}
-              onBlur={(event) => void save({ lead: event.target.value })}
+              onValue={(next) => setLead(next)}
+              onBlur={() => void save({ lead: leadRef.current })}
             />
-            <MentionPopover forRef={leadRef} />
-            <MentionOverlay forRef={leadRef} value={lead} />
-            {/* §92: out of focus, the chips without brackets; no row under it. */}
-            <MentionPreview forRef={leadRef} value={lead} />
-            </div>
           </div>
         </>
       )}

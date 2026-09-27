@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { LivePage } from '@/components/live/LivePage';
 import { NewOverzichtButton } from '@/components/overzichten/NewOverzichtButton';
 import { OverzichtView } from '@/components/overzichten/OverzichtView';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { TypeTabs } from '@/components/TypeTabs';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
@@ -109,20 +111,24 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
         <NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />
       </div>
       {tabs}
-      <OverzichtView
-        overzicht={loaded.overzicht}
-        siblings={loaded.siblings}
-        sections={loaded.sections}
-        canEdit={loaded.canEdit}
-        isKeeper={Boolean(user?.isKeeper)}
-        users={loaded.revealUsers}
-        cases={loaded.revealCases}
-        liveUser={loaded.liveUser}
-        // §11: the archive introduces itself in its own words until somebody
-        // writes their own — the same text, and the same rule, the start page
-        // has used since round 5.
-        defaultLead={defaultIntro(words)}
-      />
+      {/* §98: the inleiding's chips, resolved for this reader with the page —
+          §101 naden: and the secties' (`chipTexts`). */}
+      <ShortChips map={shortChipsFor(user, loaded.chipTexts)}>
+        <OverzichtView
+          overzicht={loaded.overzicht}
+          siblings={loaded.siblings}
+          sections={loaded.sections}
+          canEdit={loaded.canEdit}
+          isKeeper={Boolean(user?.isKeeper)}
+          users={loaded.revealUsers}
+          cases={loaded.revealCases}
+          liveUser={loaded.liveUser}
+          // §11: the archive introduces itself in its own words until somebody
+          // writes their own — the same text, and the same rule, the start page
+          // has used since round 5.
+          defaultLead={defaultIntro(words)}
+        />
+      </ShortChips>
     </div>
   );
 }

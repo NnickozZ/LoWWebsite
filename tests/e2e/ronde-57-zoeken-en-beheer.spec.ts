@@ -80,8 +80,10 @@ test('zoeken vindt dossiers en vlakken — en van de Keeper niets', async ({ pag
     await page.waitForURL('**/search**');
     await page.locator('#search-input').fill(open);
   } else {
-    await page.getByTestId('nav-search').fill(open);
-    await page.getByTestId('nav-search').press('Enter');
+    // §100: het vak in de zijbalk opent het palet; zijn laatste regel is Zoeken.
+    await page.getByTestId('nav-search').click();
+    await page.getByTestId('palette-input').fill(open);
+    await page.getByTestId('palette').locator('[data-option="search-all"]').click();
     await page.waitForURL('**/search?q=**');
   }
 
@@ -189,9 +191,11 @@ test('/you: lettertype en kleuren onder de karakters, de uitleg in één regel',
   expect((await light.boundingBox())!.y).toBeLessThan((await password.boundingBox())!.y);
 
   // Eén regel, en de rest achter *Waarom?*.
+  // §101 (ronde 62) gave the notes under Lettertype and Kleuren a *Waarom?*
+  // of their own, so there are three folds now, each closed until asked.
   const why = main.locator('.you-why');
-  await expect(why).toHaveCount(1);
-  await expect(main.locator('.you-why-body')).toBeHidden();
-  await why.locator('summary').click();
-  await expect(main.locator('.you-why-body')).toBeVisible();
+  await expect(why).toHaveCount(3);
+  for (let i = 0; i < 3; i++) await expect(why.nth(i).locator('.you-why-body')).toBeHidden();
+  await why.first().locator('summary').click();
+  await expect(why.first().locator('.you-why-body')).toBeVisible();
 });

@@ -37,7 +37,7 @@ export function AddToCaseButton({
       .then((r) => (r.ok ? r.json() : { cases: [] }))
       .then((data) => setCases(data.cases ?? []))
       .catch(() => undefined);
-    setTimeout(() => searchRef.current?.focus(), 60);
+    // §101: the caret goes into the search box through `data-autofocus` (see `Sheet`).
   }, [open]);
 
   const matches = useMemo(() => {
@@ -94,6 +94,7 @@ export function AddToCaseButton({
           <input
             id="case-search"
             ref={searchRef}
+            data-autofocus
             className="input"
             value={query}
             placeholder="Zoek een dossier…"

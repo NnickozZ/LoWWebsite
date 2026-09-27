@@ -57,12 +57,12 @@ async function mention(page: Page, box: ReturnType<Page['locator']>, name: strin
  * was written for (letters drawn through the mirror, an invisible caret, a
  * chip that swallows a drag) cannot happen here any more, and what is left to
  * prove is the wish itself: a chip where the name stands, no brackets, a caret
- * that selects, and a click that goes to the artikel. §56's mirror still hangs
- * on the boxes outside this round (the maakbladen of a landkaart, a tijdlijn,
- * a stamboom and the lead of an overzicht).
+ * that selects, and — §98 — a click on the chip that puts the caret beside it
+ * rather than walking away (opening is the reading face's). Since §98 no box has §56's
+ * mirror over it any more: every short box is this editor.
  */
 test.describe('§56 een chipje in het vak zelf', () => {
-  test('de beschrijving in de maak-sheet toont een klikbaar chipje in het vak', async ({ page }) => {
+  test('de beschrijving in de maak-sheet toont een chipje in het vak', async ({ page }) => {
     test.setTimeout(240_000);
     const stamp = Date.now().toString().slice(-6);
     const target = `Doelwit ${stamp}`;
@@ -90,8 +90,18 @@ test.describe('§56 een chipje in het vak zelf', () => {
     expect(await page.evaluate(() => window.getSelection()?.toString().length ?? 0)).toBeGreaterThan(0);
     await expect(lead).toBeFocused();
 
-    // 3. And a plain click on the chip goes to the artikel it names.
+    // 3. §98: in a box being written in, a plain click on the chip puts the
+    // caret after it and stays — it used to walk to the artikel, and on a
+    // phone a tap meant for the caret did the same. The artikel opens from
+    // where it is read. What is typed next lands after the chip, which stays.
+    const here = page.url();
     await chip.click();
-    await page.waitForURL(`**${new URL(targetUrl).pathname}`, { timeout: 20_000 });
+    await page.waitForTimeout(800);
+    expect(page.url()).toBe(here);
+    await expect(lead).toBeFocused();
+    await page.keyboard.type(' erbij', { delay: 20 });
+    await expect(chip).toBeVisible();
+    await expect(lead).toContainText(`${target} erbij`);
+    expect(new URL(targetUrl).pathname).not.toBe(new URL(here).pathname);
   });
 });

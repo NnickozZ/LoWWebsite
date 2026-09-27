@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { NewFamilyTreeButton } from '@/components/families/NewFamilyTreeButton';
@@ -78,6 +81,8 @@ export default async function FamilyTreesPage({ searchParams }: { searchParams: 
       />
 
       {trees.length ? (
+        // §98: the omschrijvingen's chips, for this reader, with the page.
+        <ShortChips map={shortChipsFor(user, trees.map((item) => item.description))}>
         <ul className="tree-shelf" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {trees.map((tree) => (
             <li key={tree.id} style={{ borderBottom: '1px solid var(--rule)' }}>
@@ -103,7 +108,12 @@ export default async function FamilyTreesPage({ searchParams }: { searchParams: 
                         {capitalise(words.case)}: {tree.caseName}
                       </>
                     )}
-                    {tree.description && <> · {tree.description}</>}
+                    {tree.description && (
+                      <>
+                        {' · '}
+                        <MentionText text={tree.description} flat tokens />
+                      </>
+                    )}
                   </span>
                 </span>
                 <span className="tiny muted">{relativeTime(tree.updatedAt)}</span>
@@ -112,6 +122,7 @@ export default async function FamilyTreesPage({ searchParams }: { searchParams: 
             </li>
           ))}
         </ul>
+        </ShortChips>
       ) : (
         <div className="empty">
           <p style={{ margin: 0 }}>

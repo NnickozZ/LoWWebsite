@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
 import { GrantForm } from '@/components/kamer/GrantForm';
 import { Grootboek } from '@/components/kamer/Grootboek';
+import { LadeGift } from '@/components/kamer/LadeGift';
 import { Plek } from '@/components/kamer/Plek';
 import { RoomEffects } from '@/components/kamer/RoomEffects';
 import { KamerGrid } from '@/components/kamer/Verplaatsen';
@@ -12,7 +13,7 @@ import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
-import { ledgerOf, roomsOf, viewRoomBySlug } from '@/lib/kamers/service';
+import { furnishingTypeSlugs, ledgerOf, roomsOf, viewRoomBySlug } from '@/lib/kamers/service';
 import { roomKey } from '@/lib/live/keys';
 import { spelerHref } from '@/lib/spelers/service';
 import { capitalise, fill } from '@/lib/words';
@@ -84,6 +85,8 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
   const ownerHref = spelerHref(room.ownerId);
   // S14: wie zelf meer kamers heeft, wisselt hier in één tik.
   const mine = roomsOf(user);
+  // §101: de soorten die de Keeper hier rechtstreeks in de lade legt — `canGrant` is de Keeper.
+  const giftTypes = room.canGrant ? furnishingTypeSlugs() : [];
 
   return (
     <div className="page kamer-page" data-testid="kamer-page" data-room={room.id}>
@@ -234,19 +237,26 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
         iets in ligt; neerzetten gaat via *Neerzetten* op een lege plek, waar het
         onder *Wat je al hebt* bovenaan staat.
       */}
-      {room.drawer.length > 0 && (
+      {/* §101: en voor de Keeper staat de lade er altijd, met onderaan de weg
+          om er rechtstreeks iets in te leggen (`LadeGift`). */}
+      {(room.drawer.length > 0 || giftTypes.length > 0) && (
         <section className="kamer-lade" data-testid="kamer-lade" aria-labelledby="kamer-lade-title">
           <h2 id="kamer-lade-title" className="tiny muted kamer-lade-title">
             {words.drawer}
           </h2>
-          <ul className="kamer-lade-list">
-            {room.drawer.map((thing) => (
-              <li key={thing.id} data-testid="kamer-lade-ding" data-entry-id={thing.id}>
-                <Link href={`/e/${thing.slug}`}>{thing.name}</Link>
-                {thing.count > 1 && <span className="tiny muted"> ×{thing.count}</span>}
-              </li>
-            ))}
-          </ul>
+          {room.drawer.length > 0 && (
+            <ul className="kamer-lade-list">
+              {room.drawer.map((thing) => (
+                <li key={thing.id} data-testid="kamer-lade-ding" data-entry-id={thing.id}>
+                  <Link href={`/e/${thing.slug}`}>{thing.name}</Link>
+                  {thing.count > 1 && <span className="tiny muted"> ×{thing.count}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {giftTypes.length > 0 && (
+            <LadeGift roomId={room.id} name={room.character.name} types={giftTypes} words={words} />
+          )}
         </section>
       )}
 

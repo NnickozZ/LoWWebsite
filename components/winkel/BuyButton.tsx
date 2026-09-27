@@ -74,7 +74,7 @@ export function BuyButton({
   async function buy() {
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/buy`, { entryId });
+      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/buy`, { entryId }, words);
       if (error) {
         ui.toast(error);
         return;

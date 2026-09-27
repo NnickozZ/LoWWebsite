@@ -375,6 +375,10 @@ export default async function EntryPage({
    */
   const shortChips = shortChipsFor(user, [
     entry.shortDescription,
+    // §97: and the links in the running text and its sections — the same
+    // handles, the same answer. `bodyText` carries them as tokens.
+    entry.bodyText,
+    ...sections.map((section) => section.bodyText),
     ...Object.values((entry.fields ?? {}) as Record<string, unknown>).filter((value): value is string => typeof value === 'string'),
   ]);
   /*
@@ -456,8 +460,9 @@ export default async function EntryPage({
   const diff =
     selectedRevision && selectedFacts && !shutEpoch
       ? diffLines(
-          docToText((selectedRevision.snapshot as { body?: unknown }).body ?? null),
-          entry.bodyText,
+          // §97: a link in the text is a token; this reader reads the name they may see, or nothing.
+          plainShort(user, docToText((selectedRevision.snapshot as { body?: unknown }).body ?? null)),
+          plainShort(user, entry.bodyText),
         )
       : null;
 

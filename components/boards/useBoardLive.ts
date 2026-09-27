@@ -99,7 +99,8 @@ export function useBoardLive({
   /** True while this client has changes it has not saved yet. */
   dirty: boolean;
   onRemote: (state: BoardState, refs: BoardRefs) => void;
-  onRename: (name: string) => void;
+  /** §99 (O8): and the description, which travels on the same pull. */
+  onRename: (name: string, description?: string) => void;
 }) {
   const live = useLiveBase();
   const hands = useLivePointers();
@@ -166,6 +167,7 @@ export function useBoardLive({
       if (!response.ok) return;
       const data = (await response.json()) as {
         name: string;
+        description?: string;
         state: BoardState;
         entries: BoardRefs['entries'];
         maps: BoardRefs['maps'];
@@ -184,7 +186,7 @@ export function useBoardLive({
       owed.current = false;
       pullBackoff.current = 0;
       onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {}, boards: data.boards ?? {}, familyTrees: data.familyTrees ?? {} });
-      onRenameRef.current(data.name);
+      onRenameRef.current(data.name, data.description);
       // Whatever those tabs were carrying is now where the document says.
       if (settling.current.size) {
         const done = settling.current;

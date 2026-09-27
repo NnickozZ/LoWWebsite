@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveChanges, useLiveOptional } from '@/components/live/LiveProvider';
+import { useReportSave, type SaveReport } from '@/components/live/saveRegister';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { inkKey } from '@/lib/live/keys';
 import {
@@ -93,6 +94,13 @@ export function useInk({
   const [others, setOthers] = useState<Map<string, Live>>(new Map());
   const [settling, setSettling] = useState<Map<string, Live>>(new Map());
   const [saving, setSaving] = useState(false);
+  /*
+   * §100 (B14): what the shell's one save word says for this layer. Null until
+   * this hand has drawn something — a reader of a landkaart is not a writer,
+   * and the shell keeps no room for a word that will never come.
+   */
+  const [report, setReport] = useState<{ state: SaveReport; message: string | null } | null>(null);
+  useReportSave(report?.state ?? null, report?.message ?? null);
 
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
@@ -163,6 +171,7 @@ export function useInk({
     toLift.current = [];
     inFlight.current = true;
     setSaving(true);
+    setReport({ state: 'saving', message: null });
     try {
       const response = await fetch(`/api/ink/${kind}/${id}`, {
         method: 'POST',
@@ -176,9 +185,11 @@ export function useInk({
         const sent = new Set(strokes.map((stroke) => stroke.id));
         setPending((list) => list.filter((stroke) => !sent.has(stroke.id)));
         onErrorRef.current?.(data.error ?? 'Tekenen is niet gelukt.');
+        setReport({ state: 'error', message: data.error ?? 'Tekenen is niet gelukt.' });
         if (data.layer) setLayer(data.layer);
         return;
       }
+      setReport({ state: 'saved', message: null });
       if (data.layer) setLayer(data.layer);
       if (data.refused) onErrorRef.current?.('De tekenlaag is vol. Vraag een Keeper hem te wissen.');
     } catch {
@@ -186,6 +197,9 @@ export function useInk({
       toSend.current = [...strokes, ...toSend.current];
       toLift.current = [...undo, ...toLift.current];
       onErrorRef.current?.('Geen verbinding — de streek is nog niet opgeslagen.');
+      // §100: an error and not §90's "wordt bewaard": the layer tries again
+      // with the next stroke, not when the line comes back.
+      setReport({ state: 'error', message: 'Geen verbinding — de streek is nog niet opgeslagen.' });
     } finally {
       inFlight.current = false;
       setSaving(false);

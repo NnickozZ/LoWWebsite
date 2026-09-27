@@ -3,6 +3,9 @@
  * the functions the unit tests in tests/unit/doc.test.ts pin down.
  */
 
+import { docText, legacyLinkId } from './docLinks.mjs';
+import { isHandle } from './shortTokens.mjs';
+
 export type ProseNode = {
   type?: string;
   text?: string;
@@ -13,56 +16,25 @@ export type ProseNode = {
 
 export const EMPTY_DOC: ProseNode = { type: 'doc', content: [{ type: 'paragraph' }] };
 
-/** Node types that should read as a line break when flattening to plain text. */
-const BLOCK_TYPES = new Set([
-  'paragraph',
-  'heading',
-  'blockquote',
-  'listItem',
-  'bulletList',
-  'orderedList',
-  'codeBlock',
-  'horizontalRule',
-]);
-
 /**
- * Plain-text projection of a document, used for FTS indexing and card previews.
- * Entry links contribute their visible label so searching for a linked name works.
+ * Plain-text projection of a document, used for FTS indexing, the history and
+ * a proposal. §97: an entry link is its token `⟦h⟧` — never its name — so a
+ * reader projects it per viewer (`plainShort`) and the search index leaves it
+ * out (`indexShort`). The one implementation is `docText` in `docLinks.mjs`,
+ * which the migration and the CLI read too.
  */
 export function docToText(doc: unknown): string {
-  const out: string[] = [];
-
-  const walk = (node: ProseNode | undefined) => {
-    if (!node || typeof node !== 'object') return;
-    if (node.type === 'text' && typeof node.text === 'string') {
-      out.push(node.text);
-      return;
-    }
-    if (node.type === 'entryLink') {
-      const label = node.attrs?.label;
-      if (typeof label === 'string') out.push(label);
-      return;
-    }
-    if (node.type === 'image') {
-      const alt = node.attrs?.alt;
-      if (typeof alt === 'string' && alt) out.push(alt);
-      return;
-    }
-    if (Array.isArray(node.content)) for (const child of node.content) walk(child);
-    if (node.type && BLOCK_TYPES.has(node.type)) out.push('\n');
-  };
-
-  walk(doc as ProseNode);
-  return out
-    .join('')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{2,}/g, '\n')
-    .trim();
+  return docText(doc);
 }
 
 /**
- * Every entry id referenced by an entryLink node, in document order, deduped.
- * This is what `entry_links` is recomputed from on each save.
+ * Every entry id a *legacy* entryLink node carries, in document order, deduped.
+ *
+ * §97: since round 58 a stored document holds handles, not ids, and what
+ * `entry_links` is recomputed from is `linkedEntryIds` in
+ * `lib/entries/docRefs.ts` (handles through `mention_handles`, plus these).
+ * This stays for a document that has not been through the archive yet — a
+ * test, a seed, an old tab.
  */
 export function extractEntryLinks(doc: unknown): string[] {
   const ids: string[] = [];
@@ -71,8 +43,8 @@ export function extractEntryLinks(doc: unknown): string[] {
   const walk = (node: ProseNode | undefined) => {
     if (!node || typeof node !== 'object') return;
     if (node.type === 'entryLink') {
-      const id = node.attrs?.id;
-      if (typeof id === 'string' && id && !seen.has(id)) {
+      const id = legacyLinkId(node);
+      if (id && !seen.has(id)) {
         seen.add(id);
         ids.push(id);
       }
@@ -85,9 +57,25 @@ export function extractEntryLinks(doc: unknown): string[] {
   return ids;
 }
 
-/** True when a document holds nothing a reader would see. */
+/**
+ * True when a document holds nothing a reader would see.
+ *
+ * §101: asked of the node *kinds*, not of `docToText`. The text projection
+ * leaves out an image without alt text and a rule, and a chip whose label is
+ * not in the node — so "no text" is not "nothing to see", and the reading face
+ * (which drops an empty *Tekst* block on this answer) would hide a body that is
+ * only a photograph. Empty is: nothing but paragraphs and headings holding
+ * whitespace and line breaks.
+ */
+const EMPTY_SHELLS = new Set(['doc', 'paragraph', 'heading', 'hardBreak']);
 export function isEmptyDoc(doc: unknown): boolean {
-  return docToText(doc).length === 0;
+  const empty = (node: ProseNode | undefined): boolean => {
+    if (!node || typeof node !== 'object') return true;
+    if (node.type === 'text') return typeof node.text !== 'string' || node.text.trim() === '';
+    if (!node.type || !EMPTY_SHELLS.has(node.type)) return false;
+    return !Array.isArray(node.content) || node.content.every(empty);
+  };
+  return empty(doc as ProseNode);
 }
 
 /** First ~n characters of the body, for previews where there is no short description. */
@@ -159,9 +147,11 @@ export function safeImageSrc(value: unknown): string | null {
  *   - a `link` mark with an unsafe `href` is removed; the words stay;
  *   - an `image` whose `src` is not an upload of this archive is removed;
  *     its `alt` and `title` are clipped;
- *   - an `entryLink` keeps only a hex colour, an icon *name*, a slug of
- *     slug characters, and a label of at most 200 characters — its colour goes
- *     into a `style` attribute on every reader's screen.
+ *   - an `entryLink` keeps a `handle` only if it is a well-formed one (§97);
+ *     the legacy attributes a browser or a seed may still send are clipped
+ *     (a hex colour, an icon *name*, a slug of slug characters, a label of at
+ *     most 200 characters) for `cleanDocRefs`, which turns them into a handle
+ *     or drops the node before anything is stored.
  * Anything that is not an object, or nested deeper than 64, is dropped.
  *
  * Returns a new value; the input is not changed. A non-object (null, a string)
@@ -224,12 +214,19 @@ export function cleanDoc<T>(doc: T): T {
 
     if (node.type === 'entryLink' && node.attrs) {
       const attrs: Record<string, unknown> = { ...node.attrs };
-      const { id, label, slug, icon, colour } = attrs;
-      if (typeof id !== 'string') attrs.id = '';
-      else if (id.length > 64) attrs.id = id.slice(0, 64);
-      if (typeof label !== 'string') attrs.label = '';
-      else if (label.length > 200) attrs.label = label.slice(0, 200);
-      if (typeof slug !== 'string' || !/^[a-z0-9-]{0,120}$/.test(slug)) attrs.slug = '';
+      const { id, label, slug, icon, colour, handle } = attrs;
+      if (handle !== undefined && handle !== null && handle !== '' && !isHandle(handle)) attrs.handle = '';
+      // §97: only a legacy node has these at all; a stored one is `{ handle }`,
+      // and adding empty ones here would reset every room on every save.
+      if (id !== undefined) {
+        if (typeof id !== 'string') attrs.id = '';
+        else if (id.length > 64) attrs.id = id.slice(0, 64);
+      }
+      if (label !== undefined) {
+        if (typeof label !== 'string') attrs.label = '';
+        else if (label.length > 200) attrs.label = label.slice(0, 200);
+      }
+      if (slug !== undefined && (typeof slug !== 'string' || !/^[a-z0-9-]{0,120}$/.test(slug))) attrs.slug = '';
       if (icon != null && icon !== '' && (typeof icon !== 'string' || !/^[a-z0-9-]{1,40}$/.test(icon))) attrs.icon = null;
       if (colour != null && colour !== '' && (typeof colour !== 'string' || !HEX_COLOUR.test(colour))) attrs.colour = null;
       out.attrs = attrs;

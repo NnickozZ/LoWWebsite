@@ -10,13 +10,19 @@ import { ConnectionsLink } from '@/components/web/ConnectionsLink';
 import { CanvasTitle } from '@/components/canvas/CanvasTitle';
 import { CanvasFind } from '@/components/canvas/CanvasFind';
 import { UnderFold } from '@/components/ink/UnderFold';
+import { ShortField } from '@/components/live/LiveFields';
+import { MentionText } from '@/components/ui/MentionPopover';
 import type { Findable } from '@/lib/canvas/find';
 import { AccessEditor, type AccessSettings } from '@/components/access/AccessEditor';
 import { Sheet } from '@/components/ui/Sheet';
 import { useIsPhone } from '@/components/useIsPhone';
 import { useUi } from '@/components/ui/UiProvider';
-import { useAuthorOptional, useMayType } from '@/components/you/AuthorProvider';
-import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
+import { useMayType } from '@/components/you/AuthorProvider';
+import {
+  useAskAuthorFirst,
+  useCanvasAuthorGate,
+  useCanvasMaker,
+} from '@/components/canvas/useCanvasAuthorGate';
 import { capitalise, fill } from '@/lib/words';
 import {
   boardBounds,
@@ -88,7 +94,7 @@ import { BoardPicker, type PickableItem, type SuggestedEntry } from './BoardPick
 import { BoardInspector } from './BoardInspector';
 import { BoardTray, type TrayEntry } from './BoardTray';
 import { offerToFileEntry } from './offerToFile';
-import { syncLabel, useBoardSync } from './useBoardSync';
+import { useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { fitUpload } from '@/components/shrinkImage';
@@ -186,6 +192,7 @@ function sagOf(ax: number, ay: number, bx: number, by: number) {
 export function BoardCanvas({
   boardId,
   boardName,
+  boardDescription = '',
   caseId,
   caseName,
   caseSlug,
@@ -215,6 +222,8 @@ export function BoardCanvas({
   stamp?: ReactNode;
   boardId: string;
   boardName: string;
+  /** §99 (O8): what this wall is about — a short text (§95), handles and all. */
+  boardDescription?: string;
   /** §33: the tekenlaag, as this viewer may see it. */
   initialInk: InkLayerView;
   /** §17: may look, not touch. Every write path below is switched off. */
@@ -334,6 +343,14 @@ export function BoardCanvas({
   } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [name, setName] = useState(boardName);
+  /*
+   * §99 (O8): the description, as it was last saved (`description`) and as it
+   * is being typed below the fold (`descriptionDraft`). The heading prints the
+   * first, so a half-typed sentence never stands in the heading.
+   */
+  const [description, setDescription] = useState(boardDescription);
+  const [descriptionDraft, setDescriptionDraft] = useState(boardDescription);
+  const descriptionTyping = useRef(false);
 
   const [drawing, setDrawing] = useState<Drawing | null>(null);
 
@@ -744,7 +761,12 @@ export function BoardCanvas({
     paused: busy,
     dirty: sync.state === 'dirty' || sync.state === 'saving',
     onRemote: applyRemote,
-    onRename: (remoteName) => {
+    onRename: (remoteName, remoteDescription) => {
+      // §99: somebody else's description; not while this hand is typing one.
+      if (typeof remoteDescription === 'string' && !descriptionTyping.current) {
+        setDescription((current) => (current === remoteDescription ? current : remoteDescription));
+        setDescriptionDraft((current) => (current === remoteDescription ? current : remoteDescription));
+      }
       // Not while it is being typed in: the caret would jump.
       if (document.activeElement?.id === 'board-name') return;
       setName((current) => (current === remoteName ? current : remoteName));
@@ -856,14 +878,15 @@ export function BoardCanvas({
    * (`ensureAuthor`), not by the caret arriving in the box: asked afterwards
    * it took the focus away, and the first `n` typed opened "Nieuw artikel".
    */
-  const author = useAuthorOptional();
   const [writeCardId, setWriteCardId] = useState<string | null>(null);
   const [labelPinId, setLabelPinId] = useState<string | null>(null);
   const clearWriteCard = useCallback(() => setWriteCardId(null), []);
-  const askThen = useCallback(
-    (then: () => void) => (author ? author.ensureAuthor(then) : then()),
-    [author],
-  );
+  /*
+   * §101: the same road as the other three vlakken now take, out of one
+   * helper — this file had its own `askThen`, and the other three had none.
+   */
+  const maker = useCanvasMaker();
+  const askThen = useAskAuthorFirst();
   /* §90: the §18b question only where the wall can write — Bewerken, or the
      potlood in the hand. A tap on the cork in Lezen asks nothing. */
   const gate = useCanvasAuthorGate(!handsOff || inkActive);
@@ -2758,6 +2781,31 @@ export function BoardCanvas({
     [boardId, clientId, filedIn, pickableCases, router, ui],
   );
 
+  /**
+   * §99 (O8): save the description when the box is left. The archive's answer
+   * (after `cleanShort`) is what stands afterwards — a handle the writer may
+   * not name is gone, one they could not see is back — and a refusal puts the
+   * last saved text back rather than keeping what the server said no to.
+   */
+  const saveDescription = useCallback(async () => {
+    descriptionTyping.current = false;
+    const next = descriptionDraft.trim();
+    if (next === description) return;
+    const response = await fetch(`/api/boards/${boardId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ description: next, clientId }),
+    }).catch(() => null);
+    const data = response?.ok ? ((await response.json().catch(() => null)) as { description?: string } | null) : null;
+    if (!response?.ok || typeof data?.description !== 'string') {
+      setDescriptionDraft(description);
+      ui.toast(fill(ui.words.boardDescriptionRefused, { prikbord: ui.words.board }));
+      return;
+    }
+    setDescription(data.description);
+    setDescriptionDraft(data.description);
+  }, [boardId, clientId, description, descriptionDraft, ui]);
+
   /* §90: a punaise made from the bar lands with the caret in its label. The
      inspector is drawn in the same commit as the choice, so it is there now. */
   useEffect(() => {
@@ -2832,6 +2880,13 @@ export function BoardCanvas({
         inputId="board-name"
         testId="board-title"
       />
+      {/* §99 (O8): the description, where the other three print theirs — one
+          line beside the name on a desk, gone below 768 px (§34). */}
+      {description && (
+        <p className="small muted canvas-head-desc" data-testid="board-description">
+          <MentionText text={description} tokens />
+        </p>
+      )}
       {/* §43: the web, with this prikbord in the middle. */}
       <ConnectionsLink kind="board" id={boardId} />
     </header>
@@ -2892,8 +2947,8 @@ export function BoardCanvas({
           </span>
         )}
 
-        {/* §61: the archive's own reason when it gave one, not a guess. */}
-        <span className="save-state">{syncLabel(sync.state, sync.error)}</span>
+        {/* §100 (B14): the save word is the shell's now, beside the live dot
+            (`useReportSave` inside the sync hook) — §61's own reason included. */}
 
         {/* §69: the shared block — the same three buttons, the same names and
             the same size as the landkaart, the tijdlijn and the stamboom. */}
@@ -2908,7 +2963,9 @@ export function BoardCanvas({
             blank square; and it was pressable with an empty stack. */}
         {/* §73: grey in Lezen rather than gone — undo changes the wall, and the
             bar should not jump when the switch is pressed. */}
-        <CanvasUndoButton onUndo={undo} canUndo={!handsOff && undoDepth > 0} />
+        {/* §99 (C10): and, like the other three, only for a hand that may edit
+            at all — a reader with no switch has nothing to take back. */}
+        {!locked && <CanvasUndoButton onUndo={undo} canUndo={!handsOff && undoDepth > 0} />}
         {/* §94 (C11): no bin here any more. Throwing the whole wall away is the
             `BinSlot` below the fold, as on the other three — it was the
             nearest thumb-target on the wall, beside Ongedaan maken. */}
@@ -2919,6 +2976,28 @@ export function BoardCanvas({
           cards on it may move it, and the list is this viewer's own. */}
       {!readOnly && (
         <UnderFold slotId="board-underfold">
+          {/* §99 (O8): the description is written here, below the fold with
+              the other things about the wall rather than on it — the same
+              short box (§95) as a korte beschrijving, saved when it is left. */}
+          <div className="board-description-under">
+            <span className="small muted" id="board-description-label">
+              {ui.words.boardDescriptionLabel}
+            </span>
+            <ShortField
+              noRoom
+              field="description"
+              id="board-description-input"
+              className="input"
+              ariaLabelledBy="board-description-label"
+              value={descriptionDraft}
+              placeholder={fill(ui.words.boardDescriptionPlaceholder, { prikbord: ui.words.board, artikel: ui.words.entry })}
+              onValue={(next) => {
+                descriptionTyping.current = true;
+                setDescriptionDraft(next);
+              }}
+              onBlur={() => void saveDescription()}
+            />
+          </div>
           <label className="board-case-under">
             <span className="small muted">{ui.words.boardInCase}</span>
             <select
@@ -2941,6 +3020,11 @@ export function BoardCanvas({
       )}
 
 
+      {/* §99: the Keeper's tekenlaag switch, below the fold as on the landkaart
+          and the stamboom (§34) — it stood in the Rechten sheet, the one
+          surface where it did. */}
+      {access.isKeeper && <UnderFold slotId="board-ink-underfold">{ink.keeperControls}</UnderFold>}
+
       {/*
         §73: the whole row is making — the search that hangs a card, Nieuwe
         notitie, Foto, a losse punaise — so in Lezen it is not there. A phone
@@ -2950,7 +3034,8 @@ export function BoardCanvas({
       */}
       {!handsOff && (
       <div className="board-tools">
-        <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 0 }}>
+        {/* §99: one row on a phone — the box takes what the three icons leave. */}
+        <div className="board-tools-find" style={{ position: 'relative', minWidth: 0 }}>
           {/*
             §52: the same picker the string drop opens, in the bar where it has
             always been. Everything picked here lands in the middle of the view,
@@ -2983,35 +3068,35 @@ export function BoardCanvas({
             pickableFamilyTrees={pickableFamilyTrees}
             onPickEntry={(item) => {
               closePicker();
-              void addEntryCard(item.id, item.name);
+              askThen(() => void addEntryCard(item.id, item.name));
             }}
             onPickMap={(item) => {
               closePicker();
-              placeMap(item);
+              askThen(() => placeMap(item));
             }}
             onPickCase={(item) => {
               closePicker();
-              placeCase(item);
+              askThen(() => placeCase(item));
             }}
             onPickTimeline={(item) => {
               closePicker();
-              placeTimeline(item);
+              askThen(() => placeTimeline(item));
             }}
             onPickBoard={(item) => {
               closePicker();
-              placeBoard(item);
+              askThen(() => placeBoard(item));
             }}
             onPickFamilyTree={(item) => {
               closePicker();
-              placeFamilyTree(item);
+              askThen(() => placeFamilyTree(item));
             }}
             onCreateNote={(noteName) => {
               closePicker();
-              putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' });
+              askThen(() => putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' }));
             }}
             onCreateEntry={(entryName) => {
               closePicker();
-              startEntry(entryName);
+              askThen(() => startEntry(entryName));
             }}
           />
         </div>
@@ -3019,28 +3104,29 @@ export function BoardCanvas({
         <button
           type="button"
           className="btn btn-small"
-          onClick={() =>
-            askThen(() => {
-              const placed = addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '' });
-              // §90: chosen, and the box open with the caret in it.
-              setSelected(new Set([placed.id]));
-              setSelectedStringId(null);
-              setWriteCardId(placed.id);
-            })
-          }
+          {...maker(() => {
+            const placed = addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '' });
+            // §90: chosen, and the box open with the caret in it.
+            setSelected(new Set([placed.id]));
+            setSelectedStringId(null);
+            setWriteCardId(placed.id);
+          })}
+          aria-label="Nieuwe notitie"
         >
           <Icon name="plus" size={15} />
-          Nieuwe notitie
+          {/* §99: the word goes below 768 px; the name stays (§64). */}
+          <span className="canvas-tool-word">Nieuwe notitie</span>
         </button>
         <button
           type="button"
           className="btn btn-small"
-          onClick={() => askForPhoto('new')}
+          {...maker(() => askForPhoto('new'))}
           disabled={uploading}
           title="Kies een afbeelding, of plak er een met Ctrl+V"
+          aria-label={uploading ? 'Uploaden…' : 'Foto'}
         >
           <Icon name="camera" size={15} />
-          {uploading ? 'Uploaden…' : 'Foto'}
+          <span className="canvas-tool-word">{uploading ? 'Uploaden…' : 'Foto'}</span>
         </button>
         {/* Nobody finds a paste that is not written down. Hidden on a phone,
             where there is no clipboard gesture on the cork to find. */}
@@ -3049,24 +3135,25 @@ export function BoardCanvas({
           type="button"
           className="btn btn-small"
           title={`Een losse ${ui.words.pin}: een plek op de muur voor een spoor dat nog geen ${ui.words.card} heeft`}
-          onClick={() =>
-            askThen(() => {
-              const placed = addCard({ id: newCardId(), kind: 'pin', name: '', text: '' });
-              setSelected(new Set([placed.id]));
-              setSelectedStringId(null);
-              // §90: and the caret in its label, as a new notitie gets its box.
-              setLabelPinId(placed.id);
-            })
-          }
+          aria-label={capitalise(ui.words.pin)}
+          {...maker(() => {
+            const placed = addCard({ id: newCardId(), kind: 'pin', name: '', text: '' });
+            setSelected(new Set([placed.id]));
+            setSelectedStringId(null);
+            // §90: and the caret in its label, as a new notitie gets its box.
+            setLabelPinId(placed.id);
+          })}
         >
           <span className="board-pin board-pin-inline" aria-hidden="true" />
-          {capitalise(ui.words.pin)}
+          <span className="canvas-tool-word">{capitalise(ui.words.pin)}</span>
         </button>
       </div>
       )}
 
-      {/* §73: a hint about moving things, so only where things can be moved. */}
-      {isPhone && !handsOff && <p className="board-hint">Verschuiven werkt het best op een tablet of computer.</p>}
+      {/* §99: the phone's "Verschuiven werkt het best op een tablet of
+          computer" is gone. A finger carries a card since §69 (6.2) and ties a
+          draad since §94 (*Touwtje*), so the row was a line of glass spent on
+          a sentence that was no longer true. */}
 
       <div
         className="board-viewport"
@@ -3508,35 +3595,35 @@ export function BoardCanvas({
             pickableFamilyTrees={pickableFamilyTrees}
             onPickEntry={(item) => {
               closePicker();
-              void addEntryCard(item.id, item.name);
+              askThen(() => void addEntryCard(item.id, item.name));
             }}
             onPickMap={(item) => {
               closePicker();
-              placeMap(item);
+              askThen(() => placeMap(item));
             }}
             onPickCase={(item) => {
               closePicker();
-              placeCase(item);
+              askThen(() => placeCase(item));
             }}
             onPickTimeline={(item) => {
               closePicker();
-              placeTimeline(item);
+              askThen(() => placeTimeline(item));
             }}
             onPickBoard={(item) => {
               closePicker();
-              placeBoard(item);
+              askThen(() => placeBoard(item));
             }}
             onPickFamilyTree={(item) => {
               closePicker();
-              placeFamilyTree(item);
+              askThen(() => placeFamilyTree(item));
             }}
             onCreateNote={(noteName) => {
               closePicker();
-              putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' });
+              askThen(() => putCard({ id: newCardId(), kind: 'note', name: noteName, text: '' }));
             }}
             onCreateEntry={(entryName) => {
               closePicker();
-              startEntry(entryName);
+              askThen(() => startEntry(entryName));
             }}
             /*
              * §64: cancelling shuts the box and **keeps the lead**.
@@ -3740,7 +3827,6 @@ export function BoardCanvas({
               </span>
             </label>
           )}
-          {access.isKeeper && ink.keeperControls}
         </Sheet>
       )}
 

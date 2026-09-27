@@ -50,7 +50,7 @@ export function GrantForm({
     if (busy) return;
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/grant`, { delta, reason });
+      const error = await kamerPost(`/api/kamers/${roomId}/grant`, { delta, reason }, words);
       if (error) {
         ui.toast(error);
         return;

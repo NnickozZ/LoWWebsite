@@ -18,19 +18,24 @@ import { setColourSchemeAction, type ColourSchemeState } from './actions';
  * "this account uses the Keeper palette". A page that is the Keeper's own is
  * Keeper-coloured for whoever is looking at it, which is only ever a Keeper.
  *
- * §96 (S18): one compact row, like the Lettertype above it; the note about the
- * Keeper's colours is the group's `title` now.
+ * §96 (S18): one compact row, like the Lettertype above it.
+ *
+ * §101: the note about the Keeper's colours was the group's `title`, and a
+ * `title` does not exist on a phone. It is behind *Waarom?* now, the same fold
+ * the karakters above use (`.you-why`).
  */
 export function ColourSchemeForm({
   current,
-  isKeeper,
-  keeperWord,
   label,
+  note,
+  why,
 }: {
   current: ColourScheme;
-  isKeeper: boolean;
-  keeperWord: string;
   label: string;
+  /** §101: the sentence behind *Waarom?* — the Keeper's or a speler's, already filled in. */
+  note: string;
+  /** `words.youWhy`. */
+  why: string;
 }) {
   const [state, action, pending] = useActionState<ColourSchemeState, FormData>(
     setColourSchemeAction,
@@ -46,11 +51,6 @@ export function ColourSchemeForm({
         className="row-wrap you-pref-row"
         role="group"
         aria-label="Licht of donker"
-        title={
-          isKeeper
-            ? `De kleuren van de ${keeperWord} verschijnen vanzelf op de pagina’s die alleen van de ${keeperWord} zijn — daar hoef je niets voor te kiezen, licht of donker blijft jouw keuze.`
-            : `De ${keeperWord} kiest de kleuren van het archief zelf; jij kiest alleen of je ze licht of donker leest.`
-        }
       >
         <span className="label you-pref-label" aria-hidden="true">
           {label}
@@ -74,7 +74,13 @@ export function ColourSchemeForm({
         })}
       </div>
 
-      <p className="tiny muted you-pref-hint">{choice.hint}</p>
+      <div className="tiny muted you-pref-hint" data-testid="kleuren-hint">
+        {choice.hint}{' '}
+        <details className="you-why">
+          <summary>{why}</summary>
+          <span className="you-why-body">{note}</span>
+        </details>
+      </div>
 
       {state.error && <p className="error-note">{state.error}</p>}
     </form>

@@ -3,6 +3,9 @@ import { LivePage } from '@/components/live/LivePage';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { NewMapButton } from '@/components/maps/NewMapButton';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { SortFilterBar } from '@/components/SortFilterBar';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
@@ -70,6 +73,8 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
       />
 
       {maps.length ? (
+        // §98: an omschrijving's chips, for this reader, with the page.
+        <ShortChips map={shortChipsFor(user, maps.map((map) => map.description))}>
         <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
           {maps.map((map) => (
             <Link key={map.id} className="card" href={mapHref(map.slug)}>
@@ -81,7 +86,7 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
                 <p className="card-name">{map.name}</p>
                 {map.description && (
                   <p className="tiny muted clamp-2" style={{ margin: 0 }}>
-                    {map.description}
+                    <MentionText text={map.description} flat tokens />
                   </p>
                 )}
                 <p className="tiny muted" style={{ margin: '0.4rem 0 0', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -94,6 +99,7 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
             </Link>
           ))}
         </div>
+        </ShortChips>
       ) : (
         <div className="empty">
           <p style={{ margin: 0 }}>

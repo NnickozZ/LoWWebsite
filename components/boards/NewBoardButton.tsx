@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMakeOnArrival } from '@/components/palette/useMakeOnArrival';
 import { freshHref } from '@/lib/canvas/memory';
 
 /**
@@ -35,6 +36,8 @@ export function NewBoardButton({ caseId }: { caseId?: string } = {}) {
   const router = useRouter();
   const words = ui.words;
   const [open, setOpen] = useState(false);
+  // §100: the palet's *Nieuw …* lands here with `?maak=1`; on the list, not in a dossier.
+  useMakeOnArrival(() => ui.openMaker(() => setOpen(true)), !caseId);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState<'public' | 'private' | null>(null);
   /* §69: the refusal stays in the sheet — see `NewTimelineButton` for why. */

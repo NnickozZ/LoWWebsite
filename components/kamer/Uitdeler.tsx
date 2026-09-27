@@ -212,7 +212,7 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
       const rows = targets
         .filter((target) => on[target.roomId])
         .map((target) => ({ roomId: target.roomId, delta: amounts[target.roomId] ?? '' }));
-      const error = await kamerPost('/api/kamers/uitdelen', { rows, reason });
+      const error = await kamerPost('/api/kamers/uitdelen', { rows, reason }, words);
       if (error) {
         ui.toast(error);
         return;

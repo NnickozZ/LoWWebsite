@@ -6,6 +6,9 @@ import { SortFilterBar } from '@/components/SortFilterBar';
 import { requireViewer } from '@/lib/auth/session';
 import { listBoards } from '@/lib/boards/service';
 import { relativeTime } from '@/lib/diff';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
 
 export const dynamic = 'force-dynamic';
@@ -71,6 +74,7 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
       />
 
       {boards.length ? (
+        <ShortChips map={shortChipsFor(user, boards.map((board) => board.description))}>
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {boards.map((board) => {
             const cards = board.cardCount ?? 0;
@@ -107,6 +111,13 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
                           {' '}&middot; {strings} {strings === 1 ? 'draad' : 'draden'}
                         </>
                       )}
+                      {/* §99 (O8): what the wall is about, as the other three
+                          shelves print theirs. Names as words: the row is a link. */}
+                      {board.description && (
+                        <>
+                          {' '}&middot; <MentionText text={board.description} tokens plain />
+                        </>
+                      )}
                     </span>
                   </span>
                   <span className="tiny muted">{relativeTime(board.updatedAt)}</span>
@@ -116,6 +127,7 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
             );
           })}
         </ul>
+        </ShortChips>
       ) : (
         <div className="empty">
           <p style={{ margin: 0 }}>{filtering ? 'Geen prikbord voldoet hieraan.' : 'Nog geen prikborden.'}</p>

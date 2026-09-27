@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { notFound, redirect } from 'next/navigation';
 /*
  * §62: the tijdlijn's own stylesheet, brought in by the one page that is a
@@ -91,6 +94,8 @@ export default async function TimelinePage({
   const focus = one(query.event);
 
   return (
+    // §98: the omschrijving and every gebeurtenis's text, chips resolved for this reader.
+    <ShortChips map={shortChipsFor(user, [timeline.description, ...events.map((event) => event.text)])}>
     <div className="page-wide timeline-page">
       {/*
        * §34: the tijdlijn takes the screen, like a landkaart. The heading is
@@ -137,7 +142,11 @@ export default async function TimelinePage({
             inputId="timeline-title-name"
             testId="timeline-title"
           />
-          {timeline.description && <p className="small muted canvas-head-desc">{timeline.description}</p>}
+          {timeline.description && (
+            <p className="small muted canvas-head-desc">
+              <MentionText text={timeline.description} tokens />
+            </p>
+          )}
           {/* §43: the web, with this tijdlijn in the middle. */}
           <ConnectionsLink kind="timeline" id={timeline.id} />
         </header>
@@ -195,5 +204,6 @@ export default async function TimelinePage({
         </div>
       )}
     </div>
+    </ShortChips>
   );
 }

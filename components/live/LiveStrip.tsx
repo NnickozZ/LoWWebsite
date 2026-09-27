@@ -5,6 +5,8 @@ import { useRef, useState } from 'react';
 import type { Words } from '@/lib/words';
 import { useLiveBase } from './LiveProvider';
 import { RosterPopover } from './RosterPopover';
+import { SaveStatus } from './SaveStatus';
+import { useSaveStatus } from './saveRegister';
 
 /**
  * §21: the shell's own strip — who else is on this page, and whether the line
@@ -31,8 +33,21 @@ export function LiveStrip({ words }: { words: Words }) {
   const live = useLiveBase();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
+  const save = useSaveStatus();
 
-  if (live.stripHidden) return null;
+  /*
+   * §100: a page with a strip of its own (a prikbord) turns the people and
+   * the dot off — not the save word, which is the shell's and nobody else's.
+   * What is left is the same corner with only that word in it.
+   */
+  if (live.stripHidden) {
+    if (save.state === 'none') return null;
+    return (
+      <div className="live-strip live-strip-save-only">
+        <SaveStatus words={words} />
+      </div>
+    );
+  }
   const here = live.people;
   const status = live.status;
   const elsewhere = live.roster.rows.filter((row) => !row.self).length;
@@ -54,6 +69,9 @@ export function LiveStrip({ words }: { words: Words }) {
 
   return (
     <div className={`live-strip live-strip-${status}`} data-testid="live-strip" title={title}>
+      {/* §100 (B14): the one save word, beside the dot — left of it, so that
+          in a canvas's corner the strip grows away from the edge. */}
+      <SaveStatus words={words} />
       <button
         type="button"
         ref={button}

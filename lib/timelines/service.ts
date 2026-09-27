@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db';
 import type { AccessMode, TimelineScale } from '@/lib/db/schema';
 import type { CoverCrops } from '@/lib/images/shapes';
 import { recomputeTimelineMentions } from '@/lib/entries/mentions';
+import { cleanShortWrite } from '@/lib/entries/shortRefs';
 import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -376,7 +377,8 @@ export function createTimeline(
       id,
       name,
       slug: uniqueSlug(name, slugTaken),
-      description: (input.description ?? '').trim().slice(0, 2000),
+      // §98: an omschrijving holds chips; cleaned where it comes in.
+      description: cleanShortWrite(input.description ?? '', { actor, max: 2000 }).text,
       caseId: input.caseId ?? null,
       scale,
       anchorAt: anchor.anchorAt,
@@ -387,6 +389,8 @@ export function createTimeline(
     })
     .run();
   logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'timeline.created', caseId: input.caseId ?? null, meta: { timelineId: id, name } });
+  // §98: what the omschrijving names counts under "Genoemd in".
+  flushMentions(id);
   return getTimelineById(id, actor)!;
 }
 
@@ -408,7 +412,10 @@ export function updateTimeline(id: string, patch: TimelinePatch, actor: Actor): 
     if (!name) throw new Error('Een tijdlijn heeft een naam nodig.');
     values.name = name;
   }
-  if (typeof patch.description === 'string') values.description = patch.description.trim().slice(0, 2000);
+  if (typeof patch.description === 'string') {
+    // §98: `cleanShort` on this road too, against what it said before.
+    values.description = cleanShortWrite(patch.description, { prev: before.description, actor, max: 2000 }).text;
+  }
   if (patch.scale !== undefined) {
     if (!isScale(patch.scale)) throw new Error('Onbekende maat.');
     values.scale = patch.scale as TimelineScale;
@@ -430,6 +437,7 @@ export function updateTimeline(id: string, patch: TimelinePatch, actor: Actor): 
     values.anchorUnit = null;
   }
   db.update(schema.timelines).set(values).where(eq(schema.timelines.id, id)).run();
+  if (values.description !== undefined) flushMentions(id);
   return getTimelineById(id, actor)!;
 }
 
@@ -604,7 +612,8 @@ export function addEvent(timelineId: string, input: NewEvent, actor: Actor): Tim
     timeline.anchorAt,
     timeline.anchorUnit,
   );
-  const text = (input.text ?? '').trim().slice(0, TEXT_MAX);
+  // §98: a gebeurtenis's text holds chips; cleaned where it comes in.
+  const text = cleanShortWrite(input.text ?? '', { actor, multiline: true, max: TEXT_MAX }).text;
 
   if (input.kind === 'entry') {
     const entry = db
@@ -807,7 +816,14 @@ export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, op
     if (!name) throw new Error('Een gebeurtenis heeft een naam nodig.');
     values.name = name;
   }
-  if (typeof patch.text === 'string') values.text = patch.text.trim().slice(0, TEXT_MAX);
+  let textCleaned = false;
+  if (typeof patch.text === 'string') {
+    // §98: `cleanShort` against what the gebeurtenis said before.
+    const before = db.select({ text: schema.timelineEvents.text }).from(schema.timelineEvents).where(eq(schema.timelineEvents.id, eventId)).get();
+    const clean = cleanShortWrite(patch.text, { prev: before?.text ?? '', actor, multiline: true, max: TEXT_MAX });
+    values.text = clean.text;
+    textCleaned = clean.cleaned;
+  }
   if (patch.assetId !== undefined && event.kind === 'note') {
     if (patch.assetId === null || patch.assetId === '') {
       values.assetId = null;
@@ -846,6 +862,9 @@ export function updateEvent(eventId: string, patch: EventPatch, actor: Actor, op
     if (typeof values.name === 'string') fields.name = values.name;
     if (typeof values.text === 'string') fields.text = values.text;
     resetFieldsInRoom(eventFieldsRoomKey(eventId), fields);
+  } else if (options.live && textCleaned && typeof values.text === 'string') {
+    // §98: the room wrote something the archive cleaned — the room follows.
+    resetFieldsInRoom(eventFieldsRoomKey(eventId), { text: values.text });
   }
   // §27: a renamed or rewritten gebeurtenis says something else about the
   // artikelen — §62: at once when a button was pressed, in a moment when it is

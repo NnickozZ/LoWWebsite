@@ -1,6 +1,7 @@
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import { searchOthers } from '@/lib/search/others';
+import { resolveRecent } from '@/lib/search/recent';
 import { searchEntries } from '@/lib/search/service';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,13 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser();
     const url = new URL(request.url);
+    /*
+     * §100: the palet's *Onlangs* — addresses this browser remembered, read
+     * again through the same lists Zoeken reads (`resolveRecent`), so there is
+     * one search road and it has one visibility.
+     */
+    const recent = url.searchParams.getAll('r');
+    if (recent.length) return json({ recent: resolveRecent(user, recent) });
     const q = url.searchParams.get('q') ?? '';
     // One soort at a time, when the wiki is big enough to need it (5 Sep 2026).
     const type = url.searchParams.get('type')?.trim() || undefined;

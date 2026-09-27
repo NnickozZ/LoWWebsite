@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, fillWhenReady, openRights, signIn, signUp } from './helpers';
+import { becomeInvestigator, editArticle, fillWhenReady, openEmptyFields, openRights, signIn, signUp } from './helpers';
 
 /**
  * §67 — de stamboom, tweede pas.
@@ -268,7 +268,10 @@ const readRow = (page: Page, label: string) =>
 
 /** And the same row on the editing face, where a koppelingsveld has a picker. */
 const editRow = (page: Page, key: string) =>
-  page.locator('.entry-fields .fields-compact > div').filter({ has: page.locator(`label[for="field-${key}"]`) });
+  page
+    // §101 (B25): an empty one stands inside the "Veld invullen" fold.
+    .locator('.entry-fields .fields-compact > div, .entry-fields .fields-compact .fields-empty-body > div')
+    .filter({ has: page.locator(`label[for="field-${key}"]`) });
 
 /**
  * §32/§6: on a narrow screen the infobox is a folded `<details>` (`#block-info`)
@@ -278,14 +281,17 @@ const editRow = (page: Page, key: string) =>
  */
 async function openInfobox(page: Page) {
   const box = page.locator('details#block-info');
-  if (!(await box.count())) return;
-  const isOpen = () => box.evaluate((el) => (el as HTMLDetailsElement).open);
-  // "Press it until it answers": a page that has just switched faces is not
-  // yet listening, and a summary that is clicked twice folds it back up.
-  await expect(async () => {
-    if (!(await isOpen())) await box.locator('summary').click();
-    expect(await isOpen()).toBe(true);
-  }).toPass({ timeout: 15_000 });
+  if (await box.count()) {
+    const isOpen = () => box.evaluate((el) => (el as HTMLDetailsElement).open);
+    // "Press it until it answers": a page that has just switched faces is not
+    // yet listening, and a summary that is clicked twice folds it back up.
+    await expect(async () => {
+      if (!(await isOpen())) await box.locator('summary').click();
+      expect(await isOpen()).toBe(true);
+    }).toPass({ timeout: 15_000 });
+  }
+  // §101 (B25): and in Bewerken the empty fields behind "Veld invullen".
+  await openEmptyFields(page);
 }
 
 /** The derived-sibling chips under the sibling field, by the name on them. */

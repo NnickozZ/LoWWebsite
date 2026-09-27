@@ -11,7 +11,12 @@ import { useHoldRefresh } from '@/components/live/refreshHold';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
+import {
+  AUTHOR_GATE_OFF,
+  useAskAuthorFirst,
+  useCanvasAuthorGate,
+  useCanvasMaker,
+} from '@/components/canvas/useCanvasAuthorGate';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
@@ -731,6 +736,9 @@ export function TimelineCanvas({
   /* §90: the §18b question only where this axis can write — Bewerken, or the
      potlood in the hand. A tap in Lezen asks nothing. */
   const gate = useCanvasAuthorGate(handsOn || inkActive);
+  /* §101: en een maakknop op de werkbalk vraagt het zélf, vóórdat hij maakt. */
+  const maker = useCanvasMaker();
+  const askThen = useAskAuthorFirst();
   /* §73: switching to Lezen puts the potlood away — Lezen has no potlood. */
   const inkToolActive = ink.inkTool.active;
   const setInkToolActive = ink.inkTool.setActive;
@@ -2203,11 +2211,14 @@ export function TimelineCanvas({
 
   return (
     <div className="timeline-frame" {...gate}>
-      <div className="row-wrap timeline-toolbar" style={{ gap: '0.4rem' }}>
+      {/* §101: de werkbalk vraagt niets op de weg naar beneden — wat maakt
+          vraagt zichzelf, vooraf (`maker`), en wat alleen kijkt vraagt niets.
+          Zie de noot in `MapCanvas` voor waaróm een klik anders verdween. */}
+      <div className="row-wrap timeline-toolbar" style={{ gap: '0.4rem' }} {...AUTHOR_GATE_OFF}>
         {/* §73: first in the bar, so the switch is where the eye starts. */}
         <CanvasModeToggle mode={canvasMode} />
         {handsOn && (
-          <button type="button" className="btn btn-primary btn-small" onClick={() => setSheet({ mode: 'add', at: null, entry: null })} data-testid="timeline-add" aria-label={`${cap(words.event)} toevoegen`} title={`${cap(words.event)} toevoegen`}>
+          <button type="button" className="btn btn-primary btn-small" {...maker(() => setSheet({ mode: 'add', at: null, entry: null }))} data-testid="timeline-add" aria-label={`${cap(words.event)} toevoegen`} title={`${cap(words.event)} toevoegen`}>
             <Icon name="plus" size={15} />
             {/* §69 (6.6): de letters mogen weg op 390 px, de naam nooit (§64). */}
             <span className="canvas-tool-word">{cap(words.event)} toevoegen</span>
@@ -2250,8 +2261,12 @@ export function TimelineCanvas({
         {/* §90: grey in Lezen, as on the other three — it was still pressable here (r37). */}
         {canEdit && <CanvasUndoButton onUndo={() => void undo()} canUndo={handsOn && undoDepth > 0} />}
         {/* §94 (C16): on a phone the gear is everybody's — "Ga naar…" lives behind it. */}
+        {/* §101: de vraag hangt hier aan de stand, niet aan de knop. In
+            Bewerken bewerkt dit blad de tijdlijn, dus het vraagt eerst en
+            opent daarna; op een telefoon in Lezen is het de deur naar
+            "Ga naar…", en dat is kijken. */}
         {(canEdit || isPhone) && (
-          <button type="button" className="btn btn-ghost btn-small" onClick={() => setSheet({ mode: 'settings' })} data-testid="timeline-settings" aria-label="Instellingen" title="Instellingen">
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => (handsOn ? askThen(() => setSheet({ mode: 'settings' })) : setSheet({ mode: 'settings' }))} data-testid="timeline-settings" aria-label="Instellingen" title="Instellingen">
             <Icon name="gear" size={16} />
             <span className="canvas-tool-word">Instellingen</span>
           </button>
@@ -2982,7 +2997,7 @@ function Popout({
         </>
       )}
       {event.text ? (
-        <p className="small timeline-popout-text"><MentionText text={event.text} /></p>
+        <p className="small timeline-popout-text"><MentionText text={event.text} tokens /></p>
       ) : event.kind === 'entry' && event.entry?.shortDescription ? (
         <p className="small muted timeline-popout-text"><MentionText text={event.entry.shortDescription} tokens /></p>
       ) : null}

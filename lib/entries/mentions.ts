@@ -5,8 +5,9 @@ import type { FieldDef } from '@/lib/db/schema';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { cardRef, normaliseState, type BoardCard } from '@/lib/boards/merge';
 import { visibleMapCondition } from '@/lib/maps/visibility';
-import { extractEntryLinks } from './doc';
-import { legacySpans } from './shortTokens.mjs';
+// §97: a document's links are handles now; this reads them through `mention_handles`.
+import { linkedEntryIds } from './docRefs';
+import { handlesIn, legacySpans } from './shortTokens.mjs';
 import { sideCondition } from '@/lib/keeper/side';
 import { listTimelines } from '@/lib/timelines/service';
 import { livePinCondition } from '@/lib/maps/service';
@@ -171,6 +172,33 @@ export function entryIdsInText(text: string, byName: ReadonlyMap<string, string>
 }
 
 /**
+ * §98 (ronde 59): the artikelen a short text's chips point at — a korte
+ * beschrijving, a samenvatting, an infobox Tekst, a speld, a gebeurtenis, a los
+ * kaartje, the omschrijving of a canvas. A chip is `⟦handle⟧` and says nothing
+ * by itself, so this is one join onto `mention_handles`, archive-wide: the
+ * table is the writer's claim, and every *read* of it (`listMentions`) asks the
+ * reader's own rule for the source. Only handles count: in a short text an
+ * `@Naam` the hand did not pick is letters, and a leftover `[[typo]]` is drawn
+ * as the dead chip it is, so neither is a mention here either.
+ */
+export function entryIdsInShort(text: string | null | undefined): string[] {
+  const handles = handlesIn(typeof text === 'string' ? text : '');
+  if (!handles.length) return [];
+  const rows = db
+    .select({ handle: schema.mentionHandles.handle, entryId: schema.mentionHandles.entryId })
+    .from(schema.mentionHandles)
+    .where(inArray(schema.mentionHandles.handle, handles))
+    .all();
+  const byHandle = new Map(rows.map((row) => [row.handle, row.entryId]));
+  const out: string[] = [];
+  for (const handle of handles) {
+    const id = byHandle.get(handle);
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/**
  * One piece of shorthand where it stands in the text. Round 21: the reading
  * above used to throw the positions away, because the only question was which
  * artikelen a save mentions. A browser asks the other half of the same
@@ -330,7 +358,7 @@ export function recomputeCaseMentions(caseId: string): void {
     .where(eq(schema.cases.id, caseId))
     .get();
   const targets: MentionTarget[] = row
-    ? extractEntryLinks(row.notes).map((toEntryId) => ({ toEntryId }))
+    ? linkedEntryIds(row.notes).map((toEntryId) => ({ toEntryId }))
     : [];
 
   // §70: a dossier carries secties now, and a sectie is text — so what it
@@ -345,10 +373,15 @@ export function recomputeCaseMentions(caseId: string): void {
     .where(and(eq(schema.sections.ownerKind, 'case'), eq(schema.sections.ownerId, caseId)))
     .all();
   for (const section of sections) {
-    for (const toEntryId of extractEntryLinks(section.body)) {
+    for (const toEntryId of linkedEntryIds(section.body)) {
       targets.push({ toEntryId, detail: section.title });
     }
   }
+
+  // §98: the samenvatting's chips, under the dossier's own name — readable by
+  // everyone who may open the dossier, exactly like the notes (`listMentions`).
+  const summary = db.select({ summary: schema.cases.summary }).from(schema.cases).where(eq(schema.cases.id, caseId)).get();
+  for (const toEntryId of entryIdsInShort(summary?.summary)) targets.push({ toEntryId });
 
   recomputeMentions('case', caseId, targets);
 }
@@ -364,6 +397,23 @@ export function recomputeFieldMentions(entryId: string): void {
   const targets = row
     ? fieldMentionsIn(row.typeFields ?? [], (row.fields ?? {}) as Record<string, unknown>)
     : [];
+  /*
+   * §98: the short boxes of the same artikel — its korte beschrijving (no
+   * detail: it is the line under the name) and every Tekst / Lange tekst, under
+   * the label of its field, like a koppelingsveld. Filed as `field` because the
+   * source is the artikel, and the artikel's own rule is the whole gate.
+   */
+  if (row) {
+    const own = db.select({ short: schema.entries.shortDescription }).from(schema.entries).where(eq(schema.entries.id, entryId)).get();
+    for (const toEntryId of entryIdsInShort(own?.short)) targets.push({ toEntryId });
+    const values = (row.fields ?? {}) as Record<string, unknown>;
+    for (const field of row.typeFields ?? []) {
+      if (field.kind !== 'text' && field.kind !== 'longtext') continue;
+      const value = values[field.key];
+      if (typeof value !== 'string') continue;
+      for (const toEntryId of entryIdsInShort(value)) targets.push({ toEntryId, detail: field.label });
+    }
+  }
   recomputeMentions('field', entryId, targets);
 }
 
@@ -386,7 +436,7 @@ export function recomputeSectionMentions(entryId: string): void {
     .where(and(eq(schema.sections.ownerKind, 'entry'), eq(schema.sections.ownerId, entryId)))
     .all();
   const targets = sections.flatMap((section) =>
-    extractEntryLinks(section.body).map((toEntryId) => ({ toEntryId, detail: section.title })),
+    linkedEntryIds(section.body).map((toEntryId) => ({ toEntryId, detail: section.title })),
   );
   recomputeMentions('section', entryId, targets);
 }
@@ -399,17 +449,18 @@ export function recomputeSectionMentions(entryId: string): void {
  * does the scribble under an artikel card when it names *another* artikel.
  */
 export function recomputeBoardMentions(boardId: string, state?: unknown): void {
-  const raw =
-    state ??
-    db.select({ state: schema.boards.state }).from(schema.boards).where(eq(schema.boards.id, boardId)).get()
-      ?.state;
+  const row = db
+    .select({ state: schema.boards.state, description: schema.boards.description })
+    .from(schema.boards)
+    .where(eq(schema.boards.id, boardId))
+    .get();
+  const raw = state ?? row?.state;
   const cards: BoardCard[] = raw ? normaliseState(raw).cards : [];
-  if (!cards.length) {
-    recomputeMentions('board', boardId, []);
-    return;
-  }
 
   const targets: MentionTarget[] = [];
+  // §101 naden: the prikbord's own omschrijving (§99), under nothing but its
+  // name — as the landkaart's, the tijdlijn's and the stamboom's do (§98).
+  for (const toEntryId of entryIdsInShort(row?.description)) targets.push({ toEntryId });
   for (const card of cards) {
     const ref = cardRef(card);
     if (ref?.kind === 'entry') targets.push({ toEntryId: ref.id });
@@ -418,15 +469,13 @@ export function recomputeBoardMentions(boardId: string, state?: unknown): void {
   // scribble under an artikel's own card, which names other artikelen just
   // as readily ("zag @Jan Vermeer bij de sluis"). A card naming its own
   // artikel says nothing new and is skipped.
+  // §98: a kaartje's text holds chips now, not names (`entryIdsInShort`).
   const written = cards.filter((card) => card.text && (card.kind === 'note' || cardRef(card)?.kind === 'entry'));
-  if (written.length) {
-    const byName = entryNameIndex();
-    for (const card of written) {
-      const own = cardRef(card)?.kind === 'entry' ? cardRef(card)?.id : undefined;
-      for (const toEntryId of entryIdsInText(card.text, byName)) {
-        if (toEntryId === own) continue;
-        targets.push({ toEntryId, detail: card.name });
-      }
+  for (const card of written) {
+    const own = cardRef(card)?.kind === 'entry' ? cardRef(card)?.id : undefined;
+    for (const toEntryId of entryIdsInShort(card.text)) {
+      if (toEntryId === own) continue;
+      targets.push({ toEntryId, detail: card.name });
     }
   }
   recomputeMentions('board', boardId, targets);
@@ -451,15 +500,14 @@ export function recomputeMapMentions(mapId: string): void {
   for (const pin of pins) {
     if (pin.kind === 'entry' && pin.entryId) targets.push({ toEntryId: pin.entryId });
   }
-  const notes = pins.filter((pin) => pin.kind === 'note' && pin.text);
-  if (notes.length) {
-    const byName = entryNameIndex();
-    for (const pin of notes) {
-      for (const toEntryId of entryIdsInText(pin.text, byName)) {
-        targets.push({ toEntryId, detail: pin.name });
-      }
-    }
+  // §98: a speld's text holds chips, not names (`entryIdsInShort`).
+  for (const pin of pins) {
+    if (pin.kind !== 'note' || !pin.text) continue;
+    for (const toEntryId of entryIdsInShort(pin.text)) targets.push({ toEntryId, detail: pin.name });
   }
+  // §98: and the landkaart's own omschrijving, under nothing but its name.
+  const own = db.select({ description: schema.maps.description }).from(schema.maps).where(eq(schema.maps.id, mapId)).get();
+  for (const toEntryId of entryIdsInShort(own?.description)) targets.push({ toEntryId });
   recomputeMentions('map', mapId, targets);
 }
 
@@ -481,15 +529,20 @@ export function recomputeTimelineMentions(timelineId: string): void {
   for (const event of events) {
     if (event.kind === 'entry' && event.entryId) targets.push({ toEntryId: event.entryId });
   }
-  const written = events.filter((event) => event.text);
-  if (written.length) {
-    const byName = entryNameIndex();
-    for (const event of written) {
-      for (const toEntryId of entryIdsInText(event.text, byName)) {
-        targets.push({ toEntryId, detail: event.kind === 'note' ? event.name : '' });
-      }
+  // §98: a gebeurtenis's text holds chips, not names (`entryIdsInShort`).
+  for (const event of events) {
+    if (!event.text) continue;
+    for (const toEntryId of entryIdsInShort(event.text)) {
+      targets.push({ toEntryId, detail: event.kind === 'note' ? event.name : '' });
     }
   }
+  // §98: and the tijdlijn's own omschrijving.
+  const own = db
+    .select({ description: schema.timelines.description })
+    .from(schema.timelines)
+    .where(eq(schema.timelines.id, timelineId))
+    .get();
+  for (const toEntryId of entryIdsInShort(own?.description)) targets.push({ toEntryId });
   recomputeMentions('timeline', timelineId, targets);
 }
 
@@ -510,12 +563,13 @@ export function recomputeTimelineMentions(timelineId: string): void {
  * needs of the blob is a member's id and whether it has been tombstoned.
  */
 export function recomputeFamilyTreeMentions(treeId: string): void {
-  const raw = db
-    .select({ state: schema.familyTrees.state })
+  const row = db
+    .select({ state: schema.familyTrees.state, description: schema.familyTrees.description })
     .from(schema.familyTrees)
     .where(eq(schema.familyTrees.id, treeId))
-    .get()?.state as
-    | { members?: unknown; deleted?: { members?: Record<string, unknown> } }
+    .get();
+  const raw = row?.state as
+    | { members?: unknown; loose?: unknown; deleted?: { members?: Record<string, unknown>; loose?: Record<string, unknown> } }
     | undefined;
 
   const gone = raw?.deleted?.members ?? {};
@@ -526,6 +580,19 @@ export function recomputeFamilyTreeMentions(treeId: string): void {
     if (typeof id !== 'string' || !id) continue;
     if (Object.prototype.hasOwnProperty.call(gone, id)) continue;
     targets.push({ toEntryId: id, detail: '' });
+  }
+  /*
+   * §98: what the stamboom itself writes — its omschrijving (no detail) and
+   * the line or two on a los kaartje (the kaartje's name as the detail). A los
+   * kaartje still cannot *be* mentioned; its text can mention somebody.
+   */
+  for (const toEntryId of entryIdsInShort(row?.description)) targets.push({ toEntryId, detail: '' });
+  const goneLoose = raw?.deleted?.loose ?? {};
+  for (const card of Array.isArray(raw?.loose) ? raw.loose : []) {
+    const c = card as { id?: unknown; name?: unknown; text?: unknown };
+    if (typeof c.id !== 'string' || Object.prototype.hasOwnProperty.call(goneLoose, c.id)) continue;
+    const name = typeof c.name === 'string' ? c.name : '';
+    for (const toEntryId of entryIdsInShort(typeof c.text === 'string' ? c.text : '')) targets.push({ toEntryId, detail: name });
   }
   recomputeMentions('family_tree', treeId, targets);
 }
@@ -584,7 +651,7 @@ export function rebuildAllMentions(): {
  * Fills the table in once, at start-up, if it is empty — which it is exactly
  * once per archive, the first time a server carrying §27 opens an older
  * `app.db`. Called from `instrumentation.ts` rather than from the migration,
- * because building it needs `extractEntryLinks`, `normaliseState` and the
+ * because building it needs `linkedEntryIds`, `normaliseState` and the
  * board's card shape: TypeScript the `.mjs` migration file cannot reach
  * (rule 4), and duplicating any of it there is how two readings of one
  * document start to disagree.
@@ -664,14 +731,14 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
     const openCaseIds = [...found.keys()];
     const caseNotes = openCaseIds.length
       ? db
-          .select({ id: schema.cases.id, notes: schema.cases.notes })
+          .select({ id: schema.cases.id, notes: schema.cases.notes, summary: schema.cases.summary })
           .from(schema.cases)
           .where(inArray(schema.cases.id, openCaseIds))
           .all()
       : [];
     const notesSay = new Set(
       caseNotes
-        .filter((row) => extractEntryLinks(row.notes).includes(entryId))
+        .filter((row) => linkedEntryIds(row.notes).includes(entryId) || entryIdsInShort(row.summary).includes(entryId))
         .map((row) => row.id),
     );
     const caseSections = openCaseIds.length
@@ -703,7 +770,7 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
           candidate.ownerId === source.id &&
           candidate.title === row.detail &&
           canSeeSection(candidate, viewer, revealed, candidate.id) &&
-          extractEntryLinks(candidate.body).includes(entryId),
+          linkedEntryIds(candidate.body).includes(entryId),
       );
       if (!section) continue;
       out.push({
@@ -925,7 +992,7 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
             candidate.entryId === row.fromId &&
             candidate.title === row.detail &&
             canSeeSection(candidate, viewer, revealed, candidate.id) &&
-            extractEntryLinks(candidate.body).includes(entryId),
+            linkedEntryIds(candidate.body).includes(entryId),
         );
         const source = found.get(row.fromId);
         if (!section || !source) continue;

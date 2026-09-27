@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMakeOnArrival } from '@/components/palette/useMakeOnArrival';
 import { NewFamilyTreeSheet } from './NewFamilyTreeSheet';
 
 /**
@@ -27,6 +28,8 @@ export function NewFamilyTreeButton({
   const ui = useUi();
   const words = ui.words;
   const [open, setOpen] = useState(false);
+  // §100: the palet's *Nieuw …* lands here with `?maak=1`; on the list, not in a dossier.
+  useMakeOnArrival(() => ui.openMaker(() => setOpen(true)), !caseId);
 
   return (
     <>

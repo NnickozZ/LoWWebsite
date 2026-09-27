@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db';
 import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
 import { recomputeBoardMentions } from '@/lib/entries/mentions';
+import { cleanShort, cleanShortWrite } from '@/lib/entries/shortRefs';
 import { logActivity } from '@/lib/entries/service';
 import { isKeeperSide, setKeeperSide, sideCondition } from '@/lib/keeper/side';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -17,6 +18,8 @@ import { mergeBoardState, normaliseState, type BoardPatch, type BoardState } fro
 export type BoardSummary = {
   id: string;
   name: string;
+  /** §99 (O8): a short text (§95) — its mentions are `⟦handle⟧`, resolved per reader. */
+  description: string;
   caseId: string | null;
   caseName: string | null;
   caseSlug: string | null;
@@ -37,6 +40,7 @@ export type BoardSummary = {
 const BOARD_COLUMNS = {
   id: schema.boards.id,
   name: schema.boards.name,
+  description: schema.boards.description,
   caseId: schema.boards.caseId,
   caseName: schema.cases.name,
   caseSlug: schema.cases.slug,
@@ -139,6 +143,7 @@ export function getBoard(boardId: string, viewer: Viewer) {
     .select({
       id: schema.boards.id,
       name: schema.boards.name,
+      description: schema.boards.description,
       caseId: schema.boards.caseId,
       state: schema.boards.state,
       viewMode: schema.boards.viewMode,
@@ -364,10 +369,30 @@ export function flushBoardWrites() {
 export function saveBoard(
   boardId: string,
   patch: BoardPatch,
-  user: { id: string; characterId?: string | null },
+  user: { id: string; isKeeper?: boolean; characterId?: string | null },
 ): BoardState {
   const row = db.select().from(schema.boards).where(eq(schema.boards.id, boardId)).get();
   if (!row || row.deletedAt) throw new Error('Prikbord niet gevonden');
+
+  /*
+   * §98: what is written on a kaartje holds chips, and this is the one road a
+   * card's text comes in by — so `cleanShort` runs here, card by card, against
+   * what that card said before (§67 needs the old text). Cleaned before the
+   * merge, so the merge stays pure. A card's text was never trimmed; it is not
+   * now either (`cleanShortWrite` trims, so only its cleaning is taken).
+   */
+  if (patch.cards?.length) {
+    const stored = new Map(normaliseState(row.state).cards.map((card) => [card.id, card.text ?? '']));
+    const actor = { id: user.id, isKeeper: Boolean(user.isKeeper) };
+    patch = {
+      ...patch,
+      cards: patch.cards.map((card) => {
+        if (typeof card?.text !== 'string' || card.text === stored.get(card.id)) return card;
+        const clean = cleanShortWrite(card.text, { prev: stored.get(card.id) ?? '', actor, multiline: true, max: 4000 });
+        return clean.cleaned ? { ...card, text: clean.text } : card;
+      }),
+    };
+  }
 
   const merged = mergeBoardState(row.state, patch);
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -458,6 +483,33 @@ export function renameBoard(boardId: string, name: string) {
     .set({ name: name.trim() || 'Naamloos prikbord', updatedAt: Math.floor(Date.now() / 1000) })
     .where(eq(schema.boards.id, boardId))
     .run();
+}
+
+/**
+ * §99 (O8): what this wall is about, in one short text. The same road every
+ * other short box takes into the archive (§95, `cleanShort`): a new handle
+ * must name an artikel the writer may see, and a handle the writer cannot see
+ * and left out comes back. The prikbord was the one surface without one.
+ */
+export const BOARD_DESCRIPTION_MAX = 2000;
+
+export function setBoardDescription(boardId: string, description: unknown, actor: Viewer) {
+  const row = db
+    .select({ description: schema.boards.description })
+    .from(schema.boards)
+    .where(eq(schema.boards.id, boardId))
+    .get();
+  if (!row) return null;
+  const raw = typeof description === 'string' ? description.slice(0, BOARD_DESCRIPTION_MAX) : '';
+  const next = cleanShort(raw, { prev: row.description, actor }).trim();
+  if (next === row.description) return next;
+  db.update(schema.boards)
+    .set({ description: next, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(schema.boards.id, boardId))
+    .run();
+  // §101 naden: the omschrijving names artikelen too, under *Genoemd in*.
+  recomputeBoardMentions(boardId);
+  return next;
 }
 
 /**

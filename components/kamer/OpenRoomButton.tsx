@@ -29,7 +29,7 @@ export function OpenRoomButton({ entryId, name, words }: { entryId: string; name
   async function open() {
     setBusy(true);
     try {
-      const error = await kamerPost('/api/kamers/openen', { entryId });
+      const error = await kamerPost('/api/kamers/openen', { entryId }, words);
       if (error) {
         ui.toast(error);
         return;

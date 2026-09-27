@@ -129,22 +129,29 @@ test.describe('§91 jouw plek — de zijbalk', () => {
     await ownerCtx.close();
   });
 
-  test('het zoekvak navigeert, en / zet de cursor erin', async ({ page, isMobile }) => {
-    test.skip(isMobile, 'op een telefoon blijft / naar Zoeken gaan');
+  // §100 (ronde 61): het vak is de deur van het palet, en / opent het palet —
+  // één gebaar, op een computer en op een telefoon. Zoeken blijft te bereiken:
+  // de laatste regel van het palet gaat naar /search?q=….
+  test('het zoekvak opent het palet, en / ook — en Zoeken blijft te bereiken', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'de zijbalk staat op een computer');
     await signIn(page, ...KEEPER);
     await page.goto('/wiki');
     const box = page.getByTestId('nav-search');
     await expect(box).toBeVisible({ timeout: 20_000 });
     // Pressed until the page listens (§6: a page that has just navigated is not
-    // yet listening). Once the box has the caret a second `/` is typed into it,
-    // which `fill` below overwrites.
+    // yet listening).
+    const palette = page.getByTestId('palette');
     await expect(async () => {
       await page.keyboard.press('/');
-      await expect(box).toBeFocused({ timeout: 1000 });
+      await expect(palette).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 20_000 });
     expect(new URL(page.url()).pathname).toBe('/wiki');
-    await box.fill('Westkapelle');
-    await box.press('Enter');
+    await page.keyboard.press('Escape');
+    await expect(palette).toHaveCount(0);
+    await box.click();
+    await expect(palette).toBeVisible();
+    await page.getByTestId('palette-input').fill('Westkapelle');
+    await palette.locator('[data-option="search-all"]').click();
     await page.waitForURL('**/search?q=Westkapelle');
   });
 

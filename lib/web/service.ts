@@ -5,8 +5,10 @@ import { cardRef, isCardEnd, normaliseState, type BoardCard, type BoardState } f
 import { listBoards } from '@/lib/boards/service';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { caseIdsIn } from '@/lib/entries/caseFields';
-import { extractEntryLinks } from '@/lib/entries/doc';
+import { linkedEntryIds } from '@/lib/entries/docRefs';
 import { entryIdsIn, plainMentions, revealedSectionIds } from '@/lib/entries/mentions';
+import { projectShort } from '@/lib/entries/shortTokens.mjs';
+import { plainShort } from '@/lib/entries/shortRefs';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { listFamilyTrees } from '@/lib/families/service';
 import { dedupeEdges, edgesFromFields, ROLE_LABELS } from '@/lib/families/roles';
@@ -231,6 +233,8 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
       name: board.name,
       href: `/b/${board.id}`,
       subtitle: board.caseId ? caseNames.get(board.caseId) : undefined,
+      // §99 (O8): as the other three; the chips as names this viewer may see.
+      summary: summaryOf(plainShort(viewer, board.description)),
     });
   }
 
@@ -404,7 +408,7 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
         section.entryId === entryId &&
         section.title === title &&
         canSeeSection(section, viewer, revealed, section.id) &&
-        extractEntryLinks(section.body).includes(target),
+        linkedEntryIds(section.body).includes(target),
     );
 
   /*
@@ -437,14 +441,14 @@ export function buildWebGraph(viewer: Viewer, options: BuildWebOptions = {}): We
     : [];
   const caseRevealed = caseSections.length ? revealedSectionIds(viewer) : new Set<string>();
   const caseNotesSay = (caseId: string, target: string) =>
-    caseNotes.some((row) => row.id === caseId && extractEntryLinks(row.notes).includes(target));
+    caseNotes.some((row) => row.id === caseId && linkedEntryIds(row.notes).includes(target));
   const caseSectionSays = (caseId: string, title: string, target: string) =>
     caseSections.some(
       (section) =>
         section.ownerId === caseId &&
         section.title === title &&
         canSeeSection(section, viewer, caseRevealed, section.id) &&
-        extractEntryLinks(section.body).includes(target),
+        linkedEntryIds(section.body).includes(target),
     );
 
   for (const row of mentionRows) {
@@ -796,7 +800,9 @@ export function looseName(card: Pick<BoardCard, 'kind' | 'name' | 'text'>): stri
 export function noteName(card: Pick<BoardCard, 'name' | 'text'>): string {
   const name = plainMentions((card.name ?? '').trim());
   if (name) return name;
-  const text = plainMentions((card.text ?? '').trim()).replace(/\s+/g, ' ');
+  // §98: a kaartje's chips are handles; a knot's name is drawn for every
+  // reader of the web alike, so a chip leaves no name here at all.
+  const text = plainMentions(projectShort((card.text ?? '').trim(), () => null)).replace(/\s+/g, ' ');
   if (!text) return '';
   return text.length > NOTE_NAME_LENGTH ? `${text.slice(0, NOTE_NAME_LENGTH).trimEnd()}…` : text;
 }

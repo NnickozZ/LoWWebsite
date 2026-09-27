@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react';
 import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
+import { MentionText } from '@/components/ui/MentionPopover';
 import type { CoverCrops } from '@/lib/images/shapes';
 import type { EntryGraphNode, GraphNode, LooseGraphNode } from '@/lib/families/types';
 
@@ -189,7 +190,13 @@ export function TreeNode({
       ) : node.frame === 'unknown' ? (
         <div className="tree-node-body tree-unknown">
           {title}
-          {loose?.text && <span className="tree-node-text tiny">{loose.text}</span>}
+          {/* §98: the kaartje's text holds chips; on a card that is carried
+              around they are drawn flat (no link inside a draggable card). */}
+          {loose?.text && (
+            <span className="tree-node-text tiny">
+              <MentionText text={loose.text} tokens flat />
+            </span>
+          )}
           {canEdit && onEdit && (
             <button
               type="button"

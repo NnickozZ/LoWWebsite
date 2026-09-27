@@ -69,6 +69,7 @@ export function Sheet({
   onClose,
   labelledBy,
   closable = true,
+  className,
 }: {
   children: ReactNode;
   onClose: () => void;
@@ -79,8 +80,21 @@ export function Sheet({
    * nothing, which is the worst kind of button there is. The note on the cross
    * below still stands for everything else: a question you may walk away
    * from gets a cross that means *no*.
+   *
+   * §101: it is the **cross and the backdrop** that this switches off, not
+   * Escape. Escape peels one layer everywhere else in the archive, and the one
+   * sheet that refused it was the one people met most often; since this round
+   * every maker asks *before* it makes (`ensureAuthor`), so there really is
+   * something to cancel and cancelling it makes nothing. A stray tap beside
+   * the sheet is still not an answer, which is why the backdrop goes quiet
+   * here rather than closing too.
    */
   closable?: boolean;
+  /**
+   * §100: a modifier on the backdrop, for the one sheet that is not a bottom
+   * sheet on a phone — the palet stands at the top, above the keyboard.
+   */
+  className?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   /** Null until this sheet has taken its place in the pile — and until then it draws nothing. */
@@ -157,10 +171,25 @@ export function Sheet({
    * has it (the `autoFocus` on the confirm sheet's yes), so the sheet never
    * steals focus from its own answer.
    */
+  /*
+   * §101: and a box that should have the caret says so with `data-autofocus`.
+   * A child's own `useEffect(() => box.focus(), [])` runs on the first commit,
+   * when there is no box yet (ronde 51 found it in `NewEntrySheet`, B16/S7) —
+   * and `NewCaseSheet` had the same effect, so a new dossier opened with the
+   * caret on the panel. A `setTimeout` guessed at the second commit instead.
+   * This is the one place that knows when the panel exists, so it is the one
+   * place that moves the caret into it.
+   */
   useEffect(() => {
     if (depth === null) return;
     const panel = panelRef.current;
     if (!panel || panel.contains(document.activeElement)) return;
+    const wanted = panel.querySelector<HTMLElement>('[data-autofocus]');
+    if (wanted) {
+      wanted.focus({ preventScroll: true });
+      if (wanted instanceof HTMLInputElement) wanted.select();
+      return;
+    }
     panel.focus({ preventScroll: true });
   }, [depth]);
 
@@ -168,9 +197,11 @@ export function Sheet({
 
   return createPortal(
     <div
-      className="sheet-backdrop"
+      className={className ? `sheet-backdrop ${className}` : 'sheet-backdrop'}
       style={depth > 0 ? { zIndex: SHEET_BASE_Z + depth } : undefined}
       onPointerDown={(event) => {
+        // §101: a sheet with no cross has no backdrop either — see `closable`.
+        if (!closable) return;
         if (idRef.current !== null && !isTopSheet(idRef.current)) return;
         if (event.target === event.currentTarget) onCloseRef.current();
       }}

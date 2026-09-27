@@ -136,6 +136,45 @@ export function searchEntries(
     }
   }
 
+  /*
+   * §97: the index holds no chip names any more (`indexShort`), so "who
+   * mentions this" is answered here instead, per reader: the artikelen that
+   * link, in their running text, to a name this reader just found — both ends
+   * behind this reader's own rule and side. What a player cannot find by name,
+   * they cannot find by who mentions it either.
+   */
+  if (names.length) {
+    const shown = new Set([...alreadyShown, ...bodies.map((entry) => entry.id)]);
+    const linkers = db
+      .select(SUMMARY_COLUMNS)
+      .from(schema.entries)
+      .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+      .where(
+        and(
+          inArray(
+            schema.entries.id,
+            db
+              .select({ id: schema.entryLinks.fromEntryId })
+              .from(schema.entryLinks)
+              .where(
+                and(
+                  inArray(schema.entryLinks.toEntryId, names.map((entry) => entry.id)),
+                  eq(schema.entryLinks.kind, 'mention'),
+                ),
+              ),
+          ),
+          visibleEntryCondition(viewer),
+          sideCondition('entry', viewer),
+          ...(options.typeSlug ? [eq(schema.entryTypes.slug, options.typeSlug)] : []),
+        ),
+      )
+      .orderBy(desc(schema.entries.updatedAt))
+      .limit(limit)
+      .all() as EntrySummary[];
+    const room = Math.max(0, limit - names.length) + 5 - bodies.length;
+    bodies = [...bodies, ...linkers.filter((entry) => !shown.has(entry.id)).slice(0, Math.max(0, room))];
+  }
+
   // §24: with the dossier each case-bound artikel was made in, so two clues
   // called "de brief" can be told apart in a list of results.
   return { names: nameTheirCases(names, viewer), bodies: nameTheirCases(bodies, viewer) };
@@ -242,4 +281,27 @@ export function suggestEntries(
     viewer,
   );
   return named.map((entry) => ({ ...entry, inPreferredCase: preferred.has(entry.id) }));
+}
+
+/**
+ * §100: the artikelen behind these slugs that this viewer may see, on the side
+ * they stand on — the palet's *Onlangs*, which is a list (§46) and so is read
+ * the way Zoeken reads: `visibleEntryCondition` and `sideCondition`, never a
+ * bare lookup. A slug that is not visible here simply does not come back, and
+ * nothing in the answer says it was asked about.
+ */
+export function visibleEntriesBySlug(viewer: Viewer, slugs: readonly string[]): EntrySummary[] {
+  if (!viewer || !slugs.length) return [];
+  return db
+    .select(SUMMARY_COLUMNS)
+    .from(schema.entries)
+    .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+    .where(
+      and(
+        inArray(schema.entries.slug, [...slugs]),
+        visibleEntryCondition(viewer),
+        sideCondition('entry', viewer),
+      ),
+    )
+    .all() as EntrySummary[];
 }

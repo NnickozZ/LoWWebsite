@@ -177,7 +177,7 @@ export function MoveHere({
     if (!moving || !move) return;
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${moving.slotId}/move`, { to: slotId });
+      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${moving.slotId}/move`, { to: slotId }, words);
       if (error) {
         ui.toast(error);
         return;

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, newBoard, newCaseBoard, newEntryButton, signIn } from './helpers';
+import { editArticle, newBoard, newCaseBoard, newEntryButton, openEmptyFields, signIn } from './helpers';
 
 /**
  * §23: Nick's round of 5 September, evening.
@@ -192,6 +192,8 @@ test('"Betrokken dossiers" links to a real dossier', async ({ page }, info) => {
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
   await editArticle(page);
+  // §101 (B25): a new artikel's empty fields stand behind "Veld invullen".
+  await openEmptyFields(page);
 
   // The promise of "fase 2" is gone; there is a picker where it stood.
   await expect(page.getByText(/fase 2/)).toHaveCount(0);

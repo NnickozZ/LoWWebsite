@@ -8,6 +8,7 @@ import type { AccessMode } from '@/lib/db/schema';
 import { newId } from '@/lib/ids';
 import { sideCondition } from '@/lib/keeper/side';
 import { recomputeMapMentions } from '@/lib/entries/mentions';
+import { cleanShortWrite } from '@/lib/entries/shortRefs';
 import type { Author } from '@/lib/auth/author';
 import { logActivity } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
@@ -295,7 +296,8 @@ export function createMap(
       assetId: input.assetId,
       width: input.width,
       height: input.height,
-      description: (input.description ?? '').trim().slice(0, 2000),
+      // §98: an omschrijving holds chips; cleaned where it comes in.
+      description: cleanShortWrite(input.description ?? '', { actor, max: 2000 }).text,
       sortOrder: Number(last?.n ?? -1) + 1,
       /*
        * §40: the dials a new landkaart is hung with. 'all' to look, because a
@@ -312,6 +314,8 @@ export function createMap(
     })
     .run();
   logActivity({ actorId: actor.id, characterId: actor.characterId ?? null, verb: 'map.created', meta: { mapId: id, name } });
+  // §98: what the omschrijving names counts under "Genoemd in".
+  recomputeMapMentions(id);
   return getMapById(id, actor)!;
 }
 
@@ -344,7 +348,14 @@ export function updateMap(
     if (!name) throw new Error('Een landkaart heeft een naam nodig.');
     values.name = name;
   }
-  if (typeof patch.description === 'string') values.description = patch.description.trim().slice(0, 2000);
+  // §98: cleaned like every short text (`cleanShortWrite`); a live write whose
+  // cleaning changed something brings the room into line below.
+  let descriptionCleaned = false;
+  if (typeof patch.description === 'string') {
+    const clean = cleanShortWrite(patch.description, { prev: current.description, actor, max: 2000 });
+    values.description = clean.text;
+    descriptionCleaned = clean.cleaned;
+  }
   if (typeof patch.sortOrder === 'number' && Number.isFinite(patch.sortOrder)) values.sortOrder = patch.sortOrder;
   if (typeof patch.assetId === 'string' && patch.assetId) {
     values.assetId = patch.assetId;
@@ -374,7 +385,10 @@ export function updateMap(
     if (typeof values.name === 'string') fields.name = values.name;
     if (typeof values.description === 'string') fields.description = values.description;
     resetFieldsInRoom(mapFieldsRoomKey(id), fields);
+  } else if (options.live && descriptionCleaned && typeof values.description === 'string') {
+    resetFieldsInRoom(mapFieldsRoomKey(id), { description: values.description });
   }
+  if (values.description !== undefined) recomputeMapMentions(id);
   return getMapById(id, actor)!;
 }
 
@@ -697,7 +711,8 @@ export function addPin(mapId: string, input: NewPin, actor: Author): MapPin {
         mapId,
         kind: 'note',
         name,
-        text: (input.text ?? '').trim().slice(0, 4000),
+        // §98: a speld's text holds chips; cleaned where it comes in.
+        text: cleanShortWrite(input.text ?? '', { actor, multiline: true, max: 4000 }).text,
         x: clamp01(input.x),
         y: clamp01(input.y),
         createdBy: actor.id,
@@ -776,6 +791,7 @@ export function updatePin(
 ): MapPin {
   const pin = ownPin(pinId, actor);
   const values: Partial<typeof schema.mapPins.$inferInsert> = { updatedAt: now() };
+  let textCleaned = false;
   if (typeof patch.x === 'number') values.x = clamp01(patch.x);
   if (typeof patch.y === 'number') values.y = clamp01(patch.y);
   if (typeof patch.name === 'string') {
@@ -783,7 +799,13 @@ export function updatePin(
     if (!name) throw new Error('Een speld heeft een naam nodig.');
     values.name = name;
   }
-  if (typeof patch.text === 'string') values.text = patch.text.trim().slice(0, 4000);
+  if (typeof patch.text === 'string') {
+    // §98: `cleanShort` on this road too, against what the speld said before.
+    const before = db.select({ text: schema.mapPins.text }).from(schema.mapPins).where(eq(schema.mapPins.id, pinId)).get();
+    const clean = cleanShortWrite(patch.text, { prev: before?.text ?? '', actor, multiline: true, max: 4000 });
+    values.text = clean.text;
+    textCleaned = clean.cleaned;
+  }
   db.update(schema.mapPins).set(values).where(eq(schema.mapPins.id, pinId)).run();
   db.update(schema.maps).set({ updatedAt: now() }).where(eq(schema.maps.id, pin.mapId)).run();
   if (!options.live && (values.name !== undefined || values.text !== undefined)) {
@@ -791,6 +813,9 @@ export function updatePin(
     if (typeof values.name === 'string') fields.name = values.name;
     if (typeof values.text === 'string') fields.text = values.text;
     resetFieldsInRoom(pinFieldsRoomKey(pinId), fields);
+  } else if (options.live && textCleaned && typeof values.text === 'string') {
+    // §98: the room wrote something the archive cleaned — the room follows.
+    resetFieldsInRoom(pinFieldsRoomKey(pinId), { text: values.text });
   }
   // §27: a renamed or rewritten speld says something else about the artikelen.
   recomputeMapMentions(pin.mapId);

@@ -43,7 +43,11 @@ async function create(page: Page, sheet: ReturnType<Page['getByRole']>): Promise
  */
 async function mention(page: Page, box: ReturnType<Page['locator']>, name: string) {
   await box.click();
-  await box.pressSequentially(`@${name.split(' ')[0]}`, { delay: 30 });
+  // §98: the box may already hold words (an unsent draft keeps its chips as
+  // their names), so type at the end, after a space — an `@` inside a word
+  // is not a mention.
+  await page.keyboard.press('ControlOrMeta+End');
+  await box.pressSequentially(` @${name.split(' ')[0]}`, { delay: 30 });
   const hit = page
     .locator('.suggest-item')
     .filter({ hasNotText: 'aanmaken' })
@@ -85,11 +89,19 @@ test.describe('§54 een chipje terwijl je typt', () => {
     const lead = page.locator('#entry-lead');
     await expect(lead).toBeVisible({ timeout: 20_000 });
     await mention(page, lead, target);
-    // §95: the chip is in the box, and a press on it walks to its artikel.
+    // §95: the chip is in the box; §98: in Bewerken a press on it stays in the
+    // box, and the reading face's chip is the one that walks to its artikel.
     await page.keyboard.press('Tab');
     const chip = lead.locator('.short-chip').filter({ hasText: target }).first();
     await expect(chip).toBeVisible({ timeout: 20_000 });
-    await chip.click();
+    await page.waitForTimeout(2500);
+    await page.goto(sourceUrl);
+    // A just-made artikel stays on its editing face; go to the reading one.
+    const toggle = page.locator('.entry-mode-toggle').first();
+    if ((await toggle.getAttribute('aria-pressed')) === 'true') await toggle.click();
+    const read = page.locator('.entry-lead a.entry-chip').filter({ hasText: target }).first();
+    await expect(read).toBeVisible({ timeout: 20_000 });
+    await read.click();
     await page.waitForURL(`**${new URL(targetUrl).pathname}`, { timeout: 20_000 });
   });
 });

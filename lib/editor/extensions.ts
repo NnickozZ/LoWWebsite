@@ -1,7 +1,7 @@
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import StarterKit from '@tiptap/starter-kit';
-import { EntryLink } from '@/components/editor/EntryLink';
+import { EntryLink, type EntryLinkChips } from '@/components/editor/EntryLink';
 
 /**
  * What a fiche's text is made of — the one list both halves read.
@@ -17,7 +17,7 @@ import { EntryLink } from '@/components/editor/EntryLink';
  * `history: false` is for the shared editor, where Yjs keeps the undo stack
  * (undoing someone else's keystrokes is not undo).
  */
-export function documentExtensions(options: { history?: boolean } = {}) {
+export function documentExtensions(options: { history?: boolean; chips?: EntryLinkChips | null } = {}) {
   return [
     StarterKit.configure({
       heading: { levels: [2, 3] },
@@ -25,6 +25,8 @@ export function documentExtensions(options: { history?: boolean } = {}) {
     }),
     Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noreferrer' } }),
     Image.configure({ inline: false, allowBase64: false }),
-    EntryLink,
+    // §97: the browser's editor says where a reference's name comes from; the
+    // schema is the same either way (the name is never an attribute).
+    options.chips ? EntryLink.configure({ chips: options.chips }) : EntryLink,
   ];
 }

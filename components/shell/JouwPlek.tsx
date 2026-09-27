@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useId, useRef, useState, type FormEvent, type RefObject } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
 import { MEANING } from '@/components/kamer/plekWords';
@@ -202,48 +202,54 @@ export function KeeperGroup() {
 }
 
 /**
- * §91: the search box at the top of the side menu. Typing and Enter is
- * `/search?q=…` — the same address the Zoeken page writes itself, so there is
- * one search road (§5). `/` on a desk focuses this box (`UiProvider`), which is
- * why it carries `data-search-box`.
+ * §91 put a search box at the top of the side menu that went to
+ * `/search?q=…`. §100 made it the palet's door: a press (or `/`, or Ctrl/⌘K)
+ * opens the palet on the page you are on, which searches along the same road
+ * and can still end on Zoeken — its last row is *Zoek … in het hele archief*.
+ * One gesture instead of a box that searched and a key that did something
+ * else on a phone.
  */
 export function SideSearch() {
-  const router = useRouter();
-  const words = useUi().words;
-  const [query, setQuery] = useState('');
-  const hint = useId();
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const q = query.trim();
-    router.push(q ? `/search?q=${encodeURIComponent(q)}` : '/search');
-  };
+  const ui = useUi();
+  const words = ui.words;
   return (
-    <form className="nav-search" role="search" onSubmit={submit}>
+    <button
+      type="button"
+      className="nav-search"
+      data-testid="nav-search"
+      aria-haspopup="dialog"
+      aria-keyshortcuts="/ Control+K Meta+K"
+      onClick={() => ui.openPalette()}
+    >
       <Icon name="search" size={16} />
-      <input
-        type="search"
-        data-search-box
-        data-testid="nav-search"
-        aria-label={words.searchBox}
-        aria-describedby={hint}
-        placeholder={words.searchBoxHint}
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') (event.target as HTMLInputElement).blur();
-        }}
-      />
-      <kbd id={hint} aria-hidden="true">
-        /
-      </kbd>
-    </form>
+      <span className="nav-search-word">{words.paletteDoor}</span>
+      {/* One key in the box, so its word fits; both are in the line under Nieuw artikel. */}
+      <kbd aria-hidden="true">/</kbd>
+    </button>
   );
+}
+
+/**
+ * ⌘ on a Mac, Ctrl everywhere else. Read after the first paint: the server
+ * does not know the machine, and a guess that differs is a hydration warning.
+ */
+function useModKey(): string {
+  const [mod, setMod] = useState('Ctrl ');
+  useEffect(() => {
+    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) setMod('⌘');
+  }, []);
+  return mod;
 }
 
 /** §91: the line under *Nieuw artikel*: the keys, with `k` for the Keeper only. */
 export function ShortcutsLine({ keeper }: { keeper: boolean }) {
   const words = useUi().words;
-  const line = fill(words.shortcutsLine, { n: 'n', zoek: '/' });
+  const mod = useModKey();
+  // §100: the palet's two keys where §91 had one.
+  const line = fill(words.shortcutsLine, {
+    n: 'n',
+    zoek: fill(words.shortcutsPalette, { slash: '/', mod: `${mod}K` }),
+  });
   const extra = keeper ? ` · ${fill(words.shortcutsKeeper, { k: 'k' })}` : '';
   return <p className="nav-shortcuts tiny muted">{line + extra}</p>;
 }
@@ -319,7 +325,8 @@ export function JijSheet({
   myPage: string | null;
   onClose: () => void;
 }) {
-  const words = useUi().words;
+  const ui = useUi();
+  const words = ui.words;
   const online = useOnline();
   const doors = yoursDoors({ words, purse, myPage, isKeeper: me.isKeeper });
   const keeperHere = Boolean(me.isKeeper && me.isRealKeeper && !me.asPlayer);
@@ -339,6 +346,22 @@ export function JijSheet({
         </h2>
         <JijWho me={me} />
         <WritingAsLine words={words} onOpen={close} />
+        {/* §100: the palet, from the phone — the eight tabs stay eight. Opened
+            two frames on, when this blad has handed the focus back to its
+            tab, so Escape in the palet lands there too. */}
+        <button
+          type="button"
+          className="btn jij-door jij-palette"
+          data-testid="jij-palette"
+          aria-haspopup="dialog"
+          onClick={() => {
+            close();
+            requestAnimationFrame(() => requestAnimationFrame(() => ui.openPalette()));
+          }}
+        >
+          <Icon name="search" size={18} />
+          <span className="nav-word">{words.paletteDoor}</span>
+        </button>
         <div className="jij-doors">
           {doors.map((door) => (
             <Link key={door.key} className="btn jij-door" href={door.href} data-testid={`jij-${door.key}`} onClick={close}>

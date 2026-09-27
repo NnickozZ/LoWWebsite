@@ -435,7 +435,16 @@ export function describeRevision(
           : 'gewijzigd',
     });
   }
-  if (before.bodyText !== after.bodyText) {
+  /*
+   * §97: the body's links are tokens in `bodyText`, read the way the short
+   * texts are — the names this reader may see, and nothing where they may not.
+   * Compared *after* that reading: a step that only moved a link this reader
+   * cannot follow is not a step in the text they can read.
+   */
+  const readBody = options.shortText ?? ((text: string) => text);
+  const bodyBefore = readBody(before.bodyText);
+  const bodyAfter = readBody(after.bodyText);
+  if (bodyBefore !== bodyAfter) {
     /*
      * §68: the sentence and the lines under it come off one `bodyEdit`, and the
      * lines are dropped entirely where rule 2 forbids quoting — the phrase
@@ -443,7 +452,7 @@ export function describeRevision(
      * says as much by existing. Nothing is carried for a step where only the
      * order moved: an empty box under an open row reads as a broken one.
      */
-    const edit = bodyEdit(before.bodyText, after.bodyText);
+    const edit = bodyEdit(bodyBefore, bodyAfter);
     const quotable = mayQuote && (edit.added.length > 0 || edit.removed.length > 0);
     out.push({
       kind: 'body',

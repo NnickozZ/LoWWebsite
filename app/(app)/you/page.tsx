@@ -137,13 +137,13 @@ export default async function YouPage() {
       */}
       {user && (
         <section className="you-prefs" aria-label="Lettertype en kleuren">
-          <ReadingFontForm current={user.readingFont} label="Lettertype" />
+          <ReadingFontForm current={user.readingFont} label="Lettertype" note={words.fontNote} why={words.youWhy} />
           {/* §45: het licht waarin je leest. Per account, net als het lettertype. */}
           <ColourSchemeForm
             current={user.colourScheme}
-            isKeeper={user.isKeeper}
-            keeperWord={words.keeper}
             label="Kleuren"
+            note={fill(user.isKeeper ? words.colourNoteKeeper : words.colourNotePlayer, { keeper: words.keeper })}
+            why={words.youWhy}
           />
         </section>
       )}

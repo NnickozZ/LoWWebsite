@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useMayStartEntry } from '@/components/you/AuthorProvider';
 import { ShortField } from '@/components/live/LiveFields';
+import { chipsAsWords, usePageChips } from '@/components/ui/ShortChips';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
@@ -147,13 +148,31 @@ export function NewEntrySheet({
   /** §92 (C26): the soort strip folded out to every chip. */
   const [typesOpen, setTypesOpen] = useState(false);
   const typeStripRef = useRef<HTMLDivElement | null>(null);
-  // The chosen soort in view in the strip, once, when the sheet opens.
+  /*
+   * §101: the chosen soort in view in the strip. This was an effect on mount,
+   * and it had `attachName`'s bug (§90): `Sheet` draws nothing on its first
+   * commit, so the effect found no strip and a prefilled soort far down the
+   * list stayed out of sight. A callback ref runs when the strip is attached;
+   * the effect below does it again when "Alle soorten" folds back in.
+   */
+  const scrollChosenIntoStrip = (strip: HTMLDivElement | null) => {
+    const chip = strip?.querySelector<HTMLElement>('[data-chosen="true"]');
+    if (!strip || !chip) return;
+    const box = strip.getBoundingClientRect();
+    const at = chip.getBoundingClientRect();
+    if (at.left >= box.left && at.right <= box.right) return;
+    strip.scrollLeft += at.left - box.left - 8;
+  };
+  const stripScrolled = useRef(false);
+  const attachStrip = (element: HTMLDivElement | null) => {
+    typeStripRef.current = element;
+    if (!element || stripScrolled.current) return;
+    stripScrolled.current = true;
+    scrollChosenIntoStrip(element);
+  };
   useEffect(() => {
-    const chosenChip = typeStripRef.current?.querySelector<HTMLElement>('[data-chosen="true"]');
-    const strip = typeStripRef.current;
-    if (chosenChip && strip) strip.scrollLeft = Math.max(0, chosenChip.offsetLeft - strip.offsetLeft - 8);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!typesOpen) scrollChosenIntoStrip(typeStripRef.current);
+  }, [typesOpen]);
   /** §92 (C27): the open dossiers, for the optional "In dossier" line. */
   const [openCases, setOpenCases] = useState<{ id: string; name: string }[]>([]);
   const [chosenCase, setChosenCase] = useState('');
@@ -218,6 +237,7 @@ export function NewEntrySheet({
     element.select();
   };
 
+  const pageChips = usePageChips();
   /*
    * §69 (4.5): every keystroke, into the page-lived draft. On unmount rather
    * than on close, because there are three ways out of this sheet (Escape, the
@@ -225,8 +245,10 @@ export function NewEntrySheet({
    * owns.
    */
   useEffect(() => {
-    writeDraft(DRAFT_ENTRY, { name, description });
-  }, [name, description]);
+    // §98: the words of a chip, never the chip — an abandoned mention does not
+    // come back as a chip in the next sheet (`chipsAsWords`).
+    writeDraft(DRAFT_ENTRY, { name, description: chipsAsWords(description, pageChips) });
+  }, [name, description, pageChips]);
 
   /*
    * §18b: opening this sheet *is* an act of writing — there is nothing else it
@@ -414,7 +436,7 @@ export function NewEntrySheet({
           </button>
         </div>
         <div
-          ref={typeStripRef}
+          ref={attachStrip}
           className={`new-entry-types-strip${typesOpen ? ' new-entry-types-open' : ''}`}
           role="radiogroup"
           aria-labelledby="new-entry-type-label"

@@ -57,8 +57,18 @@ export function searchOthers(viewer: Viewer, query: string, options: { limit?: n
   const q = query.trim();
   if (!q || !viewer) return [];
   const limit = options.limit ?? 20;
+  const candidates = otherCandidates(viewer);
+  return rankBy(candidates, q, (hit) => [hit.name], limit).map((scored) => scored.item);
+}
 
-  const candidates: OtherHit[] = [
+/**
+ * §100: everything `searchOthers` chooses from, unranked — so the palet's
+ * *Onlangs* resolves a remembered address through exactly these lists and no
+ * other road (§5). What is not in here for this viewer does not exist for them.
+ */
+export function otherCandidates(viewer: Viewer): OtherHit[] {
+  if (!viewer) return [];
+  return [
     // §46: every one of these is a list, so none of them passes `bothSides`.
     ...listCases(viewer).map((row) => ({
       kind: 'case' as const,
@@ -106,6 +116,4 @@ export function searchOthers(viewer: Viewer, query: string, options: { limit?: n
       href: `/spelers/${row.slug}`,
     })),
   ];
-
-  return rankBy(candidates, q, (hit) => [hit.name], limit).map((scored) => scored.item);
 }

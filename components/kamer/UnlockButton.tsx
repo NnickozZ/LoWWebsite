@@ -64,7 +64,7 @@ export function UnlockButton({
   async function unlock() {
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/unlock`);
+      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/unlock`, undefined, words);
       if (error) {
         ui.toast(error);
         return;

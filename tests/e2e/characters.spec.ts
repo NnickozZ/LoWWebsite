@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { editArticle, inviteCode, newEntryButton, signIn, writeAs } from './helpers';
+import { editArticle, inviteCode, newEntryButton, openNewEntry, signIn, writeAs } from './helpers';
 
 /**
  * §18: who you are being. §18b: who *this window* is writing as.
@@ -43,13 +43,8 @@ async function signUpAs(page: Page, name: string) {
 }
 
 async function newEntry(page: Page, name: string): Promise<string> {
-  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  // The `n` shortcut needs the page hydrated; right after a navigation it may
-  // not be yet, so press again until the sheet answers.
-  for (let attempt = 0; attempt < 8 && !(await sheet.isVisible()); attempt++) {
-    await page.keyboard.press('n');
-    await page.waitForTimeout(400);
-  }
+  // §101 naden: the button, not the `n` shortcut — see `openNewEntry`.
+  const sheet = await openNewEntry(page);
   await sheet.getByLabel('Naam', { exact: true }).fill(name);
   const from = new URL(page.url()).pathname;
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
@@ -278,11 +273,20 @@ test('a fresh window is asked at the first edit, and not one moment before', asy
   await reader.keyboard.type('H');
   await expect(askSheet(reader)).toBeVisible({ timeout: 10_000 });
 
-  // It does not take no for an answer while it is standing in the way.
-  await reader.keyboard.press('Escape');
-  await expect(askSheet(reader)).toBeVisible();
-  // §90: and it no longer draws a cross that does nothing.
+  // §90: it draws no cross that does nothing, and the backdrop is no answer.
   await expect(askSheet(reader).getByRole('button', { name: 'Sluiten' })).toHaveCount(0);
+  /*
+   * §101: Escape *does* close it now — "annuleren", the way Escape peels a
+   * layer everywhere else in the archive. Nothing was made, and the surface
+   * asks again on the very next letter, which is exactly the point: on an
+   * editing surface there is nothing held behind the question, so walking away
+   * from it costs a keystroke and no more.
+   */
+  await reader.keyboard.press('Escape');
+  await expect(askSheet(reader)).toHaveCount(0, { timeout: 10_000 });
+  await body(reader).click();
+  await reader.keyboard.type('H');
+  await expect(askSheet(reader)).toBeVisible({ timeout: 10_000 });
 
   await askSheet(reader).getByRole('radio', { name: new RegExp(character) }).click();
   await expect(askSheet(reader)).toHaveCount(0);
@@ -345,9 +349,19 @@ test('the question comes before the nieuw-artikel sheet, not on top of it', asyn
   await expect(newSheet).toHaveCount(0);
   await expect(writer.locator('.sheet-backdrop')).toHaveCount(1);
 
-  // And it still refuses to be waved away: the blocking question takes an
-  // answer and nothing else. Escape leaves exactly what was there.
+  /*
+   * §101: Escape cancels — and cancelling makes nothing. The sheet that was
+   * waiting behind the question does not arrive either: that is the whole
+   * difference between "ask, then do" and the old order, and it is why the
+   * blocking question may have an exit at all now.
+   */
   await writer.keyboard.press('Escape');
+  await expect(askSheet(writer)).toHaveCount(0, { timeout: 10_000 });
+  await expect(newSheet).toHaveCount(0);
+  await expect(writer.locator('.sheet-backdrop')).toHaveCount(0);
+
+  // Pressing it again asks again: nothing was answered, so nothing is known.
+  await clickUntil(writer, newEntryButton(writer), askSheet(writer));
   await expect(askSheet(writer)).toBeVisible();
   await expect(newSheet).toHaveCount(0);
 

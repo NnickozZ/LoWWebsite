@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { SideChoice } from '@/components/keeper/SideChoice';
-import { MentionOverlay, MentionPopover, MentionPreview } from '@/components/ui/MentionPopover';
+import { ShortField } from '@/components/live/LiveFields';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
+import { useMakeOnArrival } from '@/components/palette/useMakeOnArrival';
 import { freshHref } from '@/lib/canvas/memory';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, uploadLimitLabel, SHRUNK_NOTICE } from '@/lib/upload';
@@ -30,6 +31,8 @@ export function NewMapButton() {
   const words = ui.words;
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // §100: the palet's *Nieuw …* lands here with `?maak=1`; on the list, not in a dossier.
+  useMakeOnArrival(() => ui.openMaker(() => setOpen(true)), true);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -42,7 +45,6 @@ export function NewMapButton() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   // §48: a landkaart hangs in no dossier, so the only question is which side
   // of the archive the Keeper is standing on when they hang it.
   const [keeperSide, setKeeperSide] = useState(ui.side === 'keeper');
@@ -177,27 +179,26 @@ export function NewMapButton() {
               />
             </div>
             <div>
-              <label className="label" htmlFor="new-map-description">
+              <label className="label" htmlFor="new-map-description" id="new-map-description-label">
                 Omschrijving
               </label>
-              <div className="mention-field">
-              <textarea
+              {/* §98: an omschrijving holds chips (`ShortField`, one line). A maakblad has
+                  no room — the thing does not exist yet — and no §18b gate, like
+                  *Nieuw artikel*: what may make the thing may describe it. */}
+              <ShortField
+                noRoom
+                ungated
+                field="description"
                 id="new-map-description"
-                ref={descriptionRef}
                 className="input"
-                rows={2}
+                ariaLabelledBy="new-map-description-label"
                 value={description}
                 placeholder="Wat staat erop, en uit welk jaar"
-                onChange={(event) => setDescription(event.target.value)}
+                onValue={(next) => setDescription(next)}
+                onEnter={() => {
+                  if (!busy) void submit();
+                }}
               />
-              {/* §48: `@` here as well — an omschrijving is a description like
-                  any other, and this one names places for a living. */}
-              <MentionPopover forRef={descriptionRef} />
-              {/* §56: a chip over the name in the box itself, while you type. */}
-              <MentionOverlay forRef={descriptionRef} value={description} />
-              {/* §92: out of focus, the chips without brackets; no row under it. */}
-              <MentionPreview forRef={descriptionRef} value={description} />
-              </div>
             </div>
             <SideChoice show={ui.isKeeper} keeper={keeperSide} onChange={setKeeperSide} words={words} />
             {error && <p className="error-note">{error}</p>}

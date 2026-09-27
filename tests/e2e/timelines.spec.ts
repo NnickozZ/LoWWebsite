@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp, expectBoxValue } from './helpers';
+import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp, expectBoxValue, fillWhenReady } from './helpers';
 
 /**
  * §32: tijdlijnen.
@@ -77,10 +77,19 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await expect(add.getByTestId('new-event-chosen')).toHaveText(`Storm boven Zeeland ${stamp}`);
   await fillDate(page, 'new-event', { year: '1931', month: '3', day: '12' });
   await expect(add.getByText('Dit wordt: 12 maart 1931')).toBeVisible();
-  // Round 18: `@` in the text box offers a name; `[[Naam]]` is what lands.
-  await add.locator('#new-event-text').fill('Het waaide de hele nacht, zei @Jacob');
-  await page.getByTestId('mention-pop').getByRole('option', { name: /Jacob den Hollander/ }).click();
-  await expect(add.locator('#new-event-text')).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]] ');
+  // Round 18: `@` in the text box offers a name. §98: what lands is a chip
+  // with its artikel in it (`ShortField`), not the letters `[[Naam]]`.
+  const newText = add.locator('#new-event-text');
+  await expect(newText).toHaveAttribute('contenteditable', 'true', { timeout: 20_000 });
+  await page.waitForTimeout(300);
+  await newText.click();
+  await page.keyboard.type('Het waaide de hele nacht, zei @Jacob', { delay: 20 });
+  const jacob = page.getByTestId('mention-pop').getByRole('option', { name: /Jacob den Hollander/ });
+  await expect(jacob).toBeVisible({ timeout: 20_000 });
+  await jacob.dispatchEvent('mousedown');
+  await expect(newText.locator('.short-chip')).toHaveText('Jacob den Hollander', { timeout: 20_000 });
+  await expect(newText).not.toContainText('[[');
+  await expectBoxValue(newText, /^Het waaide de hele nacht, zei Jacob den Hollander\s*$/);
   await add.getByTestId('new-event-submit').click();
 
   // It folds out at once, with the moment and the tijdlijn's own words —
@@ -97,24 +106,29 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await popout.getByTestId('timeline-edit-event').click();
   const bound = page.locator('#event-text');
   const edit = page.getByRole('dialog').filter({ has: bound });
-  // (the server trims the trailing space)
-  await expect(bound).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]]');
+  // (the server trims the trailing space) — §98: the chip, with its name.
+  await expectBoxValue(bound, 'Het waaide de hele nacht, zei Jacob den Hollander', { timeout: 20_000 });
+  await expect(bound.locator('.short-chip')).toHaveText('Jacob den Hollander');
   // The box is read-only until the room has answered (§21) — and for a beat
   // after that the seeded text is still landing, so a keystroke in that beat
   // is lost (older than this round; the live spec waits the same way).
-  await expect(bound).toBeEditable();
+  await expect(bound).toHaveAttribute('contenteditable', 'true', { timeout: 20_000 });
   await page.waitForTimeout(500);
-  await bound.click();
-  await page.keyboard.press('End');
-  await page.keyboard.type(' en @Sister');
-  await page.getByTestId('mention-pop').getByRole('option', { name: /Sister Clasina/ }).click();
-  await expect(bound).toHaveValue('Het waaide de hele nacht, zei [[Jacob den Hollander]] en [[Sister Clasina]] ');
+  // §98: not a click in the middle — that lands on the chip, which a click in
+  // Bewerken now chooses (and typing would then replace). Caret to the end.
+  await bound.focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.type(' en @Sister', { delay: 20 });
+  const sister = page.getByTestId('mention-pop').getByRole('option', { name: /Sister Clasina/ });
+  await expect(sister).toBeVisible({ timeout: 20_000 });
+  await sister.dispatchEvent('mousedown');
+  await expect(bound.locator('.short-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina'], { timeout: 20_000 });
   await expect(edit.getByText('wordt meteen bewaard')).toBeVisible();
-  // §92: no row under the box any more ("Verwijst naar", §54). Out of focus
-  // the box shows its own chips, without brackets — leave it and look.
+  // §92: no row under the box any more ("Verwijst naar", §54); §98: the box
+  // draws its own chips, in focus and out of it.
   await page.keyboard.press('Tab');
   await expect(edit.getByText('Verwijst naar')).toHaveCount(0);
-  await expect(edit.getByTestId('mention-preview').locator('.entry-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
+  await expect(bound.locator('.short-chip')).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
   // The last edit leaves in the next batch (`UPDATE_BATCH_MS`, 80 ms); a
   // sheet closed inside that window takes it with it. Older than this round.
   await page.waitForTimeout(300);
@@ -398,7 +412,7 @@ test('een gebeurtenis gaat er in één klik af, en komt terug', async ({ page },
   await add.locator('#new-event-query').fill(what);
   await add.getByRole('button', { name: /Losse gebeurtenis/ }).click();
   await fillDate(page, 'new-event', { year: '1931', month: '3', day: '12' });
-  await add.locator('#new-event-text').fill('Dit had er nooit moeten staan.');
+  await fillWhenReady(add.locator('#new-event-text'), 'Dit had er nooit moeten staan.');
   await add.getByTestId('new-event-submit').click();
 
   // It folds out when it is made, so the window is already the thing on screen.

@@ -49,9 +49,18 @@ test('A1: de korte beschrijving toont zijn chips in het vak, zonder haakjes, en 
   await expect(lead).toBeFocused();
   await expect(chip).toBeVisible();
 
-  // And it goes where it says.
-  await page.keyboard.press('Tab');
+  // §98: in Bewerken a click on the chip puts the caret after it and stays
+  // (a tap meant for the caret walked off the page on a phone) …
+  const here = page.url();
   await chip.click();
+  await page.waitForTimeout(800);
+  expect(page.url()).toBe(here);
+  await expect(lead).toBeFocused();
+  // … and where the text is read, it goes where it says.
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(1500);
+  await page.goto(`/e/${source.slug}`);
+  await page.locator('.entry-lead a.entry-chip', { hasText: target }).click();
   await page.waitForURL(`**/e/${targetEntry.slug}`, { timeout: 20_000 });
 });
 

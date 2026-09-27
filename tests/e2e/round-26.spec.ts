@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, fillWhenReady, newEntryButton, signIn } from './helpers';
+import { editArticle, fillWhenReady, newEntryButton, openEmptyFields, signIn } from './helpers';
 
 /**
  * Round 26, §49–§51 — the three things of this round, in a browser.
@@ -283,6 +283,8 @@ test.describe('§51 een koppelingsbox op meer dan één soort', () => {
     await page.goto('/wiki');
     await create(page, await openNewEntry(page, 'Families', `Familie ${stamp}`));
     await editArticle(page);
+    // §101 (B25): a new artikel's empty fields stand behind "Veld invullen".
+    await openEmptyFields(page);
 
     // The Leden box is the only `entry_links` field a familie has, so its
     // "nog een" picker is unambiguous on this page.

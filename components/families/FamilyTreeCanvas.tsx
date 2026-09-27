@@ -15,7 +15,12 @@ import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useIsPhone } from '@/components/useIsPhone';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
+import {
+  AUTHOR_GATE_OFF,
+  useAskAuthorFirst,
+  useCanvasAuthorGate,
+  useCanvasMaker,
+} from '@/components/canvas/useCanvasAuthorGate';
 
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
@@ -26,7 +31,17 @@ import { useFloatBox } from '@/components/canvas/useFloatBox';
 import { clampFloat } from '@/lib/canvas/clamp';
 import type { AccessSettings } from '@/lib/access';
 import { groupDelta, pressSelection } from '@/lib/canvas/select';
-import { centreView, passedSlop, readableFit, readingFloor, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
+import {
+  centreView,
+  FIT_PADDING,
+  followPoint,
+  panIntoView,
+  passedSlop,
+  readableFit,
+  readingFloor,
+  wheelFactor,
+  ZOOM_STEP,
+} from '@/lib/canvas/view';
 import { CHOICE_PARAM, readCamera, readChoice, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { FRAME_LABELS } from '@/lib/families/frames';
 import {
@@ -69,6 +84,7 @@ import {
 import type { InkLayerView } from '@/lib/ink/types';
 import { entryKey, familyTreeKey } from '@/lib/live/keys';
 import { capitalise, fill } from '@/lib/words';
+import { ShortField } from '@/components/live/LiveFields';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 import { usePinch } from '@/components/canvas/usePinch';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
@@ -86,7 +102,7 @@ import { TreeNode } from './TreeNode';
 import { announceTreeMode } from './TreeTitle';
 import { createUndoStack, UNDO_LIMIT } from './treeUndo';
 import { useTreeHolding } from './useTreeHolding';
-import { syncLabel, useTreeSync, type PendingIds } from './useTreeSync';
+import { useTreeSync, type PendingIds } from './useTreeSync';
 
 /**
  * §66 — de stamboom.
@@ -182,6 +198,15 @@ const UNMEASURED = { width: 900, height: 520 };
  * (`.tree-node-name`, 0.86rem ≈ 14 world px) is ten screen pixels.
  */
 const TREE_READ_FLOOR = readingFloor(14);
+/**
+ * §99 (C8-restant): and at most — the prikbord's `OPEN_MAX_ZOOM`. The first
+ * view of a brand-new stamboom is worked out when its first card lands, and a
+ * fit of one los kaartje was two times blown up: the card took the glass and
+ * its worded handles (*Broer/zus*, *Partner*) hung off both edges of a phone.
+ * At 1 the card and its four words fit on 390 px. *Alles in beeld* keeps the
+ * full range.
+ */
+const TREE_OPEN_MAX_ZOOM = 1;
 
 /** What one commit may change. Absence is never a deletion; a tombstone is (§61). */
 type TreeChange = Partial<Pick<FamilyTreeState, 'members' | 'loose' | 'ties'>> & {
@@ -433,6 +458,10 @@ export function FamilyTreeCanvas({
   /* §90: the §18b question only where this tree can write — Bewerken, or the
      potlood in the hand. A tap in Lezen asks nothing. */
   const gate = useCanvasAuthorGate(editOn || ink.inkActive);
+  /* §101: en elke maakknop — op de balk en om een kaartje heen — vraagt het
+     zélf, vóórdat hij maakt. */
+  const maker = useCanvasMaker();
+  const askThen = useAskAuthorFirst();
   const inkActive = ink.inkActive;
   const onInkKey = ink.onKeyDown;
 
@@ -814,6 +843,35 @@ export function FamilyTreeCanvas({
 
   /* ------------------------------------------------------ the first view */
 
+  /**
+   * §101 — waar je was, na een `+`.
+   *
+   * A stamboom stores no layout: where a card is drawn is worked out from the
+   * facts (`layoutTree`), so one parent added above pushes a whole generation
+   * along and the world coordinates of the card you were working on are
+   * different numbers afterwards. The camera stands still in *world*
+   * coordinates, so on the glass it jumped: after *+ Ouder* you were looking at
+   * two strangers, and "waar was ik?" cost the handeling the `+` had just
+   * saved (rij 18 of the meting after golf 3).
+   *
+   * So a `+` says, before it writes, which card it hung off and where that card
+   * stood. The effect below waits for the new card to land, keeps the old one
+   * where it was on the glass (`followPoint`) and then pans the least that
+   * brings the new one into view (`panIntoView`). No zoom: nothing happened
+   * that asks for one, and a camera that zooms unasked reads as a fault.
+   */
+  const keepInView = useRef<{
+    anchor: GraphNodeId;
+    at: { x: number; y: number };
+    bring: GraphNodeId | null;
+  } | null>(null);
+
+  /** What a `+` remembers about where it stood, or null when it cannot tell. */
+  const markPlace = useCallback((anchor: GraphNodeId, bring: GraphNodeId | null) => {
+    const at = layoutRef.current.positions[anchor];
+    keepInView.current = at ? { anchor, at: { x: at.x, y: at.y }, bring } : null;
+  }, []);
+
   const fitAll = useCallback(() => {
     const next = fitViewport(base.bounds, size);
     setView(next);
@@ -846,7 +904,7 @@ export function FamilyTreeCanvas({
       setView(centreView({ x: at.x + card.width / 2, y: at.y + card.height / 2 }, size, Math.max(1, TREE_READ_FLOOR)));
     }
     // §94 (C7): a readable start, never names of five pixels.
-    else setView(readableFit(base.bounds, size, TREE_READ_FLOOR));
+    else setView(readableFit(base.bounds, size, TREE_READ_FLOOR, FIT_PADDING, TREE_OPEN_MAX_ZOOM));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size, graph.nodes.length, base.bounds, tree.id]);
   /*
@@ -883,6 +941,39 @@ export function FamilyTreeCanvas({
     },
     [size, rememberView, selectOne],
   );
+  /*
+   * §101: and the other half of `markPlace` — the camera, once the drawing has
+   * settled. It runs on every layout, does nothing at all unless a `+` left
+   * something behind, and clears the note the moment it has acted, so a later
+   * pan is nobody's business but the hand's.
+   *
+   * Waiting for the new card is what makes it right rather than nearly right:
+   * the relation is written over the wire, so between the press and the answer
+   * there are layouts in which the anchor has already moved and the new card
+   * does not exist yet. Acting on one of those would keep the camera on a
+   * half-finished tree and then let the finished one jump anyway.
+   */
+  useEffect(() => {
+    const keep = keepInView.current;
+    if (!keep || size.width <= 0) return;
+    const now = layout.positions[keep.anchor];
+    if (!now) {
+      keepInView.current = null;
+      return;
+    }
+    const bring = keep.bring ? boxOf(keep.bring) : null;
+    if (keep.bring && !bring) return;
+    keepInView.current = null;
+    const current = viewRef.current ?? { x: 0, y: 0, zoom: 1 };
+    const held = followPoint(current, keep.at, now);
+    // En het nieuwe kaartje erbij — maar nooit ten koste van het kaartje waar
+    // de hand mee bezig was: ver ingezoomd passen twee generaties niet samen.
+    const next = bring ? panIntoView(held, bring, size, FIT_PADDING, boxOf(keep.anchor) ?? undefined) : held;
+    if (next.x === current.x && next.y === current.y) return;
+    setView(next);
+    rememberView(next);
+  }, [layout, boxOf, size, rememberView]);
+
   // §94 (C5): the one card chosen is in the address, so Back chooses it again.
   useEffect(() => {
     if (choiceRead.current) writeChoice(CHOICE_PARAM.family_tree, onlySelected);
@@ -2003,6 +2094,8 @@ export function FamilyTreeCanvas({
   const attach = useCallback(
     async (source: GraphNode, role: HandleRole, target: { id: string; name: string }) => {
       const childId: GraphNodeId = `entry:${target.id}`;
+      /* §101: waar we stonden, vóór de tekening opnieuw uitgerekend wordt. */
+      markPlace(source.id, childId);
       // Solid straight away: the person is in the tree, then the field is
       // written. The other order leaves them a ghost for a round trip.
       addMember(target.id);
@@ -2048,7 +2141,7 @@ export function FamilyTreeCanvas({
         setPicker(null);
       }
     },
-    [fieldFor, addMember, writeRelation, commit, selectOne, linkParent],
+    [fieldFor, addMember, writeRelation, commit, selectOne, linkParent, markPlace],
   );
 
   /** And a los kaartje hung on whatever the picker opened for. */
@@ -2073,10 +2166,13 @@ export function FamilyTreeCanvas({
         setPicker(null);
         // One commit, two ties: the card and both its parents in one step of
         // the undo stack.
-        addLoose(cardName, spot, both.map((other) => ({ handle: role, other })));
+        const made = addLoose(cardName, spot, both.map((other) => ({ handle: role, other })));
+        markPlace(source.id, `loose:${made}`);
         return;
       }
       const id = addLoose(cardName, spot, [{ handle: role, other: source.id }]);
+      /* §101: de tekening schuift ook van een los kaartje — dus ook hier. */
+      markPlace(source.id, `loose:${id}`);
       if (role === 'child') {
         setPicker((current) =>
           current ? { ...current, child: { id: `loose:${id}`, name: cardName.trim() } } : current,
@@ -2085,7 +2181,7 @@ export function FamilyTreeCanvas({
         setPicker(null);
       }
     },
-    [layout.positions, sizes, addLoose],
+    [layout.positions, sizes, addLoose, markPlace],
   );
 
   /**
@@ -2104,6 +2200,9 @@ export function FamilyTreeCanvas({
       pick: { nodeId?: GraphNodeId; entryId?: string; name: string },
     ) => {
       setPicker(null);
+      /* §101: de tweede ouder schuift de tekening nog een keer; het kind is
+         waar je naar keek, dus dat blijft staan waar het stond. */
+      markPlace(child.id, pick.nodeId ?? (pick.entryId ? `entry:${pick.entryId}` : null));
       if (pick.entryId) addMember(pick.entryId);
       const childEntryId = child.id.startsWith('entry:') ? child.id.slice('entry:'.length) : undefined;
       await linkParent(
@@ -2115,7 +2214,7 @@ export function FamilyTreeCanvas({
         { nodeId: child.id, entryId: childEntryId, name: child.name },
       );
     },
-    [addMember, linkParent],
+    [addMember, linkParent, markPlace],
   );
 
   /** The people this node is drawn beside — the second-parent suggestions. */
@@ -2318,41 +2417,54 @@ export function FamilyTreeCanvas({
         onSelect: () => router.push(`/e/${node.slug}`),
       });
       // §73: `Openen` is reading and stays; the rest changes the drawing.
+      // §101: en alles wat de tekening verandert vraagt eerst met wie je
+      // schrijft, want het lijstje zelf vraagt sinds deze ronde niets meer.
       if (editOn && node.standing === 'member') {
         items.push({
           key: 'out',
           label: `Uit de ${words.familyTree}`,
           icon: 'close',
           danger: true,
-          onSelect: () => void removeMember(node.entryId, node.name),
+          onSelect: () => askThen(() => void removeMember(node.entryId, node.name)),
         });
       }
       if (editOn && node.standing === 'ghost') {
-        items.push({ key: 'in', label: 'Erbij', icon: 'plus', onSelect: () => addMember(node.entryId) });
+        items.push({
+          key: 'in',
+          label: 'Erbij',
+          icon: 'plus',
+          onSelect: () => askThen(() => addMember(node.entryId)),
+        });
       }
       return items;
     }
     if (editOn) {
-      items.push({ key: 'edit', label: 'Bewerken', icon: 'edit', onSelect: () => setSheet({ looseId: node.looseId }) });
+      items.push({
+        key: 'edit',
+        label: 'Bewerken',
+        icon: 'edit',
+        onSelect: () => askThen(() => setSheet({ looseId: node.looseId })),
+      });
       items.push({
         key: 'promote',
         label: `${capitalise(words.entry)} aanmaken`,
         icon: 'plus',
-        onSelect: () => {
-          ui.openNewEntry({
-            name: node.name,
-            shortDescription: node.text,
-            caseId: tree.caseId ?? undefined,
-            onCreated: (created) => void promoteLoose(node.looseId, created.id),
-          });
-        },
+        onSelect: () =>
+          askThen(() => {
+            ui.openNewEntry({
+              name: node.name,
+              shortDescription: node.text,
+              caseId: tree.caseId ?? undefined,
+              onCreated: (created) => void promoteLoose(node.looseId, created.id),
+            });
+          }),
       });
       items.push({
         key: 'remove',
         label: 'Weghalen',
         icon: 'trash',
         danger: true,
-        onSelect: () => void removeLoose(node.looseId, node.name),
+        onSelect: () => askThen(() => void removeLoose(node.looseId, node.name)),
       });
     }
     return items;
@@ -2376,7 +2488,12 @@ export function FamilyTreeCanvas({
         accessible name on a condition, not hiding the letters — a spec that
         finds "Opnieuw schikken" by name finds it on a phone too.
       */}
-      <div className="tree-tools" data-testid="tree-tools">
+      {/* §101: de balk vraagt niets op de weg naar beneden — wat maakt vraagt
+          zichzelf, vooraf (`maker`/`askThen`), en wat alleen kijkt vraagt
+          niets. Zie de noot in `MapCanvas` voor waaróm een klik anders
+          verdween. Het zoekvak dat iemand *erbij* zet is de uitzondering: dat
+          is een vak waar je in typt, en het vraagt op zijn eigen keuze. */}
+      <div className="tree-tools" data-testid="tree-tools" {...AUTHOR_GATE_OFF}>
         {/* §73: the switch first, where a thumb looks for it; nothing for a
             hand that may not edit at all. */}
         <CanvasModeToggle mode={mode} />
@@ -2394,23 +2511,27 @@ export function FamilyTreeCanvas({
                 id="tree-add-person"
                 value={null}
                 placeholder={`Zoek een ${words.entry} om erbij te zetten…`}
-                onPick={(entry) => {
-                  addMember(entry.id);
-                  selectOne(`entry:${entry.id}`);
-                }}
+                onPick={(entry) =>
+                  askThen(() => {
+                    addMember(entry.id);
+                    selectOne(`entry:${entry.id}`);
+                  })
+                }
                 onClear={() => undefined}
               />
             </div>
             <button
               type="button"
               className="btn btn-small"
-              onClick={() => addLoose('')}
+              {...maker(() => addLoose(''))}
               data-testid="tree-add-loose"
               aria-label={capitalise(words.looseCard)}
               title={capitalise(words.looseCard)}
             >
               <Icon name="plus" size={14} />
-              <span className="tree-tool-word">{capitalise(words.looseCard)}</span>
+              {/* §99 (C8-restant): the loose card's maker keeps its word on a
+                  phone — a bare `+` beside the finder read as "add anybody". */}
+              <span className="tree-tool-word tree-tool-word-keep">{capitalise(words.looseCard)}</span>
             </button>
             {/* §64: the count is inside the name, and the button is always here —
                 a control that appears when there are ghosts would grow the bar and
@@ -2419,7 +2540,7 @@ export function FamilyTreeCanvas({
             <button
               type="button"
               className="btn btn-small"
-              onClick={adoptAll}
+              {...maker(adoptAll)}
               disabled={!ghosts.length}
               data-testid="tree-adopt-all"
               aria-label={`Verwanten erbij (${ghosts.length})`}
@@ -2431,7 +2552,7 @@ export function FamilyTreeCanvas({
             <button
               type="button"
               className="btn btn-small btn-ghost"
-              onClick={rearrange}
+              {...maker(rearrange)}
               data-testid="tree-rearrange"
               aria-label="Opnieuw schikken"
               title="Opnieuw schikken"
@@ -2486,7 +2607,8 @@ export function FamilyTreeCanvas({
           {others.length > 5 && <span className="tree-person tree-person-more">+{others.length - 5}</span>}
         </span>
 
-        <span className="save-state">{syncLabel(sync.state, sync.error)}</span>
+        {/* §100 (B14): the save word is the shell's now, beside the live dot
+            (`useReportSave` inside the sync hook) — §61's own reason included. */}
 
         {/* §69: the shared block. Its buttons are `.btn.btn-small` like every
             other control in this row — these were 26×24 px, the only ones on
@@ -3213,6 +3335,10 @@ function LooseSheet({
 }) {
   const [name, setName] = useState(card.name);
   const [text, setText] = useState(card.text ?? '');
+  // §98: the blur of the editor fires before React has the last keystroke's
+  // state in this closure; the ref always has it.
+  const textRef = useRef(text);
+  textRef.current = text;
   const [frame, setFrame] = useState<FrameKind>(card.frame);
 
   return (
@@ -3233,16 +3359,25 @@ function LooseSheet({
           onBlur={() => onSave({ name })}
         />
       </label>
-      <label className="field">
-        <span>Tekst</span>
-        <textarea
-          className="input"
-          rows={3}
+      {/* §98: a los kaartje's line or two holds chips (`ShortField`). No
+          room: a kaartje lives in the tree's own state, saved on blur like the
+          name above it. Not a `<label>` around it — a label wrapping an editor
+          sends every click on the chip to the box's start. */}
+      <div className="field">
+        <span id="tree-loose-text-label">Tekst</span>
+        <ShortField
+          noRoom
+          ungated
+          multiline
+          field="text"
+          id="tree-loose-text"
+          className="input short-editor-sheet"
+          ariaLabelledBy="tree-loose-text-label"
           value={text}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={() => onSave({ text })}
+          onValue={(next) => setText(next)}
+          onBlur={() => onSave({ text: textRef.current })}
         />
-      </label>
+      </div>
       <label className="field">
         <span>Vorm</span>
         <select

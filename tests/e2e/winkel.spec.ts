@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue } from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue, openEmptyFields } from './helpers';
 
 /**
  * §82: de winkel — de etalage, de beurs, en wat er met een klik gebeurt.
@@ -60,6 +60,8 @@ async function signUpWearing(
 async function unfoldInfobox(page: Page) {
   const folded = page.locator('details#block-info:not([open]) > summary');
   if (await folded.count()) await folded.click();
+  // §101 (B25): en de lege velden achter "Veld invullen".
+  await openEmptyFields(page);
 }
 
 /** Het blad "Nieuw artikel", geopend tot het er echt staat — een verse pagina luistert nog niet (§6). */

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { readCanvas, signIn } from './helpers';
+import { editCanvas, readCanvas, signIn } from './helpers';
 
 /**
  * §34: a landkaart and a tijdlijn fill the screen.
@@ -215,5 +215,15 @@ test('een prikbord vult het scherm', async ({ page }, info) => {
   // The page itself does not scroll beside the wall.
   const scroll = await page.evaluate(() => document.querySelector('.page-canvas')!.getBoundingClientRect().bottom);
   expect(scroll).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+
+  /*
+   * §99: and in Bewerken. The row that hangs cards up is the price of making
+   * things, but on a phone it cost two rows and a tip, and the wall had about
+   * half the screen (422 of 844). One row now: 517 of 844 (61 %). The floor is
+   * a little under the shared one, for that row.
+   */
+  await editCanvas(page);
+  await page.waitForTimeout(400);
+  await expectFillsTheScreen(page, '.board-viewport', 0.58);
   await expectStandsUpSideways(page, '.board-viewport');
 });

@@ -1,5 +1,5 @@
 import { and, desc, eq, exists, inArray, sql } from 'drizzle-orm';
-import { canEdit, canView, grantFor, viewerCanEdit } from '@/lib/access';
+import { canEdit, canView, grantFor, viewableCondition, viewerCanEdit } from '@/lib/access';
 import type { Author } from '@/lib/auth/author';
 import { db, schema, sqlite } from '@/lib/db';
 import type { AccessMode, FieldDef, Visibility } from '@/lib/db/schema';
@@ -8,8 +8,9 @@ import { resolveBlocks, type PageBlock, type TypeText } from '@/lib/pageBlocks';
 import { newId } from '@/lib/ids';
 import { sideCondition } from '@/lib/keeper/side';
 import { uniqueSlug } from '@/lib/slug';
-import { cleanDoc, docToText, EMPTY_DOC, extractEntryLinks } from './doc';
-import { cleanShort, indexShort, isShortFieldKind } from './shortRefs';
+import { cleanDoc, docToText, EMPTY_DOC } from './doc';
+import { linkedEntryIds } from './docRefs';
+import { cleanDocRefs, cleanShort, indexShort, isShortFieldKind } from './shortRefs';
 import { checkFieldPatch, cleanFieldPatch, listBlockKeys, type StoredEntryRef } from './fieldValues';
 // §66: the pure half of the mirror — what should be written on the other page.
 import { mirrorPlan, refIdsOf } from '@/lib/families/mirror';
@@ -173,9 +174,9 @@ export function reindexEntry(entryId: string) {
   insertFts.run(
     entryId,
     row.name,
-    // §95: the names as they are now, not the handles.
+    // §95/§97: the words, not the handles — and not the names behind them.
     indexShort(row.shortDescription),
-    row.bodyText,
+    indexShort(row.bodyText),
     (row.tags ?? []).join(' '),
   );
 }
@@ -185,7 +186,8 @@ export function reindexEntry(entryId: string) {
  * so backlinks can never drift from what the text actually says.
  */
 export function recomputeLinks(entryId: string, doc: unknown) {
-  const targets = extractEntryLinks(doc).filter((id) => id !== entryId);
+  // §97: the handles of the document, through `mention_handles`.
+  const targets = linkedEntryIds(doc).filter((id) => id !== entryId);
   db.delete(schema.entryLinks)
     .where(and(eq(schema.entryLinks.fromEntryId, entryId), eq(schema.entryLinks.kind, 'mention')))
     .run();
@@ -368,7 +370,10 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
 
   const id = newId();
   // §89: a document is cleaned where it comes in (`cleanDoc`).
-  const body = cleanDoc(input.body ?? EMPTY_DOC);
+  // §95: a short text is cleaned where it comes in, exactly as a document is.
+  const actor = input.createdBy ? { id: input.createdBy, isKeeper: Boolean(input.actorIsKeeper) } : ('system' as const);
+  // §97: and a link in it is a handle, one this hand may name.
+  const body = cleanDocRefs(cleanDoc(input.body ?? EMPTY_DOC), { actor });
 
   // §38: an artikel is made with the soort's own infobox, or with none. The
   // same gate `updateEntry` puts on a save, so the first write cannot smuggle
@@ -378,8 +383,6 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
     listBlockKeys(resolveBlocks(type.blocks)),
     input.fields ?? {},
   );
-  // §95: a short text is cleaned where it comes in, exactly as a document is.
-  const actor = input.createdBy ? { id: input.createdBy, isKeeper: Boolean(input.actorIsKeeper) } : ('system' as const);
   for (const def of type.fields ?? []) {
     if (isShortFieldKind(def.kind) && typeof fields[def.key] === 'string') {
       fields[def.key] = cleanShort(fields[def.key], { actor, multiline: def.kind === 'longtext' });
@@ -408,7 +411,8 @@ export function createEntry(input: CreateEntryInput): EntrySummary {
   reindexEntry(id);
   recomputeLinks(id, body);
   // §27: made with its infobox already filled in — the mentions come with it.
-  if (input.fields) recomputeFieldMentions(id);
+  // §98: and with its korte beschrijving, whose chips count too.
+  if (input.fields || input.shortDescription) recomputeFieldMentions(id);
   writeRevision(id, input.createdBy, 'aangemaakt', input.characterId ?? null);
   logActivity({
     actorId: input.createdBy,
@@ -979,6 +983,17 @@ export function updateEntry(
   // §89: the body is cleaned before anything reads it — the proposal a speler
   // files, the revision, the links and the shared document all see the same.
   if (patch.body !== undefined) patch = { ...patch, body: cleanDoc(patch.body) };
+  /*
+   * §97: and a link in it is a handle — one this hand may name, and none it
+   * could not see taken away. Before the proposal road as well: a voorstel is
+   * judged by somebody who may see what the proposer could not, and must not
+   * read as the proposer deleting it.
+   */
+  let bodyFromRoom: unknown = undefined;
+  if (patch.body !== undefined) {
+    bodyFromRoom = patch.body;
+    patch = { ...patch, body: cleanDocRefs(patch.body, { prev: entry.body, actor: user }) };
+  }
 
   // §18b: the onderzoeker this window is writing as — recorded on everything
   // this call leaves behind: the revision, the feed row, the audit line, and a
@@ -1147,7 +1162,8 @@ export function updateEntry(
   // §27: an infobox that points at another artikel is a mention of it. Read
   // back off the merged row rather than off the patch, because §6 patches one
   // field at a time and the table has to hold what the infobox now says.
-  if (values.fields !== undefined) recomputeFieldMentions(entryId);
+  // §98: a korte beschrijving's chips are counted by the same call.
+  if (values.fields !== undefined || values.shortDescription !== undefined) recomputeFieldMentions(entryId);
   /*
    * §66: and the kinship the infobox just changed is written on the other page.
    *
@@ -1190,6 +1206,8 @@ export function updateEntry(
   // §20: keep the room honest, and tell whoever has the page open.
   const room = `entry:${entryId}:body`;
   if (patch.body !== undefined && !options.live) resetRoom(room, patch.body);
+  // §97: the room wrote a link the archive put back or took out — the room follows.
+  else if (patch.body !== undefined && JSON.stringify(patch.body) !== JSON.stringify(bodyFromRoom)) resetRoom(room, patch.body);
   const changed = Object.keys(values).filter((key) => key !== 'updatedAt' && key !== 'updatedBy' && key !== 'bodyText');
   if (!options.live) {
     publishSaved(room, user.id, changed);
@@ -1298,8 +1316,13 @@ export function restoreRevision(revisionId: string, user: Author) {
    */
   // §89: an old version is cleaned on its way back like any other document.
   const stored = revision.snapshot as Record<string, unknown>;
+  // §97: its links are handles this hand may name, and what it could not see
+  // on the artikel as it stands is not taken away by putting a version back.
+  const standingBody = db.select({ body: schema.entries.body }).from(schema.entries).where(eq(schema.entries.id, revision.entryId)).get()?.body;
   const snapshot: Record<string, unknown> =
-    stored.body !== undefined ? { ...stored, body: cleanDoc(stored.body) } : stored;
+    stored.body !== undefined
+      ? { ...stored, body: cleanDocRefs(cleanDoc(stored.body), { prev: standingBody, actor: user }) }
+      : stored;
   // §66: what the infobox says *now*, read before it is overwritten, so the
   // kinship the restore undoes can be undone on the other pages too.
   const standing = db
@@ -1527,6 +1550,34 @@ export type FeedItem = {
 };
 
 /**
+ * §101: een `room.*`-regel alleen voor wie de kamer zelf mag zien.
+ *
+ * Een regel in het feed hangt aan zijn *ding* (`entry_id`), en dat is bij
+ * neerzetten, kopen en weghalen het voorwerp — niet de kamer. Een privé-kamer
+ * (§86: door de Keeper geopend voor een onderzoeker die niemand draagt, en
+ * dicht geboren) liet dus elke handeling erin zien aan iedereen die het
+ * voorwerp mocht zien: naamloos (`visibleNamesOf`), maar de handeling stond er.
+ *
+ * Dezelfde twee vragen als `canSeeRoom`, in SQL: de draaiknop van de kamer
+ * (`viewableCondition('room')`) en de onderzoeker erachter
+ * (`visibleEntryCondition`). De kamer komt uit de regel zelf: `meta.roomId`
+ * (openen, de lade) of de plek in `meta.slotId` (neerzetten, kopen, weghalen).
+ * Een regel waarvan de kamer niet te vinden is, valt weg — dicht, niet open.
+ */
+function roomRowCondition(viewer: Viewer) {
+  if (viewer?.isKeeper) return sql`1 = 1`;
+  return sql`(${schema.activity.verb} NOT LIKE 'room.%' OR EXISTS (
+    SELECT 1 FROM rooms
+    WHERE rooms.id = COALESCE(
+      json_extract(${schema.activity.meta}, '$.roomId'),
+      (SELECT rs.room_id FROM room_slots rs WHERE rs.id = json_extract(${schema.activity.meta}, '$.slotId'))
+    )
+      AND ${viewableCondition('room', viewer)}
+      AND EXISTS (SELECT 1 FROM entries WHERE entries.id = rooms.entry_id AND ${visibleEntryCondition(viewer)})
+  ))`;
+}
+
+/**
  * The home feed (§10). Only rows whose entry the viewer may see; entries that
  * were hidden or deleted since simply drop out.
  */
@@ -1548,7 +1599,7 @@ export function recentActivity(viewer: Viewer, limit = 40): FeedItem[] {
     .leftJoin(schema.users, eq(schema.users.id, schema.activity.actorId))
     // §46: the feed is a list too — a row about an artikel on the other side
     // of the archive is not shown, because the artikel itself is not.
-    .where(and(visibleEntryCondition(viewer), sideCondition('entry', viewer)))
+    .where(and(visibleEntryCondition(viewer), sideCondition('entry', viewer), roomRowCondition(viewer)))
     .orderBy(desc(schema.activity.createdAt))
     .limit(limit * 3)
     .all();

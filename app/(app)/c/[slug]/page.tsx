@@ -256,7 +256,15 @@ export default async function CasePage({
       />
       {/* §95: the chips of the samenvatting and of every korte beschrijving
           on the shelves, for this reader — nothing for what they may not see. */}
-      <ShortChips map={shortChipsFor(user, [record.summary, ...entries.map((entry) => entry.shortDescription)])}>
+      <ShortChips
+        map={shortChipsFor(user, [
+          record.summary,
+          ...entries.map((entry) => entry.shortDescription),
+          // §97: the links in the notes and the secties, carried as tokens in their text.
+          record.notesText,
+          ...sections.map((section) => section.bodyText),
+        ])}
+      >
       <CaseDossier
       data={{
         id: record.id,

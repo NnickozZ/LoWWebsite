@@ -60,7 +60,7 @@ export function PinSelectionButton({
       .then((r) => (r.ok ? r.json() : { boards: [] }))
       .then((data) => setBoards(data.boards ?? []))
       .catch(() => undefined);
-    setTimeout(() => searchRef.current?.focus(), 60);
+    // §101: the caret goes into the search box through `data-autofocus` (see `Sheet`).
   }, [open, pinnable]);
 
   const matches = useMemo(() => {
@@ -209,6 +209,7 @@ export function PinSelectionButton({
           <input
             id="web-board-search"
             ref={searchRef}
+            data-autofocus
             className="input"
             value={query}
             placeholder={`Zoek een ${ui.words.board}…`}

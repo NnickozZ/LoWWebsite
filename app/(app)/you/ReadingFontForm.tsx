@@ -29,8 +29,23 @@ import { setReadingFontAction, type ReadingFontState } from './actions';
  * chips, and the specimen line under them. The note about what stays in the
  * archive's own letter moved into the group's `title`; it was a paragraph
  * between you and the next setting on every visit.
+ *
+ * §101: and a `title` does not exist on a phone, so the note is behind
+ * *Waarom?* now, the same fold the karakters above use (`.you-why`).
  */
-export function ReadingFontForm({ current, label }: { current: ReadingFont; label: string }) {
+export function ReadingFontForm({
+  current,
+  label,
+  note,
+  why,
+}: {
+  current: ReadingFont;
+  label: string;
+  /** §101: what stays in the archive's own letter, behind *Waarom?*. */
+  note: string;
+  /** `words.youWhy`. */
+  why: string;
+}) {
   const [state, action, pending] = useActionState<ReadingFontState, FormData>(
     setReadingFontAction,
     {},
@@ -48,7 +63,6 @@ export function ReadingFontForm({ current, label }: { current: ReadingFont; labe
         className="row-wrap you-pref-row"
         role="group"
         aria-label="Lettertype om in te lezen"
-        title="De stempels, de tabbladen en de letter op een omslag blijven staan — die zijn het archief zelf."
       >
         <span className="label you-pref-label" aria-hidden="true">
           {label}
@@ -79,15 +93,20 @@ export function ReadingFontForm({ current, label }: { current: ReadingFont; labe
         })}
       </div>
 
-      <p
-        className="tiny you-pref-hint"
-        style={{
-          fontFamily: readingFontStack(showing),
-          color: showing === chosen ? 'var(--ink-muted)' : 'var(--ink)',
-        }}
-      >
-        {choice.hint}
-      </p>
+      <div className="tiny muted you-pref-hint" data-testid="lettertype-hint">
+        <span
+          style={{
+            fontFamily: readingFontStack(showing),
+            color: showing === chosen ? 'var(--ink-muted)' : 'var(--ink)',
+          }}
+        >
+          {choice.hint}
+        </span>{' '}
+        <details className="you-why">
+          <summary>{why}</summary>
+          <span className="you-why-body">{note}</span>
+        </details>
+      </div>
 
       {state.error && <p className="error-note">{state.error}</p>}
     </form>

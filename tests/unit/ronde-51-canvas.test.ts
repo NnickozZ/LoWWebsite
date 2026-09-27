@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gateAsks, isTypable } from '@/lib/canvas/authorGate';
 import { ADMIN_FIRST, orderPanes } from '@/lib/adminTabOrder';
-import { DEFAULT_WORDS, fill } from '@/lib/words';
+import { DEFAULT_WORDS, WORD_MAX, fill } from '@/lib/words';
 
 /**
  * §90, ronde 51 (canvas): de pure helften van wat er op de tekenvlakken en in
@@ -100,9 +100,10 @@ describe('§90 de nieuwe zinnen', () => {
     expect(DEFAULT_WORDS.adminNewPasswordFor).toContain('{naam}');
   });
 
-  it('passen in de 60 tekens die Beheer → Woorden bewaart', () => {
-    // `cleanWordOverrides` knipt een eigen woord op 60 af, dus een zin die
-    // langer is zou de Keeper nooit helemaal kunnen herschrijven.
+  it('passen in de WORD_MAX tekens die Beheer → Woorden bewaart', () => {
+    // `cleanWordOverrides` knipt een eigen woord op `WORD_MAX` af (200 sinds
+    // §96; het was 60), dus een zin die langer is zou de Keeper nooit helemaal
+    // kunnen herschrijven. §101: de grens is die van de lijst, niet een eigen.
     for (const key of [
       'boardEmptyRead',
       'boardEmptyFind',
@@ -114,7 +115,7 @@ describe('§90 de nieuwe zinnen', () => {
       'adminNewPasswordFor',
       'trashTypeName',
     ]) {
-      expect(DEFAULT_WORDS[key].length, key).toBeLessThanOrEqual(60);
+      expect(DEFAULT_WORDS[key].length, key).toBeLessThanOrEqual(WORD_MAX);
     }
   });
 

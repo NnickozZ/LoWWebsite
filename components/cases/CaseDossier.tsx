@@ -28,7 +28,8 @@ const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) =
 import { MentionText } from '@/components/ui/MentionPopover';
 import { useIAmTheCase, useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { useAutosave, useSaveWord } from '@/components/entry/useAutosave';
+import { toSaveReport, useAutosave, useSaveState } from '@/components/entry/useAutosave';
+import { useReportSave } from '@/components/live/saveRegister';
 import { relativeTime } from '@/lib/diff';
 import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/service';
 import type { CoverCrops } from '@/lib/images/shapes';
@@ -255,8 +256,10 @@ export function CaseDossier({
   );
 
   const { state, set, flush } = useAutosave<Record<string, unknown>>({ save });
-  // §90: a refusal and a line that is down outrank "Opslaan…".
-  const saveWord = useSaveWord(state, [notesLive, fieldsLive], ui.words);
+  // §90: a refusal and a line that is down outrank "Opslaan…". §100: and the
+  // shell says it, while this face writes.
+  const saveState = useSaveState(state, [notesLive, fieldsLive]);
+  useReportSave(reading ? null : toSaveReport(saveState));
 
   const tabs = useMemo(() => {
     /*
@@ -776,12 +779,7 @@ export function CaseDossier({
             </span>
           )}
           <div className="spacer" />
-          {/* §90: the same one word the artikel has — see `combinedSave`. */}
-          {!reading && (
-            <p className="save-state" aria-live="polite" style={{ margin: 0 }}>
-              {saveWord}
-            </p>
-          )}
+          {/* §100: the save word is the shell's now (`SaveStatus`). */}
           {/* §22: the two faces, in the same pair of words the artikel uses. */}
           {canToggle && (
             <button

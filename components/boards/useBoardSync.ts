@@ -12,7 +12,8 @@ import {
   type Change,
   type Dirty,
 } from '@/lib/boards/dirty';
-import { classifySaveFailure, retryDelay, SAVE_TIMEOUT_MS } from '@/lib/boards/retry';
+import { classifySaveFailure, OFFLINE_MESSAGE, retryDelay, SAVE_TIMEOUT_MS } from '@/lib/boards/retry';
+import { useReportSave, type SaveReport } from '@/components/live/saveRegister';
 
 export type SyncState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -95,6 +96,8 @@ export function useBoardSync({
   const [state, setState] = useState<SyncState>('idle');
   /** The sentence behind an `error` state, when there is one worth printing. */
   const [error, setError] = useState<string | null>(null);
+  // §100 (B14): the wall's word is the shell's now, beside the live dot.
+  useReportSave(syncReport(state, error), error);
   const deletedCards = useRef<Set<string>>(new Set());
   const deletedStrings = useRef<Set<string>>(new Set());
   /**
@@ -495,6 +498,18 @@ export function useBoardSync({
     noteDeletedString,
     noteRestored,
   };
+}
+
+/**
+ * §100: a `SyncState` as the shell's one save word takes it. `dirty` is on
+ * its way (it goes within the second); a dead line is §90's `offline`, because
+ * the wall keeps the change and tries again (§61) — so B15's sentence, "wordt
+ * bewaard zodra de verbinding terug is", is true of it too.
+ */
+export function syncReport(state: SyncState, message?: string | null): SaveReport {
+  if (state === 'dirty') return 'saving';
+  if (state === 'error' && (!message || message === OFFLINE_MESSAGE)) return 'offline';
+  return state;
 }
 
 export function syncLabel(state: SyncState, message?: string | null): string {

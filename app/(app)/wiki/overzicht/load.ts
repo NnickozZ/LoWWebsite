@@ -39,6 +39,12 @@ export type LoadedOverzicht = {
   revealUsers: ReturnType<typeof listRevealableUsers>;
   revealCases: ReturnType<typeof listCasesWithMembers>;
   liveUser: { name: string; colour: string } | null;
+  /**
+   * §101 naden: every text on this page that can hold a chip — the inleiding
+   * and each sectie's running text, as tokens (§97) — for the page's
+   * `shortChipsFor`, so the first paint has their names (one fetch fewer).
+   */
+  chipTexts: string[];
 };
 
 export async function loadOverzichtPage(
@@ -59,7 +65,8 @@ export async function loadOverzichtPage(
   const isKeeper = Boolean(user?.isKeeper);
   const canEdit = viewerCanEdit('overzicht', row.id, user);
 
-  const sections = listSections('overzicht', row.id, user).map((section) => {
+  const listed = listSections('overzicht', row.id, user);
+  const sections = listed.map((section) => {
     const admission = admit(sectionRoomKey(section.id), user);
     return {
       id: section.id,
@@ -96,6 +103,7 @@ export async function loadOverzichtPage(
     liveUser: user
       ? { name: windowPresenceName(user, words.keeper), colour: presenceColour(user.id) }
       : null,
+    chipTexts: [row.lead, ...listed.map((section) => section.bodyText)],
   };
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '@/components/Icon';
+import { useCanvasMaker } from '@/components/canvas/useCanvasAuthorGate';
 
 /**
  * §69 — één ongedaan-knop, op alle vier de plekken.
@@ -37,11 +38,18 @@ export default function CanvasUndoButton({
   /** The stamboom's specs reach for this one by id; the others go by name. */
   testId?: string;
 }) {
+  /*
+   * §101: taking something back is a write, so it owes §18b's question — and
+   * it owes it *before* it undoes, like every other maker on a canvas bar. The
+   * bars carry `AUTHOR_GATE_OFF` since this round, so without this the button
+   * would quietly write with nobody's name on it.
+   */
+  const maker = useCanvasMaker();
   return (
     <button
       type="button"
       className="btn btn-small btn-ghost"
-      onClick={onUndo}
+      {...maker(onUndo)}
       disabled={!canUndo}
       aria-label="Ongedaan maken"
       title={title}

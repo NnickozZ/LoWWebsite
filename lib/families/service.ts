@@ -5,6 +5,7 @@ import { visibleCaseCondition } from '@/lib/cases/visibility';
 import { db, schema } from '@/lib/db';
 import type { FieldDef } from '@/lib/db/schema';
 import { recomputeFamilyTreeMentions } from '@/lib/entries/mentions';
+import { cleanShortWrite } from '@/lib/entries/shortRefs';
 import { logActivity, updateEntry, type SaveResult } from '@/lib/entries/service';
 import { visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
 import { newId } from '@/lib/ids';
@@ -67,6 +68,8 @@ export const FAMILY_TREE_NOT_YOURS = 'Je mag deze stamboom niet bewerken.';
 
 const NAME_MAX = 120;
 const DESCRIPTION_MAX = 2000;
+/** §98: the same cap `mergeTreeState` puts on a los kaartje's text (`MAX_TEXT` in merge.ts). */
+const LOOSE_TEXT_MAX = 400;
 
 const seconds = () => Math.floor(Date.now() / 1000);
 
@@ -220,7 +223,8 @@ export function createFamilyTree(
       id,
       name,
       slug: uniqueSlug(name, slugTaken),
-      description: (input.description ?? '').trim().slice(0, DESCRIPTION_MAX),
+      // §98: an omschrijving holds chips; cleaned where it comes in.
+      description: cleanShortWrite(input.description ?? '', { actor, max: DESCRIPTION_MAX }).text,
       caseId: input.caseId ?? null,
       // §17: "Privé stamboom" — both dials private from the first second.
       viewMode: input.isPrivate ? 'private' : 'all',
@@ -235,6 +239,8 @@ export function createFamilyTree(
     caseId: input.caseId ?? null,
     meta: { familyTreeId: id, name },
   });
+  // §98: what the omschrijving names counts under "Genoemd in".
+  recomputeFamilyTreeMentions(id);
   return getFamilyTreeById(id, actor)!;
 }
 
@@ -249,9 +255,12 @@ export function updateFamilyTree(id: string, patch: FamilyTreeTextPatch, actor: 
     values.name = name;
   }
   if (typeof patch.description === 'string') {
-    values.description = patch.description.trim().slice(0, DESCRIPTION_MAX);
+    // §98: `cleanShort` against what it said before.
+    const before = db.select({ description: schema.familyTrees.description }).from(schema.familyTrees).where(eq(schema.familyTrees.id, id)).get();
+    values.description = cleanShortWrite(patch.description, { prev: before?.description ?? '', actor, max: DESCRIPTION_MAX }).text;
   }
   db.update(schema.familyTrees).set(values).where(eq(schema.familyTrees.id, id)).run();
+  if (values.description !== undefined) recomputeFamilyTreeMentions(id);
   return getFamilyTreeById(id, actor)!;
 }
 
@@ -300,6 +309,23 @@ export function saveFamilyTreeState(
   const row = db.select().from(schema.familyTrees).where(eq(schema.familyTrees.id, id)).get();
   if (!row || row.deletedAt) throw new Error('Stamboom niet gevonden.');
 
+  /*
+   * §98: a los kaartje's line or two holds chips, and this is the one road it
+   * comes in by — so `cleanShort` runs here, card by card, against what that
+   * card said before (§67 needs the old text to put back what the hand could
+   * not see). The patch is cleaned before the merge, so the merge stays pure.
+   */
+  if (patch.loose?.length) {
+    const stored = new Map(normaliseTreeState(row.state).loose.map((card) => [card.id, card.text ?? '']));
+    patch = {
+      ...patch,
+      loose: patch.loose.map((card) =>
+        typeof card?.text === 'string'
+          ? { ...card, text: cleanShortWrite(card.text, { prev: stored.get(card.id) ?? '', actor, multiline: true, max: LOOSE_TEXT_MAX }).text }
+          : card,
+      ),
+    };
+  }
   const { state, changed } = mergeTreeState(row.state, patch);
   db.update(schema.familyTrees).set({ state, updatedAt: seconds() }).where(eq(schema.familyTrees.id, id)).run();
 

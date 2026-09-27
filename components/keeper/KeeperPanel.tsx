@@ -7,7 +7,8 @@ import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { LiveField, LiveFields } from '@/components/live/LiveFields';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
-import { saveLabel, useAutosave } from '@/components/entry/useAutosave';
+import { toSaveReport, useAutosave } from '@/components/entry/useAutosave';
+import { useReportSave } from '@/components/live/saveRegister';
 import { KIND_ICON, KIND_WORD, type KeeperKind, type KeeperRef } from '@/lib/keeper/kinds';
 import { KeeperSwitch } from './KeeperSwitch';
 import { KeeperTiePicker } from './KeeperTiePicker';
@@ -264,6 +265,9 @@ function Notes({
       return { ok: response.ok };
     },
   });
+  // §100: said by the shell, and only once this road has something to say —
+  // a panel that nobody typed in is not a writer.
+  useReportSave(!live && state !== 'idle' ? toSaveReport(state) : null);
 
   const box = (
     <LiveField
@@ -299,11 +303,8 @@ function Notes({
       ) : (
         box
       )}
-      {!live && state !== 'idle' && (
-        <p className="tiny muted" style={{ margin: '0.3rem 0 0' }}>
-          {saveLabel(state)}
-        </p>
-      )}
+      {/* §100 (B14): its word is the shell's, beside the live dot — see the
+          `useReportSave` under the autosave above. */}
     </div>
   );
 }

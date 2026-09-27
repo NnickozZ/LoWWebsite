@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue } from './helpers';
+import { becomeInvestigator, expectPlekken, fillWhenReady, inviteCode, setPlekken, signIn, expectBoxValue, openEmptyFields } from './helpers';
 
 /**
  * §84: het geld spreekt — door een echte hand.
@@ -49,6 +49,8 @@ async function signUpWearing(page: Page, name: string): Promise<{ character: str
 async function unfoldInfobox(page: Page) {
   const folded = page.locator('details#block-info:not([open]) > summary');
   if (await folded.count()) await folded.click();
+  // §101 (B25): en de lege velden achter "Veld invullen".
+  await openEmptyFields(page);
 }
 
 /** Een stuk huisraad, gemaakt zoals de Keeper het maakt (§80's weg, ongewijzigd). */

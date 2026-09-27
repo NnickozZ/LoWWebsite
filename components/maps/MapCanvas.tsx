@@ -10,7 +10,8 @@ import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { CHOICE_PARAM, readCamera, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { MentionText } from '@/components/ui/MentionPopover';
-import { LiveField, LiveFields, useLiveFields } from '@/components/live/LiveFields';
+import { LiveField, LiveFields, ShortField, useLiveFields } from '@/components/live/LiveFields';
+import { useReportRoomSave, type RoomSave } from '@/components/entry/useAutosave';
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import { mapKey, pinFieldsRoomKey } from '@/lib/live/keys';
@@ -18,7 +19,11 @@ import { popoverIsOpen } from '@/lib/popoverStack';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
-import { AUTHOR_GATE_OFF, useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
+import {
+  AUTHOR_GATE_OFF,
+  useCanvasAuthorGate,
+  useCanvasMaker,
+} from '@/components/canvas/useCanvasAuthorGate';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { MapPin, MapSummary } from '@/lib/maps/service';
@@ -45,6 +50,7 @@ import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
 import { CanvasPeek } from '@/components/canvas/CanvasPeek';
+import { fill } from '@/lib/words';
 
 /**
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
@@ -648,6 +654,8 @@ export function MapCanvas({
   /* §90: the §18b question only where this glas can write — Bewerken, or the
      potlood in the hand. Lezen and the legend's search ask nothing. */
   const gate = useCanvasAuthorGate(editing || ink.inkActive);
+  /* §101: en een maakknop op de werkbalk vraagt het zélf, vóórdat hij maakt. */
+  const maker = useCanvasMaker();
   const onInkKey = ink.onKeyDown;
   /*
    * §73: leaving Bewerken puts the potlood down too (the crosshair went at
@@ -1754,7 +1762,18 @@ export function MapCanvas({
 
   return (
     <div className="map-page" {...gate}>
-      <div className="row-wrap map-toolbar">
+      {/*
+        §101: de werkbalk vraagt niets op de weg naar beneden.
+
+        De schrijfvraag hing aan het hele vlak, dus in Bewerken riep élke knop
+        hierin hem op — en omdat de vraag een blad is dat in dezelfde commit
+        verschijnt als de `pointerdown`, landde de `click` erna op de
+        achtergrond in plaats van op de knop. *Legenda* vroeg zo naar schrijven
+        terwijl hij alleen filtert, en *Speld zetten* moest twee keer. Wat
+        alleen kijkt vraagt nu niets; wat maakt vraagt zichzelf, vooraf
+        (`maker`).
+      */}
+      <div className="row-wrap map-toolbar" {...AUTHOR_GATE_OFF}>
         {/* §73: first in the row, as on every glas; nothing for a hand that may not set a speld. */}
         <CanvasModeToggle mode={mode} />
         {placing ? (
@@ -1777,10 +1796,10 @@ export function MapCanvas({
             type="button"
             className="btn btn-primary btn-small"
             disabled={!mayType}
-            onClick={() => {
+            {...maker(() => {
               setSelectedId(null);
               setPlacing({ mode: 'pick' });
-            }}
+            })}
             /* §64/§69 (6.6): de letters mogen weg op 390 px, de naam nooit —
                en vier specs zoeken deze knop op zijn naam. */
             aria-label={`${cap(pinWord)} zetten`}
@@ -2132,6 +2151,11 @@ export function MapCanvas({
             <button
               type="button"
               className="map-legend-toggle"
+              /* §101: de legenda openklappen is kijken, geen schrijven — het
+                 opengeklapte paneel zegt dat al sinds §90, de knop ernaartoe
+                 zei het niet, en in Bewerken vroeg hij dus wie er schrijft en
+                 at de klik op die hem opriep. */
+              {...AUTHOR_GATE_OFF}
               aria-expanded={false}
               title="Legenda uitklappen"
               onPointerDown={(event) => event.stopPropagation()}
@@ -2265,9 +2289,13 @@ function PinSheet({
   // may edit the pin, saved by the room. The sheet joins the pin's room when it
   // opens (no state is handed over: the room answers within the round trip).
   // §94 (O6): and only in Bewerken — in Lezen a notitie shows its words.
-  if (pin.kind === 'note' && mayEdit && arranging) {
+  const typing = pin.kind === 'note' && mayEdit && arranging;
+  // §101 naden: the room's save goes to the shell's one save word (§100).
+  const [fieldsSave, setFieldsSave] = useState<RoomSave>({ status: 'connecting', save: 'idle' });
+  useReportRoomSave(typing, [fieldsSave]);
+  if (typing) {
     return (
-      <LiveFields room={pinFieldsRoomKey(pin.id)} state="" user={liveUser} canEdit>
+      <LiveFields room={pinFieldsRoomKey(pin.id)} state="" user={liveUser} canEdit onStatus={setFieldsSave}>
         <PinSheetBody
           pin={pin}
           busy={busy}
@@ -2400,18 +2428,20 @@ function PinSheetBody({
               Naam
             </label>
             <LiveField field="name" id="pin-name" className="input" value={name} onValue={(next) => setName(next)} />
-            <label className="label" htmlFor="pin-text">
+            <label className="label" htmlFor="pin-text" id="pin-text-label">
               Tekst
             </label>
-            <LiveField
-              as="textarea"
+            {/* §98: a chip in the box, with its artikel in it — the same
+                `Y.Text` of the same room, now `ShortField` (§95). */}
+            <ShortField
+              multiline
               field="text"
               id="pin-text"
-              className="input"
-              rows={4}
+              className="input short-editor-sheet"
+              ariaLabelledBy="pin-text-label"
+              placeholder={fill(words.mentionHint, { artikel: words.entry })}
               value={text}
               onValue={(next) => setText(next)}
-              mentions
             />
             {shared && (
               <p className="tiny muted" style={{ margin: 0 }}>
@@ -2429,7 +2459,7 @@ function PinSheetBody({
         ) : (
           pin.text && (
             <p className="small map-pin-summary" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-              <MentionText text={pin.text} />
+              <MentionText text={pin.text} tokens />
             </p>
           )
         ))}

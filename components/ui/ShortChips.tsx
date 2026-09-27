@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { projectShort } from '@/lib/entries/shortTokens.mjs';
 
 /**
  * §95: what a handle in a short text means, in the browser.
@@ -137,6 +138,18 @@ export function knownChip(page: ShortChipMap, handle: string): ShortChip | null 
   if (handle in page) return page[handle] ?? null;
   if (browser && cache.has(handle)) return cache.get(handle) ?? null;
   return undefined;
+}
+
+/**
+ * §98 (open since §95): a short text as the words a reader sees — every chip
+ * its name (as far as this browser knows it), a chip there is nothing to draw
+ * for nothing. For a maakblad's draft (`lib/sheetDraft.ts`): a draft that was
+ * never sent keeps what was typed, but not its chips, so an abandoned mention
+ * does not come back as a chip in the next Nieuw artikel.
+ */
+export function chipsAsWords(text: string, page: ShortChipMap): string {
+  if (!text || !text.includes('⟦')) return text;
+  return projectShort(text, (handle: string) => knownChip(page, handle)?.name ?? null);
 }
 
 /** Ask for these handles (batched with everything else this tick); resolves once they are known. */

@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { MentionText } from '@/components/ui/MentionPopover';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { NewTimelineButton } from '@/components/timelines/NewTimelineButton';
@@ -90,6 +93,8 @@ export default async function TimelinesPage({ searchParams }: { searchParams: Pr
       />
 
       {timelines.length ? (
+        // §98: the omschrijvingen's chips, for this reader, with the page.
+        <ShortChips map={shortChipsFor(user, timelines.map((item) => item.description))}>
         <ul className="timeline-shelf" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {timelines.map((timeline) => (
             <li key={timeline.id} style={{ borderBottom: '1px solid var(--rule)' }}>
@@ -107,7 +112,12 @@ export default async function TimelinesPage({ searchParams }: { searchParams: Pr
                     {' · '}
                     {timeline.eventCount ?? 0} {(timeline.eventCount ?? 0) === 1 ? words.event : words.eventPlural}
                     {timeline.caseName && <> · {capitalise(words.case)}: {timeline.caseName}</>}
-                    {timeline.description && <> · {timeline.description}</>}
+                    {timeline.description && (
+                      <>
+                        {' · '}
+                        <MentionText text={timeline.description} flat tokens />
+                      </>
+                    )}
                   </span>
                 </span>
                 <span className="tiny muted">{relativeTime(timeline.updatedAt)}</span>
@@ -116,6 +126,7 @@ export default async function TimelinesPage({ searchParams }: { searchParams: Pr
             </li>
           ))}
         </ul>
+        </ShortChips>
       ) : (
         <div className="empty">
           <p style={{ margin: 0 }}>

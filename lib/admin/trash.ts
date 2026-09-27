@@ -1,11 +1,13 @@
 import { and, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
-import { cleanDoc } from '@/lib/entries/doc';
+import { cleanDoc, docToText } from '@/lib/entries/doc';
 import { db, schema } from '@/lib/db';
 import { logActivity, logAudit, reindexEntry } from '@/lib/entries/service';
 import { entryIdsInCase, reconcileOrigin } from '@/lib/entries/origin';
-import { forgetStoredState } from '@/lib/live/docs';
+import { forgetStoredState, resetFieldsInRoom, resetRoom } from '@/lib/live/docs';
+import { caseFieldsRoomKey } from '@/lib/live/keys';
+import { recomputeCaseMentions } from '@/lib/entries/mentions';
 import type { SectionOwnerKind } from '@/lib/db/schema';
-import { plainShort } from '@/lib/entries/shortRefs';
+import { cleanDocRefs, cleanShort, plainShort } from '@/lib/entries/shortRefs';
 
 /**
  * §2.6 and §11: nothing is deleted by accident. Everything soft-deleted is
@@ -177,7 +179,8 @@ export function listTrash(limit = 200): TrashItem[] {
       kind: 'map' as const,
       name: row.name,
       href: `/maps/${row.slug}`,
-      detail: row.detail ?? '',
+      // §98: an omschrijving's chips are handles too; the Keeper's eyes read them.
+      detail: plainShort({ id: '', isKeeper: true }, row.detail ?? ''),
       deletedAt: row.deletedAt ?? 0,
     })),
     ...timelines.map((row) => ({
@@ -793,19 +796,36 @@ export function restoreCaseRevision(revisionId: string, keeperId: string) {
     .get();
   if (!revision) throw new Error('Versie niet gevonden');
   const snapshot = revision.snapshot as Record<string, unknown>;
+  // §98: the samenvatting of an old version is a short text like any other —
+  // cleaned on its way back (a handle whose row is gone goes; the Keeper is
+  // the hand) — and the notes are cleaned as a document (§89), their links
+  // handles (§97: a Keeper's hand, nothing is hidden).
+  const name = String(snapshot.name ?? '');
+  const summary = cleanShort(String(snapshot.summary ?? ''), { actor: { id: keeperId, isKeeper: true } });
+  const notes = cleanDocRefs(cleanDoc(snapshot.notes ?? null), { actor: 'system' });
 
   db.update(schema.cases)
     .set({
-      name: String(snapshot.name ?? ''),
-      summary: String(snapshot.summary ?? ''),
-      // §89: an old version is cleaned on its way back like any other document.
-      notes: cleanDoc(snapshot.notes ?? null),
-      notesText: String(snapshot.notesText ?? ''),
+      name,
+      summary,
+      notes,
+      notesText: docToText(notes),
       status: (snapshot.status as 'open' | 'cold' | 'closed') ?? 'open',
       updatedAt: Math.floor(Date.now() / 1000),
     })
     .where(eq(schema.cases.id, revision.caseId))
     .run();
+
+  /*
+   * §98 (open since §95): the dossier's rooms follow the archive, as
+   * `restoreRevision` has always made an artikel's do. Without this, a room
+   * still open on the newer samenvatting wrote it straight back over the
+   * version the Keeper just restored.
+   */
+  if (name) resetFieldsInRoom(caseFieldsRoomKey(revision.caseId), { name, summary });
+  else resetFieldsInRoom(caseFieldsRoomKey(revision.caseId), { summary });
+  resetRoom(`case:${revision.caseId}:notes`, notes);
+  recomputeCaseMentions(revision.caseId);
 
   logActivity({ actorId: keeperId, verb: 'case.restored_revision', caseId: revision.caseId });
   logAudit({

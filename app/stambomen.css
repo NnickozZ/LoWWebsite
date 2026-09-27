@@ -860,12 +860,10 @@ a.tree-node-name:focus-visible {
   .tree-tools .tree-tool-word {
     display: none;
   }
-  /* Two things that only repeat what the icons already say, at the price of a
-     row: the state of the save (the strip in the shell says it too) and the
-     line of instructions under the stage. */
-  .tree-tools .save-state {
-    display: none;
-  }
+  /* The line of instructions under the stage only repeats what the icons
+     already say, at the price of a row. (The state of the save used to be
+     hidden here too; since §100 it is not in this bar at all but in the
+     shell, beside the live dot.) */
   .tree-tools .spacer {
     flex: 1 1 0;
   }

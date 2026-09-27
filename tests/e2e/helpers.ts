@@ -379,7 +379,11 @@ export async function pasteImage(page: Page, fileName: string) {
  */
 export async function setPlekken(page: Page, kinds: readonly string[], label = 'Plek') {
   const group = page.getByRole('group', { name: label, exact: true });
-  await expect(group).toBeVisible({ timeout: 20_000 });
+  // §101 (B25): op een artikel staat een leeg veld achter "Veld invullen".
+  await expect(async () => {
+    await openEmptyFields(page);
+    await expect(group).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
   for (const box of await group.getByRole('checkbox').all()) {
     if (await box.isChecked()) await box.uncheck();
   }
@@ -404,4 +408,35 @@ export async function expectPlekken(page: Page, kinds: readonly string[], label 
       timeout: 5000,
     });
   }
+}
+
+/**
+ * §101 (B25): de lege velden van een artikel staan in Bewerken achter één regel,
+ * *+ Veld invullen ▾* (`details[data-testid="fields-empty"]`). Een spec die een
+ * leeg veld wil invullen, klapt die eerst open — alle dichte, en alleen als ze
+ * er zijn, dus op een artikel zonder lege velden doet dit niets. Op een
+ * telefoon moet de infobox zelf al open zijn (`#block-info`).
+ */
+export async function openEmptyFields(page: Page) {
+  const shut = page.locator('details[data-testid="fields-empty"]:not([open]) > summary').locator('visible=true');
+  await expect(async () => {
+    if (await shut.count()) await shut.first().click();
+    await expect(shut).toHaveCount(0, { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+}
+
+/**
+ * §101 naden: open the *Nieuw artikel* blad from wherever the page stands.
+ *
+ * The `n` shortcut is only heard once the shell has hydrated, and on an
+ * artikel just made (`?new=1`) §90 puts the caret in the running text, where
+ * an `n` is a letter. A spec that pressed `n` eight times in 3.2 s after a
+ * `goto` went red whenever the page took longer than that. This presses the
+ * button instead — *Nieuw artikel* in the side menu on a desk, the `+` on a
+ * phone — until the blad answers (`pressUntil`), and hands the blad back.
+ */
+export async function openNewEntry(page: Page) {
+  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
+  await pressUntil(page, () => newEntryButton(page).click({ timeout: 5000 }), sheet);
+  return sheet;
 }

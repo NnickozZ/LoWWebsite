@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { ShortField } from '@/components/live/LiveFields';
+import { chipsAsWords, usePageChips } from '@/components/ui/ShortChips';
 import { SideChoice } from '@/components/keeper/SideChoice';
 import { useUi } from './UiProvider';
 import { Sheet } from './Sheet';
@@ -61,15 +62,16 @@ export function NewCaseSheet({
    */
   const mayType = useMayType();
 
-  useEffect(() => {
-    nameRef.current?.focus();
-    nameRef.current?.select();
-  }, []);
+  // §101: the caret goes in through `data-autofocus` on the name box — an
+  // effect here ran before `Sheet` had drawn the box (see `Sheet`).
 
+  const pageChips = usePageChips();
   /* §69 (4.5): every keystroke into the page-lived draft. */
   useEffect(() => {
-    writeDraft(DRAFT_CASE, { name, summary });
-  }, [name, summary]);
+    // §98: the words of a chip, never the chip — an abandoned mention does not
+    // come back as a chip in the next sheet (`chipsAsWords`).
+    writeDraft(DRAFT_CASE, { name, summary: chipsAsWords(summary, pageChips) });
+  }, [name, summary, pageChips]);
 
   async function create() {
     if (!name.trim() || busy) return;
@@ -116,6 +118,7 @@ export function NewCaseSheet({
         <input
           id="new-case-name"
           ref={nameRef}
+          data-autofocus
           className="input"
           value={name}
           onChange={(event) => setName(event.target.value)}

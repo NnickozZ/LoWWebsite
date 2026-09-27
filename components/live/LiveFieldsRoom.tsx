@@ -129,7 +129,11 @@ export function BoundField(props: FieldProps & { fields: FieldsValue }) {
         if (start && end) restore.current = { start: start.index, end: end.index };
       }
       setShown(next);
-      onValueRef.current(next, { live: canEdit });
+      // §101 naden: a change that is not this field's own was saved by
+      // somebody else (a Keeper approving a voorstel, say). For a look-only
+      // viewer `live: canEdit` called it theirs, and the parent proposed it
+      // again. Only this field's own keystrokes are ever `live: false`.
+      onValueRef.current(next, { live: canEdit || transaction.origin !== origin });
     };
     text.observe(onChange);
     // The room may already differ from what the page rendered (a keystroke
@@ -166,7 +170,8 @@ export function BoundField(props: FieldProps & { fields: FieldsValue }) {
       setShown(text.toString());
     } else if (now !== shown) {
       setShown(now);
-      onValueRef.current(now, { live: canEdit });
+      // §101 naden: the room's text, not a keystroke here — never a save.
+      onValueRef.current(now, { live: true });
     }
     return () => text.unobserve(onChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps

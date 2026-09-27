@@ -54,6 +54,9 @@ const { seedBaseline } = await import('../lib/db/seed.mjs');
 const { hashPassword } = await import('../lib/auth/password.mjs');
 const { usernameKey } = await import('../lib/auth/username.mjs');
 const DATA = await import('./seed-wereld.data.mjs');
+// §98: a speld and a gebeurtenis hold chips, not `[[Naam]]` — one handle per mention.
+const { newHandle } = await import('../lib/entries/shortUpgrade.mjs');
+const { tokenFor } = await import('../lib/entries/shortTokens.mjs');
 
 /* ------------------------------------------------------------ argumenten */
 
@@ -816,6 +819,13 @@ const insertEntry = db.prepare(
 const insertFts = db.prepare('INSERT INTO entries_fts (entry_id, name, short_description, body_text, tags) VALUES (?, ?, ?, ?, ?)');
 const insertLink = db.prepare("INSERT OR IGNORE INTO entry_links (from_entry_id, to_entry_id, kind, label) VALUES (?, ?, 'mention', '')");
 const insertMention = db.prepare('INSERT OR IGNORE INTO entry_mentions (to_entry_id, from_kind, from_id, detail) VALUES (?, ?, ?, ?)');
+const insertHandle = db.prepare('INSERT INTO mention_handles (handle, entry_id) VALUES (?, ?)');
+/** §98: een chip naar dit artikel, zoals het vak hem schrijft. */
+function chip(entryId) {
+  const handle = newHandle();
+  insertHandle.run(handle, entryId);
+  return tokenFor(handle);
+}
 const insertActivity = db.prepare('INSERT INTO activity (id, actor_id, verb, entry_id, case_id, board_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
 const insertRevision = db.prepare('INSERT INTO entry_revisions (id, entry_id, snapshot, edited_by, note, created_at) VALUES (?, ?, ?, ?, ?, ?)');
 const insertSection = db.prepare("INSERT INTO sections (id, owner_kind, owner_id, title, body, body_text, visibility, sort_order) VALUES (?, 'entry', ?, ?, ?, ?, ?, ?)");
@@ -1068,7 +1078,7 @@ if (sharp) {
         db.prepare(
           `INSERT INTO map_pins (id, map_id, kind, name, text, x, y, created_by, created_at, updated_at)
            VALUES (?, ?, 'note', ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(newId(), kaart.id, naam, `Volgens [[${genoemd.name}]] klopt dit niet met het rapport.`, 0.1 + random() * 0.8, 0.1 + random() * 0.8, pick(users).id, moment(), moment());
+        ).run(newId(), kaart.id, naam, `Volgens ${chip(genoemd.id)} klopt dit niet met het rapport.`, 0.1 + random() * 0.8, 0.1 + random() * 0.8, pick(users).id, moment(), moment());
         insertMention.run(genoemd.id, 'map', kaart.id, naam);
       }
       /* §39: een speld die naar een andere landkaart wijst. */
@@ -1122,7 +1132,7 @@ db.transaction(() => {
       db.prepare(
         `INSERT INTO timeline_events (id, timeline_id, kind, name, text, at, precision, created_by, created_at, updated_at)
          VALUES (?, ?, 'note', ?, ?, ?, 'day', ?, ?, ?)`,
-      ).run(newId(), id, naamNotitie, `Iemand meldt [[${genoemd.name}]], maar het staat in geen enkel rapport.`, at(1934, 2 + Math.floor(random() * 6), 1 + Math.floor(random() * 27)), pick(users).id, moment(), moment());
+      ).run(newId(), id, naamNotitie, `Iemand meldt ${chip(genoemd.id)}, maar het staat in geen enkel rapport.`, at(1934, 2 + Math.floor(random() * 6), 1 + Math.floor(random() * 27)), pick(users).id, moment(), moment());
       insertMention.run(genoemd.id, 'timeline', id, naamNotitie);
     }
     timelines.push({ id, naam, caseId });
@@ -1176,7 +1186,7 @@ db.transaction(() => {
         crop: null,
         showImage: false,
         name: naamKaart,
-        text: `Nagaan bij [[${genoemd.name}]] — dit klopt niet met het rapport.`,
+        text: `Nagaan bij ${chip(genoemd.id)} — dit klopt niet met het rapport.`,
         x: 160 + n * 320,
         y: 900,
         rotation: Math.round((random() * 4 - 2) * 10) / 10,
@@ -1364,6 +1374,14 @@ db.transaction(() => {
 /* -------------------------------------------------------------------- klaar */
 
 writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2), 'utf8');
+
+// §97: the documents are written with the old link shape (an id and a name);
+// the conversion migration 0035 makes turns them into handles and writes the
+// plain texts and the search index without the names.
+{
+  const { upgradeDocs } = await import('../lib/entries/docUpgrade.mjs');
+  db.transaction(() => upgradeDocs(db))();
+}
 
 const tel = (sql, ...args) => db.prepare(sql).get(...args).n;
 console.log('');

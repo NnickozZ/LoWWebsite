@@ -8,7 +8,8 @@ loadEnv();
 
 const { openDb, assetsDir } = await import('../lib/db/open.mjs');
 const { readZip } = await import('../lib/zip.mjs');
-const { upgradeArchive } = await import('../lib/entries/shortUpgrade.mjs');
+const { upgradeArchive, upgradeCanvasTexts } = await import('../lib/entries/shortUpgrade.mjs');
+const { upgradeDocs } = await import('../lib/entries/docUpgrade.mjs');
 const { projectShort } = await import('../lib/entries/shortTokens.mjs');
 
 const file = process.argv[2];
@@ -58,6 +59,15 @@ const restore = db.transaction(() => {
 
     db.prepare(`DELETE FROM "${table}"`).run();
     if (!rows.length) continue;
+    /*
+     * §97: the live rooms' Yjs state is a BLOB, and `buildArchive` writes a
+     * Buffer to JSON as `{ type: 'Buffer', data: [...] }`, which no INSERT can
+     * bind — so a backup with one open room in it failed to restore at all.
+     * The rooms are not the archive: each seeds itself again from its row on
+     * the first open. So they are left empty, and a room of a restored text
+     * can never carry a stale name or a version the rows no longer have.
+     */
+    if (table === 'live_docs') continue;
 
     const columns = Object.keys(rows[0]).filter((c) => existing.has(c));
     const insert = db.prepare(
@@ -99,12 +109,38 @@ const restore = db.transaction(() => {
     upgradeArchive(db);
   }
 
-  // Rebuild the search index rather than trusting a backed-up copy of it.
+  /*
+   * §97: a backup made before migration 0035 holds its running text with the
+   * old links — the id, the name, the slug of whatever it named, handed to
+   * every reader. The archive it lands in has 0035 behind it, so the same
+   * conversion runs here on the restored rows: each link becomes a handle, the
+   * plain texts beside them are written again, and the rooms of those texts
+   * seed afresh. A backup made after 0035 has nothing left to convert, and the
+   * step finds nothing (it is idempotent).
+   */
+  const knowsDocHandles = migrations.some((row) => row?.name === '0035_de_lopende_tekst');
+  if (knownTables.has('mention_handles') && !knowsDocHandles) upgradeDocs(db);
+
+  /*
+   * §98: the same again for migration 0036 — a backup made before it holds
+   * `[[Naam]]` / `@Naam` in a speld, a gebeurtenis, a los kaartje, the
+   * omschrijving of a landkaart, tijdlijn or stamboom and an overzicht's
+   * inleiding. It may well carry `mention_handles` (made between 0034 and
+   * 0036), so the test is the migration list alone. The conversion also empties
+   * `entry_mentions`, which the next start builds again with the chips in it.
+   */
+  const knowsCanvasHandles = migrations.some((row) => row?.name === '0036_elk_kort_vak');
+  if (knownTables.has('mention_handles') && !knowsCanvasHandles) {
+    upgradeCanvasTexts(db);
+  }
+
+  /*
+   * Rebuild the search index rather than trusting a backed-up copy of it.
+   * §97: with the words of a chip-bearing text and without the names behind
+   * the chips — the index is one table for everybody (`indexShort`).
+   */
   db.prepare('DELETE FROM entries_fts').run();
-  const handleName = knownTables.has('mention_handles')
-    ? db.prepare('SELECT e.name AS name FROM mention_handles h JOIN entries e ON e.id = h.entry_id WHERE h.handle = ?')
-    : null;
-  const nameOfHandle = (handle) => handleName?.get(handle)?.name ?? null;
+  const words = (text) => projectShort(text ?? '', () => null);
   const reindex = db.prepare(
     'INSERT INTO entries_fts (entry_id, name, short_description, body_text, tags) VALUES (?, ?, ?, ?, ?)',
   );
@@ -117,8 +153,7 @@ const restore = db.transaction(() => {
     } catch {
       tags = [];
     }
-    // §95: the names of a short text's chips, not its handles.
-    reindex.run(entry.id, entry.name, projectShort(entry.short_description ?? '', nameOfHandle), entry.body_text, tags.join(' '));
+    reindex.run(entry.id, entry.name, words(entry.short_description), words(entry.body_text), tags.join(' '));
   }
 });
 

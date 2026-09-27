@@ -30,10 +30,20 @@ export function isTypable(given: EventTarget | Targetish): boolean {
 /**
  * Does this press, key or focus owe the question? Pure, so the rule is a unit
  * test and not a tap on a phone (`tests/unit/ronde-51-canvas.test.ts`).
+ *
+ * §101: **a blad over the glass is not the glass.** A `Sheet` is drawn through
+ * a portal onto `<body>`, but React sends its events up the *React* tree — so
+ * a sheet a canvas opened is still inside the canvas's gate, and everything
+ * the sheet does counts as touching the glass. Opening the legenda on a phone
+ * therefore asked "met wie ben je nu aan het schrijven?" the moment the blad
+ * took the focus, for a panel that only filters. In a blad the rule is §18b's
+ * own, whatever mode the canvas is in: **only a box you can really type into**.
+ * A button in a blad does what it says; a field in one asks first.
  */
 export function gateAsks(writing: boolean, target: EventTarget | null): boolean {
   const el = target as Targetish;
   if (el?.closest?.('[data-author-gate="off"]')) return false;
+  if (el?.closest?.('.sheet-backdrop')) return isTypable(el);
   if (writing) return true;
   return isTypable(el);
 }

@@ -4,6 +4,8 @@ import { LivePage } from '@/components/live/LivePage';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { NewOverzichtButton } from '@/components/overzichten/NewOverzichtButton';
 import { OverzichtView } from '@/components/overzichten/OverzichtView';
+import { ShortChips } from '@/components/ui/ShortChips';
+import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { TypeTabs } from '@/components/TypeTabs';
 import { requireViewer } from '@/lib/auth/session';
 import { countEntriesPerType, listEntryTypes } from '@/lib/entries/service';
@@ -80,16 +82,20 @@ export default async function OverzichtPage({
         allCount={total}
         query={query as Record<string, string>}
       />
-      <OverzichtView
-        overzicht={loaded.overzicht}
-        siblings={loaded.siblings}
-        sections={loaded.sections}
-        canEdit={loaded.canEdit}
-        isKeeper={Boolean(user?.isKeeper)}
-        users={loaded.revealUsers}
-        cases={loaded.revealCases}
-        liveUser={loaded.liveUser}
-      />
+      {/* §98: the inleiding's chips, resolved for this reader with the page —
+          §101 naden: and the secties' (`chipTexts`). */}
+      <ShortChips map={shortChipsFor(user, loaded.chipTexts)}>
+        <OverzichtView
+          overzicht={loaded.overzicht}
+          siblings={loaded.siblings}
+          sections={loaded.sections}
+          canEdit={loaded.canEdit}
+          isKeeper={Boolean(user?.isKeeper)}
+          users={loaded.revealUsers}
+          cases={loaded.revealCases}
+          liveUser={loaded.liveUser}
+        />
+      </ShortChips>
     </div>
   );
 }
