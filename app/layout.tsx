@@ -1,7 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import { ErrorReporter } from '@/components/ErrorReporter';
+import { FLIP_SCRIPT } from '@/components/keeper/flipRoad';
 import { siteIdentity } from '@/lib/admin/identity';
 import './globals.css';
+// Eén bestand per laag van het gevoel (§102–§104), na globals.css zodat ze winnen.
+import './navigatie.css';
+import './kaartje.css';
+import './moment.css';
+import './leeskamer.css';
 
 /**
  * §88: de naam in de tab is de naam van het archief.
@@ -45,6 +51,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="nl">
+      {/*
+        §102: de omslag-cirkel. The one inline script: it has to be listening
+        for `pagereveal` before the first frame, which no effect is. What it
+        does, and why it skips every navigation but a flip, is in `flipRoad.ts`.
+      */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: FLIP_SCRIPT }} />
+      </head>
       <body>
         {/*
           Mounted at the root, above the login boundary, because a browser

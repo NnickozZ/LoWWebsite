@@ -129,8 +129,10 @@ export function Grootboek({
                 Nu: erbij in gewone inkt en vet, eraf gedempt, en niets rood.
               */}
               <span className={`kamer-delta${line.delta < 0 ? ' kamer-delta-out' : ''}`}>
-                {line.delta > 0 ? '+' : ''}
-                {munt(line.delta, words)}
+                {/* §103 golf H (T22): een echt minteken (U+2212), zoals in de melding;
+                    `tabular-nums` in `.kamer-delta`, zodat de kolom klopt. */}
+                {line.delta > 0 ? '+' : line.delta < 0 ? '\u2212' : ''}
+                {munt(Math.abs(line.delta), words)}
               </span>
               <span className="small kamer-grootboek-why">{reasonOf(line, words)}</span>
               <span className="tiny muted kamer-grootboek-when">{relativeTime(line.createdAt)}</span>

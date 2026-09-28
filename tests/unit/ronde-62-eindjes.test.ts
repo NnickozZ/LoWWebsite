@@ -375,9 +375,17 @@ describe('§101: één bron, geen dode regels', () => {
 describe('§101: het woordblok', () => {
   const group = WORD_GROUPS.find((item) => item.title === 'De losse eindjes');
 
-  it('stands last, with every sentence inside WORD_MAX', () => {
+  /*
+   * §103: "last" was true until the rondes after golf 3 got their own groups
+   * under markers at the foot of `WORD_GROUPS` (ronde 65·a–c, 66, 67). What the
+   * test guards is that nobody slips a word *between* the older groups: every
+   * group after this one belongs to a later round.
+   */
+  it('stands after every older group, with every sentence inside WORD_MAX', () => {
     expect(group).toBeDefined();
-    expect(WORD_GROUPS.at(-1)).toBe(group);
+    // Wat erna komt, staat onder de markeringen van ronde 65 en later.
+    const source = readFileSync(resolve('lib/words.ts'), 'utf8');
+    expect(source.indexOf("title: 'De losse eindjes'")).toBeLessThan(source.indexOf('// ── ronde 65·a'));
     for (const def of group!.words) expect(def.fallback.length, def.key).toBeLessThanOrEqual(WORD_MAX);
   });
 

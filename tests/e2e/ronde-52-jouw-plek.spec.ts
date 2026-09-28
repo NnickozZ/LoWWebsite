@@ -167,11 +167,13 @@ test.describe('§91 jouw plek — de zijbalk', () => {
     const box = await page.getByTestId('nav-new').boundingBox();
     expect(box).not.toBeNull();
     expect(box!.y + box!.height).toBeLessThanOrEqual(900);
-    // De Keeperkant-knop in de hoek draagt een woord en haalt 44 px.
+    // Golf h1 (D4): de Keeperkant is op een computer een schakelaar in de mast
+    // van de zijbalk — [Spelers | Keeper] — en geen knop in de hoek meer.
     const toggle = page.getByTestId('side-toggle');
-    await expect(toggle).toContainText(/Keeperkant/i);
-    const toggleBox = await toggle.boundingBox();
-    expect(toggleBox!.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.sidenav .masthead').getByTestId('side-toggle')).toHaveCount(1);
+    await expect(toggle).toContainText(/Spelers/);
+    await expect(toggle).toContainText(/Keeper/);
+    await expect(page.locator('.side-toggle')).toHaveCount(0);
   });
 
   test('een wissel van speelt als neemt schrijft als mee — en een bewuste keuze staat als tweede regel', async ({

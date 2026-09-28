@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * §90 (E13): "Wat deze kamer je geeft", op een telefoon ingeklapt.
@@ -30,11 +30,30 @@ export function EffectenFold({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(true);
+  const closedOnArrival = useRef(false);
 
   useEffect(() => {
     // K15: hetzelfde breekpunt als de rest van de app.
-    if (window.matchMedia('(max-width: 767px)').matches) setOpen(false);
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      closedOnArrival.current = true;
+      setOpen(false);
+    }
   }, []);
+
+  /*
+   * §103 herstel (#7): dit blok staat bóven het raster en klapt pas dicht als
+   * de pagina er al is — ná de sprong naar `#plek-…` van *Bekijk*. Het raster
+   * schoof dan zo'n 70 px omhoog, en de tegel die net met ruimte erboven
+   * geland was, plakte alsnog tegen de bovenrand. Dus: als het dichtklappen
+   * bij aankomst de pagina verschuift, zet de tegel terug waar de sprong hem
+   * neerzette (`scroll-margin` in kamer.css). Zonder beweging (§102 regel 9).
+   */
+  useLayoutEffect(() => {
+    if (open || !closedOnArrival.current) return;
+    closedOnArrival.current = false;
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (id.startsWith('plek-')) document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  }, [open]);
 
   return (
     <details

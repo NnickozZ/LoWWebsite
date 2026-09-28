@@ -7,6 +7,7 @@ import { useUi } from '@/components/ui/UiProvider';
 import { fill, type Words } from '@/lib/words';
 import { MEANING } from './plekWords';
 import { kamerPost } from './post';
+import { toastKeyOf } from './buyToast';
 
 /**
  * §79: taking something off the shelf.
@@ -24,6 +25,7 @@ export function ClearButton({
   compact,
   toDrawer = false,
   guestOf = null,
+  entryId,
   words,
 }: {
   roomId: string;
@@ -50,6 +52,8 @@ export function ClearButton({
   toDrawer?: boolean;
   /** §93: de onderzoeker, als dit de kamer van een ander is. */
   guestOf?: string | null;
+  /** §103 golf H (T15): het ding, voor de sleutel van de melding. */
+  entryId?: string;
   words: Words;
 }) {
   const ui = useUi();
@@ -73,6 +77,9 @@ export function ClearButton({
             ? fill(words.clearedToDrawerOf, { ding: name, naam: guestOf })
             : fill(words.clearedToDrawer, { ding: name })
           : fill(words.clearedHere, { ding: name }),
+        undefined,
+        // §103 golf H (T15): één melding per ding — *ligt nu in je lade* vervangt wat er over dit ding stond.
+        entryId ? { key: toastKeyOf(entryId) } : undefined,
       );
       router.refresh();
     } finally {

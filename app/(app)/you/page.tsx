@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { LivePage } from '@/components/live/LivePage';
 import { Icon } from '@/components/Icon';
 import { MEANING } from '@/components/kamer/plekWords';
+import { KlankSchakelaar } from '@/components/kamer/KlankSchakelaar';
 import { CharacterWardrobe } from '@/components/you/CharacterSwitcher';
 import { WritingAsLine } from '@/components/you/AuthorProvider';
 import { getWords } from '@/lib/admin/words';
@@ -136,7 +137,7 @@ export default async function YouPage() {
         de twee dingen waarvoor je hier komt. Per account, op elk apparaat.
       */}
       {user && (
-        <section className="you-prefs" aria-label="Lettertype en kleuren">
+        <section className="you-prefs" aria-label="Lettertype, kleuren en geluid">
           <ReadingFontForm current={user.readingFont} label="Lettertype" note={words.fontNote} why={words.youWhy} />
           {/* §45: het licht waarin je leest. Per account, net als het lettertype. */}
           <ColourSchemeForm
@@ -145,6 +146,8 @@ export default async function YouPage() {
             note={fill(user.isKeeper ? words.colourNoteKeeper : words.colourNotePlayer, { keeper: words.keeper })}
             why={words.youWhy}
           />
+          {/* §103 (K8): geluid in de kamer — opt-in, standaard uit, per browser. */}
+          <KlankSchakelaar words={words} why={words.youWhy} />
         </section>
       )}
 

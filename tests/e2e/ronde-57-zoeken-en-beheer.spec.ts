@@ -192,10 +192,11 @@ test('/you: lettertype en kleuren onder de karakters, de uitleg in één regel',
 
   // Eén regel, en de rest achter *Waarom?*.
   // §101 (ronde 62) gave the notes under Lettertype and Kleuren a *Waarom?*
-  // of their own, so there are three folds now, each closed until asked.
+  // of their own, and §103 (ronde 66) one under *Geluid in de kamer*: four
+  // folds now, each closed until asked.
   const why = main.locator('.you-why');
-  await expect(why).toHaveCount(3);
-  for (let i = 0; i < 3; i++) await expect(why.nth(i).locator('.you-why-body')).toBeHidden();
+  await expect(why).toHaveCount(4);
+  for (let i = 0; i < 4; i++) await expect(why.nth(i).locator('.you-why-body')).toBeHidden();
   await why.first().locator('summary').click();
   await expect(why.first().locator('.you-why-body')).toBeVisible();
 });

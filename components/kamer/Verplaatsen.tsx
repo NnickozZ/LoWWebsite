@@ -8,6 +8,9 @@ import type { PlekKind } from '@/lib/kamers/shape';
 import { fill, type Words } from '@/lib/words';
 import { MEANING, plekWord } from './plekWords';
 import { kamerPost } from './post';
+import { markLanding } from './moment';
+import { toastKeyOf } from './buyToast';
+import { play } from '@/lib/sound/klank';
 
 /**
  * §93 (E10): verplaatsen, als tik-tik en nooit als slepen (WCAG 2.5.7).
@@ -24,10 +27,13 @@ import { kamerPost } from './post';
  * weet wat er bewogen wordt.
  */
 
-type Moving = { slotId: string; name: string; plekken: PlekKind[] };
+/** §103: `entryId` zodat het ding op de nieuwe plek kan landen (`markLanding`). */
+type Moving = { slotId: string; entryId: string; name: string; plekken: PlekKind[] };
 
 type MoveValue = {
   moving: Moving | null;
+  /** §103 herstel (#21): de open, lege plekken — om te weten of een ding ergens heen kán. */
+  targets: { id: string; kind: PlekKind }[];
   start: (moving: Moving, from: HTMLElement) => void;
   cancel: (restoreFocus?: boolean) => void;
 };
@@ -90,10 +96,17 @@ export function KamerGrid({
     };
   }, [moving, cancel]);
 
-  const anywhere = moving ? targets.some((slot) => moving.plekken.includes(slot.kind)) : false;
+  const anywhere = moving ? canMoveAnywhere(moving.plekken, targets) : false;
 
   return (
-    <MoveContext.Provider value={{ moving, start, cancel }}>
+    <MoveContext.Provider value={{ moving, targets, start, cancel }}>
+      {/*
+        §103 golf H (D8b): de balk zweeft onderaan het venster, boven de
+        meldingen (`position: fixed`, 240 ms in op `--ease-enter`). Hij stond in
+        de flow boven het raster: het raster zakte 67 px zodra je *Verplaatsen*
+        koos, en sprong na *Hierheen* weer omhoog — precies terwijl je een tegel
+        aan het aanwijzen was.
+      */}
       {moving && (
         <p className="kamer-move-bar" role="status" data-testid="kamer-move-bar">
           <Icon name={MEANING.verplaatsen} size={14} />
@@ -118,20 +131,34 @@ export function KamerGrid({
   );
 }
 
+/** §103 herstel (#21): past dit ding op één van de open, lege plekken? Puur, zodat de regel te testen is. */
+export function canMoveAnywhere(plekken: readonly PlekKind[], targets: readonly { kind: PlekKind }[]): boolean {
+  return targets.some((slot) => plekken.includes(slot.kind));
+}
+
 /** Op een gevulde tegel: begin met verplaatsen (of stop, als je al bezig was met dit ding). */
 export function MoveButton({
   slotId,
+  entryId,
   name,
   plekken,
   words,
 }: {
   slotId: string;
+  entryId: string;
   name: string;
   plekken: PlekKind[];
   words: Words;
 }) {
   const move = useContext(MoveContext);
   if (!move) return null;
+  /*
+   * §103 herstel (#21): geen knop die naar een doodlopende balk leidt. Is er
+   * geen open, lege plek van een soort waar dit ding op past, dan valt er niets
+   * te verplaatsen en staat de knop er niet — de pagina rendert opnieuw zodra
+   * er een plek opengaat of leeg komt, en dan staat hij er wel.
+   */
+  if (!canMoveAnywhere(plekken, move.targets)) return null;
   const active = move.moving?.slotId === slotId;
   const label = fill(words.slotMoveOne, { ding: name });
   return (
@@ -144,7 +171,7 @@ export function MoveButton({
       aria-pressed={active}
       onClick={(event) => {
         if (active) move.cancel();
-        else move.start({ slotId, name, plekken }, event.currentTarget);
+        else move.start({ slotId, entryId, name, plekken }, event.currentTarget);
       }}
     >
       <Icon name={MEANING.verplaatsen} size={14} />
@@ -182,10 +209,25 @@ export function MoveHere({
         ui.toast(error);
         return;
       }
+      /*
+       * §103 (K2, G7): de doeltegel licht op en het ding landt — het briefje
+       * voor de tegel die zo meteen gevuld terugkomt, en een houten tik (K8,
+       * alleen als het geluid aanstaat).
+       */
+      markLanding({ slotId, entryId: moving.entryId, first: false });
+      play('tik');
+      /*
+       * §103 golf H (D9/T15): *Kaartenkast verplaatst naar de plank.* — het
+       * werkwoord van wat er gebeurde, niet nog eens *ligt nu op je plank*
+       * (dat zei de koop al). En met de sleutel van het ding: deze melding
+       * vervangt die van de koop op haar plek in plaats van eronder te komen.
+       */
       ui.toast(
         guestOf
-          ? fill(words.boughtThere, { ding: moving.name, plek: plekWord(kind, words), naam: guestOf })
-          : fill(words.boughtHere, { ding: moving.name, plek: plekWord(kind, words) }),
+          ? fill(words.movedToOf, { ding: moving.name, plek: plekWord(kind, words), naam: guestOf })
+          : fill(words.movedTo, { ding: moving.name, plek: plekWord(kind, words) }),
+        undefined,
+        { key: toastKeyOf(moving.entryId) },
       );
       move.cancel();
       router.refresh();

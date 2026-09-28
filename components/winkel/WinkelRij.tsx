@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Cover } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
-import { munt, plekIcon, plekWord, shortfall } from '@/components/kamer/plekWords';
+import { MEANING, munt, plekIcon, plekWord, shortfall } from '@/components/kamer/plekWords';
 import type { ShopItem } from '@/lib/kamers/service';
 import type { PlekKind } from '@/lib/kamers/shape';
 import { capitalise, fill, type Words } from '@/lib/words';
@@ -133,7 +133,10 @@ export function WinkelRij({
     <li
       className={`kamer-koop winkel-rij${state === 'dear' ? ' kamer-koop-dear' : ''}`}
       data-testid="winkel-rij"
-      data-entry-id={item.id}
+      /* §103 (E18): geen `data-entry-id` op de rij. De voorbeeldkaart (§ronde 65)
+         zoekt het dichtstbijzijnde `[data-entry-id]`, en op de hele rij sprong hij
+         op boven de koopknop. Nu draagt alleen de naam hem. */
+      data-item={item.id}
       data-kinds={item.plekken.join(' ')}
       data-price={item.price}
       data-state={state}
@@ -151,7 +154,7 @@ export function WinkelRij({
 
       <div className="kamer-koop-body">
         <p className="kamer-koop-name">
-          <Link href={`/e/${item.slug}`} data-testid="winkel-naam">
+          <Link href={`/e/${item.slug}`} data-testid="winkel-naam" data-entry-id={item.id}>
             <strong>{item.name}</strong>
           </Link>
         </p>
@@ -184,7 +187,19 @@ export function WinkelRij({
       </div>
 
       <div className="kamer-koop-buy">
-        <span className="stamp kamer-koop-price" data-testid="winkel-prijs">
+        {/*
+          §103 herstel (#18): de prijs staat één keer per rij, en dit is hij. De
+          knop eronder zegt alleen wat hij doet (*Kopen → bureau*). Rood is voor
+          wat je nú kunt kopen; een prijs die je niet kunt betalen, die je al hebt
+          of waarvoor eerst een plek open moet, is een rustige stempel in inkt
+          (`.winkel-prijs-rustig`). Wie geen beurs heeft (de Keeper, `list`)
+          leest een prijslijst, en daar ís de rode stempel de prijs. Niets hiervan
+          is een feit dat alleen de kleur draagt: `data-state` op de rij zegt het.
+        */}
+        <span
+          className={`stamp kamer-koop-price winkel-prijs${state === 'buy' || state === 'list' ? '' : ' winkel-prijs-rustig'}`}
+          data-testid="winkel-prijs"
+        >
           {munt(item.price, words)}
         </span>
 
@@ -193,14 +208,46 @@ export function WinkelRij({
           een weigering. Het staat dus ook naast een levende knop — wie een
           tweede stoel koopt hoort te weten dat er al een staat.
         */}
+        {/*
+          §103 (K6): één zin voor één feit, en een deur ernaartoe. Na een koop
+          stond hier *Staat al in je kamer*, daaronder *Geen vrije plek van deze
+          soort* en dan nog *Naar de kamer*: twee zinnen en een knop over één
+          ding dat net gebeurd was. Nu *Staat in je kamer · Bekijk*, en *Bekijk*
+          springt naar de tegel waar het ligt (`ownedSlotId`).
+        */}
         {item.owned && (
-          <span className="tiny muted winkel-state" data-testid="winkel-owned">
+          <span className="tiny muted winkel-state winkel-owned" data-testid="winkel-owned">
+            {/*
+              §103 herstel (#6): de kleine stempel die blijft liggen na de grote
+              op de knop. Hij herhaalt wat de zin zegt, dus een schermlezer hoort
+              hem niet.
+            */}
+            <span className="winkel-gekocht-stempel" data-testid="winkel-gekocht-klein" aria-hidden="true">
+              <Icon name={MEANING.gekocht} size={11} />
+              {words.buyBought}
+            </span>
             {/* §93: wat alleen in de lade ligt, staat niet "in je kamer". */}
-            {item.drawerCount === item.ownedCount
-              ? words.shopInDrawer
-              : item.ownedCount > 1
-                ? fill(words.shopOwnedCount, { n: String(item.ownedCount) })
-                : words.shopOwned}
+            <span className="winkel-owned-zin">
+            <span>
+              {item.drawerCount === item.ownedCount
+                ? words.shopInDrawer
+                : item.ownedCount > 1
+                  ? fill(words.shopOwnedCount, { n: String(item.ownedCount) })
+                  : words.shopOwnedShort}
+            </span>
+            {roomSlug && (
+              <>
+                <span aria-hidden="true"> · </span>
+                <Link
+                  className="winkel-bekijk"
+                  data-testid="winkel-bekijk"
+                  href={`/kamer/${roomSlug}${item.ownedSlotId && item.drawerCount !== item.ownedCount ? `#plek-${item.ownedSlotId}` : ''}`}
+                >
+                  {words.shopOwnedShow}
+                </Link>
+              </>
+            )}
+            </span>
           </span>
         )}
 
@@ -218,25 +265,49 @@ export function WinkelRij({
           *Kopen*. Kun je die niet betalen (of is er geen), dan de deur naar de
           kamer, met een werkwoord (K11).
         */}
-        {state === 'noslot' &&
+        {/* §103 (K6): wie het al heeft, leest alleen de regel hierboven. */}
+        {state === 'noslot' && !item.owned &&
           (roomId && item.opens && balance >= item.opens.price ? (
+            /*
+              §103 herstel (#18): één zin in plaats van twee prijzen naast elkaar
+              (*4 munten* op de stempel, *Kist openen · 5 munten* op de knop):
+              *Eerst een kist openen (5), dan 4*. Een schermlezer hoort de munten
+              erbij.
+            */
             <UnlockButton
               roomId={roomId}
               slotId={item.opens.slotId}
               kind={item.opens.kind}
               price={item.opens.price}
               label={capitalise(fill(words.shopOpenKind, { plek: plekWord(item.opens.kind, words) }))}
+              sentence={{
+                /* §103 golf H (D8a): op één regel — *Eerst bureau openen · 12*. De
+                   zin van twee regels liet de hele lijst 7 px zakken na een koop
+                   in de rij erboven. De prijs van het ding is de stempel erboven. */
+                text: fill(words.shopOpenFirstShort, {
+                  plek: plekWord(item.opens.kind, words),
+                  n: String(item.opens.price),
+                }),
+                label: fill(words.shopOpenFirst, {
+                  plek: plekWord(item.opens.kind, words),
+                  n: munt(item.opens.price, words),
+                  prijs: munt(item.price, words),
+                }),
+              }}
               words={words}
             />
           ) : (
-            <span className="tiny muted winkel-state" data-testid="winkel-geen-plek">
+            <span className="tiny muted winkel-state winkel-geen-plek" data-testid="winkel-geen-plek">
               <span>{words.shopNoSlot}</span>
               {roomSlug && (
                 <Link
-                  className="btn btn-ghost btn-small"
+                  /* §103 herstel (#28): dezelfde deur als bovenaan de winkel — een
+                     kleine knop met het icoon van de kamer, geen zwevend woord. */
+                  className="btn btn-small"
                   href={`/kamer/${roomSlug}`}
                   data-testid="winkel-geen-plek-deur"
                 >
+                  <Icon name={MEANING.kamer} size={14} />
                   {fill(words.toRoom, { kamer: words.room })}
                 </Link>
               )}

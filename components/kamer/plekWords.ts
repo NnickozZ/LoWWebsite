@@ -32,10 +32,16 @@ const WORD_KEY: Record<PlekKind, string> = {
  * leest deze twee tabellen en vergelijkt ze met wat de componenten tekenen.
  */
 const ICON: Record<PlekKind, string> = {
-  muur: 'pin',
+  /*
+   * §103 herstel (#22): een lijstje aan een spijker, en een zeekist. `pin` en
+   * `box` waren ook de iconen van de soorten *Locaties* en *Voorwerpen* — een
+   * muur zag eruit als een plaats en een kist als elk gevonden voorwerp.
+   * `plank` en `bureau` botsen met geen enkele soort.
+   */
+  muur: 'frame',
   plank: 'shelf',
   bureau: 'desk',
-  kist: 'box',
+  kist: 'chest',
 };
 
 /**
@@ -66,6 +72,12 @@ export const MEANING = {
   onderzoeker: 'person',
   /** §93: een ding naar een andere plek in dezelfde kamer. */
   verplaatsen: 'move',
+  /** §103 (K2): de koopknop na de klik — *Gekocht*, met de stempel. */
+  gekocht: 'check',
+  /** §103 golf H (T16/D29): het artikel van de onderzoeker, naast de naam in de kop van de kamer. */
+  artikel: 'file',
+  /** §103 golf H (T11): de vouw onder de dichte plekken op een telefoon. */
+  vouw: 'chevron',
 } as const;
 
 /** De vormen die deze feature bezet houdt: de vier plekken plus elke betekenis. */
@@ -79,7 +91,7 @@ export function plekWord(kind: PlekKind, words: Words): string {
 }
 
 export function plekIcon(kind: PlekKind): string {
-  return ICON[kind] ?? 'box';
+  return ICON[kind] ?? 'chest';
 }
 
 /**
@@ -117,6 +129,21 @@ export function withPrice(label: string, price: number, words: Words): string {
 }
 
 /**
+ * §103 golf H (T11): de regel onder de dichte tegels op een telefoon —
+ * *Nog 6 plekken op slot · 8 tot 30 munten*, of één prijs als ze allemaal
+ * hetzelfde kosten. Niets om op te tellen: het zijn de prijzen die al op de
+ * tegels staan. Leeg als er niets achter de vouw zit.
+ */
+export function lockedRestLine(prices: readonly number[], words: Words): string {
+  if (prices.length === 0) return '';
+  const low = Math.min(...prices);
+  const high = Math.max(...prices);
+  const plekken = `${prices.length} ${prices.length === 1 ? words.slot : words.slotPlural}`;
+  const prijzen = low === high ? munt(low, words) : fill(words.priceRange, { van: String(low), tot: munt(high, words) });
+  return fill(words.lockedRest, { plekken, prijzen });
+}
+
+/**
  * §90 (E21): hoe een `room.*`-regel in het feed leest.
  *
  * Het feed drukt `{wie} {werkwoord} {ding}` af, en een kamerhandeling stond er
@@ -136,13 +163,20 @@ export function roomFeedPhrase(
   owner: string | null,
   own: boolean,
   words: Words,
-): { verb: string; tail: string } | null {
+): { verb: string; tail: string; bare?: boolean } | null {
   /*
    * §93: een geopende plek. Het ding van de regel ís de onderzoeker (een plek is
    * geen artikel), dus de zin eindigt op zijn naam: *opende een plek in de
    * kamer van* **Dr. Kramer**.
+   *
+   * §103 golf H (D26): maar een speler opent alleen in zijn eigen kamer, en dan
+   * stond er *Bertus Slabbekoorn opende een plek in de kamer van Bertus
+   * Slabbekoorn*. Voor de eigen kamer is de zin af zonder naam (`bare`): de
+   * regel drukt het ding dan niet af — *opende een plek in de eigen kamer*.
    */
-  if (verb === 'room.opened') return { verb: words.feedRoomOpened, tail: '' };
+  if (verb === 'room.opened') {
+    return own ? { verb: words.feedRoomOpenedOwn, tail: '', bare: true } : { verb: words.feedRoomOpened, tail: '' };
+  }
   // §93: een koop leest als neerzetten, met zijn eigen werkwoord.
   if (verb !== 'room.placed' && verb !== 'room.cleared' && verb !== 'room.bought') return null;
   const placed = verb !== 'room.cleared';

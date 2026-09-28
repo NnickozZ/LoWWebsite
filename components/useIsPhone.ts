@@ -15,6 +15,15 @@ const PHONE = '(max-width: 767px)';
  * outline that jumped between the picture and the text at 1280 px.
  */
 const WIDE = '(min-width: 1280px)';
+/*
+ * §104 (golf H, D1): the width from which the outline is a column of its own.
+ * Between 1280 and 1499 px the page is two columns — text and facts — and the
+ * outline is the row of chips above the text: a third column there left the
+ * text 367 px (±43 characters a line) at 1280. **This number and the
+ * `@media (min-width: 1500px)` block around `.entry-layout-rail` in
+ * `app/leeskamer.css` are the same number**, for the same reason as `WIDE`.
+ */
+const RAIL = '(min-width: 1500px)';
 
 function subscribeTo(query: string) {
   return (onChange: () => void) => {
@@ -27,8 +36,10 @@ function subscribeTo(query: string) {
 
 const subscribePhone = subscribeTo(PHONE);
 const subscribeWide = subscribeTo(WIDE);
+const subscribeRail = subscribeTo(RAIL);
 const phoneNow = () => window.matchMedia(PHONE).matches;
 const wideNow = () => window.matchMedia(WIDE).matches;
+const railNow = () => window.matchMedia(RAIL).matches;
 
 /**
  * True under 768 px. Server-renders as false and corrects on hydration, so the
@@ -48,4 +59,14 @@ export function useIsPhone(): boolean {
  */
 export function useIsWide(): boolean {
   return useSyncExternalStore(subscribeWide, wideNow, () => true);
+}
+
+/**
+ * §104 (golf H, D1): true from 1500 px, where the artikel page has room for
+ * the outline as a column beside the text (see `RAIL` above, which must agree
+ * with `app/leeskamer.css`). From 1280 to 1499 px the outline is the row of
+ * chips above the text instead. Server-renders as true, like `useIsWide`.
+ */
+export function useHasRail(): boolean {
+  return useSyncExternalStore(subscribeRail, railNow, () => true);
 }

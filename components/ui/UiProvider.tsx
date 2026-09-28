@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -15,7 +16,7 @@ import { useAuthorOptional } from '@/components/you/AuthorProvider';
 import { openSheetCount } from '@/lib/sheetStack';
 import { PLAYER_UPLOAD_BYTES } from '@/lib/upload';
 import { CHARACTER_TYPE_SLUG } from '@/lib/newEntryType';
-import { DEFAULT_WORDS, type Words } from '@/lib/words';
+import { DEFAULT_WORDS, fill, type Words } from '@/lib/words';
 import type { FieldDef } from '@/lib/db/schema';
 import { FLIP_EVENT } from '@/components/keeper/SideToggle';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
@@ -67,14 +68,28 @@ export type EntryTypeLite = {
   shopFields?: FieldDef[];
 };
 
-type Toast = {
+export type Toast = {
   id: number;
   message: string;
   actionLabel?: string;
   onAction?: () => void;
   /** §93: een tweede knop — *Ongedaan maken* naast *Bekijk* in een koopmelding. */
   also?: ToastAction;
+  /** §102: hoe lang hij staat, en of de muis of de focus dat mag rekken. */
+  ms: number;
+  pausable: boolean;
+  /** §102: op weg naar buiten — een plaatje, geen melding meer. */
+  closing?: boolean;
+  /** §103 golf H (T15/D9): het onderwerp. Een nieuwe melding met dezelfde sleutel vervangt deze. */
+  key?: string;
+  /** Hoe vaak hij ter plekke vervangen is: de klok begint dan opnieuw. */
+  version: number;
+  /** §103 golf H (D10): een gift van de Keeper — de stempel met het bedrag, en de reden. */
+  munt?: ToastMunt;
 };
+
+/** §103 golf H (D10): wat `toast-munt` tekent. `delta` is wat de server gaf (`lastGrantOf`). */
+export type ToastMunt = { delta: number; reason: string };
 
 type ToastAction = { label: string; onAction: () => void };
 
@@ -83,7 +98,82 @@ type ToastAction = { label: string; onAction: () => void };
  * draagt *Ongedaan maken* tien seconden lang (het venster van `undoPurchase`),
  * dus hij mag niet na zes seconden verdwijnen.
  */
-export type ToastOptions = { ms?: number; also?: ToastAction };
+export type ToastOptions = {
+  /**
+   * §93/§102: een eigen duur, en die **wint en pauzeert niet**. De koopmelding
+   * geeft hier `BUY_UNDO_MS` mee: dat is het venster van de server voor
+   * *Ongedaan maken* (§93, tien seconden plus vijf speling). Een melding die
+   * langer bleef staan omdat de muis erop lag, zou een knop aanbieden die de
+   * server weigert.
+   */
+  ms?: number;
+  also?: ToastAction;
+  /**
+   * §103 golf H (T15/D9): het onderwerp van de melding — `ding:<id>` of
+   * `plek:<id>`. Een nieuwe melding met dezelfde sleutel vervangt de vorige
+   * **op haar plek**, zonder uitgang en ingang, en haar klok begint opnieuw.
+   * "Inktpot ligt nu in je lade." en daarna "Inktpot ligt nu op je bureau."
+   * zijn dan één melding die van gedachten veranderde, geen twee balken
+   * waarvan de bovenste al niet meer waar is.
+   */
+  key?: string;
+  /**
+   * §103 golf H (D10): een gift van de Keeper, getekend als `toast-munt`. Met
+   * dezelfde `key` tellen twee giften op in één melding (*+25*): dat is een
+   * optelling van twee meldingen, niet van een saldo — het getal in de schil
+   * blijft dat van de server (§79, `SaldoGetal`).
+   */
+  munt?: ToastMunt;
+};
+
+/**
+ * §102 (J4): hoe lang een melding staat. Zes seconden voor een zin; tien voor
+ * een melding met een knop (*Bekijk*, *Ongedaan maken*), want wie moet lezen
+ * én beslissen heeft meer nodig dan wie alleen leest. Een eigen `ms` wint.
+ */
+export const TOAST_MS = 6000;
+export const TOAST_ACTION_MS = 10000;
+
+/** §102: the way out of a toast is `--dur-3`; this is the net under it. */
+const TOAST_EXIT_NET_MS = 250;
+
+/** §103 golf H (D9): hooguit zoveel meldingen tegelijk op het scherm. */
+export const TOAST_MAX = 2;
+
+/**
+ * §103 golf H (T15/D9): de stapel na één nieuwe melding. Puur, zodat de regel
+ * te testen is.
+ *
+ *  - **Eén melding per onderwerp.** Staat er een levende melding met dezelfde
+ *    `key`, dan wordt díé vervangen, op haar plek en met hetzelfde `id` (dus
+ *    zonder uitgang en ingang); `version` gaat omhoog en haar klok begint
+ *    opnieuw. Twee giften van de Keeper (`munt`) tellen op.
+ *  - **Hooguit twee.** Anders gaat de oudste levende melding weg met haar
+ *    gewone uitgang (`closing`), en komt de nieuwe onderaan erbij. Een
+ *    melding op weg naar buiten telt niet mee: die is al een plaatje.
+ */
+export function nextToasts(
+  current: Toast[],
+  fresh: Omit<Toast, 'id' | 'version'>,
+  id: number,
+  max: number = TOAST_MAX,
+): Toast[] {
+  const live = current.filter((t) => !t.closing);
+  const same = fresh.key ? live.find((t) => t.key === fresh.key) : undefined;
+  if (same) {
+    const munt =
+      fresh.munt && same.munt
+        ? { delta: same.munt.delta + fresh.munt.delta, reason: fresh.munt.reason || same.munt.reason }
+        : fresh.munt;
+    return current.map((t) => (t === same ? { ...fresh, munt, id: t.id, version: t.version + 1 } : t));
+  }
+  const overflow = Math.max(0, live.length - (max - 1));
+  const leaving = new Set(live.slice(0, overflow).map((t) => t.id));
+  return [
+    ...current.map((t) => (leaving.has(t.id) ? { ...t, closing: true } : t)),
+    { ...fresh, id, version: 0 },
+  ];
+}
 
 /**
  * §48, round 25: the dossier this screen *is*.
@@ -227,9 +317,37 @@ export function UiProvider({
 }) {
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
+  /*
+   * Review #10: the `+` and a melding share the bottom right of a phone. The
+   * stack's height goes on `:root` as `--toast-stack`, and `.fab` climbs by
+   * it (`globals.css`, *fab*) — so the `+` stands above the melding instead of
+   * half under it, and comes down again when the melding goes.
+   */
+  const toastWrap = useRef<HTMLDivElement>(null);
+  const hasToasts = toasts.length > 0;
+  useEffect(() => {
+    const wrap = toastWrap.current;
+    const root = document.documentElement;
+    if (!wrap || !hasToasts || typeof ResizeObserver === 'undefined') {
+      root.style.removeProperty('--toast-stack');
+      return;
+    }
+    const measure = () => root.style.setProperty('--toast-stack', `${Math.ceil(wrap.getBoundingClientRect().height)}px`);
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(wrap);
+    return () => {
+      watch.disconnect();
+      root.style.removeProperty('--toast-stack');
+    };
+  }, [hasToasts]);
   const [entryPrefill, setEntryPrefill] = useState<NewEntryPrefill | null>(null);
   const [casePrefill, setCasePrefill] = useState<NewCasePrefill | null>(null);
-  const [question, setQuestion] = useState<{ options: ConfirmOptions; settle: (yes: boolean) => void } | null>(null);
+  const [question, setQuestion] = useState<{
+    options: ConfirmOptions;
+    settle: (yes: boolean) => void;
+    key: number;
+  } | null>(null);
   // §48: the dossier the screen is. A plain state, written by one component.
   const [caseHere, setCaseHere] = useState<CaseHere | null>(null);
   // §100: the palet.
@@ -243,9 +361,10 @@ export function UiProvider({
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
       // A second question while one is open answers the first with "no".
+      const key = nextId.current++;
       setQuestion((current) => {
         current?.settle(false);
-        return { options, settle: resolve };
+        return { options, settle: resolve, key };
       });
     });
   }, []);
@@ -257,17 +376,65 @@ export function UiProvider({
     });
   }, []);
 
+  /*
+   * §102 (J4): the timer lives with each toast now (`ToastView`), so that it
+   * can wait while a hand or the focus is on it. What stays here is the list:
+   * at most three, and a toast on its way out is marked rather than dropped —
+   * `ToastView` plays the exit and then asks to be taken away.
+   */
   const toast = useCallback(
     (message: string, action?: { label: string; onAction: () => void }, options?: ToastOptions) => {
       const id = nextId.current++;
-      setToasts((current) => [
-        ...current.slice(-2),
-        { id, message, actionLabel: action?.label, onAction: action?.onAction, also: options?.also },
-      ]);
-      setTimeout(() => setToasts((current) => current.filter((t) => t.id !== id)), options?.ms ?? 6000);
+      const hasAction = Boolean(action || options?.also);
+      const ms = options?.ms ?? (hasAction ? TOAST_ACTION_MS : TOAST_MS);
+      const fresh = {
+        message,
+        actionLabel: action?.label,
+        onAction: action?.onAction,
+        also: options?.also,
+        ms,
+        pausable: options?.ms === undefined,
+        key: options?.key,
+        munt: options?.munt,
+      };
+      // §103 golf H: see `nextToasts` — one per subject, and at most two.
+      setToasts((current) => nextToasts(current, fresh, id));
     },
     [],
   );
+
+  /*
+   * §103 golf H (T6): een melding ligt nooit over een blad. Een nieuw blad is
+   * het antwoord op wat je nu doet, dus de lopende meldingen gaan weg (hun
+   * gewone uitgang, `--dur-3`) zodra er een `.sheet-backdrop` bijkomt. Een
+   * melding die ná het openen komt, hoort bij het blad (een weigering in de
+   * catalogus) en staat zolang bovenaan het scherm, boven de verduistering en
+   * niet over het blad (`globals.css`, *toasts*). `Sheet` hangt zijn laag
+   * direct onder `<body>`, dus één waarnemer zonder `subtree` is genoeg, en
+   * `Sheet` zelf hoeft er niets van te weten.
+   */
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined') return;
+    const watch = new MutationObserver((records) => {
+      const opened = records.some((record) =>
+        Array.from(record.addedNodes).some(
+          (node) => node instanceof HTMLElement && node.classList.contains('sheet-backdrop'),
+        ),
+      );
+      if (!opened) return;
+      setToasts((current) =>
+        current.some((t) => !t.closing) ? current.map((t) => (t.closing ? t : { ...t, closing: true })) : current,
+      );
+    });
+    watch.observe(document.body, { childList: true });
+    return () => watch.disconnect();
+  }, []);
+  const leaveToast = useCallback((id: number) => {
+    setToasts((current) => current.map((t) => (t.id === id && !t.closing ? { ...t, closing: true } : t)));
+  }, []);
+  const dropToast = useCallback((id: number) => {
+    setToasts((current) => current.filter((t) => t.id !== id));
+  }, []);
 
   /*
    * §18b: a speler with no onderzoeker cannot make a dossier, so that sheet
@@ -513,7 +680,18 @@ export function UiProvider({
       )}
 
       {question && (
-        <Sheet onClose={() => answer(false)} labelledBy="confirm-title">
+        /*
+         * §102: the cross and the backdrop play the sheet's way out, but the
+         * *answer* is given at the first moment (`onLeave`), never 150 ms
+         * later. Keyed per question, so a second question never inherits the
+         * first one's closing sheet.
+         */
+        <Sheet
+          key={question.key}
+          onClose={() => answer(false)}
+          onLeave={() => question.settle(false)}
+          labelledBy="confirm-title"
+        >
           <h2 id="confirm-title" style={{ marginTop: 0 }}>
             {question.options.title}
           </h2>
@@ -538,36 +716,191 @@ export function UiProvider({
         </Sheet>
       )}
 
-      <div className="toast-wrap" aria-live="polite">
+      {/*
+        * §102: `aria-live` on the wrapper and nowhere else — a `role="status"`
+        * per toast as well would have it read out twice.
+        */}
+      <div className="toast-wrap" aria-live="polite" ref={toastWrap}>
         {toasts.map((t) => (
-          <div className="toast" key={t.id}>
-            <span style={{ flex: 1 }}>{t.message}</span>
-            {t.actionLabel && (
-              <button
-                type="button"
-                onClick={() => {
-                  t.onAction?.();
-                  setToasts((current) => current.filter((x) => x.id !== t.id));
-                }}
-              >
-                {t.actionLabel}
-              </button>
-            )}
-            {t.also && (
-              <button
-                type="button"
-                data-testid="toast-also"
-                onClick={() => {
-                  t.also?.onAction();
-                  setToasts((current) => current.filter((x) => x.id !== t.id));
-                }}
-              >
-                {t.also.label}
-              </button>
-            )}
-          </div>
+          <ToastView key={t.id} toast={t} words={words} onLeave={leaveToast} onGone={dropToast} />
         ))}
       </div>
     </UiContext.Provider>
+  );
+}
+
+/**
+ * §102 (J4): one toast, with its own clock.
+ *
+ * In: `--dur-4` up and in (`toast-in`). Out: `--dur-3` down and out, through
+ * `data-closing` — the same shape as a sheet's way out (J3), and for the same
+ * reason the toast is `pointer-events: none` from the first moment of it.
+ *
+ * The clock waits while a pointer is on the toast or the focus is in it, and
+ * goes on with what was left when both have gone (WCAG 2.2.1, and NN/g: a
+ * message you are reading should not leave under your eyes). A toast that
+ * brought its own `ms` does not wait — see `ToastOptions.ms`.
+ *
+ * A button pressed with the pointer lets the toast play its way out; the same
+ * button pressed with a key takes it away at once (a key does not move).
+ */
+function ToastView({
+  toast: t,
+  words,
+  onLeave,
+  onGone,
+}: {
+  toast: Toast;
+  words: Words;
+  onLeave: (id: number) => void;
+  onGone: (id: number) => void;
+}) {
+  const { id, ms, pausable, closing, version } = t;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const left = useRef(ms);
+  const startedAt = useRef(0);
+  const hovered = useRef(false);
+  const focused = useRef(false);
+
+  const stop = useCallback(() => {
+    if (!timer.current) return;
+    clearTimeout(timer.current);
+    timer.current = null;
+    left.current = Math.max(0, left.current - (Date.now() - startedAt.current));
+  }, []);
+  const run = useCallback(() => {
+    if (timer.current) return;
+    startedAt.current = Date.now();
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      onLeave(id);
+    }, left.current);
+  }, [id, onLeave]);
+
+  useEffect(() => {
+    if (closing) return;
+    run();
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+    };
+  }, [closing, run]);
+
+  /*
+   * §103 golf H (T15): vervangen op haar plek — dezelfde doos, een nieuwe
+   * tekst, en de klok begint opnieuw met de volle duur. Een hand of focus die
+   * er al op lag, houdt hem nog steeds vast.
+   */
+  const firstVersion = useRef(version);
+  useEffect(() => {
+    if (version === firstVersion.current || closing) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    left.current = ms;
+    if (pausable && (hovered.current || focused.current)) return;
+    run();
+    // `run` en `ms` horen bij deze versie; alleen een nieuwe versie zet de klok terug.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
+
+  // The net under the way out: a background tab may never fire `animationend`.
+  useEffect(() => {
+    if (!closing) return;
+    const net = setTimeout(() => onGone(id), TOAST_EXIT_NET_MS);
+    return () => clearTimeout(net);
+  }, [closing, id, onGone]);
+
+  const hold = () => {
+    if (!pausable || closing) return;
+    stop();
+  };
+  const release = () => {
+    if (!pausable || closing || hovered.current || focused.current) return;
+    run();
+  };
+  const press = (event: ReactMouseEvent, then?: () => void) => {
+    then?.();
+    if (event.detail === 0) onGone(id);
+    else onLeave(id);
+  };
+
+  return (
+    <div
+      className={t.munt ? 'toast toast-munt' : 'toast'}
+      data-closing={closing ? '' : undefined}
+      data-key={t.key}
+      // Golf H: a resting mouse holds it; a finger does not. A tap leaves a
+      // "hover" behind on a touch screen, and a melding that waits for a pointer
+      // to leave that never leaves would stand over the page for good.
+      onPointerEnter={(event) => {
+        if (event.pointerType !== 'mouse') return;
+        hovered.current = true;
+        hold();
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'mouse') return;
+        hovered.current = false;
+        release();
+      }}
+      onFocus={() => {
+        focused.current = true;
+        hold();
+      }}
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        focused.current = false;
+        release();
+      }}
+      onAnimationEnd={(event) => {
+        if (closing && event.target === event.currentTarget) onGone(id);
+      }}
+    >
+      {t.munt ? <ToastMuntBody munt={t.munt} version={version} words={words} /> : <span style={{ flex: 1 }}>{t.message}</span>}
+      {t.actionLabel && (
+        <button type="button" onClick={(event) => press(event, t.onAction)}>
+          {t.actionLabel}
+        </button>
+      )}
+      {t.also && (
+        <button type="button" data-testid="toast-also" onClick={(event) => press(event, t.also?.onAction)}>
+          {t.also.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * §103 golf H (D10): de binnenkant van `toast-munt` — het mooiste moment aan
+ * tafel, in het expressieve register (docs/beweging.md).
+ *
+ * Links een stempel met het bedrag (*+20*), in het groen van de aanwezigheid
+ * (`--live`): een gift, nooit rood (§84). Hij komt neer in `--dur-5` op
+ * `--ease-land`, en opnieuw als er een tweede gift bij komt (`key={version}`);
+ * onder reduced motion ligt hij er gewoon (`app/moment.css`). Rechts de regel
+ * *munten van de Keeper* en de reden, cursief, want het zijn de woorden van
+ * de Keeper. Voor een schermlezer staat de hele zin er één keer
+ * (`grantArrived`), zodat hij niet in drie brokken wordt voorgelezen.
+ */
+function ToastMuntBody({ munt, version, words }: { munt: ToastMunt; version: number; words: Words }) {
+  const amount = Math.abs(munt.delta);
+  const woord = amount === 1 ? words.currency : words.currencyPlural;
+  const bedrag = `${amount} ${woord}`;
+  const reason = munt.reason.trim();
+  const sentence = reason
+    ? fill(words.grantArrived, { bedrag, keeper: words.keeper, reden: reason })
+    : fill(words.grantArrivedPlain, { bedrag, keeper: words.keeper });
+  return (
+    <>
+      <span className="toast-munt-stempel" key={version} data-testid="toast-munt-stempel" aria-hidden="true">
+        {munt.delta >= 0 ? '+' : '\u2212'}
+        {amount}
+      </span>
+      <span className="toast-munt-tekst" aria-hidden="true">
+        <span className="toast-munt-regel">{fill(words.grantMuntLine, { munten: woord, keeper: words.keeper })}</span>
+        {reason && <span className="toast-munt-reden">{reason}</span>}
+      </span>
+      <span className="visually-hidden">{sentence}</span>
+    </>
   );
 }

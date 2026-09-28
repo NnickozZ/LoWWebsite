@@ -42,12 +42,15 @@ export function CaseEntryCard({
   entry,
   onChanged,
   readOnly = false,
+  gemengd = false,
 }: {
   caseId: string;
   entry: CaseEntry;
   onChanged: () => void;
   /** §17: no note or remove for someone who may only look. */
   readOnly?: boolean;
+  /** §104 (golf H, D14): in a list of many soorten every card wears the same hairline (see `EntryCard`). */
+  gemengd?: boolean;
 }) {
   const ui = useUi();
   const router = useRouter();
@@ -134,7 +137,10 @@ export function CaseEntryCard({
   }
 
   return (
-    <div className={`card ${borderClass(entry.typeBorder)}`}>
+    <div
+      className={`card ${gemengd ? 'card-gemengd' : borderClass(entry.typeBorder)}`}
+      style={{ ['--soort' as string]: entry.typeColour }}
+    >
       <Link href={`/e/${entry.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>
         <Cover
           assetId={entry.coverAssetId}

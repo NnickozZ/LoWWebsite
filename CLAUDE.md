@@ -18,13 +18,17 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 126 files, 2224 tests as of round 64; 125 / 2205
-                       # at golf 3 (rounds 58–62
+npx vitest run         # 137 bestanden, 2487 tests na golf H (branch
+                       # `gevoel`); 134 / 2441 na rondes 65–67 en hun
+                       # herstel; 126 / 2224 at round 64;
+                       # 125 / 2205 at golf 3 (rounds 58–62
                        # and the naden); round 56: 119 / 2110; golf 2 with
                        # rounds 53, 54, 55 and 57: 118 / 2095; round 52:
                        # 113 / 2022; round 38: 99 / 1596)
 npm run build          # must exit 0
-npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
+npx playwright test    # na golf H: 880 zaken, 671 passed / 207 skipped /
+                       # 1 rood (per-place-crops), ~1,2 u op 2 kernen;
+                       # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
                        # dozen specs), so take your own first green run as the
                        # baseline, not this line
@@ -33,6 +37,9 @@ npx playwright test    # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
 Single specs, for planning a round rather than for waiting on the whole suite
 (round 33, one project at a time): `family-trees` ~1.4 min, `family-trees-33`
 ~1.8 min (4.2 under `E2E_DEV=1`), `family-tree-coop` ~1 min, `ink` ~1.5 min.
+
+Een tweede worktree draait zijn eigen Playwright naast deze, met `E2E_PORT`
+(zie §3).
 
 If any of those is red on an untouched checkout, **say so and stop**. Do not
 start a feature on a broken baseline; you will not be able to tell your damage
@@ -122,8 +129,13 @@ Rough calibration from past rounds:
 | `npx playwright test tests/e2e/x.spec.ts --project=desktop` | One spec, ~2–4 min. Use this while iterating. |
 | `E2E_DEV=1 npx playwright test` | Same specs under React Strict Mode, where updaters double-invoke. Run it after touching pointer handling, refs, or a provider. |
 
-**Never run two Playwright invocations at once** — they share port 3101 and
-`data-e2e/`. One at a time, always.
+**Never run two Playwright invocations at once** in one working tree — they
+share port 3101 and `data-e2e/`. One at a time, always. Sinds ronde 65 is
+de poort `E2E_PORT` (standaard 3101, `playwright.config.ts`), en `data-e2e/`
+staat in de worktree zelf. Een tweede worktree draait dus zijn eigen suite
+naast deze met `E2E_PORT=3102 npx playwright test …`. Op een kleine machine
+zijn dat nog steeds twee productiebuilds tegelijk: een fan-out zet ze in een rij
+(ronde 65 deed dat met een slot-script).
 
 ---
 
@@ -168,8 +180,51 @@ freely there.
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5-9][0-9]\|§1[0-9][0-9]" app components lib`
   before choosing a number (the old pattern `§[5-9][0-9]` stops at 99) — the
-  latest is **§101 / rule 101**, so the next rule is **§102**. Golf 3
-  (rounds 58–62) added five: **§97** (round 58, het lek in de lopende tekst:
+  latest is **§104 / rule 104**, so the next rule is **§105**. Rondes 65–67
+  (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
+  worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
+  voegden er drie toe: **§102** (round 65, het bewegingscontract: de tokens
+  `--dur-1..5`/`--ease-*` en `--live` op `:root`, `docs/beweging.md`, en
+  `tests/unit/beweging.test.ts` faalt op een losse duur of een dubbele
+  `@keyframes` in elk `app/*.css`; `Sheet` heeft een uitgang, alleen via het
+  kruisje en de achtergrond (`exit`, `onLeave`); `ToastView` pauzeert, 6 s of
+  10 s met een knop; `NavPending` + `NavProgress` + `Skeleton`: het vakje
+  meteen, na 150 ms een skelet of een streep, geen `loading.tsx`; de pagina
+  vervaagt in vanaf 0,6; de voorbeeldkaart die je kunt pakken (`data-reach`,
+  500/250 ms, Escape); de cirkel van de omslag terug als cross-document view
+  transition achter `FLIP_SCRIPT` en een verse `lw:flip`; in Lezen vraagt
+  niets naar de schrijver; de FAB wijkt op een leespagina. Geen migratie),
+  **§103** (round 66, het geld klinkt: een moment is een briefje van de hand,
+  `markLanding`/`markUnlock` in `components/kamer/moment.ts`; het saldo rolt
+  tussen twee serverwaarden in `SaldoGetal`, met een chip die nooit rood is;
+  `lastGrantOf` en één melding per gift; *Ingericht* één keer per kamer uit
+  `first` van `buyFurnishing`; geluid opt-in via `lib/sound/*`; in de winkel
+  is de stempel de prijs en zegt de knop *Kopen → plek*. Geen migratie) en
+  **§104** (round 67, de leeskamer: drie vaste blokken onder het overzicht van
+  de wiki uit `lib/wiki/leeskamer.ts`; `randomEntry` als enige kiezer achter
+  `/wiki/willekeurig`, *Verras me* en *Nog één*; *Genoemd in* met de zin
+  (`snippetAround`, `mentionSentences`); *Bijgewerkt door*; `HeadingAnchors`
+  naast ProseMirror; `twinFieldOf` voor L9; de naad in `lib/wiki/naad.ts`;
+  soortkleur naar inkt gemengd voor 4,5:1; `?pagina=`/`?per=`. Geen
+  migratie). Zie `tests/unit/beweging.test.ts`,
+  `tests/unit/ronde-6[5-7]-*.test.ts` en `tests/e2e/ronde-6[5-7]-*.spec.ts`.
+  **Golf H** (na design-review 3, `REVIEW3-DESKTOP.md` en `REVIEW3-PHONE.md`,
+  drie worktrees h1/h2/h3 op `gevoel`) gaf **geen nieuw nummer**: elk deel
+  vult zijn regel aan, als blok *Aangevuld in golf H* onderaan. §102 (h1, de
+  schil): de Keeperkant als schakelaar in de mast op een computer
+  (`SideToggle variant="mast"`), één paginaraster, `data-pending` op elke
+  interne link uit `NavProgress`, skeletten voor de tabpagina's, `jijIsHere`
+  en `currentDoor`, de tabbalk met woorden en `--tab-rood`, de FAB die overal
+  wijkt, *Wie is er?* die niet plakt, een 404 in de schil via
+  `app/(app)/[...rest]/page.tsx`. §103 (h2, de economie): `DichtePlekken`,
+  `KoperKop`, `announceBalance`, `toast()` met een `key` en `TOAST_MAX` = 2,
+  `toast-munt`, *Ingericht* bij de eerste netto koop. §104 (h3, lezen): de
+  wegwijzer is een kolom pas vanaf 1500 px (`useHasRail`, `RAIL`), de
+  soorttabs zijn één rij met *Meer soorten* (`rangSoorten`, `MeerSoorten`,
+  `data-rang`), `.schuifrij` + `useSchuifrij`, `.rijen` voor de rijvorm op de
+  telefoon, `.card-gemengd`, `naadHoofd`. Geen migratie. Zie
+  `tests/unit/golf-h[1-3]-*.test.ts` en `tests/e2e/golf-h[1-3]-*.spec.ts`.
+  Daarvoor golf 3 (rounds 58–62), die er vijf toevoegde: **§97** (round 58, het lek in de lopende tekst:
   een `entryLink` in `entries.body`, `sections.body` en `cases.notes` bewaart
   alleen `{ handle }` uit `mention_handles`; de naam alleen in de node-view,
   per lezer; elke schrijfweg door `cleanDocRefs`; `linkedEntryIds` leest wat
@@ -537,7 +592,12 @@ freely there.
   and sidebar are *rendered*; the `@media` block round `.entry-layout-wide` in
   `app/globals.css` decides where the grid *puts* them. They are 1280 px (§25)
   and disagreeing once gave the page two different wide layouts, which read as
-  a regression. Both files say so in a comment; move neither alone.
+  a regression. Both files say so in a comment; move neither alone. **Since
+  golf H there is a second pair:** `RAIL` (`useHasRail`, 1500 px) in the same
+  file decides whether the outline is rendered as a *column*, and the
+  `@media (min-width: 1500px)` block round `.entry-layout-rail` in
+  `app/leeskamer.css` places it (§104, D1). From 1280 to 1499 px the page is
+  text and facts, with the outline as a row of chips above the text.
 - **The autosave patch is a patch of *keys*, and one key is a bag.**
   `useAutosave` collects changes for 800 ms and, for every key but one, the
   second answer replaces the first — which is right for a name, a body or a
@@ -1480,6 +1540,111 @@ freely there.
 - **`mayHoldRoom` counts only living karakters** (§101 naden): a karakter in
   the prullenbak is worn by nobody, so it no longer makes a soort
   "wearable" (E3).
+- **Nieuwe CSS-beweging gebruikt een token** (§102), anders wordt
+  `tests/unit/beweging.test.ts` rood. Een echte uitzondering hoort in
+  `EXCEPTIONS` én in `docs/beweging.md` §6, met een reden. Een
+  `@keyframes`-naam komt één keer voor over alle `app/*.css`; een nieuwe laag
+  van een ronde krijgt een eigen css-bestand, geïmporteerd in `app/layout.tsx`
+  na `globals.css`.
+- **Een toetsenbordactie beweegt niet** (§102). Een blad sluit met een
+  uitgang alleen via het kruisje of de achtergrond (`closeByHand`); Escape,
+  Enter en een blad dat de ouder weghaalt, zijn meteen weg. Het palet heeft
+  `exit={false}`. Een bevestigingsvraag antwoordt in `onLeave`, nooit na de
+  uitgang.
+- **Er is geen `loading.tsx` in `app/(app)`, en dat is gemeten** (§102, zie
+  §8). Het skelet is `NavProgress` + `components/shell/Skeleton.tsx`, alleen in
+  de browser, en welke route welke vorm heeft staat in `skeletonShapeFor`.
+  `aria-current` volgt de pagina, niet de klik; `data-pending` volgt de klik.
+- **Alleen de omslag krijgt een pagina-overgang** (§102).
+  `@view-transition { navigation: auto }` staat aan voor elk document, en
+  `FLIP_SCRIPT` in de `<head>` van `app/layout.tsx` slaat hem over bij
+  `pageswap` en `pagereveal` zonder verse `lw:flip`. Schrijf die notitie
+  nergens anders dan in `SideToggle.flip()` met een aanwijzer als oorsprong, en
+  zet er nooit een tweede inline script bij. Voor gewone navigaties is er
+  alleen de fade van `nav-page-in` (ronde 68, de lichte variant); een morph
+  komt er niet.
+- **Een melding en de FAB weten waar ze elkaar vinden** (§102, herstel).
+  `UiProvider` schrijft de hoogte van de meldingenstapel naar `--toast-stack`
+  op `:root`, en `.fab` klimt die hoogte omhoog. Een pagina met een plakkende
+  voet (§85) zet `--voet-h` in het `:has()`-blok naast `.toast-wrap`, nooit met
+  een eigen verschuiving in haar stylesheet. Een nieuwe plakkende voet komt in
+  die selector *én* in de FAB-regel van §85.
+- **Een moment in de kamer is een briefje van de hand** (§103). Wie iets laat
+  landen, roept `markLanding({ slotId, entryId, first })` of
+  `markUnlock(slotId)` aan (`components/kamer/moment.ts`). De tegel neemt het
+  briefje mee in `Neerzetten`. Laat nooit iets landen op basis van een render:
+  een refresh of een live-update van een ander hoort stil te blijven.
+- **Een saldo op het scherm is `SaldoGetal`** (§103). Het beweegt alleen
+  tussen twee `value`s van boven en toont de chip. Zet geen `key={balance}`
+  terug en tel niets op in de browser.
+- **Geluid gaat door `play(kind)` uit `lib/sound/klank.ts`** (§103), en alleen
+  bij kopen, neerzetten, openen of een gift. Er is één gedeelde
+  `AudioContext`, er wordt niets gemaakt als het geluid uit staat, en
+  `primeKlank` hangt aan `useShellBeurs`. Een nieuwe klank is een recept in
+  `lib/sound/recipes.ts`, en de unit-test rekent hem uit: ≤ 300 ms, piek
+  ≤ 0,15, stil aan de randen.
+- **In de winkel en de catalogus draagt alleen de naam `data-entry-id`**
+  (§103, E18). Op een rij of een knop laat het de voorbeeldkaart over de knop
+  springen.
+- **Een koop in de winkel houdt de live-verversing vast** (§103, herstel):
+  `holdBeforeRefresh` met een §59-hold tot *Gekocht* geland is, plus
+  `--dur-5`. Een nieuwe knop die een moment tekent vóór de rij wisselt, doet
+  hetzelfde, anders ververst `LivePage` hem na 150 ms weg.
+- **Plek-iconen botsen niet met soort-iconen** (§103, herstel):
+  `tests/unit/ronde-66-herstel.test.ts` leest de iconen uit `lib/db/seed.mjs`.
+  Botsingen buiten de plekken staan nog open: `home` (kamer en Huisraad),
+  `lock` (openen en Eldritch), `book` (catalogus en Werken).
+- **"Waarom noemt dit mij?" is `mentionSentences`** (`lib/wiki/genoemd.ts`,
+  §104). Het leest alleen bronnen die `listMentions` en `getBacklinks` al voor
+  deze lezer teruggaven, per id (`sectionId` voor een sectie). Een nieuwe
+  soort bron voor *Genoemd in* krijgt ook een tak in `mentionTexts`. Druk nooit
+  een fragment af zonder `snippetAround`: dat laat een onzichtbaar handvat weg
+  en knipt pas daarna.
+- **Een willekeurig artikel is `randomEntry`** (§104). `/wiki/willekeurig`,
+  *Verras me* en *Nog één* vragen het alle drie. Schrijf geen tweede
+  `ORDER BY random()`.
+- **Een kop-anker leeft naast ProseMirror, nooit erin** (§104,
+  `HeadingAnchors`). Zet geen id of knop in de DOM van een editor.
+- **Een lezer die tekst met handvatten projecteert, sluit de naad met
+  `lib/wiki/naad.ts`** (§104, herstel). Schrijf geen eigen spatie-opruiming.
+  Soortkleur op kleine tekst gaat via `.soort-inkt` of `.chip-soort` (met
+  `--soort` inline), nooit rauw als `color`; `ronde-67-contrast.test.ts` eist
+  4,5:1 in alle vier de paletten.
+- **Er is op een computer geen `.side-toggle` meer** (§102, golf H, D4). De
+  Keeperkant is daar `SideToggle variant="mast"` in `.sidenav .masthead`
+  (klasse `.side-switch`, nog steeds `data-testid="side-toggle"`); `AppShell`
+  rendert via `useIsPhone` precies één van de twee. Regels voor de hoekknop op
+  een telefoon staan onder `@media (max-width: 767px)` op
+  `.shell[data-keeper-hand]`, nooit op `:has(> .side-toggle)`: de knop komt pas
+  met de hydratatie, de strook moet er eerder zijn.
+- **`data-pending` op een link komt uit `NavProgress`** (§102, golf H, D3), in
+  de capture-fase op `document`. Een nieuwe vorm van link die een eigen teken
+  wil, krijgt een regel in `app/navigatie.css` onder "de hand op elke link";
+  schrijf geen eigen klik-luisteraar die hetzelfde doet. Wat `startsNavigation`
+  weigert, krijgt ook geen teken.
+- **Een pagina die alleen `notFound()` is, rendert geen `LivePage`** (§102,
+  golf H, D2): `live-everywhere.test.ts` kent die vorm, net als een pagina die
+  alleen `redirect(` is. De catch-all `app/(app)/[...rest]/page.tsx` begint met
+  `requireViewer()` (§89).
+- **Een getal dat een knop van de server terugkrijgt, gaat door
+  `announceBalance`** (`components/kamer/saldo.ts`, §103, golf H). Een nieuwe
+  schrijfweg die een saldo verandert, leest de balans in zijn eigen transactie
+  en geeft hem mee in het antwoord. Tel nooit zelf; geef `Beurs` een `room`
+  (of `null`), nooit de schil als standaard, anders krijgt de beurs van een
+  ander het getal van jouw kamer.
+- **Een melding over één ding of één plek draagt een `key`** (§103, golf H):
+  `toastKeyOf(entryId)` (`ding:<id>`) of `plek:<id>`, en munten van de Keeper
+  `munt:keeper`. Zonder sleutel stapelt hij. Er staan er hooguit twee
+  (`TOAST_MAX`); `nextToasts` is puur en getest.
+- **Een rij die opzij scrolt, is `.schuifrij`** (§104, golf H, T9), met
+  `useSchuifrij(ref, key)` of `<Schuifrij>` als het gekozen item in beeld moet.
+  Geen eigen `mask-image` en geen `scrollIntoView` (dat scrolt elke voorouder
+  mee). Een rij van artikelen of dossiers op de telefoon is `.rijen`, niet een
+  eigen lijstvorm.
+- **Hoeveel soorten er in de tabrij van de wiki passen, zegt de stylesheet**
+  (§104, golf H, D6): `rangSoorten` geeft een rang, `data-rang` en
+  `data-nodig-tot` in `app/leeskamer.css` kiezen per breedte. Meet het niet in
+  de browser; dan rendert de server een andere rij dan de browser toont.
 
 ---
 
@@ -2002,6 +2167,87 @@ mistakes. Check yours against these before declaring a spec finished.
   inspector is a scroll, and the browser answers it with `pointercancel`.
 - **On a phone a canvas's panel is a `.canvas-peek` with its own `Sluiten`**
   (§74), so scope any `Sluiten` locator to the dialog you mean.
+- **Een vertraagde navigatie tekent `.nav-skeleton` of
+  `.nav-progress[data-shown="1"]`** (§102). Zoek het skelet op
+  `getByTestId('nav-skeleton')`, niet op `.skeleton` met `.first()` (de
+  wegwijzer van een artikel is onder 1280 px `display: none`, en sinds golf H
+  is hij pas vanaf 1500 px een kolom). Wacht na een
+  `goto` niet op `networkidle`: de live-lijn staat altijd open.
+- **Een blad dat je met het kruisje sluit, is nog 150 ms in de DOM**
+  (§102), met `data-closing` en `inert`. Wacht op `toHaveCount(0)` of
+  `toBeHidden()`, niet op een vaste pauze; met Escape is het meteen weg.
+- **De voorbeeldkaart is `data-testid="preview-card"`** (§102). Hij komt
+  500 ms nadat een muis op een chip rust, vangt de muis pas als die de chip
+  verlaat (`data-reach`), en zijn link is `preview-open`. Een spec die een
+  cross-document overgang bewijst, luistert naar `pagereveal` in
+  `page.addInitScript` (dat loopt vóór het script in de `<head>`) en wacht op
+  `viewTransition.ready`. Zie `ronde-65-kaartje-omslag.spec.ts`.
+- **De breedte van de strip is die van de kolom** (§102, herstel). Een spec
+  die kolombreedtes vergelijkt, laat beide kijkers eerst op dezelfde pagina
+  staan en elkaar zien (`ronde-65-herstel-schil.spec.ts` #3): de schijfjes en
+  de telling in *Wie is er?* maken de float breder.
+- **De koopknop in de winkel draagt de volledige zin als toegankelijke naam**
+  (§103), *Kopen · n munten → plek*, en als zichtbare regel alleen *Kopen →
+  plek* (`.koop-regel > span[aria-hidden]`). De prijs staat in `winkel-prijs`.
+  `toContainText('Kopen voor X')` werkt dus nog op de naam. Na een klik is er
+  kort `winkel-gekocht` en `data-bought="ja"` op de knop.
+- **Een koop in de winkel wisselt zijn rij pas na ±650 ms** (§103, herstel):
+  de knop houdt de live-verversing vast tot *Gekocht* gezien is. Wacht op
+  `winkel-owned` met een ruime timeout, niet op een vaste pauze. ~~Het saldo in
+  de schil beweegt ook zo laat; de melding met −n komt meteen.~~ Sinds golf H
+  rolt het saldo met de melding mee (`announceBalance`); zie hieronder.
+- **Een leeg *Genoemd in* of *Geschiedenis* is een `p.blok-leeg`** (§104,
+  herstel; `data-testid="genoemd-in"`, `data-leeg="ja"`), geen `details`, en
+  staat niet in de inhoudsopgave. Een artikel op de telefoon heeft
+  `entry-waar` in plaats van de rijen "Op de landkaart / In:"; klap die eerst
+  open. Op een telefoon is de omslag `.entry-cover-liggend`.
+- **Een lange lijst in de wiki toont er 120** (§104, herstel) en zegt "n van
+  totaal" met *Meer*. Een spec die er meer wil zien, gaat naar `?per=` of
+  `?pagina=` (`lib/wiki/pagina.ts`), niet naar een scroll.
+- **De Keeperkant-knop in een desktop-spec is de schakelaar in de mast**
+  (§102, golf H). `getByTestId('side-toggle')` werkt nog; `.side-toggle` heeft
+  op een computer `toHaveCount(0)`, en `masthead-side` is op de Keeperkant de
+  Keeper-helft van die schakelaar. De cirkel begint op de helft waar je heen
+  gaat, niet in het midden van de knop.
+- **Een tijd tot `data-pending` meet je vanaf een listener op `window` in de
+  capture-fase** (§102, golf H): `NavProgress` zet het teken in de capture-fase
+  op `document`, en een `MutationObserver` loopt tussen twee listeners.
+- **Een streep zonder skelet vraag je nu aan Beheer of Zoeken** (§102, golf H,
+  T7): Dossiers, Prikborden, Landkaarten, Tijdlijnen, Stambomen, Spelers,
+  Start en de wiki hebben een skelet.
+- **De dichte plekken staan niet meer in `getByTestId('kamer-grid')`** (§103,
+  golf H) maar in `kamer-dicht`. Let op: de CSS-klasse `.kamer-grid` staat op
+  allebei de lijsten, dus zoek op de testid. Een telefoon verbergt in
+  `kamer-dicht` alles behalve de eerstvolgende per soort (`data-rest`) tot
+  `kamer-dicht-vouw` open is. Tegelhoogtes zijn gelijk per raster, niet over de
+  twee heen.
+- **Het saldo in de schil verandert met het antwoord van een koop** (§103,
+  golf H), vóór `data-balance`, dat pas met de verversing komt. Wacht op de
+  tekst van `.saldo-getal` of op `saldo-chip`, niet op `data-balance`, als je de
+  chip wilt zien (`ronde-66-het-geld-klinkt.spec.ts`).
+- **Een munt-melding van de Keeper is `.toast-munt`** (§103, golf H); de hele
+  zin staat er visueel verborgen in, dus `toContainText('+12 munten van de
+  Keeper — …')` werkt nog. Twee giften kort na elkaar zijn één melding.
+- **Tussen 1280 en 1499 px is er geen `.entry-rail`** (§104, golf H). De
+  wegwijzer is dan `.entry-main .entry-outline-row`; het Desktop-project van
+  Playwright (1440) heeft dus geen rail. Een spec die de rail wil, zet de
+  viewport op 1600 (`round-7.spec.ts`).
+- **Een soort staat niet altijd als tab in de rij** (§104, golf H, D6). Wat
+  niet past, staat in *Meer soorten* (`getByTestId('meer-soorten')`, het menu
+  is `.meer-soorten-lijst`). Een lege soort staat altijd in het menu, de soort
+  waar je op staat altijd in de rij.
+- **De dossiertabs breken nog steeds** (ronde 36, bevestigd in golf h4). Alleen
+  de soorttabs van de wiki en de chips op `/search` zijn één rij.
+- **Op een telefoon staan de regels "Op de landkaart / Op de tijdlijn / In:" achter
+  `entry-waar`.** Een spec die daar een link zoekt, roept eerst
+  `openEntryWaar(page)` aan uit `helpers.ts`. Op een computer doet die niets.
+- **De + wijkt alleen voor een scroll van de hand** (golf h4, `FAB_HAND_MS`).
+  Een spec die met `mouse.wheel` scrolt, ziet hem weggaan. Na `scrollIntoView`
+  of een caret in de tekst blijft hij staan.
+- **Een lege *Dossiernotities* in Lezen is `case-notes-leeg`** (§104, golf H),
+  een `p.blok-leeg`, geen editor. De knop in het menu op een dossier toont
+  *Nieuw in dit dossier*, met *Nieuw artikel in dit dossier* als
+  toegankelijke naam.
 
 If a spec fails once and passes on a re-run, it is the "not yet listening" race
 — fix it with the helpers above rather than shrugging at it.
@@ -2056,7 +2302,111 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62 and 64
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H
+
+*Golf H (na design-review 3) is gebouwd in drie worktrees op `gevoel`: h1 de
+schil, h2 de economie, h3 lezen en de wiki. Geen nieuw nummer, geen migratie;
+elk deel vult §102, §103 of §104 aan. De rondenotitie is
+`claude/golf-h-de-laatste-pas.md`.*
+
+**Leftovers — golf H, allemaal met opzet genoemd.** Hij sloot, uit het blok
+hieronder, het saldo dat ±640 ms achterliep en de lege *Dossiernotities*, en
+uit round 62 de tabbalk die *Jij* op 390 px zou afknippen.
+
+- **De stempel KEEPERKANT boven de inhoudsopgave van een artikel is blijven
+  staan** (D4 vroeg hem weg). Hij komt niet uit de schil maar uit
+  `KeeperStamp` van de pagina (`keeper-stamp`, waar veel specs op leunen). Wie
+  hem weghaalt, doet dat in `app/(app)/e/[slug]/page.tsx` en `KeeperStamp` en
+  past de specs aan. Op de Keeperkant staan er dus nog drie tekens voor één
+  feit: de schakelaar, deze stempel en *Alleen voor de Keeper*.
+- **De rij Lezen/Bewerken en de zoombalk van een tekenvlak staan op de
+  telefoon nog op twee regels** (T18). Samen zijn ze breder dan 358 px, en ze
+  wonen in de canvasbestanden (§69); dat is niet zonder risico te doen met
+  alleen CSS. Het glas houdt dus ±55 % van de hoogte.
+- **`/favicon.ico` en elk ander onbekend adres met een sessie renderen nu de
+  schil** (de catch-all). Goedkoop, maar het is een render per verzoek; een
+  `app/icon` of een bestand in `public/` neemt dat weg.
+- **D17: soorten delen hun icoon** (Aardse Goden en Locaties, Relieken en
+  Onderzoekers, Bovennatuurlijke wezens en Abnormaliteiten, Geschriften en de
+  wiki). Bewust niet gedaan: het is data van de seed, en de Keeper zet een
+  icoon per soort in Beheer. Een test die dubbelen weigert, hoort bij een
+  seed-wijziging.
+- **`kamer-ingericht` in `app/kamer.css` is dode code.** De regel
+  `kamer-ingericht-hoek` verderop in hetzelfde bestand overschrijft de
+  `animation` van `.plek-ingericht`, dus de oude keyframes spelen nooit meer.
+  Weg ermee als iemand in dat bestand is.
+- **Drie codecommentaren zijn verouderd**, geen gedrag: de docblock bovenaan
+  `components/keeper/SideToggle.tsx` en het §46-commentaar in `AppShell` zeggen
+  nog "dezelfde hoek op een computer en een telefoon", en het commentaar boven
+  `.tabs > .tab-jij` in `globals.css` zegt dat het saldo "als een klein plaatje
+  aan het poppetje" hangt; het staat op de regel van *Jij*.
+- **`docs/kamer-contract.md` loopt achter**: K3 zegt nog dat elke knop die geld
+  kost zijn bedrag draagt, en K17 dat één rijhoogte geldt voor alle vier de
+  staten. Sinds 66·herstel (winkel) en golf H (kamer, catalogus, dichte
+  plekken in een eigen raster) klopt dat niet meer; de README-blokken bij
+  regel 84 en 85 zeggen hoe het nu is.
+- **De verplaatsbalk staat op een telefoon links om de FAB ruimte te laten**,
+  maar sinds h1 staat er in de kamer geen FAB meer. Onschuldig; hij mag weer in
+  het midden als iemand erin zit.
+
+*Rondes 65, 66 en 67 (het gevoel, §102–§104) zijn tegelijk gebouwd, in vijf
+worktrees (65·a, 65·b, 65·c, 66, 67) op `gevoel`, en samengevoegd. Daarna
+kwam per ronde een herstelpas na een design-review (65·herstel de schil,
+66·herstel winkel en kamer, 67·herstel lezen). Hun open eindjes staan in één
+blok hieronder.*
+
+**Leftovers — rondes 65–67 (§102–§104), allemaal met opzet genoemd.**
+
+- **Geen `loading.tsx` in `app/(app)`, en dat is gemeten, niet vergeten**
+  (ronde 65·b, §102). Een `loading.tsx` streamt ook bij een harde load; de
+  providers in de schil (`UiProvider`, `LiveProvider`, `AuthorProvider`)
+  zetten in hun eerste effecten state, en React rendert de nog niet
+  gehydrateerde grens dan opnieuw. Gevolg: het skelet flitst terug over een
+  pagina die er al stond (op `/e/middelburg`: pagina op 62 ms, skelet op
+  160 ms, pagina opnieuw op 374 ms), ~200 ms twee pagina's in de DOM
+  (`access-rights.spec.ts:94` faalde op strict mode), en een `#anker` na
+  `router.push` landt niet. Het skelet is daarom `NavProgress` +
+  `Skeleton.tsx`, alleen in de browser. Wie ooit toch een Suspense-grens rond
+  een pagina wil: eerst de mount-updates in `UiProvider`/`LiveProvider`/
+  `AuthorProvider` in `startTransition`. De prijs: Next haalt een dynamische
+  route zonder `loading.tsx` niet vooraf op, dus de tijd tot de pagina werd
+  niet korter. Alleen het stilstaan is weg.
+- **`EXCEPTIONS` in `tests/unit/beweging.test.ts` heeft een dode regel.** Hij
+  staat `globals.css` `::view-transition-new(root)` 550 ms toe, maar de
+  omslag-cirkel staat sinds 65·c in `app/kaartje.css`, met
+  `calc(var(--dur-5) + var(--dur-3))`. De regel vangt niets en kan weg als
+  iemand in dat bestand is.
+- **De test meet losse duren, geen curves en geen `calc`.** `.plek:target`
+  loopt op een letterlijke `ease-out`, en de streep van `NavProgress` groeit
+  in `calc(var(--dur-5) * 5)` (2 s, een meter, geen reis). Regel 5 van
+  `docs/beweging.md` (niets routineus boven 500 ms) wordt dus niet door de test
+  bewaakt, alleen door lezen.
+- **De peek op de telefoon (`.canvas-peek`) beweegt op `max-height`**, tegen
+  regel 3 in. Hij staat als schuld in de uitzonderingen.
+- **`summary::marker` van een `<details>` zonder eigen pijltje** (de legenda
+  van het web) draait niet: een ingebouwd driehoekje kun je niet draaien.
+- **De strip van *Wie is er?* verandert van breedte met wie er is**
+  (65·herstel). De float draagt de schijfjes en de telling, dus de kolom van
+  iedereen verspringt een paar pixels als er iemand binnenkomt.
+- **Drie iconen hebben nog twee betekenissen** (66·herstel): `home` (kamer
+  en Huisraad), `lock` (openen en Eldritch), `book` (catalogus en Werken).
+  Plek-iconen botsen niet meer met soort-iconen, en daar staat een test op.
+- **Een plaatsing door een ander landt zonder beweging**, en de munt van een
+  gift klinkt alleen als de `AudioContext` in dit tabblad al loopt (een
+  browser weigert geluid zonder gebaar). Allebei bewust.
+- **`ShopItem` weet niet of huisraad gekocht of gegeven is**, dus ook wat de
+  Keeper in de lade legde, krijgt in de winkel de kleine stempel *Gekocht*.
+- ~~**Na een eigen koop beweegt het saldo in de schil ±640 ms later** dan de
+  melding met −n, omdat de koopknop de live-verversing vasthoudt tot
+  *Gekocht* geland is.~~ **Gesloten in golf H (§103, T8):** `announceBalance`.
+- ~~**Een lege *Dossiernotities* is in Lezen een leeg kader van ~180 px**
+  (`components/cases`). Gezien in 67·herstel, niet opgepakt: de dossiers
+  hoorden niet bij de leeskamer.~~ **Gesloten in golf H (§104, D24):** één
+  regel `.blok-leeg`.
+- **L9 voegt alleen samen bij dezelfde kop.** Een afgeleid blok en een
+  koppelingsveld die hetzelfde bedoelen maar anders heten, blijven twee
+  lijsten. Dat is de minst verrassende regel, en een hernoeming door de
+  Keeper zet het in beide richtingen.
 
 *Rounds 58 to 62 were built at the same time, in five worktrees on
 `golf-3-base`, and merged as `golf-3`, with a pass of **naden** after the
@@ -2114,8 +2464,9 @@ text and the 60-character test. All are struck through below.
 - **`SectionsEditor` says "Opslaan is niet gelukt." in the code**
   (`components/entry/SectionsEditor.tsx`, a toast), not through
   `lib/words.ts`.
-- **On 390 px the tab bar may cut *Jij* off on the right.** Reported by the
-  builder from a screenshot and not checked since: measure before fixing.
+- ~~**On 390 px the tab bar may cut *Jij* off on the right.** Reported by the
+  builder from a screenshot and not checked since: measure before fixing.~~
+  **Closed in golf H (§102, T3):** measured, every box is 49 px at 390 px.
 - **The server does not refuse a second identical voorstel** (naden): the fix
   for the double voorstel is on the client (`ShortEditor`, `LiveFieldsRoom`), and
   the server still accepts a second identical voorstel if some other client
@@ -2811,10 +3162,14 @@ Round 23 (§46, de spiegel) leaves three, all named on purpose:
   toggle in the corner and the palette are the only sign of which side you are
   on. The e2e spec asserts presence rather than visibility there for this
   reason.
-- Firefox has no `startViewTransition`, so the flip is a plain navigation
-  there; `prefers-reduced-motion: reduce` gets the same. Deliberate: the
-  animation is an ornament on something that works without it, and the
-  alternative was carrying a library for one browser.
+- ~~Firefox has no `startViewTransition`, so the flip is a plain navigation
+  there; `prefers-reduced-motion: reduce` gets the same.~~ *Sinds §102 (ronde
+  65):* de omslag is een **cross-document** view transition, geen
+  `startViewTransition` (§57 maakte er een documentlading van). Firefox 144
+  heeft same-document view transitions maar geen cross-document, dus daar is
+  de omslag een gewone navigatie; `prefers-reduced-motion: reduce` en een
+  toetsenbordactie krijgen hetzelfde. Bewust: de animatie is een versiering op
+  iets dat zonder haar werkt.
 
 Round 23 also **retired** round 22's `page:/keeper` leftover: `/keeper` is a
 redirect into `/api/keeper/flip` now, so there is no page left to give presence

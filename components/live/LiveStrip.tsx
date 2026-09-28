@@ -1,12 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Words } from '@/lib/words';
 import { useLiveBase } from './LiveProvider';
 import { RosterPopover } from './RosterPopover';
 import { SaveStatus } from './SaveStatus';
 import { useSaveStatus } from './saveRegister';
+
+/**
+ * Ronde 65·herstel (review #15): how long a line may be on its way before the
+ * strip says so. Every full page load starts `connecting`, and the line is
+ * nearly always up within a few hundred ms — so the word flashed on every load
+ * and said nothing. Under this the dot is neutral and wordless; past it, the
+ * wait is real and the strip says *verbinden…*.
+ */
+export const CONNECTING_WORD_AFTER_MS = 1500;
 
 /**
  * §21: the shell's own strip — who else is on this page, and whether the line
@@ -34,6 +43,17 @@ export function LiveStrip({ words }: { words: Words }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const save = useSaveStatus();
+  /* Review #15: *verbinden…* only once the line has been missing for a while. */
+  const [slow, setSlow] = useState(false);
+  const connecting = live.status === 'connecting';
+  useEffect(() => {
+    if (!connecting) {
+      setSlow(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSlow(true), CONNECTING_WORD_AFTER_MS);
+    return () => window.clearTimeout(timer);
+  }, [connecting]);
 
   /*
    * §100: a page with a strip of its own (a prikbord) turns the people and
@@ -65,7 +85,10 @@ export function LiveStrip({ words }: { words: Words }) {
           : 'Verbinden…';
   // Nothing is written beside the dot when the tab is merely resting: the word
   // there is for a line that is *wrong*, and an idle one is not.
-  const word = status === 'live' ? 'live' : status === 'offline' ? 'geen verbinding' : status === 'idle' ? '' : 'verbinden…';
+  // And a line on its way is not wrong yet either (review #15): no word until
+  // `CONNECTING_WORD_AFTER_MS` has passed without one.
+  const word =
+    status === 'live' ? 'live' : status === 'offline' ? 'geen verbinding' : status === 'idle' || !slow ? '' : 'verbinden…';
 
   return (
     <div className={`live-strip live-strip-${status}`} data-testid="live-strip" title={title}>

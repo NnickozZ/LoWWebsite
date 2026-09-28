@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp, expectBoxValue, fillWhenReady } from './helpers';
+import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp, expectBoxValue, fillWhenReady, openEntryWaar } from './helpers';
 
 /**
  * §32: tijdlijnen.
@@ -190,6 +190,7 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await events.nth(0).locator('.timeline-tag').click();
   await page.getByTestId('timeline-read-more').click();
   await page.waitForURL('**/e/westkapelle-lighthouse**');
+  await openEntryWaar(page);
   await expect(page.getByText('Op de tijdlijn:')).toBeVisible();
   const chip = page.locator('.chip', { hasText: name });
   await expect(chip).toBeVisible();

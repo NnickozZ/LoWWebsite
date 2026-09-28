@@ -13,6 +13,15 @@ import { defaultIntro } from '@/lib/intro';
 import { newOverzichtSide } from '@/lib/overzichten/service';
 import type { ListParams } from '@/lib/listParams';
 import { loadOverzichtPage } from './overzicht/load';
+// §104 (ronde 67): de leeskamer — drie vaste blokken onder het overzicht.
+import Link from 'next/link';
+import { Thumb } from '@/components/Cover';
+import { Icon } from '@/components/Icon';
+import { fill, type Words } from '@/lib/words';
+import { archiveCard, randomEntry, recentlyUpdated, type RecentCard } from '@/lib/wiki/leeskamer';
+import type { ArchiveCard } from '@/lib/wiki/leeskamer';
+import type { TypeTab } from '@/components/TypeTabs';
+import { UitHetArchief } from './willekeurig/UitHetArchief';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,9 +34,12 @@ export const dynamic = 'force-dynamic';
  *
  * Twee dingen die makkelijk stil fout gaan en dat hier niet doen:
  *
- *  1. **De tabrij staat er nog steeds**, met dezelfde tellingen als op elke
- *     andere wikipagina. De voordeur is een pagina *in* de wiki, geen eigen
- *     eilandje; wie hier landt en meteen wil bladeren is één klik verder.
+ *  1. **De tabrij staat er nog steeds**, maar kort: Start, Alles met zijn
+ *     telling, en een sprong naar *De soorten* (§104, ronde 67·herstel). De
+ *     voordeur is een pagina *in* de wiki, geen eigen eilandje; wie hier landt
+ *     en meteen wil bladeren is één klik verder — en de tegels onderaan zijn
+ *     de index van de soorten, dus die staan er niet nog eens als twintig tabs
+ *     op drie rijen boven het welkom.
  *  2. **Een thuisoverzicht dat van de Keeper is, is voor een speler afwezig**
  *     (`getHomeOverzicht` geeft dan null) — en dan valt deze pagina terug op de
  *     lijst in plaats van 404 te geven, want een wiki zonder voordeur is geen
@@ -66,18 +78,26 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
   const perType = countEntriesPerType(user);
   const total = [...perType.values()].reduce((n, count) => n + count, 0);
 
+  // §104 (L1): the three blocks, read for this viewer on this side (§46).
+  const recent = recentlyUpdated(user, 6);
+  const archive = archiveCard(user, randomEntry(user));
+
+  const typeTabs: TypeTab[] = types.map((type) => ({
+    slug: type.slug,
+    label: type.label,
+    icon: type.icon,
+    colour: type.colour,
+    count: perType.get(type.id) ?? 0,
+  }));
   const tabs = (
     <TypeTabs
-      types={types.map((type) => ({
-        slug: type.slug,
-        label: type.label,
-        icon: type.icon,
-        colour: type.colour,
-        count: perType.get(type.id) ?? 0,
-      }))}
+      types={typeTabs}
       active="start"
       allCount={total}
       query={query}
+      /* §104 (ronde 67·herstel, #16): one row here; the tiles are the index. */
+      compact
+      kindsLabel={words.wikiKinds}
     />
   );
 
@@ -96,6 +116,7 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
         </div>
         {tabs}
         <p className="empty">Er is nog geen voorpagina voor deze kant van het archief.</p>
+        <Leeskamer recent={recent} archive={archive} kinds={typeTabs} words={words} />
       </div>
     );
   }
@@ -106,10 +127,6 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
         place="page:/wiki"
         watch={['entries', 'types', 'overzichten', `overzicht:${loaded.overzicht.id}`]}
       />
-      <div className="row" style={{ marginBottom: '0.3rem' }}>
-        <div className="spacer" />
-        <NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />
-      </div>
       {tabs}
       {/* §98: the inleiding's chips, resolved for this reader with the page —
           §101 naden: and the secties' (`chipTexts`). */}
@@ -127,8 +144,117 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
           // writes their own — the same text, and the same rule, the start page
           // has used since round 5.
           defaultLead={defaultIntro(words)}
+          // §104 (golf H, D22): *Nieuw overzicht* in one row with the title and *Bewerken*.
+          actions={<NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />}
         />
       </ShortChips>
+      <Leeskamer recent={recent} archive={archive} kinds={typeTabs} words={words} />
+    </div>
+  );
+}
+
+/**
+ * §104, ronde 67 (L1): de leeskamer — drie vaste blokken onder het overzicht.
+ *
+ * Nick: *ja*, vaste blokken onder het overzicht van de Keeper. Het overzicht
+ * blijft bovenaan en blijft van hem (§75/§87); dit eronder leest het archief,
+ * per kijker en per kant (§46, `lib/wiki/leeskamer.ts`):
+ *
+ *  - **Uit het archief** — één willekeurig artikel, met *Nog één*. Voor wie
+ *    niets zoekt; links, want het is de uitnodiging.
+ *  - **Onlangs bijgewerkt** — zes fiches, elk met wie het deed (het karakter,
+ *    niet het account, §11) en wanneer. Voor wie terugkomt.
+ *  - **De soorten** — tegels met icoon, kleur, naam en telling: de index van
+ *    de soorten op deze pagina (de tabrij erboven noemt ze sinds de herstelronde
+ *    niet meer), als een kaartenbak in plaats van een strook.
+ *
+ * Archiefachtig in plaats van een raster van gelijke kaartjes: koppen als
+ * etiketten (`--stamp-face`) met een lijn erachter, namen in de serif, en één
+ * rustig ritme van blokken (`app/leeskamer.css`).
+ */
+function Leeskamer({
+  recent,
+  archive,
+  kinds,
+  words,
+}: {
+  recent: RecentCard[];
+  archive: ArchiveCard | null;
+  kinds: TypeTab[];
+  words: Words;
+}) {
+  return (
+    <div className="leeskamer" data-testid="leeskamer">
+      <div className="leeskamer-rij">
+        <section className="leeskamer-blok leeskamer-archief" aria-labelledby="leeskamer-archief-kop">
+          <h2 id="leeskamer-archief-kop" className="leeskamer-kop">
+            <span>{words.wikiFromArchive}</span>
+          </h2>
+          <UitHetArchief initial={archive} />
+        </section>
+
+        <section className="leeskamer-blok leeskamer-onlangs" aria-labelledby="leeskamer-onlangs-kop" data-testid="onlangs">
+          <h2 id="leeskamer-onlangs-kop" className="leeskamer-kop">
+            <span>{words.wikiRecent}</span>
+            <Link href="/wiki/alles" className="leeskamer-meer">
+              {words.wikiRecentAll}
+              <Icon name="chevron" size={12} className="leeskamer-meer-pijl" />
+            </Link>
+          </h2>
+          {recent.length ? (
+            <ol className="leeskamer-fiches">
+              {recent.map((card) => (
+                <li key={card.id}>
+                  <Link href={`/e/${card.slug}`} className="leeskamer-fiche" data-testid="onlangs-fiche">
+                    <Thumb
+                      assetId={card.coverAssetId}
+                      crop={card.coverCrop}
+                      shape="portrait"
+                      icon={card.typeIcon}
+                      colour={card.typeColour}
+                    />
+                    <span className="leeskamer-fiche-tekst">
+                      <span className="leeskamer-soort" style={{ ['--soort' as string]: card.typeColour }}>
+                        {card.typeLabel}
+                      </span>
+                      <span className="leeskamer-fiche-naam">{card.name}</span>
+                      <span className="leeskamer-fiche-wie" title={card.account ?? undefined}>
+                        {card.by ? fill(words.wikiRecentWho, { naam: card.by, wanneer: card.when }) : card.when}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="leeskamer-leeg">{words.wikiRecentNone}</p>
+          )}
+        </section>
+      </div>
+
+      <section className="leeskamer-blok leeskamer-soorten" aria-labelledby="leeskamer-soorten-kop">
+        <h2 id="leeskamer-soorten-kop" className="leeskamer-kop">
+          <span>{words.wikiKinds}</span>
+        </h2>
+        <ul className="leeskamer-tegels">
+          {kinds.map((kind) => (
+            <li key={kind.slug}>
+              <Link
+                href={`/wiki/${kind.slug}`}
+                className={`leeskamer-tegel${kind.count ? '' : ' is-leeg'}`}
+                style={{ ['--soort' as string]: kind.colour }}
+                data-testid="soort-tegel"
+              >
+                <span className="leeskamer-tegel-icoon">
+                  <Icon name={kind.icon} size={20} />
+                </span>
+                <span className="leeskamer-tegel-naam">{kind.label}</span>
+                <span className="leeskamer-tegel-tel">{kind.count}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

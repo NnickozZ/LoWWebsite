@@ -536,6 +536,9 @@ export function FieldsView({
  * holds. Not `.fields-view`: that is the open box's markup, and a spec (or a
  * reader) looking for a row must find it once.
  */
+/** §104: how many facts the folded infobox shows on a phone. */
+const PEEK_ROWS = 3;
+
 export function FieldsPeek({
   fields,
   values,
@@ -549,21 +552,33 @@ export function FieldsPeek({
   refs?: EntryRefs;
   tags?: string[];
 }) {
-  const rows = fields
-    .map((field) => ({ field, shown: fieldValue(field, values[field.key], cases, refs) }))
-    .filter((row) => row.shown !== null)
-    .slice(0, 2);
+  /*
+   * §104 (ronde 67): three rows, and the ones that *lead somewhere* first. The
+   * infobox holds 4 % of a wiki's links and gets 18 % of its clicks (the
+   * research, §A4); folded shut on a phone it hid exactly the links a reader
+   * jumps from. So the peek shows up to three filled fields, the ones that
+   * point at another artikel, dossier or stamboom before the rest — each in
+   * the Keeper's own order — one per line, with their chips clickable.
+   */
+  const filled = fields
+    .map((field, index) => ({ field, index, shown: fieldValue(field, values[field.key], cases, refs) }))
+    .filter((row) => row.shown !== null);
+  const leads = (field: FieldDef) => /_link/.test(field.kind);
+  const rows = [...filled.filter((row) => leads(row.field)), ...filled.filter((row) => !leads(row.field))]
+    .slice(0, PEEK_ROWS)
+    .sort((a, b) => a.index - b.index);
   if (!rows.length && !tags.length) return null;
+  const more = filled.length - rows.length;
   return (
-    <div className="infobox-peek" data-testid="infobox-peek">
+    <div className="infobox-peek" data-testid="infobox-peek" data-more={more > 0 ? more : undefined}>
       {rows.map(({ field, shown }) => (
         <p key={field.key} className="infobox-peek-row">
-          <span className="infobox-peek-label">{field.label}</span> {shown}
+          <span className="infobox-peek-label">{field.label}</span> <span className="infobox-peek-value">{shown}</span>
         </p>
       ))}
       {!rows.length && tags.length > 0 && (
         <p className="infobox-peek-row">
-          <span className="infobox-peek-label">Tags</span> {tags.join(', ')}
+          <span className="infobox-peek-label">Tags</span> <span className="infobox-peek-value">{tags.join(', ')}</span>
         </p>
       )}
     </div>
@@ -970,7 +985,8 @@ export function FieldsEditor({
   const shut = foldable ? fields.filter((field) => folded.has(field.key)) : [];
 
   return (
-    <div className={compact ? 'stack fields-compact' : 'stack'} {...gate}>
+    // §18b/§90: a printed field asks nothing — the gate is for boxes you can type in.
+    <div className={compact ? 'stack fields-compact' : 'stack'} {...(readOnly ? {} : gate)}>
       {open.map(renderField)}
       {shut.length > 0 && (
         <details

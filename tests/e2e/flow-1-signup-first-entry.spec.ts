@@ -49,8 +49,10 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
   // "Op deze pagina": the outline names the parts and jumps to them.
   const outline = page.getByRole('navigation', { name: 'Op deze pagina' });
   await expect(outline.getByRole('link', { name: 'Tekst' })).toBeVisible();
-  await outline.getByRole('link', { name: /Genoemd in/ }).click();
-  await expect(page.locator('details.section[open] > summary', { hasText: 'Genoemd in' })).toBeVisible();
+  // §104 (ronde 67·herstel, #13): nothing mentions a brand-new artikel yet, so
+  // *Genoemd in* is one quiet line on the page and nothing to jump to.
+  await expect(outline.getByRole('link', { name: /Genoemd in/ })).toHaveCount(0);
+  await expect(page.getByTestId('genoemd-in')).toHaveAttribute('data-leeg', 'ja');
 
   // And it is immediately findable.
   await page.goto('/search');

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import type { Words } from '@/lib/words';
 import { MEANING } from './plekWords';
+import { SaldoGetal } from './SaldoGetal';
 
 /**
  * §84: de beurs — wat je hebt, en nadrukkelijk niet wat iets kost.
@@ -34,6 +35,7 @@ export function Beurs({
   href,
   size = 'normal',
   title,
+  room = null,
 }: {
   balance: number;
   words: Words;
@@ -43,33 +45,42 @@ export function Beurs({
   size?: 'normal' | 'small';
   /** Wat er hardop gelezen wordt. Standaard `words.purse`. */
   title?: string;
+  /**
+   * §103 golf H (T8): de kamer van deze beurs, zodat het antwoord van een knop
+   * (`announceBalance`) hem meteen bereikt. Zonder: hij wacht op de verversing.
+   * Nooit de schil als standaard — een beurs van een ander mag het getal van
+   * jouw kamer niet krijgen.
+   */
+  room?: string | null;
 }) {
   const label = title ?? words.purse;
   const body = (
     <>
       <Icon name={MEANING.munt} size={size === 'small' ? 14 : 17} />
-      <span className="beurs-getal">{balance}</span>
+      {/* §103 (K3): het getal rolt tussen twee serverwaarden, met een chip erboven. */}
+      <SaldoGetal value={balance} className="beurs-getal" side="boven" room={room} />
       <span className="beurs-munt">{balance === 1 ? words.currency : words.currencyPlural}</span>
     </>
   );
 
   /*
-   * `key={balance}` op het getal is de hele animatie: React hangt een nieuw
-   * element op zodra het bedrag verandert, en de CSS-animatie op `.beurs-getal`
-   * loopt dan opnieuw. Geen timer, geen state, geen rekenwerk — en daarmee ook
-   * geen manier om per ongeluk zélf een saldo uit te rekenen (§79 regel 1: het
-   * saldo is de som van het grootboek, en dit scherm telt nooit mee).
+   * §84 hing hier `key={balance}` aan het getal: React hing een nieuw element op
+   * zodra het bedrag veranderde, en `beurs-tel` in `globals.css` liet het
+   * inzakken — ook bij de eerste render. §103 (K3) vervangt dat door
+   * `SaldoGetal`: het getal rolt van de vorige naar de nieuwe serverwaarde, met
+   * een chip, en een eerste render beweegt niet. Nog steeds geen rekenwerk
+   * (§79 regel 1): twee antwoorden van de server en de weg ertussen.
    */
   const cls = `beurs beurs-${size}`;
   return href ? (
     <Link href={href} className={cls} data-testid="beurs" data-balance={balance} aria-label={`${label}: ${balance}`}>
-      <span className="beurs-body" key={balance}>
+      <span className="beurs-body">
         {body}
       </span>
     </Link>
   ) : (
     <span className={cls} data-testid="beurs" data-balance={balance} aria-label={`${label}: ${balance}`}>
-      <span className="beurs-body" key={balance}>
+      <span className="beurs-body">
         {body}
       </span>
     </span>

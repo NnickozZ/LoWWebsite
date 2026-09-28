@@ -14,8 +14,11 @@
  */
 
 .overzicht-page {
-  /* Eén kolom. Geen grid, geen rail, geen zijbalk — zie OverzichtView. */
-  max-width: 64rem;
+  /* Eén kolom. Geen grid, geen rail, geen zijbalk — zie OverzichtView.
+     §104 (golf H, D22): geen eigen maximum meer. De kop — titel links,
+     *Bewerken* en *Nieuw overzicht* rechts — loopt tot de rand van de pagina,
+     net als de tabrij erboven en de leeskamer eronder; de tekst en de secties
+     houden hun leesbreedte hieronder. */
 }
 
 /*
@@ -34,6 +37,7 @@
   font-size: 1.6rem;
   font-weight: 600;
   width: 100%;
+  max-width: 48rem;
 }
 
 /*

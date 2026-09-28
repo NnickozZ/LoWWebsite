@@ -1,8 +1,11 @@
 import '@/app/kamer.css';
 import Link from 'next/link';
+import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
+import { MEANING } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { KamerKiezer } from '@/components/winkel/KamerKiezer';
+import { KoperKop } from '@/components/winkel/KoperKop';
 import { WinkelFilter } from '@/components/winkel/WinkelFilter';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
@@ -123,11 +126,18 @@ export default async function WinkelPage({
           <p className="kamer-balance winkel-balance" data-testid="winkel-balance" data-balance={shop.balance}>
             {/* §84: de beurs en niet nóg een stempel. Wat je hebt ziet er
                 anders uit dan wat iets kost — zie `components/kamer/Beurs.tsx`. */}
-            {shop.rooms.length === 1 && <Beurs balance={shop.balance} words={words} />}
-            {/* §90 (E6/E25): een tekstlink met een werkwoord, geen knop met de
-                naam van een bestemming — K11. */}
+            {shop.rooms.length === 1 && <Beurs balance={shop.balance} words={words} room={shop.roomId} />}
+            {/* §90 (E6/E25): een deur met een werkwoord — K11.
+                §103 herstel (#28): en dezelfde vorm als de deur terug in de kamer,
+                een kleine knop met het icoon van waar hij heen gaat. Een link
+                hier en een knop daar waren twee vormen voor één gebaar. */}
             {room && (
-              <Link className="winkel-kamer-deur" href={`/kamer/${room.slug}`} data-testid="winkel-kamer-deur">
+              <Link
+                className="btn btn-small winkel-kamer-deur"
+                href={`/kamer/${room.slug}`}
+                data-testid="winkel-kamer-deur"
+              >
+                <Icon name={MEANING.kamer} size={15} />
                 {fill(words.toRoom, { kamer: words.room })}
               </Link>
             )}
@@ -143,6 +153,11 @@ export default async function WinkelPage({
            */}
           {user?.isKeeper ? words.shopKeeper : words.shopNoCharacter}
         </p>
+      )}
+
+      {/* §103 golf H (T17): de koper één keer, plakkend, zodra de kiezer uit beeld is. */}
+      {canBuy && shop.rooms.length > 1 && room && (
+        <KoperKop name={room.name} balance={shop.balance} roomId={room.id} words={words} />
       )}
 
       {shop.items.length === 0 ? (

@@ -10,6 +10,9 @@ import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
 import { useShellBeurs } from '@/components/kamer/ShellBeurs';
 import { CommandPalette, useRememberRecent } from '@/components/palette/CommandPalette';
+// §102 (ronde 65·b): het vakje dat meteen antwoordt, en de streep na 150 ms.
+import { NavPending } from '@/components/shell/NavPending';
+import { NavProgress } from '@/components/shell/NavProgress';
 import {
   ArchiveHead,
   JijSheet,
@@ -30,8 +33,9 @@ import { ReadOnlyBanner, WritingAsLine } from '@/components/you/AuthorProvider';
 import { AsPlayerBanner, AsPlayerLink } from '@/components/keeper/AsPlayer';
 import { SideSwitched } from '@/components/keeper/SideSwitched';
 import { SideToggle } from '@/components/keeper/SideToggle';
+import { useIsPhone } from '@/components/useIsPhone';
 import { fabTypeFor } from '@/lib/newEntryType';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
 
 /**
  * The eight places in the menu. What each is *called* comes from Beheer →
@@ -42,7 +46,6 @@ const NAV: {
   href: string;
   word: string;
   icon: string;
-  compact?: boolean;
   desktopOnly?: boolean;
   /**
    * §91: in the tab bar and not in the side menu. Zoeken is a box at the top of
@@ -74,9 +77,11 @@ const NAV: {
   // place you visit — it is the face the whole archive wears. `keeperOnly`
   // stays on the type above: the next Keeper-only place should still be able
   // to say so, and be absent rather than hidden.
-  // Eight tabs do not fit a phone with a word under each. The two whose icon
-  // everybody knows — a magnifier, a person — go without one there.
-  { href: '/search', word: 'navSearch', icon: 'search', compact: true, phoneOnly: true },
+  // §102, golf h1 (T3): eight tabs, and since this wave a word under each — Zoeken
+  // and Jij included. `compact` is gone: the magnifier went without a word
+  // because the labels were capitals at 8,6 px; in ordinary spelling at 10,5
+  // px all eight fit at 360 px (see `.tabs a` in `app/globals.css`).
+  { href: '/search', word: 'navSearch', icon: 'search', phoneOnly: true },
   // §91: *Jij* is not a place in this list any more. On a desk it is the last
   // line of the side menu (`/you`, the settings); on a phone it is the eighth
   // tab, and that tab opens the Jij-blad instead of going anywhere (§32: still
@@ -86,6 +91,70 @@ const NAV: {
 function isCurrent(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** How far the page must travel in one direction before the `+` answers it. */
+const FAB_SCROLL_SLOP = 8;
+
+/**
+ * Review #10: the `+` steps aside while you scroll *down*, and is back the
+ * moment you scroll up (or reach the top). One rAF per frame at most, passive,
+ * and only on a phone — the `+` is not drawn on a desk.
+ *
+ * §102, golf h1 (T4): on *every* page with a `+`, not only a reading one. Herstel
+ * #10 asked `readingPage()` first, and on Start, /spelers, Beheer and the rest
+ * the `+` stayed on top of a name or a button while the thumb went past it.
+ * The gesture is the same everywhere, so is the answer.
+ */
+/** Golf H: how long after a touch, wheel or key a scroll still counts as the hand's. */
+const FAB_HAND_MS = 700;
+
+function useFabAway(pathname: string): boolean {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    setAway(false);
+    const narrow = window.matchMedia('(max-width: 767px)');
+    let last = window.scrollY;
+    let frame = 0;
+    /*
+     * Golf H: only a scroll the hand made sends the + away. A scroll the page
+     * makes itself — the caret put into a new artikel, a tile scrolled into
+     * view after *Bekijk*, `scrollIntoView` of a tab — is not somebody reading
+     * on, and hiding the + there took it away exactly when it was wanted next.
+     */
+    let handAt = -Infinity;
+    const hand = () => {
+      handAt = performance.now();
+    };
+    const settle = () => {
+      frame = 0;
+      const y = window.scrollY;
+      const delta = y - last;
+      if (performance.now() - handAt > FAB_HAND_MS) {
+        last = y;
+        return;
+      }
+      if (!narrow.matches || y <= 0) {
+        last = y;
+        setAway(false);
+        return;
+      }
+      if (Math.abs(delta) < FAB_SCROLL_SLOP) return;
+      last = y;
+      setAway(delta > 0);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(settle);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    for (const type of ['touchmove', 'wheel', 'keydown'] as const) window.addEventListener(type, hand, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      for (const type of ['touchmove', 'wheel', 'keydown'] as const) window.removeEventListener(type, hand);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [pathname]);
+  return away;
 }
 
 function Nav({
@@ -113,7 +182,7 @@ function Nav({
    * both of its drawings (the side menu and the Jij tab). The pill in the
    * corner that used to carry it is gone on both sizes.
    */
-  useShellBeurs(purse?.roomId ?? null);
+  useShellBeurs(purse);
   // §100: *Onlangs* — the addresses of the things you open, in this browser.
   useRememberRecent(me.id);
   // §91: the Jij-blad, and the tab it hands the focus back to.
@@ -122,6 +191,10 @@ function Nav({
   useEffect(() => {
     setJijOpen(false);
   }, [pathname]);
+  const fabAway = useFabAway(pathname);
+  // §102, golf h1 (D4): one toggle, drawn where this width wants it.
+  const isPhone = useIsPhone();
+  const keeperHand = Boolean(me.isRealKeeper && !me.asPlayer);
 
   return (
     <>
@@ -140,11 +213,22 @@ function Nav({
            * the players' side is the archive as everybody knows it and needs no
            * word for itself.
            */}
-          {me.side === 'keeper' && (
-            <span className="masthead-side" data-testid="masthead-side">
-              <Icon name="shield" size={12} />
-              {words.keeperSide}
-            </span>
+          {/*
+           * §102, golf h1 (D4): on a desk the stamp became the switch itself — the
+           * Keeper half carries the shield and `masthead-side` when it is the
+           * side you stand on. The phone has no side menu to show (it keeps
+           * §46's button in the corner), so there the stamp stays in the
+           * hidden masthead for what reads it.
+           */}
+          {keeperHand && !isPhone ? (
+            <SideToggle side={me.side === 'keeper' ? 'keeper' : 'player'} words={words} variant="mast" />
+          ) : (
+            me.side === 'keeper' && (
+              <span className="masthead-side" data-testid="masthead-side">
+                <Icon name="shield" size={12} />
+                {words.keeperSide}
+              </span>
+            )
           )}
         </div>
         {/*
@@ -172,6 +256,7 @@ function Nav({
             <Link key={item.href} href={item.href} aria-current={isCurrent(pathname, item.href) ? 'page' : undefined}>
               <Icon name={item.icon} size={18} />
               {words[item.word]}
+              <NavPending />
             </Link>
           ))}
         </div>
@@ -182,9 +267,11 @@ function Nav({
           className="btn btn-primary nav-new"
           data-testid="nav-new"
           onClick={() => ui.openNewEntry(here ? { caseId: here.id } : undefined)}
+          // §104 (golf H, D23): the long sentence stays the button's name; what it shows fits on one line.
+          aria-label={here ? fill(words.navNewInCaseLabel, { nieuw: words.newEntry, dossier: words.case }) : undefined}
         >
           <Icon name="plus" size={18} />
-          {here ? `${words.newEntry} in dit ${words.case}` : words.newEntry}
+          {here ? fill(words.navNewInCase, { dossier: words.case }) : words.newEntry}
         </button>
         <ShortcutsLine keeper={Boolean(me.isRealKeeper && !me.asPlayer)} />
         <Link
@@ -196,6 +283,7 @@ function Nav({
           <Icon name="gear" size={18} />
           {words.navYou}
           <span className="tiny muted">{words.navSettings}</span>
+          <NavPending />
         </Link>
       </nav>
 
@@ -205,11 +293,12 @@ function Nav({
           <Link
             key={item.href}
             href={item.href}
-            className={item.compact ? 'tab-compact' : undefined}
             aria-current={isCurrent(pathname, item.href) ? 'page' : undefined}
           >
             <Icon name={item.icon} size={20} />
-            <span className={item.compact ? 'visually-hidden' : undefined}>{words[item.word]}</span>
+            {/* §102, golf h1 (T3): Zoeken draagt zijn woord ook. */}
+            <span>{words[item.word]}</span>
+            <NavPending />
           </Link>
         ))}
         {/* §91: the eighth tab opens the Jij-blad, and wears the saldo. */}
@@ -247,7 +336,12 @@ function Nav({
       <button
         type="button"
         className="fab"
-        aria-label={here ? `${words.newEntry} in dit ${words.case}` : words.newEntry}
+        // Review #10: stepped aside on a reading page while scrolling down —
+        // and then not a stop for the keyboard or a screen reader either.
+        data-away={fabAway ? '1' : undefined}
+        tabIndex={fabAway ? -1 : undefined}
+        aria-hidden={fabAway || undefined}
+        aria-label={here ? fill(words.navNewInCaseLabel, { nieuw: words.newEntry, dossier: words.case }) : words.newEntry}
         onClick={() => {
           /*
            * §90: the soort of the list you are standing on, as the *Nieuw* in
@@ -310,6 +404,8 @@ export function AppShell({
   logoAssetId: string | null;
   children: ReactNode;
 }) {
+  // §102, golf h1 (D4): the corner button is the phone's only.
+  const isPhone = useIsPhone();
   return (
     <UiProvider
       types={types}
@@ -328,7 +424,10 @@ export function AppShell({
           follower compares this with the id on the `line` it is offered. It is
           this window's own user id and no secret to it. */}
       <LiveProvider userId={me.id}>
-        <div className="shell">
+        {/* §102, golf h1 (D4): `data-keeper-hand` says, from the server's first HTML,
+            that a Keeper's toggle belongs on this screen — so the phone's band
+            for the corner button is there before the button hydrates in. */}
+        <div className="shell" data-keeper-hand={me.isRealKeeper && !me.asPlayer ? '' : undefined}>
           {/* §90: the first stop for a keyboard, and invisible until it is one —
               otherwise fourteen menu stops stand between Tab and the page. */}
           <a className="skip-link" href="#main">
@@ -343,7 +442,9 @@ export function AppShell({
            */}
           {me.isRealKeeper && !me.asPlayer && (
             <>
-              <SideToggle side={me.side === 'keeper' ? 'keeper' : 'player'} words={words} />
+              {/* §102, golf h1 (D4): the corner is the phone's; a desk has the switch
+                  in the masthead (`Nav`). One of the two, never both. */}
+              {isPhone && <SideToggle side={me.side === 'keeper' ? 'keeper' : 'player'} words={words} />}
               {/*
                * §50/§57: and the word for a wissel that has just happened. It
                * stands here, in the shell, rather than in `KeeperStamp`: a flip
@@ -364,6 +465,8 @@ export function AppShell({
               focus on every click on bare page, which half the app reads as
               "nobody is typing" when it sees `<body>`. */}
           <main className="main" id="main">
+            {/* §102 (ronde 65·b): één streep, vast bovenaan deze kolom. */}
+            <NavProgress label={words.navLoading} />
             <LiveStrip words={words} />
             {/*
              * §84 zette hier de beurs, als pil in de hoek van elke pagina: de

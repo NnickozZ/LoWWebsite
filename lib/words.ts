@@ -1245,6 +1245,330 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'searchCreate', what: 'De knop onder de resultaten', fallback: '‘{naam}’ aanmaken' },
     ],
   },
+  // ── ronde 65·a — beweging en meldingen: eigen groep direct hieronder ──
+  //
+  //
+  //
+  // ── ronde 65·b — navigatie: eigen groep direct hieronder ──
+  {
+    title: 'Navigatie',
+    note: 'Wat een schermlezer hoort terwijl een pagina onderweg is. Op het scherm is het een streep of een skelet, zonder woorden.',
+    words: [
+      {
+        key: 'navLoading',
+        what: 'De naam van de streep bovenaan en van het skelet, terwijl een pagina laadt',
+        fallback: 'Pagina wordt geladen',
+      },
+    ],
+  },
+  //
+  //
+  //
+  // ── ronde 65·c — voorbeeldkaart en omslag: eigen groep direct hieronder ──
+  {
+    title: 'De voorbeeldkaart',
+    note: 'Het kaartje dat opkomt als je een naam aanwijst, of er op een telefoon lang op drukt.',
+    words: [
+      { key: 'previewOpen', what: 'De link rechtsonder op het kaartje', fallback: 'Openen →' },
+      {
+        key: 'previewLabel',
+        what: 'Wat een schermlezer over het kaartje zegt',
+        fallback: 'Voorbeeld van {naam}',
+        hint: '{naam} wordt de naam van het artikel.',
+      },
+    ],
+  },
+  //
+  //
+  //
+  // ── ronde 66 — het moment in de kamer: eigen groep direct hieronder ──
+  // §103 herstel (F2): de winkel en de kamer na de design-review.
+  {
+    title: 'De winkel en de kamer',
+    note: '§103, herstel: de prijs één keer per rij, en de zin onder het geluid op Jij.',
+    words: [
+      {
+        key: 'shopOpenFirst',
+        what: 'In de winkel: de knop als er eerst een plek open moet',
+        fallback: 'Eerst een {plek} openen ({n}), dan {prijs}',
+        hint: '{plek} is de soort plek, {n} wat openen kost en {prijs} wat het ding daarna kost. Op het scherm zijn het kale getallen; een schermlezer hoort "5 munten".',
+      },
+      {
+        key: 'soundHint',
+        what: 'Op /you: de zin onder Geluid in de kamer',
+        fallback: 'Een tik, een munt, een stempel — alleen in de kamer en de winkel.',
+      },
+    ],
+  },
+  {
+    title: 'Het geld klinkt',
+    note: '§103: de woorden van het moment — kopen, neerzetten, een gift die binnenkomt, en het geluid.',
+    words: [
+      {
+        key: 'buyShort',
+        what: 'De koopknop in de winkel, kort',
+        fallback: '{knop} → {plek}',
+        hint: '{knop} is "Kopen" (of "Kopen voor …" als de kiezer buiten beeld is) en {plek} waar het landt. De prijs staat als stempel erboven; {n} (het bedrag) mag er ook in.',
+      },
+      { key: 'buyBought', what: 'Wat de koopknop zegt, meteen na de klik', fallback: 'Gekocht' },
+      {
+        key: 'furnishedStamp',
+        what: 'De stempel bij de eerste koop ooit in een kamer',
+        fallback: 'Ingericht',
+        hint: 'Eén keer per kamer. Hij staat in kapitalen, zoals elke stempel.',
+      },
+      {
+        key: 'grantArrived',
+        what: 'De melding als de Keeper je munten geeft',
+        fallback: '+{bedrag} van de {keeper} — {reden}',
+        hint: '{bedrag} is "12 munten", {reden} wat de Keeper erbij schreef.',
+      },
+      {
+        key: 'grantArrivedPlain',
+        what: 'Dezelfde melding, als de Keeper geen reden schreef',
+        fallback: '+{bedrag} van de {keeper}',
+      },
+      { key: 'shopOwnedShort', what: 'Op een winkelrij, als het in je kamer staat', fallback: 'Staat in je kamer' },
+      { key: 'shopOwnedShow', what: 'De deur achter die zin, naar de tegel', fallback: 'Bekijk' },
+      { key: 'soundLabel', what: 'Op /you: de schakelaar voor het geluid', fallback: 'Geluid in de kamer' },
+      { key: 'soundOff', what: 'Het geluid staat uit', fallback: 'Uit' },
+      { key: 'soundOn', what: 'Het geluid staat aan', fallback: 'Aan' },
+      {
+        key: 'soundNote',
+        what: 'Op /you, achter Waarom? bij het geluid',
+        fallback:
+          'Een munt als je iets krijgt, een tik als iets neerkomt, een stempel bij een koop, een sleutel bij een plek die opengaat. Nooit bij typen of opslaan. Alleen in deze browser.',
+      },
+    ],
+  },
+  //
+  //
+  //
+  // ── ronde 67 — de leeskamer: eigen groep direct hieronder ──
+  // §104
+  {
+    title: 'De leeskamer',
+    note: 'De voorpagina van de wiki, Verras me, Genoemd in met de zin, en de kleine regels in een artikel.',
+    words: [
+      { key: 'wikiRecent', what: 'Op de wiki: de kop boven wat het laatst bijgewerkt is', fallback: 'Onlangs bijgewerkt' },
+      { key: 'wikiRecentAll', what: 'De deur naast die kop, naar de hele lijst', fallback: 'Alles op volgorde' },
+      { key: 'wikiRecentNone', what: 'Als er aan deze kant nog niets bijgewerkt is', fallback: 'Hier is nog niets bijgewerkt.' },
+      {
+        key: 'wikiRecentWho',
+        what: 'Onder een kaart bij Onlangs: wie en wanneer',
+        fallback: '{naam} · {wanneer}',
+        hint: '{naam} is het karakter dat de versie schreef, {wanneer} bijvoorbeeld "4 dagen geleden".',
+      },
+      { key: 'wikiFromArchive', what: 'Op de wiki: de kop boven één willekeurig artikel', fallback: 'Uit het archief' },
+      { key: 'wikiOneMore', what: 'De knop die een ander willekeurig artikel kiest', fallback: 'Nog één' },
+      { key: 'wikiReadOn', what: 'De knop naar dat artikel', fallback: 'Lezen' },
+      { key: 'wikiArchiveNone', what: 'Als er aan deze kant nog niets in het archief staat', fallback: 'Aan deze kant staat nog niets.' },
+      { key: 'wikiKinds', what: 'Op de wiki: de kop boven de tegels van de soorten', fallback: 'De soorten' },
+      { key: 'surpriseMe', what: 'Handeling in het palet: een willekeurig artikel openen', fallback: 'Verras me' },
+      { key: 'headingLinkCopied', what: 'De melding na een klik op het # naast een kop', fallback: 'Link gekopieerd' },
+      {
+        key: 'headingLinkNotCopied',
+        what: 'Als de browser niet laat kopiëren',
+        fallback: 'Kopiëren lukte niet. Het adres is {adres}',
+      },
+      { key: 'headingLinkLabel', what: 'Voorleestekst van het # naast een kop', fallback: 'Link naar ‘{kop}’ kopiëren' },
+      { key: 'headingLinkTitle', what: 'Het tooltipje bij dat #', fallback: 'Link naar deze kop kopiëren' },
+      {
+        key: 'lastEditBy',
+        what: 'Onder de korte beschrijving: wie het artikel het laatst bijwerkte',
+        fallback: 'Bijgewerkt door {naam}',
+        hint: '{naam} is het karakter dat de laatste versie schreef.',
+      },
+      { key: 'lastEditVersions', what: 'Daarachter: hoeveel versies er zijn', fallback: '{n} versies' },
+      { key: 'lastEditOneVersion', what: 'Hetzelfde, als er één is', fallback: '{n} versie' },
+      { key: 'coverOpen', what: 'Voorleestekst van de omslag in Lezen (een tik opent hem groot)', fallback: '{naam} groot bekijken' },
+      { key: 'coverClose', what: 'De knop die de grote omslag sluit', fallback: 'Sluiten' },
+      {
+        key: 'derivedTwinNote',
+        what: 'Onder een lijst die zichzelf vult en dezelfde kop draagt als een koppelingsveld',
+        fallback: 'Met wie in het veld {veld} staat.',
+        hint: 'Zo’n lijst neemt de namen uit dat veld erbij. Geef het veld of de lijst een andere naam om ze los te zetten.',
+      },
+      // §104 (ronde 67·herstel, F3)
+      {
+        key: 'entryWhereOn',
+        what: 'Op een telefoon, de regel onder de knoppen van een artikel: op hoeveel landkaarten of tijdlijnen het staat',
+        fallback: 'op {n} {ding}',
+        hint: '{ding} is het woord voor landkaart of tijdlijn, enkel- of meervoud. De delen staan met · achter elkaar.',
+      },
+      {
+        key: 'entryWhereIn',
+        what: 'Dezelfde regel: in hoeveel dossiers het ligt',
+        fallback: 'in {n} {ding}',
+        hint: '{ding} is het woord voor dossier, enkel- of meervoud.',
+      },
+      {
+        key: 'historyNone',
+        what: 'Onder Geschiedenis, als er geen versie is die deze lezer mag zien',
+        fallback: 'Nog geen versie om terug te lezen.',
+      },
+      {
+        key: 'listShownOf',
+        what: 'Boven een lange lijst in de wiki: hoeveel er staan van hoeveel er zijn',
+        fallback: '{n} van {totaal} {artikelen}',
+        hint: '{artikelen} is het woord voor artikelen.',
+      },
+      { key: 'listMore', what: 'De knop onder zo’n lijst die de volgende laat zien', fallback: 'Meer' },
+      {
+        key: 'mentionedNone',
+        what: 'Onder Genoemd in, als nog niets naar dit artikel verwijst (één gedempte regel)',
+        fallback: 'Nog nergens genoemd.',
+      },
+      {
+        key: 'listNone',
+        what: 'Onder een lijst die zichzelf vult, zolang er nog niets in staat (één gedempte regel)',
+        fallback: 'Nog niets.',
+      },
+      { key: 'listMoreLeft', what: 'Naast die knop: hoeveel er nog komen', fallback: 'nog {n}' },
+    ],
+  },
+  // ── golf h1 — de schil: eigen groep direct hieronder ──
+  {
+    title: 'De schil',
+    note: 'De schakelaar tussen de twee kanten, de tabbalk op de telefoon, het palet zonder uitkomst en de kleine regels bij zoeken en tekenen.',
+    words: [
+      {
+        key: 'sideSwitchPlayers',
+        what: 'Op een computer, de schakelaar in de zijbalk: de helft van de spelerskant',
+        fallback: 'Spelers',
+      },
+      {
+        key: 'sideSwitchKeeper',
+        what: 'Dezelfde schakelaar: de helft van de Keeperkant',
+        fallback: 'Keeper',
+      },
+      {
+        key: 'paletteNothingFor',
+        what: 'In het palet, als niets past bij wat je typte',
+        fallback: 'Niets gevonden voor ‘{zoek}’ — Enter zoekt in alles',
+        hint: '{zoek} is wat er in het vak staat.',
+      },
+      {
+        key: 'paletteNoActionFor',
+        what: 'In het palet, na >, als geen handeling past',
+        fallback: 'Geen handeling heet ‘{zoek}’.',
+        hint: '{zoek} is wat er na de > staat.',
+      },
+      {
+        key: 'searchHintTouch',
+        what: 'Onder een leeg zoekvak, op een aanraakscherm (daar is geen toets /)',
+        fallback: 'Typ om te zoeken.',
+      },
+      { key: 'notFoundStamp', what: 'De stempel op de pagina die er niet is (404)', fallback: 'Niet in het archief' },
+      { key: 'notFoundTitle', what: 'De kop van die pagina', fallback: 'Deze pagina is er niet.' },
+      {
+        key: 'notFoundBody',
+        what: 'De zin eronder. Hij noemt niets: wie iets niet mag zien, hoort ook niet dat het bestaat.',
+        fallback: 'Hij bestaat niet, of hij is niet van jou om te lezen. De rest van het archief staat er nog.',
+      },
+      { key: 'notFoundHome', what: 'De knop terug naar Start', fallback: 'Naar het begin' },
+      {
+        key: 'canvasHintTouch',
+        what: 'Onder een tekenvlak op een aanraakscherm',
+        fallback: 'sleep om te schuiven, knijp om te zoomen',
+      },
+    ],
+  },
+  // ── golf h2 — de economie: eigen groep direct hieronder ──
+  // §103 golf H (h2): de kamer, de winkel, het uitdelen en de meldingen na design-review 3.
+  {
+    title: 'De economie, laatste pas',
+    note: '§103, golf H: een kop van één regel, dichte plekken die kort zeggen wat ze kosten, en meldingen die elkaar vervangen.',
+    words: [
+      {
+        key: 'roomHeading',
+        what: 'De kop van een kamer, vóór de naam van de onderzoeker',
+        fallback: '{kamer} van',
+        hint: '{kamer} is het woord voor kamer. Daarna volgt de naam.',
+      },
+      {
+        key: 'roomToEntry',
+        what: 'Het kleine icoon naast de naam in die kop (voor een schermlezer)',
+        fallback: 'Naar het {artikel} van {naam}',
+      },
+      {
+        key: 'lockedRest',
+        what: 'Op een telefoon, onder de eerstvolgende dichte plekken: hoeveel er nog op slot zitten',
+        fallback: 'Nog {plekken} op slot · {prijzen}',
+        hint: '{plekken} is bijvoorbeeld "6 plekken", {prijzen} "8 tot 30 munten".',
+      },
+      { key: 'priceRange', what: 'Een prijs van … tot …', fallback: '{van} tot {tot}' },
+      {
+        key: 'shopOpenFirstShort',
+        what: 'In de winkel: de knop als er eerst een plek open moet (op één regel)',
+        fallback: 'Eerst {plek} openen · {n}',
+        hint: '{plek} is de soort plek, {n} wat openen kost. De prijs van het ding staat als stempel erboven.',
+      },
+      {
+        key: 'movedTo',
+        what: 'Nadat je iets in je kamer verplaatst hebt',
+        fallback: '{ding} verplaatst naar de {plek}.',
+      },
+      {
+        key: 'movedToOf',
+        what: 'Dezelfde melding in de kamer van een ander',
+        fallback: '{ding} verplaatst naar de {plek} van {naam}.',
+      },
+      {
+        key: 'grantMuntLine',
+        what: 'De melding als de Keeper munten geeft, naast de stempel met het bedrag',
+        fallback: '{munten} van de {keeper}',
+        hint: '{munten} is het woord munt of munten; het getal staat op de stempel ervoor.',
+      },
+      {
+        key: 'handoutDoneOne',
+        what: 'Nadat de Keeper aan één kamer uitdeelde',
+        fallback: '{munten} naar {naam}',
+      },
+      {
+        key: 'handoutDoneMany',
+        what: 'Nadat de Keeper aan meer kamers uitdeelde',
+        fallback: '{munten} naar {kamers}',
+        hint: '{kamers} is bijvoorbeeld "2 kamers".',
+      },
+      {
+        key: 'feedRoomOpenedOwn',
+        what: 'In het feed: een speler opende een plek in de eigen kamer',
+        fallback: 'opende een plek in de eigen kamer',
+      },
+    ],
+  },
+  // ── golf h3 — lezen en de wiki: eigen groep direct hieronder ──
+  // §104 (aangevuld in golf H)
+  {
+    title: 'Lezen en de wiki (golf H)',
+    note: 'De tabrij van de wiki, de knop in het menu op een dossier, en de dossiernotities.',
+    words: [
+      {
+        key: 'wikiMoreKinds',
+        what: 'Aan het eind van de tabrij in de wiki: het menu met de soorten die niet in de rij passen',
+        fallback: 'Meer soorten',
+      },
+      {
+        key: 'navNewInCase',
+        what: 'De grote knop in het menu, als je op een dossier staat (past op één regel)',
+        fallback: 'Nieuw in dit {dossier}',
+        hint: '{dossier} is het woord voor dossier.',
+      },
+      {
+        key: 'navNewInCaseLabel',
+        what: 'Voor een schermlezer: de volle naam van die knop (en van de + op een telefoon) op een dossier',
+        fallback: '{nieuw} in dit {dossier}',
+        hint: '{nieuw} is "Nieuw artikel", {dossier} het woord voor dossier.',
+      },
+      { key: 'caseNotes', what: 'De kop boven de notities van een dossier', fallback: 'Dossiernotities' },
+      {
+        key: 'caseNotesNone',
+        what: 'In Lezen, als een dossier nog geen notities heeft (één gedempte regel)',
+        fallback: 'Nog niets opgeschreven.',
+      },
+    ],
+  },
 ];
 
 export const WORD_DEFS: WordDef[] = WORD_GROUPS.flatMap((group) => group.words);

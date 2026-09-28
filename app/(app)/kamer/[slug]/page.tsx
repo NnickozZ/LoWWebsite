@@ -6,10 +6,11 @@ import { Beurs } from '@/components/kamer/Beurs';
 import { GrantForm } from '@/components/kamer/GrantForm';
 import { Grootboek } from '@/components/kamer/Grootboek';
 import { LadeGift } from '@/components/kamer/LadeGift';
-import { Plek } from '@/components/kamer/Plek';
+import { DichtePlekken } from '@/components/kamer/DichtePlekken';
+import { Plek, plekState } from '@/components/kamer/Plek';
 import { RoomEffects } from '@/components/kamer/RoomEffects';
 import { KamerGrid } from '@/components/kamer/Verplaatsen';
-import { MEANING } from '@/components/kamer/plekWords';
+import { MEANING, lockedRestLine } from '@/components/kamer/plekWords';
 import { LivePage } from '@/components/live/LivePage';
 import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
@@ -88,6 +89,25 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
   // §101: de soorten die de Keeper hier rechtstreeks in de lade legt — `canGrant` is de Keeper.
   const giftTypes = room.canGrant ? furnishingTypeSlugs() : [];
 
+  /*
+   * §103 golf H (T11): wat open is (leeg, gevuld of verhuld) staat in het
+   * raster; wat dicht is eronder, apart. Van elke soort is de eerstvolgende
+   * dichte plek (in de volgorde van de ladder, `sortOrder`) een tegel; de rest
+   * staat op een telefoon achter één regel (`lockedRest`).
+   */
+  const naamSplit = room.character.name.lastIndexOf(' ');
+  const naamBegin = naamSplit > 0 ? room.character.name.slice(0, naamSplit + 1) : '';
+  const naamEind = naamSplit > 0 ? room.character.name.slice(naamSplit + 1) : room.character.name;
+  const open = room.slots.filter((slot) => plekState(slot) !== 'locked');
+  const locked = room.slots.filter((slot) => plekState(slot) === 'locked');
+  const nextOfKind = new Set<string>();
+  const rest = locked.filter((slot) => {
+    if (nextOfKind.has(slot.kind)) return true;
+    nextOfKind.add(slot.kind);
+    return false;
+  });
+  const restLine = lockedRestLine(rest.map((slot) => slot.price), words);
+
   return (
     <div className="page kamer-page" data-testid="kamer-page" data-room={room.id}>
       {/*
@@ -114,10 +134,28 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
           (ownerName ?? capitalise(words.room))
         )}
       </p>
+      {/*
+        §103 golf H (T16/D29): *Kamer van Dr. Elsje Kramer*, in inkt. De naam
+        stond er als blauwe, onderstreepte link van 34 px achter een los "Van",
+        en de pagina las als een link in plaats van als een kop. De naam is nog
+        steeds de deur naar het artikel, maar in inkt en pas onderstreept onder
+        de muis of de focus, met een klein icoon van een artikel erachter.
+      */}
       <h1 className="kamer-title">
-        <span className="kamer-title-of">{capitalise(words.roomOf)} </span>
-        <Link href={`/e/${room.character.slug}`} data-testid="kamer-onderzoeker">
-          {room.character.name}
+        <span className="kamer-title-of">{capitalise(fill(words.roomHeading, { kamer: words.room }))} </span>
+        <Link
+          href={`/e/${room.character.slug}`}
+          className="kamer-onderzoeker"
+          data-testid="kamer-onderzoeker"
+          title={fill(words.roomToEntry, { artikel: words.entry, naam: room.character.name })}
+        >
+          {/* Het laatste woord en het icoon breken niet los van elkaar: anders
+              stond het icoon op een telefoon alleen op een eigen regel. */}
+          {naamBegin}
+          <span className="kamer-onderzoeker-staart">
+            {naamEind}
+            <Icon name={MEANING.artikel} size={16} className="kamer-onderzoeker-icoon" aria-hidden="true" />
+          </span>
         </Link>
       </h1>
 
@@ -152,45 +190,56 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
         </p>
       )}
 
-      {/* S14: de wissel tussen je eigen kamers (Kamer van: Cornelis · Jan), alleen voor wie er zelf meer dan één heeft. */}
-      {mine.length > 1 && (
-        <nav className="row-wrap kamer-wissel" aria-label={words.roomSwitch} data-testid="kamer-wissel">
-          <span className="tiny muted kamer-wissel-label">{words.roomSwitch}</span>
-          {mine.map((option) => (
-            <Link
-              key={option.id}
-              href={`/kamer/${option.slug}`}
-              className={`chip chip-selectable${option.id === room.id ? ' chip-active' : ''}`}
-              aria-current={option.id === room.id ? 'page' : undefined}
-              data-testid="kamer-wissel-kamer"
-              data-room={option.id}
-            >
-              {option.name}
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      <p className="kamer-balance row-wrap" data-testid="kamer-balance" data-balance={room.balance}>
-        {/* §84: de beurs, niet nóg een stempel — zie `components/kamer/Beurs.tsx`
-            voor waarom wat je hébt er anders uit moet zien dan wat iets kost. */}
-        <Beurs balance={room.balance} words={words} />
-        {/* §82: naast de beurs, want dat is waar je hem uitgeeft — de winkel
-            is de etalage waar deze kamer uit gevuld wordt.
-            §90: alleen in je eigen kamer, en de deur draagt déze kamer mee
-            (`?kamer=`), anders kocht je voor het karakter dat toevallig
-            bovenaan stond. En het is de énige winkelknop op deze pagina (E12). */}
-        {isOwn && (
-          <Link
-            className="btn"
-            href={`/winkel?kamer=${encodeURIComponent(room.id)}`}
-            data-testid="kamer-winkel"
-          >
-            <Icon name={MEANING.winkel} size={15} />
-            {fill(words.toShop, { winkel: words.shop.toLowerCase() })}
-          </Link>
+      {/*
+        §103 golf H (T16): één regel onder de kop — de wissel tussen je eigen
+        kamers als één segmentrij, en ernaast het saldo en de deur naar de
+        winkel. Het waren drie regels (twee pillen die op een telefoon over twee
+        regels braken, en dan pas de beurs), en het eerste scherm had één rij
+        tegels over.
+      */}
+      <div className="kamer-kop-rij">
+        {/* S14: de wissel tussen je eigen kamers, alleen voor wie er zelf meer dan één heeft. */}
+        {mine.length > 1 && (
+          <nav className="kamer-wissel" aria-label={words.roomSwitch} data-testid="kamer-wissel">
+            {mine.map((option) => (
+              <Link
+                key={option.id}
+                href={`/kamer/${option.slug}`}
+                className={`kamer-wissel-kamer${option.id === room.id ? ' kamer-wissel-hier' : ''}`}
+                aria-current={option.id === room.id ? 'page' : undefined}
+                data-testid="kamer-wissel-kamer"
+                data-room={option.id}
+              >
+                {option.name}
+              </Link>
+            ))}
+          </nav>
         )}
-      </p>
+
+        <p className="kamer-balance" data-testid="kamer-balance" data-balance={room.balance}>
+          {/* §84: de beurs, niet nóg een stempel — zie `components/kamer/Beurs.tsx`
+              voor waarom wat je hébt er anders uit moet zien dan wat iets kost.
+              §103 golf H (T8): met de kamer erbij, zodat een koop of een geopende
+              plek hem meteen bereikt. */}
+          <Beurs balance={room.balance} words={words} room={room.id} />
+          {/* §82: naast de beurs, want dat is waar je hem uitgeeft — de winkel
+              is de etalage waar deze kamer uit gevuld wordt.
+              §90: alleen in je eigen kamer, en de deur draagt déze kamer mee
+              (`?kamer=`), anders kocht je voor het karakter dat toevallig
+              bovenaan stond. En het is de énige winkelknop op deze pagina (E12). */}
+          {isOwn && (
+            <Link
+              /* §103 herstel (#28): één vorm voor de twee deuren — `.btn-small` met een icoon. */
+              className="btn btn-small kamer-winkel-deur"
+              href={`/winkel?kamer=${encodeURIComponent(room.id)}`}
+              data-testid="kamer-winkel"
+            >
+              <Icon name={MEANING.winkel} size={15} />
+              {fill(words.toShop, { winkel: words.shop.toLowerCase() })}
+            </Link>
+          )}
+        </p>
+      </div>
 
       {/*
         §90 (E8): de Keeper komt hier om te géven, dus het formulier staat
@@ -211,7 +260,9 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
       <RoomEffects effects={room.effects} words={words} addressee={addressee} />
 
       {/* §93 (E10): het raster weet wat er verplaatst wordt — `KamerGrid` is de
-          `<ul>`, met de staat van *Verplaatsen* eromheen. */}
+          `<ul>`, met de staat van *Verplaatsen* eromheen.
+          §103 golf H (T11): alleen wat open is; de dichte plekken staan eronder,
+          kort, onder hun eigen etiket (`DichtePlekken`). */}
       <KamerGrid
         label={words.slotPlural}
         targets={room.slots
@@ -219,7 +270,7 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
           .map((slot) => ({ id: slot.id, kind: slot.kind }))}
         words={words}
       >
-        {room.slots.map((slot) => (
+        {open.map((slot) => (
           <Plek
             key={slot.id}
             slot={slot}
@@ -231,6 +282,23 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
           />
         ))}
       </KamerGrid>
+
+      {locked.length > 0 && (
+        <DichtePlekken title={words.slotLocked} rest={rest.length} summary={restLine}>
+          {locked.map((slot) => (
+            <Plek
+              key={slot.id}
+              slot={slot}
+              roomId={room.id}
+              balance={room.balance}
+              canArrange={room.canArrange}
+              guestOf={isOwn ? null : room.character.name}
+              rest={rest.includes(slot)}
+              words={words}
+            />
+          ))}
+        </DichtePlekken>
+      )}
 
       {/*
         §93: de lade — wat deze kamer bezit en nergens heeft staan. Alleen als er
@@ -264,3 +332,4 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
     </div>
   );
 }
+

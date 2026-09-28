@@ -5,6 +5,7 @@ import { BUY_UNDO_MS } from '@/lib/kamers/undo';
 import { fill, type Words } from '@/lib/words';
 import { munt } from './plekWords';
 import { kamerPostFor } from './post';
+import { announceBalance } from './saldo';
 
 type Router = { refresh: () => void };
 
@@ -35,8 +36,15 @@ export function buyToast(
     words: Words;
   },
 ) {
+  /*
+   * §103 golf H (T15): één onderwerp, één melding. De koop, het terugbrengen
+   * en wat er daarna met het ding gebeurt (verplaatsen, weghalen) dragen
+   * dezelfde sleutel, dus *Leesstoel teruggebracht* vervangt *Leesstoel ligt
+   * nu op je bureau* in plaats van eronder te komen.
+   */
+  const key = toastKeyOf(entryId);
   const undo = async () => {
-    const { error, data } = await kamerPostFor<{ returned: number; name: string }>(
+    const { error, data } = await kamerPostFor<{ returned: number; name: string; balance?: number }>(
       `/api/kamers/${roomId}/terug`,
       { entryId },
       words,
@@ -45,11 +53,18 @@ export function buyToast(
       if (error) ui.toast(error);
       return;
     }
-    ui.toast(fill(words.buyReturned, { ding: data.name, bedrag: munt(data.returned, words) }));
+    // §103 golf H (T8): het getal rolt terug in hetzelfde moment als de melding.
+    announceBalance(roomId, data.balance);
+    ui.toast(fill(words.buyReturned, { ding: data.name, bedrag: munt(data.returned, words) }), undefined, { key });
     router.refresh();
   };
   const undoAction = { label: words.buyUndo, onAction: () => void undo() };
   // Zonder deur is *Ongedaan maken* de eerste knop; met deur staat hij ernaast.
-  if (show) ui.toast(message, show, { ms: BUY_UNDO_MS, also: undoAction });
-  else ui.toast(message, undoAction, { ms: BUY_UNDO_MS });
+  if (show) ui.toast(message, show, { ms: BUY_UNDO_MS, also: undoAction, key });
+  else ui.toast(message, undoAction, { ms: BUY_UNDO_MS, key });
+}
+
+/** §103 golf H (T15): de sleutel van een melding over één ding in een kamer. */
+export function toastKeyOf(entryId: string): string {
+  return `ding:${entryId}`;
 }

@@ -15,6 +15,7 @@ import {
 } from '@/lib/editor/shortBox';
 import { useUi } from './UiProvider';
 import { useShortChips } from './ShortChips';
+import { naadHoofd, naadSneden, snij, type NaadStuk } from '@/lib/wiki/naad';
 import { hasTokens, splitShort } from '@/lib/entries/shortTokens.mjs';
 
 /**
@@ -668,13 +669,20 @@ function ShortTextView({ text, flat, plain }: { text: string; flat?: boolean; pl
   const parts = useMemo(() => splitShort(text), [text]);
   const handles = useMemo(() => parts.flatMap((part) => (part.kind === 'chip' ? [part.handle] : [])), [parts]);
   const chips = useShortChips(handles);
+  // §104 (ronde 67·herstel): the words around a chip there is nothing to draw
+  // for close up — no space before a comma, none at the start (`lib/wiki/naad.ts`).
+  const stukken = parts.map((part): NaadStuk => (part.kind === 'text' ? { tekst: part.text } : chips.get(part.handle) ? { vast: true } : { verborgen: true }));
+  const cuts = naadSneden(stukken);
+  // §104 (golf H, D28): a text that now begins after a hidden name begins with a capital — shown, not stored.
+  const hoofd = naadHoofd(stukken, cuts);
   const out: React.ReactNode[] = [];
   parts.forEach((part, i) => {
     if (part.kind === 'text') {
+      const text = hoofd?.stuk === i ? metHoofd(part.text, cuts[i], hoofd) : snij(part.text, cuts[i]);
       let at = 0;
-      for (const match of part.text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) {
+      for (const match of text.matchAll(/\[\[([^\]\n]{1,120})\]\]/g)) {
         const start = match.index ?? 0;
-        if (start > at) out.push(<span key={`t${i}-${at}`}>{part.text.slice(at, start)}</span>);
+        if (start > at) out.push(<span key={`t${i}-${at}`}>{text.slice(at, start)}</span>);
         const name = match[1].trim();
         out.push(
           plain ? (
@@ -689,7 +697,7 @@ function ShortTextView({ text, flat, plain }: { text: string; flat?: boolean; pl
         );
         at = start + match[0].length;
       }
-      if (at < part.text.length) out.push(<span key={`t${i}-${at}`}>{part.text.slice(at)}</span>);
+      if (at < text.length) out.push(<span key={`t${i}-${at}`}>{text.slice(at)}</span>);
       return;
     }
     const chip = chips.get(part.handle);
@@ -707,6 +715,20 @@ function ShortTextView({ text, flat, plain }: { text: string; flat?: boolean; pl
     );
   });
   return <>{out}</>;
+}
+
+/**
+ * §104 (golf H, D28): the cut text with its first visible letter as a capital.
+ * The letter is uppercased here rather than wrapped in a span: this text is a
+ * plain string that the `[[…]]` pass below still reads. Only what is drawn
+ * changes; the stored text keeps its small letter.
+ */
+function metHoofd(text: string, cuts: ReadonlyArray<readonly [number, number]>, hoofd: { van: number; tot: number }): string {
+  const letter = text.slice(hoofd.van, hoofd.tot);
+  const groot = letter.toUpperCase();
+  // The cuts are positions in `text`; a letter that grows when uppercased (ß) is left as it is.
+  if (groot.length !== letter.length) return snij(text, cuts);
+  return snij(text.slice(0, hoofd.van) + groot + text.slice(hoofd.tot), cuts);
 }
 
 function LegacyMentionText({ text, flat, plain }: { text: string; flat?: boolean; plain?: boolean }) {

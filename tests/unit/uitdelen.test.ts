@@ -353,7 +353,7 @@ describe('§83: uitdelen — één reden, één knop, één transactie', () => {
       'samen de vuurtoren gehaald',
       KEEPER,
     );
-    expect(out).toEqual({ rooms: 2, total: 6 });
+    expect(out).toEqual({ rooms: 2, total: 6, balances: { [ROOM]: 3, [ROOM_B]: 3 } });
     for (const room of [ROOM, ROOM_B]) {
       expect(ledgerRows(room)).toHaveLength(1);
       expect(ledgerRows(room)[0]).toMatchObject({ delta: 3, kind: 'grant', reason: 'samen de vuurtoren gehaald' });
@@ -384,7 +384,7 @@ describe('§83: uitdelen — één reden, één knop, één transactie', () => {
       'alleen Bram',
       KEEPER,
     );
-    expect(out).toEqual({ rooms: 1, total: 2 });
+    expect(out).toEqual({ rooms: 1, total: 2, balances: { [ROOM]: 2 } });
     expect(ledgerRows(ROOM_B)).toHaveLength(0);
     expect(ledgerRows(ROOM_D1)).toHaveLength(0);
   });

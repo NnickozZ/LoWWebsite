@@ -2214,7 +2214,16 @@ export function MapCanvas({
 
       <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
         {shown.length} van {pins.length} {pins.length === 1 ? pinWord : words.mapPinPlural} te zien
-        {' · '}sleep om te schuiven, scroll of knijp om te zoomen
+        {/* §102, golf h1 (T18): a pointer's sentence and a finger's; the stylesheet
+            shows one (`app/navigatie.css`, `pointer: coarse`). */}
+        <span className="hint-wijzer">
+          {' · '}sleep om te schuiven, scroll of knijp om te zoomen
+        </span>
+        {/* Golf H: the finger's sentence in the same line, so the glass keeps its height. */}
+        <span className="hint-vinger">
+          {' · '}
+          {words.canvasHintTouch}
+        </span>
         {ink.ink.enabled && <> · het potlood tekent op de {mapWord}, Esc stopt</>}
       </p>
 

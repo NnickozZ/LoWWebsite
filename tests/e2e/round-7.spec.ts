@@ -176,6 +176,8 @@ test('de artikelpagina staat in drie kolommen', async ({ page }, info) => {
   test.skip(info.project.name === 'phone', 'the three-column layout is a wide-screen thing');
 
   await signIn(page, ...KEEPER);
+  // §104 (golf H, D1): three columns from 1500 px; under it the outline is a row above the text.
+  await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/e/pier-boone');
   await page.waitForTimeout(600);
 
@@ -213,23 +215,34 @@ test('de drie kolommen houden hun volgorde over de hele brede band', async ({ pa
 
   await signIn(page, ...KEEPER);
 
-  // Just above the breakpoint, and a normal desktop.
-  for (const width of [1300, 1440]) {
+  /*
+   * §104 (golf H, D1): from 1280 to 1499 px the page is two columns — text and
+   * facts — with the outline as the row of chips above the text (a third column
+   * left the text 367 px at 1280). From 1500 px the outline is the first column
+   * again. Either way the order is signpost, text, facts, and the text and the
+   * facts begin at the same height.
+   */
+  for (const width of [1300, 1440, 1600]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/e/pier-boone');
     await page.waitForTimeout(600);
 
-    await expect(page.locator('.entry-rail')).toBeVisible();
-
     const main = (await page.locator('.entry-main').boundingBox())!;
-    const rail = (await page.locator('.entry-rail').boundingBox())!;
     const aside = (await page.locator('.entry-aside').boundingBox())!;
-
-    // Signpost, text, facts — left to right, at either width.
-    expect(rail.x + rail.width).toBeLessThanOrEqual(main.x + 1);
     expect(main.x + main.width).toBeLessThanOrEqual(aside.x + 1);
-    // And the three columns still begin at the same height.
     const head = (await page.locator('.entry-main .entry-head').boundingBox())!;
     expect(Math.abs(aside.y - head.y)).toBeLessThan(24);
+
+    if (width >= 1500) {
+      await expect(page.locator('.entry-rail')).toBeVisible();
+      const rail = (await page.locator('.entry-rail').boundingBox())!;
+      expect(rail.x + rail.width).toBeLessThanOrEqual(main.x + 1);
+    } else {
+      await expect(page.locator('.entry-rail')).toHaveCount(0);
+      const row = (await page.locator('.entry-main .entry-outline-row').boundingBox())!;
+      expect(row.y).toBeGreaterThan(head.y);
+      // The text column has its measure back: at 1300 px it was ±385 px.
+      expect(main.width).toBeGreaterThan(560);
+    }
   }
 });

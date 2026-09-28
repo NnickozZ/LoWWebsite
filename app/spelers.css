@@ -278,7 +278,11 @@
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 50%;
-  background: var(--stamp-red);
+  /* T1 (ronde 65): aanwezig is groen, overal. Rood is in dit archief de kleur
+     van stempel en Keeper (§84); hier stond het voor "online", en de stip in
+     de hoek zei tegelijk groen. Eén token, `--live`, voor beide. */
+  background: var(--live);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 18%, transparent);
 }
 
 /* De kolomkoppen boven de lijst. Dezelfde twee ruimtes als een regel eronder,

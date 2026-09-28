@@ -30,7 +30,7 @@ import {
 // §70: a sectie belongs to a thing — an artikel or a dossier — and this is the
 // one road to one.
 import { listSections } from '@/lib/sections/service';
-import { listDerivedEntries, resolveFieldRefs, scrubUnseenRefs } from '@/lib/entries/derived';
+import { listDerivedEntries, listLinkedEntries, resolveFieldRefs, scrubUnseenRefs } from '@/lib/entries/derived';
 import { plainShort, shortChipsFor } from '@/lib/entries/shortRefs';
 import { ShortChips } from '@/components/ui/ShortChips';
 // §67: broers en zussen die uit de ouders volgen, per lezer op de server.
@@ -38,7 +38,11 @@ import { siblingsOf } from '@/lib/families/service';
 import { refIdsIn } from '@/lib/families/roles';
 import { SIBLING_WORDS } from '@/lib/families/siblings';
 import { listBlockKeys } from '@/lib/entries/fieldValues';
-import { groupMentions, listMentions } from '@/lib/entries/mentions';
+import { entryIdsIn, groupMentions, listMentions, mentionKey } from '@/lib/entries/mentions';
+// §104 (ronde 67): Genoemd in met de zin, en de regel onder de lead.
+import { MentionedIn } from '@/components/entry/MentionedIn';
+import { mentionSentences } from '@/lib/wiki/genoemd';
+import { fill } from '@/lib/words';
 import {
   getBacklinks,
   getEntryBySlug,
@@ -65,7 +69,7 @@ import { listMaps, listMapsOfEntry, listPinsForEntry } from '@/lib/maps/service'
 import { listEventsForEntry, listTimelines } from '@/lib/timelines/service';
 import { formatWhen } from '@/lib/timelines/time';
 import { viewerCanEdit } from '@/lib/access';
-import { cleanTypeText, defaultBlockTitle, resolveBlocks } from '@/lib/pageBlocks';
+import { cleanTypeText, defaultBlockTitle, resolveBlocks, twinFieldOf } from '@/lib/pageBlocks';
 import { deleteEntryAction, restoreRevisionAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -546,6 +550,8 @@ export default async function EntryPage({
    * browser as props. `EntryView` only decides where each one lands.
    */
   const slots: Record<string, ReactNode> = {};
+  /** §104 (ronde 67·herstel, #13): the read blocks that are empty for this reader. */
+  const emptyBlocks: string[] = [];
 
   /*
    * Each slot carries `key={block.id}` from birth. `EntryView` also wraps every
@@ -560,8 +566,37 @@ export default async function EntryPage({
     if (block.hidden) continue;
 
     if (block.kind === 'derived') {
-      const rows = listDerivedEntries(entry.id, block, user);
+      const derivedRows = listDerivedEntries(entry.id, block, user);
+      /*
+       * §104 (L9): a derived list headed like one of this soort's
+       * koppelingsvelden ("Leden") takes what that field holds too — the two
+       * halves of one answer (§51), each behind `visibleEntryCondition`.
+       */
+      const twin = twinFieldOf(block, entry.typeFields ?? []);
+      const typedRows = twin
+        ? listLinkedEntries(
+            entryIdsIn(((entry.fields ?? {}) as Record<string, unknown>)[twin.key]).map((id) => ({ id })),
+            user,
+          ).filter((row) => row.id !== entry.id && !derivedRows.some((other) => other.id === row.id))
+        : [];
+      const rows = typedRows.length
+        ? [...derivedRows, ...typedRows].sort((a, b) =>
+            block.sort === 'recent' ? b.updatedAt - a.updatedAt : a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }),
+          )
+        : derivedRows;
       const heading = block.title || 'Lijst';
+      // §104 (ronde 67·herstel, #13): a list that fills itself and has nothing in
+      // it yet is one quiet line, like an empty *Genoemd in* — not a fold.
+      if (!rows.length) {
+        emptyBlocks.push(block.id);
+        slots[block.id] = (
+          <p key={block.id} className="blok-leeg" data-leeg="ja">
+            <span className="blok-leeg-kop">{heading}</span>
+            <span className="blok-leeg-zin">{words.listNone}</span>
+          </p>
+        );
+        continue;
+      }
       slots[block.id] = (
         <details key={block.id} className="section" open={block.open}>
           <summary>
@@ -573,8 +608,14 @@ export default async function EntryPage({
                 {block.note}
               </p>
             )}
+            {twin && (
+              <p className="tiny muted" style={{ margin: '0 0 0.5rem' }} data-testid="derived-twin">
+                {fill(words.derivedTwinNote, { veld: twin.label })}
+              </p>
+            )}
             {rows.length ? (
-              <div className="card-grid">
+              // §104 (golf H, T1): one line per artikel on a phone (`.rijen`).
+              <div className="card-grid rijen">
                 {rows.map((item) => (
                   <EntryCard key={item.id} entry={item} />
                 ))}
@@ -591,72 +632,52 @@ export default async function EntryPage({
     }
 
     if (block.kind === 'backlinks') {
+      /*
+       * §27 → §104 (ronde 67, L3): the same rows as ever — `getBacklinks` and
+       * `listMentions`, each behind its own rule — and now the sentence each
+       * source says the name in, cut for this reader (`mentionSentences`): the
+       * name of this artikel bold, any other name the one this reader may see,
+       * or nothing. Rendered here, on the server, like every read (rule 7).
+       */
+      // §104 (ronde 67·herstel, #13): nothing mentions it — the slot is one quiet line.
+      if (!backlinks.length && !mentions.length) emptyBlocks.push(block.id);
+      const sentences = mentionSentences(user, entry, backlinks.map((item) => item.id), mentions);
       slots[block.id] = (
-        <details key={block.id} className="section" open={block.open || openHistory}>
-          <summary>
-            {block.title || defaultBlockTitle('backlinks', words)}{' '}
-            <span className="muted">({backlinks.length + mentions.length})</span>
-          </summary>
-          <div style={{ padding: '0.6rem 0 1rem' }}>
-            {block.note && (
-              <p className="tiny muted" style={{ margin: '0 0 0.5rem' }}>
-                {block.note}
-              </p>
-            )}
-            {backlinks.length > 0 && (
-              <div className="card-grid">
-                {backlinks.map((item) => (
-                  <EntryCard key={item.id} entry={item} />
-                ))}
-              </div>
-            )}
-            {/*
-              §27: the mentions that did not come from another artikel's body —
-              a dossier's werkaantekeningen, an infobox field, a card on a wall,
-              a speld on a landkaart. Grouped by where they came from, and only
-              the groups that have something in them: §22's reading face prints
-              what is filled in and leaves the rest out, and an empty heading is
-              exactly the blank row that rule forbids.
-            */}
-            {mentionGroups.map((group) => (
-              <div key={group.key} style={{ marginTop: '0.9rem' }}>
-                <h3 className="tiny muted" style={{ margin: '0 0 0.35rem', fontWeight: 600 }}>
-                  {words[group.word]}
-                </h3>
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                  {group.items.map((mention) => (
-                    <li
-                      key={`${mention.kind}:${mention.id}:${mention.detail}`}
-                      className="row"
-                      style={{ padding: '0.25rem 0' }}
-                    >
-                      <Icon name={group.icon} size={15} style={{ color: 'var(--ink-muted)' }} />
-                      <Link className="small" href={mention.href}>
-                        {mention.name}
-                      </Link>
-                      {mention.detail && <span className="tiny muted">— {mention.detail}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            {!backlinks.length && !mentions.length && (
-              <p className="muted small" style={{ margin: 0 }}>
-                {typeText.noBacklinks ?? (
-                  <>
-                    Nog niets verwijst hiernaar. Typ <code>@{entry.name}</code> in een andere{' '}
-                    {words.entry}.
-                  </>
-                )}
-              </p>
-            )}
-          </div>
-        </details>
+        <MentionedIn
+          key={block.id}
+          heading={block.title || defaultBlockTitle('backlinks', words)}
+          note={block.note}
+          open={Boolean(block.open || openHistory)}
+          backlinks={backlinks.map((item) => ({ entry: item, sentence: sentences.backlinks.get(item.id) ?? null }))}
+          groups={mentionGroups.map((group) => ({
+            ...group,
+            items: group.items.map((mention) => ({
+              mention,
+              sentence: sentences.mentions.get(mentionKey(mention)) ?? null,
+            })),
+          }))}
+          words={words}
+          /* §104 (ronde 67·herstel, #13): one quiet line, so a short one —
+             unless the Keeper wrote his own for this soort. */
+          empty={typeText.noBacklinks ?? words.mentionedNone}
+        />
       );
       continue;
     }
 
     if (block.kind === 'history') {
+      // §104 (ronde 67·herstel, #13): no version this reader may read — one
+      // quiet line, not a fold that opens onto nothing.
+      if (!revisions.length && !diff && !shutEpoch) {
+        emptyBlocks.push(block.id);
+        slots[block.id] = (
+          <p key={block.id} className="blok-leeg" data-leeg="ja">
+            <span className="blok-leeg-kop">{block.title || defaultBlockTitle('history', words)}</span>
+            <span className="blok-leeg-zin">{words.historyNone}</span>
+          </p>
+        );
+        continue;
+      }
       slots[block.id] = (
         <details key={block.id} className="section" open={block.open || openHistory}>
           <summary>
@@ -860,6 +881,26 @@ export default async function EntryPage({
     );
   }
 
+  /*
+   * §104 (ronde 67, L4): "Bijgewerkt door … · … geleden · n versies", under the
+   * lead. From the newest row of the history this reader is given — so the
+   * onderzoeker the revision recorded, not the account (§11/§18b), and for a
+   * speler no Keeper-epoch version at all (§89/§65: `listRevisions` already
+   * left those out). The time is worded here, on the server, so the client
+   * component does not reword it a second later during hydration.
+   */
+  const historyBlock = blocks.find((block) => block.kind === 'history' && !block.hidden);
+  const lastEdit = revisions[0]
+    ? {
+        by: revisions[0].actorLabel ?? null,
+        account: revisions[0].actorAccount ?? null,
+        when: relativeTime(revisions[0].createdAt),
+        count: revisions.length,
+        more: revisionRows.length > REVISION_PAGE,
+        href: historyBlock ? `#block-${historyBlock.id}` : null,
+      }
+    : null;
+
   // §21: the name, the one-liner and the infobox texts as shared fields.
   const fieldsAdmission = admit(entryFieldsRoomKey(entry.id), user);
   const liveFields =
@@ -958,6 +999,8 @@ export default async function EntryPage({
          * made this second — `?new=1`, which is how the sheet lands you here.
          */
         openAddMore={query.new === '1'}
+        lastEdit={lastEdit}
+        emptyBlocks={emptyBlocks}
         cases={cases.map((item) => ({
           id: item.id,
           slug: item.slug,

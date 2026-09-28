@@ -89,6 +89,10 @@ export function paletteActions(role: PaletteRole): PaletteAction[] {
     });
   }
 
+  // §104 (ronde 67, L2): one artikel at random — the server chooses, from what
+  // this reader may see on this side (`randomEntry`). For everybody who reads.
+  out.push({ key: 'surprise', label: words.surpriseMe, icon: 'dice', run: { kind: 'href', href: '/wiki/willekeurig' } });
+
   if (role.purse) {
     out.push({
       key: 'kamer',

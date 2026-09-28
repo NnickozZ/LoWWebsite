@@ -120,7 +120,8 @@ test('§68 — de geschiedenis klapt uit tot de zinnen zelf', async ({ page }, t
   await page.goto('/e/vlissingen');
   await editArticle(page);
 
-  const body = page.locator('.ProseMirror');
+  // The running text, not a short field (§98: those are ProseMirror too).
+  const body = page.locator('.entry-body-block .ProseMirror').first();
   await body.click();
   await page.keyboard.press('Control+End');
   await page.keyboard.press('Enter');

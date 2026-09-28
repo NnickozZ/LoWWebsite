@@ -24,7 +24,7 @@ import { entryKey } from '@/lib/live/keys';
 import { MentionText } from '@/components/ui/MentionPopover';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorOptional } from '@/components/you/AuthorProvider';
-import { useIsWide } from '@/components/useIsPhone';
+import { useHasRail, useIsWide } from '@/components/useIsPhone';
 import { openSheetCount } from '@/lib/sheetStack';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
@@ -47,6 +47,7 @@ import { tagListHref } from '@/lib/entries/tagHref';
 import { isEmptyDoc } from '@/lib/entries/doc';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
+import { HeadingAnchors } from './HeadingAnchors';
 import { OriginLine, type OriginCaseLite } from './OriginLine';
 import { PlaceOnButton } from './PlaceOnButton';
 import {
@@ -109,6 +110,16 @@ function autosize(element: HTMLTextAreaElement | null) {
 }
 
 export type EntryCaseLite = { id: string; slug: string; name: string; confidential: boolean };
+
+/** §104 (L4): see the `lastEdit` prop. */
+export type LastEdit = {
+  by: string | null;
+  account: string | null;
+  when: string;
+  count: number;
+  more: boolean;
+  href: string | null;
+};
 
 /**
  * The artikel page (reworked 5 Sep 2026; two faces since §22).
@@ -183,8 +194,23 @@ export function EntryView({
   origin,
   live,
   liveFields,
+  lastEdit = null,
+  emptyBlocks = [],
 }: {
   entry: EntryViewData;
+  /**
+   * §104 (ronde 67·herstel, #13): the read blocks with nothing in them for this
+   * reader — *Genoemd in* and *Geschiedenis* at 0. Their slot is one quiet
+   * line, and there is nothing to jump to, so they are not in the outline.
+   */
+  emptyBlocks?: string[];
+  /**
+   * §104 (ronde 67, L4): the newest version this reader is given — who wrote
+   * it (the onderzoeker the revision recorded, never the account), when, and
+   * how many there are. Worded on the server; `href` is the history block, or
+   * null when the soort hid it.
+   */
+  lastEdit?: LastEdit | null;
   knownTags: string[];
   isKeeper: boolean;
   openAddMore: boolean;
@@ -311,6 +337,8 @@ export function EntryView({
   const ui = useUi();
   const router = useRouter();
   const wide = useIsWide();
+  // §104 (golf H, D1): the outline is a column only from 1500 px; under it, a row above the text.
+  const rail = useHasRail() && wide;
 
   /**
    * §21: the dossiers named in the fields. Seeded from the server and added to
@@ -553,6 +581,8 @@ export function EntryView({
 
 
   const words = ui.words;
+  /** §104 (L7): the column the heading anchors are laid over. */
+  const mainRef = useRef<HTMLDivElement>(null);
 
   /* ------------------------------------------------------------ the outline */
 
@@ -602,21 +632,32 @@ export function EntryView({
           items.push({ id: `section-${section.id}`, label: section.title || 'Zonder titel', level: 1 });
         }
       } else if (block.kind === 'links' || block.kind === 'derived') {
+        if (emptyBlocks.includes(block.id)) continue;
         items.push({ id: `block-${block.id}`, label: heading || 'Lijst', icon: 'link' });
       } else if (block.kind === 'backlinks') {
+        // §104 (#13): nothing mentions it — one quiet line, nothing to jump to.
+        if (emptyBlocks.includes(block.id)) continue;
         items.push({ id: `block-${block.id}`, label: heading, icon: 'link' });
       } else if (block.kind === 'history') {
+        if (emptyBlocks.includes(block.id)) continue;
         items.push({ id: `block-${block.id}`, label: heading, icon: 'clock' });
       }
     }
     if (showManage) items.push({ id: 'block-manage', label: words.manage, icon: 'shield' });
     return items;
-  }, [access.canEdit, bodyEmpty, entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
+  }, [access.canEdit, bodyEmpty, emptyBlocks, entry.typeBlocks, isKeeper, reading, sectionTitles, showManage, words]);
 
-  /** On a phone the infobox is one more thing to jump to. */
+  /*
+   * On a phone the infobox is one more thing to jump to — while editing. §104
+   * (ronde 67·herstel, #17/#23): reading, the peek of the infobox stands right
+   * under the chip row (or there is no infobox at all), so a chip that jumps
+   * there jumped a few pixels; and its icon was the pencil of Bewerken. It is
+   * `info` now, and only on the editing face.
+   */
   const phoneOutline = useMemo<OutlineItem[]>(
-    () => (fieldsBlock ? [{ id: 'block-info', label: infoboxHeading, icon: 'edit' }, ...outline] : outline),
-    [fieldsBlock, infoboxHeading, outline],
+    () =>
+      fieldsBlock && !reading ? [{ id: 'block-info', label: infoboxHeading, icon: 'info' }, ...outline] : outline,
+    [fieldsBlock, infoboxHeading, outline, reading],
   );
 
   /* ---------------------------------------------------------- the infobox */
@@ -639,7 +680,17 @@ export function EntryView({
         derived={derivedFields}
       />
     ) : null;
-  const hasReadableInfo = Boolean(readableFields) || tags.length > 0;
+  /*
+   * §104: "no infobox at all while reading" meant it — but `readableFields` is
+   * an element whenever the soort *has* fields, so an artikel with every field
+   * still empty drew a box with only its title (on a phone: a fold with
+   * nothing in it, between the lead and the first sentence). Asked of the
+   * values now, the way `FieldsView` itself asks them.
+   */
+  const hasReadableInfo =
+    tags.length > 0 ||
+    Object.keys(derivedFields).length > 0 ||
+    entry.typeFields.some((field) => fieldValue(field, fields[field.key], caseRefs, resolvedRefs) !== null);
 
   const infoboxBody = reading ? (
     <div className="stack entry-infobox-body">
@@ -647,7 +698,7 @@ export function EntryView({
       {tags.length > 0 && (
         <div className="infobox-tags">
           <span className="label">Tags</span>
-          <div className="row-wrap" style={{ gap: '0.3rem' }}>
+          <div className="row-wrap infobox-tag-rij">
             {tags.map((tag) => (
               <a key={tag} className="tag" href={tagHref(tag)}>
                 {tag}
@@ -752,6 +803,8 @@ export function EntryView({
       icon={entry.typeIcon}
       colour={entry.typeColour}
       readOnly={reading}
+      /* §104 (L5): stacked under the header, the picture lies down. */
+      landscape={!wide}
       onChange={(next) => {
         setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
         set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });
@@ -801,8 +854,13 @@ export function EntryView({
             id={anchor}
             className="entry-block entry-body-block"
             hidden={(reading && bodyEmpty) || undefined}
+            aria-label={heading || 'Tekst'}
           >
-            <h2 className="entry-block-title">{heading || 'Tekst'}</h2>
+            {/* §104 (L6): reading, the text follows the lead with no heading
+                over it unless the soort gave it one — "Tekst" is the label of
+                a box to type in, and a wiki does not print it. The outline
+                keeps its item, which jumps to this section. */}
+            {(heading || !reading) && <h2 className="entry-block-title">{heading || 'Tekst'}</h2>}
             {note}
             {live ? (
               /* §20: everyone types in the same text; a reader watches it live. */
@@ -915,13 +973,116 @@ export function EntryView({
 
   /* ------------------------------------------------------------ the header */
 
+  /*
+   * §104 (ronde 67·herstel, #17): the facts of *where* — four rows of chips that
+   * on a phone wrapped into two or three lines each between the lead and the
+   * first sentence. The same rows, and a sentence that counts them.
+   */
+  // §104 (golf H, D21): every landkaart once — drawn on it or with a speld on it.
+  const opKaarten = (() => {
+    const seen = new Map<string, { slug: string; name: string; href: string }>();
+    for (const item of onMaps) {
+      if (!seen.has(item.mapSlug)) seen.set(item.mapSlug, { slug: item.mapSlug, name: item.mapName, href: `/maps/${item.mapSlug}?pin=${item.pinId}` });
+    }
+    for (const item of mapsOfThis) {
+      if (!seen.has(item.slug)) seen.set(item.slug, { slug: item.slug, name: item.name, href: `/maps/${item.slug}` });
+    }
+    // In the order the page always had: the landkaarten that draw it first.
+    const order = [...mapsOfThis.map((item) => item.slug), ...onMaps.map((item) => item.mapSlug)];
+    return [...new Set(order)].map((slug) => seen.get(slug)!);
+  })();
+  const waarKaarten = opKaarten.length;
+  const waarTijdlijnen = new Set(onTimelines.map((item) => item.timelineSlug)).size;
+  const waarZin = capitalise(
+    [
+      waarKaarten ? fill(words.entryWhereOn, { n: String(waarKaarten), ding: waarKaarten === 1 ? words.map : words.mapPlural }) : '',
+      waarTijdlijnen
+        ? fill(words.entryWhereOn, { n: String(waarTijdlijnen), ding: waarTijdlijnen === 1 ? words.timeline : words.timelinePlural })
+        : '',
+      cases.length ? fill(words.entryWhereIn, { n: String(cases.length), ding: cases.length === 1 ? words.case : words.casePlural }) : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  );
+  const waarRijen = (
+    <>
+        {/* §22 rule 2: reading, this row is a fact — the landkaarten that draw
+            this place — and prints only when there are any. The button that
+            hooks one up is an action, and actions live on the other face. */}
+        {/* §101: the row is a fact, so it prints only when there is one. With
+            no landkaart yet it said "Uitgetekend op: Landkaart koppelen · nog
+            niets" on every artikel for the Keeper, a Persoon included; the
+            button for that case stands with the other actions above. */}
+        {/*
+          §104 (golf H, D21): one line, *Op de landkaart: A · B*. It was two —
+          "Uitgetekend op" for the landkaarten that draw this place and "Op de
+          landkaart" for the ones it has a speld on — and a town on the map of
+          its own island said the same name twice, in capitals. Now each
+          landkaart once (by its slug; a speld wins, because it opens the map
+          on this place), in plain sentence letters: capitals are for soorten
+          and labels, not for names. §101 still holds: no landkaart, no line.
+        */}
+        {opKaarten.length > 0 && (
+          <p className="row-wrap tiny entry-waar-rij" data-testid="entry-op-kaart">
+            <span className="muted entry-waar-label">{words.onTheMap}:</span>
+            {opKaarten.map((item) => (
+              <Link key={item.slug} className="chip" href={item.href}>
+                {item.name}
+              </Link>
+            ))}
+            {/* §19: hanging and hooking up landkaarten is Keeper work. Offered
+                from here as well as from the map, because a Keeper writing up a
+                place is on the place's page. */}
+            {isKeeper && !reading && mapsOfThis.length > 0 && (
+              <ConnectMapButton entryId={entry.id} entryName={name || entry.name} />
+            )}
+          </p>
+        )}
+
+        {/* §32: the same two sentences for tijdlijnen — where it *is* is a
+            fact, "zet op…" is an action. */}
+        {onTimelines.length > 0 && (
+          <p className="row-wrap tiny entry-waar-rij">
+            <span className="muted entry-waar-label">{words.onTheTimeline}:</span>
+            {onTimelines.map((item) => (
+              <Link
+                key={item.eventId}
+                className="chip"
+                href={`/timelines/${item.timelineSlug}?event=${item.eventId}`}
+                title={item.when}
+              >
+                <Icon name="timeline" size={12} />
+                {item.timelineName}
+                <span className="muted"> · {item.when}</span>
+              </Link>
+            ))}
+          </p>
+        )}
+
+        {cases.length > 0 && (
+          <p className="row-wrap tiny entry-waar-rij">
+            <span className="muted entry-waar-label">In:</span>
+            {cases.map((item) => (
+              <Link key={item.id} className="chip" href={`/c/${item.slug}`}>
+                <Icon name="folder" size={12} />
+                {item.name}
+                {item.confidential && <Icon name="lock" size={11} />}
+              </Link>
+            ))}
+          </p>
+        )}
+    </>
+  );
+
   const header = (
     /* §22: one column. The picture moved to the sidebar, so the header is the
        title and what surrounds it — there is no second column left to fill. */
     <div className="entry-head entry-head-solo">
       <div style={{ minWidth: 0 }}>
         <div className="row-wrap" style={{ marginBottom: '0.4rem' }}>
-          <span className="chip" style={{ borderColor: entry.typeColour, color: entry.typeColour }}>
+          {/* §104 (ronde 67·herstel, #9): the soort's colour, mixed towards the
+              ink so a small label reads in every palette (`.chip-soort`). */}
+          <span className="chip chip-soort" style={{ ['--soort' as string]: entry.typeColour }}>
             <Icon name={entry.typeIcon} size={14} />
             {entry.typeLabel}
           </span>
@@ -1010,6 +1171,9 @@ export function EntryView({
                 <MentionText text={shortDescription} tokens />
               </p>
             )}
+            {/* §104 (L4): wie het laatst schreef, wanneer, en hoeveel versies —
+                één regel, gelinkt naar de geschiedenis. */}
+            {lastEdit && <LastEditLine edit={lastEdit} words={words} />}
           </>
         ) : (
           <>
@@ -1064,7 +1228,10 @@ export function EntryView({
           </div>
         )}
 
-        <div className="row-wrap" style={{ marginTop: '0.7rem' }}>
+        {/* §104: `entry-acties` — on a phone, reading, one row that scrolls
+            sideways (leeskamer.css) instead of three rows of buttons between
+            the lead and the first sentence. */}
+        <div className="row-wrap entry-acties" style={{ marginTop: '0.7rem' }}>
           <AddToCaseButton
             entryId={entry.id}
             entryName={entry.name}
@@ -1141,80 +1308,10 @@ export function EntryView({
           </p>
         )}
 
-        {/* §22 rule 2: reading, this row is a fact — the landkaarten that draw
-            this place — and prints only when there are any. The button that
-            hooks one up is an action, and actions live on the other face. */}
-        {/* §101: the row is a fact, so it prints only when there is one. With
-            no landkaart yet it said "Uitgetekend op: Landkaart koppelen · nog
-            niets" on every artikel for the Keeper, a Persoon included; the
-            button for that case stands with the other actions above. */}
-        {mapsOfThis.length > 0 && (
-          <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
-            <span className="muted">Uitgetekend op:</span>
-            {mapsOfThis.map((item) => (
-              <Link key={item.slug} className="chip" href={`/maps/${item.slug}`}>
-                <Icon name="map" size={12} />
-                {item.name}
-              </Link>
-            ))}
-            {/* §19: hanging and hooking up landkaarten is Keeper work. Offered
-                from here as well as from the map, because a Keeper writing up a
-                place is on the place's page. */}
-            {isKeeper && !reading && (
-              <ConnectMapButton entryId={entry.id} entryName={name || entry.name} />
-            )}
-          </p>
-        )}
-
-        {/* Same rule: where it *is* on the maps is a fact; "zet op…" is an
-            action, and the reading face has none. */}
-        {/* §92 (B12): the fact only. The "zet op…" pills that stood here on the
-            editing face are one button beside the other actions now
-            (`PlaceOnButton`). */}
-        {onMaps.length > 0 && (
-          <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
-            <span className="muted">{words.onTheMap}:</span>
-            {onMaps.map((item) => (
-              <Link key={item.pinId} className="chip" href={`/maps/${item.mapSlug}?pin=${item.pinId}`}>
-                <Icon name="map" size={12} />
-                {item.mapName}
-              </Link>
-            ))}
-          </p>
-        )}
-
-        {/* §32: the same two sentences for tijdlijnen — where it *is* is a
-            fact, "zet op…" is an action. */}
-        {onTimelines.length > 0 && (
-          <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
-            <span className="muted">{words.onTheTimeline}:</span>
-            {onTimelines.map((item) => (
-              <Link
-                key={item.eventId}
-                className="chip"
-                href={`/timelines/${item.timelineSlug}?event=${item.eventId}`}
-                title={item.when}
-              >
-                <Icon name="timeline" size={12} />
-                {item.timelineName}
-                <span className="muted"> · {item.when}</span>
-              </Link>
-            ))}
-          </p>
-        )}
-
-        {cases.length > 0 && (
-          <p className="row-wrap tiny" style={{ marginTop: '0.5rem', gap: '0.3rem' }}>
-            <span className="muted">In:</span>
-            {cases.map((item) => (
-              <Link key={item.id} className="chip" href={`/c/${item.slug}`}>
-                <Icon name="folder" size={12} />
-                {item.name}
-                {item.confidential && <Icon name="lock" size={11} />}
-              </Link>
-            ))}
-          </p>
-        )}
+        {/* §104 (ronde 67·herstel, #17): where this artikel is — on which
+            landkaarten, tijdlijnen and in which dossiers. On a wide screen the
+            rows as they were; on a phone one line that opens them. */}
+        {wide ? waarRijen : <EntryWaar summary={waarZin}>{waarRijen}</EntryWaar>}
       </div>
     </div>
   );
@@ -1419,7 +1516,11 @@ export function EntryView({
 
       {!wide && asideBox}
 
-      <div className={`entry-layout${wide ? ' entry-layout-wide' : ''}`}>
+      {/* §104: an artikel with nothing for the side column (no picture, no
+          filled-in fact) lets the text have that room — up to its 68ch. */}
+      <div
+        className={`entry-layout${wide ? ' entry-layout-wide' : ''}${rail ? ' entry-layout-rail' : ''}${wide && !asideBox ? ' entry-layout-zonder-kant' : ''}`}
+      >
         {/* §25: the outline is the first column, not the middle one. It is a
             signpost you glance at and leave, so it belongs in the margin the
             page already has — the empty paper between the hoofdmenu and the
@@ -1427,7 +1528,7 @@ export function EntryView({
             it read as a third column of content and split the artikel in two.
             The DOM order is the painted order, so the grid needs no `order`
             and a keyboard walks the page left to right as it looks. */}
-        {wide && (
+        {rail && (
           <div className="entry-rail">
             <div className="entry-rail-sticky">
               <EntryOutline items={outline} shape="column" label={words.onThisPage} />
@@ -1435,13 +1536,19 @@ export function EntryView({
           </div>
         )}
 
-        <div className="entry-main">
+        <div className="entry-main" ref={mainRef}>
           {wide && header}
+          {/* §104 (golf H, D1): 1280–1499 px — the outline as the row of chips
+              above the text, so the text keeps its measure. */}
+          {wide && !rail && <EntryOutline items={outline} shape="row" label={words.onThisPage} />}
           {entry.typeBlocks.map((block) => renderBlock(block))}
           {manage}
+          {/* §104 (L7): a `#` beside every heading in the text and the
+              secties, laid over them — reading only. */}
+          {reading && <HeadingAnchors slug={entry.slug} scope={mainRef} />}
         </div>
 
-        {wide && <aside className="entry-aside">{asideBox}</aside>}
+        {wide && asideBox && <aside className="entry-aside">{asideBox}</aside>}
       </div>
     </article>
   );
@@ -1453,5 +1560,80 @@ export function EntryView({
     <LiveFields room={liveFields.room} state={liveFields.state} user={liveFields.user} canEdit={liveFields.canEdit} onStatus={setFieldsStatus}>
       {article}
     </LiveFields>
+  );
+}
+
+/**
+ * §104 (ronde 67, L4): "Bijgewerkt door Bram Ossewaarde · 4 dagen geleden ·
+ * 7 versies". Klein en `--ink-muted`: het is een voetnoot bij de lead, geen
+ * kop. De naam is het karakter dat de versie vastlegde (§11); het account
+ * staat in de tooltip, zoals in de geschiedenis zelf. De hele regel is de deur
+ * naar die geschiedenis, en een klik vouwt hem open (§11: het blok is een
+ * `<details>`).
+ */
+function LastEditLine({ edit, words }: { edit: LastEdit; words: Record<string, string> }) {
+  const count = edit.more ? `${edit.count}+` : String(edit.count);
+  const versions = fill(edit.count === 1 && !edit.more ? words.lastEditOneVersion : words.lastEditVersions, { n: count });
+  // The Keeper's sentence around the name, with the name set apart in it.
+  const [before, ...rest] = words.lastEditBy.split('{naam}');
+  const after = rest.join('{naam}');
+  const text = (
+    <>
+      {edit.by && (
+        <>
+          {before}
+          <span className="entry-bijgewerkt-naam" title={edit.account ?? undefined}>
+            {edit.by}
+          </span>
+          {after}
+          <span aria-hidden="true"> · </span>
+        </>
+      )}
+      <span>{edit.when}</span>
+      <span aria-hidden="true"> · </span>
+      <span>{versions}</span>
+    </>
+  );
+  return (
+    <p className="entry-bijgewerkt" data-testid="entry-bijgewerkt">
+      {edit.href ? (
+        <a
+          href={edit.href}
+          onClick={(event) => {
+            const target = document.getElementById(edit.href!.slice(1));
+            if (!target) return;
+            event.preventDefault();
+            const fold = target.querySelector<HTMLDetailsElement>(':scope > details');
+            if (fold) fold.open = true;
+            const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            target.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+          }}
+        >
+          {text}
+        </a>
+      ) : (
+        text
+      )}
+    </p>
+  );
+}
+
+/**
+ * §104 (ronde 67·herstel, #17): on a phone, *where* this artikel is — "Op 2
+ * landkaarten · in 2 dossiers" — as one line with a door (›) that opens the
+ * rows of chips underneath. A native `<details>`: the keyboard, the screen
+ * reader and the find-in-page of the browser already know it. Nothing to say,
+ * no line.
+ */
+function EntryWaar({ summary, children }: { summary: string; children: ReactNode }) {
+  if (!summary) return null;
+  return (
+    <details className="entry-waar" data-testid="entry-waar">
+      <summary>
+        <span className="entry-waar-zin">{summary}</span>
+        <Icon name="chevron" size={13} className="entry-waar-pijl" />
+      </summary>
+      <div className="entry-waar-rijen">{children}</div>
+    </details>
   );
 }

@@ -64,12 +64,25 @@ import {
  */
 let bodyOverflow: string | null = null;
 
+/**
+ * §102 (J3): how long the way out may take before the sheet goes anyway. The
+ * exit itself is `--dur-3` (150 ms) in CSS; this is the net under it — a tab
+ * in the background, an animation that never starts — so a sheet can never
+ * stay standing, invisible and inert, over the page.
+ */
+export const SHEET_EXIT_NET_MS = 250;
+
+/** The name of the panel's way out in `globals.css` — the one `animationend` that counts. */
+const EXIT_ANIMATIONS = new Set(['sheet-down', 'sheet-fade-out']);
+
 export function Sheet({
   children,
   onClose,
   labelledBy,
   closable = true,
   className,
+  exit = true,
+  onLeave,
 }: {
   children: ReactNode;
   onClose: () => void;
@@ -95,6 +108,26 @@ export function Sheet({
    * sheet on a phone — the palet stands at the top, above the keyboard.
    */
   className?: string;
+  /**
+   * §102 (J3): whether a close by the cross or the backdrop plays the way out
+   * (150 ms, `--ease-exit`) before `onClose` runs. False for the palet: it
+   * opens without moving because a keyboard action does not move, and it
+   * closes the same way.
+   *
+   * Only those two closes ever animate. Escape is a key, so it closes at once;
+   * and a sheet its parent takes away itself (a form sent, a question
+   * answered with *Ja* or *Nee*) is simply gone — there is no delay anywhere
+   * on that road, so a `confirm()` promise never answers late.
+   */
+  exit?: boolean;
+  /**
+   * §102: called at the first moment of a close by hand, before the way out
+   * plays — for a caller whose *answer* must not wait on the drawing. The
+   * confirm question settles its promise here; `onClose` still follows when
+   * the sheet is gone. Not called for Escape or an unmount: those are
+   * `onClose` at once anyway.
+   */
+  onLeave?: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   /** Null until this sheet has taken its place in the pile — and until then it draws nothing. */
@@ -103,6 +136,49 @@ export function Sheet({
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const exitRef = useRef(exit);
+  exitRef.current = exit;
+  const onLeaveRef = useRef(onLeave);
+  onLeaveRef.current = onLeave;
+
+  /*
+   * §102 (J3): the way out. `closing` is only the drawing (`data-closing`,
+   * `inert`); everything a person can *feel* happens in `leave()` at the first
+   * moment — off the pile, the scroll lock back, focus back — so the 150 ms
+   * that follow are a picture of a sheet that is already gone. `finish()` is
+   * the real `onClose`, once, whichever comes first: the `animationend`, the
+   * net, or an Escape pressed while it is still fading.
+   */
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
+  const finishedRef = useRef(false);
+  const netRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Undoes the pile, the scroll lock and the focus — once. Filled in by the effect below. */
+  const leaveRef = useRef<() => void>(() => {});
+
+  const finish = () => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    if (netRef.current) clearTimeout(netRef.current);
+    netRef.current = null;
+    onCloseRef.current();
+  };
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+
+  /** A close by the pointer: the cross, or a tap on the backdrop. */
+  const closeByHand = () => {
+    if (closingRef.current || finishedRef.current) return;
+    if (!exitRef.current) {
+      onCloseRef.current();
+      return;
+    }
+    closingRef.current = true;
+    leaveRef.current();
+    onLeaveRef.current?.();
+    setClosing(true);
+    netRef.current = setTimeout(() => finishRef.current(), SHEET_EXIT_NET_MS);
+  };
 
   useEffect(() => {
     const id = openSheet();
@@ -114,7 +190,38 @@ export function Sheet({
     }
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
+    let left = false;
+    const leave = () => {
+      if (left) return;
+      left = true;
+      closeSheet(id);
+      if (openSheetCount() === 0) {
+        document.body.style.overflow = bodyOverflow ?? '';
+        bodyOverflow = null;
+      }
+      // Back to where the person was before the sheet opened — but only if
+      // focus is still inside the sheet (or nowhere); a person who has already
+      // clicked elsewhere is not yanked back.
+      const active = document.activeElement;
+      const inSheet = !active || active === document.body || panelRef.current?.contains(active);
+      if (inSheet) previouslyFocused?.focus?.();
+    };
+    leaveRef.current = leave;
+
     const onKey = (event: KeyboardEvent) => {
+      /*
+       * §102: a sheet already on its way out is off the pile, so the check
+       * below would ignore it — but an Escape pressed during those 150 ms is
+       * still meant for it. It ends the exit at once (a key does not move) and
+       * is this sheet's only if nothing else is open to claim it.
+       */
+      if (closingRef.current) {
+        if (event.key === 'Escape') {
+          if (openSheetCount() === 0) event.stopPropagation();
+          finishRef.current();
+        }
+        return;
+      }
       // Everything under the top sheet plays dead: one Escape closes one sheet.
       if (!isTopSheet(id)) return;
       if (event.key === 'Escape') {
@@ -150,17 +257,11 @@ export function Sheet({
     document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
-      closeSheet(id);
-      if (openSheetCount() === 0) {
-        document.body.style.overflow = bodyOverflow ?? '';
-        bodyOverflow = null;
-      }
-      // Back to where the person was before the sheet opened — but only if
-      // focus is still inside the sheet (or nowhere); a person who has already
-      // clicked elsewhere is not yanked back.
-      const active = document.activeElement;
-      const inSheet = !active || active === document.body || panelRef.current?.contains(active);
-      if (inSheet) previouslyFocused?.focus?.();
+      if (netRef.current) clearTimeout(netRef.current);
+      netRef.current = null;
+      // The parent took the sheet away (or the exit ended): the same undoing,
+      // unless the way out already did it.
+      leave();
     };
   }, []);
 
@@ -199,11 +300,17 @@ export function Sheet({
     <div
       className={className ? `sheet-backdrop ${className}` : 'sheet-backdrop'}
       style={depth > 0 ? { zIndex: SHEET_BASE_Z + depth } : undefined}
+      // §102: on its way out the sheet is a picture — no clicks, no focus, no
+      // screen reader. `pointer-events: none` in CSS lets a click that lands
+      // during those 150 ms reach the page underneath (canvas specs press with
+      // `page.mouse`, and so do people).
+      data-closing={closing ? '' : undefined}
+      inert={closing}
       onPointerDown={(event) => {
         // §101: a sheet with no cross has no backdrop either — see `closable`.
         if (!closable) return;
         if (idRef.current !== null && !isTopSheet(idRef.current)) return;
-        if (event.target === event.currentTarget) onCloseRef.current();
+        if (event.target === event.currentTarget) closeByHand();
       }}
     >
       <div
@@ -213,6 +320,11 @@ export function Sheet({
         aria-labelledby={labelledBy}
         tabIndex={-1}
         ref={panelRef}
+        onAnimationEnd={(event) => {
+          if (!closingRef.current) return;
+          if (event.target !== event.currentTarget) return;
+          if (EXIT_ANIMATIONS.has(event.animationName)) finish();
+        }}
       >
         <div className="sheet-handle" />
         {/*
@@ -241,7 +353,12 @@ export function Sheet({
             className="sheet-close"
             aria-label="Sluiten"
             title="Sluiten (Esc)"
-            onClick={() => onCloseRef.current()}
+            onClick={(event) => {
+              // §102: Enter or Space on the cross is a key (`detail` 0), and a
+              // key does not move — the same road as Escape.
+              if (event.detail === 0) onCloseRef.current();
+              else closeByHand();
+            }}
           >
             <Icon name="close" size={18} />
           </button>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import { useSchuifrij } from '@/components/useSchuifrij';
 
 export type OutlineItem = {
   /** The id of the element on the page. */
@@ -34,6 +35,9 @@ export function EntryOutline({
   label: string;
 }) {
   const [current, setCurrent] = useState<string | null>(null);
+  // §104 (golf H, T9): the row of chips fades where there is more, and the one you are reading is in view.
+  const listRef = useRef<HTMLUListElement>(null);
+  useSchuifrij(listRef, shape === 'row' ? current : null);
 
   useEffect(() => {
     if (!items.length) return;
@@ -81,7 +85,7 @@ export function EntryOutline({
   return (
     <nav className={`entry-outline entry-outline-${shape}`} aria-label={label}>
       {shape === 'column' && <p className="entry-outline-title">{label}</p>}
-      <ul className="entry-outline-list">
+      <ul className={`entry-outline-list${shape === 'row' ? ' schuifrij' : ''}`} ref={listRef}>
         {items.map((item) => (
           <li key={item.id} className={item.level ? 'entry-outline-sub' : undefined}>
             <a

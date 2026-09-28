@@ -417,6 +417,20 @@ export async function expectPlekken(page: Page, kinds: readonly string[], label 
  * er zijn, dus op een artikel zonder lege velden doet dit niets. Op een
  * telefoon moet de infobox zelf al open zijn (`#block-info`).
  */
+/**
+ * §104 (ronde 67·herstel, #17): on a phone the lines that say where an artikel
+ * stands — *Op de landkaart*, *Op de tijdlijn*, *In:* — sit behind one line
+ * with a door (`entry-waar`). Opens it when it is there and shut; on a desk
+ * it is not there and this does nothing.
+ */
+export async function openEntryWaar(page: Page) {
+  const shut = page.locator('details[data-testid="entry-waar"]:not([open]) > summary').locator('visible=true');
+  await expect(async () => {
+    if (await shut.count()) await shut.first().click();
+    await expect(shut).toHaveCount(0, { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+}
+
 export async function openEmptyFields(page: Page) {
   const shut = page.locator('details[data-testid="fields-empty"]:not([open]) > summary').locator('visible=true');
   await expect(async () => {

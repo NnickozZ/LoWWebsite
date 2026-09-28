@@ -79,14 +79,19 @@ export function Cover({
   className?: string;
 }) {
   return (
-    <div className={`${className} ${coverClass(shape)}`}>
+    // §104 (golf H, D13): an empty frame says so (`.cover-leeg`), and carries its
+    // soort's colour as `--soort` so the stylesheet can light it per palette.
+    <div
+      className={`${className} ${coverClass(shape)}${assetId ? '' : ' cover-leeg'}`}
+      style={colour ? ({ ['--soort' as string]: colour } as CSSProperties) : undefined}
+    >
       {assetId ? (
         // eslint-disable-next-line @next/next/no-img-element -- assets are served
         // by our own route handler already resized; next/image would add a
         // second optimiser and a runtime dependency for no gain.
         <img src={assetUrl(assetId, variant)} alt={alt} style={coverStyle(crop, shape)} loading="lazy" />
       ) : (
-        <Icon name={icon} size={38} style={{ color: colour ?? 'var(--ink-muted)', opacity: 0.55 }} />
+        <Icon name={icon} size={38} className="cover-icoon" />
       )}
     </div>
   );
@@ -112,12 +117,15 @@ export function Thumb({
   colour?: string;
 }) {
   return (
-    <span className={`feed-thumb ${coverClass(shape)}`}>
+    <span
+      className={`feed-thumb ${coverClass(shape)}${assetId ? '' : ' cover-leeg'}`}
+      style={colour ? ({ ['--soort' as string]: colour } as CSSProperties) : undefined}
+    >
       {assetId ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={assetUrl(assetId, 'thumb')} alt="" style={coverStyle(crop, shape)} loading="lazy" />
       ) : (
-        <Icon name={icon} size={20} style={{ color: colour ?? 'var(--ink-muted)', opacity: 0.6 }} />
+        <Icon name={icon} size={20} className="cover-icoon" />
       )}
     </span>
   );

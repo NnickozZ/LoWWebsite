@@ -7,6 +7,7 @@ import { OverzichtView } from '@/components/overzichten/OverzichtView';
 import { ShortChips } from '@/components/ui/ShortChips';
 import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { TypeTabs } from '@/components/TypeTabs';
+import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
 import { countEntriesPerType, listEntryTypes } from '@/lib/entries/service';
 import { sideOf } from '@/lib/keeper/kinds';
@@ -62,10 +63,6 @@ export default async function OverzichtPage({
         place={overzichtPagePlace(loaded.overzicht.slug)}
         watch={['entries', 'types', 'overzichten', `overzicht:${loaded.overzicht.id}`]}
       />
-      <div className="row" style={{ marginBottom: '0.3rem' }}>
-        <div className="spacer" />
-        <NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />
-      </div>
       {/* §75: de tabrij blijft staan. Een overzicht is een pagina *in* de wiki,
           en wie hier landt moet even goed kunnen doorbladeren als op elke
           andere wikipagina. Geen enkele tab is de huidige, want dit is geen
@@ -81,6 +78,7 @@ export default async function OverzichtPage({
         active={null}
         allCount={total}
         query={query as Record<string, string>}
+        moreLabel={getWords().wikiMoreKinds}
       />
       {/* §98: the inleiding's chips, resolved for this reader with the page —
           §101 naden: and the secties' (`chipTexts`). */}
@@ -94,6 +92,8 @@ export default async function OverzichtPage({
           users={loaded.revealUsers}
           cases={loaded.revealCases}
           liveUser={loaded.liveUser}
+          // §104 (golf H, D22): *Nieuw overzicht* in one row with the title and *Bewerken*.
+          actions={<NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />}
         />
       </ShortChips>
     </div>

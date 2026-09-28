@@ -188,7 +188,8 @@ function LiveFieldInner({ fields, ...props }: FieldProps & { fields: FieldsValue
    */
   const mayType = useMayType();
   const gate = useAuthorGate();
-  const gated = { ...props, ...gate, readOnly: props.readOnly || !mayType } as FieldProps;
+  // §18b/§90: a read-only box asks nothing; only one you can type in does.
+  const gated = { ...props, ...(props.readOnly ? {} : gate), readOnly: props.readOnly || !mayType } as FieldProps;
   if (fields) {
     const Bound = fields.Bound;
     return <Bound {...gated} fields={fields} />;
@@ -270,7 +271,8 @@ export function ShortField(props: ShortFieldProps) {
   const fields = useContext(FieldsContext);
   const mayType = useMayType() || Boolean(props.ungated);
   const authorGate = useAuthorGate();
-  const gate = props.ungated ? {} : authorGate;
+  // §18b/§90: ungated (a maakblad) or read-only (Lezen) — no question either way.
+  const gate = props.ungated || props.readOnly ? {} : authorGate;
   const [mounted, setMounted] = useState(false);
   const onMounted = useCallback(() => setMounted(true), []);
   const room =

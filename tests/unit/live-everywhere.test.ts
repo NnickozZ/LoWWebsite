@@ -48,6 +48,15 @@ describe('every page inside the shell is live', () => {
         expect(source).not.toMatch(/<LivePage\b/);
         return;
       }
+      /*
+       * Golf h1 (D2): and a page that is nothing but a 404 — the catch-all
+       * `[...rest]` that puts an unknown address inside the shell — renders
+       * nothing either.
+       */
+      if (/^\s*notFound\(\);\s*\}\s*$/m.test(source) && !/return\s*\(/.test(source)) {
+        expect(source).not.toMatch(/<LivePage\b/);
+        return;
+      }
       expect(source).toMatch(/<LivePage\b/);
       expect(source).toMatch(/from '@\/components\/live\/LivePage'/);
     });

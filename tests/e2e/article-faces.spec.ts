@@ -153,7 +153,11 @@ test('the picture sits above the facts in one box, and its tools are in a menu',
 
   // Reading, the picture is still there and not one tool is.
   await flip(page, 'lezen');
-  await expect(page.locator('.entry-cover-whole img')).toBeVisible();
+  // §104 (L5): under the header on a narrow screen it lies down — the
+  // landscape crop, a tap away from the whole picture; beside the text, whole.
+  await expect(
+    page.locator(info.project.name === 'desktop' ? '.entry-cover-whole img' : '.entry-cover-liggend img'),
+  ).toBeVisible();
   await expect(page.locator('.cover-menu-button')).toHaveCount(0);
   await expect(page.locator('.crop-frame')).toHaveCount(0);
 

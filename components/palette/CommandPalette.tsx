@@ -196,7 +196,15 @@ export function CommandPalette({
   /* ----------------------------------------------------------- groepen */
   const groups: Group[] = [];
   if (mode.actionsOnly) {
-    groups.push({ key: 'actions', label: words.paletteActions, options: filterActions(actions, text).map(actionOption) });
+    // §102, golf h1 (D25): `>zzqx` drew the head *Handelingen* over nothing. With
+    // no handeling that fits, the group loses its head and says so instead.
+    const fitting = filterActions(actions, text);
+    groups.push({
+      key: 'actions',
+      label: fitting.length ? words.paletteActions : '',
+      options: fitting.map(actionOption),
+      empty: fill(words.paletteNoActionFor, { zoek: text }),
+    });
   } else if (!text) {
     groups.push({
       key: 'recent',
@@ -215,18 +223,32 @@ export function CommandPalette({
     const fresh = answer && answer.q === text ? answer : null;
     const entries = (fresh?.entries ?? []).slice(0, 8);
     const others = (fresh?.others ?? []).slice(0, 6);
-    groups.push({
-      key: 'entries',
-      label: capitalise(words.entryPlural),
-      options: entries.map((hit) => ({
-        id: `entry-${hit.id}`,
-        label: hit.name,
-        hint: hit.caseName ? `${hit.typeLabel} · ${hit.caseName}` : hit.typeLabel,
-        icon: hit.typeIcon || KIND_ICON.entry,
-        choose: () => go(`/e/${hit.slug}`),
-      })),
-      empty: fresh ? (others.length ? undefined : words.paletteNone) : words.paletteSearching,
-    });
+    const fitting = filterActions(actions, text).slice(0, 4);
+    /*
+     * Ronde 65·herstel (review #27): a group with nothing in it is not drawn.
+     * *Artikelen — Niets in het archief heet zo* stood above a handeling that
+     * did fit, and read as if the palet had found nothing. The artikelen stay
+     * while the answer is on its way (*Zoeken…*); once it is here they show
+     * only with hits — and "niets" is said once, when every group is empty,
+     * without a heading over it.
+     */
+    const nothing = Boolean(fresh) && !entries.length && !others.length && !fitting.length;
+    if (!fresh || entries.length || nothing) {
+      groups.push({
+        key: 'entries',
+        label: nothing ? '' : capitalise(words.entryPlural),
+        options: entries.map((hit) => ({
+          id: `entry-${hit.id}`,
+          label: hit.name,
+          hint: hit.caseName ? `${hit.typeLabel} · ${hit.caseName}` : hit.typeLabel,
+          icon: hit.typeIcon || KIND_ICON.entry,
+          choose: () => go(`/e/${hit.slug}`),
+        })),
+        // §102, golf h1 (D25): the sentence names what was typed and what Enter does
+        // now — the one option left is *Zoek … in het hele archief*.
+        empty: fresh ? fill(words.paletteNothingFor, { zoek: text }) : words.paletteSearching,
+      });
+    }
     if (others.length) {
       groups.push({
         key: 'others',
@@ -243,7 +265,6 @@ export function CommandPalette({
         })),
       });
     }
-    const fitting = filterActions(actions, text).slice(0, 4);
     if (fitting.length) groups.push({ key: 'actions', label: words.paletteActions, options: fitting.map(actionOption) });
     groups.push({
       key: 'all',
@@ -308,7 +329,8 @@ export function CommandPalette({
 
   let index = -1;
   return (
-    <Sheet onClose={onClose} labelledBy={`${inputId}-title`} className="palette-backdrop">
+    // §102: het palet is een toetsenbordding — het opent zonder beweging en sluit ook zo.
+    <Sheet onClose={onClose} labelledBy={`${inputId}-title`} className="palette-backdrop" exit={false}>
       <div className="palette" data-testid="palette">
         <h2 id={`${inputId}-title`} className="visually-hidden">
           {words.paletteTitle}

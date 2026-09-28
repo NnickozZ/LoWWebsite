@@ -19,6 +19,8 @@ import { LiveField, LiveFields, ShortField } from '@/components/live/LiveFields'
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useIsPhone } from '@/components/useIsPhone';
+import { useSchuifrij } from '@/components/useSchuifrij';
+import { isEmptyDoc } from '@/lib/entries/doc';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
@@ -219,6 +221,8 @@ export function CaseDossier({
   const canToggle = Boolean(access.viewerId);
   const [mode, setMode] = useState<ArticleMode>(canToggle && openAddMore ? 'edit' : 'view');
   const reading = mode === 'view';
+  // §104 (golf H, D24): the stored notes say nothing a reader would see.
+  const notesEmpty = useMemo(() => isEmptyDoc(data.notes), [data.notes]);
   const readOnly = !mayEdit;
   const locked = readOnly || reading;
   const [cover, setCover] = useState({ assetId: data.coverAssetId, crop: data.coverCrop });
@@ -282,6 +286,9 @@ export function CaseDossier({
 
   const [tab, setTab] = useState('overview');
   const activeTab = tabs.some((t) => t.key === tab) ? tab : 'overview';
+  // §104 (golf H, D6): the tab you are on is in view in the one scrolling row.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useSchuifrij(tabsRef, activeTab);
   const refresh = useCallback(() => router.refresh(), [router]);
 
 
@@ -357,10 +364,17 @@ export function CaseDossier({
         />
       )}
 
-      <div className="stack" style={{ marginBottom: '1.2rem' }}>
+      {/* §104 (golf H, D24): reading, an empty notes block is one quiet line — like an empty *Genoemd in*. */}
+      {reading && notesEmpty ? (
+        <p className="blok-leeg dossier-notities-leeg" data-leeg="ja" data-testid="case-notes-leeg">
+          <span className="blok-leeg-kop">{ui.words.caseNotes}</span>
+          <span className="blok-leeg-zin">{ui.words.caseNotesNone}</span>
+        </p>
+      ) : (
+      <div className="stack dossier-notities" style={{ marginBottom: '1.2rem' }}>
         <div>
           <span className="label row" style={{ gap: '0.6rem' }}>
-            Dossiernotities
+            {ui.words.caseNotes}
           </span>
           {liveNotes ? (
             <LiveBody
@@ -383,6 +397,7 @@ export function CaseDossier({
           )}
         </div>
       </div>
+      )}
 
       {/*
         §70: de secties van dit dossier, onder de notities.
@@ -413,7 +428,7 @@ export function CaseDossier({
           <p className="eyebrow">Laatst toegevoegd</p>
           <div className="card-grid">
             {recent.map((entry) => (
-              <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={locked} />
+              <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={locked} gemengd />
             ))}
           </div>
         </>
@@ -448,7 +463,14 @@ export function CaseDossier({
       {group.entries.length ? (
         <div className="card-grid">
           {group.entries.map((entry) => (
-            <CaseEntryCard key={entry.id} caseId={data.id} entry={entry} onChanged={refresh} readOnly={locked} />
+            <CaseEntryCard
+              key={entry.id}
+              caseId={data.id}
+              entry={entry}
+              onChanged={refresh}
+              readOnly={locked}
+              gemengd={group.typeSlugs.length > 1}
+            />
           ))}
         </div>
       ) : (
@@ -987,7 +1009,7 @@ export function CaseDossier({
       <div className="page">
         {header}
 
-        <div className="jump-menu">
+        <div className="jump-menu schuifrij">
           {tabs.map((item) => (
             <button
               key={item.key}
@@ -1030,9 +1052,10 @@ export function CaseDossier({
       {header}
 
       <div
-        // Round 36: the row wraps rather than scrolls — a dossier with many
-        // soorten filed showed half its shelves behind a horizontal drag. See
-        // `.case-tabs` in globals.css for how a tab stays a tab on line two.
+        // Round 36: the row wraps. Nick chose wrapping over a menu and over
+        // a sideways scroll ("I think this is ugly"), and golf H keeps that
+        // choice: `.schuifrij` is for chip rows, not for these tabs.
+        ref={tabsRef}
         className="case-tabs"
         role="tablist"
         aria-label="Onderdelen van het dossier"

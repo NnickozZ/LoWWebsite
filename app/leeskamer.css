@@ -1,0 +1,1616 @@
+/* §102–§104: leeskamer — zie docs/beweging.md. Eigen bestand zodat globals.css van één hand blijft. */
+
+/*
+ * §104, ronde 67 — *De leeskamer*.
+ *
+ * Twee plekken: de voorpagina van de wiki (`/wiki`, drie vaste blokken onder
+ * het overzicht van de Keeper) en een artikel in Lezen (de regel onder de
+ * lead, *Genoemd in* met de zin, de kop-ankers, de omslag op een telefoon, de
+ * infobox die op een telefoon een blik gunt).
+ *
+ * De toon is die van het archief (§22, het onderzoek §C15): het thema zit in
+ * de *omlijsting* — etiketten in `--stamp-face`, een haarlijn, papier dat een
+ * tint dieper ligt — en de tekst staat op vlak papier in de serif of de sans.
+ * Geen raster van gelijke kaartjes: een kaartenbak, een uitgelicht stuk, en een
+ * register.
+ *
+ * Beweging (§102): alleen tokens, alleen `opacity` en `transform`, en elke
+ * animatie of overgang hier heeft een `prefers-reduced-motion`-tak onderaan.
+ */
+
+/* ======================================================== de voorpagina */
+
+.leeskamer {
+  display: grid;
+  gap: 2.4rem;
+  margin-top: 2.2rem;
+  padding-bottom: 1rem;
+}
+.leeskamer-rij {
+  display: grid;
+  gap: 2.4rem;
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  .leeskamer-rij {
+    /* Het uitgelichte stuk links, het register rechts — de kolommen van een krant. */
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 2.8rem;
+    align-items: start;
+  }
+}
+.leeskamer-blok {
+  min-width: 0;
+}
+
+/* Een etiket met een haarlijn erachter: de kop van een la in de kaartenbak. */
+.leeskamer-kop {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  font-family: var(--stamp-face);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  /* Even hoog, met of zonder deur ernaast: de twee koppen naast elkaar lijnen uit. */
+  min-height: 2.25rem;
+}
+.leeskamer-kop::after {
+  content: '';
+  order: 1;
+  flex: 1 1 auto;
+  min-width: 1rem;
+  border-top: 1px solid var(--rule);
+}
+.leeskamer-meer {
+  order: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.25rem;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--link);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.leeskamer-meer:hover {
+  text-decoration: underline;
+}
+.leeskamer-leeg {
+  margin: 0;
+  color: var(--ink-muted);
+  font-style: italic;
+  font-family: var(--serif);
+}
+
+/* Het etiket van een soort, in de kleur van die soort. */
+.leeskamer-soort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-family: var(--stamp-face);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  /* De kleur van de soort, naar de inkt getrokken: donker op licht papier,
+     licht op donker — ≥ 4,5:1 in alle vier de paletten (§104 herstel, #9:
+     `--soort-aandeel` in globals.css, getoetst in ronde-67-contrast.test.ts). */
+  color: color-mix(in oklab, var(--soort, var(--ink-muted)) var(--soort-aandeel), var(--ink));
+}
+
+/* ---------------------------------------------------- Uit het archief */
+
+.leeskamer-archief-kaart {
+  position: relative;
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.75rem 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  /* Een tweede, binnenste lijn: een systeemkaart, geen widget. */
+  box-shadow:
+    inset 0 0 0 4px var(--paper-raised),
+    inset 0 0 0 5px var(--rule),
+    3px 3px 0 rgba(31, 27, 22, 0.12);
+}
+.leeskamer-archief-inhoud {
+  display: grid;
+  gap: 0.85rem;
+  animation: leeskamer-komt var(--dur-2) var(--ease-enter);
+}
+.leeskamer-archief-kaart.is-bezig .leeskamer-archief-inhoud {
+  opacity: 0.55;
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+/*
+ * §104 (ronde 67·herstel, #11): met een omslag staat hij rechtop naast de
+ * tekst, heel (de staande uitsnede — de liggende knipte de getekende naam op
+ * 70 % van de hoogte af). Zonder omslag is het een fiche: het icoon van de
+ * soort als stempel naast de naam, en een haarlijn in de kleur van de soort.
+ */
+.leeskamer-archief-inhoud.met-omslag {
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: start;
+  column-gap: 1rem;
+}
+.leeskamer-archief-beeld {
+  display: block;
+  color: inherit;
+}
+.leeskamer-archief-omslag {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  box-shadow: 2px 2px 0 rgba(31, 27, 22, 0.1);
+}
+.leeskamer-archief-omslag img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.leeskamer-archief-kop {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+.leeskamer-archief-titel {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.zonder-omslag .leeskamer-archief-kop {
+  padding: 0.35rem 0 0.85rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--soort, var(--rule)) 55%, transparent);
+}
+/* De stempel: omlijnd, schuin, in de kleur van de soort — het idioom van `.stamp`. */
+.leeskamer-archief-stempel {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  margin-top: 0.1rem;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  transform: rotate(-4deg);
+  opacity: 0.9;
+}
+.leeskamer-archief-tekst {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0 0.3rem;
+  min-width: 0;
+}
+.met-omslag .leeskamer-archief-tekst {
+  padding: 0.15rem 0 0;
+}
+.leeskamer-archief-naam {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.leeskamer-archief-naam a {
+  color: inherit;
+  text-decoration: none;
+}
+.leeskamer-archief-naam a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+.leeskamer-archief-lead {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.leeskamer-archief-knoppen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0 0.3rem;
+}
+
+/* ---------------------------------------------------- Onlangs bijgewerkt */
+
+/* Een register: zes fiches, twee kolommen breed op een groot scherm. */
+.leeskamer-fiches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--rule);
+}
+@media (min-width: 640px) {
+  .leeskamer-fiches {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.4rem;
+  }
+}
+.leeskamer-fiches > li {
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.leeskamer-fiche {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.7rem 0.2rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--dur-2) var(--ease-standard);
+}
+.leeskamer-fiche:hover {
+  background: color-mix(in srgb, var(--paper-dark) 55%, transparent);
+}
+.leeskamer-fiche-tekst {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+.leeskamer-fiche-naam {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.leeskamer-fiche:hover .leeskamer-fiche-naam {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+.leeskamer-fiche-wie {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+/* ---------------------------------------------------- De soorten */
+
+/* Een kaartenbak: een tegel per soort, met een rug in de kleur van die soort. */
+.leeskamer-tegels {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 0.55rem;
+}
+.leeskamer-tegels > li {
+  display: flex;
+}
+.leeskamer-tegels > li > .leeskamer-tegel {
+  flex: 1;
+}
+.leeskamer-tegel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3.2rem;
+  padding: 0.5rem 0.8rem 0.5rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--soort, var(--rule));
+  background: var(--paper-raised);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard);
+}
+.leeskamer-tegel:hover {
+  background: color-mix(in srgb, var(--soort, var(--paper-dark)) 7%, var(--paper-raised));
+}
+.leeskamer-tegel:active {
+  transform: translateY(1px);
+}
+.leeskamer-tegel-icoon {
+  display: flex;
+  color: color-mix(in oklab, var(--soort, var(--ink-muted)) var(--soort-aandeel), var(--ink));
+}
+.leeskamer-tegel-naam {
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  /* Lange Nederlandse samenstellingen breken op een lettergreep, niet midden in een letter. */
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+.leeskamer-tegel-tel {
+  font-family: var(--stamp-face);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.leeskamer-tegel.is-leeg .leeskamer-tegel-naam,
+.leeskamer-tegel.is-leeg .leeskamer-tegel-icoon {
+  opacity: 0.55;
+}
+/* De sprong vanuit de tabrij landt met de kop in beeld, niet onder de rand. */
+#leeskamer-soorten-kop {
+  scroll-margin-top: 1.5rem;
+}
+
+/* §104 (ronde 67·herstel, #16): de tabrij op een lijstpagina — een soort met
+   niets erin staat er, stil: lichter gezet, het icoon en de 0 flauw. De tekst
+   blijft `--ink-muted`, want het is nog steeds een deur. */
+.type-tab.is-leeg:not([aria-current='page']) {
+  font-weight: 500;
+}
+.type-tab.is-leeg:not([aria-current='page']) svg,
+.type-tab.is-leeg:not([aria-current='page']) .type-tab-count {
+  opacity: 0.45;
+}
+.type-tab-naar {
+  margin-left: auto;
+}
+
+/* §104 (#14): onder een lijst die niet alles toont — *Meer*, en hoeveel er nog komen. */
+.lijst-meer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 1.6rem 0 0.5rem;
+}
+.lijst-meer-rest {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 767px) {
+  .leeskamer {
+    gap: 2rem;
+    margin-top: 1.6rem;
+  }
+  .leeskamer-archief-naam {
+    font-size: 1.35rem;
+  }
+  .leeskamer-archief-knoppen .btn,
+  .leeskamer-meer {
+    min-height: var(--tap);
+  }
+  .leeskamer-archief-inhoud.met-omslag {
+    grid-template-columns: 5.6rem minmax(0, 1fr);
+    column-gap: 0.85rem;
+  }
+  .leeskamer-tegels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Twee kolommen op een telefoon: het icoon en de telling boven, de naam
+     eronder over de hele breedte — "Bovennatuurlijke wezens" past dan zonder
+     midden in een woord te breken. */
+  .leeskamer-tegel {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: start;
+    column-gap: 0.5rem;
+    row-gap: 0.3rem;
+    min-height: var(--tap);
+    padding: 0.5rem 0.6rem 0.55rem;
+  }
+  .leeskamer-tegel-icoon {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .leeskamer-tegel-tel {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .leeskamer-tegel-naam {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 0.95rem;
+  }
+  .leeskamer-tegel-tel {
+    font-size: 0.78rem;
+  }
+}
+
+/* ======================================================== een artikel in Lezen */
+
+/* L4: wie het laatst schreef — een voetnoot bij de lead, geen kop. */
+.entry-bijgewerkt {
+  margin: 0.15rem 0 0.1rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.entry-bijgewerkt a {
+  color: inherit;
+  text-decoration: none;
+}
+.entry-bijgewerkt a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.entry-bijgewerkt-naam {
+  font-weight: 600;
+}
+
+/*
+ * Het ritme op een telefoon: de handelingen (aan een dossier, op een prikbord,
+ * verbindingen, de stamboom) stonden in Lezen op twee of drie rijen tussen de
+ * lead en de eerste zin — 170 px knoppen voor wie kwam lezen. Ronde 67 maakte
+ * er één rij van die opzij scrolde; daar werd de derde knop voor 90 % afgeknipt
+ * en waren de knoppen 34 px (§104, golf H, T9). Nu een raster van gelijke
+ * vakken, drie naast elkaar op een telefoon: elke knop een duim hoog (44 px),
+ * het woord klein en over hooguit twee regels, niets valt van het scherm, en
+ * de eerste zin blijft met een omslag op het eerste scherm (y < 700 op een
+ * Pixel 5, ronde 67·herstel). Een vierde knop begint een tweede rij.
+ */
+@media (max-width: 767px) {
+  .entry-page-reading .entry-acties {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.2rem, 1fr));
+    gap: 0.35rem;
+  }
+  .entry-page-reading .entry-acties > * {
+    min-width: 0;
+  }
+  .entry-page-reading .entry-acties .btn {
+    width: 100%;
+    min-height: var(--tap);
+    justify-content: flex-start;
+    gap: 0.35rem;
+    padding: 0.2rem 0.45rem;
+    text-align: left;
+    white-space: normal;
+    line-height: 1.12;
+    font-size: 0.76rem;
+    hyphens: manual;
+  }
+  .entry-page-reading .entry-acties .btn > svg {
+    flex: 0 0 auto;
+  }
+}
+
+/* L6: zonder kop volgt de tekst op de lead, met de knoppen ertussen als adem. */
+.entry-page-reading .entry-body-block {
+  margin-top: 1.1rem;
+}
+
+/* Geen omslag en geen ingevuld feit: de tekst krijgt de ruimte van de lege zijkolom (tot 68ch, `.prose`). */
+@media (min-width: 1280px) {
+  .entry-layout-wide.entry-layout-zonder-kant {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/*
+ * §104 (golf H, D1): de wegwijzer als eigen kolom pas vanaf 1500 px — hetzelfde
+ * getal als `RAIL` in components/useIsPhone.ts. Daaronder is hij de rij chips
+ * boven de tekst, en heeft de tekst ±590 px op 1280.
+ */
+@media (min-width: 1500px) {
+  .entry-layout-wide.entry-layout-rail {
+    grid-template-columns: 12rem minmax(0, 1fr) 320px;
+  }
+  .entry-layout-wide.entry-layout-rail.entry-layout-zonder-kant {
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
+}
+/* De rij chips in de tekstkolom, tussen kop en tekst (1280–1499 px). */
+.entry-main > .entry-outline-row {
+  margin: 0 0 0.4rem;
+}
+
+/* L7: de ankers liggen over de kolom heen; alleen het `#` zelf vangt de hand. */
+.entry-main {
+  position: relative;
+}
+.kop-lagen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.kop-anker {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  padding: 0 0.1rem;
+  pointer-events: auto;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--ink-muted);
+  text-decoration: none;
+  opacity: 0;
+  scroll-margin-top: 1.2rem;
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+.kop-anker:hover {
+  color: var(--link);
+}
+.kop-anker:focus-visible,
+.kop-anker:hover,
+.kop-anker-dichtbij {
+  opacity: 1;
+}
+/* Een aanraakscherm heeft geen hover: daar staat het # er zacht altijd. */
+@media (hover: none) {
+  .kop-anker {
+    opacity: 0.4;
+    min-width: 1.6rem;
+  }
+}
+
+/* L5: de omslag in Lezen is een deur naar zichzelf. */
+.entry-cover-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: zoom-in;
+}
+.entry-cover-open:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+/* Onder de kop, op een smal scherm: liggend, en nooit meer dan 40 % van het scherm. */
+.entry-cover-liggend {
+  display: block;
+  width: 100%;
+  max-height: 40vh;
+  max-height: 40dvh;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  box-shadow: var(--shadow);
+}
+.entry-cover-liggend img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.entry-lightbox {
+  animation: leeskamer-komt var(--dur-4) var(--ease-enter);
+}
+.entry-lightbox img {
+  cursor: zoom-out;
+}
+
+/* De infobox op een telefoon: dicht, maar met een blik op drie feiten — één kaart. */
+.entry-aside-box-stacked > .entry-infobox-folded {
+  margin: 0;
+  padding: 0 0.85rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
+}
+.entry-aside-box-stacked > .entry-infobox-folded:not([open]):has(+ .infobox-peek) {
+  border-bottom: 0;
+  box-shadow: none;
+}
+.entry-aside-box-stacked > .entry-infobox-folded:not([open]) + .infobox-peek {
+  display: grid;
+  gap: 0.3rem;
+  margin: -0.6rem 0 0;
+  padding: 0 0.85rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-top: 0;
+  background: var(--paper-raised);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
+  font-size: 0.92rem;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+  overflow: visible;
+}
+.entry-aside-box-stacked .infobox-peek-row {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 34%) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.entry-aside-box-stacked .infobox-peek-row + .infobox-peek-row::before {
+  content: none;
+}
+.entry-aside-box-stacked .infobox-peek-label {
+  font-family: var(--stamp-face);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.entry-aside-box-stacked .infobox-peek-label::after {
+  content: none;
+}
+.entry-aside-box-stacked .infobox-peek-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.entry-aside-box-stacked .infobox-peek-value .entry-chip {
+  white-space: normal;
+}
+
+/* ---------------------------------------------------- Genoemd in, met de zin */
+
+.genoemd-body {
+  padding: 0.5rem 0 1.1rem;
+}
+.genoemd-note {
+  margin: 0 0 0.6rem;
+}
+.genoemd-groep + .genoemd-groep {
+  margin-top: 1.1rem;
+}
+.genoemd-kop {
+  margin: 0 0 0.35rem;
+  font-family: var(--stamp-face);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.genoemd-lijst {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.genoemd-rij {
+  position: relative;
+  padding: 0.55rem 0 0.6rem;
+  border-bottom: 1px dotted var(--rule);
+}
+.genoemd-rij:last-child {
+  border-bottom: 0;
+}
+.genoemd-bron {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.45rem;
+  row-gap: 0.1rem;
+  margin: 0;
+}
+.genoemd-icoon {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--ink-muted);
+}
+.genoemd-naam {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.02rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+/* De hele rij is de deur: de naam rekt zijn klikvlak over zin en al. */
+.genoemd-naam::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.genoemd-rij:hover .genoemd-naam {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+.genoemd-naam:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+.genoemd-waar {
+  font-family: var(--stamp-face);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+/* Het citaat: de zin uit de bron, in de serif, met een lijn ervoor als in een voetnoot. */
+.genoemd-zin {
+  margin: 0.3rem 0 0 0.35rem;
+  padding: 0 0 0 0.75rem;
+  border-left: 2px solid var(--rule);
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  max-width: 62ch;
+}
+.genoemd-zin strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ======================================================== ronde 67 · herstel (F3) */
+
+/*
+ * §97/§104 (#1): de naad. Rond een verwijzing die de lezer niet mag volgen
+ * zet `naadPlugin` (components/editor/EntryLink.ts) een `.naad` om de spatie
+ * of het leesteken dat moet wijken — alleen de weergave, de tekst zelf blijft
+ * wat hij is. In Lezen valt het weg; in Bewerken typ je in de tekst zoals hij
+ * is opgeslagen, dus daar blijft het staan.
+ */
+.ProseMirror[contenteditable='false'] .naad {
+  display: none;
+}
+
+/* §104 (#26): een omslag of een plaatje in de tekst verblindt op donker papier. Alleen in de donkere paletten. */
+:root:has([data-theme='dark'])
+  :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .feed-thumb, .leeskamer-archief-omslag, .prose, .ProseMirror)
+  img {
+  filter: brightness(0.85);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(:has([data-theme='light']))
+    :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .feed-thumb, .leeskamer-archief-omslag, .prose, .ProseMirror)
+    img {
+    filter: brightness(0.85);
+  }
+}
+
+/*
+ * §104 (#17): waar dit artikel staat, op een telefoon — één regel met een
+ * deur. De rijen chips eronder zijn dezelfde als op een groot scherm.
+ */
+.entry-waar {
+  margin: 0.55rem 0 0;
+}
+.entry-waar > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--tap);
+  padding: 0;
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+}
+.entry-waar > summary::-webkit-details-marker {
+  display: none;
+}
+.entry-waar > summary:hover .entry-waar-zin {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.entry-waar > summary:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+.entry-waar-pijl {
+  flex: 0 0 auto;
+  transition: transform var(--dur-2) var(--ease-standard);
+}
+.entry-waar[open] .entry-waar-pijl {
+  transform: rotate(90deg);
+}
+.entry-waar-rijen {
+  padding: 0 0 0.3rem;
+}
+.entry-waar-rijen > p:first-child {
+  margin-top: 0 !important;
+}
+
+/*
+ * §104 (#17): het ritme van de kop op een telefoon, in Lezen. Met een omslag
+ * begon de eerste zin op y = 791 van 844. De regel *waar* is één regel
+ * letters hoog in de opmaak en toch een duim groot om op te tikken (de
+ * opvulling valt over de marge heen), de liggende omslag is hooguit 12,5rem
+ * hoog — de liggende uitsnede blijft, alleen smaller van boven en onder — en
+ * de marges tussen kop, chips en tekst zijn een tikje korter.
+ */
+@media (max-width: 767px) {
+  .entry-page-reading .entry-head {
+    margin-bottom: 0.6rem;
+  }
+  .entry-waar {
+    margin-top: 0.6rem;
+  }
+  .entry-waar > summary {
+    min-height: 0;
+    padding-block: 0.6rem;
+    margin-block: -0.6rem;
+  }
+  .entry-waar[open] > summary {
+    margin-bottom: 0;
+  }
+  /* §104 (golf H, T9): 10,5rem — de knoppen erboven werden 44 px in plaats van 34, en de eerste zin houdt zijn plek, ook voor de Keeper met zijn knop in de hoek. */
+  .entry-page-reading .entry-cover-liggend {
+    max-height: min(34vh, 10.5rem);
+    max-height: min(34dvh, 10.5rem);
+  }
+  .entry-page-reading .entry-outline-row {
+    margin-bottom: 0.6rem;
+  }
+  .entry-page-reading .entry-aside-box-stacked {
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+  }
+  .entry-page-reading .entry-body-block {
+    margin-top: 0.8rem;
+  }
+}
+
+/*
+ * §104 (#13): een blok met niets erin — *Genoemd in* of *Geschiedenis* bij 0 —
+ * is één gedempte regel: het etiket en een zin, geen vouw die opent op niets.
+ */
+.blok-leeg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.7rem;
+  row-gap: 0.15rem;
+  margin: 0;
+  /* Zo hoog als de summary van een vouw ernaast (`details.section`), zodat de rij blokken één ritme houdt. */
+  padding: 0.85rem 0 0.8rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.blok-leeg-kop {
+  font-family: var(--stamp-face);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.blok-leeg-zin code {
+  font-size: 0.85em;
+}
+
+/* ======================================================== minder beweging */
+
+@keyframes leeskamer-komt {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leeskamer-archief-inhoud,
+  .entry-lightbox {
+    animation: none;
+  }
+  .leeskamer-archief-kaart.is-bezig .leeskamer-archief-inhoud,
+  .entry-waar-pijl,
+  .leeskamer-fiche,
+  .leeskamer-tegel,
+  .kop-anker {
+    transition: none;
+  }
+  .leeskamer-tegel:active {
+    transform: none;
+  }
+}
+
+/* ======================================================== golf H — lezen en de wiki */
+
+/*
+ * §104 (golf H, D6): de tabrij van de wiki is één rij. Start, Alles, de
+ * grootste soorten, en *Meer soorten ▾* rechts ernaast. Hoeveel soorten er in
+ * de rij passen is een getal per breedte; elke tab draagt zijn rang
+ * (`rangSoorten`, lib/wiki/tabrij.ts) en het menu toont precies de soorten die
+ * de rij op deze breedte niet toont. Rang 0 — de soort waar je op staat — staat
+ * altijd in de rij. Op een telefoon scrolt de rij (zeven soorten) en staat het
+ * menu vast rechts.
+ */
+.type-tabs-rij {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  margin: 0.6rem 0 0;
+}
+.type-tabs-rij > .type-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.meer-soorten {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--rule);
+}
+.meer-soorten-knop {
+  background: none;
+  cursor: pointer;
+  border-left-color: transparent;
+}
+.meer-soorten-knop[aria-expanded='true'] {
+  color: var(--ink);
+  background: var(--paper-raised);
+}
+.meer-soorten-pijl {
+  transform: rotate(90deg);
+  transition: transform var(--dur-2) var(--ease-standard);
+}
+.meer-soorten-knop[aria-expanded='true'] .meer-soorten-pijl {
+  transform: rotate(-90deg);
+}
+/* Op een telefoon is de knop alleen zijn tekens (het woord staat in `aria-label`): de rij houdt de ruimte. */
+@media (max-width: 767px) {
+  .meer-soorten-woord {
+    display: none;
+  }
+  .meer-soorten-knop {
+    padding: 0 0.55rem;
+    min-width: var(--tap);
+    justify-content: center;
+  }
+}
+/* Het menu hangt aan de rij, niet aan de scrollende strook: die knipt niets af. */
+.meer-soorten-lijst {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  z-index: 30;
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.1rem 0.4rem;
+  width: min(34rem, calc(100vw - 2 * var(--page-pad, 1rem)));
+  max-height: min(70vh, 30rem);
+  overflow-y: auto;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.14);
+  animation: meer-soorten-komt var(--dur-3) var(--ease-enter);
+}
+@media (prefers-reduced-motion: reduce) {
+  .meer-soorten-lijst {
+    animation: none;
+  }
+}
+@media (min-width: 640px) {
+  .meer-soorten-lijst {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.meer-soorten-item {
+  display: flex;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 2px;
+}
+.meer-soorten-item:hover,
+.meer-soorten-item:focus-visible {
+  background: var(--paper-dark);
+}
+.meer-soorten-naam {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@keyframes meer-soorten-komt {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Wie in de rij staat, staat niet in het menu — en omgekeerd. */
+.meer-soorten-lijst > li:is([data-rang='1'], [data-rang='2'], [data-rang='3'], [data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
+  display: none;
+}
+.meer-soorten[data-nodig-tot] {
+  display: none;
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='3'], [data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
+    display: none;
+  }
+  .meer-soorten-lijst > li:is([data-rang='3'], [data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
+    display: block;
+  }
+  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='3'], [data-nodig-tot='4'], [data-nodig-tot='5'], [data-nodig-tot='6'], [data-nodig-tot='7']) {
+    display: block;
+  }
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
+    display: none;
+  }
+  .meer-soorten-lijst > li:is([data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
+    display: block;
+  }
+  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='4'], [data-nodig-tot='5'], [data-nodig-tot='6'], [data-nodig-tot='7']) {
+    display: block;
+  }
+}
+@media (min-width: 1280px) and (max-width: 1499px) {
+  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='5'], [data-rang='6'], [data-rang='7']) {
+    display: none;
+  }
+  .meer-soorten-lijst > li:is([data-rang='5'], [data-rang='6'], [data-rang='7']) {
+    display: block;
+  }
+  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='5'], [data-nodig-tot='6'], [data-nodig-tot='7']) {
+    display: block;
+  }
+}
+@media (min-width: 1500px) and (max-width: 1799px) {
+  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='6'], [data-rang='7']) {
+    display: none;
+  }
+  .meer-soorten-lijst > li:is([data-rang='6'], [data-rang='7']) {
+    display: block;
+  }
+  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='6'], [data-nodig-tot='7']) {
+    display: block;
+  }
+}
+
+/*
+ * §104 (golf H, D6): de rijen tabs scrollen in plaats van te breken. De lijn
+ * eronder tekent elke tab zelf (en een vulstuk erachter), zodat de tab waar je
+ * op staat zijn inkeping houdt: de strook knipt wat onder zijn rand uitsteekt.
+ */
+.type-tabs.schuifrij,
+.case-tabs.schuifrij {
+  flex-wrap: nowrap;
+  row-gap: 0;
+  border-bottom: 0;
+}
+.type-tabs.schuifrij > .type-tab,
+.case-tabs.schuifrij > .case-tab {
+  margin-bottom: 0;
+}
+.type-tabs.schuifrij::after,
+.case-tabs.schuifrij::after {
+  content: '';
+  flex: 1 0 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+/* Een rij chips op een groot scherm: lucht voor de focusring, die de strook anders afknipt. */
+.chip-strip.schuifrij {
+  padding-block: 0.2rem;
+}
+
+/*
+ * §104 (golf H, T1): de rijvorm van een lijst. Een miniatuur van 42 × 56 (de
+ * staande uitsnede, zoals in de feed en bij zoeken), de naam op één regel, één
+ * regel omschrijving, en de soort. Op een telefoon voor elke lijst van
+ * artikelen of dossiers (`.rijen`, en `.wiki-entries` tenzij je Kaarten koos);
+ * op een groot scherm alleen als je in de wiki Lijst koos. Vijf dossiers
+ * waren vijf schermen lege mappen; 120 artikelen waren 22.800 px.
+ */
+.card-grid-breed {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+/* De regel onder een kaart: soort, telling, stempels — één regel. */
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.35rem 0 0;
+  min-width: 0;
+}
+.card-meta-soort {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alleen-rij {
+  display: none;
+}
+.card-meta-status {
+  font-family: var(--stamp-face);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-right: 0.3rem;
+}
+.card-cover-wrap {
+  position: relative;
+}
+
+
+.wiki-entries[data-view='list'] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+.wiki-entries[data-view='list'] > .card {
+  display: grid;
+  grid-template-columns: 2.625rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.8rem;
+  min-height: var(--tap);
+  padding: 0.5rem 0.35rem;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-image: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+}
+.wiki-entries[data-view='list'] > .card::before,
+.wiki-entries[data-view='list'] > .card::after {
+  content: none;
+}
+.wiki-entries[data-view='list'] > a.card:hover {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--paper-dark) 55%, transparent);
+}
+.wiki-entries[data-view='list'] > a.card:active {
+  transform: none;
+  box-shadow: none;
+  background: var(--paper-dark);
+}
+.wiki-entries[data-view='list'] > .card > .card-cover,
+.wiki-entries[data-view='list'] > .card > .card-cover-wrap {
+  width: 2.625rem;
+  height: 3.5rem;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--rule);
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.1);
+}
+.wiki-entries[data-view='list'] > .card > .card-cover-wrap > .card-cover {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.wiki-entries[data-view='list'] > .card > .card-cover-wrap > .stamp {
+  display: none;
+}
+.wiki-entries[data-view='list'] .cover-icoon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+/* .wiki-entries[data-view='list']emengd: de soort als een lijn van 2 px boven het plaatje, in plaats van boven de kaart. */
+.wiki-entries[data-view='list'] > .card-gemengd > .card-cover {
+  border-top: 2px solid var(--soort, var(--rule));
+}
+.wiki-entries[data-view='list'] .card-body {
+  padding: 0;
+  min-width: 0;
+}
+.wiki-entries[data-view='list'] .card-name {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wiki-entries[data-view='list'] .card-body .clamp-2 {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  margin-top: 0.05rem;
+}
+.wiki-entries[data-view='list'] .card-meta {
+  margin-top: 0.15rem;
+}
+.wiki-entries[data-view='list'] .alleen-rij {
+  display: inline;
+}
+
+@media (max-width: 767px) {
+
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card {
+    display: grid;
+    grid-template-columns: 2.625rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.8rem;
+    min-height: var(--tap);
+    padding: 0.5rem 0.35rem;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    border-image: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    overflow: visible;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card::before,
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card::after {
+    content: none;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > a.card:hover {
+    transform: none;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--paper-dark) 55%, transparent);
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > a.card:active {
+    transform: none;
+    box-shadow: none;
+    background: var(--paper-dark);
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card > .card-cover,
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card > .card-cover-wrap {
+    width: 2.625rem;
+    height: 3.5rem;
+    aspect-ratio: 3 / 4;
+    border: 1px solid var(--rule);
+    box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.1);
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card > .card-cover-wrap > .card-cover {
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card > .card-cover-wrap > .stamp {
+    display: none;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) .cover-icoon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  /* :is(.rijen, .wiki-entries:not([data-view='cards']))emengd: de soort als een lijn van 2 px boven het plaatje, in plaats van boven de kaart. */
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) > .card-gemengd > .card-cover {
+    border-top: 2px solid var(--soort, var(--rule));
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) .card-body {
+    padding: 0;
+    min-width: 0;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) .card-name {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) .card-body .clamp-2 {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    margin-top: 0.05rem;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) .card-meta {
+    margin-top: 0.15rem;
+  }
+  :is(.rijen, .wiki-entries:not([data-view='cards'])) .alleen-rij {
+    display: inline;
+  }
+}
+
+/*
+ * §104 (golf H, D14): een lijst met meer soorten geeft elke kaart hetzelfde
+ * kader — een haarlijn en de gewone schaduw — met de soort als een lijn van
+ * 3 px in zijn kleur boven het plaatje. Het eigen kader per soort (`.brd-*`)
+ * blijft op de lijst van die soort zelf, waar het zich herhaalt en ritme geeft.
+ */
+.card.card-gemengd {
+  border: 1px solid var(--rule);
+  border-image: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.card.card-gemengd::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--soort, var(--rule));
+  z-index: 2;
+  pointer-events: none;
+}
+.card.card-gemengd::after {
+  content: none;
+}
+
+/*
+ * §104 (golf H, D13): een omslag zonder beeld. Het icoon van de soort, in zijn
+ * kleur. In het donker is het vlak lichter dan de kaart in plaats van een gat
+ * (§32: "darker than the stage reads as a hole"), met een zachte lijn eromheen
+ * en het icoon op 70 % soortkleur.
+ */
+.cover-icoon {
+  color: var(--soort, var(--ink-muted));
+  opacity: 0.55;
+}
+.feed-thumb .cover-icoon {
+  opacity: 0.6;
+}
+:root:has([data-theme='dark']) :is(.card-cover, .feed-thumb).cover-leeg {
+  background: color-mix(in oklab, var(--paper-raised) 88%, var(--ink) 12%);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--rule) 65%, var(--ink-muted));
+}
+:root:has([data-theme='dark']) :is(.card-cover, .feed-thumb).cover-leeg .cover-icoon {
+  color: color-mix(in oklab, var(--soort, var(--ink-muted)) 70%, var(--ink));
+  opacity: 0.85;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(:has([data-theme='light'])) :is(.card-cover, .feed-thumb).cover-leeg {
+    background: color-mix(in oklab, var(--paper-raised) 88%, var(--ink) 12%);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--rule) 65%, var(--ink-muted));
+  }
+  :root:not(:has([data-theme='light'])) :is(.card-cover, .feed-thumb).cover-leeg .cover-icoon {
+    color: color-mix(in oklab, var(--soort, var(--ink-muted)) 70%, var(--ink));
+    opacity: 0.85;
+  }
+}
+
+/*
+ * §104 (golf H, D13/T10): een getekende omslag licht in het donker niet op —
+ * wat getemperd en een tikje sepia, zodat beige papier op bijna-zwart geen
+ * lamp wordt — met een binnenrand in de lijnkleur. Plaatjes in de tekst houden
+ * hun `brightness(.85)` (hierboven): dat zijn foto's, geen omslagen.
+ */
+:root:has([data-theme='dark'])
+  :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .feed-thumb, .leeskamer-archief-omslag)
+  img {
+  filter: brightness(0.7) sepia(0.15);
+}
+:root:has([data-theme='dark']) :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .leeskamer-archief-omslag):not(.cover-leeg) {
+  position: relative;
+}
+:root:has([data-theme='dark'])
+  :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .leeskamer-archief-omslag):not(.cover-leeg)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  pointer-events: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(:has([data-theme='light']))
+    :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .feed-thumb, .leeskamer-archief-omslag)
+    img {
+    filter: brightness(0.7) sepia(0.15);
+  }
+  :root:not(:has([data-theme='light'])) :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .leeskamer-archief-omslag):not(.cover-leeg) {
+    position: relative;
+  }
+  :root:not(:has([data-theme='light']))
+    :is(.card-cover, .entry-cover-liggend, .entry-cover-whole, .leeskamer-archief-omslag):not(.cover-leeg)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    pointer-events: none;
+  }
+}
+
+/*
+ * §104 (golf H, D21): waar een artikel staat — *Op de landkaart: A · B*, *In:
+ * …* — is een zin met namen, geen rij etiketten. De namen staan in gewone
+ * zinsletters (sans, 13 px, inkt) met een zachte onderstreping; kapitalen zijn
+ * voor soorten en labels. Het blijven `.chip`s in de opmaak, zodat een spec of
+ * een lezer die ze zoekt ze vindt.
+ */
+.entry-waar-rij {
+  align-items: baseline;
+  column-gap: 0.4rem;
+  row-gap: 0.15rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.entry-waar-label {
+  flex: 0 0 auto;
+}
+.entry-waar-rij > .chip {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--ink-muted) 45%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+.entry-waar-rij > .chip:hover {
+  text-decoration-color: currentColor;
+}
+.entry-waar-rij > .chip > svg:first-child:not(:only-child) {
+  display: none;
+}
+.entry-waar-rij > .chip ~ .chip::before {
+  /* Golf H: a separator to the eye, not a word of the link's name. */
+  content: '·' / '';
+  display: inline-block;
+  margin-right: 0.4rem;
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+@media (max-width: 767px) {
+  /* Een naam is ook hier een duim hoog om op te tikken, zonder dat de regel groeit. */
+  .entry-waar-rij > .chip {
+    display: inline-block;
+    padding-block: 0.55rem;
+    margin-block: -0.55rem;
+  }
+}
+
+/* §104 (golf H, D22): de kop van een overzicht — de titel links, *Bewerken* en *Nieuw overzicht* rechts op dezelfde regel. */
+.overzicht-kop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+}
+.overzicht-kop-titel {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.overzicht-kop-titel > .entry-title {
+  margin: 0;
+}
+.overzicht-kop-knoppen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+.overzicht-kop + .entry-lead {
+  margin-top: 0.35rem;
+}
+
+/*
+ * §104 (golf H, D24): de dossiernotities. Het kader was 1156 px breed om tekst
+ * van 540 px; nu is het zo breed als de tekst erin (de maat van `.prose`, plus
+ * zijn eigen binnenrand). Leeg en in Lezen is het één gedempte regel (`.blok-leeg`).
+ */
+.dossier-notities .editor-body {
+  max-width: calc(68ch + 2rem);
+}
+.dossier-notities-leeg {
+  margin-bottom: 1.2rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+/*
+ * §104 (golf H, D27): in de infobox staat elke naam op een eigen regel. Twee
+ * namen naast elkaar lazen als één ("Het warme water Jan Kaland"); bij
+ * *Ouders* stond het al zo. Geldt voor de koppelingen, de dossiers, de keuzes
+ * en wat de infobox eronder afleidt — in Lezen, waar een chip een naam is.
+ */
+.fields-view .row-wrap,
+.infobox-peek-value .row-wrap {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+/*
+ * En onder een lijst die zichzelf vult: in Lezen hooguit één korte, gedempte
+ * zin — die van de Keeper (`block.note`). De regel die uitlegt waar de namen
+ * van het gelijknamige veld vandaan komen, is voor wie schrijft (L9).
+ */
+.entry-page-reading [data-testid='derived-twin'] {
+  display: none;
+}
+
+/* §104 (golf H, D28): na een weggevallen naam begint de alinea met een hoofdletter — alleen in Lezen, alleen de weergave. */
+.ProseMirror[contenteditable='false'] .naad-hoofd {
+  text-transform: uppercase;
+}
+
+/*
+ * §104 (golf H, D30/D1): het skelet van een artikel (components/shell/Skeleton.tsx,
+ * de rest van de vorm in app/navigatie.css). Een omslagvlak bovenaan de
+ * zijkolom — staand vanaf 1280 px, liggend daaronder zoals de echte omslag —
+ * en tussen 1280 en 1499 px de vorm van D1: tekst en feiten, met de wegwijzer
+ * als rij chips boven de tekst.
+ */
+.sk-omslag {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  max-height: min(40dvh, 12rem);
+  margin: 0 0 0.6rem;
+  border-radius: 0;
+}
+@media (min-width: 1280px) {
+  .sk-omslag {
+    aspect-ratio: 3 / 4;
+    max-height: none;
+    margin-bottom: 1.2rem;
+  }
+}
+@media (min-width: 1280px) and (max-width: 1499px) {
+  .sk-entry {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'head aside'
+      'jumps aside'
+      'body aside';
+  }
+  .sk-rail {
+    display: none;
+  }
+  .sk-jumps {
+    display: flex;
+  }
+  .sk-aside {
+    grid-row: 1 / span 3;
+  }
+}
+
+/*
+ * §104 (golf H, T23): een tag op een artikel is op een telefoon een duim
+ * groot om op te tikken (44 px), zonder dat de rij tags groeit: het raakvlak
+ * is een onzichtbare rand om het etiket heen.
+ */
+.infobox-tag-rij {
+  gap: 0.3rem;
+}
+@media (max-width: 767px) {
+  :is(.entry-page, .infobox-peek, .infobox-tags) a.tag {
+    position: relative;
+  }
+  :is(.entry-page, .infobox-peek, .infobox-tags) a.tag::before {
+    content: '';
+    position: absolute;
+    inset: -0.6rem -0.2rem;
+  }
+  .infobox-tag-rij {
+    row-gap: 0.55rem;
+  }
+}
+
+/* ======================================================== golf H — minder beweging */
+@media (prefers-reduced-motion: reduce) {
+  /* Het menu verschijnt; het schuift niet. De pijl draait niet, hij staat. */
+  .meer-soorten-lijst {
+    animation: leeskamer-komt var(--dur-3) linear;
+  }
+  .meer-soorten-pijl {
+    transition: none;
+  }
+}
+
+/* §104 (golf H, D1): de lead leest op dezelfde maat als de tekst eronder, nu de tekstkolom breder is dan 68ch. */
+.entry-page-reading .entry-lead {
+  max-width: 68ch;
+}
+/* In Lezen is de ruimte om te typen geen ruimte: het kader sluit om de tekst. */
+.dossier-notities .ProseMirror[contenteditable='false'] {
+  min-height: 0;
+}

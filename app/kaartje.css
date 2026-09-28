@@ -1,0 +1,252 @@
+/* §102–§104: kaartje — zie docs/beweging.md. Eigen bestand zodat globals.css van één hand blijft. */
+
+/* ------------------------------------------------ ronde 65·c: de voorbeeldkaart */
+/*
+ * §6/§102 (J5): the card a chip raises. An index card out of the drawer: the
+ * cover (or the soort's icon on paper), the name in the serif, the soort as a
+ * small stamp in its own colour, two or three lines of what it is, a thin rule
+ * and the door, *Openen →*, bottom right. At most 300 px, and never wider than
+ * the window less its gutters.
+ *
+ * `--kind` is the soort's colour, set on the element. The stamp does not print
+ * it raw: it is mixed towards `--ink` — a fifth of the way on light paper,
+ * which darkens it a shade, and half-way on dark paper, where `--ink` is light
+ * — so a soort that was picked against the light palette still reads at night.
+ *
+ * It catches the pointer (`pointer-events: auto`) — it has a link in it now —
+ * except while the mouse is still on the chip that raised it (`data-reach`,
+ * see `EntryPreview`): then a press still goes through to whatever it lies on.
+ *
+ * In: a fade in `--dur-2`, with a 3 px drift away from the chip. Out: none.
+ * A hover card that leaves slowly is in the way of what you moved on to.
+ */
+.preview-card {
+  --kind-ink: color-mix(in srgb, var(--kind, var(--stamp-red)) 80%, var(--ink));
+  /* Each palette sets its own `color-scheme`, so `light-dark()` knows which
+     paper this is: on dark paper the soort's colour is lifted further. */
+  --kind-ink: light-dark(
+    color-mix(in srgb, var(--kind, var(--stamp-red)) 80%, var(--ink)),
+    color-mix(in srgb, var(--kind, var(--stamp-red)) 50%, var(--ink))
+  );
+  position: fixed;
+  z-index: 80;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 16px));
+  padding: 0.75rem 0.8rem 0;
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow:
+    3px 3px 0 rgba(31, 27, 22, 0.16),
+    0 12px 28px -16px rgba(31, 27, 22, 0.5);
+  pointer-events: auto;
+  animation: kaartje-in var(--dur-2) var(--ease-enter) both;
+}
+.preview-card[data-reach='nee'] {
+  pointer-events: none;
+}
+.preview-card[data-side='above'] {
+  --kaartje-drift: 3px;
+}
+@keyframes kaartje-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--kaartje-drift, -3px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.preview-body {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+/* Round 19: a clipping wrapper, like `.feed-thumb`, so a zoomed crop stays in
+   its box. The aspect is `.cover-portrait`'s, never its own. */
+.preview-thumb {
+  display: block;
+  width: 56px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  background: var(--paper-dark);
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.12);
+}
+.preview-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.preview-thumb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kind-ink);
+}
+.preview-thumb-icon svg {
+  opacity: 0.7;
+}
+
+.preview-text {
+  min-width: 0;
+}
+.preview-name {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.06rem;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+/* The soort, stamped: the archive's `.stamp` at label size, squared a little
+   less than a stamp on a page — it is a label on a card, not a verdict. */
+.preview-kind {
+  display: inline-block;
+  margin: 0.4rem 0 0 0.1rem;
+  padding: 0.1rem 0.4rem 0.05rem;
+  font-family: var(--stamp-face);
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kind-ink);
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  transform: rotate(-2deg);
+  opacity: 0.9;
+}
+.preview-desc {
+  margin: 0.5rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.42;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.preview-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.65rem;
+  border-top: 1px solid var(--rule);
+}
+.preview-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 2.1rem;
+  padding: 0 0.05rem 0 0.6rem;
+  font-family: var(--stamp-face);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--link);
+  text-decoration: none;
+}
+.preview-open:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.preview-open:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+/* A finger meets `--tap` (§69 6.1), on the card too. */
+@media (pointer: coarse) {
+  .preview-open {
+    min-height: var(--tap);
+    min-width: var(--tap);
+  }
+}
+
+/* Reduced motion: the card still arrives softly (an opacity fade of 110 ms is
+   the contract's allowed cross-fade), but it does not drift. */
+@media (prefers-reduced-motion: reduce) {
+  .preview-card {
+    animation-name: kaartje-in-stil;
+  }
+}
+@keyframes kaartje-in-stil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------- ronde 65·c: de omslag-cirkel */
+/*
+ * §46/§102 (J9): the circle is back. Since §57 a flip is a document load (a
+ * GET to `/api/keeper/flip` and its 303), and a document load can carry a
+ * view transition as long as the whole road is same-origin: a cross-document
+ * one. Every document here opts in below, and the inline script in the root
+ * layout's `<head>` (`FLIP_SCRIPT`, `components/keeper/flipRoad.ts`) skips it
+ * on both ends unless the old page left a fresh note that a hand turned the
+ * archive over. So: the flip gets its circle, and nothing else gets a page
+ * transition (round 65, decision 5).
+ *
+ * The old side lies still; the new side is uncovered by a circle growing out
+ * of the button that was pressed — `--flip-x`/`--flip-y` on <html>, from the
+ * note. Deliberately not a cross-fade: one archive is *over* the other, it
+ * does not dissolve into it. `mix-blend-mode: normal` because the browser's
+ * own pair is `plus-lighter`, made for a cross-fade that sums to one; two
+ * opaque snapshots summed inside the circle would come out washed white.
+ *
+ * 550 ms (`--dur-5` + `--dur-3`), past the 500 ms line on purpose: it is not
+ * routine — a Keeper turns the whole archive over a few times an evening —
+ * and a circle that has to cross a desk-sized window in less looks like a
+ * flash. The easing is `--ease-enter`: fast from the button, settling at the
+ * far corners.
+ *
+ * Browsers without cross-document transitions (Firefox 144 has same-document
+ * ones only) ignore the at-rule, and the flip is a plain navigation there.
+ */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: side-flip-wipe calc(var(--dur-5) + var(--dur-3)) var(--ease-enter) both;
+  mix-blend-mode: normal;
+}
+@keyframes side-flip-wipe {
+  from {
+    clip-path: circle(0 at var(--flip-x, 100%) var(--flip-y, 0));
+  }
+  to {
+    clip-path: circle(150% at var(--flip-x, 100%) var(--flip-y, 0));
+  }
+}
+/* Somebody who has asked for no movement gets none: no document opts in, the
+   script skips whatever is left, and a transition already in flight when the
+   setting changes stops dead. The page is simply the other page. */
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

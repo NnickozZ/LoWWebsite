@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, newBoard, newCaseBoard, newEntryButton, openEmptyFields, signIn } from './helpers';
+import { editArticle, newBoard, newCaseBoard, newEntryButton, openEmptyFields, signIn, openEntryWaar } from './helpers';
 
 /**
  * §23: Nick's round of 5 September, evening.
@@ -262,6 +262,7 @@ test('a landkaart is the map of a place, and goes on a wall as a card', async ({
   await page.goto('/e/de-schorre');
   // Two chips can name the same landkaart — "uitgetekend op" and "zet op" —
   // because a place can be drawn by a map and still be pinned somewhere on it.
+  await openEntryWaar(page);
   const drawn = page.getByRole('link', { name: mapName, exact: true });
   await expect(drawn).toBeVisible();
   await drawn.click();

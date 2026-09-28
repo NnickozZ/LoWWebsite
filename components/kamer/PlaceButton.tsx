@@ -13,8 +13,11 @@ import type { PlekKind } from '@/lib/kamers/shape';
 import { capitalise, fill, type Words } from '@/lib/words';
 import { Beurs } from './Beurs';
 import { MEANING, munt, plekWord, shortfall, withPrice } from './plekWords';
-import { kamerPost } from './post';
-import { buyToast } from './buyToast';
+import { kamerPost, kamerPostFor } from './post';
+import { buyToast, toastKeyOf } from './buyToast';
+import { announceBalance } from './saldo';
+import { markLanding } from './moment';
+import { play } from '@/lib/sound/klank';
 import { MentionText } from '@/components/ui/MentionPopover';
 
 type Voorwerp = {
@@ -28,6 +31,9 @@ type Voorwerp = {
   /** §93: hoeveel ervan in de lade van deze kamer liggen (`placeCandidates`). */
   inDrawer: number;
 };
+
+/** §103 golf H (T5): vanaf zoveel dingen staat er op een aanraakscherm een zoekvak. */
+export const PICK_SEARCH_FROM = 8;
 
 /** The two halves of the sheet. `bezit` is what you own; `catalogus` is what is for sale. */
 type Tab = 'bezit' | 'catalogus';
@@ -98,7 +104,27 @@ export function PlaceButton({
   const [answered, setAnswered] = useState(false);
   const [shop, setShop] = useState<CatalogueEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
+  /** §103 (K2): het ding waarvan de koopknop net *Gekocht* zegt — de tekening, niet de waarheid. */
+  const [boughtId, setBoughtId] = useState<string | null>(null);
   const boxRef = useRef<HTMLInputElement>(null);
+  /*
+   * §103 golf H (T5): op een aanraakscherm geen caret in het zoekvak. Een caret
+   * roept daar het toetsenbord op, en dat legde de lijst eronder (*Wat je al
+   * hebt*, meestal één of twee dingen) onder het toetsenbord: wie iets uit zijn
+   * lade wilde neerzetten, moest eerst het toetsenbord wegvegen. En het vak zelf
+   * staat er pas vanaf `PICK_SEARCH_FROM` dingen: bij twee rijen is zoeken niets
+   * dan een toetsenbord. Is het er eenmaal, dan blijft het tot het blad sluit —
+   * een vak dat onder je hand verdwijnt als je tabblad wisselt, is erger.
+   */
+  const [coarse] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true,
+  );
+  const [searchShown, setSearchShown] = useState(false);
+  const showSearch =
+    !coarse || searchShown || query !== '' || items.length >= PICK_SEARCH_FROM || (shop?.length ?? 0) >= PICK_SEARCH_FROM;
+  useEffect(() => {
+    if (open && showSearch && !searchShown) setSearchShown(true);
+  }, [open, showSearch, searchShown]);
 
   // §101: the caret goes into the search box through `data-autofocus` (see `Sheet`).
 
@@ -164,8 +190,9 @@ export function PlaceButton({
    * between two glances. `null` is "not asked yet" and is what the tab shows a
    * quiet line for; an empty array is a real answer and gets `catalogueEmpty`.
    */
+  // §103 golf H (T5): bij het openen, niet pas op het tabblad — het aantal beslist of er een zoekvak staat.
   useEffect(() => {
-    if (!open || tab !== 'catalogus') return;
+    if (!open) return;
     const controller = new AbortController();
     (async () => {
       try {
@@ -181,13 +208,15 @@ export function PlaceButton({
       }
     })();
     return () => controller.abort();
-  }, [open, tab, roomId, kind]);
+  }, [open, roomId, kind]);
 
   function done() {
     setOpen(false);
     setQuery('');
     setShop(null);
     setAnswered(false);
+    setBoughtId(null);
+    setSearchShown(false);
     router.refresh();
   }
 
@@ -208,9 +237,13 @@ export function PlaceButton({
         ui.toast(error);
         return;
       }
+      // §103 (K2/K8): het ding landt op de tegel die zo terugkomt, met een houten tik.
+      markLanding({ slotId, entryId: entry.id, first: false });
+      play('tik');
       // §84: zeggen wat er gebeurd is. Geen *Bekijk*-knop hier: je staat al in
       // de kamer en het blad sluit op de tegel die net gevuld is.
-      ui.toast(landed(entry.name));
+      // §103 golf H (T15): en het vervangt wat er over dit ding al stond (*… ligt nu in je lade*).
+      ui.toast(landed(entry.name), undefined, { key: toastKeyOf(entry.id) });
       done();
     } finally {
       setBusy(false);
@@ -224,12 +257,24 @@ export function PlaceButton({
    */
   async function buy(entry: CatalogueEntry) {
     setBusy(true);
+    // §103 (K2): binnen één frame *Gekocht* — alleen in de tekening; de server beslist.
+    setBoughtId(entry.id);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/buy`, { entryId: entry.id }, words);
+      const { error, data } = await kamerPostFor<{ spent: number; first?: boolean; balance?: number }>(
+        `/api/kamers/${roomId}/plekken/${slotId}/buy`,
+        { entryId: entry.id },
+        words,
+      );
       if (error) {
+        setBoughtId(null);
         ui.toast(error);
         return;
       }
+      // §103 golf H (T8): het saldo rolt in hetzelfde moment als de melding.
+      announceBalance(roomId, data?.balance);
+      // §103 (K2/K5/K8): het briefje voor de tegel (met *Ingericht* bij de eerste koop) en een stempel.
+      markLanding({ slotId, entryId: entry.id, first: Boolean(data?.first) });
+      play('stempel');
       // §93: met *Ongedaan maken* erbij — de correctie van tien seconden.
       buyToast(ui, router, {
         message: `${landed(entry.name)} −${munt(entry.price, words)}`,
@@ -274,7 +319,7 @@ export function PlaceButton({
               anders in één feature.
             */}
             <p style={{ margin: '0 0 0.6rem' }} data-testid="plek-picker-saldo">
-              <Beurs balance={balance} words={words} size="small" />
+              <Beurs balance={balance} words={words} size="small" room={roomId} />
             </p>
 
             {/*
@@ -333,19 +378,24 @@ export function PlaceButton({
               artikelen), de catalogus in de browser (die is al binnen en
               telt er tien).
             */}
-            <label className="visually-hidden" htmlFor={`${titleId}-zoek`}>
-              {words.pickSearch}
-            </label>
-            <input
-              id={`${titleId}-zoek`}
-              ref={boxRef}
-              data-autofocus
-              className="input kamer-zoek"
-              data-testid="plek-picker-zoek"
-              value={query}
-              placeholder={words.pickSearchHint}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+            {showSearch && (
+              <>
+                <label className="visually-hidden" htmlFor={`${titleId}-zoek`}>
+                  {words.pickSearch}
+                </label>
+                <input
+                  id={`${titleId}-zoek`}
+                  ref={boxRef}
+                  /* §103 golf H (T5): de caret alleen waar een toetsenbord geen scherm kost. */
+                  data-autofocus={coarse ? undefined : true}
+                  className="input kamer-zoek"
+                  data-testid="plek-picker-zoek"
+                  value={query}
+                  placeholder={words.pickSearchHint}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </>
+            )}
 
             <div
               id={`${titleId}-paneel`}
@@ -398,6 +448,7 @@ export function PlaceButton({
                 query={query}
                 balance={balance}
                 busy={busy}
+                boughtId={boughtId}
                 words={words}
                 onBuy={(entry) => void buy(entry)}
               />
@@ -430,6 +481,7 @@ function Catalogus({
   busy,
   words,
   onBuy,
+  boughtId = null,
 }: {
   /** `null` until the ask comes back — "nothing yet" is not the same answer as "nothing". */
   entries: CatalogueEntry[] | null;
@@ -440,6 +492,8 @@ function Catalogus({
   busy: boolean;
   words: Words;
   onBuy: (entry: CatalogueEntry) => void;
+  /** §103 (K2): de rij waarvan de knop net *Gekocht* zegt. */
+  boughtId?: string | null;
 }) {
   if (entries === null) {
     return (
@@ -471,7 +525,8 @@ function Catalogus({
             key={entry.id}
             className={`kamer-koop${affordable ? '' : ' kamer-koop-dear'}`}
             data-testid="plek-catalogus-rij"
-            data-entry-id={entry.id}
+            /* §103 (E18): `data-entry-id` staat op de naam, niet op de rij — anders
+               sprong de voorbeeldkaart op boven de koopknop. */
             data-price={entry.price}
             /* The one attribute an e2e spec needs to tell the two states apart
                — the greying itself is `--ink-muted` and a colour is never a
@@ -487,7 +542,7 @@ function Catalogus({
               {/* §90 (E14): de naam is een deur naar het artikel, net als in de
                   winkelrij — een stuk huisraad *is* een artikel. */}
               <p className="kamer-koop-name">
-                <Link href={`/e/${entry.slug}`} data-testid="plek-catalogus-naam">
+                <Link href={`/e/${entry.slug}`} data-testid="plek-catalogus-naam" data-entry-id={entry.id}>
                   <strong>{entry.name}</strong>
                 </Link>
               </p>
@@ -518,13 +573,29 @@ function Catalogus({
               {affordable ? (
                 <button
                   type="button"
-                  className="btn btn-small btn-primary"
+                  className={`btn btn-small winkel-koop${boughtId === entry.id ? ' winkel-koop-gekocht' : ''}`}
                   data-testid="plek-koop"
-                  disabled={busy}
-                  onClick={() => onBuy(entry)}
+                  data-bought={boughtId === entry.id ? 'ja' : undefined}
+                  disabled={busy && boughtId !== entry.id}
+                  aria-disabled={boughtId === entry.id || undefined}
+                  onClick={() => {
+                    if (!busy) onBuy(entry);
+                  }}
                 >
-                  <Icon name={MEANING.munt} size={13} />
-                  {withPrice(words.buy, entry.price, words)}
+                  {/* §103 (K2): de regel houdt de breedte vast; de stempel ligt erover. */}
+                  {/* §103 golf H (D7/T11): de prijs staat één keer, op de stempel erboven;
+                      de knop zegt alleen *Kopen*. De hele zin blijft de naam (§90). */}
+                  <span className="koop-regel" aria-hidden={boughtId === entry.id || undefined}>
+                    <Icon name={MEANING.munt} size={13} />
+                    <span aria-hidden="true">{words.buy}</span>
+                    <span className="visually-hidden">{withPrice(words.buy, entry.price, words)}</span>
+                  </span>
+                  {boughtId === entry.id && (
+                    <span className="koop-stempel">
+                      <Icon name={MEANING.gekocht} size={13} />
+                      {words.buyBought}
+                    </span>
+                  )}
                 </button>
               ) : (
                 <span className="tiny winkel-short" data-testid="plek-catalogus-short">

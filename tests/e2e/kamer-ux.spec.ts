@@ -383,15 +383,29 @@ test.describe('§85 De kamer in de hand', () => {
     const { slug } = await signUpWearing(owner, `Raster ${stamp}`);
     await giveMunten(page, slug, 6, `Startgeld ${stamp}`);
 
+    /*
+     * §103 golf H (T11): de dichte plekken staan sinds golf H apart, in een
+     * eigen raster met een eigen, kortere rijhoogte (`kamer-dicht`). De belofte
+     * geldt per raster: elke tegel in een raster is even hoog, en een koop rekt
+     * er niets uit.
+     */
     const heights = async (p: Page) =>
-      p.$$eval('[data-testid="plek"]', (els) =>
+      p.$$eval('[data-testid="kamer-grid"] [data-testid="plek"]', (els) =>
+        els.map((el) => Math.round(el.getBoundingClientRect().height)),
+      );
+    const dicht = async (p: Page) =>
+      p.$$eval('[data-testid="kamer-dicht"] [data-testid="plek"]', (els) =>
         els.map((el) => Math.round(el.getBoundingClientRect().height)),
       );
 
     await openKamer(owner, slug);
     const before = await heights(owner);
-    expect(before.length).toBeGreaterThan(3);
+    expect(before.length).toBeGreaterThan(1);
     expect(new Set(before).size, `voor de koop: ${before.join(', ')}`).toBe(1);
+    const dichtVoor = await dicht(owner);
+    expect(dichtVoor.length).toBeGreaterThan(3);
+    expect(new Set(dichtVoor).size, `dicht: ${dichtVoor.join(', ')}`).toBe(1);
+    expect(dichtVoor[0], 'een dichte tegel is korter dan een open').toBeLessThan(before[0]);
 
     /*
      * Kopen, en dan opnieuw meten. **Op naam**, niet `.first()`: de winkel is
@@ -958,7 +972,10 @@ test.describe('§86 De uitdeler op maat', () => {
     await fillWhenReady(page.getByTestId('uitdelen-iedereen'), '6');
     await fillWhenReady(page.getByTestId('uitdelen-reden'), `Voor de overtocht ${stamp}`);
     await page.getByTestId('uitdelen-geef').click();
-    await expect(page.getByTestId('uitdelen-naar-spelers')).toBeVisible({ timeout: 20_000 });
+    // §103 golf H (D15): de deur naar de spelers staat één keer, in de kop, en
+    // niet nog eens in de voet; de melding zegt wat er gebeurde.
+    await expect(page.locator('.toast').filter({ hasText: /^6 munten naar / })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('uitdelen-terug')).toBeVisible();
 
     // Het saldo staat op het artikel, waar de deur naartoe wijst.
     await page.goto(path);

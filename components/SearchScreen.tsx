@@ -9,6 +9,7 @@ import { useUi } from './ui/UiProvider';
 import type { EntrySummary } from '@/lib/entries/service';
 import { entryDisplayName, isAdrift } from '@/lib/entries/caseName';
 import { AdriftChip } from './entry/AdriftChip';
+import { useSchuifrij } from './useSchuifrij';
 import { KIND_ICON, KIND_WORD } from '@/lib/keeper/kinds';
 import type { OtherHit, OtherKind } from '@/lib/search/others';
 import { capitalise, fill, type Words } from '@/lib/words';
@@ -107,6 +108,9 @@ export function SearchScreen({
   const ui = useUi();
   const [query, setQuery] = useState(initialQuery);
   const [type, setType] = useState(types.some((t) => t.slug === initialType) ? initialType : '');
+  // §104 (golf H, D6): one row of soorten that scrolls, with the chosen one in view.
+  const stripRef = useRef<HTMLDivElement>(null);
+  useSchuifrij(stripRef, type);
   const [results, setResults] = useState<Results>(EMPTY);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -199,7 +203,7 @@ export function SearchScreen({
       />
 
       {types.length > 0 && (
-        <div className="chip-strip search-types" role="radiogroup" aria-label={words.searchIn} style={{ marginBottom: '1rem' }}>
+        <div ref={stripRef} className="chip-strip schuifrij search-types" role="radiogroup" aria-label={words.searchIn} style={{ marginBottom: '1rem' }}>
           <button
             type="button"
             role="radio"
@@ -225,12 +229,18 @@ export function SearchScreen({
         </div>
       )}
 
+      {/* §102, golf h1 (T24): a phone has no `/`. Both sentences are drawn and the
+          stylesheet picks one by the pointer (`app/navigatie.css`), so the
+          server's HTML is already right and nothing flips at hydration. */}
       {!typed && (
-        <p className="muted small">
-          {hintBefore}
-          {words.searchHint.includes('{toets}') && <kbd>/</kbd>}
-          {hintAfter}
-        </p>
+        <>
+          <p className="muted small search-hint search-hint-keys">
+            {hintBefore}
+            {words.searchHint.includes('{toets}') && <kbd>/</kbd>}
+            {hintAfter}
+          </p>
+          <p className="muted small search-hint search-hint-touch">{words.searchHintTouch}</p>
+        </>
       )}
 
       {typed && (

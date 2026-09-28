@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import type { ListParams } from '@/lib/listParams';
+import { MeerSoorten } from './MeerSoorten';
+import { Schuifrij } from './Schuifrij';
+import { MENU_RANG, rangSoorten } from '@/lib/wiki/tabrij';
 
 /**
  * The wiki's soorten as one row of tabs. Navigation, not a filter — each tab is
@@ -15,8 +18,13 @@ import type { ListParams } from '@/lib/listParams';
  * you meet. Start carries no count, on purpose: an overzicht counts nothing,
  * and a number beside it would invite the reader to read it as a soort.
  *
- * On a desktop the row wraps; on a phone it scrolls sideways under the thumb.
+ * One row at every width (§104, golf H): the soorten that do not fit are in
+ * *Meer soorten*, and the row scrolls under the thumb if a long name still
+ * does not fit.
  */
+/** Query keys that belong to the page they were set on (§104: the list's *Meer*). */
+const NOT_CARRIED = new Set(['pagina', 'per']);
+
 export type TypeTab = {
   slug: string;
   label: string;
@@ -32,6 +40,9 @@ export function TypeTabs({
   query,
   allLabel = 'Alles',
   startLabel = 'Start',
+  compact = false,
+  kindsLabel = 'De soorten',
+  moreLabel = 'Meer soorten',
 }: {
   types: TypeTab[];
   /**
@@ -45,47 +56,102 @@ export function TypeTabs({
   query: ListParams;
   allLabel?: string;
   startLabel?: string;
+  /**
+   * §104 (ronde 67·herstel, #16): the voordeur's row — Start, Alles and a jump
+   * to the tiles of *De soorten*, which are the index there.
+   */
+  compact?: boolean;
+  kindsLabel?: string;
+  /** §104 (golf H, D6): the menu at the end of the row, with the soorten that are not in it. */
+  moreLabel?: string;
 }) {
   const carried = new URLSearchParams();
   for (const [key, raw] of Object.entries(query)) {
     const value = Array.isArray(raw) ? raw[0] : raw;
-    if (value) carried.set(key, value);
+    // §104 (#14): how far down one list you had read is that list's, not the next tab's.
+    if (value && !NOT_CARRIED.has(key)) carried.set(key, value);
   }
   const qs = carried.toString();
   const href = (path: string) => (qs ? `${path}?${qs}` : path);
 
+  /*
+   * §104 (golf H, D6): één rij. Tot hier stonden alle soorten als tabs op drie
+   * rijen (21 tabs, 130 px, met een onderlijn die per rij afbrak). Nu: Start,
+   * Alles, de soorten met de meeste artikelen, en *Meer soorten ▾* met de rest
+   * en hun tellingen. Welke soorten in de rij staan, is een rang (`rangSoorten`);
+   * hoeveel er passen, zegt de stylesheet per breedte (`data-rang`,
+   * app/leeskamer.css), zodat de server de goede rij rendert en er niets
+   * verspringt. De soort waar je op staat heeft rang 0 en staat er altijd. Past
+   * de rij toch niet (een lange naam), dan scrolt hij, met een zachte rand.
+   */
+  const { rang, nodigTot } = rangSoorten(types, active);
+  // The menu holds every soort but the one you are on; those that the row
+  // shows at this width are hidden in it by the same `data-rang`.
+  const inMenu = types.filter((type) => rang.get(type.slug) !== 0);
+  const zichtbaar = (type: TypeTab) => rang.has(type.slug);
+
   return (
-    <nav className="type-tabs" aria-label="Soorten">
-      {/* §75: de voordeur. Geen telling — een overzicht telt niets. */}
-      <Link
-        className="type-tab"
-        href={href('/wiki')}
-        aria-current={active === 'start' ? 'page' : undefined}
-      >
-        <Icon name="home" size={14} />
-        {startLabel}
-      </Link>
-      <Link
-        className="type-tab"
-        href={href('/wiki/alles')}
-        aria-current={active === 'alles' ? 'page' : undefined}
-      >
-        <Icon name="book" size={14} />
-        {allLabel}
-        <span className="type-tab-count">{allCount}</span>
-      </Link>
-      {types.map((type) => (
+    <nav className={`type-tabs-rij${compact ? ' type-tabs-rij-kort' : ''}`} aria-label="Soorten">
+      <Schuifrij className="type-tabs">
+        {/* §75: de voordeur. Geen telling — een overzicht telt niets. */}
         <Link
-          key={type.slug}
           className="type-tab"
-          href={href(`/wiki/${type.slug}`)}
-          aria-current={active === type.slug ? 'page' : undefined}
+          href={href('/wiki')}
+          aria-current={active === 'start' ? 'page' : undefined}
         >
-          <Icon name={type.icon} size={14} style={{ color: type.colour }} />
-          {type.label}
-          <span className="type-tab-count">{type.count}</span>
+          <Icon name="home" size={14} />
+          {startLabel}
         </Link>
-      ))}
+        <Link
+          className="type-tab"
+          href={href('/wiki/alles')}
+          aria-current={active === 'alles' ? 'page' : undefined}
+        >
+          <Icon name="book" size={14} />
+          {allLabel}
+          <span className="type-tab-count">{allCount}</span>
+        </Link>
+        {compact ? (
+          /* §104 (ronde 67·herstel, #16): on the voordeur the soorten are the
+             tiles below (*De soorten*), so the row is Start, Alles and the way
+             down to them — one line instead of three rows of twenty tabs. */
+          <a className="type-tab type-tab-naar" href="#leeskamer-soorten-kop">
+            <Icon name="layers" size={14} />
+            {kindsLabel}
+          </a>
+        ) : (
+          types.filter(zichtbaar).map((type) => (
+            <Link
+              key={type.slug}
+              /* §104 (#16): a soort with nothing in it on this side is there, and quiet. */
+              className={`type-tab${type.count ? '' : ' is-leeg'}`}
+              href={href(`/wiki/${type.slug}`)}
+              aria-current={active === type.slug ? 'page' : undefined}
+              data-rang={rang.get(type.slug)}
+            >
+              {/* §104 (#9): the soort's colour, mixed towards the ink (`.soort-inkt`). */}
+              <Icon name={type.icon} size={14} className="soort-inkt" style={{ ['--soort' as string]: type.colour }} />
+              {type.label}
+              <span className="type-tab-count">{type.count}</span>
+            </Link>
+          ))
+        )}
+      </Schuifrij>
+      {!compact && inMenu.length > 0 && (
+        <MeerSoorten
+          label={moreLabel}
+          nodigTot={nodigTot}
+          items={inMenu.map((type) => ({
+            slug: type.slug,
+            label: type.label,
+            icon: type.icon,
+            colour: type.colour,
+            count: type.count,
+            href: href(`/wiki/${type.slug}`),
+            rang: rang.get(type.slug) ?? MENU_RANG,
+          }))}
+        />
+      )}
     </nav>
   );
 }

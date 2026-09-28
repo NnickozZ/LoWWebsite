@@ -37,4 +37,5 @@ export function uniqueSlug(input: string, taken: (candidate: string) => boolean)
  * beside `slugify`, because both of those halves need it and this file opens
  * nothing.
  */
-export const RESERVED_WIKI_SLUGS = ['alles', 'overzicht', 'overzichten'];
+// §104 (ronde 67): and `/wiki/willekeurig`, the door to one artikel at random.
+export const RESERVED_WIKI_SLUGS = ['alles', 'overzicht', 'overzichten', 'willekeurig'];

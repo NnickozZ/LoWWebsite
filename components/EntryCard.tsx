@@ -14,11 +14,23 @@ export function EntryCard({
 }: {
   entry: EntrySummary;
   note?: string;
-  /** Off on a page that already lists one type — the footer would only repeat it. */
+  /**
+   * Off on a page that already lists one type — the footer would only repeat it.
+   * §104 (golf H, D14): and it says which frame the card wears. A list of one
+   * soort shows that soort's own frame (§ border treatments), where it repeats
+   * and gives the page a rhythm; a list of many soorten (this on) gives every
+   * card the same hairline and a 3 px line in the soort's colour on top, so a
+   * dashed map edge no longer reads as "empty" between a photograph and a tag.
+   */
   showType?: boolean;
 }) {
+  const gemengd = showType;
   return (
-    <Link className={`card ${borderClass(entry.typeBorder)}`} href={`/e/${entry.slug}`}>
+    <Link
+      className={`card ${gemengd ? 'card-gemengd' : borderClass(entry.typeBorder)}`}
+      href={`/e/${entry.slug}`}
+      style={{ ['--soort' as string]: entry.typeColour }}
+    >
       <Cover
         assetId={entry.coverAssetId}
         crop={entry.coverCrop}
@@ -56,14 +68,11 @@ export function EntryCard({
           </p>
         )}
         {(showType || entry.visibility === 'keeper' || entry.viewMode !== 'all') && (
-          <p
-            className="tiny muted"
-            style={{ margin: '0.35rem 0 0', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-          >
+          <p className="tiny muted card-meta">
             {showType && (
               <>
-                <Icon name={entry.typeIcon} size={13} style={{ color: entry.typeColour }} />
-                {entry.typeLabel}
+                <Icon name={entry.typeIcon} size={13} className="soort-inkt" />
+                <span className="card-meta-soort">{entry.typeLabel}</span>
               </>
             )}
             {entry.visibility === 'keeper' && (

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editCanvas, fillWhenReady, inviteCode, signIn } from './helpers';
+import { becomeInvestigator, editCanvas, fillWhenReady, inviteCode, signIn, openEntryWaar } from './helpers';
 
 /**
  * §19: maps.
@@ -173,6 +173,7 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await expect(pinSheet).toBeVisible();
   await pinSheet.getByRole('link', { name: 'Artikel openen' }).click();
   await page.waitForURL('**/e/**');
+  await openEntryWaar(page);
   await expect(page.getByRole('link', { name: mapName })).toBeVisible();
 
   // A player sees both pins but may not pull the Keeper's.
@@ -648,7 +649,10 @@ test('§71: twee spelden op één plek worden er één met een +1, en de laag ze
    * pas verder.
    */
   const note = async (name: string, fx: number, fy: number) => {
-    const ask = page.getByRole('dialog', { name: 'Wat komt hier?' });
+    // §102 (J3): a sheet on its way out stays in the page for --dur-3, inert.
+    // A retry that closed one and opened the next sees two for a moment; the
+    // one to type into is the one that is not leaving.
+    const ask = page.locator('.sheet-backdrop:not([data-closing])').getByRole('dialog', { name: 'Wat komt hier?' });
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await page
         .getByRole('button', { name: 'Speld zetten' })

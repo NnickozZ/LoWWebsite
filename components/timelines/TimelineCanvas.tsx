@@ -2684,7 +2684,16 @@ export function TimelineCanvas({
         {span && anchorAt !== null && anchorUnit !== null && (
           <> · speelt op {formatWhen(anchorAt, anchorUnit)}</>
         )}
-        {' · '}sleep om te schuiven, Ctrl+scroll of knijp om te zoomen
+        {/* §102, golf h1 (T18): a pointer's sentence and a finger's; the stylesheet
+            shows one (`app/navigatie.css`, `pointer: coarse`). */}
+        <span className="hint-wijzer">
+          {' · '}sleep om te schuiven, Ctrl+scroll of knijp om te zoomen
+        </span>
+        {/* Golf H: the finger's sentence in the same line, so the glass keeps its height. */}
+        <span className="hint-vinger">
+          {' · '}
+          {words.canvasHintTouch}
+        </span>
         {/* §73: in Lezen the line says where the moving and making went. */}
         {canEdit && !handsOn && <> · kies Bewerken om {words.eventPlural} te verzetten of te zetten</>}
         {canEdit && handsOn && (

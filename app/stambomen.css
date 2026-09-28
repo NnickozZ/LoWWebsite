@@ -263,7 +263,7 @@
 .tree-edge-partner .tree-line-label,
 .tree-edge-sibling .tree-line-label {
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-2) var(--ease-standard);
 }
 .tree-edge-parent:hover .tree-line-label,
 .tree-edge-partner:hover .tree-line-label,

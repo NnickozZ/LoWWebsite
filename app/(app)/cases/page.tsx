@@ -91,10 +91,13 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       />
 
       {sorted.length ? (
-        <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
+        // §104 (golf H, T1): on a phone one line per dossier (`.rijen`) — five
+        // dossiers were five screens of empty folders. The width of a card on a
+        // desk is a class now, so the phone's one column can win over it.
+        <div className="card-grid card-grid-breed rijen">
           {sorted.map((item) => (
             <Link key={item.id} className="card" href={`/c/${item.slug}`}>
-              <div style={{ position: 'relative' }}>
+              <div className="card-cover-wrap">
                 <Cover assetId={item.coverAssetId} crop={item.coverCrop} shape="portrait" alt="" icon="folder" />
                 <span
                   className={`stamp${item.status === 'open' ? '' : ' stamp-muted'}`}
@@ -119,10 +122,9 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
                     <MentionText text={item.summary} flat tokens />
                   </p>
                 )}
-                <p
-                  className="tiny muted"
-                  style={{ margin: '0.4rem 0 0', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                >
+                <p className="tiny muted card-meta">
+                  {/* In a row the stamp on the cover is gone; the status is here instead. */}
+                  <span className="card-meta-status alleen-rij">{STATUS_LABELS[item.status]}</span>
                   <Icon name="file" size={13} />
                   {counts.get(item.id) ?? 0} {(counts.get(item.id) ?? 0) === 1 ? words.entry : words.entryPlural}
                   <span className="spacer" />

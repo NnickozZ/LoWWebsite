@@ -60,6 +60,13 @@ export type Mention = {
   name: string;
   /** A field's label, a card's name, a section's title. May be empty. */
   detail: string;
+  /**
+   * §104 (ronde 67, L3): the sectie that says it, when the source is one — found
+   * here behind `canSeeSection` already, so the sentence under the name is read
+   * from exactly the sectie this reader was allowed to be told about, and not
+   * matched up again by its title somewhere else.
+   */
+  sectionId?: string;
 };
 
 /* ------------------------------------------------------------ the writes */
@@ -779,6 +786,7 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
         href: `/c/${source.slug}#section-${section.id}`,
         name: source.name,
         detail: row.detail,
+        sectionId: section.id,
       });
     }
   }
@@ -1002,6 +1010,7 @@ export function listMentions(entryId: string, viewer: Viewer): Mention[] {
           href: `/e/${source.slug}#section-${section.id}`,
           name: source.name,
           detail: row.detail,
+          sectionId: section.id,
         });
       }
     }
@@ -1025,6 +1034,233 @@ export function revealedSectionIds(viewer: Viewer): Set<string> {
       .where(eq(schema.entrySectionReveals.userId, viewer.id))
       .all()
       .map((row) => row.sectionId),
+  );
+}
+
+/* ----------------------------------------------- the sentence (§104, L3) */
+
+/** The key a mention is known by in a page's list — kind, source and detail. */
+export function mentionKey(mention: Pick<Mention, 'kind' | 'id' | 'detail'> & { sectionId?: string }): string {
+  return `${mention.kind}:${mention.id}:${mention.sectionId ?? ''}:${mention.detail}`;
+}
+
+/**
+ * §104 (ronde 67, L3): the texts in which each mention's source says the name —
+ * a tekst with tokens `⟦h⟧`, as the column stores it — in the order they are
+ * worth trying. What reads them (`lib/wiki/genoemd.ts`) takes the first one
+ * that names this artikel and cuts the sentence out of it.
+ *
+ * This is **not a second road into "Genoemd in"**: it only ever reads the
+ * sources `listMentions` has already returned for this reader, and it reads
+ * them by id — the one sectie `listMentions` found behind `canSeeSection`
+ * (`sectionId`), the dossier, prikbord, landkaart, tijdlijn, stamboom or
+ * artikel whose own rule it has already answered. Nothing here decides whether
+ * a source may be named; everything here is a text that reader may read.
+ *
+ * Which text is the one depends on what the row's `detail` meant when
+ * `recompute*Mentions` wrote it:
+ *   - a sectie (of an artikel or a dossier): its own `body_text`;
+ *   - a dossier without detail: its notes, then its samenvatting;
+ *   - an artikel's `field` row: no detail is its korte beschrijving; a detail is
+ *     the label of a Tekst / Lange tekst (a koppelingsveld has no sentence, and
+ *     gets none — the label already says what it is);
+ *   - a prikbord, landkaart, tijdlijn or stamboom: no detail is its omschrijving
+ *     (and on a tijdlijn the text under an artikel-gebeurtenis); a detail is the
+ *     name of the kaartje, speld or gebeurtenis that says it.
+ */
+export function mentionTexts(mentions: readonly Mention[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!mentions.length) return out;
+  const ids = (kind: MentionKind) => [...new Set(mentions.filter((m) => m.kind === kind).map((m) => m.id))];
+
+  const sectionIds = [...new Set(mentions.flatMap((m) => (m.sectionId ? [m.sectionId] : [])))];
+  const sectionText = new Map(
+    sectionIds.length
+      ? db
+          .select({ id: schema.sections.id, text: schema.sections.bodyText })
+          .from(schema.sections)
+          .where(inArray(schema.sections.id, sectionIds))
+          .all()
+          .map((row) => [row.id, row.text] as const)
+      : [],
+  );
+
+  const caseIds = ids('case');
+  const cases = new Map(
+    caseIds.length
+      ? db
+          .select({ id: schema.cases.id, notes: schema.cases.notesText, summary: schema.cases.summary })
+          .from(schema.cases)
+          .where(inArray(schema.cases.id, caseIds))
+          .all()
+          .map((row) => [row.id, row] as const)
+      : [],
+  );
+
+  const fieldIds = ids('field');
+  const fieldSources = new Map(
+    fieldIds.length
+      ? db
+          .select({
+            id: schema.entries.id,
+            short: schema.entries.shortDescription,
+            fields: schema.entries.fields,
+            typeFields: schema.entryTypes.fields,
+          })
+          .from(schema.entries)
+          .innerJoin(schema.entryTypes, eq(schema.entryTypes.id, schema.entries.typeId))
+          .where(inArray(schema.entries.id, fieldIds))
+          .all()
+          .map((row) => [row.id, row] as const)
+      : [],
+  );
+
+  const boardIds = ids('board');
+  const boards = new Map(
+    boardIds.length
+      ? db
+          .select({ id: schema.boards.id, description: schema.boards.description, state: schema.boards.state })
+          .from(schema.boards)
+          .where(inArray(schema.boards.id, boardIds))
+          .all()
+          .map((row) => [row.id, row] as const)
+      : [],
+  );
+
+  const mapIds = ids('map');
+  const mapDescriptions = new Map(
+    mapIds.length
+      ? db
+          .select({ id: schema.maps.id, description: schema.maps.description })
+          .from(schema.maps)
+          .where(inArray(schema.maps.id, mapIds))
+          .all()
+          .map((row) => [row.id, row.description] as const)
+      : [],
+  );
+  const pins = mapIds.length
+    ? db
+        .select({ mapId: schema.mapPins.mapId, kind: schema.mapPins.kind, name: schema.mapPins.name, text: schema.mapPins.text })
+        .from(schema.mapPins)
+        .where(and(livePinCondition(), inArray(schema.mapPins.mapId, mapIds)))
+        .all()
+    : [];
+
+  const timelineIds = ids('timeline');
+  const timelineDescriptions = new Map(
+    timelineIds.length
+      ? db
+          .select({ id: schema.timelines.id, description: schema.timelines.description })
+          .from(schema.timelines)
+          .where(inArray(schema.timelines.id, timelineIds))
+          .all()
+          .map((row) => [row.id, row.description] as const)
+      : [],
+  );
+  const events = timelineIds.length
+    ? db
+        .select({
+          timelineId: schema.timelineEvents.timelineId,
+          kind: schema.timelineEvents.kind,
+          name: schema.timelineEvents.name,
+          text: schema.timelineEvents.text,
+        })
+        .from(schema.timelineEvents)
+        .where(and(liveEventCondition(), inArray(schema.timelineEvents.timelineId, timelineIds)))
+        .all()
+    : [];
+
+  const treeIds = ids('family_tree');
+  const trees = new Map(
+    treeIds.length
+      ? db
+          .select({ id: schema.familyTrees.id, description: schema.familyTrees.description, state: schema.familyTrees.state })
+          .from(schema.familyTrees)
+          .where(inArray(schema.familyTrees.id, treeIds))
+          .all()
+          .map((row) => [row.id, row] as const)
+      : [],
+  );
+
+  const text = (value: unknown) => (typeof value === 'string' ? value : '');
+
+  for (const mention of mentions) {
+    const key = mentionKey(mention);
+    const texts: string[] = [];
+    if (mention.sectionId) {
+      texts.push(text(sectionText.get(mention.sectionId)));
+    } else if (mention.kind === 'case') {
+      const row = cases.get(mention.id);
+      if (row) texts.push(text(row.notes), text(row.summary));
+    } else if (mention.kind === 'field') {
+      const row = fieldSources.get(mention.id);
+      if (row) {
+        if (!mention.detail) texts.push(text(row.short));
+        else {
+          const values = (row.fields ?? {}) as Record<string, unknown>;
+          for (const field of row.typeFields ?? []) {
+            if ((field.kind === 'text' || field.kind === 'longtext') && field.label === mention.detail) {
+              texts.push(text(values[field.key]));
+            }
+          }
+        }
+      }
+    } else if (mention.kind === 'board') {
+      const row = boards.get(mention.id);
+      if (row) {
+        if (!mention.detail) texts.push(text(row.description));
+        else {
+          for (const card of normaliseState(row.state).cards) {
+            if (card.name === mention.detail) texts.push(text(card.text));
+          }
+        }
+      }
+    } else if (mention.kind === 'map') {
+      if (!mention.detail) texts.push(text(mapDescriptions.get(mention.id)));
+      else for (const pin of pins) if (pin.mapId === mention.id && pin.kind === 'note' && pin.name === mention.detail) texts.push(text(pin.text));
+    } else if (mention.kind === 'timeline') {
+      if (!mention.detail) {
+        texts.push(text(timelineDescriptions.get(mention.id)));
+        for (const event of events) if (event.timelineId === mention.id && event.kind !== 'note') texts.push(text(event.text));
+      } else {
+        for (const event of events) {
+          if (event.timelineId === mention.id && event.kind === 'note' && event.name === mention.detail) texts.push(text(event.text));
+        }
+      }
+    } else if (mention.kind === 'family_tree') {
+      const row = trees.get(mention.id);
+      if (row) {
+        if (!mention.detail) texts.push(text(row.description));
+        else {
+          const raw = row.state as { loose?: unknown; deleted?: { loose?: Record<string, unknown> } } | null;
+          const gone = raw?.deleted?.loose ?? {};
+          for (const card of Array.isArray(raw?.loose) ? raw.loose : []) {
+            const c = card as { id?: unknown; name?: unknown; text?: unknown };
+            if (typeof c.id !== 'string' || Object.prototype.hasOwnProperty.call(gone, c.id)) continue;
+            if (c.name === mention.detail) texts.push(text(c.text));
+          }
+        }
+      }
+    }
+    out.set(key, texts.filter(Boolean));
+  }
+  return out;
+}
+
+/**
+ * §104 (L3): the running text of the artikelen that link here in theirs — for
+ * the rows `getBacklinks` already returned to this reader, by id. `body_text`
+ * carries the tokens (§97), never a name.
+ */
+export function backlinkTexts(ids: readonly string[]): Map<string, string> {
+  if (!ids.length) return new Map();
+  return new Map(
+    db
+      .select({ id: schema.entries.id, text: schema.entries.bodyText })
+      .from(schema.entries)
+      .where(inArray(schema.entries.id, [...new Set(ids)]))
+      .all()
+      .map((row) => [row.id, row.text ?? ''] as const),
   );
 }
 

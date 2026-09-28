@@ -1,5 +1,9 @@
 import { mergeAttributes, Node } from '@tiptap/core';
+import type { Node as PmNode } from '@tiptap/pm/model';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { isHandle } from '@/lib/entries/shortTokens.mjs';
+import { naadHoofd, naadSneden, type NaadStuk } from '@/lib/wiki/naad';
 
 /**
  * §97: what one reference is on this reader's screen, and where to ask when it
@@ -88,10 +92,27 @@ export const EntryLink = Node.create<{ chips: EntryLinkChips | null }>({
     return this.options.chips?.known((node.attrs as EntryLinkAttrs).handle)?.name ?? '';
   },
 
+  /*
+   * §97/§104 (ronde 67·herstel): the words around a reference this reader may
+   * not follow close up while reading — no space before a comma, none at the
+   * start of a paragraph, never two (`lib/wiki/naad.ts`). Only a decoration:
+   * the document, which the room shares and the Keeper reads with the name in
+   * it, is not touched.
+   */
+  addProseMirrorPlugins() {
+    const chips = this.options.chips;
+    return [
+      naadPlugin((node) => {
+        if (node.type.name !== 'entryLink') return null;
+        return chips?.known((node.attrs as EntryLinkAttrs).handle) ? 'vast' : 'verborgen';
+      }, chips?.subscribe),
+    ];
+  },
+
   addNodeView() {
     // Without a source there is nobody to ask: every reference is nothing to draw.
     const chips: EntryLinkChips = this.options.chips ?? { known: () => null, request: async () => undefined };
-    return ({ node }) => {
+    return ({ node, view }) => {
       let handle = (node.attrs as EntryLinkAttrs).handle;
       const dom = document.createElement('a');
       dom.setAttribute('contenteditable', 'false');
@@ -128,7 +149,11 @@ export const EntryLink = Node.create<{ chips: EntryLinkChips | null }>({
         dom.setAttribute('aria-hidden', 'true');
         if (chip === undefined && asked !== handle) {
           asked = handle;
-          void chips.request([handle]).then(paint);
+          void chips.request([handle]).then(() => {
+            paint();
+            // The answer may turn nothing into a name: the seams are measured again.
+            nudgeNaad(view);
+          });
         }
       };
       paint();
@@ -155,3 +180,99 @@ export const EntryLink = Node.create<{ chips: EntryLinkChips | null }>({
     };
   },
 });
+
+/* ------------------------------------------------------------- de naad */
+
+const NAAD_KEY = new PluginKey<DecorationSet>('entryLinkNaad');
+const nudgers = new WeakMap<EditorView, () => void>();
+
+/** Ask the seams of this editor to be measured again (a chip's name arrived). */
+export function nudgeNaad(view: EditorView | null | undefined) {
+  if (view) nudgers.get(view)?.();
+}
+
+/** What an inline node is for the seam: hidden (nothing to draw), solid (a word), or `null` (ask the default). */
+export type NaadKind = (node: PmNode) => 'verborgen' | 'vast' | null;
+
+/** The decorations that hide the stray spaces and stops around every hidden reference in `doc`. */
+export function naadDecorations(doc: PmNode, kind: NaadKind): DecorationSet {
+  const decorations: Decoration[] = [];
+  const block = (node: PmNode, start: number) => {
+    const pieces: NaadStuk[] = [];
+    const where: number[] = [];
+    let hidden = false;
+    node.forEach((child, offset) => {
+      where.push(start + offset);
+      if (child.isText) pieces.push({ tekst: child.text ?? '' });
+      else if (child.type.name === 'hardBreak') pieces.push({ breuk: true });
+      else {
+        const said = kind(child);
+        if (said === 'verborgen') hidden = true;
+        pieces.push(said === 'verborgen' ? { verborgen: true } : { vast: true });
+      }
+    });
+    if (!hidden) return;
+    const sneden = naadSneden(pieces);
+    sneden.forEach((cuts, index) => {
+      for (const [a, b] of cuts) {
+        decorations.push(Decoration.inline(where[index] + a, where[index] + b, { class: 'naad' }));
+      }
+    });
+    // §104 (golf H, D28): a paragraph that now begins after a hidden name begins with a capital — in the drawing only.
+    const hoofd = naadHoofd(pieces, sneden);
+    if (hoofd) {
+      decorations.push(
+        Decoration.inline(where[hoofd.stuk] + hoofd.van, where[hoofd.stuk] + hoofd.tot, { class: 'naad-hoofd' }),
+      );
+    }
+  };
+  if (doc.inlineContent) block(doc, 0);
+  else {
+    doc.descendants((node, pos) => {
+      if (!node.inlineContent) return true;
+      block(node, pos + 1);
+      return false;
+    });
+  }
+  return decorations.length ? DecorationSet.create(doc, decorations) : DecorationSet.empty;
+}
+
+/**
+ * The plugin both editors carry: measured on every change of the document and
+ * whenever a chip's answer arrives (`subscribe`, `nudgeNaad`). The class hides
+ * the character only while the editor is read-only (`app/leeskamer.css`): in
+ * Bewerken you type into the text as it is stored.
+ */
+export function naadPlugin(kind: NaadKind, subscribe?: (repaint: () => void) => () => void): Plugin<DecorationSet> {
+  return new Plugin<DecorationSet>({
+    key: NAAD_KEY,
+    state: {
+      init: (_config, state) => naadDecorations(state.doc, kind),
+      apply: (tr, old) => (tr.docChanged || tr.getMeta(NAAD_KEY) ? naadDecorations(tr.doc, kind) : old),
+    },
+    props: {
+      decorations: (state) => NAAD_KEY.getState(state),
+    },
+    view: (view) => {
+      let alive = true;
+      let queued = false;
+      const nudge = () => {
+        if (queued || !alive) return;
+        queued = true;
+        queueMicrotask(() => {
+          queued = false;
+          if (alive) view.dispatch(view.state.tr.setMeta(NAAD_KEY, true));
+        });
+      };
+      nudgers.set(view, nudge);
+      const unsubscribe = subscribe?.(nudge);
+      return {
+        destroy: () => {
+          alive = false;
+          nudgers.delete(view);
+          unsubscribe?.();
+        },
+      };
+    },
+  });
+}

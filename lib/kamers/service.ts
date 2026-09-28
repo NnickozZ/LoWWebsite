@@ -76,6 +76,13 @@ export type SlotView = {
      * kamer; een gevonden voorwerp gaat, zoals altijd, terug de wereld in.
      */
     huisraad: boolean;
+    /**
+     * §103 (K2): wanneer dit ding hier neergezet is, in seconden — samen met de
+     * plek en het ding de sleutel van één plaatsing. Het neerzetten speelt
+     * alleen voor een plaatsing die deze hand net deed (`components/kamer/
+     * moment.ts`), en nooit opnieuw na een refresh of herladen.
+     */
+    placedAt: number | null;
   } | null;
   /**
    * §79, and it is §76's rule again in a new place: this plek holds something
@@ -503,6 +510,7 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
       price: schema.roomSlots.price,
       unlockedAt: schema.roomSlots.unlockedAt,
       entryId: schema.roomSlots.entryId,
+      placedAt: schema.roomSlots.placedAt,
     })
     .from(schema.roomSlots)
     .where(eq(schema.roomSlots.roomId, roomId))
@@ -564,6 +572,7 @@ export function viewRoomBySlug(slug: string, viewer: Viewer): RoomView | null {
             ...found,
             effect: effectLines(fieldsById.get(found.id)?.[EFFECT_FIELD_KEY])[0] ?? null,
             plekken: plekKinds(fieldsById.get(found.id)?.[VOORWERP_FIELD_KEY]),
+            placedAt: row.placedAt ?? null,
           }
         : null;
       return {
@@ -867,6 +876,12 @@ export type ShopItem = {
    * vraag die de knop stelt.
    */
   ownedCount: number;
+  /**
+   * §103 (K6): de plek waar het laatst neergezette exemplaar in deze kamer
+   * ligt — waar *Bekijk* op de rij naartoe springt. Null als er geen op een
+   * plek ligt (niet gekocht, of alleen in de lade).
+   */
+  ownedSlotId: string | null;
   /** One of a kind, and somebody else has it. */
   takenElsewhere: boolean;
   /**
@@ -950,6 +965,7 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
           unlockedAt: schema.roomSlots.unlockedAt,
           sortOrder: schema.roomSlots.sortOrder,
           price: schema.roomSlots.price,
+          placedAt: schema.roomSlots.placedAt,
         })
         .from(schema.roomSlots)
         .where(eq(schema.roomSlots.roomId, room.id))
@@ -957,9 +973,14 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
         .all()
     : [];
   const mine = new Map<string, number>();
+  // §103 (K6): en waar het nieuwste exemplaar ligt, voor *Bekijk*.
+  const newest = new Map<string, { slotId: string; at: number }>();
   for (const slot of slots) {
     if (!slot.entryId) continue;
     mine.set(slot.entryId, (mine.get(slot.entryId) ?? 0) + 1);
+    const at = slot.placedAt ?? 0;
+    const seen = newest.get(slot.entryId);
+    if (!seen || at >= seen.at) newest.set(slot.entryId, { slotId: slot.id, at });
   }
   // §93: wat in de lade ligt, is ook van deze kamer.
   const drawn = room ? drawerCounts(room.id) : new Map<string, number>();
@@ -1064,6 +1085,7 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
         owned,
         ownedCount,
         drawerCount,
+        ownedSlotId: newest.get(row.id)?.slotId ?? null,
         takenElsewhere: !owned && row.unique && claimed.has(row.id),
         landsIn,
         opens,
@@ -1093,7 +1115,44 @@ export function shopFor(viewer: Viewer, wantedRoomId: string | null = null): Sho
  * draagt ook — en dan staat er niets, in plaats van een nul (§80: een blokje
  * dat "0 munten" zegt tegen iemand die geen kamer heeft, belooft een kamer).
  */
-export type Purse = { roomId: string; balance: number; slug: string; name: string };
+/**
+ * §103 (K4): de nieuwste gift van de Keeper aan deze kamer — een `grant`-regel
+ * met een positief bedrag, door een ander dan wie kijkt. De schil zegt het
+ * hardop wanneer het `id` verandert (`useShellBeurs`); de server geeft hem mee
+ * zodat de browser niets hoeft te raden of op te tellen (§79). Het bedrag en de
+ * reden zijn wat de regel zegt, niet wat het saldo verschilt.
+ */
+export type LastGrant = { id: string; delta: number; reason: string };
+
+export type Purse = {
+  roomId: string;
+  balance: number;
+  slug: string;
+  name: string;
+  lastGrant: LastGrant | null;
+};
+
+/** §103 (K4): de laatste gift in deze kamer die niet van `viewerId` zelf kwam. */
+export function lastGrantOf(roomId: string, viewerId: string | null): LastGrant | null {
+  const row = db
+    .select({ id: schema.roomLedger.id, delta: schema.roomLedger.delta, reason: schema.roomLedger.reason })
+    .from(schema.roomLedger)
+    .where(
+      and(
+        eq(schema.roomLedger.roomId, roomId),
+        eq(schema.roomLedger.kind, 'grant'),
+        sql`${schema.roomLedger.delta} > 0`,
+        viewerId
+          ? sql`(${schema.roomLedger.actorId} IS NULL OR ${schema.roomLedger.actorId} <> ${viewerId})`
+          : undefined,
+      ),
+    )
+    // Dezelfde volgorde als het grootboek: een uitdeling landt in één seconde.
+    .orderBy(sql`${schema.roomLedger.createdAt} DESC, ${schema.roomLedger}.rowid DESC`)
+    .limit(1)
+    .get();
+  return row ?? null;
+}
 
 export function purseOf(viewer: Viewer): Purse | null {
   if (!viewer || viewer.isKeeper) return null;
@@ -1113,7 +1172,13 @@ export function purseOf(viewer: Viewer): Purse | null {
   if (!worn) return null;
   const roomId = getOrCreateRoom(worn.entryId);
   if (!roomId) return null;
-  return { roomId, balance: balanceOf(roomId), slug: worn.slug, name: worn.name };
+  return {
+    roomId,
+    balance: balanceOf(roomId),
+    slug: worn.slug,
+    name: worn.name,
+    lastGrant: lastGrantOf(roomId, viewer.id),
+  };
 }
 
 /** Every onderzoeker this person wears, with their kamer and its purse. */
@@ -1177,7 +1242,7 @@ function requireArrange(roomId: string, viewer: Viewer) {
  * tabs — changes no rows and buys nothing. Reading first and then writing is
  * the version of this that charges twice on a bad evening.
  */
-export function unlockSlot(slotId: string, viewer: Viewer): { spent: number } {
+export function unlockSlot(slotId: string, viewer: Viewer): { spent: number; balance: number } {
   const slot = db
     .select({
       id: schema.roomSlots.id,
@@ -1238,7 +1303,8 @@ export function unlockSlot(slotId: string, viewer: Viewer): { spent: number } {
       entryId: character,
       meta: { slotId, kind: slot.kind, roomId: slot.roomId },
     });
-    return { spent: slot.price };
+    // §103 golf H (T8): de nieuwe balans, de som van het grootboek — voor het getal in de schil.
+    return { spent: slot.price, balance: balance - slot.price };
   });
 }
 
@@ -1562,7 +1628,11 @@ export function clearSlot(slotId: string, viewer: Viewer) {
  * niets kost en geen regel schrijft. Die twee wegen naast elkaar zijn het
  * verschil tussen *verdiend* en *gekocht*, en allebei horen te bestaan.
  */
-export function buyFurnishing(slotId: string, entryId: string, viewer: Viewer): { spent: number } {
+export function buyFurnishing(
+  slotId: string,
+  entryId: string,
+  viewer: Viewer,
+): { spent: number; first: boolean; balance: number } {
   const slot = db
     .select({
       id: schema.roomSlots.id,
@@ -1646,7 +1716,31 @@ export function buyFurnishing(slotId: string, entryId: string, viewer: Viewer): 
       entryId,
       meta: { slotId },
     });
-    return { spent: price };
+    /*
+     * §103 (K5): de eerste koop óóit in deze kamer — gelezen uit het grootboek,
+     * in dezelfde transactie, dus zonder kolom en zonder migratie. ~~Een koop
+     * die later teruggedraaid werd telt mee.~~ Sinds golf H telt hij niet meer
+     * mee (D31, hieronder).
+     */
+    /*
+     * §103 golf H (D31): **netto** de eerste. Een koop die met *Ongedaan maken*
+     * teruggedraaid werd, schrijft een `return`-regel, en wie zich eerst
+     * vergiste zag *Ingericht* daarna nooit meer: de tweede koop was niet de
+     * eerste `item`-regel. Nu telt een kamer waarin netto (kopen min
+     * teruggebracht) nog niets gekocht was. Dat kan *Ingericht* een tweede keer
+     * geven na een correctie — liever dat dan de mijlpaal nooit.
+     */
+    const net = Number(
+      tx
+        .select({
+          n: sql<number>`COALESCE(SUM(CASE ${schema.roomLedger.kind} WHEN 'item' THEN 1 WHEN 'return' THEN -1 ELSE 0 END), 0)`,
+        })
+        .from(schema.roomLedger)
+        .where(eq(schema.roomLedger.roomId, slot.roomId))
+        .get()?.n ?? 0,
+    );
+    // §103 golf H (T8): en de nieuwe balans, voor het getal in de schil.
+    return { spent: price, first: net === 1, balance: balance - price };
   });
 }
 
@@ -1671,7 +1765,11 @@ export function buyFurnishing(slotId: string, entryId: string, viewer: Viewer): 
  * seconden is geen bijdrage, en "kocht Leesstoel" zou blijven staan voor iets
  * dat niet gebeurd is.
  */
-export function undoPurchase(roomId: string, entryId: string, viewer: Viewer): { returned: number; name: string } {
+export function undoPurchase(
+  roomId: string,
+  entryId: string,
+  viewer: Viewer,
+): { returned: number; name: string; balance: number } {
   if (!viewer) throw new KamerError('Dit is jouw kamer niet.');
   requireArrange(roomId, viewer);
   return db.transaction((tx) => {
@@ -1748,7 +1846,15 @@ export function undoPurchase(roomId: string, entryId: string, viewer: Viewer): {
       .get();
     if (bought) tx.delete(schema.activity).where(eq(schema.activity.id, bought.id)).run();
 
-    return { returned: price, name: last.reason };
+    // §103 golf H (T8): de balans na de correctie, gelezen in dezelfde transactie.
+    const balance = Number(
+      tx
+        .select({ total: sql<number>`COALESCE(SUM(${schema.roomLedger.delta}), 0)` })
+        .from(schema.roomLedger)
+        .where(eq(schema.roomLedger.roomId, roomId))
+        .get()?.total ?? 0,
+    );
+    return { returned: price, name: last.reason, balance };
   });
 }
 
@@ -2085,7 +2191,11 @@ export function handOutTargets(viewer: Viewer): HandOutTarget[] {
  * `grant` in a loop: `grant` opens a transaction of its own, so a loop over it
  * is precisely the half-applied uitdeling this refuses to be.
  */
-export function handOut(rows: HandOutRow[], reason: string, viewer: Viewer): { rooms: number; total: number } {
+export function handOut(
+  rows: HandOutRow[],
+  reason: string,
+  viewer: Viewer,
+): { rooms: number; total: number; balances: Record<string, number> } {
   if (!viewer?.isKeeper) throw new KamerError('Alleen de Keeper geeft uit.');
 
   const giving: HandOutRow[] = [];
@@ -2104,6 +2214,7 @@ export function handOut(rows: HandOutRow[], reason: string, viewer: Viewer): { r
 
   return db.transaction((tx) => {
     let total = 0;
+    const balances: Record<string, number> = {};
     for (const row of giving) {
       const room = tx
         .select({ id: schema.rooms.id, entryId: schema.rooms.entryId })
@@ -2149,8 +2260,10 @@ export function handOut(rows: HandOutRow[], reason: string, viewer: Viewer): { r
         meta: { roomId: row.roomId, delta: row.delta },
       });
       total += row.delta;
+      // §103 golf H (T14): de nieuwe balans per kamer, voor de rij in de uitdeler.
+      balances[row.roomId] = balance + row.delta;
     }
-    return { rooms: giving.length, total };
+    return { rooms: giving.length, total, balances };
   });
 }
 

@@ -444,7 +444,13 @@ export function RichEditor({
   }
 
   return (
-    <div {...gate}>
+    /*
+     * §18b/§90, ronde 65·herstel: the question belongs to writing, not to
+     * reading. A text that cannot take a caret (Lezen, a printed section, a
+     * reader's own face) has no gate at all — a tap or a long press on a word
+     * in Lezen used to ask "Met wie ben je nu aan het schrijven?".
+     */
+    <div {...(editable ? gate : {})}>
       {editable && (
         <div className="editor-toolbar">
           <ToolbarButton

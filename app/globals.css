@@ -31,6 +31,21 @@
 
   --nav-w: 220px;
   --tabs-h: 60px;
+
+  /* §102: beweging. Twee registers — het archief beweegt productief
+     (--dur-1..3), de kamer, de winkel en de uitdeling expressief (--dur-4..5,
+     --ease-expressive). Zie docs/beweging.md. Eén set voor alle paletten. */
+  --dur-1: 70ms;
+  --dur-2: 110ms;
+  --dur-3: 150ms;
+  --dur-4: 240ms;
+  --dur-5: 400ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-enter: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+  --ease-expressive: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --ease-land: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --live: #2f6b4f;
 }
 
 /*
@@ -447,7 +462,19 @@ hr,
   cursor: pointer;
   text-decoration: none;
   box-shadow: var(--shadow);
-  transition: transform 90ms ease, background 90ms ease;
+  /* §102 (J6): de stempel. Indrukken in --dur-1, en de schaduw loopt nu mee —
+     die sprong eerst bij het loslaten. Kleur in --dur-2: een hover is geen
+     reis, maar hij hoort ook niet te flitsen. */
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    box-shadow var(--dur-1) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard),
+    border-color var(--dur-2) var(--ease-standard);
+}
+/* §103 golf H (D19): een icoon krimpt nooit in een krappe knop — *Openen · 12
+   munten* had een kleiner slotje dan *Openen · 8 munten*. */
+.btn svg {
+  flex-shrink: 0;
 }
 .btn:hover:not(:disabled) {
   background: var(--paper-dark);
@@ -507,7 +534,8 @@ hr,
   font-size: 0.85rem;
 }
 .btn-danger {
-  color: var(--stamp-red);
+  /* Golf H: the stamp mix of §104 (herstel #9), so it reads ≥ 4.5:1 in the dark. */
+  color: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel), var(--ink));
   border-color: var(--stamp-red);
   background: transparent;
 }
@@ -593,6 +621,76 @@ hr,
     flex: 0 0 auto;
   }
 }
+/*
+ * §104 (golf H, T9): `.schuifrij` — een rij die opzij scrolt, zegt dat er meer
+ * is. De rand vervaagt aan de kant waar nog iets staat: rechts aan het begin,
+ * links zodra je geschoven hebt, geen van beide als alles past. Alleen CSS,
+ * dus één klasse op een rij is genoeg (de winkelfilter en de tabs van Beheer
+ * mogen hem ook dragen). De vervaging hangt aan de scrollpositie van de rij
+ * zelf (`animation-timeline: scroll(self inline)`); past alles, dan is er geen
+ * tijdlijn en geen rand. Een browser zonder scroll-tijdlijnen toont geen rand,
+ * en de rij scrolt gewoon. Dat het actieve item in beeld schuift, doet
+ * `useSchuifrij` (components/useSchuifrij.ts).
+ *
+ * Dit beweegt niets: het masker volgt de duim, zoals een schuifbalk. Daarom
+ * geen duur en geen tak voor minder beweging (docs/beweging.md, regel 1 gaat
+ * over reizen, niet over een rand).
+ */
+@property --schuif-links {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --schuif-rechts {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+.schuifrij {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--schuif-links),
+    #000 calc(100% - var(--schuif-rechts)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--schuif-links),
+    #000 calc(100% - var(--schuif-rechts)),
+    transparent 100%
+  );
+  animation: schuifrij-rand linear both;
+  animation-timeline: scroll(self inline);
+}
+.schuifrij::-webkit-scrollbar {
+  display: none;
+}
+.schuifrij > * {
+  flex: 0 0 auto;
+}
+@keyframes schuifrij-rand {
+  0% {
+    --schuif-links: 0px;
+    --schuif-rechts: 2rem;
+  }
+  6% {
+    --schuif-links: 1.6rem;
+  }
+  94% {
+    --schuif-rechts: 2rem;
+  }
+  100% {
+    --schuif-links: 1.6rem;
+    --schuif-rechts: 0px;
+  }
+}
 .chip {
   display: inline-flex;
   align-items: center;
@@ -610,11 +708,50 @@ hr,
   color: inherit;
   text-decoration: none;
 }
+/*
+ * §104 (ronde 67·herstel, #9): de kleur van een soort op kleine tekst. De
+ * kleuren van de soorten zijn gekozen voor licht papier; rauw op het donkere
+ * palet haalde LOCATIES 2,6 tegen 1 en de donkerste soorten nog minder. Een
+ * etiket in de kleur van zijn soort (`.chip-soort`, `.soort-inkt`, en
+ * `.leeskamer-soort` in `app/leeskamer.css`) mengt die kleur daarom met de
+ * inkt van het palet: in het licht een tikje (70 %), in het donker meer
+ * (45 %), zodat kleine tekst in alle vier de paletten ≥ 4,5:1 haalt en de soort
+ * herkenbaar blijft. `tests/unit/ronde-67-contrast.test.ts` leest deze
+ * getallen hier en rekent ze door voor elke soortkleur uit de seed.
+ */
+:root {
+  --soort-aandeel: 70%;
+  --stempel-aandeel: 100%;
+  --stempel-dekking: 0.9;
+}
+:root:has([data-theme='dark']) {
+  --soort-aandeel: 45%;
+  --stempel-aandeel: 62%;
+  --stempel-dekking: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(:has([data-theme='light'])) {
+    --soort-aandeel: 45%;
+    --stempel-aandeel: 62%;
+    --stempel-dekking: 1;
+  }
+}
+.chip-soort,
+.soort-inkt {
+  --soort-inkt: color-mix(in oklab, var(--soort, var(--ink-muted)) var(--soort-aandeel), var(--ink));
+  color: var(--soort-inkt);
+}
+.chip-soort {
+  border-color: color-mix(in oklab, var(--soort-inkt) 55%, transparent);
+}
 .chip-selectable {
   cursor: pointer;
   min-height: 38px;
   padding: 0 0.7rem;
-  transition: background 90ms ease, border-color 90ms ease;
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard),
+    border-color var(--dur-2) var(--ease-standard);
 }
 .chip-selectable:hover {
   border-color: var(--ink-muted);
@@ -652,12 +789,15 @@ hr,
   letter-spacing: 0.16em;
   font-weight: 700;
   font-size: 0.78rem;
-  color: var(--stamp-red);
-  border: 2px solid var(--stamp-red);
+  /* §104 (ronde 67·herstel, #9): in het donker een tikje naar de inkt en vol
+     gedrukt — rauw en op 85 % haalde een stempel daar 3,3 tegen 1. */
+  --stempel-inkt: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel), var(--ink));
+  color: var(--stempel-inkt);
+  border: 2px solid var(--stempel-inkt);
   border-radius: 3px;
   padding: 0.15rem 0.5rem;
   transform: rotate(-3deg);
-  opacity: 0.85;
+  opacity: var(--stempel-dekking);
 }
 .stamp-muted {
   color: var(--ink-muted);
@@ -675,13 +815,21 @@ hr,
   color: inherit;
   text-decoration: none;
   overflow: hidden;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition:
+    transform var(--dur-2) var(--ease-standard),
+    box-shadow var(--dur-2) var(--ease-standard);
 }
 /* A card that is a link lifts a little under the pointer; one that is a
-   working surface (a case card with its own menu) stays put. */
+   working surface (a case card with its own menu) stays put.
+   §102: één pixel en een iets diepere schaduw — een kaart in een lijst hoeft
+   niet te springen om te zeggen dat hij een deur is. */
 a.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 3px 4px 0 rgba(31, 27, 22, 0.16);
+  transform: translateY(-1px);
+  box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.18);
+}
+a.card:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.14);
 }
 @media (prefers-reduced-motion: reduce) {
   .card,
@@ -689,9 +837,75 @@ a.card:hover {
   .chip-selectable {
     transition: none;
   }
+  /* Reduced motion: de kaart tilt niet, de schaduw zegt het alleen. */
   a.card:hover {
     transform: none;
   }
+}
+
+/* ------------------------------------------------------ §102: de hand (J6) */
+/*
+ * Ronde 65: elke tik krijgt binnen 100 ms een teken, en het teken is overal
+ * hetzelfde — de stempel van `.btn:active`, 1 px naar rechtsonder. Tot nu toe
+ * had alleen de knop hem; een chip, een tegel, een tab en de vakjes van *Jouw
+ * plek* gaven niets terug tot de volgende pagina er stond.
+ *
+ * Wat hem **niet** krijgt, met opzet (docs/beweging.md, regel 9):
+ *  - een link in lopende tekst (`.prose`, `a.entry-chip`): wie leest, drukt
+ *    niet op een knop, en een woord dat verspringt leest onrustig;
+ *  - alles op een tekenvlak (§34/§69): het glas beweegt voor de hand, en een
+ *    kaartje dat onder de muis verschuift is een sleep die niet bestaat.
+ *
+ * `:where()` houdt de specificiteit op nul, zodat elke eigen regel van zo'n
+ * element (een tab die rood is, een chip die actief is) gewoon wint. Onder
+ * reduced motion blijft de indruk staan — het is feedback, geen reis — alleen
+ * de overgang gaat eraf (de `* { transition: none }` onder het blad).
+ */
+:where(a.chip, button.chip, .tabs a, .tab-jij) {
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard),
+    border-color var(--dur-2) var(--ease-standard),
+    color var(--dur-2) var(--ease-standard);
+}
+:where(a.chip, button.chip:not(:disabled), .chip-selectable:not(:disabled), .tabs a, .tab-jij, .sidenav .nav-group a):not(
+    :is(.prose, .board-viewport, .map-stage, .timeline-stage, .web-stage, .tree-stage) *
+  ):active {
+  transform: translate(1px, 1px);
+}
+/* De tegel in de kamer drukt in als je op het ding erin tikt: de tegel is wat
+   je ziet, de link erin is wat je raakt. */
+.plek-filled:has(> .plek-item:active) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.14);
+}
+
+/*
+ * §102: hover in één taal. Een regel in een lijst, een vakje in de zijbalk:
+ * de achtergrond kleurt in --dur-2 met de standaardcurve, in plaats van te
+ * flitsen of niets te doen. Kleur, geen beweging — het archief is productief.
+ */
+.sidenav a:not([aria-current='page']):hover {
+  background-color: color-mix(in srgb, var(--paper) 55%, transparent);
+}
+:where(.sidenav a, a.feed-item, .who-button, .type-tab, .sheet-close, .web-list-row, .entry-outline-link) {
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard),
+    border-color var(--dur-2) var(--ease-standard),
+    box-shadow var(--dur-2) var(--ease-standard),
+    color var(--dur-2) var(--ease-standard);
+}
+/* Een regel in een feed die een deur is, kleurt onder de muis. De twee
+   schaduwen trekken de kleur een halve rem naar weerszijden zonder dat er
+   iets verschuift: een omslag die tegen de rand van de kleur plakt, oogt als
+   een fout. De streep eronder blijft staan waar hij stond. */
+a.feed-item:hover {
+  --feed-hover: color-mix(in srgb, var(--paper-dark) 70%, transparent);
+  background-color: var(--feed-hover);
+  box-shadow:
+    -0.45rem 0 0 var(--feed-hover),
+    0.45rem 0 0 var(--feed-hover);
 }
 .card-grid {
   display: grid;
@@ -795,13 +1009,18 @@ a.card:hover {
   padding: var(--main-pad-t) var(--page-pad) var(--main-pad-b);
 }
 
+/* §102, golf h1 (D5): één paginaraster. Elke pagina begint op dezelfde linkerrand,
+   `--page-pad` naast de zijbalk, en een smalle pagina is alleen smaller — niet
+   gecentreerd. Tot hier stond de kop van Start op 252 px, die van de winkel op
+   318 en die van Spelers, /you en Zoeken op 380: elke klik in de zijbalk liet
+   hem opzij springen. */
 .page {
   max-width: 900px;
-  margin: 0 auto;
+  margin: 0 auto 0 0;
 }
 .page-wide {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 0 auto 0 0;
 }
 
 /* --------------------------------------------------------- a page that is a canvas
@@ -1003,7 +1222,9 @@ a.card:hover {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--tabs-h);
+  /* §102, golf h1 (T3): de thuisbalk van een iPhone komt erbij, niet eraf. Met
+     `border-box` en de inzet als `padding-bottom` liepen de labels eronder. */
+  height: calc(var(--tabs-h) + env(safe-area-inset-bottom));
   display: flex;
   background: var(--paper-dark);
   border-top: 1px solid var(--rule);
@@ -1011,36 +1232,47 @@ a.card:hover {
   padding-bottom: env(safe-area-inset-bottom);
 }
 .tabs a {
-  flex: 1;
-  min-width: 0;
+  /* §32: eight tabs. §102, golf h1 (T3): every one of them a word now — Zoeken and
+     Jij too — in ordinary spelling at ±10,5 px (it was 8,6 px in capitals),
+     and every box at least 44 px wide. `flex: 1 1 0` shares the width out
+     evenly; the label's own `min-width` (below) is what keeps a box from
+     going under 44 px, and what lets *Landkaarten* take the few pixels more
+     it needs. Measured: at 390 px every box is 49 px, at 360 px 44 and 49. */
+  flex: 1 1 0;
+  min-width: auto;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 4px;
   justify-content: center;
-  /* §32: eight tabs. Six labelled ones share what the two compact ones leave,
-     which at 390 px is about 52 px each — enough for LANDKAARTEN in the stamp
-     face at this size, and not a pixel more. */
   padding: 0;
-  font-size: 0.54rem;
+  font-size: 0.66rem;
   font-family: var(--stamp-face);
-  text-transform: uppercase;
-  letter-spacing: 0;
-  min-height: var(--tabs-h);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  min-height: 0;
+  height: var(--tabs-h);
 }
 .tabs a > span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 44px;
+  text-align: center;
   white-space: nowrap;
 }
-.tabs a.tab-compact {
-  flex: 0 0 40px;
-}
-.tabs a.tab-compact svg {
-  width: 24px;
-  height: 24px;
+.tabs a svg {
+  flex-shrink: 0;
 }
 .tabs a[aria-current='page'] {
   color: var(--stamp-red);
+}
+/* §102, golf h1 (T3): on the smallest phones the three long words stand side by
+   side in 44 + 49 + 44 px. A tenth of a pixel of air between them, taken from
+   the letters rather than from the boxes. */
+@media (max-width: 374px) {
+  .tabs a,
+  .tabs > .tab-jij {
+    font-size: 0.625rem;
+    letter-spacing: -0.025em;
+  }
 }
 
 /*
@@ -1075,6 +1307,16 @@ body:has(.sheet-backdrop) .fab {
  * elke andere deur, en `n` werkt gewoon.
  */
 body:has(.winkel-page) .fab {
+  display: none;
+}
+/* §102, golf h1 (T4): en de kamer en /you ook. In de kamer lag de `+` over *Openen ·
+   12 munten* en over de werkbalk van een tegel, op /you over *Speel als* — en
+   in geen van beide is een nieuw artikel waar iemand mee bezig is. Zolang
+   *Wie is er?* open is, hoort het scherm bij dat paneel (hij lag over een
+   naam erin). `n` werkt overal gewoon. */
+body:has(.kamer-page) .fab,
+body:has(.you-page) .fab,
+body:has(.roster-pop) .fab {
   display: none;
 }
 
@@ -1134,6 +1376,33 @@ body:has(.winkel-page) .fab {
   cursor: pointer;
   box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.28);
   z-index: 45;
+  /* §102, ronde 65·herstel (review #10): the `+` climbs above a melding —
+     `--toast-stack` is the stack's height, measured in `UiProvider` — and
+     comes back in --dur-4 when it steps in again. */
+  --fab-lift: 0px;
+  transform: translateY(calc(-1 * var(--fab-lift)));
+  transition:
+    transform var(--dur-4) var(--ease-enter),
+    opacity var(--dur-4) var(--ease-enter);
+}
+body:has(.toast-wrap > .toast) .fab {
+  --fab-lift: calc(var(--toast-stack, 0px) + 0.5rem);
+}
+/* Review #10: on a reading page (`useFabAway` in `AppShell`) the `+` steps
+   aside while the thumb scrolls down — out in --dur-3, shorter than in (§102
+   rule 4), and no target while it is gone. Only transform and opacity. */
+.fab[data-away='1'] {
+  opacity: 0;
+  transform: translateY(1.5rem);
+  pointer-events: none;
+  transition-duration: var(--dur-3);
+  transition-timing-function: var(--ease-exit);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Rule 8: a crossfade, no journey. */
+  .fab[data-away='1'] {
+    transform: translateY(calc(-1 * var(--fab-lift)));
+  }
 }
 
 @media (min-width: 768px) {
@@ -1175,6 +1444,13 @@ body:has(.winkel-page) .fab {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  /* §102, ronde 65·herstel (review #12): the shade comes in with the panel,
+     in the same --dur-4 — only opacity. It used to snap on at full strength
+     while the panel was still rising. The palet keeps none (rule 2, below). */
+  animation: sheet-shade-in var(--dur-4) var(--ease-enter);
+}
+.palette-backdrop {
+  animation: none;
 }
 .sheet {
   /* §69 (4.6): the sheet's own cross hangs in its top-right corner. */
@@ -1187,7 +1463,8 @@ body:has(.winkel-page) .fab {
   max-height: 92dvh;
   overflow-y: auto;
   padding: 0.85rem 1rem calc(1.2rem + env(safe-area-inset-bottom));
-  animation: sheet-up 180ms ease-out;
+  /* §102: de ingang van een blad, --dur-4 met de ingangscurve (J3). */
+  animation: sheet-up var(--dur-4) var(--ease-enter);
 }
 /* §90 canvas: de knoppenrij van een maakblad blijft op een telefoon onderaan
    het blad staan terwijl de rest eronder door scrolt — het tijdlijnblad (zes
@@ -1207,6 +1484,50 @@ body:has(.winkel-page) .fab {
   from {
     transform: translateY(16px);
     opacity: 0.6;
+  }
+}
+/*
+ * §102 (J3): de uitgang. Alleen het kruisje en de achtergrond spelen hem
+ * (`Sheet.tsx`, `closeByHand`); Escape en een blad dat zijn ouder weghaalt
+ * zijn meteen weg. `data-closing` staat er vanaf het eerste moment, samen met
+ * `inert`: het blad is dan al van de stapel, de focus is al terug, en een klik
+ * gaat dwars door het plaatje heen naar de pagina eronder. Korter dan de
+ * ingang (150 tegen 240 ms), met de uitgangscurve, en `forwards`, zodat het
+ * laatste beeld blijft staan tot `animationend` het blad echt weghaalt.
+ */
+.sheet-backdrop[data-closing] {
+  pointer-events: none;
+  /* Review #12: `--ease-standard`, not the exit curve — that one ends at full
+     speed, and a shade that stops at full speed ends with a tick. */
+  animation: sheet-shade-out var(--dur-3) var(--ease-standard) forwards;
+}
+.sheet-backdrop[data-closing] > .sheet {
+  animation: sheet-down var(--dur-3) var(--ease-exit) forwards;
+}
+@keyframes sheet-down {
+  to {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+@keyframes sheet-shade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sheet-shade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-fade-out {
+  to {
+    opacity: 0;
   }
 }
 /*
@@ -1316,8 +1637,16 @@ body:has(.winkel-page) .fab {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  /* §102: minder beweging is een crossfade van hooguit 150 ms, geen reis. */
   .sheet {
-    animation: none;
+    animation: sheet-fade-in var(--dur-3) var(--ease-enter);
+  }
+  .sheet-backdrop[data-closing] > .sheet {
+    animation: sheet-fade-out var(--dur-3) var(--ease-exit) forwards;
+  }
+  /* The shade: a crossfade of ≤ 150 ms (rule 8), the palet still none. */
+  .sheet-backdrop:not(.palette-backdrop):not([data-closing]) {
+    animation-duration: var(--dur-3);
   }
   * {
     transition: none !important;
@@ -1582,8 +1911,17 @@ body:has(.winkel-page) .fab {
 }
 
 /* ------------------------------------------------------------------ prose */
+/*
+ * §104 (ronde 67, L8): de maat van de lopende tekst. 17 px en een regelafstand
+ * van 1,6 — binnen wat Butterick (15–25 px, 120–145 %… en iets ruimer voor een
+ * schreefloze letter op een scherm) en Baymard (50–75 tekens) aanraden. De kolom
+ * naast de infobox houdt de regel al op ~60 tekens; `68ch` is het vangnet voor
+ * waar geen kolom is (een overzicht, een smal blad op een breed scherm).
+ */
 .prose {
-  font-size: 1.02rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 68ch;
 }
 .prose h1 {
   font-size: 1.5rem;
@@ -1930,7 +2268,7 @@ details.section > summary::-webkit-details-marker {
 }
 details.section > summary::before {
   content: '▸';
-  transition: transform 120ms ease;
+  transition: transform var(--dur-2) var(--ease-standard);
 }
 details.section[open] > summary::before {
   transform: rotate(90deg);
@@ -2049,6 +2387,50 @@ details.section[open] > summary::before {
     bottom: 1.5rem;
   }
 }
+/*
+ * Ronde 65·herstel (review #25): a melding never lies on §85's plakkende voet.
+ * A page with a foot says how tall it is (`--voet-h`, beside the rule that
+ * names the foot) and the stack stands that much higher. `:has()`, like the
+ * FAB rules of §85, because it is a property of what is on the screen: when
+ * the foot goes, so does the lift. A foot inside a closed `<details>` (a
+ * soort's, §101) does not count — it is not on the screen.
+ */
+body:has(.uitdelen-voet),
+body:has(.admin-sticky-foot:not(.admin-type-foot)),
+body:has(details.admin-type[open] .admin-type-foot) {
+  /* Measured at 390 px: the uitdelen foot wraps to two rows (≈ 104 px). */
+  --voet-h: 7rem;
+}
+@media (min-width: 768px) {
+  body:has(.uitdelen-voet),
+  body:has(.admin-sticky-foot:not(.admin-type-foot)),
+  body:has(details.admin-type[open] .admin-type-foot) {
+    --voet-h: 4.25rem;
+  }
+}
+.toast-wrap {
+  margin-bottom: var(--voet-h, 0px);
+}
+/*
+ * §103 golf H (T6): een melding ligt nooit over een blad. Wat er stond toen
+ * het blad openging, gaat weg (`UiProvider`); wat er daarna komt — een
+ * weigering in de catalogus — staat zolang bovenaan het scherm, op de
+ * verduistering en niet over het blad, dat onderaan (telefoon) of in het
+ * midden (breed) staat. Geen beweging erbij: dezelfde ingang, een andere plek.
+ */
+/* Golf H: and a phone's peek on a tekenvlak (`CanvasPeek`) is the same kind of
+   answer at the foot of the screen — the melding goes to the top there too, so
+   it never lies on the peek's own buttons (maps.spec: *Speld weghalen*). The
+   same on /uitdelen: with a short list the foot does not stick to the bottom
+   but stands right under the last row, wherever that is, and no margin keeps a
+   melding off it; at the top it is never in the way of the knop *Uitdelen*. */
+body:has(.sheet-backdrop:not([data-closing])) .toast-wrap,
+body:has(.canvas-peek) .toast-wrap,
+body:has(.uitdelen-voet) .toast-wrap {
+  top: calc(env(safe-area-inset-top) + 0.75rem);
+  bottom: auto;
+  margin-bottom: 0;
+}
 .toast {
   pointer-events: auto;
   background: var(--ink);
@@ -2061,6 +2443,44 @@ details.section[open] > summary::before {
   box-shadow: var(--shadow);
   font-size: 0.92rem;
   width: 100%;
+  /* §102 (J4): in — acht pixel omhoog en erbij, in --dur-4. */
+  animation: toast-in var(--dur-4) var(--ease-enter);
+}
+/* §102 (J4): uit — korter dan in, met de uitgangscurve, en vanaf het eerste
+   moment geen doel meer voor een klik (`ToastView` in `UiProvider.tsx`). */
+.toast[data-closing] {
+  pointer-events: none;
+  animation: toast-out var(--dur-3) var(--ease-exit) forwards;
+}
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+@keyframes toast-out {
+  to {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+}
+@keyframes toast-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes toast-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: toast-fade-in var(--dur-3) var(--ease-enter);
+  }
+  .toast[data-closing] {
+    animation: toast-fade-out var(--dur-3) var(--ease-exit) forwards;
+  }
 }
 .toast button {
   background: none;
@@ -2080,33 +2500,7 @@ details.section[open] > summary::before {
 }
 
 /* ---------------------------------------------------------------- preview */
-.preview-card {
-  position: fixed;
-  z-index: 80;
-  width: 260px;
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.2);
-  border-radius: var(--radius);
-  padding: 0.6rem;
-  display: flex;
-  gap: 0.6rem;
-  pointer-events: none;
-}
-/* Round 19: a clipping wrapper, like `.feed-thumb`, so a zoomed crop stays in its box. */
-.preview-thumb {
-  display: block;
-  width: 54px;
-  border: 1px solid var(--rule);
-  flex: 0 0 auto;
-  overflow: hidden;
-}
-.preview-thumb img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+/* §102: de voorbeeldkaart (`.preview-card` en verwant) staat in `app/kaartje.css`. */
 
 /* ------------------------------------------------------------- case tabs */
 /*
@@ -3171,7 +3565,7 @@ details.section[open] > summary::before {
 }
 .rev-more > summary::before {
   content: '▸';
-  transition: transform 120ms ease;
+  transition: transform var(--dur-2) var(--ease-standard);
 }
 .rev-more[open] > summary::before {
   transform: rotate(90deg);
@@ -4094,7 +4488,7 @@ details.section[open] > summary::before {
 }
 .admin-words-toggle .admin-words-chevron {
   flex: none;
-  transition: transform 120ms ease;
+  transition: transform var(--dur-2) var(--ease-standard);
 }
 .admin-words-toggle[aria-expanded='true'] .admin-words-chevron {
   transform: rotate(90deg);
@@ -4808,88 +5202,10 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
     display: none;
   }
 }
-.wiki-entries[data-view='list'] {
-  grid-template-columns: 1fr;
-  gap: 0;
-}
-.wiki-entries[data-view='list'] > .card {
-  display: grid;
-  grid-template-columns: 2.6rem minmax(0, 1fr);
-  align-items: center;
-  gap: 0.6rem;
-  min-height: var(--tap);
-  padding: 0.3rem 0.5rem;
-  border-width: 0 0 1px;
-  border-radius: 0;
-  box-shadow: none;
-}
-.wiki-entries[data-view='list'] > .card:hover {
-  transform: none;
-  box-shadow: none;
-}
-.wiki-entries[data-view='list'] > .card > .card-cover {
-  width: 2.6rem;
-  height: 2.6rem;
-  aspect-ratio: 1 / 1;
-  border: 1px solid var(--rule);
-}
-.wiki-entries[data-view='list'] .card-body {
-  padding: 0;
-  min-width: 0;
-}
-.wiki-entries[data-view='list'] .card-name {
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.wiki-entries[data-view='list'] .card-body .clamp-2 {
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-.wiki-entries[data-view='list'] .card-body > p:not(.card-name):not(.clamp-2) {
-  display: none;
-}
-@media (max-width: 767px) {
-  .wiki-entries:not([data-view='cards']) {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .wiki-entries:not([data-view='cards']) > .card {
-    display: grid;
-    grid-template-columns: 2.6rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.6rem;
-    min-height: var(--tap);
-    padding: 0.3rem 0.5rem;
-    border-width: 0 0 1px;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .wiki-entries:not([data-view='cards']) > .card > .card-cover {
-    width: 2.6rem;
-    height: 2.6rem;
-    aspect-ratio: 1 / 1;
-    border: 1px solid var(--rule);
-  }
-  .wiki-entries:not([data-view='cards']) .card-body {
-    padding: 0;
-    min-width: 0;
-  }
-  .wiki-entries:not([data-view='cards']) .card-name {
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .wiki-entries:not([data-view='cards']) .card-body .clamp-2 {
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-  }
-  .wiki-entries:not([data-view='cards']) .card-body > p:not(.card-name):not(.clamp-2) {
-    display: none;
-  }
-}
+/* §92 (F31) → §104 (golf H, T1): the one-line shape of a list — Lijst on a
+   desk, the default on a phone — is `.rijen` in app/leeskamer.css now, shared
+   by the soort lists, Alles, Dossiers, Recente artikelen and the lists on an
+   artikel. */
 
 /* §92 ronde 53 (C26–C28): het maakblad. De soorten staan op één regel die
    opzij scrolt (de gekozen soort in beeld); "Alle soorten" vouwt ze uit tot
@@ -4911,7 +5227,7 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 }
 .new-entry-types-more .icon,
 .new-entry-types-more svg {
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-2) var(--ease-standard);
 }
 .new-entry-types-caret-open {
   transform: rotate(90deg);
@@ -5179,9 +5495,11 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 @media (min-width: 1280px) {
   .entry-layout-wide {
     display: grid;
-    /* The signpost, the text, the facts. §22: the last column is 20 px wider
-       than it once was — it holds the picture now. */
-    grid-template-columns: 12rem minmax(0, 1fr) 320px;
+    /* §104 (golf H, D1): the text and the facts. The signpost is a column of
+       its own only from 1500 px (`.entry-layout-rail`, app/leeskamer.css);
+       here it is the row of chips above the text, so 1280 px reads at about
+       590 px instead of 367. */
+    grid-template-columns: minmax(0, 1fr) 300px;
     column-gap: 1.6rem;
     /* Stretch (the default) on purpose: the columns have to be as tall as the
        text for the sticky outline to have anything to stick along. */
@@ -5295,7 +5613,7 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 }
 .home-feed-more > summary::before {
   content: '▸';
-  transition: transform 120ms ease;
+  transition: transform var(--dur-2) var(--ease-standard);
 }
 .home-feed-more[open] > summary::before {
   transform: rotate(90deg);
@@ -5322,10 +5640,12 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 }
 
 /* --------------------------------------------------------- the wiki's soorten */
+/* §104 (golf H, D6): one row at every width — `.type-tabs-rij` holds the
+   scrolling row (`.type-tabs.schuifrij`) and *Meer soorten* beside it
+   (app/leeskamer.css). It no longer wraps into three rows on a desk. */
 .type-tabs {
   display: flex;
   gap: 0.1rem;
-  margin: 0.6rem 0 0;
   border-bottom: 1px solid var(--rule);
   overflow-x: auto;
   overflow-y: hidden;
@@ -5333,11 +5653,6 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 }
 .type-tabs::-webkit-scrollbar {
   display: none;
-}
-@media (min-width: 768px) {
-  .type-tabs {
-    flex-wrap: wrap;
-  }
 }
 .type-tab {
   display: inline-flex;
@@ -6138,8 +6453,9 @@ body:has(.tree-picker) .fab {
   background: var(--ink-muted);
 }
 .live-dot-live .live-dot-mark {
-  background: #2f6b4f;
-  box-shadow: 0 0 0 3px rgba(47, 107, 79, 0.18);
+  /* T1 (ronde 65): één groen voor aanwezig, hier en op Spelers. */
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 18%, transparent);
 }
 .live-dot-offline .live-dot-mark {
   background: var(--stamp-red);
@@ -6315,7 +6631,9 @@ body:has(.tree-picker) .fab {
   font-size: 0.64rem;
 }
 a.beurs {
-  transition: border-color 90ms ease, background 90ms ease;
+  transition:
+    border-color var(--dur-2) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard);
 }
 a.beurs:hover,
 a.beurs:focus-visible {
@@ -6342,7 +6660,7 @@ a.beurs:focus-visible {
   }
 }
 .beurs-body {
-  animation: beurs-tel 260ms ease-out;
+  animation: beurs-tel var(--dur-4) var(--ease-enter);
 }
 
 /*
@@ -6400,7 +6718,9 @@ a.beurs:focus-visible {
  */
 @media (max-width: 767px) {
   .main:not(:has(.page-canvas)) {
-    padding-bottom: calc(var(--main-pad-b) + 56px + 0.5rem);
+    /* §102, golf h1 (T4): plus de thuisbalk, zodat de laatste knop van een pagina
+       altijd boven de `+` kan komen, ook op een iPhone. */
+    padding-bottom: calc(var(--main-pad-b) + 56px + 0.5rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -6933,7 +7253,7 @@ a.beurs:focus-visible {
   background: rgba(20, 18, 15, 0.66);
   color: #f3eee2;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-2) var(--ease-standard);
 }
 .timeline-popout-picture:hover .timeline-popout-zoom,
 .timeline-popout-picture:focus-visible .timeline-popout-zoom {
@@ -7938,8 +8258,10 @@ a.beurs:focus-visible {
    press in `SideToggle`, so the element is new each time and the animation
    replays; it starts turned and lands upright, because an upside-down shield
    is not a resting state. */
+/* §102: on the tokens — `--ease-land` is this curve — and only for a hand
+   (`SideToggle` counts a turn only when a pointer pressed it). */
 .side-toggle[data-turned='1'] .side-toggle-turn {
-  animation: side-toggle-turn 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: side-toggle-turn var(--dur-5) var(--ease-land);
 }
 @keyframes side-toggle-turn {
   from {
@@ -7954,52 +8276,40 @@ a.beurs:focus-visible {
    main column (and, on a canvas page, absolutely placed in it), so it is moved
    over by exactly the button's width and gutter rather than the button being
    moved somewhere a hand has to look for it. Only when the button is there:
-   for a player nothing moves. */
-.shell:has(> .side-toggle) .live-strip {
-  margin-right: 2.4rem;
-}
-.shell:has(> .side-toggle) .main:has(.page-canvas) .live-strip {
-  margin-right: 0;
-  right: calc(var(--page-pad) + 2.4rem);
-}
-/* And the one line of heading on such a page keeps room for both. */
-.shell:has(> .side-toggle) .canvas-head {
-  padding-right: 5rem;
-}
-/* §90 canvas: en met de Keeperkant-knop erbij: de strip (3,5 rem) plus de
-   knop en zijn goot (2,4 rem). */
-.shell:has(> .side-toggle) .canvas-head {
-  padding-right: 6rem;
-}
-
-/* The wipe. The new side is uncovered by a circle growing out of the button
-   itself — `--flip-x` / `--flip-y` are written onto <html> from the button's
-   centre a frame before the transition starts — while the old side lies still
-   underneath it. Deliberately not a cross-fade: the point is that one archive
-   is *over* the other, not that one dissolves into it. */
-::view-transition-old(root) {
-  animation: none;
-}
-::view-transition-new(root) {
-  animation: side-flip-wipe 550ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-@keyframes side-flip-wipe {
-  from {
-    clip-path: circle(0 at var(--flip-x, 100%) var(--flip-y, 0));
+   for a player nothing moves.
+   §102, golf h1 (D4): the corner button is the phone's alone now (a desk has the
+   switch in the masthead), so these rules are the phone's alone — and they
+   key on `data-keeper-hand`, which the server writes, rather than on the
+   button, which only arrives with hydration: the band is there first. */
+@media (max-width: 767px) {
+  .shell[data-keeper-hand] .live-strip {
+    margin-right: 2.4rem;
   }
-  to {
-    clip-path: circle(150% at var(--flip-x, 100%) var(--flip-y, 0));
+  .shell[data-keeper-hand] .main:has(.page-canvas) .live-strip {
+    margin-right: 0;
+    right: calc(var(--page-pad) + 2.4rem);
+  }
+  /* §90 canvas: de strip (3,5 rem) plus de knop en zijn goot (2,4 rem). */
+  .shell[data-keeper-hand] .canvas-head {
+    padding-right: 6rem;
+  }
+  /* Ronde 65·herstel (review #4): op een telefoon lag de knop (32 px, met een
+     raakrand van 6 px eromheen) over *Bewerken* en *Nieuw overzicht*. De strip
+     is daar al een eigen strook bovenaan (`clear: right` op alles eronder), en
+     die strook wordt zo hoog als de knop plus zijn raakrand: de kop van de
+     pagina begint eronder. ~25 px, alleen voor een Keeper, en niet op een
+     tekenvlak, waarvan de kop zijn eigen ruimte houdt (`.canvas-head`). */
+  .shell[data-keeper-hand] .main:not(:has(.page-canvas)):not(:has(.board-viewport)) > .live-strip {
+    margin-bottom: calc(1.6rem + env(safe-area-inset-top));
   }
 }
 
-/* Somebody who has asked for no movement gets none: the page is simply the
-   other page. `SideToggle` does not start a view transition at all under this
-   media query, and these two rules are the belt to that braces — a transition
-   already in flight when the setting changes stops dead. */
+/* §102: the wipe — the circle that grows out of this button when the archive
+   turns over — lives in `app/kaartje.css`, beside `@view-transition`. */
+
+/* Somebody who has asked for no movement gets none: the button does not turn. */
 @media (prefers-reduced-motion: reduce) {
-  .side-toggle[data-turned='1'] .side-toggle-turn,
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
+  .side-toggle[data-turned='1'] .side-toggle-turn {
     animation: none;
   }
 }
@@ -8186,6 +8496,8 @@ a.beurs:focus-visible {
 .nav-new {
   width: 100%;
   margin-top: 0.5rem;
+  /* §104 (golf H, D23): one line, never a `+` beside a word on line two. */
+  white-space: nowrap;
 }
 .nav-shortcuts {
   margin: 0.3rem 0 0.2rem;
@@ -8220,84 +8532,76 @@ a.beurs:focus-visible {
     inset: -12px -8px;
   }
 }
-/* Op een computer draagt hij een woord en haalt hij 44 px. De strip en de
-   kop van een canvas schuiven mee om precies die breedte. */
+/* §102, golf h1 (D4): op een computer is er geen knop in de hoek meer — de
+   schakelaar staat in de mast van de zijbalk (`app/navigatie.css`). Weg zijn
+   daarmee de strook van 36 px boven elke Keeperpagina (`--main-pad-t`), de
+   extra marges van de strip en `.canvas-head { padding-right: 12rem }`: dat
+   waren allemaal plaatsen voor een knop die hier niet meer staat. Ronde
+   65·herstel (review #3) zette de strip voor iedereen op dezelfde rand; die
+   regel blijft, want zonder knop is hij voor speler en Keeper gelijk. */
 @media (min-width: 768px) {
-  .side-toggle {
-    width: auto;
-    height: var(--tap);
-    gap: 0.4rem;
-    padding: 0 0.85rem 0 0.7rem;
-  }
-  .side-toggle-word {
-    display: inline;
-    font-family: var(--stamp-face);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 0.66rem;
-    font-weight: 700;
-  }
-  .shell:has(> .side-toggle) .live-strip {
-    margin-right: 8.4rem;
-  }
-  .shell:has(> .side-toggle) .main:has(.page-canvas) .live-strip {
-    margin-right: 0;
-    right: calc(var(--page-pad) + 8.4rem);
-  }
-  .shell:has(> .side-toggle) .canvas-head {
-    padding-right: 12rem;
+  .main:not(:has(.page-canvas)) > .live-strip {
+    margin-right: calc(0.5rem - var(--page-pad));
   }
 }
 
 /* De tabbalk op een telefoon: nog steeds acht (§32). De Jij-tab is een knop
-   (hij opent het blad) en tekent zich als de tabs ernaast. */
+   (hij opent het blad) en tekent zich als de tabs ernaast. §102, golf h1 (T3): met
+   het woord *Jij* eronder, net als de rest; het saldo hangt als een klein
+   plaatje aan het poppetje (`.tab-jij-saldo`). */
 .tabs > .tab-jij {
+  position: relative;
   display: flex;
-  flex: 0 0 var(--tap);
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.1rem;
-  min-height: var(--tabs-h);
+  gap: 4px;
+  height: var(--tabs-h);
   padding: 0;
   border: 0;
   border-radius: var(--radius);
   background: none;
   color: var(--ink);
   font-family: var(--stamp-face);
-  font-size: 0.54rem;
+  font-size: 0.66rem;
   font-weight: 600;
-  text-transform: uppercase;
+  line-height: 1.1;
+  text-transform: none;
   cursor: pointer;
+}
+.tab-jij-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  white-space: nowrap;
 }
 .tabs > .tab-jij[aria-current='page'],
 .tabs > .tab-jij[aria-expanded='true'] {
   color: var(--stamp-red);
 }
-.tab-jij-saldo {
+/* Het saldo staat op de regel van *Jij*, gedempt en in cijfers van gelijke
+   breedte: "Jij ◎ 18". Past in een vak van 44 px. Twee klassen diep, want
+   `moment.css` (na dit bestand) zet de vorm `relative` voor zijn chip — dat
+   mag, die chip hangt eraan. */
+.tab-jij .tab-jij-saldo {
   display: inline-flex;
   align-items: center;
   gap: 1px;
+  margin-left: 3px;
+  color: var(--ink-muted);
   font-family: var(--sans);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  white-space: nowrap;
 }
-/* Zoeken haalt 44 px breed, net als Jij. */
-.tabs a.tab-compact {
-  flex: 0 0 var(--tap);
-}
-/* "LANDKAART…": zes woorden met elk een even groot vak, terwijl WIKI er maar
-   een half vak van gebruikt. Een vak zo breed als zijn woord — dezelfde zes
-   woorden, dezelfde letter — past op 390 px zonder één letter af te kappen. */
-.tabs a:not(.tab-compact) {
-  flex: 1 1 auto;
-}
-.tabs a > span:not(.visually-hidden) {
-  overflow: visible;
-  text-overflow: clip;
+.tab-jij[aria-current='page'] .tab-jij-saldo,
+.tab-jij[aria-expanded='true'] .tab-jij-saldo {
+  color: inherit;
 }
 
 /* Het blad. */
@@ -8812,7 +9116,7 @@ a.beurs:focus-visible {
   display: none;
 }
 .fields-empty-caret {
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-2) var(--ease-standard);
 }
 .fields-empty[open] .fields-empty-caret {
   transform: rotate(90deg);

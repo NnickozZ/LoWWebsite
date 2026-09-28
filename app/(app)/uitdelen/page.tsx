@@ -57,15 +57,21 @@ export default async function UitdelenPage() {
         het archief dat alleen van de Keeper is, en dát is waar je bent.
       */}
       <p className="eyebrow">{words.keeper}</p>
-      <h1 className="row-wrap uitdelen-title">
-        {words.handoutTitle}
+      {/*
+        §103 golf H (D15): de kop en de deur naast elkaar, niet in elkaar. De
+        link stond ín de `<h1>` en erfde daar de schreefletter; na het uitdelen
+        stond dezelfde knop nog eens in de voet. Nu één keer, hier, als gewone
+        `.btn-small`.
+      */}
+      <div className="uitdelen-kop">
+        <h1 className="uitdelen-title">{words.handoutTitle}</h1>
         {/* En de deur terug. Uitdelen is iets wat je vanaf de hal begint en
             waar je naar de hal van terugkeert om te zien wat het deed. */}
         <Link className="btn btn-small" href="/spelers" data-testid="uitdelen-terug">
           <Icon name={MEANING.onderzoeker} size={13} />
           {fill(words.toPlayers, { spelers: words.playerPlural })}
         </Link>
-      </h1>
+      </div>
 
       {targets.length === 0 ? (
         <p className="small muted" data-testid="uitdelen-leeg">

@@ -292,7 +292,7 @@ describe('§93: een koop ongedaan maken', () => {
     kamers.buyFurnishing(bureau.id, 'h-stoel', BRAM);
     expect(kamers.balanceOf(ROOM)).toBe(4);
 
-    expect(kamers.undoPurchase(ROOM, 'h-stoel', BRAM)).toEqual({ returned: 1, name: 'Leesstoel' });
+    expect(kamers.undoPurchase(ROOM, 'h-stoel', BRAM)).toEqual({ returned: 1, name: 'Leesstoel', balance: 5 });
     expect(slot(bureau.id).entryId).toBeNull();
     expect(kamers.balanceOf(ROOM)).toBe(5);
     expect(lines(ROOM).map((line) => [line.kind, line.delta])).toEqual([
@@ -447,7 +447,13 @@ describe('§93: kopen, openen en uitdelen staan in het feed, onder de juiste ond
       verb: 'kocht',
       tail: 'in de kamer van Bram Verhulst',
     });
-    expect(roomFeedPhrase('room.opened', null, true, DEFAULT_WORDS)?.verb).toBe('opende een plek in de kamer van');
+    expect(roomFeedPhrase('room.opened', null, false, DEFAULT_WORDS)?.verb).toBe('opende een plek in de kamer van');
+    // §103 golf H (D26): een speler opent in zijn eigen kamer, en de naam staat er niet twee keer.
+    expect(roomFeedPhrase('room.opened', null, true, DEFAULT_WORDS)).toEqual({
+      verb: 'opende een plek in de eigen kamer',
+      tail: '',
+      bare: true,
+    });
   });
 });
 

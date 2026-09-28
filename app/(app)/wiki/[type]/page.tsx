@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { typePagePlace } from '@/lib/live/keys';
 import { LivePage } from '@/components/live/LivePage';
@@ -19,6 +20,8 @@ import {
   nameTheirCases,
 } from '@/lib/entries/service';
 import type { ListParams } from '@/lib/listParams';
+import { fill } from '@/lib/words';
+import { moreHref, readPagina, remaining } from '@/lib/wiki/pagina';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +44,11 @@ export default async function BrowseTypePage({
   const perType = countEntriesPerType(user);
   const tags = listTagsWithCounts(user, typeSlug);
   const filters = readListFilters(query, user);
-  const entries = nameTheirCases(browseEntries(user, { ...filters, typeSlug, limit: 200 }), user);
+  // §104 (ronde 67·herstel, #14): counted whole, drawn as far as the address asks (`lib/wiki/pagina.ts`).
+  const pagina = readPagina(query);
+  const matches = browseEntries(user, { ...filters, typeSlug, limit: 100_000 });
+  const entries = nameTheirCases(matches.slice(0, pagina.shown), user);
+  const left = remaining(matches.length, pagina);
   const total = [...perType.values()].reduce((n, count) => n + count, 0);
 
   return (
@@ -71,6 +78,7 @@ export default async function BrowseTypePage({
         active={type.slug}
         allCount={total}
         query={query}
+        moreLabel={words.wikiMoreKinds}
       />
 
       {/*
@@ -101,19 +109,33 @@ export default async function BrowseTypePage({
         sorts={WIKI_SORTS}
         defaultSort="recent"
         groups={wikiFilterGroups(tags, user, filters.tag)}
-        summary={`${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`}
+        summary={
+          left
+            ? fill(words.listShownOf, { n: String(entries.length), totaal: String(matches.length), artikelen: words.entryPlural })
+            : `${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`
+        }
       />
 
       {entries.length > 0 && <WikiViewToggle target="wiki-entries" />}
 
       {entries.length ? (
-        /* §92 (F31): one line per artikel on a phone, cards elsewhere — the
-           default is the stylesheet's, a choice is `data-view`. */
-        <div className="card-grid wiki-entries" id="wiki-entries">
-          {entries.map((entry) => (
-            <EntryCard key={entry.id} entry={entry} showType={false} />
-          ))}
-        </div>
+        <>
+          {/* §92 (F31): one line per artikel on a phone, cards elsewhere — the
+              default is the stylesheet's, a choice is `data-view`. */}
+          <div className="card-grid wiki-entries" id="wiki-entries">
+            {entries.map((entry) => (
+              <EntryCard key={entry.id} entry={entry} showType={false} />
+            ))}
+          </div>
+          {left > 0 && (
+            <p className="lijst-meer">
+              <Link className="btn" href={moreHref(`/wiki/${type.slug}`, query, pagina)} scroll={false} data-testid="lijst-meer">
+                {words.listMore}
+              </Link>
+              <span className="lijst-meer-rest">{fill(words.listMoreLeft, { n: String(left) })}</span>
+            </p>
+          )}
+        </>
       ) : (
         <div className="empty">
           <p style={{ margin: 0 }}>

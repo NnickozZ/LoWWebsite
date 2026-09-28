@@ -77,7 +77,15 @@ export function BijdragenPanel({ rows, viewer, words }: { rows: FeedItem[]; view
                     );
                     return room ? (
                       <>
-                        {room.verb} <strong>{row.entry!.name}</strong> {room.tail}
+                        {/* §103 golf H (D26): in de eigen kamer staat de naam er niet nog eens. */}
+                  {room.verb}
+                  {!room.bare && (
+                    <>
+                      {' '}
+                      <strong>{row.entry!.name}</strong>
+                    </>
+                  )}{' '}
+                  {room.tail}
                       </>
                     ) : (
                       <>

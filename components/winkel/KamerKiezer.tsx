@@ -53,7 +53,7 @@ export function KamerKiezer({
               {/* §90 (E6): de chip ís de beurs — dezelfde vorm als overal,
                   zodat er onder de kiezer geen tweede saldoblok hoeft te staan. */}
               <span className="winkel-kiezer-saldo">
-                <Beurs balance={room.balance} words={words} size="small" title={room.name} />
+                <Beurs balance={room.balance} words={words} size="small" title={room.name} room={room.id} />
               </span>
             </Link>
           );

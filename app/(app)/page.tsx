@@ -122,7 +122,15 @@ export default async function HomePage() {
               );
               return room ? (
                 <>
-                  {room.verb} <strong>{item.entry!.name}</strong> {room.tail}
+                  {/* §103 golf H (D26): in de eigen kamer staat de naam er niet nog eens. */}
+                  {room.verb}
+                  {!room.bare && (
+                    <>
+                      {' '}
+                      <strong>{item.entry!.name}</strong>
+                    </>
+                  )}{' '}
+                  {room.tail}
                 </>
               ) : (
                 <>
@@ -350,7 +358,8 @@ export default async function HomePage() {
                 Alles bekijken
               </Link>
             </div>
-            <div className="card-grid" style={{ marginTop: '0.8rem' }}>
+            {/* §104 (golf H, T1): one line per artikel on a phone (`.rijen`). */}
+            <div className="card-grid rijen" style={{ marginTop: '0.8rem' }}>
               {recent.map((entry) => (
                 <EntryCard key={entry.id} entry={entry} />
               ))}

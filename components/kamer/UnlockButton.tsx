@@ -6,7 +6,10 @@ import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { fill, type Words } from '@/lib/words';
 import { MEANING, plekWord, withPrice } from './plekWords';
-import { kamerPost } from './post';
+import { kamerPostFor } from './post';
+import { announceBalance } from './saldo';
+import { markUnlock } from './moment';
+import { play } from '@/lib/sound/klank';
 import type { PlekKind } from '@/lib/kamers/shape';
 
 /**
@@ -42,6 +45,8 @@ export function UnlockButton({
   price,
   guestOf = null,
   label,
+  sentence,
+  bare = false,
   words,
 }: {
   roomId: string;
@@ -55,6 +60,19 @@ export function UnlockButton({
    * hij opent (*Kist openen · 5 munten*), want daar staat hij niet op de tegel.
    */
   label?: string;
+  /**
+   * §103 herstel (#18): in de winkel is de knop één zin met twee bedragen
+   * (*Eerst een kist openen (5), dan 4*) — `text` voor het oog, `label` met de
+   * munten erbij voor een schermlezer.
+   */
+  sentence?: { text: string; label: string };
+  /**
+   * §103 golf H (D7/T11): op een dichte tegel zegt de knop alleen *Openen*.
+   * De prijs staat als stempel erboven, één keer; de toegankelijke naam draagt
+   * hem nog (*Openen · 3 munten*), want een schermlezer ziet de stempel niet
+   * als bij deze knop horend.
+   */
+  bare?: boolean;
   words: Words;
 }) {
   const ui = useUi();
@@ -64,21 +82,33 @@ export function UnlockButton({
   async function unlock() {
     setBusy(true);
     try {
-      const error = await kamerPost(`/api/kamers/${roomId}/plekken/${slotId}/unlock`, undefined, words);
+      const { error, data } = await kamerPostFor<{ spent: number; balance?: number }>(
+        `/api/kamers/${roomId}/plekken/${slotId}/unlock`,
+        undefined,
+        words,
+      );
       if (error) {
         ui.toast(error);
         return;
       }
+      // §103 golf H (T8): het getal rolt met de melding mee, naar wat de server gaf.
+      announceBalance(roomId, data?.balance);
       /*
        * §84: en zeggen wat er gebeurd is. Zonder dit was de enige terugkoppeling
        * één cijfer dat veranderde in een blokje dat eruitzag als een prijskaartje
        * — de doorloop mat 174 ms tussen klik en nieuw saldo, en niemand zag het.
        * De beurs in de hoek telt ondertussen zichtbaar af.
        */
+      // §103 (K5/K8): de tegel draait zijn slotje open als hij terugkomt, en een sleutel.
+      markUnlock(slotId);
+      play('sleutel');
       ui.toast(
         guestOf
           ? fill(words.unlockedThere, { plek: plekWord(kind, words), naam: guestOf })
           : fill(words.unlockedHere, { plek: plekWord(kind, words) }),
+        undefined,
+        // §103 golf H (T15): één melding per plek.
+        { key: `plek:${slotId}` },
       );
       router.refresh();
     } finally {
@@ -89,13 +119,14 @@ export function UnlockButton({
   return (
     <button
       type="button"
-      className="btn btn-small plek-action"
+      className={`btn btn-small plek-action${sentence ? ' plek-action-zin' : ''}`}
       data-testid="plek-unlock"
+      aria-label={sentence?.label ?? (bare ? withPrice(label ?? words.slotOpen, price, words) : undefined)}
       disabled={busy}
       onClick={() => void unlock()}
     >
       <Icon name={MEANING.openen} size={13} />
-      {withPrice(label ?? words.slotOpen, price, words)}
+      {sentence ? sentence.text : bare ? (label ?? words.slotOpen) : withPrice(label ?? words.slotOpen, price, words)}
     </button>
   );
 }

@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import { resolve } from 'node:path';
 
-const PORT = 3101;
+// E2E_PORT: a second working tree can run its own suite beside this one.
+const PORT = Number(process.env.E2E_PORT ?? 3101);
 const baseURL = `http://127.0.0.1:${PORT}`;
 // __dirname is available because Playwright transpiles this config to CJS.
 const dataDir = resolve(__dirname, 'data-e2e');

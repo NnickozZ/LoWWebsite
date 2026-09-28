@@ -442,7 +442,10 @@ app/
                      through a dossier, "Genoemd in" or the start page
     web/             §43: het web — the archive drawn as what points at what,
                      with one thing in the middle (`?focus=`) or all of it
-    wiki/            browse, and browse-by-type (one row of soorten as tabs)
+    wiki/            browse, and browse-by-type (one row of soorten as tabs);
+                     since §104 the voordeur carries three fixed blocks under
+                     the overzicht, and `willekeurig/` sends you to one
+                     random artikel you may see (and holds *Uit het archief*)
     search/          instant search, one soort at a time; under "Alles" also
                      every other kind of thing and the spelers, by name (§96)
     admin/           users, review queue, types and pages, words, trash,
@@ -459,6 +462,12 @@ app/
                      the five frames, the lines and their hit areas, the
                      handles and the floating picker. Imported by the one page
                      that is a stamboom
+  navigatie.css      §102: the layers of rounds 65–67, imported by the root
+  kaartje.css        layout after globals.css so globals.css stays one hand's:
+  moment.css         the nav pending mark, the streep, the skeleton and the page
+  leeskamer.css      fade; the preview card and the flip's view transition;
+                     the rolling saldo and its chip (§103); the wiki's front
+                     page, *Genoemd in*, the heading anchors and the naad (§104)
   api/               entries, cases, boards, maps, timelines, family-trees
                      (§66, with `/relations` and `/promote`), characters,
                      access, assets, search, suggest, admin, ink (§33: the
@@ -525,7 +534,16 @@ components/
                      banner
   shell/             §91: JouwPlek.tsx — jouw plek, one list (`yoursDoors`)
                      drawn twice: the side menu's groups and search box on a
-                     desk, the Jij tab and the Jij-blad on a phone
+                     desk, the Jij tab and the Jij-blad on a phone. §102:
+                     NavPending (the clicked door is drawn active at once),
+                     NavProgress (the streep or the skeleton after 150 ms) and
+                     Skeleton + skeletonShape (the browser-only skeleton —
+                     there is deliberately no `loading.tsx`)
+  kamer/             the kamer and its moments: Plek, the pickers, the beurs,
+                     the uitdeler; since §103 moment.ts (`markLanding`,
+                     `markUnlock` — the note a hand leaves so a tile lands
+                     once), Neerzetten, SaldoGetal (the saldo that rolls
+                     between two server values) and KlankSchakelaar
   ui/                the new-entry and new-case sheets, the yes/no sheet,
                      toasts, shortcuts, and `ui.uploadLimit` — this reader's
                      own ceiling, handed down from the layout
@@ -641,6 +659,14 @@ lib/
                      per role) and recent.ts (the addresses of *Onlangs*, in
                      this browser's `localStorage`, per account)
   home/              §91: jij.ts (pure: your last three from Start's own feed)
+  sound/             §103: recipes.ts (pure: four klanken under 300 ms, worked
+                     out by the unit test) and klank.ts (one `AudioContext`
+                     per tab, made on a gesture, never when the sound is off)
+  wiki/              §104: leeskamer.ts (the front page's blocks, `randomEntry`,
+                     `recentlyUpdated`), snippet.ts (`snippetAround`: leave
+                     out, then cut), genoemd.ts (`mentionSentences`),
+                     anchors.ts, naad.ts (the one rule for the seam a hidden
+                     name leaves) and pagina.ts (`?pagina=` / `?per=`)
 access.ts            §17: who may look and who may touch, as one SQL condition
                      for readers and one boolean for writers
 characters.ts        §18: who a person is being, and the name a feed prints —
@@ -662,7 +688,11 @@ assets.ts            pictures in three sizes; re-exports the two ceilings and
                      is where they are enforced
 pageBlocks.ts        what a soort artikel's page is made of (pure; the queries
                      behind it live in lib/entries/derived.ts)
-scripts/             dev, bootstrap, seed-demo, seed-wereld, backup, restore
+scripts/             dev, bootstrap, seed-demo, seed-wereld, backup, restore,
+                     and meet-gevoel.mjs (§102: ms from a click to the first
+                     sign, at 0/150/300/900 ms of latency)
+docs/                the contracts: canvas-contract, kamer-contract, sloten,
+                     and beweging.md (§102: when the archive moves, and how)
 tests/unit/          vitest
 tests/e2e/           playwright, the golden flows
 ```
@@ -1089,6 +1119,12 @@ Eighty-nine rules worth knowing before changing anything:
     (CLAUDE.md §7), and nothing imports it, so it costs a dead file rather than
     a broken build. `git rm components/useOverflowing.ts` is the tidy-up,
     whenever somebody wants it.
+
+    > **Bevestigd in golf H (§104, D6).** De review stelde één scrollende rij
+    > voor, en golf h3 bouwde die. De coördinator draaide dat terug in golf h4:
+    > dit is Nicks eigen keuze van ronde 36 (*"I think this is ugly"*), en die
+    > wordt niet stil omgekeerd. De rij breekt dus nog steeds. `.schuifrij`
+    > (de vervagende rand) is voor rijen met chips, niet voor deze tabs.
 
 28. **A reference box offers the desk you are standing at first.** §31. With an
     artikel or a dossier open, every dropdown that picks an artikel —
@@ -1530,6 +1566,11 @@ Eighty-nine rules worth knowing before changing anything:
     account inside the layer JSON (`by`), never a karakter. And
     `updateEvent` / `updatePin` write no activity row at all, which is
     pre-existing and unrelated.
+
+    > **Aangevuld in §102 (ronde 65·herstel).** In Lezen vraagt niets, ook
+    > buiten de tekenvlakken: `RichEditor`, `FieldsEditor`, `LiveField` en
+    > `ShortField` zetten de gate alleen neer op een vak dat je echt kunt
+    > bewerken. Zie het blok bij regel 90.
 
 37. **A spec is read as carefully as a screen, because a wrong test is usually a
     wrong sentence about the product.** Two of Round 11's e2e fixes were not
@@ -2112,17 +2153,39 @@ Eighty-nine rules worth knowing before changing anything:
     twin, or the list of that kind on the other side) and goes there; a page
     with no mark — a list, Start, Zoeken, het web — stays at its address and is
     re-rendered from the other side. The cookie is written *before* the
-    navigation. The flip itself is the View Transitions API: a circle grows out
-    of the button's centre (`--flip-x` / `--flip-y` on `<html>`) over 550 ms
-    with the old side lying still underneath — a wipe, because one archive is
-    *over* the other, not dissolving into it — held open until the new page has
-    rendered, with a 1500 ms safety timeout. `prefers-reduced-motion: reduce`
-    gets none of it, and a browser without `startViewTransition` (Firefox) gets
-    a plain navigation. The shortcut `k` lives in `UiProvider` behind the same
+    navigation. The flip itself is a cross-document view transition (§102):
+    the old page leaves a note in `sessionStorage` and the new side is
+    uncovered by a circle growing out of the button's centre (`--flip-x` /
+    `--flip-y` on `<html>`, written by the inline script in the root layout's
+    `<head>`) over 550 ms, with the old side lying still underneath — a wipe,
+    because one archive is *over* the other, not dissolving into it. It
+    survives the 303 of `/api/keeper/flip` because the whole road is
+    same-origin. `prefers-reduced-motion: reduce` gets none of it, and neither
+    does a keyboard (`k`, the palette, Enter on the button: a keyboard action
+    does not move) or a browser without cross-document view transitions:
+    Firefox 144 has same-document ones (`startViewTransition`) but not
+    cross-document ones, so there the flip is a plain navigation. The shortcut `k` lives in `UiProvider` behind the same
     guard as `n` and `/` and reaches the button as a window event, so a browser
     with no button has nobody listening. On the Keeper's side the masthead wears
     a `.masthead-side` stamp; that block lives in the desktop side menu, so on a
     phone the button is the only sign.
+
+    > **Omgekeerd in golf H (§102, D4).** Hierboven staat de spiegel "in de
+    > hoek van het scherm, op dezelfde plek op een computer en een telefoon".
+    > Op een computer staat hij sinds golf H in de mast van de zijbalk, als
+    > schakelaar `[Spelers | Keeper]` (`SideToggle variant="mast"`, klasse
+    > `.side-switch`), op de plek van de stempel KEEPERKANT. De kant waar je
+    > staat ligt er verhoogd in, met het schildje; op de Keeperkant draagt die
+    > helft `masthead-side`. De hoek kostte elke Keeperpagina een strook van
+    > 36 px en elk canvas 12 rem, en de pil zei waar je *heen* ging terwijl hij
+    > eruitzag als een stempel van waar je *was*. Op een telefoon, die geen
+    > zijbalk heeft, blijft de ronde knop in de hoek, en `jij-flip` in het
+    > Jij-blad. `AppShell` rendert er precies één (`useIsPhone`), dus
+    > `side-toggle` is één element en `k` heeft één luisteraar. De cirkel
+    > begint nu op het midden van de helft waar de hand heen gaat. De
+    > redenering hierboven blijft staan: de kant is geen plek maar het gezicht
+    > van het hele archief, dus de schakelaar staat in het naambord en niet
+    > tussen de plekken.
 
     **`/keeper` is an address, not a screen.** Round 22's list page is a
     `redirect('/api/keeper/flip?side=keeper&to=/')`: it keeps its meaning — take
@@ -2391,6 +2454,14 @@ Eighty-nine rules worth knowing before changing anything:
     added once behind the marker `seed:round-26-families`, never overwritten.
     A familie is an ordinary soort — makeable everywhere, no dossier in front
     of its name — with a tab of its own in a dossier.
+
+    > **Aangevuld in §104 (ronde 67).** Op een familie stond *Leden (0)* in het
+    > afgeleide blok naast *Leden: Wim Poppe* in de infobox: één woord, twee
+    > antwoorden. Een afgeleid blok met dezelfde kop als een koppelingsveld van
+    > de soort neemt nu wat in dat veld staat erbij (`twinFieldOf`,
+    > `listLinkedEntries`), met de regel *Met wie in het veld {veld} staat.* Er
+    > wordt niets opgeslagen en geen titel veranderd; wie de twee los wil,
+    > geeft er één een andere naam. Zie regel 104.
 
 52. **Een prikbord is zelf iets om naar te wijzen, een kaartje leest de
     levende naam, en het wiel hoort bij de muur.** §52. Round 27's half of the
@@ -4118,6 +4189,14 @@ Eighty-nine rules worth knowing before changing anything:
     wegwijzer ín de wiki, en een Keeper die een eigen wegwijzer wil maakt er
     gewoon een op zijn eigen kant. `makeOfKind` gooit daarom voor deze soort.
 
+    > **Aangevuld in §104 (ronde 67).** Onder het overzicht van de voordeur
+    > staan nu drie vaste blokken: *Uit het archief*, *Onlangs bijgewerkt* en
+    > *De soorten*. Het overzicht blijft bovenaan en blijft van de Keeper; de
+    > blokken zijn lijsten (`visibleEntryCondition`, dan `sideCondition`) en
+    > lezen het archief van de kant waar je staat. Sinds het herstel heeft de
+    > voorpagina één tabrij (`TypeTabs compact`: Start, Alles, De soorten) en
+    > zijn de tegels de index. Zie regel 104.
+
 76. **Een plek krijgt een naam per kijker, of helemaal niet.** §76. Nick, ronde
     39: *"a page/indicator/popup menu where you can see all currently online
     people and what character they have selected … where they are right now,
@@ -4248,6 +4327,23 @@ Eighty-nine rules worth knowing before changing anything:
     met een formulier eronder. Er staan tientallen rijen per persoon in: een
     saldo-kolom "voor de snelheid" is hier een manier om twee waarheden te
     krijgen.
+
+    > **Aangevuld in §102 en §103 (rondes 65 en 66).** Het scherm mag bewegen
+    > tussen twee waarden die de server gaf, nooit ervóór. Het saldo rolt van
+    > het vorige antwoord naar het nieuwe (`SaldoGetal`), met een chip die het
+    > verschil zegt, en het voorspelt of telt niets. Een koop die mislukt,
+    > verandert het getal niet. Zie regel 103.
+
+    > **Aangevuld in golf H (§103, T8).** Het getal wacht niet meer op de
+    > verversing. `buyFurnishing`, `unlockSlot`, `undoPurchase` en `handOut`
+    > lezen de nieuwe balans in hun eigen transactie en geven hem mee in het
+    > antwoord; de knop roept `announceBalance(kamer, balans)`
+    > (`components/kamer/saldo.ts`) en elk `SaldoGetal` van die kamer rolt
+    > ernaartoe, in hetzelfde moment als de melding. Dat is nog steeds een
+    > waarde van de server, de som van het grootboek: er wordt niets opgeteld,
+    > en een weigering kondigt niets aan. Een aankondiging geldt zolang de
+    > waarde van boven dezelfde is als toen ze kwam (`shownBalance`); komt de
+    > verversing, dan wint die.
 
     **Een aankoop is één transactie, en de controle zit ín de schrijfactie.**
     De UPDATE landt alleen `WHERE unlocked_at IS NULL`, dus een tweede klik —
@@ -4569,6 +4665,25 @@ Eighty-nine rules worth knowing before changing anything:
     > dat ding in die kamer, en het grootboek krijgt er een regel bij
     > (`return`). Zie regel 93.
 
+    > **Veranderd in §103 (ronde 66 en haar herstel).** In de **winkel** draagt
+    > de knop zijn bedrag niet meer: de prijs staat één keer per rij, als de
+    > stempel boven de knop, en de knop zegt wat hij doet (*Kopen → bureau*).
+    > De toegankelijke naam draagt het bedrag nog (§90). Knoppen in de kamer
+    > (*Openen · 3 munten*) houden hun bedrag. Rood is alleen wat je nú kunt
+    > doen; de rest is een rustige stempel in inkt. `beurs-tel` is uit:
+    > `SaldoGetal` laat het getal rollen tussen twee antwoorden van de server,
+    > met een chip die nooit rood is. Plek-iconen botsen niet meer met
+    > soort-iconen (een muur is `frame`, een kist `chest`). Zie regel 103.
+
+    > **Veranderd in golf H (§103, D7/T11).** Nu ook in de **kamer**: een dichte
+    > tegel zegt *Openen*, zonder bedrag (`UnlockButton bare`), onder één
+    > stempel met de prijs, en in de catalogus van de plek-kiezer zegt de knop
+    > *Kopen*. In beide gevallen draagt de toegankelijke naam het bedrag nog
+    > (*Openen · 3 munten*). De koopknop in de winkel is een inktknop (`.btn`),
+    > pas rood onder de muis of de focus: de stempel draagt het rood. En de
+    > chip bij het saldo staat in élke beurs binnen de pil, op de plaats van
+    > *munten*. Zie regel 103.
+
     **"Nog 3 munten nodig" was een `title`.** Drie keer, letterlijk in de code,
     alle drie op een uitgeschakelde knop — en een `title` bestaat niet op een
     telefoon. Het is de zin die iemand aan het sparen zet en dus precies de
@@ -4777,6 +4892,27 @@ Eighty-nine rules worth knowing before changing anything:
     wordt pas duur op de dag dat iemand hem gelooft. Wat het contract er echt
     mee wilde — dezelfde staten, dezelfde woorden, dezelfde zichtbare
     tekortzin — is er wel.
+
+    > **Aangevuld in §102 en §103 (rondes 65 en 66).** De landingsring
+    > (`plek-aangewezen`) stond twee keer in `kamer.css`, en de tweede, zonder
+    > ring, won stil; hij staat er nu één keer, 2 px in `--stamp-red`, 1,4 s, en
+    > `tests/unit/beweging.test.ts` telt elke `@keyframes`-naam. Een tegel die
+    > net iets kreeg, landt (§103) en houdt `scroll-margin-block: 6rem 5rem`.
+    > Een melding ligt nooit op een plakkende voet: een pagina met zo'n voet
+    > zet `--voet-h`, en `.toast-wrap` staat zoveel hoger. Een nieuwe plakkende
+    > voet komt in dat `:has()`-blok én in de FAB-regel. Op een leespagina op
+    > de telefoon wijkt de FAB zolang de duim naar beneden scrolt
+    > (`useFabAway`), en boven een melding klimt hij (`--toast-stack`).
+
+    > **Veranderd in golf H (§103, T11).** "Eén rijhoogte voor alle vier de
+    > staten" geldt nu per raster. De dichte plekken staan niet meer in het
+    > raster van wat je hebt (`KamerGrid`, `kamer-grid`) maar eronder, onder
+    > hun eigen etiket *Op slot* (`DichtePlekken`, `kamer-dicht`), in een
+    > raster met een kortere vaste rijhoogte (`.kamer-grid-dicht`). Een dichte
+    > tegel draagt geen groot slot en geen regel *Op slot* meer: het etiket,
+    > één stempel met de prijs, en *Openen*. En de FAB wijkt sinds golf H op
+    > elke pagina bij naar beneden scrollen; in de kamer staat hij er niet.
+    > Zie regel 102 en 103.
 
 86. **Wie beslist of iets gemáákt wordt, beslist niet of het gevónden wordt.**
     §86. Nick, ronde 47: *"Get all characters unticked and then we can search.
@@ -5042,6 +5178,15 @@ Eighty-nine rules worth knowing before changing anything:
     vraagt nooit iets: de camera, de schakelaar tussen Lezen en Bewerken, en
     de legenda van de landkaart.
 
+    > **Aangevuld in §102 (ronde 65·herstel): ook buiten de tekenvlakken vraagt
+    > in Lezen niets.** `RichEditor` zet de gate alleen neer als de editor
+    > `editable` is, `FieldsEditor` alleen als hij niet `readOnly` is, en
+    > `LiveField` en `ShortField` alleen op een vak dat niet `readOnly` is.
+    > Eerst opende één klik, tik of lange druk op de tekst van een artikel in
+    > Lezen de schrijfvraag; op een telefoon zelfs onder de voorbeeldkaart van
+    > een chip. In Bewerken vraagt de eerste aanraking nog steeds, zoals §18b
+    > wil. Bewaakt door `tests/e2e/ronde-65-herstel-schil.spec.ts` (#2).
+
     Verder op de vlakken: *Ongedaan maken* staat in Lezen op alle vier en is
     daar grijs. Op een tekenvlak is er geen FAB, want het vlak heeft zijn eigen
     `+`. Een notitie of punaise die je vanaf de balk van het prikbord maakt,
@@ -5151,6 +5296,26 @@ Eighty-nine rules worth knowing before changing anything:
     als de toets `k`, en `SideToggle` doet de wissel (§57). Het blad sluit bij
     elke routewissel, en de focus gaat terug naar de tab.
 
+    > **Aangevuld in golf H (§102, T2/T3/T7/T12).** Nog steeds acht tabs, nu
+    > elk met een woord, ook *Zoeken* en *Jij*, in gewone schrijfwijze op
+    > 10,5 px (10 px onder 375 px; het was 8,6 px in kapitalen). Onder het
+    > poppetje staat *Jij*, met het saldo op dezelfde regel (*Jij ◎ 18*). Elk
+    > vak is `flex: 1 1 0`, en het label zelf heeft `min-width: 44px`: zo is
+    > elk vak minstens 44 px en krijgt alleen *Landkaarten* de paar pixels meer
+    > die het nodig heeft. Gemeten: op 390 px is elk vak 49 px, op 360 px 44 en
+    > 49. *Kaarten* en *Borden* waren dus niet nodig. De thuisbalk komt bij de
+    > hoogte (`calc(var(--tabs-h) + env(safe-area-inset-bottom))`) in plaats
+    > van eraf. Er is geen blauwe tikflits meer
+    > (`-webkit-tap-highlight-color: transparent` op `html`): een tab is op
+    > `:active` meteen rood en 1 px omlaag. Het rood is `--tab-rood`, de
+    > menging van de stempel (`--stempel-aandeel`), en haalt ≥ 4,5:1 op
+    > `--paper-dark` in alle vier de paletten (`ronde-67-contrast.test.ts`; in
+    > het donker was het 3,8:1). De Jij-tab is actief in heel jouw plek
+    > (`jijIsHere`: `/kamer/*`, `/winkel`, `/spelers*` en `/you`), en een deur
+    > in het Jij-blad zet het teken van de hand op de Jij-tab. De codemarker
+    > van de acht tabs is `§32`, uit de ronde van de tijdlijnen; de tekst over
+    > de tabbalk staat hier.
+
     **Het saldo heeft één luisteraar.** Het getal komt van boven (`purseOf` in
     de layout), en `useShellBeurs` in `components/kamer/ShellBeurs.tsx` houdt het
     live. Dat is nu een hook zonder tekening, één keer gemount in `AppShell`,
@@ -5196,6 +5361,13 @@ Eighty-nine rules worth knowing before changing anything:
     is geen duim, en met 44 px per regel viel *Nieuw artikel* op 1440 × 900
     onder de vouw zodra er drie groepen stonden. `ronde-52-jouw-plek.spec.ts`
     meet dat.
+
+    > **Omgekeerd in golf H (§102, D4).** Op een computer is er geen
+    > Keeperkant-knop met een woord in de hoek meer: de wissel is de schakelaar
+    > `[Spelers | Keeper]` in de mast van de zijbalk (zie het blok bij regel
+    > 46). De strip en de kop van een canvas schuiven dus niets meer op. Op een
+    > telefoon blijft de cirkel van 32 px met zijn rand van 44 px, en de stip
+    > van *Wie is er?* heeft daar nu zelf een raakvlak van 44 × 44 px.
 
     **Wat er níét veranderde:** §18b zelf. Een venster dat nog niets koos,
     krijgt de schrijfvraag bij de eerste schrijfhandeling, en sinds §90 nooit
@@ -5712,6 +5884,31 @@ Eighty-nine rules worth knowing before changing anything:
     dossier en de prullenbak), `tests/unit/ronde-57-woorden.test.ts` en
     `tests/e2e/ronde-57-zoeken-en-beheer.spec.ts`.
 
+    > **Aangevuld in §102 (ronde 65·herstel): de hoek.** De strip met *Wie is
+    > er?* is voor iedereen een even brede float (`margin-right: calc(0.5rem -
+    > var(--page-pad))`, gelijk met de rand van de Keeperkant-knop van §46), dus
+    > de leeskolom van een Keeper is die van een speler. Op een computer krijgt
+    > een Keeper een strook boven de pagina (`--main-pad-t` is de knop plus
+    > 0,6 rem, niet op een tekenvlak); de strip staat eronder en plakt daar
+    > ook. Op een telefoon wordt de strook van de strip zo hoog als de knop
+    > plus zijn raakrand, zodat *Bewerken* en *Nieuw overzicht* eronder
+    > beginnen. De knop blijft op elke breedte zichtbaar. *Verbinden…* staat er
+    > pas na 1,5 s zonder lijn (`CONNECTING_WORD_AFTER_MS`). Open eind: de
+    > breedte van de float hangt af van wie er is, dus de kolom verspringt als
+    > er iemand binnenkomt.
+
+    > **Omgekeerd in golf H (§102, D4/D12/T19).** Op een computer is er geen
+    > knop in de hoek en dus geen strook meer: `--main-pad-t` is voor een
+    > Keeper wat het voor een speler is, en `.canvas-head` houdt geen 12 rem
+    > vrij. De strip blijft een even brede float. Hij plakt niet meer: hij
+    > staat bovenaan de pagina en scrolt mee weg. Alleen op een pagina met een
+    > `.save-state` (er wordt iets bewerkt) plakt hij, als voorwerp op
+    > `--paper` met een haarlijn en `--shadow`. Op een telefoon hangen de
+    > regels voor de hoekknop aan `.shell[data-keeper-hand]`, dat de server
+    > zet, en niet aan de knop, die pas met de hydratatie komt: zo staat de
+    > strook er vóór de knop. Niet op een tekenvlak: daar hangt de strip in de
+    > hoek van de kop (§34).
+
 97. **Een verwijzing in de lopende tekst is een handvat, geen naam.** §97.
     Ronde 58, *Het lek in de lopende tekst*. **Migratie
     `0035_de_lopende_tekst`.** Geen nieuwe tabel en geen verwijderd bestand.
@@ -5733,6 +5930,13 @@ Eighty-nine rules worth knowing before changing anything:
 
     **Wat de lezer ziet.** Een handvat dat de lezer niet mag volgen, tekent
     niets: een lege `a.entry-chip-none`, geen dode chip en geen naam.
+
+    > **Aangevuld in §104 (ronde 67·herstel).** De zin eromheen leest nu ook
+    > netjes: geen spatie vóór een leesteken, geen spatie aan het begin van een
+    > alinea, geen dubbele spatie, en een haakje rond niets gaat mee weg. Dat is
+    > een weergave (`naadPlugin`, decoraties `.naad`, alleen in Lezen, met de
+    > regel uit `lib/wiki/naad.ts`), nooit een wijziging van de opgeslagen
+    > tekst. Zie regel 104.
 
     **Platte tekst.** `body_text`, `notes_text` en `bodyText` dragen het token
     `⟦h⟧`, nooit een naam (`docToText`, met `docText` in
@@ -6025,3 +6229,713 @@ Eighty-nine rules worth knowing before changing anything:
     worktree), `tests/unit/ronde-64-losse-eindjes.test.ts`,
     `tests/e2e/ronde-62-eindjes.spec.ts` en `tests/e2e/ronde-64-meting.spec.ts`
     (die de telling vóór en na meet).
+
+102. **Binnen 100 ms een teken: het bewegingscontract, de hand en het
+    antwoord.** §102. Ronde 65, *De hand en het antwoord*, in drie delen
+    gebouwd (65·a: beweging en meldingen; 65·b: de navigatie; 65·c: de
+    voorbeeldkaart en de omslag) en daarna hersteld na een design-review.
+    Nick: *"Make the site nice and sexy. Get this sucker perfect."* Hij bedoelde
+    het gevoel, binnen de archiefstijl die er al was. Geen migratie en geen
+    verwijderd bestand.
+
+    **De kern.** Binnen 100 ms een teken. Het archief beweegt productief en de
+    kamer expressief. Een toetsenbordactie beweegt niet. Tussen twee waarden
+    van de server mag het scherm bewegen, nooit ervóór. Reduced motion is een
+    crossfade of niets. Het contract zelf staat in `docs/beweging.md`: twee
+    registers, de tokens, tien regels, een tabel "waar welk register geldt" en
+    de uitzonderingen.
+
+    **De tokens** staan één keer op `:root` in `app/globals.css`, gelijk in
+    alle vier de paletten: `--dur-1`..`--dur-5` (70/110/150/240/400 ms),
+    `--ease-standard`, `--ease-enter`, `--ease-exit`, `--ease-expressive`,
+    `--ease-land`, en `--live` (de groene stip voor aanwezig, T1). Elke
+    `transition` en `animation` in `app/*.css` gebruikt ze.
+    `tests/unit/beweging.test.ts` leest elk css-bestand onder `app/`, ook de
+    lagen `navigatie.css`, `kaartje.css`, `moment.css` en `leeskamer.css`, knipt
+    op declaraties en faalt op een losse duur buiten zijn uitzonderingslijst
+    (`EXCEPTIONS`, elk met een reden: de spinner, de canvas-tweens, de
+    landingsring, en de peek op de telefoon als schuld). Hij faalt ook op een
+    `@keyframes`-naam die twee keer voorkomt, over alle bestanden samen.
+
+    **Een blad met een uitgang.** Alleen het kruisje en een tik op de
+    achtergrond spelen hem (`Sheet`, `closeByHand`). Op het eerste moment gaat
+    het blad van de stapel en uit het scroll-slot, gaat de focus terug, en
+    krijgt het `data-closing`, `inert` en `pointer-events: none`. Daarna volgt
+    150 ms `--ease-exit`, en `onClose` na `animationend`, met een vangnet van
+    250 ms (`SHEET_EXIT_NET_MS`). Escape, Enter op het kruisje en een blad dat
+    de ouder weghaalt, zijn meteen weg. Het palet heeft `exit={false}`. De
+    bevestigingsvraag antwoordt in `onLeave`, dus nooit later. §14 blijft
+    staan: de toetsenhandler bindt één keer, ook tijdens het sluiten.
+
+    **Een melding** komt in met 240 ms en gaat uit met 150 ms (`ToastView`).
+    Ze staat 6 s (`TOAST_MS`), of 10 s met een knop (`TOAST_ACTION_MS`), en
+    wacht zolang de muis of de focus erop staat. Een eigen `ms` wint en wacht
+    niet: de koopmelding houdt het venster van de server (§93). `aria-live`
+    staat alleen op de wrapper.
+
+    **Indrukken en hover.** De stempel van `.btn:active` (1 px) geldt ook voor
+    chips, tabs, de vakjes van de zijbalk en een gevulde tegel in de kamer,
+    maar niet in lopende tekst en niet op een tekenvlak (§34/§69). De schaduw
+    loopt nu mee; die sprong eerst bij het loslaten. Hover is kleur in
+    `--dur-2`, en een kaart in een lijst tilt 1 px. Het pijltje van een
+    `<details>` draait in `--dur-2`; de inhoud opent direct.
+
+    **De landingsring** (`plek-aangewezen`) staat één keer, in `kamer.css`: een
+    ring van 2 px in `--stamp-red`, 1,4 s. Hij stond er twee keer, en de tweede
+    (zonder ring) won stil (K1). Onder reduced motion staat hij stil en
+    verdwijnt hij in één keer (`steps(1)`).
+
+    **De online-stip is groen, overal** (T1). `.live-dot-live` en
+    `.spelers-online-stip` gebruiken allebei `--live`. Rood is in dit archief
+    de kleur van stempel en Keeper (§84), niet van aanwezig.
+
+    **Een navigatie zegt binnen 100 ms dat hij loopt**, in drie lagen (65·b).
+    - Het vakje dat je aanklikt (zijbalk, jouw plek, tabbalk) krijgt meteen
+      `data-pending` (`NavPending`, `useLinkStatus`) en tekent zich als actief.
+      `aria-current` blijft waar het was tot de pagina er is: de tekening loopt
+      vooruit, de waarheid niet.
+    - Is een klik op een interne link na 150 ms niet binnen, dan legt
+      `NavProgress` een skelet over de inhoudskolom als de route een vaste vorm
+      heeft (artikel, dossier, wiki-lijst, kamer, winkel, spelerspagina;
+      `skeletonShapeFor` in `components/shell/skeletonShape.ts`), en anders een
+      streep van 2 px in `--accent` bovenaan die kolom. Nooit allebei, nooit op
+      een tekenvlak (§34), niet voor `router.push` uit code (het palet,
+      *Kopen*, *Bekijk*: die hebben hun eigen teken). Na 10 s zonder pagina
+      gaat de streep stil weg.
+    - Het skelet is plat, zonder glans, en bestaat alleen in de browser
+      (`components/shell/Skeleton.tsx`). Er is bewust **geen `loading.tsx`**:
+      een gestreamde grens flitst bij het laden van een document terug over
+      een pagina die er al stond, zet ~200 ms twee pagina's in de DOM, en laat
+      een `#anker` na `router.push` niet landen. Gemeten, niet vergeten; zie
+      `DECISIONS.md`, ronde 65.
+    - Na een navigatie vervaagt de nieuwe pagina in (`nav-page-in`,
+      `--dur-3`, hooguit 4 px), op het opnieuw gemounte wortelelement onder
+      `html[data-navigated]`. Niet bij het laden van een document, niet bij
+      een andere zoekvraag, niet op een tekenvlak. Dit is de fade die de review
+      als ronde 68 voorstelde; een morph komt er niet.
+    - Reduced motion: een vaste streep, een skelet zonder fade, een pagina die
+      alleen in opacity komt (`nav-page-fade`).
+
+    **De voorbeeldkaart is een kaartje dat je kunt pakken** (65·c, J5,
+    WCAG 1.4.13). Een muis rust 500 ms op een chip voor hij komt
+    (`PREVIEW_DELAY_MOUSE`); een vinger drukt 450 ms lang. Wie de chip verlaat,
+    heeft 250 ms om de kaart te bereiken (`PREVIEW_GRACE`), en daar blijft hij
+    staan. Op de kaart staan de omslag of het soort-icoon, de naam, de soort
+    als stempel, drie regels beschrijving en *Openen →* naar `/e/<slug>`. Een
+    druk ernaast, een scroll, een navigatie of Escape (alleen gehoord zolang
+    hij open is, en alleen deze laag) haalt hem weg. Hij komt met een fade van
+    `--dur-2` en gaat direct. Zolang de muis nog op de chip staat, laat de
+    kaart klikken door (`data-reach="nee"`).
+
+    **De omslag heeft zijn cirkel terug** (65·c, J9). Sinds §57 is omslaan een
+    volle navigatie, en de cirkel speelde niet meer. Nu doet elke pagina mee
+    aan cross-document view transitions (`@view-transition` in
+    `app/kaartje.css`), maar het inline script in de `<head>` van
+    `app/layout.tsx` (`FLIP_SCRIPT`, `components/keeper/flipRoad.ts`) slaat elke
+    overgang over, tenzij een hand de knop indrukte en de oude pagina vlak vóór
+    `location.assign` een verse notitie `lw:flip` (`{x, y, at}`, jonger dan
+    3 s) in `sessionStorage` legde. De `k`-toets, `>` in het palet en Enter op
+    de knop schrijven niets: een toetsenbordactie beweegt niet. De overgang
+    gaat door de 303 van `/api/keeper/flip` heen, want de hele weg is
+    same-origin. De cirkel groeit 550 ms (`--dur-5` + `--dur-3`,
+    `--ease-enter`) uit het midden van de knop terwijl de oude kant stil ligt;
+    `mix-blend-mode: normal` op beide snapshots. Ook de knop in het Jij-blad
+    krijgt de cirkel. Firefox heeft geen cross-document transitions en krijgt
+    een gewone navigatie, net als reduced motion.
+
+    **Wat niet gebroken mag worden.**
+    - Een nieuwe `transition` of `animation` gebruikt een token. Een echte
+      uitzondering staat in `EXCEPTIONS` én in `docs/beweging.md` §6.
+    - Een toetsenbordactie beweegt niet: Escape, `/`, `n`, `k`, het palet,
+      Enter op een knop.
+    - Alleen `transform` en `opacity`, en de uitgang is korter dan de ingang.
+    - Het skelet komt pas na 150 ms, nooit op een tekenvlak, en er komt geen
+      `loading.tsx` terug zonder eerst de mount-updates van de schil in
+      `startTransition` te zetten.
+    - `aria-current` volgt de pagina, niet de klik.
+    - Alleen de omslag krijgt een pagina-overgang. Niemand anders dan
+      `SideToggle.flip()` met een aanwijzer schrijft `lw:flip`, en er komt geen
+      tweede inline script bij.
+
+    **Wat er níét veranderde:** §14 (een blad bindt één keer), §34/§69 (het
+    glas beweegt voor de hand), §79 (deze ronde telt geen getal; de saldo-rol is
+    §103), §93 (het venster van *Ongedaan maken*).
+
+    De proef staat in `tests/unit/beweging.test.ts`,
+    `tests/unit/ronde-65-navigatie.test.ts`, `tests/unit/ronde-65-omslag.test.ts`,
+    `tests/e2e/ronde-65-beweging.spec.ts`, `tests/e2e/ronde-65-navigatie.spec.ts`
+    en `tests/e2e/ronde-65-kaartje-omslag.spec.ts`. De gevoelsmeting (G1) is
+    `scripts/meet-gevoel.mjs <poort>`.
+
+    **Herstel na de review (ronde 65·herstel, de schil).**
+    - **Paginanavigatie.** Een navigatie begint bij opacity 0,6, niet bij 0
+      (`nav-page-in` en `nav-page-fade` in `app/navigatie.css`). Een leeg frame
+      tussen twee pagina's is geen overgang maar een flits.
+    - **De achtergrond van een blad** komt met het blad mee (`sheet-shade-in`,
+      `--dur-4`, alleen opacity). Hij gaat weg op `--ease-standard` en niet op
+      de uitgangscurve: die eindigt op volle snelheid, dus met een tik. Het
+      palet heeft geen achtergrond-animatie (`.palette-backdrop
+      { animation: none }`, regel 2).
+    - **De FAB.** Op een telefoon wijkt de FAB op een leespagina (`/e/…` in
+      Lezen, `/c/…`, `/wiki…`) zolang de duim naar beneden scrolt: uit in
+      `--dur-3`, terug in `--dur-4`, met een drempel van 8 px
+      (`FAB_SCROLL_SLOP`) en één rAF per frame (`useFabAway` in `AppShell`).
+      Weg betekent ook geen tabstop (`tabIndex=-1`, `aria-hidden`). Zolang er
+      een melding staat, klimt de FAB boven de stapel (`--toast-stack`,
+      gemeten in `UiProvider`).
+    - **Melding en plakkende voet.** Een melding ligt nooit op een plakkende
+      voet van §85. Een pagina met zo'n voet zet `--voet-h`, en `.toast-wrap`
+      komt zoveel hoger te staan.
+    - ***Verbinden…*** staat pas in de strip na `CONNECTING_WORD_AFTER_MS`
+      (1,5 s) zonder lijn. Daarvóór is de stip neutraal en zonder woord, want
+      elke volle lading begint op `connecting`.
+    - **In Lezen vraagt niets** (§18b, zie ook regel 90): `RichEditor`,
+      `FieldsEditor`, `LiveField` en `ShortField` zetten de schrijfvraag alleen
+      neer op een vak dat je echt kunt bewerken.
+    - **De hoek van de Keeper** (§46/§96): de strip is voor iedereen een even
+      brede float, en een Keeper krijgt een strook boven de pagina voor zijn
+      knop. Zie het blok bij regel 96.
+    - Het palet laat lege groepen weg. *Verras me* en *Nog één* dragen het
+      icoon `dice`.
+
+    De proef van het herstel staat in `tests/e2e/ronde-65-herstel-schil.spec.ts`.
+
+    **Aangevuld in golf H (h1, de schil, na design-review 3).** Geen migratie
+    en geen verwijderd bestand; wel één nieuwe route,
+    `app/(app)/[...rest]/page.tsx`.
+    - **De Keeperkant is op een computer een schakelaar in de mast** (D4).
+      Vanaf 768 px staat `SideToggle variant="mast"` in het naambord van de
+      zijbalk, op de plek van de stempel KEEPERKANT: één knop `[Spelers |
+      Keeper]`, klasse `.side-switch`, nog steeds `data-testid="side-toggle"`.
+      De kant waar je staat ligt verhoogd, met het schildje; op de Keeperkant
+      draagt de Keeper-helft `data-testid="masthead-side"`. `AppShell` rendert
+      precies één toggle (`useIsPhone`): op een telefoon blijft de ronde knop in
+      de hoek (§46), plus `jij-flip`. De cirkel (`--flip-x/y`) begint op het
+      midden van de helft waar de hand heen gaat; het plaatje schuift er in
+      `--dur-3` naartoe terwijl het document al onderweg is. Weg op een
+      computer: de strook van 36 px boven elke Keeperpagina, de extra marges
+      van de strip en `.canvas-head { padding-right: 12rem }`. De regels voor de
+      hoekknop op een telefoon hangen aan `.shell[data-keeper-hand]` (door de
+      server gezet), niet aan de knop, zodat de strook er vóór de hydratatie
+      staat. `k` en `>` in het palet werken als voorheen, zonder cirkel.
+    - **Eén paginaraster** (D5). `.page` en `.page-wide` staan links, op
+      `--page-pad` naast de zijbalk (`margin: 0 auto 0 0`), niet gecentreerd;
+      een smalle pagina is alleen smaller. Gemeten: op 1440 en 1920 begint elke
+      pagina op x = 252. De kop springt niet meer opzij bij een klik in de
+      zijbalk.
+    - **Elke interne link antwoordt binnen 100 ms** (D3, T7). `NavProgress`
+      luistert in de capture-fase op `document` en zet `data-pending` op de
+      link zelf; op een deur in het Jij-blad draagt de Jij-tab het, want het
+      blad is weg voor de klik uitgebubbeld is. Zodra de pagina er is, gaat het
+      weg, in dezelfde commit. `app/navigatie.css` tekent het per vorm, onder
+      "de hand op elke link": een kaart blijft 1 px ingedrukt met een lijn van
+      2 px `--accent` bovenaan, een knop blijft ingedrukt, en een rij, chip,
+      feedregel of naam in de tekst krijgt `--paper-dark`, zonder beweging.
+      Wat `startsNavigation` weigert (een bewerkbaar vak, een tekenvlak, een
+      `#`, `/api`), weigert het nog steeds.
+    - **De tabpagina's hebben een skelet** (T7): `rows` (prikborden,
+      landkaarten, tijdlijnen, stambomen), `cases`, `hal` (`/spelers`) en
+      `voordeur` (`/` en `/wiki`), in `skeletonShapeFor`. Nog steeds geen
+      `loading.tsx`.
+    - **De Jij-tab is actief in jouw plek** (`jijIsHere`, T7): `/kamer/*`,
+      `/winkel`, `/spelers*` en `/you`. In de zijbalk wint van de deuren van
+      jouw plek alleen de langste overeenkomst (`currentDoor`, D18), dus op je
+      eigen spelerspagina is alleen *Mijn spelerspagina* actief. Beide in
+      `components/shell/jouwPlekPad.ts`.
+    - **De tabbalk** (T2, T3, T12): een woord per tab, 10,5 px, elk vak
+      ≥ 44 px, de thuisbalk erbij, geen tikflits, `--tab-rood`. Zie het blok
+      bij regel 91.
+    - **De FAB** (T4) wijkt bij naar beneden scrollen op elke pagina, niet
+      alleen op een leespagina. Hij staat niet op `.kamer-page` en `.you-page`,
+      en niet zolang *Wie is er?* open is (`.roster-pop`), in hetzelfde
+      `:has()`-rijtje als `/winkel` en `/uitdelen`.
+    - ***Wie is er?*** (D12, T19) plakt niet meer: de strip staat bovenaan en
+      scrolt weg. Alleen op een pagina met een `.save-state` plakt hij, als
+      voorwerp met papier en schaduw. Op een telefoon is de knop zelf 44 × 44
+      px, met een negatieve marge, zodat de strook niet hoger wordt.
+    - **Een onbekend adres is een 404 in de schil** (D2, T13):
+      `app/(app)/[...rest]/page.tsx` is `await requireViewer(); notFound();`.
+      Een gevonden route wint altijd van een catch-all. De 404 is een fiche met
+      een schuine stempel *Niet in het archief* (`.niet-gevonden`), links op de
+      paginarand, en al zijn woorden staan in `lib/words.ts` (`notFound*`).
+      `live-everywhere.test.ts` kent de vorm "een pagina die alleen
+      `notFound()` is".
+    - **Het palet** (D25): een groep zonder rijen heeft geen kop. Zonder
+      uitkomst staat er *Niets gevonden voor ‘…’ — Enter zoekt in alles*
+      (`paletteNothingFor`), na `>` *Geen handeling heet ‘…’.*
+      (`paletteNoActionFor`). De gekozen rij ligt op `--paper-dark` met het
+      rode streepje van de zijbalk.
+    - **Aanraakschermen** (T18, T24): `/search` noemt geen `/` maar zegt *Typ
+      om te zoeken.*, en een tekenvlak zegt *sleep om te schuiven, knijp om te
+      zoomen*, in dezelfde regel als de telling, zodat het glas zijn hoogte houdt
+      (`canvas-fills-the-screen`). Beide zinnen staan in de HTML; `(hover: none) and (pointer:
+      coarse)` kiest. De titel van een tekenvlak breekt af met "…".
+    - **Kleine raakvlakken** (T23): *Waarom?* op `/you` en de kamerlinks op
+      `/spelers` krijgen op een telefoon 44 px, met padding en een negatieve
+      marge, zodat het ritme blijft.
+    - **Reduced motion** (T25): de achtergrond van een blad staat meteen vol en
+      alleen het blad vervaagt; bij sluiten blijft de achtergrond tot het blad
+      weg is. De tekst van het blad en die van de pagina lopen niet meer door
+      elkaar.
+
+    De proef staat in `tests/unit/golf-h1-schil.test.ts` en
+    `tests/e2e/golf-h1-schil.spec.ts`.
+
+
+    **Golf h4 (na de volle suite).**
+    - De + wijkt alleen voor een scroll van de hand. Er moet binnen 700 ms een
+      `touchmove`, `wheel` of `keydown` aan voorafgaan.
+    - Een melding pauzeert alleen voor een muis, nooit voor een vinger.
+    - Een melding staat bovenaan zolang er een blad of een `CanvasPeek` open
+      is, en op `/uitdelen`, waar de voet bij een korte lijst midden op het
+      scherm kan staan. Een sluitend blad telt daarbij niet mee.
+    - Een scheidingsteken dat met `::before` getekend wordt, draagt
+      `content: '·' / ''`, zodat het geen deel wordt van de naam van een link.
+103. **Het geld klinkt: een koop, een gift en een plek die opengaat hebben een
+    moment, en het scherm rekent nog steeds niet.** §103. Ronde 66, *Het geld
+    klinkt*, en daarna hersteld na een design-review. Geen migratie en geen
+    verwijderd bestand; de migratieteller blijft op 0037.
+
+    De review liet twee vragen open voor Nick: vieren, en geluid. De
+    coördinator besliste ze zoals de review adviseerde, niet Nick zelf:
+    **vieren ja, *Ingericht* één keer per kamer; geluid
+    gebouwd, standaard uit.** De kamer, de winkel en de uitdeling zijn het
+    expressieve register van `docs/beweging.md`. Daar mag iets landen, rollen
+    en neerkomen, met `--dur-4`/`--dur-5` en `--ease-land`. Elders in het
+    archief blijft het productief.
+
+    **Het neerzetten speelt één keer per plaatsing.** Het beeld van het ding
+    (de omslag, of sinds T2 het icoon van de plek) komt 12 px van boven met een
+    schaal van 0,96. Het landt in 400 ms, en `--ease-land` schiet zelf een paar
+    pixels door. De tegel draagt 1,4 s een ring. Een render weet niet of iets
+    net gebeurde, dus de handeling zegt het. De koopknop, *Neerzetten* en
+    *Hierheen* laten een briefje achter in `sessionStorage` (`markLanding` in
+    `components/kamer/moment.ts`). De tegel die met die plek en dat ding
+    verschijnt, neemt het mee (`Neerzetten`). Een refresh, herladen of een
+    live-update van een ander vindt geen briefje en blijft stil. Wie in de
+    winkel koopt en later naar de kamer gaat, ziet het daar alsnog landen,
+    binnen een kwartier (`MARK_TTL_MS`). Onder reduced motion is er de ring
+    zonder val.
+
+    **Kopen reageert in de tekening, en de waarheid blijft van de server.**
+    Binnen één frame zegt de knop *Gekocht*, met een stempel die neerkomt
+    (240 ms). Een weigering zet de knop terug met de zin van de server. De
+    naam van de onderzoeker staat alleen op de knop als je er meer dan één
+    draagt én de kiezer buiten beeld is (`useKiezerInBeeld`). De hele zin van
+    §90 blijft de toegankelijke naam. Na een koop zegt de rij één ding,
+    *Staat in je kamer · Bekijk*, en *Bekijk* springt naar de tegel
+    (`ShopItem.ownedSlotId`). Wie het ding al heeft, krijgt geen zin over een
+    vrije plek meer. `data-entry-id` staat in de winkel en de catalogus op de
+    naam en niet op de rij: anders sprong de voorbeeldkaart op boven de
+    koopknop (E18).
+
+    **Het saldo rolt tussen twee serverwaarden.** `SaldoGetal` telt in
+    ongeveer 500 ms van het vorige getal dat de server gaf naar het nieuwe, in
+    de zijbalk, op de Jij-tab en in `Beurs`. Het voorspelt niets en telt niets
+    op. Een koop die mislukt, verandert het getal niet. Naast het getal staat
+    1,5 s een chip met het verschil: groen (`--live`) voor erbij, gedempt voor
+    eraf, nooit rood. Een eerste render beweegt niet. Onder reduced motion
+    staat het getal er meteen en blijft de chip. `beurs-tel` (§84) is uitgezet:
+    `.beurs-body { animation: none }` in `app/moment.css`.
+
+    **Een gift van de Keeper wordt gezegd.** `purseOf` geeft de nieuwste
+    positieve `grant` mee die niet van de kijker zelf komt (`lastGrantOf`).
+    `useShellBeurs` toont bij een nieuw `id` één melding, *+12 munten van de
+    Keeper — Voor sessie 13*, met *Naar de kamer*. Dat gebeurt niet bij de
+    eerste render en niet opnieuw na herladen: het gemelde `id` staat in
+    `sessionStorage`. De Keeper ziet in de uitdeler naast elke aangevinkte rij
+    *+5* opkomen, gespreid met 40 ms per rij en hooguit tien rijen.
+
+    **Vieren is zeldzaam.** Bij de eerste koop ooit in een kamer komt er één
+    keer *Ingericht* schuin op de tegel neer (600 ms, daarna 2,5 s liggen en
+    vervagen). `buyFurnishing` telt de `item`-regels in het grootboek, in
+    dezelfde transactie, en geeft `first` terug. ~~Een teruggedraaide eerste
+    koop telt mee, dus er komt nooit een tweede.~~ Sinds golf H telt een
+    teruggedraaide koop niet mee: het is de eerste **netto** koop (D31, zie
+    hieronder). Een plek die opengaat, draait zijn
+    slotje open en laat een zachte ring achter (`markUnlock`). Er gebeurt niets
+    bij opslaan en niets bij een gewone koop.
+
+    **Geluid is opt-in, per browser.** *Geluid in de kamer* op `/you` staat
+    standaard uit en wordt bewaard in `localStorage` (`KlankSchakelaar`). Er
+    zijn vier klanken van minder dan 300 ms, gesynthetiseerd met Web Audio,
+    zonder bestanden (`lib/sound/recipes.ts`, `lib/sound/klank.ts`): een munt
+    bij een gift, een tik bij neerzetten en verplaatsen, een stempel bij
+    kopen, een sleutel bij openen. Er is één `AudioContext` per tab, pas
+    gemaakt bij een gebaar, en geen enkele als het geluid uit staat. De munt
+    van een binnenkomende gift klinkt alleen als die context al loopt. Nooit
+    bij navigatie, typen of opslaan.
+
+    **Wat niet gebroken mag worden.**
+    - Een moment in de kamer is een briefje van de hand (`markLanding`,
+      `markUnlock`), nooit een vergelijking met de vorige render.
+    - Een getal op het scherm beweegt alleen van het ene antwoord van de
+      server naar het volgende (`SaldoGetal`). Er komt geen `key={balance}`
+      terug en de browser telt niets op.
+    - De chip bij het saldo is nooit rood (§84).
+    - Geluid staat uit tot iemand het aanzet, en klinkt alleen bij kopen,
+      neerzetten, openen of een gift.
+    - In de winkel en de catalogus draagt alleen de naam `data-entry-id`.
+
+    **Wat er níét veranderde:** rule 78 en §79. Een saldo is de som van het
+    grootboek, en een getal op het scherm beweegt alleen van het ene antwoord
+    van de server naar het volgende. Een plaatsing door een ander landt bewust
+    zonder beweging. De proef staat in
+    `tests/unit/ronde-66-het-geld-klinkt.test.ts` en
+    `tests/e2e/ronde-66-het-geld-klinkt.spec.ts`.
+
+    **Herstel na de design-review (ronde 66·herstel, winkel en kamer).**
+    - **Eén prijs per rij.** In de winkel staat de prijs één keer: de stempel ís
+      de prijs. De knop zegt wat hij doet (*Kopen → bureau*, `buyShort`). De
+      toegankelijke naam draagt de prijs nog (§90). Dit vervangt de korte knop
+      *Kopen · 2 → bureau* van ronde 66.
+    - **Eerst een plek openen.** Als er eerst een plek open moet, is dat één
+      knop: *Eerst een kist openen (5), dan 4* (`shopOpenFirst`).
+    - **Rood is wat je nú kunt doen.** Dat zijn de prijs van wat je kunt kopen
+      of openen, en de knop. Al het andere is een rustige stempel in inkt
+      (`.winkel-prijs-rustig`, `.plek-prijs-rustig`).
+    - **Gekocht.** *Gekocht* ligt op papier (`transition: none`). Het blijft
+      liggen tot de stempel geland is, plus `--dur-5` (`holdBeforeRefresh`). De
+      koopknop houdt daarvoor de live-verversing vast met een §59-hold, anders
+      ververst `LivePage` de rij toch na 150 ms. In `.winkel-owned` blijft
+      daarna een kleine stempel *Gekocht* staan, ook voor huisraad dat de
+      Keeper in de lade legde.
+    - **De werkbalk van een tegel.** De etiketregel van een tegel is ook zijn
+      werkbalk (`.plek-kop` / `.plek-werkbalk`). Daarin staan *Verplaatsen* en
+      ×, met een raakvlak van 44×44 en 28 px getekend. *Ingericht* ligt op het
+      beeld, onder de werkbalk.
+    - **Verplaatsen** staat er alleen als er een open, lege plek is waar het
+      ding past (`canMoveAnywhere`).
+    - **Landen.** Een tegel die landt, houdt `scroll-margin-block: 6rem 5rem`.
+      Klapt op een telefoon het blok erboven na de sprong dicht, dan zet
+      `EffectenFold` de tegel terug in beeld.
+    - **Iconen.** Een muur is `frame`, een kist is `chest`. Een plek draagt
+      nooit het icoon van een soort.
+    - **Deuren.** De deuren tussen winkel en kamer zijn allebei een
+      `.btn-small` met een icoon.
+    - **`/you`.** Vanaf 768 px hebben de voorkeuren één labelkolom van 10rem.
+      Onder *Geluid in de kamer* staat de zin `soundHint`.
+
+    De proef van het herstel staat in `tests/unit/ronde-66-herstel.test.ts` en
+    `tests/e2e/ronde-66-herstel.spec.ts`.
+
+    **Aangevuld in golf H (h2, de economie, na design-review 3).** Geen
+    migratie en geen verwijderd bestand.
+    - **De kop van de kamer** (D29, T16). Eén regel in inkt: *Kamer van Dr.
+      Elsje Kramer* (`roomHeading`). De naam is nog steeds de deur naar het
+      artikel (`kamer-onderzoeker`), onderstreept alleen onder muis of focus,
+      met een klein icoon (`MEANING.artikel`) dat niet los van het laatste
+      woord breekt. Eronder één regel (`.kamer-kop-rij`): de wissel tussen je
+      eigen kamers als één segmentrij (`.kamer-wissel`, op een telefoon
+      gedeeld, met afgekapte namen) en het saldo met *Naar de winkel*.
+    - **Dichte plekken staan apart** (T11, D7). `DichtePlekken` zet ze onder
+      het raster, onder het etiket *Op slot* (`kamer-dicht`), in een eigen
+      raster met een korte rijhoogte (`.kamer-grid-dicht`): etiket, één stempel
+      met de prijs, en *Openen* zonder bedrag (`UnlockButton bare`; de prijs
+      staat nog in de toegankelijke naam). Geen regel *Op slot* en geen groot
+      slot meer per tegel. Op een telefoon is van elke soort alleen de
+      eerstvolgende een tegel; de rest (`data-rest`) staat achter één regel met
+      een vouw (`kamer-dicht-vouw`), *Nog 6 plekken op slot · 8 tot 30
+      munten* (`lockedRestLine`). Op een breed scherm staan ze allemaal, zonder
+      vouw.
+    - **Het etiket van een tegel wordt nooit afgekapt** (D20, T20). Het woord
+      neemt zijn eigen breedte; de werkbalk tekent 1,6 rem per knop. De knop
+      zelf blijft 44 × 44, maar vangt de vinger alleen met zijn `::after`, naar
+      buiten toe, zodat twee raakvlakken nooit overlappen.
+    - **De winkel** (D7, D8, T17). *Kopen → plek* is een inktknop (`.btn`),
+      rood pas onder muis of focus; de stempel draagt het rood. Het label
+      verandert niet meer bij scrollen: met meer onderzoekers staat de koper
+      één keer in een plakkende pil (`KoperKop`, *Kopen voor Dr. Elsje Kramer ·
+      ◎ 32*) zodra de kiezer uit beeld is. Die pil heeft hoogte 0 in de flow,
+      dus er verschuift niets. *Eerst bureau openen · 12* staat op één regel
+      (`shopOpenFirstShort`) en de actiecel heeft een minimale hoogte: de lijst
+      zakt niet meer na een koop. In de catalogus van de plek-kiezer staat de
+      prijs één keer, op de stempel, en zegt de knop *Kopen*.
+    - **Verplaatsen** (D8b). De balk *Kies een plek voor…* zweeft onderaan het
+      venster, boven de meldingen, zodat het raster stilstaat terwijl je kiest;
+      op een telefoon links boven de tabbalk.
+    - **Het saldo rolt in hetzelfde moment als de melding** (T8). `buy`,
+      `unlock`, `terug` en `uitdelen` geven de nieuwe balans mee, in de
+      transactie gelezen; de knop roept `announceBalance(kamer, balans)`
+      (`components/kamer/saldo.ts`) en elk `SaldoGetal` van die kamer rolt
+      ernaartoe. Alleen de *rij* in de winkel wacht nog tot na de stempel.
+      Nog steeds alleen tussen twee serverwaarden: een aankondiging geldt
+      zolang de prop van boven gelijk is aan wat hij was toen ze kwam
+      (`shownBalance`). `SaldoGetal` zonder `room` volgt de schil
+      (`setShellRoom` in `useShellBeurs`); `Beurs` geeft altijd een `room` of
+      `null`, zodat de beurs van een ander nooit het getal van jouw kamer
+      krijgt. De chip staat in élke beurs binnen de pil, op de plaats van
+      *munten* (D11).
+    - **Meldingen** (D9, T6, T15). `toast()` heeft een `key`: dezelfde sleutel
+      vervangt de vorige melding op haar plek (zelfde doos, zonder uitgang en
+      ingang, klok opnieuw). Kamermeldingen dragen `ding:<id>` (`toastKeyOf`)
+      of `plek:<id>`. Er staan er hooguit twee (`TOAST_MAX`, `nextToasts`); de
+      oudste gaat met haar gewone uitgang. Een nieuw blad sluit de lopende
+      meldingen, en wat er tijdens een blad komt, staat bovenaan het scherm en
+      niet over het blad. Na verplaatsen: *X verplaatst naar de plank.*
+      (`movedTo`).
+    - **Munten van de Keeper zijn `toast-munt`** (D10). Links een stempel
+      *+20*, in `--live` gemengd met papier, die in `--dur-5` op `--ease-land`
+      neerkomt (stil onder reduced motion); dan de regel *munten van de
+      Keeper* (`grantMuntLine`), de reden cursief, *Naar de kamer*, 10 s en
+      stil onder de muis. De hele zin staat er visueel verborgen in, voor een
+      schermlezer. Twee giften kort na elkaar tellen op in één melding
+      (sleutel `munt:keeper`) en de stempel komt opnieuw neer: een optelling
+      van meldingen, niet van een saldo.
+    - **Uitdelen** (D15, T14). De melding zegt *20 munten naar Dr. Elsje
+      Kramer* of *40 munten naar 2 kamers* (`handoutDoneOne`/`Many`, het bedrag
+      van de server). Elke rij rolt naar haar nieuwe balans uit het antwoord
+      (`handOut` geeft `balances` per kamer), met de chip *+20*. De deur naar
+      de spelers staat één keer, naast de kop (niet in de `<h1>`, niet in de
+      voet). Elk label staat boven zijn vak, en in elk bedragvak staat
+      *munten* als achtervoegsel.
+    - ***Ingericht*** (T21, D31) komt ná de landing: eerst `--dur-5` wachten,
+      dan in `--dur-4` × 1,25 neerkomen, samen 700 ms; op de rechterrand van
+      het beeld en niet over het ding. En het geldt voor de eerste **netto**
+      koop: `buyFurnishing` telt `item` min `return` in het grootboek van die
+      kamer. Dit keert de zin "een teruggedraaide eerste koop telt mee, dus er
+      komt nooit een tweede" om: na *Ongedaan maken* kan *Ingericht* nog één
+      keer komen. Liever dat dan de mijlpaal nooit.
+    - Een echt minteken (U+2212) en `tabular-nums` in het grootboek (T22);
+      *Bekijk* heeft 44 px (T23); een icoon in een `.btn` krimpt nooit (D19);
+      het feed zegt *opende een plek in de eigen kamer* zonder de naam nog
+      eens (`feedRoomOpenedOwn`, `roomFeedPhrase` → `bare`, D26).
+    - De plek-kiezer zet op een aanraakscherm geen caret in het zoekvak, en
+      toont dat vak daar pas vanaf acht dingen (`PICK_SEARCH_FROM`, T5).
+
+    De proef staat in `tests/unit/golf-h2-economie.test.ts` en
+    `tests/e2e/golf-h2-economie.spec.ts`.
+
+104. **De leeskamer: de wiki is een plek om te lezen en te ontdekken, en
+    niets erin lekt.** §104. Ronde 67, *De leeskamer*, en daarna hersteld na
+    een design-review. Geen migratie en geen verwijderd bestand.
+
+    Twee vragen uit de review zijn door de coördinator beslist, zoals de review
+    adviseerde: **vaste blokken onder het overzicht, ja**, en **het woord bij
+    *Leden*: samenvoegen, niet hernoemen** (L9, de minst verrassende
+    oplossing).
+
+    **De voorpagina** (`/wiki`). Het overzicht van de Keeper blijft bovenaan en
+    blijft van hem (§75/§87). Daaronder staan drie vaste blokken (`Leeskamer`
+    in `app/(app)/wiki/page.tsx`, de lezingen in `lib/wiki/leeskamer.ts`). Alle
+    drie zijn een lijst in de zin van §46: eerst `visibleEntryCondition`, dan
+    `sideCondition`.
+    - *Uit het archief*: één artikel via `randomEntry`, met *Nog één*. Dat is
+      de server action `anotherFromTheArchive`: hij sluit het getoonde artikel
+      uit en je blijft op de pagina.
+    - *Onlangs bijgewerkt*: zes fiches uit de nieuwste versie per artikel
+      (`recentlyUpdated`). Wie het deed is het karakter uit de versie
+      (`attributed`, §11). Voor een speler telt geen Keeper-tijdperk mee
+      (§89/§65, dezelfde `IS NOT 'keeper'` als `listRevisions`).
+    - *De soorten*: tegels uit `countEntriesPerType`.
+
+    **Willekeurig.** `/wiki/willekeurig` stuurt door naar `randomEntry(viewer)`:
+    alleen wat de kijker mag zien, van de kant waar hij staat. `randomEntry` is
+    de enige kiezer. *Verras me* in het palet (`paletteActions`, key
+    `surprise`) en *Nog één* vragen hem ook. `willekeurig` staat in
+    `RESERVED_WIKI_SLUGS`.
+
+    **Genoemd in, met de zin.** Onder elke bron staat het fragment waarin dit
+    artikel genoemd wordt: `snippetAround` in `lib/wiki/snippet.ts`, ongeveer
+    120 tekens (`SNIPPET_WIDTH`).
+    - De eigen naam staat vet.
+    - Andere handvatten gaan door `resolveHandles`, of worden niets.
+    - Het venster wordt pas ná het weglaten geknipt, op een zins- of
+      woordgrens, met `…`. Zo verraadt de lengte van een verborgen naam niets.
+
+    Er is geen tweede weg. `listMentions` en `getBacklinks` beslissen nog
+    steeds wie er staat. `listMentions` geeft nu ook `sectionId` mee.
+    `mentionTexts` en `backlinkTexts` lezen per id alleen de teksten van
+    bronnen die al teruggegeven waren (`mentionSentences` in
+    `lib/wiki/genoemd.ts`). De weergave is de servercomponent `MentionedIn`:
+    citaten per groep, met bovenaan *In artikelen* de artikelen die hier in
+    hun tekst naar linken. Het is een lijst citaten, geen kaartenraster meer.
+
+    **In Lezen.**
+    - Onder de lead staat *Bijgewerkt door {karakter} · {wanneer} · n
+      versies*. Het komt uit de nieuwste versie die deze lezer krijgt en linkt
+      naar de geschiedenis.
+    - Zonder eigen kop staat er geen `h2` *Tekst*. De inhoudsopgave houdt haar
+      item.
+    - Kop-ankers (`HeadingAnchors`, `lib/wiki/anchors.ts`) liggen als een laag
+      over `.entry-main`: in de eigen DOM van ProseMirror zou een id worden
+      weggetekend.
+      - Het id komt uit de koptekst, wordt uniek gemaakt met `-2`, en neemt
+        nooit een id dat de pagina al gebruikt.
+      - Een klik kopieert `…/e/slug#kop` en meldt *Link gekopieerd*.
+      - Een hash bij het laden springt naar de kop.
+    - Onder 1280 px is de omslag de liggende uitsnede, hooguit 40 % van de
+      hoogte. Een tik opent de lichtbak.
+    - `.prose` is 17 px met regelafstand 1,6 en `max-width: 68ch`. De
+      tekstafstand van WCAG 1.4.12 knipt niets af; een e2e-spec toetst dat.
+    - Zonder ingevuld feit en zonder omslag is er geen infobox, en de tekst
+      neemt de zijkolom.
+    - Op een telefoon toont de dichte infobox drie feiten (links eerst), en
+      scrollen de handelingen in één rij opzij.
+
+    **Eén woord, één antwoord** (L9). Een afgeleid blok met dezelfde kop als
+    een koppelingsveld van de soort neemt wat in dat veld staat erbij
+    (`twinFieldOf` in `lib/pageBlocks.ts`, `listLinkedEntries`), met de regel
+    *Met wie in het veld {veld} staat.* Er wordt niets opgeslagen en geen titel
+    veranderd. Wie ze los wil, geeft een van de twee een andere naam. Zie het
+    blok bij regel 51.
+
+    **Wat niet gebroken mag worden.**
+    - Elk blok op de voorpagina is een lijst: `visibleEntryCondition` en dan
+      `sideCondition`. Het overzicht erboven blijft van de Keeper.
+    - `randomEntry` is de enige kiezer. Er komt geen tweede
+      `ORDER BY random()`.
+    - Een fragment gaat altijd door `snippetAround`: eerst weglaten, dan
+      knippen. *Genoemd in* leest alleen bronnen die `listMentions` en
+      `getBacklinks` voor deze lezer al teruggaven.
+    - Een kop-anker leeft naast ProseMirror, nooit erin (§20).
+    - *Onlangs* en *Bijgewerkt door* komen uit de versies, niet uit het feed,
+      en zijn voor een speler zonder Keeper-tijdperk.
+
+    **Wat er níét veranderde:** §46 (een lijst filtert op kant, een opzoeking
+    niet), §75/§87 (de voordeur is het overzicht van de Keeper), §97 (een
+    handvat dat je niet mag zien is niets). De proef staat in
+    `tests/unit/ronde-67-leeskamer.test.ts` en
+    `tests/e2e/ronde-67-de-leeskamer.spec.ts`.
+
+    **Herstel na de review (ronde 67·herstel: lezen, de wiki en contrast).**
+
+    **De naad** (§97/§104). Wat een lezer niet mag zien is niets, maar de zin
+    eromheen moet wel netjes lezen. Dat regelt één pure regel in
+    `lib/wiki/naad.ts` (`naadSneden`, `naadTekst`):
+    - geen wit aan het begin of eind van een alinea;
+    - geen spatie vóór `, . ; : ! ? ) ] …`, en geen spatie na `( [`;
+    - een haakje dat alleen het gat omsluit, gaat mee weg;
+    - twee scheidingstekens worden er één;
+    - verder blijft precies één spatie over: de eerste.
+
+    De uitkomst zijn stukken om weg te laten, nooit nieuwe tekst. In de lopende
+    tekst zet `naadPlugin` (`components/editor/EntryLink.ts`) decoraties met
+    klasse `.naad`. Die verdwijnen alleen in een read-only editor
+    (`app/leeskamer.css`). Het document en de kamer veranderen niet, en de
+    Keeper leest de naam. Dezelfde regel geldt in `MentionText` (korte vakken),
+    `ShortEditor`, `plainShort`, `snippetAround`/`projectForSnippet` en
+    `closeGaps`. Alleen `closeGaps` raakt opgeslagen tekst, en alleen waar een
+    link echt wegvalt.
+
+    **Soortkleur op kleine tekst.** `.chip-soort`, `.soort-inkt` en
+    `.leeskamer-soort` mengen `color-mix(in oklab, var(--soort)
+    var(--soort-aandeel), var(--ink))`, met 70 % in licht en 45 % in donker.
+    `.stamp` mengt `--stempel-aandeel` (100 % licht, 62 % donker) met
+    `--stempel-dekking` (0,9 licht, 1 donker). `tests/unit/ronde-67-contrast.test.ts`
+    leest die getallen uit `globals.css` en eist ≥ 4,5:1 voor elke soortkleur
+    uit de seed, in alle vier paletten.
+
+    **Lege blokken.** Een lege *Genoemd in*, *Geschiedenis* of zelfvullende
+    lijst is één regel `.blok-leeg`, zonder vouw. Zo'n blok staat niet in de
+    inhoudsopgave (`emptyBlocks` op `EntryView`).
+
+    **De wiki.**
+    - De voorpagina heeft één rij (`TypeTabs compact`: Start, Alles, De
+      soorten); de tegels zijn de index.
+    - Een lege soort is in de tabrij gedempt (`.type-tab.is-leeg`).
+    - `/wiki/alles` en `/wiki/<soort>` zeggen "n van totaal" en hebben *Meer*.
+    - Hoe ver je leest staat in het adres (§12): `?pagina=` (cumulatief, max
+      50) en `?per=` (10–120), zie `lib/wiki/pagina.ts`. Die twee reizen niet
+      mee naar een andere tab. `/wiki/<soort>` toont per 120, niet meer per 200.
+
+    ***Uit het archief*** is zonder omslag een fiche: het soort-icoon als
+    stempel en een haarlijn in de soortkleur. Met omslag is het een staande
+    uitsnede naast de tekst. *Nog één* draagt de dobbelsteen.
+
+    **Een artikel op de telefoon.** Waar het staat is één regel "Op 2
+    landkaarten · in 2 dossiers ›" (`EntryWaar`, een `<details>`). *Meer info*
+    staat alleen in Bewerken in de chipbalk, met het `info`-icoon. Met een
+    omslag begint de eerste zin op een Pixel 5 boven y = 700.
+
+    **In het donker** krijgen omslagen en plaatjes in de tekst
+    `brightness(.85)`.
+
+    De proef van het herstel staat in `tests/unit/ronde-67-herstel-lezen.test.ts`,
+    `tests/unit/ronde-67-contrast.test.ts` en
+    `tests/e2e/ronde-67-herstel-lezen.spec.ts`.
+
+    **Aangevuld in golf H (h3, lezen en de wiki, na design-review 3).** Geen
+    migratie en geen verwijderd bestand.
+    - **De leeskolom** (D1). Van 1280 tot 1499 px is een artikel twee kolommen,
+      tekst en feiten (`minmax(0, 1fr) 300px`), met *Op deze pagina* als de rij
+      chips boven de tekst (`.entry-main .entry-outline-row`). Pas vanaf
+      1500 px is de wegwijzer weer de eerste kolom (`.entry-layout-rail`).
+      `RAIL` in `components/useIsPhone.ts` (`useHasRail`) en de
+      `@media (min-width: 1500px)` in `app/leeskamer.css` zijn hetzelfde getal,
+      zoals `WIDE` (1280, bleef) en zijn blok in `globals.css`. Gemeten: op
+      1280 was de tekst 367 px breed (±43 tekens per regel); nu loopt hij tot
+      zijn 68ch. De lead leest op dezelfde maat.
+    - **Eén rij soorttabs** (D6). `/wiki/alles`, de soortlijsten en een
+      overzicht: *Start · Alles · de grootste soorten · Meer soorten ▾*.
+      `rangSoorten` (`lib/wiki/tabrij.ts`, puur) geeft rang 0 aan de soort waar
+      je op staat (altijd in de rij) en 1–7 aan de grootste met iets erin, bij
+      gelijke telling in de volgorde van de Keeper. Hoeveel er passen, zegt de
+      stylesheet per breedte (`data-rang`): 2 van 768 px, 3 van 1024, 4 van
+      1280, 5 van 1500 en 7 van 1800; op een telefoon scrolt de hele rij. Het
+      menu (`MeerSoorten`, een popover met `useDismiss`) toont precies wat de
+      rij op die breedte níét toont, met tellingen; een lege soort staat altijd
+      in het menu, gedempt. De dossiertabs en de soorten op `/search` zijn ook
+      één rij (zie het blok bij regel 27).
+    - **`.schuifrij`** (T9). Eén klasse in `globals.css` voor elke rij die opzij
+      scrolt: de rand vervaagt aan de kant waar meer staat, alleen met CSS
+      (`animation-timeline: scroll(self inline)` op `@property
+      --schuif-links/-rechts`). `useSchuifrij` (of `<Schuifrij>` voor een
+      servercomponent) schuift het gekozen item in beeld, zonder de pagina te
+      bewegen en zonder animatie. Gebruikt door de tabrij van de wiki, de
+      dossiertabs, de sprongchips van een dossier, de chips op `/search` en de
+      wegwijzer-rij. De winkelfilter en de tabs van Beheer kunnen hem met
+      alleen de klasse dragen, maar doen dat nog niet.
+    - **De rijvorm** (T1). Onder 768 px zijn `/cases`, `/wiki/alles`, de
+      soortlijsten, *Recente artikelen* op Start en de afgeleide lijsten op een
+      artikel rijen: een miniatuur van 42 × 56 (de staande uitsnede), de naam,
+      één regel omschrijving, en de soort (bij een dossier de status). De
+      klasse is `.rijen` (altijd op de telefoon) of `.wiki-entries` (met
+      *Lijst/Kaarten*, nu ook op `/wiki/alles`, één onthouden keuze). Een
+      dossier zonder omslag toont de map.
+    - **Kaders in een gemengde lijst** (D14). Een kaart in een lijst met meer
+      soorten (`EntryCard` met `showType`, `CaseEntryCard gemengd`) is
+      `.card-gemengd`: een haarlijn, `--shadow`, en een lijn van 3 px in de
+      soortkleur bovenaan. Het eigen kader per soort (`.brd-*`) staat alleen
+      nog op de lijst van één soort, waar het zich herhaalt en ritme geeft.
+    - **Omslagen in het donker** (D13, T10). Een lege omslag (`.cover-leeg`)
+      is in het donker lichter dan de kaart, met een zachte binnenlijn en het
+      icoon op 70 % soortkleur. Een getekende omslag krijgt
+      `brightness(.7) sepia(.15)` en een binnenrand in `--rule`; plaatjes in de
+      tekst houden hun `.85` van het herstel. De liggende omslag op de
+      telefoon gebruikt de liggende uitsnede van het artikel, en zonder die
+      `object-position: 50% 85%`, zodat de naamband van een getekende omslag
+      in beeld blijft.
+    - **De kop van een artikel** (D21, T9, T23). Eén regel *Op de landkaart:
+      A · B*, ontdubbeld op landkaart, in zinsletters; waar het ding een speld
+      heeft, opent de link de kaart op die speld. De regel *Uitgetekend op*
+      is weg. Ook *Op de tijdlijn* en *In:* zijn zo'n zin. Op de telefoon zijn
+      de handelingen een raster van gelijke vakken (drie naast elkaar) van
+      44 px, het woord klein en over hooguit twee regels; de liggende omslag
+      is daarvoor 12 rem in plaats van 12,5, zodat de eerste zin zijn plek
+      houdt. Tags hebben een raakvlak van 44 px.
+    - **De infobox** (D27). Elke naam op een eigen regel, ook in de blik op de
+      telefoon. Onder een lijst die zichzelf vult staat in Lezen alleen de zin
+      van de Keeper; `derivedTwinNote` is voor Bewerken.
+    - **De hoofdletter** (D28). `naadHoofd` (`lib/wiki/naad.ts`, puur) wijst
+      de eerste zichtbare letter aan na een gat aan het begin van een alinea
+      ("ij" telt als één). `naadPlugin` zet er `.naad-hoofd` op, en alleen een
+      read-only editor zet hem in een hoofdletter; `MentionText` tekent de
+      letter groot. De tekst verandert niet.
+    - **`/wiki`** (D22). *Bewerken* en *Nieuw overzicht* staan in één rij met
+      de titel (`OverzichtView actions`); `.overzicht-page` heeft geen eigen
+      maximum meer, de tekst houdt 48 rem.
+    - **Een dossier** (D23, D24). De knop in het menu zegt *Nieuw in dit
+      dossier* (`navNewInCase`, één regel; de volle zin blijft de
+      toegankelijke naam). De notities zijn niet breder dan hun tekst, en leeg
+      zijn ze in Lezen één regel `.blok-leeg` (`caseNotesNone`,
+      `case-notes-leeg`), geen leeg kader van 180 px meer.
+    - **Het skelet van een artikel** (D30) heeft een omslagvlak (3:4, liggend
+      onder 1280 px) en de vorm van D1 tussen 1280 en 1499 px.
+
+    Bewust niet: **D17** (soorten met hetzelfde icoon). Dat is data van de
+    seed, en de Keeper zet een icoon per soort in Beheer; een test die dubbelen
+    weigert hoort bij een seed-wijziging.
+
+    De proef staat in `tests/unit/golf-h3-lezen.test.ts` en
+    `tests/e2e/golf-h3-lezen.spec.ts`.

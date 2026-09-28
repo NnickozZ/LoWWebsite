@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { ShortField } from '@/components/live/LiveFields';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -53,7 +53,15 @@ export function OverzichtView({
   cases,
   liveUser,
   defaultLead,
+  actions,
 }: {
+  /**
+   * §104 (golf H, D22): what the page puts beside the title — *Nieuw
+   * overzicht* on the wiki. It stands in one row with the heading and the
+   * *Bewerken* toggle, right-aligned, instead of in a row of its own above the
+   * tabs with a different right edge.
+   */
+  actions?: ReactNode;
   overzicht: OverzichtLite;
   /** The other overzichten, for the strip — how a new one is found at all. */
   siblings: OverzichtLite[];
@@ -115,51 +123,61 @@ export function OverzichtView({
 
   return (
     <div className="overzicht-page">
-      <div className="row" style={{ marginBottom: '0.3rem' }}>
-        <p className="eyebrow" style={{ margin: 0 }}>
-          {overzicht.isHome ? 'De wiki' : ui.words.overzicht}
-        </p>
-        <div className="spacer" />
-        {canEdit && !reading && !overzicht.isHome && (
-          <button type="button" className="btn btn-small btn-ghost" onClick={() => void remove()} disabled={busy}>
-            <Icon name="trash" size={14} />
-            Weggooien
-          </button>
-        )}
-        {canEdit && (
-          <button
-            type="button"
-            className={`btn btn-small entry-mode-toggle${reading ? '' : ' entry-mode-toggle-on'}`}
-            aria-pressed={!reading}
-            onClick={() => setReading((was) => !was)}
-          >
-            <Icon name={reading ? 'edit' : 'eye'} size={14} />
-            {reading ? 'Bewerken' : 'Lezen'}
-          </button>
+      <p className="eyebrow" style={{ margin: '0 0 0.3rem' }}>
+        {overzicht.isHome ? 'De wiki' : ui.words.overzicht}
+      </p>
+      {/* §104 (golf H, D22): the title and the buttons in one row. */}
+      <div className="overzicht-kop">
+        <div className="overzicht-kop-titel">
+          {reading ? (
+            <h1 className="entry-title">{name}</h1>
+          ) : (
+            <>
+              <label className="visually-hidden" htmlFor="overzicht-name">
+                Naam van het {ui.words.overzicht}
+              </label>
+              <input
+                id="overzicht-name"
+                className="input entry-title-input"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onBlur={(event) => void save({ name: event.target.value })}
+              />
+            </>
+          )}
+        </div>
+        {(canEdit || actions) && (
+          <div className="overzicht-kop-knoppen">
+            {canEdit && !reading && !overzicht.isHome && (
+              <button type="button" className="btn btn-small btn-ghost" onClick={() => void remove()} disabled={busy}>
+                <Icon name="trash" size={14} />
+                Weggooien
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                className={`btn btn-small entry-mode-toggle${reading ? '' : ' entry-mode-toggle-on'}`}
+                aria-pressed={!reading}
+                onClick={() => setReading((was) => !was)}
+              >
+                <Icon name={reading ? 'edit' : 'eye'} size={14} />
+                {reading ? 'Bewerken' : 'Lezen'}
+              </button>
+            )}
+            {actions}
+          </div>
         )}
       </div>
 
       {reading ? (
-        <>
-          <h1 className="entry-title">{name}</h1>
-          {shownLead && (
-            <p className="entry-lead">
-              <MentionText text={shownLead} tokens />
-            </p>
-          )}
-        </>
+        shownLead && (
+          <p className="entry-lead">
+            <MentionText text={shownLead} tokens />
+          </p>
+        )
       ) : (
         <>
-          <label className="visually-hidden" htmlFor="overzicht-name">
-            Naam van het {ui.words.overzicht}
-          </label>
-          <input
-            id="overzicht-name"
-            className="input entry-title-input"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onBlur={(event) => void save({ name: event.target.value })}
-          />
           <div style={{ margin: '0.6rem 0 1rem' }}>
             <label className="label" htmlFor="overzicht-lead" id="overzicht-lead-label">
               Inleiding

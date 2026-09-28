@@ -7,7 +7,8 @@ import { ClearButton } from './ClearButton';
 import { PlaceButton } from './PlaceButton';
 import { UnlockButton } from './UnlockButton';
 import { MoveButton, MoveHere } from './Verplaatsen';
-import { MEANING, munt, plekIcon, plekWord, shortfall } from './plekWords';
+import { Neerzetten, Ontsloten } from './Neerzetten';
+import { munt, plekIcon, plekWord, shortfall } from './plekWords';
 
 export type PlekState = 'locked' | 'empty' | 'filled' | 'veiled';
 
@@ -61,6 +62,7 @@ export function Plek({
   balance,
   canArrange,
   guestOf = null,
+  rest = false,
   words,
 }: {
   slot: SlotView;
@@ -72,6 +74,11 @@ export function Plek({
    * die inricht. Dan zegt de melding "op de plank van …" en niet "op je plank".
    */
   guestOf?: string | null;
+  /**
+   * §103 golf H (T11): een dichte plek die niet de eerstvolgende van zijn
+   * soort is. Op een telefoon staat hij achter de vouw (`DichtePlekken`).
+   */
+  rest?: boolean;
   words: Words;
 }) {
   const state = plekState(slot);
@@ -108,35 +115,73 @@ export function Plek({
       data-kind={slot.kind}
       data-plek={slot.id}
       data-sort={slot.sortOrder}
+      data-rest={rest ? 'ja' : undefined}
       /* §84: waar de *Bekijk* van een koopmelding naartoe springt. Eén anker
          per plek, zodat de winkel kan zeggen "ga kijken" en de kamer weet waar. */
       id={`plek-${slot.id}`}
     >
-      <p className="tiny plek-kind" data-testid="plek-kind">
-        <Icon name={plekIcon(slot.kind)} size={12} />
-        {/* §101: een element, zodat het woord met "…" kan afkappen naast het kruisje. */}
-        <span className="plek-kind-word">{kind}</span>
-      </p>
+      {/*
+        §103 herstel (#20): de etiketregel is ook de werkbalk. Links het etiket
+        van de soort, rechts *Verplaatsen* en het kruisje, naast elkaar en klein
+        getekend, met elk een raakvlak van 44 px. Ze lagen tot nu toe los in de
+        rechterbovenhoek óver de omslag, en *Ingericht* lag daar weer overheen.
+        Elke tegel heeft deze regel even hoog, met of zonder knoppen, zodat de
+        etiketten van een rij tegels op één lijn staan.
+      */}
+      <div className="plek-kop">
+        <p className="tiny plek-kind" data-testid="plek-kind">
+          <Icon name={plekIcon(slot.kind)} size={12} />
+          {/* §101: een element, zodat het woord met "…" kan afkappen naast de knoppen. */}
+          <span className="plek-kind-word">{kind}</span>
+        </p>
+        {state === 'filled' && slot.item && canArrange && (
+          <span className="plek-werkbalk" data-testid="plek-werkbalk">
+            {/* §93 (E10): verplaatsen, en het kruisje ernaast (K21). §103 herstel
+                (#21): *Verplaatsen* staat er alleen als er een vrije plek is
+                waar dit ding past. */}
+            <MoveButton
+              slotId={slot.id}
+              entryId={slot.item.id}
+              name={slot.item.name}
+              plekken={slot.item.plekken}
+              words={words}
+            />
+            <ClearButton
+              roomId={roomId}
+              slotId={slot.id}
+              label={words.slotClear}
+              name={slot.item.name}
+              entryId={slot.item.id}
+              toDrawer={slot.item.huisraad}
+              guestOf={guestOf}
+              compact
+              words={words}
+            />
+          </span>
+        )}
+      </div>
 
       {state === 'locked' && (
         <>
-          <p className="plek-price" data-testid="plek-price" data-price={slot.price}>
-            <span className="stamp">{munt(slot.price, words)}</span>
-          </p>
-          <p className="tiny muted plek-locked-line">{words.slotLocked}</p>
-          {/* §85: dezelfde greep als bij een lege plek — zie `.plek-slot-merk`. */}
-          <span className="plek-slot-merk" aria-hidden="true">
-            <Icon name={MEANING.openen} size={28} />
-          </span>
           {/*
-            §84: één van de twee, nooit allebei en nooit geen van beide.
-            
-            Tot ronde 45 stond hier altijd een knop, uitgeschakeld als je hem
-            niet kon betalen, met de reden in een `title` — en een `title`
-            bestaat niet op een telefoon. Wie twee munten tekortkwam zag dus een
-            grijze knop en geen enkele uitleg. Nu staat de zin er gewoon, en de
-            knop is weg in plaats van dood: een knop die niets doet naast een
-            zin die zegt waarom is er één te veel.
+            §103 golf H (D7/T11): een dichte tegel zegt het één keer. Hij zei het
+            vier keer — de stempel *2 MUNTEN*, *Op slot*, een groot slotje en
+            *Openen · 2 munten* — in twaalf tegels van dezelfde hoogte als een
+            gevulde. Nu: het etiket, de stempel met de prijs, en *Openen*. De
+            vorm (gestreept, ingezonken) zegt al dat hij dicht is, en het slotje
+            zit in de knop. De tegel is half zo hoog (`.kamer-grid-dicht`).
+          */}
+          <p className="plek-price" data-testid="plek-price" data-price={slot.price}>
+            {/* §103 herstel: dezelfde regel als in de winkel — rood is wat deze
+                hand nú kan openen; de rest is een rustige stempel in inkt. */}
+            <span className={`stamp${canArrange && balance >= slot.price ? '' : ' plek-prijs-rustig'}`}>
+              {munt(slot.price, words)}
+            </span>
+          </p>
+          {/*
+            §84: één van de twee, nooit allebei en nooit geen van beide: de knop,
+            of de zin die zegt hoeveel er nog ontbreekt (een `title` bestaat niet
+            op een telefoon).
           */}
           {canArrange &&
             (balance >= slot.price ? (
@@ -146,6 +191,7 @@ export function Plek({
                 kind={slot.kind}
                 price={slot.price}
                 guestOf={guestOf}
+                bare
                 words={words}
               />
             ) : (
@@ -167,9 +213,12 @@ export function Plek({
             twee staten dezelfde hoogte houden zonder dat iemand die hoogte
             ergens opschrijft.
           */}
-          <span className="plek-leeg-merk" aria-hidden="true">
-            <Icon name={plekIcon(slot.kind)} size={34} />
-          </span>
+          {/* §103 (K5): een plek die deze hand net opende, draait zijn slotje open. */}
+          <Ontsloten slotId={slot.id}>
+            <span className="plek-leeg-merk" aria-hidden="true">
+              <Icon name={plekIcon(slot.kind)} size={34} />
+            </span>
+          </Ontsloten>
           <p className="tiny muted plek-empty-line" data-testid="plek-empty">
             {words.slotEmpty}
           </p>
@@ -194,6 +243,8 @@ export function Plek({
 
       {state === 'filled' && slot.item && (
         <>
+          {/* §103 (K2/K5): het ding landt, één keer per plaatsing — zie `Neerzetten`. */}
+          <Neerzetten slotId={slot.id} entryId={slot.item.id} words={words}>
           <Link className="plek-item" data-testid="plek-item" href={`/e/${slot.item.slug}`}>
             {/*
               §85: **vierkant**, en dat is de hele reparatie van het raster.
@@ -203,16 +254,30 @@ export function Plek({
               (`SHAPES.square`, ronde 19) en is nooit hoger dan breed — de rij
               houdt zijn hoogte en de foto houdt zijn eigen kader.
             */}
-            <Cover
-              assetId={slot.item.coverAssetId}
-              crop={slot.item.coverCrop}
-              shape="square"
-              alt=""
-              icon={slot.item.typeIcon}
-              colour={slot.item.typeColour}
-              variant="thumb"
-              className="plek-cover"
-            />
+            {/*
+              §103 (T2): een stuk huisraad zonder omslag toont het icoon van de
+              plek waar het staat — een bureau, een plank, een muur, een kist —
+              groot en rustig, in plaats van het huis van de soort Huisraad, dat
+              op elke tegel hetzelfde was. Je zag niet wát je kocht; nu zie je
+              tenminste wáár het staat, en de naam eronder zegt de rest. Een
+              gevonden voorwerp houdt het icoon van zijn eigen soort.
+            */}
+            {!slot.item.coverAssetId && slot.item.huisraad ? (
+              <span className="plek-cover plek-cover-soort" data-testid="plek-cover-soort" aria-hidden="true">
+                <Icon name={plekIcon(slot.kind)} size={40} />
+              </span>
+            ) : (
+              <Cover
+                assetId={slot.item.coverAssetId}
+                crop={slot.item.coverCrop}
+                shape="square"
+                alt=""
+                icon={slot.item.typeIcon}
+                colour={slot.item.typeColour}
+                variant="thumb"
+                className="plek-cover"
+              />
+            )}
             <span className="small plek-item-name">{slot.item.name}</span>
             {/* §90 (E13): wat dít ding je geeft, de eerste regel, klein. Het
                 blok bovenaan blijft het register; dit is het etiket. */}
@@ -222,24 +287,7 @@ export function Plek({
               </span>
             )}
           </Link>
-          {canArrange && (
-            <>
-              {/* §93 (E10): verplaatsen, linksboven — het kruisje blijft rechts
-                  (K21). Twee kleine knoppen in twee hoeken kosten minder dan
-                  een menu en zeggen allebei in één oogopslag wat ze doen. */}
-              <MoveButton slotId={slot.id} name={slot.item.name} plekken={slot.item.plekken} words={words} />
-              <ClearButton
-                roomId={roomId}
-                slotId={slot.id}
-                label={words.slotClear}
-                name={slot.item.name}
-                toDrawer={slot.item.huisraad}
-                guestOf={guestOf}
-                compact
-                words={words}
-              />
-            </>
-          )}
+          </Neerzetten>
         </>
       )}
     </li>

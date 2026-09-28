@@ -1438,3 +1438,94 @@ elk een blok achteraan in `lib/words.ts`.
 | **Er is iets misgegaan.** (`somethingWrong`) | als melding in de kamer, als het archief geen eigen zin gaf | Stond hard in de code. |
 | `fontNote`, `colourNoteKeeper`, `colourNotePlayer` | op `/you`, achter *Waarom?* bij Lettertype en Kleuren | Stonden in een `title`, en dat bestaat op een telefoon niet. |
 | **Zoeken in het archief** (`searchLabel`) · **Zoek op naam, tag, wat dan ook…** (`searchPlaceholder`) · **Zoek in {soort}…** (`searchPlaceholderIn`) · **Zoek in** (`searchIn`) · **Alles** (`searchAll`) · **Typ om te zoeken. Druk overal op {toets} om hier te komen.** (`searchHint`) · **Genoemd in de tekst** (`searchInText`) · **‘{naam}’ aanmaken** (`searchCreate`) | op Zoeken | Stonden hard in `SearchScreen`. |
+
+## Het gevoel — rondes 65, 66 en 67 (§102–§104)
+
+Ronde 65·a heeft geen eigen woordblok: een blad, een melding en een indruk
+dragen geen nieuwe woorden. De andere groepen staan onderaan `lib/words.ts`,
+elk onder de markering van zijn ronde.
+
+### Ronde 65·b — de navigatie (§102): groep *Navigatie*, 1 sleutel
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Pagina wordt geladen** (`navLoading`) | alleen voor een schermlezer: de naam van de streep en van het skelet | Op het scherm is het een streep of een skelet, zonder woorden. |
+| **skelet** | begrip | De vorm van de pagina die komt (artikel, dossier, lijst, kamer, winkel, spelerspagina), plat en zonder glans, als een klik na 150 ms nog niet binnen is. |
+
+### Ronde 65·c — de voorbeeldkaart (§102): groep *De voorbeeldkaart*, 2 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Openen →** (`previewOpen`) | rechtsonder op de voorbeeldkaart | De link naar het artikel. De kaart komt als je een naam aanwijst, of er op een telefoon lang op drukt. |
+| **Voorbeeld van {naam}** (`previewLabel`) | alleen voor een schermlezer | De naam van de kaart. |
+
+### Ronde 66 — het geld klinkt (§103): groepen *Het geld klinkt* (11 sleutels) en *De winkel en de kamer* (2 sleutels)
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **{knop} → {plek}** (`buyShort`) | de koopknop in de winkel | Wat de knop doet: *Kopen → bureau*. Sinds het herstel staat de prijs als stempel erboven; de toegankelijke naam zegt de hele zin met het bedrag. |
+| **Gekocht** (`buyBought`) | op de koopknop, meteen na de klik, en daarna klein op de rij | De stempel die neerkomt. |
+| **Ingericht** (`furnishedStamp`) | schuin op een tegel, bij de eerste koop ooit in een kamer | Eén keer per kamer. |
+| **+{bedrag} van de {keeper} — {reden}** (`grantArrived`) · **+{bedrag} van de {keeper}** (`grantArrivedPlain`) | als melding bij de speler, als de Keeper munten geeft | Eén melding per gift, niet opnieuw na herladen. |
+| **Staat in je kamer** (`shopOwnedShort`) · **Bekijk** (`shopOwnedShow`) | op een winkelrij na een koop | *Bekijk* springt naar de tegel. |
+| **Eerst een {plek} openen ({n}), dan {prijs}** (`shopOpenFirst`) | de koopknop, als er eerst een plek open moet | Eén knop voor twee stappen. |
+| **Geluid in de kamer** (`soundLabel`) · **Uit** (`soundOff`) · **Aan** (`soundOn`) | op `/you` | De schakelaar voor het geluid, standaard uit, per browser. |
+| **Een tik, een munt, een stempel — alleen in de kamer en de winkel.** (`soundHint`) · `soundNote` | op `/you`, onder de schakelaar en achter *Waarom?* | Wat er klinkt en wanneer. |
+
+### Ronde 67 — de leeskamer (§104): groep *De leeskamer*, 28 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Leeskamer** | begrip | De voorpagina van de wiki en het artikel in Lezen, als plek om te lezen. |
+| **Uit het archief** (`wikiFromArchive`) · **Nog één** (`wikiOneMore`) · **Lezen** (`wikiReadOn`) · **Aan deze kant staat nog niets.** (`wikiArchiveNone`) | op de voorpagina van de wiki | Eén willekeurig artikel; *Nog één* kiest een ander en je blijft op de pagina. |
+| **Onlangs bijgewerkt** (`wikiRecent`) · **Alles op volgorde** (`wikiRecentAll`) · **{naam} · {wanneer}** (`wikiRecentWho`) · **Hier is nog niets bijgewerkt.** (`wikiRecentNone`) | op de voorpagina van de wiki | Zes fiches met wie het deed (het karakter) en wanneer. |
+| **De soorten** (`wikiKinds`) | op de voorpagina van de wiki | De tegels met telling; sinds het herstel de index. |
+| **Verras me** (`surpriseMe`) | een handeling in het palet (`>`) | Opent een willekeurig artikel (`/wiki/willekeurig`). |
+| **Bijgewerkt door {naam}** (`lastEditBy`) · **{n} versies** / **{n} versie** (`lastEditVersions`, `lastEditOneVersion`) | onder de korte beschrijving van een artikel | Wie het laatst schreef, wanneer, en hoeveel versies. Linkt naar de geschiedenis. |
+| **Link gekopieerd** (`headingLinkCopied`) · **Kopiëren lukte niet. Het adres is {adres}** (`headingLinkNotCopied`) · `headingLinkLabel`, `headingLinkTitle` | naast een kop in Lezen, de `#` | Kopieert `…/e/slug#kop`. |
+| **{naam} groot bekijken** (`coverOpen`) · **Sluiten** (`coverClose`) | op de omslag in Lezen | Een tik opent de omslag groot. |
+| **Met wie in het veld {veld} staat.** (`derivedTwinNote`) | onder een zelfvullende lijst met dezelfde kop als een koppelingsveld | Die lijst neemt de namen uit dat veld erbij (L9). |
+| **op {n} {ding}** (`entryWhereOn`) · **in {n} {ding}** (`entryWhereIn`) | op een telefoon, de regel onder de knoppen van een artikel | *Op 2 landkaarten · in 2 dossiers ›*. |
+| **Nog geen versie om terug te lezen.** (`historyNone`) · **Nog nergens genoemd.** (`mentionedNone`) · **Nog niets.** (`listNone`) | onder een leeg blok | Eén gedempte regel in plaats van een lege vouw. |
+| **{n} van {totaal} {artikelen}** (`listShownOf`) · **Meer** (`listMore`) · **nog {n}** (`listMoreLeft`) | boven en onder een lange lijst in de wiki | Hoe ver je leest; het staat ook in het adres. |
+
+## Golf H — de laatste pas (§102–§104): drie groepen, 25 sleutels
+
+Drie nieuwe groepen onderaan `lib/words.ts`, één per worktree. Geen woord van
+een eerdere ronde is veranderd.
+
+### h1 — de schil (§102): groep *De schil*, 10 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Spelers** (`sideSwitchPlayers`) · **Keeper** (`sideSwitchKeeper`) | op een computer, de schakelaar in de mast van de zijbalk | De twee helften van de wissel tussen de kanten. De toegankelijke naam blijft *Naar de Keeperkant* / *Naar de spelerskant*. |
+| **Niets gevonden voor ‘{zoek}’ — Enter zoekt in alles** (`paletteNothingFor`) · **Geen handeling heet ‘{zoek}’.** (`paletteNoActionFor`) | in het palet, zonder uitkomst | Eén zin, zonder lege kop erboven. |
+| **Typ om te zoeken.** (`searchHintTouch`) | onder een leeg zoekvak op een aanraakscherm | Een telefoon heeft geen `/`. |
+| **Niet in het archief** (`notFoundStamp`) · **Deze pagina is er niet.** (`notFoundTitle`) · `notFoundBody` · **Naar het begin** (`notFoundHome`) | de 404, ook voor elk onbekend adres | Noemt niets: wie iets niet mag zien, hoort ook niet dat het bestaat. |
+| **sleep om te schuiven, knijp om te zoomen** (`canvasHintTouch`) | onder een tekenvlak op een aanraakscherm, in dezelfde regel als de telling | In plaats van de zin over Ctrl, scroll en Esc. |
+| **schakelaar** | begrip | De Keeperkant op een computer: `[Spelers \| Keeper]` in de mast. Op een telefoon blijft het de ronde knop in de hoek. |
+
+### h2 — de economie (§103): groep *De economie, laatste pas*, 11 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **{kamer} van** (`roomHeading`) | de kop van een kamer, vóór de naam | *Kamer van Dr. Elsje Kramer*, in inkt. |
+| **Naar het {artikel} van {naam}** (`roomToEntry`) | het kleine icoon achter de naam in die kop | De deur naar het artikel van de onderzoeker. |
+| **Nog {plekken} op slot · {prijzen}** (`lockedRest`) · **{van} tot {tot}** (`priceRange`) | op een telefoon, onder de eerstvolgende dichte plekken | *Nog 6 plekken op slot · 8 tot 30 munten*, met een vouw. |
+| **Eerst {plek} openen · {n}** (`shopOpenFirstShort`) | de koopknop in de winkel, als er eerst een plek open moet | Op één regel; de prijs van het ding staat als stempel erboven. |
+| **{ding} verplaatst naar de {plek}.** (`movedTo`) · **… van {naam}.** (`movedToOf`) | melding na verplaatsen | Vervangt een melding over hetzelfde ding. |
+| **{munten} van de {keeper}** (`grantMuntLine`) | in `toast-munt`, naast de stempel met het bedrag | *munten van de Keeper*; de reden staat eronder, cursief. |
+| **{munten} naar {naam}** (`handoutDoneOne`) · **{munten} naar {kamers}** (`handoutDoneMany`) | melding voor de Keeper na uitdelen | *20 munten naar Dr. Elsje Kramer*, *40 munten naar 2 kamers*. |
+| **opende een plek in de eigen kamer** (`feedRoomOpenedOwn`) | in het feed | Zonder de naam van de eigenaar nog eens. |
+| **dichte plekken** · **de vouw** | begrip | De plekken op slot, apart onder *Op slot*; op een telefoon staat van elke soort alleen de eerstvolgende, de rest achter de vouw. |
+
+### h3 — lezen en de wiki (§104): groep *Lezen en de wiki (golf H)*, 4 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Meer soorten** (`wikiMoreKinds`) | aan het eind van de tabrij in de wiki | Het menu met de soorten die op deze breedte niet in de rij passen, met tellingen. |
+| **Nieuw in dit {dossier}** (`navNewInCase`) | de grote knop in het menu, op een dossier | Op één regel; de toegankelijke naam is *Nieuw artikel in dit dossier*. |
+| **{nieuw} in dit {dossier}** (`navNewInCaseLabel`) | de toegankelijke naam van die knop en van de + op een dossier | Voor een schermlezer; *Nieuw artikel in dit dossier*. |
+| **Dossiernotities** (`caseNotes`) · **Nog niets opgeschreven.** (`caseNotesNone`) | de kop boven de notities van een dossier, en de regel als ze leeg zijn | Leeg is in Lezen één gedempte regel. |
+| **rijvorm** | begrip | Een lijst op de telefoon als rijen: miniatuur, naam, één regel, de soort. |
+| **Op de landkaart** (`onTheMap`, bestond al) | de kop van een artikel | Nu één regel voor elke landkaart, ook waar het ding alleen *uitgetekend* is. Nooit *Op de kaart*. |

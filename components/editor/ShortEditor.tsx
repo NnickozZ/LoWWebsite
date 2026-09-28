@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { PluginKey, TextSelection } from '@tiptap/pm/state';
+import { naadPlugin } from './EntryLink';
 import type { EditorProps, EditorView } from '@tiptap/pm/view';
 import Suggestion from '@tiptap/suggestion';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -137,6 +138,17 @@ const ShortChipNode = Node.create({
   renderText({ node }) {
     const attrs = node.attrs as ChipAttrs;
     return attrs.hidden ? '' : attrs.name;
+  },
+
+  // §104 (ronde 67·herstel): read-only, the words around a hidden chip close up (`lib/wiki/naad.ts`).
+  addProseMirrorPlugins() {
+    return [
+      naadPlugin((node) => {
+        if (node.type.name !== 'shortChip') return null;
+        const attrs = node.attrs as ChipAttrs;
+        return attrs.hidden || !attrs.known ? 'verborgen' : 'vast';
+      }),
+    ];
   },
 });
 

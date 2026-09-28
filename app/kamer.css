@@ -99,9 +99,10 @@
 @media (prefers-reduced-motion: no-preference) {
   .plek-filled,
   .plek-empty {
+    /* §103: tokens in plaats van 120ms (§102: beweging alleen via tokens). */
     transition:
-      transform 120ms ease,
-      box-shadow 120ms ease;
+      transform var(--dur-2) var(--ease-standard),
+      box-shadow var(--dur-2) var(--ease-standard);
   }
   .plek-filled:hover,
   .plek-empty:hover {
@@ -113,27 +114,41 @@
 }
 
 /*
- * §85: waar *Bekijk* landt. De winkel zegt "ga kijken", springt naar
- * `#plek-<id>`, en de tegel licht één keer op zodat je hem tussen elf andere
- * terugvindt. `:target` is de hele bediening: geen staat, geen timer, geen
- * component — de browser weet al welke tegel je zocht, want hij staat in het
- * adres. De rand is `--stamp-red` omdat dit het enige moment is waarop de
- * kamer iets aanwijst, en dat is precies waar de stempelkleur voor is.
+ * §85/§102: waar *Bekijk* landt — één definitie, hier (ronde 65, K1).
+ *
+ * De winkel zegt "ga kijken", de koopmelding springt naar `#plek-<id>`, en de
+ * tegel licht één keer op zodat je hem tussen elf andere terugvindt. `:target`
+ * is de hele bediening: geen staat, geen timer, geen component — de browser
+ * weet al welke tegel je zocht, want hij staat in het adres. De rand én een
+ * ring van 2 px zijn `--stamp-red`, omdat dit het enige moment is waarop de
+ * kamer iets aanwijst, en dat is precies waar de stempelkleur voor is. Een rand
+ * van 1 px alleen zag je op een telefoon niet.
+ *
+ * Tot ronde 65 stond deze `@keyframes` hier twee keer (§84 en §85); de tweede,
+ * zonder ring, won stil. `tests/unit/beweging.test.ts` telt nu elke naam over
+ * alle `app/*.css`.
+ *
+ * 1,4 s is een uitzondering op het contract (docs/beweging.md): het is geen
+ * reis maar een aanwijzing, en die moet lang genoeg staan om je oog te vinden.
+ * Onder reduced motion is het dezelfde ring, stil, die na 1,4 s in één keer
+ * weg is (`steps(1)`): feedback blijft, alleen het vervagen gaat eraf. Geen
+ * 100%-keyframe: de tegel valt terug op zijn eigen rand en schaduw.
  */
-@media (prefers-reduced-motion: no-preference) {
-  .plek:target {
-    animation: plek-aangewezen 1.4s ease-out;
-  }
-}
 @keyframes plek-aangewezen {
   0%,
   60% {
     border-color: var(--stamp-red);
     box-shadow: 0 0 0 2px var(--stamp-red);
   }
-  100% {
-    border-color: var(--rule);
-    box-shadow: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .plek:target {
+    animation: plek-aangewezen 1.4s ease-out;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plek:target {
+    animation: plek-aangewezen 1.4s steps(1, end);
   }
 }
 
@@ -298,68 +313,13 @@
 }
 
 /*
- * §85: weghalen is een ×, rechtsboven, en geen knop naast Neerzetten.
- *
- * Even groot en op dezelfde plek zetten zegt dat het twee even waarschijnlijke
- * dingen zijn om te doen, en dat is het niet — je zet tien dingen neer voor je
- * er één weghaalt. Klein en uit de leesrichting dus, maar met een volwaardig
- * raakvlak: `--tap` op een telefoon (§69 6.1), want een × die je twee keer
- * moet aantikken is erger dan een knop die te groot is.
+ * §85: weghalen is een ×, en geen knop naast Neerzetten — klein en uit de
+ * leesrichting, want je zet tien dingen neer voor je er één weghaalt.
+ * §90 (E9): altijd zichtbaar, gedempt; nooit pas bij hover.
+ * §103 herstel (#20): het kruisje en *Verplaatsen* staan nu samen in de
+ * werkbalk van de etiketregel (`.plek-werkbalk`, onderaan dit bestand) in
+ * plaats van los in de rechterbovenhoek over de omslag.
  */
-.plek-clear {
-  position: absolute;
-  top: 0.15rem;
-  right: 0.15rem;
-  padding: 0.25rem;
-  min-height: 0;
-  line-height: 1;
-  /*
-   * Zichtbaar zonder muis: een rand en een eigen papier, want een × in
-   * `--ink-muted` op `--paper-raised` in een tegel van `--paper-raised` is
-   * een knop die je alleen vindt als je weet dat hij er is. Op een telefoon
-   * (geen hover) was dat de enige staat die er was.
-   */
-  border-color: var(--rule);
-  background: var(--paper);
-  color: var(--ink-muted);
-}
-/*
- * Wegdoezelen tot je er met de muis bij bent mag alleen waar een muis ís. Een
- * telefoon heeft geen hover-staat, dus daar zou dit een knop zijn die nooit
- * verschijnt — en weghalen is niet iets wat alleen een bureaublad mag.
- */
-@media (hover: hover) {
-  .plek-clear {
-    opacity: 0;
-  }
-  .plek-filled:hover .plek-clear,
-  .plek-clear:focus-visible {
-    opacity: 1;
-  }
-}
-/*
- * §90 economie: E9 — en toch niet helemaal. `opacity: 0` tot je er met de muis
- * boven hangt is geen "klein", het is "raden", en er is geen andere weg om iets
- * te verplaatsen dan weghalen. Op een breed scherm staat het kruisje er nu
- * altijd, gedempt, en het raakvlak is hetzelfde als op een telefoon (K21:
- * klein getekend, een volwaardig raakvlak).
- */
-@media (hover: hover) {
-  .plek-clear {
-    opacity: 0.6;
-    min-width: var(--tap);
-    min-height: var(--tap);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    top: 0;
-    right: 0;
-  }
-  .plek-filled:hover .plek-clear,
-  .plek-clear:focus-visible {
-    opacity: 1;
-  }
-}
 .plek-item:hover .plek-item-name {
   text-decoration: underline;
 }
@@ -518,17 +478,6 @@
   }
   .plek .plek-cover {
     height: 5rem;
-  }
-  /* §69 6.1: een vinger. Het kruisje is klein getekend en groot aan te raken —
-     de `padding` maakt het raakvlak, het icoon blijft 14 px. */
-  .plek-clear {
-    min-width: var(--tap);
-    min-height: var(--tap);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    top: 0;
-    right: 0;
   }
   /* Onder elkaar: een bedrag, een reden en een tijd naast elkaar op 320 px
      duwt de reden tot één woord per regel. */
@@ -813,17 +762,10 @@
   gap: 0.6rem;
   margin: 0.6rem 0 1.2rem;
 }
-.winkel-kamer-deur {
-  text-decoration: none;
-}
-/* §90 economie: E6 — de deur naar de kamer is een tekstlink met een werkwoord
-   (K11), geen knop met de naam van een bestemming. Wel met een raakvlak. */
-.winkel-kamer-deur {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--tap);
-  text-decoration: underline;
-}
+/* §90 economie: E6 — de deur naar de kamer draagt een werkwoord (K11).
+   §103 herstel (#28): een `.btn-small` met een icoon, dezelfde vorm als
+   *Naar de winkel* in de kamer. Op een telefoon haalt hij `--tap` via
+   `.kamer-balance .btn` hieronder. */
 
 /* --- voor wie je koopt ---------------------------------------------------
    Alleen zichtbaar bij meer dan één onderzoeker. Een chip met een naam en de
@@ -1278,30 +1220,6 @@
   line-height: 1.35;
 }
 
-/*
- * §84: waar de *Bekijk* van een koopmelding landt. Twee tellen een rand in de
- * kleur van een stempel, en dan is het weer een gewone tegel — genoeg om je oog
- * te vinden, te kort om een staat te worden.
- */
-@keyframes plek-aangewezen {
-  0%,
-  70% {
-    border-color: var(--stamp-red);
-  }
-  100% {
-    border-color: var(--rule);
-  }
-}
-.plek:target {
-  animation: plek-aangewezen 2s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .plek:target {
-    animation: none;
-    border-color: var(--stamp-red);
-  }
-}
-
 @media (max-width: 767px) {
   /*
    * §69 6.1: alles wat een vinger raakt haalt 44 px. Geen van de knoppen in
@@ -1336,36 +1254,7 @@
 
 /* §93 de kamer, tweede pas: verplaatsen en de lade ------------------------ */
 
-/*
- * *Verplaatsen* staat rechts in een gevulde tegel, ónder het kruisje (K21) —
- * ernaast zou hij het etiket van de soort afdekken (de screenshot van ronde 54
- * liet "BUREAU" als "BURE" zien). Klein getekend, gedempt, een raakvlak van
- * `--tap`, en altijd in beeld — ook met een muis, want een knop die pas bij
- * hover verschijnt is raden (review E9).
- */
-.plek .plek-move {
-  position: absolute;
-  top: var(--tap);
-  right: 0;
-  z-index: 1;
-  min-width: var(--tap);
-  min-height: var(--tap);
-  padding: 0.25rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  border-color: var(--rule);
-  background: var(--paper);
-  color: var(--ink-muted);
-  opacity: 0.6;
-}
-.plek .plek-move:hover,
-.plek .plek-move:focus-visible,
-.plek .plek-move[aria-pressed='true'] {
-  opacity: 1;
-  color: var(--ink);
-}
+/* §93: *Verplaatsen* — sinds §103 herstel (#20) in `.plek-werkbalk`, onderaan. */
 /* De tegel die bewogen wordt, draagt de rand van "hier wordt naar gewezen". */
 .plek:has(.plek-move[aria-pressed='true']) {
   border-color: var(--stamp-red);
@@ -1469,22 +1358,1219 @@
 .kamer-lade-gift-row .btn {
   min-height: var(--tap);
 }
-/* Het kruisje op een gevulde tegel is een raakvlak van --tap in de hoek
-   rechtsboven, en dat vlak lag over het plekwoord (*BUREAU*) op een tegel
-   van 160 px. Het woord krijgt die hoek nu vrij, en kapt af met "…" als het
-   niet past — het raakvlak blijft 44 px. */
-.plek-filled .plek-kind {
-  padding-right: calc(var(--tap) - 0.6rem);
-  min-width: 0;
-}
+/* §101: het plekwoord kapt af met "…" als het niet past — sinds §103 herstel
+   (#20) naast de werkbalk in plaats van onder een los kruisje. */
 .plek-kind-word {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-@media (max-width: 767px) {
-  .plek-filled .plek-kind {
-    padding-right: calc(var(--tap) - 0.5rem);
+
+/* ======================================================================
+ * §103, ronde 66: het geld klinkt — de kamer, de winkel en de uitdeling in
+ * het expressieve register (docs/beweging.md: --dur-4/--dur-5,
+ * --ease-expressive/--ease-land, overschot ≤ 8 px). Alleen transform en
+ * opacity bewegen; elke animatie heeft een reduced-motion-tak (geen beweging,
+ * de feedback blijft); geen enkele duurt langer dan 600 ms.
+ * Elke keyframe hier heeft een eigen naam (kamer-…, uitdelen-…): één naam,
+ * één definitie.
+ * ==================================================================== */
+
+/* --- K2: het neerzetten ------------------------------------------------ */
+
+/*
+ * `Neerzetten` voegt geen doos toe aan de flexkolom van de tegel; het is
+ * alleen het haakje voor de selector en de laag voor de ring en de stempel.
+ */
+.plek-neerzet {
+  display: contents;
+}
+
+/*
+ * Het beeld van het ding komt 12 px van boven met een schaal van 0,96 en landt.
+ * `--ease-land` overschiet zelf (y 1,56): ongeveer 7 px voorbij de plek, en
+ * dan terug. `backwards`, niet `both`: na afloop staat de omslag gewoon waar
+ * hij hoort, zonder dat een animatie hem vasthoudt.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .plek-neerzet[data-landing] .plek-cover {
+    animation: kamer-neerzet var(--dur-5) var(--ease-land) backwards;
   }
+}
+@keyframes kamer-neerzet {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * De ring: 1,4 s rond de tegel die net iets kreeg (of waar iets heen
+ * verplaatst werd). Geen animatie van 1,4 s maar een laag die aan staat — het
+ * aan en uit is een overgang van `--dur-2` en `--dur-3` (de uitgang korter dan
+ * de ingang), zodat niets in de kamer langer beweegt dan het moment zelf.
+ * Binnen de rand, want de tegel knipt (`overflow: hidden`).
+ */
+.plek-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 2px var(--stamp-red);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-3) var(--ease-exit);
+}
+.plek-ring[data-on] {
+  opacity: 1;
+  transition: opacity var(--dur-2) var(--ease-enter);
+}
+/* K5: na het openen van een plek een zachte ring, in inkt en niet in stempelrood. */
+.plek-ring-zacht {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink-muted) 45%, transparent);
+}
+
+/* --- T2: een gekocht ding zonder omslag ------------------------------- */
+
+/*
+ * Het icoon van de plek waar het staat, groot en rustig, op het papier van
+ * een omslag: dezelfde maat als een omslag (`.plek .plek-cover`), zodat de
+ * rij niet verandert (K17).
+ */
+.plek-cover-soort {
+  color: var(--ink-muted);
+  background: color-mix(in srgb, var(--paper-dark) 70%, var(--paper-raised));
+}
+.plek-cover-soort svg {
+  opacity: 0.7;
+}
+/* De naam in de letter van het archief, onder het beeld. */
+.plek-item-name {
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  text-align: center;
+}
+.plek-item-effect {
+  text-align: center;
+}
+
+/* --- K5: Ingericht ----------------------------------------------------- */
+
+/*
+ * De eerste koop ooit in deze kamer: één stempel, schuin over de tegel die net
+ * gevuld werd. Hij komt neer in 600 ms (`--dur-5` × 1,5 op `--ease-land`),
+ * blijft 2,5 s liggen (een timer, geen animatie) en vervaagt in `--dur-3`.
+ */
+.plek-ingericht {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  z-index: 2;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--paper-raised) 82%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--paper-raised) 60%, transparent);
+  transform: translate(-50%, -50%) rotate(-9deg);
+  opacity: 0.94;
+  pointer-events: none;
+  transition: opacity var(--dur-3) var(--ease-exit);
+}
+.plek-ingericht[data-leaving] {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .plek-ingericht {
+    animation: kamer-ingericht calc(var(--dur-5) * 1.5) var(--ease-land) backwards;
+  }
+}
+@keyframes kamer-ingericht {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-16deg) scale(1.7);
+  }
+  to {
+    opacity: 0.94;
+    transform: translate(-50%, -50%) rotate(-9deg) scale(1);
+  }
+}
+
+/* --- K5: een plek gaat open -------------------------------------------- */
+
+/*
+ * Het slotje draait open (de beugel om zijn rechterpoot, 200 ms) en valt dan
+ * weg (`--dur-4`). Daarna komt het merk van de lege plek op. Onder reduced
+ * motion tekent `Ontsloten` het slotje niet: alleen de zachte ring.
+ */
+.plek-slotje {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: -15px 0 0 -15px;
+  z-index: 2;
+  color: var(--ink-muted);
+  pointer-events: none;
+  animation: kamer-slot-valt var(--dur-4) var(--ease-exit) calc(var(--dur-5) / 2) both;
+}
+.plek-slotje-beugel {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+  animation: kamer-slot-open calc(var(--dur-5) / 2) var(--ease-expressive) both;
+}
+@keyframes kamer-slot-open {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateY(-2px) rotate(-30deg);
+  }
+}
+@keyframes kamer-slot-valt {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(14px) rotate(8deg);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .plek-neerzet[data-ontsloten] .plek-leeg-merk {
+    animation: kamer-leeg-op var(--dur-4) var(--ease-enter) calc(var(--dur-5) / 2 + var(--dur-3)) backwards;
+  }
+}
+@keyframes kamer-leeg-op {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* --- K2: Gekocht ------------------------------------------------------- */
+
+/*
+ * De koopknop, binnen één frame na de klik: de rode vulling wordt een stempel
+ * — omlijnd, rood, in kapitalen — die neerkomt (`scale 1.15 → 1`, −4°, 240 ms).
+ * De regel eronder blijft onzichtbaar staan en houdt de breedte vast.
+ */
+.winkel-koop {
+  position: relative;
+}
+.koop-regel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.winkel-koop-gekocht .koop-regel {
+  visibility: hidden;
+}
+/*
+ * §103 herstel (#6): geen rood op rood. De `.btn` laat zijn achtergrond in
+ * `--dur-2` overlopen, en de stempel stond de eerste ±70 ms rood op een nog
+ * rode knop. In de gekocht-staat is er geen overgang: het papier is er in
+ * hetzelfde frame als de stempel, en de stempel is rood op papier.
+ */
+.btn.btn-primary.winkel-koop-gekocht,
+.btn.btn-primary.winkel-koop-gekocht:hover,
+.btn.btn-primary.winkel-koop-gekocht:active {
+  background: var(--paper-raised);
+  border-color: var(--stamp-red);
+  border-width: 2px;
+  color: var(--stamp-red);
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+  transition: none;
+}
+.koop-stempel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  font-family: var(--stamp-face);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  transform: rotate(-4deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .koop-stempel {
+    animation: kamer-koop-stempel var(--dur-4) var(--ease-land) backwards;
+  }
+}
+@keyframes kamer-koop-stempel {
+  from {
+    opacity: 0.2;
+    transform: rotate(-4deg) scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-4deg) scale(1);
+  }
+}
+
+/* --- K6: de rij na een koop --------------------------------------------- */
+
+.winkel-owned {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 0.3rem;
+}
+.winkel-bekijk {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.2em;
+}
+.winkel-bekijk:hover,
+.winkel-bekijk:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+/* --- K7: de uitdeling --------------------------------------------------- */
+
+/*
+ * *+5* naast het saldo van elke aangevinkte rij, rij na rij: 240 ms, gespreid
+ * met 40 ms (`--dur-2 − --dur-1`) per rij en na de tiende niet verder (`--i`
+ * loopt tot 9). Groen van de aanwezigheid (`--live`), nooit rood: dit is een
+ * gift en geen prijs (§84).
+ */
+.uitdelen-chip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--live) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--live) 14%, var(--paper-raised));
+  color: color-mix(in srgb, var(--live) 78%, var(--ink));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .uitdelen-chip {
+    animation: uitdelen-chip-op var(--dur-4) var(--ease-land) backwards;
+    animation-delay: calc(var(--i, 0) * (var(--dur-2) - var(--dur-1)));
+  }
+}
+@keyframes uitdelen-chip-op {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+}
+
+/* --- K6: de winkel als catalogus -------------------------------------------
+ *
+ * Een etalage leest als een catalogus: een beeld dat groot genoeg is om te
+ * zien wát het is, de naam in de letter van het archief, wat het zegt dat het
+ * doet, en rechts de prijs met wat eraan te doen valt. Alleen op de
+ * winkelpagina; de catalogus in de plek-kiezer staat in een smal blad en houdt
+ * zijn kleine maat.
+ */
+.winkel-page .kamer-catalogus {
+  gap: 0.7rem;
+  margin-top: 0.4rem;
+}
+.winkel-page .kamer-koop {
+  gap: 1rem;
+  padding: 0.85rem 1rem 0.85rem 0.85rem;
+  align-items: center;
+}
+.winkel-page .winkel-cover {
+  width: 4.5rem;
+  align-self: flex-start;
+}
+.winkel-page .kamer-koop-name {
+  font-family: var(--serif);
+  font-size: 1.12rem;
+  line-height: 1.25;
+}
+.winkel-page .kamer-koop-line {
+  margin-top: 0.25rem;
+}
+.winkel-page .kamer-koop-buy {
+  min-width: 11.5rem;
+  align-items: center;
+}
+.winkel-page .kamer-koop-buy .btn {
+  align-self: stretch;
+}
+@media (max-width: 767px) {
+  .winkel-page .kamer-koop {
+    gap: 0.7rem;
+    padding: 0.7rem;
+  }
+  .winkel-page .winkel-cover {
+    width: 3.5rem;
+  }
+  .winkel-page .kamer-koop-name {
+    font-size: 1.02rem;
+  }
+  .winkel-page .kamer-koop-buy {
+    min-width: 0;
+  }
+}
+/* De zin zonder vrije plek en de deur eronder: onder elkaar, gecentreerd in de
+   kolom, in plaats van een woord dat naast de knop weglekt. */
+.winkel-geen-plek {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.winkel-page .winkel-state {
+  max-width: 11.5rem;
+  text-align: center;
+}
+@media (max-width: 767px) {
+  .winkel-geen-plek {
+    align-items: flex-end;
+  }
+  .winkel-page .winkel-state {
+    max-width: none;
+    text-align: right;
+  }
+}
+
+/* ======================================================================
+ * §103 herstel (ronde 66, na de design-review): de winkel en de kamer.
+ *
+ * Wat hier staat, en de keuze erachter:
+ *  - #20 de etiketregel van een tegel is ook zijn werkbalk;
+ *  - #7  een tegel die landt, plakt niet tegen de bovenrand;
+ *  - #6  *Gekocht* ligt onder de knoppen en is te zien;
+ *  - #18 één prijs per rij, rood alleen voor wat je nu kunt doen;
+ *  - #19 op een telefoon verspringt de rij niet na een koop.
+ * Geen nieuwe beweging, behalve het vervagen van *MUNTEN* in moment.css.
+ * ==================================================================== */
+
+/* --- #20: de etiketregel is de werkbalk --------------------------------- */
+
+/*
+ * Eén regel, even hoog op elke tegel (met of zonder knoppen), zodat de
+ * etiketten van een rij op één lijn staan en de omslag op dezelfde hoogte
+ * begint. 1,75rem is de hoogte van de werkbalk; de knoppen zelf reiken met
+ * hun raakvlak 8 px verder, in de rand van de tegel en de ruimte eronder.
+ */
+.plek-kop {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.75rem;
+  margin: -0.15rem -0.2rem 0 0;
+}
+.plek-kop .plek-kind {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * Twee knoppen in één vakje: een haarlijn eromheen en ertussen, het papier
+ * van de pagina als ondergrond. Gedempt (`--ink-muted`) maar niet doorzichtig:
+ * een knop die je half ziet, is een knop die je zoekt. Onder de muis of met
+ * de focus wordt hij inkt.
+ *
+ * §69 6.1: getekend is het vakje 1,75rem hoog, maar de knop zelf is `--tap`
+ * hoog — het vakje is zijn `::before`. Zo is het raakvlak echt 44 px (en meet
+ * een test die de knop opmeet ook 44), terwijl de regel 1,75rem blijft: de
+ * knop steekt met een negatieve marge 8 px boven en onder de regel uit, in de
+ * rand van de tegel en de ruimte boven de omslag. Nooit opzij, waar de
+ * buurknop ligt. Ook op een breed scherm 44 breed (§90, E9: hetzelfde
+ * raakvlak als op een telefoon; `ronde-62-eindjes` meet het).
+ */
+.plek-werkbalk {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+}
+.plek-werkbalk .btn {
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  min-width: 0;
+  height: var(--tap);
+  min-height: var(--tap);
+  margin-block: calc((1.75rem - var(--tap)) / 2);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  line-height: 1;
+  opacity: 1;
+}
+.plek-werkbalk .btn::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: calc((var(--tap) - 1.75rem) / 2) 0;
+  border: 1px solid var(--rule);
+  border-left-width: 0;
+  background: var(--paper);
+}
+.plek-werkbalk .btn:first-child::before {
+  border-left-width: 1px;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.plek-werkbalk .btn:last-child::before {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.plek-werkbalk .btn:only-child::before {
+  border-radius: var(--radius);
+}
+.plek-werkbalk .btn:hover,
+.plek-werkbalk .btn:focus-visible,
+.plek-werkbalk .btn[aria-pressed='true'] {
+  background: transparent;
+  color: var(--ink);
+}
+.plek-werkbalk .btn:hover::before,
+.plek-werkbalk .btn:focus-visible::before,
+.plek-werkbalk .btn[aria-pressed='true']::before {
+  background: var(--paper-dark);
+}
+
+/*
+ * *Ingericht* ligt op het beeld zelf (het midden van de omslag, 44 % van de
+ * tegel) en onder de werkbalk (`z-index` 2 tegen 3): een stempel mag een
+ * knop nooit afdekken.
+ */
+.plek-ingericht {
+  top: 44%;
+}
+
+/* --- #7: een tegel die landt -------------------------------------------- */
+
+/*
+ * *Bekijk* springt naar `#plek-…`, en de browser zette de tegel tegen de
+ * bovenrand: de ring van twee pixel viel half buiten beeld en de kop van de
+ * kamer was weg. Zes rem erboven houdt de ring, de etiketregel en een stuk
+ * van het raster erboven in beeld; vijf eronder houdt hem boven de tabbalk
+ * van een telefoon als hij onderaan landt.
+ */
+.plek {
+  scroll-margin-block: 6rem 5rem;
+}
+
+/* --- #18: één prijs per rij, en minder rood ----------------------------- */
+
+/*
+ * Rood is in de winkel en de kamer wat je nú kunt doen: de prijs van wat je
+ * kunt kopen, de prijs van een plek die je kunt openen, en de knop die het
+ * doet. Een prijs die je niet kunt betalen, die voor een ding is dat je al
+ * hebt, of waarvoor eerst een plek open moet, is een rustige stempel in inkt.
+ * Een eigen klasse en niet `.stamp-muted`, want de kleur van `.stamp` is in
+ * deze golf ook van een ander (contrast in het donker).
+ */
+.winkel-prijs-rustig,
+.plek-prijs-rustig {
+  color: var(--ink-muted);
+  border-color: color-mix(in srgb, var(--ink-muted) 70%, transparent);
+}
+
+/* De knop met één zin (*Eerst een kist openen (5), dan 4*) mag breken. */
+.plek-action-zin {
+  white-space: normal;
+  text-wrap: balance;
+  line-height: 1.25;
+  padding-block: 0.3rem;
+}
+
+/* --- #6: de kleine stempel die blijft ----------------------------------- */
+
+/*
+ * Na de grote stempel op de knop blijft er een kleine liggen, in de vorm van
+ * een stempel en in de rustige inkt: het is gebeurd, er valt niets meer te
+ * doen. Samen met de prijs erboven leest de rij als een betaalde rekening.
+ */
+.winkel-gekocht-stempel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.08rem 0.4rem;
+  border: 1.5px solid color-mix(in srgb, var(--ink-muted) 70%, transparent);
+  border-radius: 3px;
+  color: var(--ink-muted);
+  font-family: var(--stamp-face);
+  font-size: 0.66rem;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+}
+.winkel-owned {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.winkel-owned-zin {
+  display: block;
+}
+
+/* --- de rechterkolom van een winkelrij, op een breed scherm ------------- */
+
+/*
+ * De stempel bovenaan, wat je ermee kunt eronder, alles op één as. Een vaste
+ * breedte zodat de stempels van alle rijen onder elkaar staan en de knoppen
+ * even breed zijn.
+ */
+.winkel-page .kamer-koop-buy {
+  width: 11.5rem;
+  gap: 0.55rem;
+}
+.winkel-page .kamer-koop-price {
+  align-self: center;
+}
+
+/* --- #19: op een telefoon ----------------------------------------------- */
+
+/*
+ * De prijs staat onder de tekst, op de lijn van de naam, en wat je ermee kunt
+ * komt eronder: de knop over de rest van de breedte, of na een koop de kleine
+ * stempel met *Staat in je kamer · Bekijk*. De stempel houdt zijn plek, of er
+ * nu een knop onder staat of een zin; tot nu toe sprong hij van rechts naar
+ * links en zweefde de zin midden in de rij.
+ */
+@media (max-width: 767px) {
+  .winkel-page .kamer-koop-buy {
+    width: auto;
+    flex: 1 1 100%;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-left: calc(3.5rem + 0.7rem);
+  }
+  .winkel-page .kamer-koop-price {
+    align-self: flex-start;
+  }
+  .winkel-page .kamer-koop-buy .btn {
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: auto;
+  }
+  .winkel-page .kamer-koop-buy .winkel-state,
+  .winkel-page .kamer-koop-buy .winkel-short {
+    flex: 0 0 auto;
+    max-width: none;
+    text-align: left;
+  }
+  .winkel-page .winkel-owned,
+  .winkel-page .winkel-geen-plek {
+    align-items: flex-start;
+  }
+}
+
+/* Het kruisje wacht op de server terwijl het ding de lade in gaat. */
+.plek-werkbalk .plek-clear:disabled {
+  cursor: progress;
+}
+
+/* --- #28: de twee deuren ------------------------------------------------ */
+
+/*
+ * *Naar de kamer* in de winkel en *Naar de winkel* in de kamer: allebei een
+ * `.btn-small` met het icoon van waar ze heen gaan, naast de beurs. Het woord
+ * breekt niet; op een telefoon zakt de hele knop onder de beurs.
+ */
+.winkel-kamer-deur,
+.kamer-winkel-deur {
+  white-space: nowrap;
+}
+
+/* De deur onder *Geen vrije plek van deze soort* is nu een omlijnde knop en
+   krijgt wat lucht onder de zin. */
+.winkel-geen-plek {
+  gap: 0.4rem;
+}
+
+/* ======================================================================
+ * §103 golf H (h2): de economie, laatste pas na design-review 3.
+ *
+ *  - T16/D29 de kop van de kamer: één kop in inkt, één regel eronder;
+ *  - T11/D7  dichte plekken kort, apart, en op een telefoon achter een vouw;
+ *  - D20/T20 het etiket van een tegel wordt nooit afgekapt;
+ *  - D8      geen sprong: de verplaatsbalk zweeft, de actiecel houdt haar hoogte;
+ *  - T21     *Ingericht* in de hoek, na de landing;
+ *  - T17     de koper één keer, plakkend;
+ *  - D15     de uitdeler: de kop, de labels, *munten* in het vak;
+ *  - T22/T23 tabular-nums in het grootboek, en *Bekijk* is 44 px.
+ * Alleen tokens voor beweging, alleen transform en opacity, en elke nieuwe
+ * beweging heeft een tak voor reduced motion.
+ * ==================================================================== */
+
+/* --- T16/D29: de kop ---------------------------------------------------- */
+
+/*
+ * *Kamer van Dr. Elsje Kramer*: één kop, in inkt en even groot. De naam is de
+ * deur naar het artikel, maar leest als kop; onderstreept alleen onder de muis
+ * of met de focus, met een klein icoon van een artikel erachter.
+ */
+.kamer-title {
+  margin: 0.1rem 0 0.75rem;
+}
+.kamer-title-of {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.kamer-onderzoeker {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 0.14em;
+  text-decoration-thickness: 1px;
+}
+.kamer-onderzoeker:hover,
+.kamer-onderzoeker:focus-visible {
+  text-decoration: underline;
+}
+.kamer-onderzoeker-staart {
+  white-space: nowrap;
+}
+.kamer-onderzoeker-icoon {
+  display: inline-block;
+  margin-left: 0.3em;
+  vertical-align: 0.12em;
+  color: var(--ink-muted);
+}
+.kamer-onderzoeker:hover .kamer-onderzoeker-icoon,
+.kamer-onderzoeker:focus-visible .kamer-onderzoeker-icoon {
+  color: var(--ink);
+}
+
+/* Eén regel onder de kop: de wissel, en ernaast de beurs met de deur. */
+.kamer-kop-rij {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 0 0 1.2rem;
+}
+.kamer-kop-rij .kamer-balance {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+/*
+ * De wissel tussen je eigen kamers is één segmentrij: een pil met de namen
+ * erin, de kamer waar je staat in inkt gevuld. Het waren twee losse pillen
+ * met een label ervoor, en op een telefoon braken ze over twee regels. Wordt
+ * de rij toch te breed, dan schuift hij opzij in plaats van te breken.
+ */
+.kamer-wissel {
+  display: inline-flex;
+  gap: 2px;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  scrollbar-width: none;
+}
+.kamer-wissel::-webkit-scrollbar {
+  display: none;
+}
+.kamer-wissel-kamer {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.1rem;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-2) var(--ease-standard),
+    color var(--dur-2) var(--ease-standard);
+}
+.kamer-wissel-kamer:hover {
+  background: var(--paper-dark);
+  color: var(--ink);
+}
+.kamer-wissel-kamer.kamer-wissel-hier {
+  background: var(--ink);
+  color: var(--paper);
+}
+/*
+ * Op een telefoon deelt de rij de breedte: elke naam krijgt een gelijk deel en
+ * kapt af met "…" in plaats van rechts uit beeld te lopen, zodat je altijd
+ * ziet dat er een tweede kamer is.
+ */
+@media (max-width: 767px) {
+  .kamer-wissel {
+    display: flex;
+    width: 100%;
+  }
+  .kamer-wissel-kamer {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: calc(var(--tap) - 6px);
+    padding: 0 0.75rem;
+    line-height: calc(var(--tap) - 6px);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* --- T11/D7: de dichte plekken ------------------------------------------- */
+
+/*
+ * Apart van het raster, onder hun eigen etiket, en half zo hoog: het etiket,
+ * de stempel met de prijs, en *Openen*. Een eigen rijhoogte, één getal — dezelfde
+ * afspraak als §85's raster (`kamer-contract.test.ts`), alleen korter.
+ */
+.kamer-dicht {
+  margin-top: 1.25rem;
+}
+.kamer-dicht-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--stamp-face);
+  font-weight: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.kamer-grid.kamer-grid-dicht {
+  grid-auto-rows: 7.25rem;
+}
+.plek-locked .plek-price {
+  margin: 0.15rem 0 0;
+}
+.plek-locked .plek-action,
+.plek-locked .plek-short {
+  margin-top: auto;
+}
+/* De vouw staat er alleen op een telefoon; zie hieronder. */
+.kamer-dicht-vouw {
+  display: none;
+}
+/* Een dichte tegel heeft geen werkbalk, dus de etiketregel mag korter. */
+.plek-locked .plek-kop {
+  min-height: 1.35rem;
+}
+.plek-locked {
+  gap: 0.3rem;
+}
+@media (max-width: 767px) {
+  .kamer-grid.kamer-grid-dicht {
+    grid-auto-rows: 7.5rem;
+  }
+  /* Van elke soort de eerstvolgende; de rest achter de vouw. */
+  .kamer-dicht:not([data-open]) .plek[data-rest] {
+    display: none;
+  }
+  .kamer-dicht-vouw {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: var(--tap);
+    margin-top: 0.6rem;
+    padding: 0 0.8rem;
+    border: 1px dashed var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper-dark);
+    color: var(--ink-muted);
+    font: inherit;
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .kamer-dicht-vouw-zin {
+    min-width: 0;
+  }
+  .kamer-dicht-vouw svg {
+    transform: rotate(90deg);
+  }
+  .kamer-dicht[data-open] .kamer-dicht-vouw svg {
+    transform: rotate(-90deg);
+  }
+}
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .kamer-dicht-vouw svg {
+    transition: transform var(--dur-2) var(--ease-standard);
+  }
+}
+
+/* --- D20/T20: het etiket wordt nooit afgekapt ---------------------------- */
+
+/*
+ * Het woord neemt zijn eigen breedte (het is nooit langer dan zes letters),
+ * en de werkbalk krimpt: elke knop is getekend 1,6rem breed, zonder ruimte
+ * ertussen. Het raakvlak blijft 44 × 44 (§69 6.1): de knop zelf is `--tap`
+ * breed en valt met een negatieve marge over zijn buren heen, maar alleen zijn
+ * `::after` vangt de vinger — naar buiten toe, de eerste naar links (over de
+ * lucht tussen etiket en balk), de laatste naar rechts. Zo overlappen twee
+ * raakvlakken nooit, en tekent de balk 51 px in plaats van 88.
+ */
+.plek-kop .plek-kind {
+  flex: 0 0 auto;
+}
+.plek-kind-word {
+  overflow: visible;
+  text-overflow: clip;
+}
+.plek-werkbalk {
+  --balk-teken: 1.6rem;
+  --balk-rand: calc((var(--tap) - var(--balk-teken)) / 2);
+  margin-left: auto;
+}
+.plek-werkbalk .btn {
+  margin-inline: calc(-1 * var(--balk-rand));
+  pointer-events: none;
+}
+.plek-werkbalk .btn::before {
+  inset: calc((var(--tap) - 1.75rem) / 2) var(--balk-rand);
+}
+.plek-werkbalk .btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--tap);
+  pointer-events: auto;
+}
+.plek-werkbalk .btn:first-child:not(:only-child)::after {
+  left: calc(-1 * var(--balk-rand));
+}
+.plek-werkbalk .btn:last-child:not(:only-child)::after {
+  left: var(--balk-rand);
+}
+
+/* --- D8b: de verplaatsbalk zweeft ---------------------------------------- */
+
+/*
+ * Onderaan het venster, boven de meldingen (`--toast-stack`, gemeten in
+ * `UiProvider`), zodat het raster stilstaat terwijl je een plek kiest. In
+ * `--dur-4` op `--ease-enter`; onder reduced motion alleen de dekking.
+ */
+.kamer-move-bar {
+  position: fixed;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: calc(1.5rem + var(--toast-stack, 0px) + 0.5rem);
+  z-index: 80;
+  width: max-content;
+  max-width: min(94vw, 34rem);
+  margin: 0 auto;
+  padding: 0.35rem 0.4rem 0.35rem 0.8rem;
+  box-shadow: 2px 3px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+}
+/* Onder reduced motion staat hij er meteen; de balk zelf is de feedback. */
+@media (prefers-reduced-motion: no-preference) {
+  .kamer-move-bar {
+    animation: kamer-balk-in var(--dur-4) var(--ease-enter);
+  }
+}
+@keyframes kamer-balk-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+/*
+ * Op een telefoon boven de tabbalk, links, met rechts de ruimte van de FAB
+ * (56 px en zijn marge): een knop *Annuleren* onder de `+` is onbereikbaar.
+ */
+@media (max-width: 767px) {
+  .kamer-move-bar {
+    left: 1rem;
+    right: auto;
+    bottom: calc(var(--tabs-h) + 1rem + env(safe-area-inset-bottom) + var(--toast-stack, 0px));
+    max-width: calc(100vw - 2rem - 3.5rem - 0.75rem);
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.3;
+  }
+  .kamer-move-bar-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* --- D8a: de actiecel van een winkelrij houdt haar hoogte --------------- */
+
+/*
+ * De stempel, en eronder één regel handeling van minstens 2,9rem. Een zin die
+ * na een koop in de rij erboven over twee regels brak, liet de hele lijst 7 px
+ * zakken; nu is die zin één regel (*Eerst bureau openen · 12*) en is de cel
+ * altijd minstens zo hoog.
+ */
+.winkel-page .kamer-koop-buy {
+  min-height: calc(1.6rem + 0.55rem + 2.9rem);
+  justify-content: center;
+}
+.winkel-page .plek-action-zin {
+  white-space: nowrap;
+  text-wrap: nowrap;
+}
+@media (max-width: 767px) {
+  /* Op een telefoon staat de stempel bovenaan en blijft daar (§103 herstel, #19). */
+  .winkel-page .kamer-koop-buy {
+    min-height: calc(1.6rem + 0.5rem + 2.9rem);
+    justify-content: flex-start;
+  }
+}
+
+/* --- D7: de prijs één keer in de catalogus ------------------------------- */
+
+/* De stempel was uitgerekt tot een platte balk van 146 px (`align-items: stretch`). */
+.kamer-catalogus .kamer-koop-price {
+  align-self: center;
+}
+/* Op een telefoon staat de stempel in de winkel links, op de lijn van de naam (§103 herstel, #19). */
+@media (max-width: 767px) {
+  .winkel-page .kamer-catalogus .kamer-koop-price {
+    align-self: flex-start;
+  }
+}
+
+/* --- T21: *Ingericht* in de hoek, na de landing -------------------------- */
+
+/*
+ * Hij lag midden over het ding dat landde, dus je zag de stempel en niet het
+ * ding. Nu op de hoek rechtsonder van het beeld, boven de naam (die hij in de
+ * hoek rechtsonder van de tegel afdekte), en pas als het ding er staat:
+ * eerst `--dur-5` wachten (de landing), dan in `--dur-4` × 1,25 neerkomen —
+ * samen 700 ms, de grens van het expressieve register.
+ */
+.plek-ingericht {
+  top: 50%;
+  left: auto;
+  right: 0.3rem;
+  bottom: auto;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  transform: rotate(-8deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .plek-ingericht {
+    animation: kamer-ingericht-hoek calc(var(--dur-4) * 1.25) var(--ease-land) var(--dur-5) backwards;
+  }
+}
+@keyframes kamer-ingericht-hoek {
+  from {
+    opacity: 0;
+    transform: rotate(-16deg) scale(1.6);
+  }
+  to {
+    opacity: 0.94;
+    transform: rotate(-8deg) scale(1);
+  }
+}
+
+/* --- T17: de koper, één keer --------------------------------------------- */
+
+/*
+ * Hoogte 0 in de flow: er verschuift niets als hij komt of gaat. De pil hangt
+ * eronder, plakt bovenaan het venster en komt pas als de kiezer uit beeld is.
+ */
+.koper-kop {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 6;
+  height: 0;
+  pointer-events: none;
+}
+.koper-kop-pil {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity var(--dur-3) var(--ease-exit),
+    transform var(--dur-3) var(--ease-exit);
+}
+.koper-kop[data-shown] .koper-kop-pil {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-4) var(--ease-enter),
+    transform var(--dur-4) var(--ease-enter);
+}
+.koper-kop-naam {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 16rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .koper-kop-pil,
+  .koper-kop[data-shown] .koper-kop-pil {
+    transform: none;
+  }
+}
+@media (max-width: 767px) {
+  .koper-kop-naam {
+    max-width: 52vw;
+  }
+}
+
+/* --- D15: de uitdeler ----------------------------------------------------- */
+
+.uitdelen-kop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+}
+.uitdelen-kop .uitdelen-title {
+  margin: 0;
+}
+.uitdelen-head {
+  gap: 0.75rem 1.5rem;
+}
+.uitdelen-all {
+  flex: 0 0 auto;
+}
+.uitdelen-label {
+  font-weight: 600;
+}
+
+/*
+ * *munten* in het vak zelf, rechts en gedempt — geen placeholder, want die
+ * leest als een waarde (§85). Het getal staat er rechts tegenaan.
+ */
+.munten-vak {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.munten-vak > .input {
+  width: 100%;
+  padding-right: 4.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.munten-vak-achter {
+  position: absolute;
+  right: 0.8rem;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.uitdelen-rij .munten-vak {
+  flex: 0 0 auto;
+  width: 8.5rem;
+}
+.uitdelen-rij .uitdelen-bedrag {
+  width: 100%;
+}
+.uitdelen-saldo {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 767px) {
+  .uitdelen-all {
+    flex: 1 1 100%;
+  }
+  .uitdelen-rij .munten-vak {
+    margin-left: auto;
+  }
+}
+
+/* --- T22/T23: het grootboek en *Bekijk* ---------------------------------- */
+
+.kamer-delta {
+  font-variant-numeric: tabular-nums;
+}
+
+/* *Bekijk* in *Staat in je kamer · Bekijk* was ±20 px hoog. Het raakvlak is
+   nu 44 px, zonder dat de regel hoger wordt. */
+.winkel-bekijk {
+  position: relative;
+  display: inline-block;
+}
+.winkel-bekijk::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(calc(100% + 1rem), var(--tap));
+  height: var(--tap);
+  transform: translate(-50%, -50%);
+}
+
+/* --- D7: *Kopen* is een inktknop ---------------------------------------- */
+
+/*
+ * In de winkel en de catalogus. Met saldo stonden er per scherm vijf rode
+ * knoppen onder vijf rode stempels; nu draagt de stempel met de prijs het rood,
+ * en de knop wordt pas rood als je hem aanwijst, met de muis of met de focus.
+ * De letters in het papier van een kaartje (`--card-face`, in elk palet licht),
+ * zoals op `.btn-primary`.
+ */
+.btn.winkel-koop {
+  transition:
+    transform var(--dur-1) var(--ease-standard),
+    box-shadow var(--dur-1) var(--ease-standard),
+    background-color var(--dur-2) var(--ease-standard),
+    border-color var(--dur-2) var(--ease-standard),
+    color var(--dur-2) var(--ease-standard);
+}
+.btn.winkel-koop:not(.winkel-koop-gekocht):hover,
+.btn.winkel-koop:not(.winkel-koop-gekocht):focus-visible {
+  background: var(--stamp-red);
+  border-color: var(--stamp-red);
+  color: var(--card-face);
+}
+
+/* --- D7: *Gekocht* op een inktknop --------------------------------------- */
+
+/* De koopknop is geen `.btn-primary` meer; *Gekocht* ligt op papier, zoals voorheen. */
+.btn.winkel-koop.winkel-koop-gekocht,
+.btn.winkel-koop.winkel-koop-gekocht:hover,
+.btn.winkel-koop.winkel-koop-gekocht:active {
+  background: var(--paper-raised);
+  border-color: var(--stamp-red);
+  border-width: 2px;
+  color: var(--stamp-red);
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+  transition: none;
 }

@@ -105,6 +105,37 @@ export function hereFrom(location: { pathname: string; search: string; hash: str
   return `${location.pathname}${search ? `?${search}` : ''}${location.hash}`;
 }
 
+/**
+ * §102: de omslag-cirkel, both ends of it.
+ *
+ * A flip is a document load (above), and since §102 the archive opts every
+ * document load into a cross-document view transition (`@view-transition` in
+ * `kaartje.css`). This script is what keeps that to the flip alone — decision
+ * 5 of round 65: *the flip gets its circle back, and nothing else gets a page
+ * transition.*
+ *
+ *  - `pageswap` (the page being left): no fresh note → `skipTransition()`.
+ *    Signing in, signing out, a form's 303, `location.assign('/wiki')`: all
+ *    of them leave without one, and are not even captured.
+ *  - `pagereveal` (the page arriving): the note is read and removed whatever
+ *    happens — it is for this one landing. Fresh and allowed to move →
+ *    `--flip-x`/`--flip-y` go on `<html>`, where `side-flip-wipe` reads them.
+ *    Otherwise, or under `prefers-reduced-motion: reduce`, → skip.
+ *
+ * "Fresh" is under 3 s, measured from the press (`SideToggle` writes the note
+ * the moment before `location.assign`), and not from the future — a clock that
+ * went backwards is not a hand.
+ *
+ * It is an inline script in the root layout's `<head>` because `pagereveal`
+ * fires before the first frame: an effect is far too late. Plain ES5, one
+ * try around everything, and a browser without these events (Firefox 144 has
+ * same-document view transitions but no cross-document ones) never calls the
+ * listeners at all. The CSP allows inline scripts (`next.config.mjs`, §89).
+ * `tests/unit/flip-script.test.ts` runs it against a pretend window.
+ */
+export const FLIP_NOTE = 'lw:flip';
+export const FLIP_SCRIPT = `(function(w){try{var K=${JSON.stringify(FLIP_NOTE)};function fresh(){try{var v=JSON.parse(w.sessionStorage.getItem(K)||'null'),n=Date.now();return v&&typeof v.x==='number'&&typeof v.y==='number'&&typeof v.at==='number'&&n>=v.at&&n-v.at<3000?v:null}catch(e){return null}}w.addEventListener('pageswap',function(e){if(e.viewTransition&&!fresh())e.viewTransition.skipTransition()});w.addEventListener('pagereveal',function(e){var f=fresh();try{w.sessionStorage.removeItem(K)}catch(x){}var t=e.viewTransition;if(!t)return;if(!f||(w.matchMedia&&w.matchMedia('(prefers-reduced-motion: reduce)').matches)){t.skipTransition();return}var s=w.document.documentElement.style;s.setProperty('--flip-x',f.x+'px');s.setProperty('--flip-y',f.y+'px')})}catch(e){}})(window);`;
+
 /** What a landing carries, read off its query string. */
 export function readLanding(search: string): { switched: boolean; twinless: boolean } {
   const params = new URLSearchParams(search);

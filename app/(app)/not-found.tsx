@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Icon } from '@/components/Icon';
+import { getWords } from '@/lib/admin/words';
 
 /**
  * Something inside the archive is not there — or not there *for you*.
@@ -17,29 +19,43 @@ import Link from 'next/link';
  * banner is on screen wherever the preview takes them.
  */
 export default function AppNotFound() {
+  // §102, golf h1 (D2): every word from the list (§11), so a Keeper can say it in
+  // the archive's own voice. The layout has already asked for a viewer.
+  const words = getWords();
   return (
     <div className="page">
-      <div className="empty" style={{ textAlign: 'left' }}>
+      {/*
+       * §102, golf h1 (D2, T13): a fiche from the archive's own drawer — paper, a
+       * rule, a stamp — rather than a dashed "empty" box. It now also catches
+       * every unknown address (`[...rest]`), so this is the page a mistyped
+       * link lands on, and it should look like it belongs.
+       */}
+      <section className="niet-gevonden" aria-labelledby="niet-gevonden-titel">
         {/*
          * The number is on the page on purpose. It is what a reader who ends
          * up here by mistake can repeat to somebody else, and it is what
          * `phase3-keeper-tools.spec.ts` looks for when it checks that a
          * Keeper-only artikel answers nothing at its own address.
          */}
-        <p className="eyebrow">404</p>
-        <h1 style={{ margin: '0 0 0.4rem', fontSize: '1.3rem' }}>Deze pagina is er niet.</h1>
-        <p className="small" style={{ margin: '0 0 0.8rem' }}>
-          Hij bestaat niet, of hij is niet van jou om te lezen. De rest van het archief staat er nog.
-        </p>
-        <div className="row-wrap">
-          <Link className="btn btn-small btn-primary" href="/">
-            Naar het begin
+        <p className="eyebrow niet-gevonden-nummer">404</p>
+        <span className="stamp niet-gevonden-stempel" aria-hidden="true">
+          {words.notFoundStamp}
+        </span>
+        <h1 id="niet-gevonden-titel" className="niet-gevonden-titel">
+          {words.notFoundTitle}
+        </h1>
+        <p className="niet-gevonden-tekst">{words.notFoundBody}</p>
+        <div className="row-wrap niet-gevonden-deuren">
+          <Link className="btn btn-primary" href="/">
+            <Icon name="home" size={16} />
+            {words.notFoundHome}
           </Link>
-          <Link className="btn btn-small btn-ghost" href="/search">
-            Zoeken
+          <Link className="btn" href="/search">
+            <Icon name="search" size={16} />
+            {words.navSearch}
           </Link>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

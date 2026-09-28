@@ -37,7 +37,10 @@ async function linkInBody(page: Page, before: string, name: string) {
   const body = bodyOf(page);
   await expect(body).toHaveAttribute('contenteditable', 'true', { timeout: 20_000 });
   await page.waitForTimeout(400);
-  await body.click();
+  // §104: into the text at its very first letter, not its middle — a click in
+  // Bewerken on a chip follows it, and with 17 px text the middle of a short
+  // body can be the chip the speler's rewrite put back.
+  await body.click({ position: { x: 2, y: 4 } });
   await page.keyboard.press('Control+End');
   await page.keyboard.type(before, { delay: 15 });
   await page.keyboard.type(`@${name.slice(0, 12)}`, { delay: 30 });

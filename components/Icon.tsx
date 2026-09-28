@@ -22,6 +22,14 @@ const PATHS: Record<string, string> = {
   gift: 'M3.5 11.5h17V21h-17zM2.5 7.5h19v4h-19zM12 7.5V21M12 7.5C10.5 3.5 6 3.9 6 6.1c0 1.2 1.8 1.7 6 1.4M12 7.5c1.5-4 6-3.6 6-1.4 0 1.2-1.8 1.7-6 1.4',
   shelf: 'M3 14.5h18M5.5 14.5V18M18.5 14.5V18M7.5 14.5V9.5h3v5M13 14.5v-7h3.2v7',
   desk: 'M2.5 10.5h19v2h-19zM4.5 12.5V21M19.5 12.5V21M8 16h7.5M8 16v3.5h7.5V16',
+  /*
+   * §103 herstel (ronde 66, #22): de muur en de kist hadden de vorm van een
+   * soort — `pin` is ook *Locaties*, `box` ook *Voorwerpen*. Twee eigen vormen:
+   * een lijstje met een landschap aan een spijker, en een zeekist met een bolle
+   * deksel, twee banden en een slot.
+   */
+  frame: 'M12 3.2v2.3M9.2 8.5 12 5.5l2.8 3M4 8.5h16V20H4zM7 17.2l3.3-3.4 2.4 2.4 1.8-1.8 2.5 2.8M15.8 12.4a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8Z',
+  chest: 'M3 10.5h18V20H3zM3 10.5V9a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v1.5M10.5 9h3v3.5h-3zM7 5.3v14.7M17 5.3v14.7',
   layers: 'M3 8l9 4 9-4-9-4zM3 12l9 4 9-4M3 16l9 4 9-4',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21c0-3.9 3.6-6 8-6s8 2.1 8 6',
   badge:
@@ -62,6 +70,9 @@ const PATHS: Record<string, string> = {
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 3l1.5 2.5h2.8l.7 2.7 2.4 1.4-.7 2.7 .7 2.7-2.4 1.4-.7 2.7h-2.8L12 21l-1.5-2.5H7.7L7 15.8l-2.4-1.4.7-2.7-.7-2.7L7 7.6l.7-2.7h2.8z',
   mask: 'M4 5c2.5-1.3 5.3-2 8-2s5.5.7 8 2v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10zM8.5 11h2M13.5 11h2M9 15.5c1 .8 2 1.2 3 1.2s2-.4 3-1.2',
   swap: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4',
+  // Ronde 65·herstel (review #27): *Verras me* — a die showing five. It wore
+  // `swap` (the sort arrows) before. The pips are stroked dots of r = .6.
+  dice: 'M6.5 3.5h11a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3v-11a3 3 0 0 1 3-3ZM8.5 9.1a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2ZM15.5 9.1a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2ZM12 12.6a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2ZM8.5 16.1a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2ZM15.5 16.1a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2Z',
   // §93: verplaatsen in de kamer — vier pijlen, want het ding gaat naar een andere plek.
   move: 'M12 3v18M3 12h18M12 3 9 6m3-3 3 3M12 21l-3-3m3 3 3-3M3 12l3-3m-3 3 3 3M21 12l-3-3m3 3-3 3',
   sort: 'M4 6h16M7 12h10M10 18h4',
@@ -73,6 +84,8 @@ const PATHS: Record<string, string> = {
   zoomOut: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20 20l-4-4M8 11h6',
   fit: 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5',
   note: 'M5 4h11l3 3v13H5zM8 10h8M8 14h6',
+  // §104 (ronde 67·herstel, #23): Meer info — a circle with an i, not the pencil of Bewerken.
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 11v5.5M12 7.6v.1',
   mapPin: 'M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11ZM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   // §33: the tekenlaag — a pencil, a gum, and an arrow that takes the last line back.
   pencil: 'M14.5 4.5l5 5L8 21H3v-5zM12 7l5 5',

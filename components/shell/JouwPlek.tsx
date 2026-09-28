@@ -5,14 +5,17 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
+import { SaldoGetal } from '@/components/kamer/SaldoGetal';
+import { NavPending } from '@/components/shell/NavPending';
 import { MEANING } from '@/components/kamer/plekWords';
-import { FLIP_EVENT } from '@/components/keeper/SideToggle';
+import { flipEventFrom } from '@/components/keeper/SideToggle';
 import { useLiveBaseOptional } from '@/components/live/LiveProvider';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
 import { JijWho, type Me } from '@/components/you/CharacterSwitcher';
 import { WritingAsLine } from '@/components/you/AuthorProvider';
 import { capitalise, fill, type Words } from '@/lib/words';
+import { currentDoor, jijIsHere } from '@/components/shell/jouwPlekPad';
 
 /**
  * §91: jouw plek — kamer, winkel, je eigen spelerspagina en de hal.
@@ -41,7 +44,14 @@ import { capitalise, fill, type Words } from '@/lib/words';
  * Keeper door de ogen van een speler kijkt.
  */
 
-export type Purse = { roomId: string; balance: number; slug: string; name: string } | null;
+export type Purse = {
+  roomId: string;
+  balance: number;
+  slug: string;
+  name: string;
+  /** §103 (K4): de nieuwste gift van de Keeper, voor de melding als hij binnenkomt. */
+  lastGrant?: { id: string; delta: number; reason: string } | null;
+} | null;
 
 type Door = {
   key: string;
@@ -119,9 +129,10 @@ function useOnline(): number {
 function Tail({ door, purse, online, words }: { door: Door; purse: Purse; online: number; words: Words }) {
   if (door.tail === 'saldo' && purse) {
     return (
-      <span className="nav-tail" data-testid="yours-saldo" data-balance={purse.balance}>
+      <span className="nav-tail saldo-staart" data-testid="yours-saldo" data-balance={purse.balance}>
         <Icon name={MEANING.munt} size={13} />
-        {purse.balance}
+        {/* §103 (K3): het getal rolt tussen twee serverwaarden; de chip hangt links ervan. */}
+        <SaldoGetal value={purse.balance} side="voor" />
       </span>
     );
   }
@@ -157,6 +168,7 @@ export function YoursGroup({ me, purse, myPage }: { me: Me; purse: Purse; myPage
   const words = useUi().words;
   const online = useOnline();
   const doors = yoursDoors({ words, purse, myPage, isKeeper: me.isKeeper });
+  const current = currentDoor(pathname, doors.map((door) => door.href));
   return (
     <div className="nav-group" role="group" aria-labelledby="nav-yours" data-testid="nav-yours">
       <GroupHead id="nav-yours">{words.navGroupYours}</GroupHead>
@@ -165,9 +177,11 @@ export function YoursGroup({ me, purse, myPage }: { me: Me; purse: Purse; myPage
           key={door.key}
           href={door.href}
           data-testid={door.testId}
-          aria-current={isHere(pathname, door.href) ? 'page' : undefined}
+          aria-current={door.href === current ? 'page' : undefined}
         >
           <Icon name={door.icon} size={18} />
+          {/* §102 (ronde 65·b): het vakje antwoordt meteen. */}
+          <NavPending />
           <span className="nav-word">{door.label}</span>
           <Tail door={door} purse={purse} online={online} words={words} />
         </Link>
@@ -192,10 +206,12 @@ export function KeeperGroup() {
       <Link href="/admin" aria-current={isHere(pathname, '/admin') ? 'page' : undefined} data-testid="nav-admin">
         <Icon name="shield" size={18} />
         {words.navAdmin}
+        <NavPending />
       </Link>
       <Link href="/uitdelen" aria-current={isHere(pathname, '/uitdelen') ? 'page' : undefined} data-testid="nav-uitdelen">
         <Icon name={MEANING.geven} size={18} />
         {words.handout}
+        <NavPending />
       </Link>
     </div>
   );
@@ -285,19 +301,23 @@ export function JijTab({
       aria-describedby={purse ? describe : undefined}
       aria-haspopup="dialog"
       aria-expanded={open}
-      aria-current={pathname === '/you' ? 'page' : undefined}
+      aria-current={jijIsHere(pathname) ? 'page' : undefined}
       data-testid="tab-jij"
       onClick={onOpen}
     >
+      {/* §102, golf h1 (T3): het poppetje, en eronder het woord *Jij* — een label,
+          net als de zeven tabs ernaast — met het saldo op dezelfde regel. */}
       <Icon name="you" size={20} />
-      {purse ? (
-        <span className="tab-jij-saldo" aria-hidden="true" data-testid="tab-jij-saldo" data-balance={purse.balance}>
-          <Icon name={MEANING.munt} size={10} />
-          {purse.balance}
-        </span>
-      ) : (
-        <span aria-hidden="true">{words.navYou}</span>
-      )}
+      <span className="tab-jij-label" aria-hidden="true">
+        {words.navYou}
+        {purse && (
+          <span className="tab-jij-saldo" data-testid="tab-jij-saldo" data-balance={purse.balance}>
+            <Icon name={MEANING.munt} size={9} />
+            {/* §103 (K3): hetzelfde getal, dezelfde rol; de chip staat boven het poppetje. */}
+            <SaldoGetal value={purse.balance} side="boven" />
+          </span>
+        )}
+      </span>
       {purse && (
         <span id={describe} className="visually-hidden">
           {`${words.purse}: ${purse.balance}`}
@@ -408,9 +428,10 @@ export function JijSheet({
                 type="button"
                 className="btn jij-door"
                 data-testid="jij-flip"
-                onClick={() => {
+                onClick={(event) => {
                   close();
-                  window.dispatchEvent(new Event(FLIP_EVENT));
+                  // §102: a finger here draws the circle from this button.
+                  window.dispatchEvent(flipEventFrom(event));
                 }}
               >
                 <Icon name={me.side === 'keeper' ? 'you' : 'shield'} size={18} />

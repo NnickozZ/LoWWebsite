@@ -1,12 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { assetUrl } from '@/components/Cover';
+import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
+import { createPortal } from 'react-dom';
+import { fill } from '@/lib/words';
 import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
-import { cropFor, SHAPE_ORDER, SHAPES, type CoverCrops, type Crop, type CropShape } from '@/lib/images/shapes';
+import { cropFor, normaliseCrops, SHAPE_ORDER, SHAPES, type CoverCrops, type Crop, type CropShape } from '@/lib/images/shapes';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { useDismiss } from '@/components/ui/useDismiss';
@@ -47,6 +49,7 @@ export function CoverEditor({
   icon,
   colour,
   readOnly: locked = false,
+  landscape = false,
   onChange,
 }: {
   assetId: string | null;
@@ -56,6 +59,8 @@ export function CoverEditor({
   colour: string;
   /** §22: the reading face — the picture, and not one control. */
   readOnly?: boolean;
+  /** §104 (L5): reading on a narrow screen — the landscape crop, not the whole picture. */
+  landscape?: boolean;
   onChange: (next: { coverAssetId: string | null; coverCrop: CoverCrops | null }) => void;
 }) {
   const ui = useUi();
@@ -76,6 +81,13 @@ export function CoverEditor({
   /** §69: where the caret goes back to when Escape closes the menu. */
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  /** §104 (L5): the picture opened whole, and the button the caret goes back to. */
+  const [big, setBig] = useState(false);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const closeBig = useCallback(() => {
+    setBig(false);
+    openerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     setLocal(crop);
@@ -159,6 +171,44 @@ export function CoverEditor({
     </div>
   );
 
+  /*
+   * §104 (ronde 67, L5): reading, the picture is a door to itself. A tap or a
+   * click opens it whole in the lichtbak the prikbord and the tijdlijn already
+   * use (`.board-lightbox`). On a narrow screen it stands *liggend* — the
+   * landscape crop this picture already has for every list (round 19), at most
+   * 40 % of the screen high — so the first sentence is still on the first
+   * screen; the whole picture is one tap away.
+   */
+  if (readOnly && assetId) {
+    return (
+      <figure className={`entry-figure${landscape ? ' entry-figure-liggend' : ''}`}>
+        <button
+          type="button"
+          ref={openerRef}
+          className="entry-cover-open"
+          aria-label={fill(ui.words.coverOpen, { naam: alt })}
+          onClick={() => setBig(true)}
+        >
+          {landscape ? (
+            <span className={`entry-cover-liggend ${coverClass('landscape')}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={assetUrl(assetId, 'card')} alt={alt} style={liggendStijl(crop)} />
+            </span>
+          ) : (
+            picture
+          )}
+        </button>
+        {big && (
+          <CoverLightbox
+            assetId={assetId}
+            alt={alt}
+            closeLabel={ui.words.coverClose}
+            onClose={closeBig}
+          />
+        )}
+      </figure>
+    );
+  }
   if (readOnly) return <figure className="entry-figure">{picture}</figure>;
 
   return (
@@ -296,4 +346,64 @@ export function CoverEditor({
       />
     </figure>
   );
+}
+
+/**
+ * §104 (ronde 67, L5): the picture whole, over everything — the prikbord's and
+ * the tijdlijn's lichtbak (`.board-lightbox`), one look and one set of rules.
+ * A click anywhere or Escape closes it, and the caret goes back to the picture
+ * that opened it. In a portal, because a `position: fixed` inside a column that
+ * carries a transform is fixed to that column, not to the screen.
+ */
+function CoverLightbox({
+  assetId,
+  alt,
+  closeLabel,
+  onClose,
+}: {
+  assetId: string;
+  alt: string;
+  closeLabel: string;
+  onClose: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+  return createPortal(
+    <div
+      className="board-lightbox entry-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt}
+      data-testid="entry-lightbox"
+      onClick={onClose}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={assetUrl(assetId, 'full')} alt={alt} />
+      <button type="button" ref={closeRef} className="btn btn-small" aria-label={closeLabel}>
+        <Icon name="close" size={16} />
+        {closeLabel}
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * §104 (golf H, T10): the liggend strip on a phone. With a landscape crop of
+ * its own the picture is drawn by it (`coverStyle`); without one the strip is
+ * cut from the lower part of the picture (50 % 85 %), because that is where a
+ * drawn cover prints its name band — centred, "De familie De Kok" lost *Kok*.
+ */
+function liggendStijl(crop: CoverCrops | null | undefined): React.CSSProperties {
+  if (normaliseCrops(crop)?.landscape) return coverStyle(crop, 'landscape');
+  return { objectFit: 'cover', objectPosition: '50% 85%' };
 }

@@ -3,6 +3,7 @@ import { db, schema } from '@/lib/db';
 import { alignedDelta } from '@/lib/editor/shortBox';
 import { newHandle } from './shortUpgrade.mjs';
 import { dropStrayDelimiters, handlesIn, isHandle, legacySpans, projectShort, splitShort, tokenFor } from './shortTokens.mjs';
+import { naadSneden, naadTekst, snij, type NaadStuk } from '@/lib/wiki/naad';
 import { entryNameIndex } from './mentions';
 import { legacyLinkId, legacyLinkIdsIn, linkHandle, linkHandlesIn, linkNode, mapLinks } from './docLinks.mjs';
 import { visibleEntryCondition, type Viewer } from './visibility';
@@ -113,7 +114,17 @@ export function plainShort(viewer: Viewer, text: string): string {
   const handles = handlesIn(text);
   if (!handles.length) return text;
   const chips = resolveHandles(viewer, handles);
-  return projectShort(text, (handle: string) => chips.get(handle)?.name ?? null).trim();
+  // §104 (ronde 67·herstel): a chip this reader may not follow is nothing, and
+  // the words around it close up — no space before a comma, none at the start
+  // of a line, never two (`lib/wiki/naad.ts`).
+  const parts = splitShort(text);
+  const pieces = parts.map((part): NaadStuk =>
+    part.kind === 'text' ? { tekst: part.text } : chips.has(part.handle) ? { vast: true } : { verborgen: true },
+  );
+  return naadTekst(pieces, (index) => {
+    const part = parts[index];
+    return part.kind === 'chip' ? (chips.get(part.handle)?.name ?? '') : '';
+  }).trim();
 }
 
 /**
@@ -424,30 +435,35 @@ const GAP: DocNode = { type: '__gap' };
 
 function closeGaps(doc: DocNode, depth = 0): DocNode {
   if (!doc || typeof doc !== 'object' || !Array.isArray(doc.content) || depth > 64) return doc;
-  let changed = false;
-  const content: DocNode[] = [];
-  const kids = [...doc.content]; // a copy: the seam is fixed here, never in what came in
-  for (let i = 0; i < kids.length; i++) {
-    const child = kids[i];
-    if (child !== GAP) {
+  const kids = doc.content;
+  if (!kids.includes(GAP)) {
+    let changed = false;
+    const content = kids.map((child) => {
       const inner = closeGaps(child, depth + 1);
       if (inner !== child) changed = true;
-      content.push(inner);
-      continue;
-    }
-    changed = true;
-    const prev = content[content.length - 1];
-    const next = kids[i + 1];
-    const prevText = prev?.type === 'text' ? (prev.text ?? '') : null;
-    const nextText = next?.type === 'text' && next !== GAP ? (next.text ?? '') : null;
-    const prevSpace = prevText !== null && /\s$/.test(prevText);
-    const nextSpace = nextText !== null && nextText.startsWith(' ');
-    // A space on both sides, or a space against the start of the line: the
-    // one after goes. A space against the end of the line: the one before.
-    if (nextSpace && (prevSpace || !prev)) kids[i + 1] = { ...next, text: nextText.slice(1) };
-    else if (prevSpace && !next) content[content.length - 1] = { ...prev, text: prevText.replace(/ $/, '') };
+      return inner;
+    });
+    return changed ? { ...doc, content } : doc;
   }
-  if (!changed) return doc;
+  // §104 (ronde 67·herstel): the same seam the reading face closes
+  // (`lib/wiki/naad.ts`) — one space where two met, and none before a comma
+  // or at the start of a line — because here the link is really gone.
+  const pieces = kids.map((child): NaadStuk =>
+    child === GAP
+      ? { verborgen: true }
+      : child.type === 'text'
+        ? { tekst: child.text ?? '' }
+        : child.type === 'hardBreak'
+          ? { breuk: true }
+          : { vast: true },
+  );
+  const cuts = naadSneden(pieces);
+  const content: DocNode[] = [];
+  kids.forEach((child, index) => {
+    if (child === GAP) return;
+    if (child.type === 'text' && cuts[index].length) content.push({ ...child, text: snij(child.text ?? '', cuts[index]) });
+    else content.push(closeGaps(child, depth + 1));
+  });
   // Drop a text that is empty now, and join two texts that wear the same marks.
   const joined: DocNode[] = [];
   for (const node of content) {

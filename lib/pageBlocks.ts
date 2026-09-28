@@ -114,6 +114,43 @@ function capitaliseFirst(word: string) {
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : word;
 }
 
+/**
+ * §104 (ronde 67, L9): één woord, één antwoord.
+ *
+ * Een familie droeg *Leden* twee keer, met twee antwoorden: het infoboxveld
+ * *Leden: Wim Poppe* (wat iemand op deze pagina koos) en het afgeleide blok
+ * *Leden (0)* (wie er op zijn eigen pagina naar deze familie wijst). Dat waren
+ * altijd de twee helften van één lijst — §51 zette ze zo neer, "zodat geen van
+ * beide handen het twee keer hoeft te schrijven" — maar het blok las er maar
+ * één van.
+ *
+ * De minst verrassende oplossing die de Keeper in zijn macht laat: **een
+ * afgeleid blok dat dezelfde kop draagt als een koppelingsveld van de soort,
+ * neemt wat in dat veld staat erbij.** Er verandert geen titel en er wordt
+ * niets opgeslagen of overschreven (geen migratie); het blok toont gewoon het
+ * hele antwoord op de vraag die zijn kop stelt. Wil de Keeper ze wél apart,
+ * dan geeft hij een van de twee een andere naam, en dan staan ze weer los.
+ * De vergelijking is op de kop zoals een lezer hem ziet: hoofdletters en
+ * spaties tellen niet mee.
+ */
+export function twinFieldOf<F extends { key: string; label: string; kind: string }>(
+  block: PageBlock,
+  fields: readonly F[],
+): F | null {
+  if (block.kind !== 'derived' || !block.title) return null;
+  const heading = sameWord(block.title);
+  if (!heading) return null;
+  return (
+    fields.find(
+      (field) => (field.kind === 'entry_link' || field.kind === 'entry_links') && sameWord(field.label) === heading,
+    ) ?? null
+  );
+}
+
+function sameWord(text: string): string {
+  return text.trim().replace(/\s+/g, ' ').toLocaleLowerCase('nl');
+}
+
 /** The page every soort fiche has until a Keeper rearranges it. */
 export function defaultBlocks(): PageBlock[] {
   return BUILT_IN_KINDS.map((kind) => ({ id: kind, kind }));

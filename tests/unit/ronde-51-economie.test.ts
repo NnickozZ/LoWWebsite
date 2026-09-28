@@ -331,6 +331,8 @@ describe('§90 E4: kopen volgt het filter', () => {
     ownedCount: 0,
     // §93: de lade en de plek op slot (E5) — hier niet aan de orde.
     drawerCount: 0,
+    // §103 (K6): waar *Bekijk* heen springt — hier niets.
+    ownedSlotId: null,
     opens: null,
     takenElsewhere: false,
     landsIn,

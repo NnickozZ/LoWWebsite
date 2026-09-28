@@ -41,6 +41,14 @@ const SCOPE = [
   // §93: verplaatsen en de koopmelding met *Ongedaan maken*.
   'components/kamer/Verplaatsen.tsx',
   'components/kamer/buyToast.ts',
+  // §103: het moment — neerzetten, het rollende saldo, Ingericht en het slotje.
+  'components/kamer/Neerzetten.tsx',
+  'components/kamer/SaldoGetal.tsx',
+  'components/kamer/moment.ts',
+  // §103 golf H: de dichte plekken, het antwoord van de server voor het saldo, en de koper.
+  'components/kamer/DichtePlekken.tsx',
+  'components/kamer/saldo.ts',
+  'components/winkel/KoperKop.tsx',
   'components/winkel/WinkelRij.tsx',
   'components/winkel/WinkelFilter.tsx',
   'components/winkel/BuyButton.tsx',
@@ -241,6 +249,8 @@ describe('§84: de stylesheets van de feature', () => {
       read('app/kamer.css'),
       read('app/spelers.css'),
       read('app/aanwezig.css'),
+      // §103: het saldo staat in de schil, dus zijn chip in het globale moment.css.
+      read('app/moment.css'),
     ].join('\n');
     const missing: string[] = [];
     for (const path of [...SCOPE, 'app/(app)/spelers/page.tsx', 'app/(app)/spelers/[naam]/page.tsx']) {

@@ -1,0 +1,264 @@
+/* §102–§104: moment — zie docs/beweging.md. Eigen bestand zodat globals.css van één hand blijft. */
+
+/* ======================================================================
+ * §103, ronde 66 (K3): het saldo rolt, en een chip zegt hoeveel.
+ *
+ * Hier en niet in kamer.css, omdat het saldo in de schil staat — naast *Kamer*
+ * in de zijbalk en op de Jij-tab — en kamer.css maar door drie routes wordt
+ * ingeladen (§84's val met `.spelers-kop`).
+ * ==================================================================== */
+
+/* Het getal verschuift niet terwijl het telt. */
+.saldo-getal {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * §84 liet `.beurs-body` bij elke nieuwe `key` inzakken (`beurs-tel` in
+ * globals.css), ook bij de eerste render. `SaldoGetal` doet dat werk nu, en een
+ * eerste render beweegt niet: die oude animatie gaat uit.
+ */
+.beurs-body {
+  animation: none;
+}
+
+/* De chip hangt tegen de vorm waar het getal in staat, niet ertussen. */
+.beurs,
+.saldo-staart,
+.tab-jij-saldo {
+  position: relative;
+}
+
+.saldo-chip {
+  position: absolute;
+  z-index: 3;
+  width: max-content;
+  height: max-content;
+  padding: 0.05rem 0.42rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised);
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-transform: none;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity var(--dur-3) var(--ease-exit);
+}
+/* Erbij in het groen van de aanwezigheid, eraf gedempt. Nooit rood (§84). */
+.saldo-chip[data-richting='erbij'] {
+  border-color: color-mix(in srgb, var(--live) 45%, transparent);
+  background: color-mix(in srgb, var(--live) 14%, var(--paper-raised));
+  color: color-mix(in srgb, var(--live) 78%, var(--ink));
+}
+.saldo-chip[data-leaving] {
+  opacity: 0;
+}
+
+/* Links naast de staart in de zijbalk: daar is de ruimte, tussen *Kamer* en het getal. */
+.saldo-chip-voor {
+  right: calc(100% + 0.35rem);
+  top: 0;
+  bottom: 0;
+  margin-block: auto;
+}
+/* Boven de beurs en boven het poppetje van de Jij-tab. */
+.saldo-chip-boven {
+  bottom: calc(100% + 0.2rem);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+}
+/* Op de beurs zelf: in de hoek rechtsboven, als een kaartje dat erop gelegd wordt. */
+.beurs .saldo-chip-boven {
+  bottom: calc(100% - 0.55rem);
+  left: auto;
+  right: -0.7rem;
+  margin: 0;
+}
+.tab-jij-saldo .saldo-chip-boven {
+  bottom: calc(100% + 1.1rem);
+  font-size: 0.62rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .saldo-chip-voor {
+    animation: saldo-chip-links var(--dur-4) var(--ease-land) backwards;
+  }
+  .saldo-chip-boven {
+    animation: saldo-chip-op var(--dur-4) var(--ease-land) backwards;
+  }
+}
+@keyframes saldo-chip-op {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+@keyframes saldo-chip-links {
+  from {
+    opacity: 0;
+    transform: translateX(5px);
+  }
+}
+
+/* ======================================================================
+ * §103 herstel (ronde 66, #24): /you — één labelkolom.
+ *
+ * Lettertype, Kleuren en *Geluid in de kamer* stonden elk met hun chips direct
+ * achter hun eigen label, dus drie labels van drie breedtes gaven drie
+ * beginpunten voor de chips (`min-width: 6.5rem` in globals.css was smaller dan
+ * *GELUID IN DE KAMER*). Nu een vaste kolom, breed genoeg voor het langste
+ * label, en de zin eronder begint waar de chips beginnen. Hier en niet in
+ * globals.css omdat dit bestand overal geladen wordt en van deze ronde is; op
+ * een telefoon staat het label boven de chips (globals.css) en geldt dit niet.
+ * ==================================================================== */
+@media (min-width: 768px) {
+  .you-prefs {
+    --you-label-kolom: 10rem;
+  }
+  .you-prefs .you-pref-label {
+    flex: 0 0 var(--you-label-kolom);
+    min-width: 0;
+  }
+  .you-prefs .you-pref-hint {
+    padding-left: calc(var(--you-label-kolom) + 0.4rem);
+  }
+}
+
+/* ======================================================================
+ * §103 herstel (ronde 66, #8): de chip in de winkelkiezer.
+ *
+ * In de kiezer is de beurs klein en zit hij in een pil (`.chip`). De chip
+ * `+12` hing als een kaartje op de rechterbovenhoek (zie `.beurs
+ * .saldo-chip-boven` hierboven) en lag daar over *MUNTEN*. Hier neemt hij de
+ * plaats van dat woord in: naast het getal, binnen de beurs, dus nooit buiten
+ * de pil en zonder dat de pil van breedte verandert. Het woord wijkt zolang de
+ * chip er staat en komt terug als hij vervaagt. Onder reduced motion wisselen
+ * ze zonder overgang.
+ * ==================================================================== */
+.winkel-kiezer-saldo .beurs .saldo-chip-boven {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: 0.35rem;
+  margin: auto 0;
+}
+.winkel-kiezer-saldo .beurs:has(.saldo-chip:not([data-leaving])) .beurs-munt {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .winkel-kiezer-saldo .beurs-munt {
+    transition: opacity var(--dur-2) var(--ease-standard);
+  }
+  /* Opzij in plaats van omhoog: de chip komt waar het woord stond. */
+  .winkel-kiezer-saldo .beurs .saldo-chip-boven {
+    animation-name: saldo-chip-links;
+  }
+}
+
+/* ======================================================================
+ * §103 golf H (h2): de economie, laatste pas na design-review 3.
+ *
+ *  - D11: de chip bij het saldo ligt in élke `.beurs` binnen de pil;
+ *  - D10: `toast-munt`, de melding voor munten van de Keeper.
+ * Hier en niet in kamer.css, omdat de beurs en de meldingen in de schil staan.
+ * ==================================================================== */
+
+/*
+ * D11: de oplossing van de kiezer (hierboven) voor elke beurs. De chip hing
+ * als een kaartje op de rechterbovenhoek en lag daar op de rand van de pil —
+ * in de kamer, in de winkel, in de plek-kiezer. Nu neemt hij de plaats van
+ * *MUNTEN* in: binnen de pil, zonder dat die van breedte verandert. Het woord
+ * wijkt zolang de chip er staat (onder reduced motion zonder overgang).
+ */
+.beurs .saldo-chip-boven {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: 0.4rem;
+  margin: auto 0;
+}
+.beurs-small .saldo-chip-boven {
+  right: 0.3rem;
+}
+.beurs:has(.saldo-chip:not([data-leaving])) .beurs-munt {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .beurs .beurs-munt {
+    transition: opacity var(--dur-2) var(--ease-standard);
+  }
+  .beurs .saldo-chip-boven {
+    animation-name: saldo-chip-links;
+  }
+}
+
+/*
+ * D10: het mooiste moment aan tafel. Dezelfde balk als elke melding (inkt,
+ * papier erop), met links een stempel met het bedrag in het groen van de
+ * aanwezigheid: een gift, nooit rood (§84). `--live` gemengd met het papier,
+ * zodat hij op de donkere balk van een licht palet licht is en op de lichte
+ * balk van een donker palet donker. De stempel komt neer in `--dur-5` op
+ * `--ease-land` (schuin, van 1,5 naar 1); onder reduced motion ligt hij er.
+ */
+.toast-munt {
+  gap: 0.85rem;
+  padding-block: 0.6rem;
+}
+.toast-munt-stempel {
+  --munt-inkt: color-mix(in oklab, var(--live) 58%, var(--paper));
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.1rem;
+  height: 2.3rem;
+  padding: 0 0.5rem;
+  border: 2px solid var(--munt-inkt);
+  border-radius: 999px;
+  color: var(--munt-inkt);
+  font-family: var(--stamp-face);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  transform: rotate(-6deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toast-munt-stempel {
+    animation: toast-munt-land var(--dur-5) var(--ease-land) backwards;
+  }
+}
+@keyframes toast-munt-land {
+  from {
+    opacity: 0;
+    transform: rotate(-14deg) scale(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-6deg) scale(1);
+  }
+}
+.toast-munt-tekst {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  line-height: 1.3;
+}
+.toast-munt-regel {
+  font-weight: 600;
+}
+.toast-munt-reden {
+  font-family: var(--serif);
+  font-style: italic;
+  opacity: 0.82;
+  overflow-wrap: anywhere;
+}

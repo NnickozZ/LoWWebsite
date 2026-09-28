@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 import { useHoldRefresh } from '@/components/live/refreshHold';
@@ -9,7 +8,9 @@ import { useUi } from '@/components/ui/UiProvider';
 import type { HandOutTarget } from '@/lib/kamers/service';
 import { fill, type Words } from '@/lib/words';
 import { MEANING, munt } from './plekWords';
-import { kamerPost } from './post';
+import { kamerPostFor } from './post';
+import { announceBalance } from './saldo';
+import { SaldoGetal } from './SaldoGetal';
 
 /**
  * §83: de uitdeler — één getal bovenaan, één reden, en één regel per kamer.
@@ -98,6 +99,12 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
   const [query, setQuery] = useState('');
   /** §85: de knop houdt zijn uitkomst even vast. Zie de docblock hierboven. */
   const [done, setDone] = useState(false);
+  /**
+   * §103 (K7): wat elke aangevinkte rij net kreeg — de spiegel van K4 voor de
+   * Keeper. Het bedrag is een echo van het vakje dat hij zelf invulde, geen
+   * som over het archief (rule 78), en het staat er zolang `done` staat.
+   */
+  const [given, setGiven] = useState<Record<string, string> | null>(null);
 
   /** Staat er íéts aan? Goedkoop genoeg om zonder memo te lezen, en het is de
       vraag die §59's hold stelt: ligt er een hand op dit scherm. */
@@ -111,7 +118,10 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
   useHoldRefresh(Boolean(all.trim() || reason.trim() || query.trim() || anyPicked || busy));
 
   useEffect(() => {
-    if (!done) return;
+    if (!done) {
+      setGiven(null);
+      return;
+    }
     const timer = setTimeout(() => setDone(false), 4000);
     return () => clearTimeout(timer);
   }, [done]);
@@ -212,12 +222,38 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
       const rows = targets
         .filter((target) => on[target.roomId])
         .map((target) => ({ roomId: target.roomId, delta: amounts[target.roomId] ?? '' }));
-      const error = await kamerPost('/api/kamers/uitdelen', { rows, reason }, words);
+      const { error, data } = await kamerPostFor<{ rooms: number; total: number; balances?: Record<string, number> }>(
+        '/api/kamers/uitdelen',
+        { rows, reason },
+        words,
+      );
       if (error) {
         ui.toast(error);
         return;
       }
-      ui.toast(words.handoutDone);
+      /*
+       * §103 golf H (T14): de rijen krijgen hun nieuwe balans uit het antwoord
+       * — dezelfde `SaldoGetal` als in de schil, rollend tussen twee
+       * serverwaarden — en de melding zegt wát er gebeurde: *20 munten naar
+       * Dr. Elsje Kramer*, of *40 munten naar 2 kamers*. Het bedrag is wat de
+       * server schreef (`total`), niet een som van de vakjes.
+       */
+      for (const [roomId, balance] of Object.entries(data?.balances ?? {})) announceBalance(roomId, balance);
+      const total = data?.total ?? summary.total;
+      const count = data?.rooms ?? summary.rooms;
+      const only = count === 1 ? targets.find((target) => data?.balances?.[target.roomId] !== undefined) : undefined;
+      ui.toast(
+        only
+          ? fill(words.handoutDoneOne, { munten: munt(total, words), naam: only.name })
+          : fill(words.handoutDoneMany, {
+              munten: munt(total, words),
+              kamers: `${count} ${count === 1 ? words.room : words.roomPlural}`,
+            }),
+        undefined,
+        // Twee uitdelingen kort na elkaar zijn één melding die bijwerkt, geen twee balken.
+        { key: 'uitdeling' },
+      );
+      setGiven(Object.fromEntries(rows.map((row) => [row.roomId, String(row.delta).trim()])));
       setDone(true);
       setReason('');
       setGlobal('');
@@ -229,27 +265,38 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
 
   return (
     <form data-testid="uitdelen-form" onSubmit={(event) => void submit(event)}>
+      {/*
+        §103 golf H (D15): elk label boven zijn eigen vak. Het bedragvak was
+        smaller dan zijn label, dus *Bedrag voor wie je aanvinkt* en *Waarvoor?*
+        liepen door als één zin. Nu is het vak zo breed als zijn label, met
+        *munten* als achtervoegsel in het vak zelf (geen placeholder: §85).
+      */}
       <div className="uitdelen-head">
         <label className="uitdelen-all">
-          <span className="small">{words.handoutAll}</span>
-          <input
-            className="input uitdelen-all-input"
-            data-testid="uitdelen-iedereen"
-            value={all}
-            inputMode="numeric"
-            /*
-             * §85: leeg, niet "3". Een placeholder van een getal in een vak
-             * waar een getal in moet leest als een waarde die er al staat —
-             * en het vak eronder zegt dan 0 terwijl je denkt dat het 3 is.
-             */
-            placeholder=""
-            readOnly={busy}
-            onChange={(event) => setGlobal(event.target.value)}
-          />
+          <span className="small uitdelen-label">{words.handoutAll}</span>
+          <span className="munten-vak">
+            <input
+              className="input uitdelen-all-input"
+              data-testid="uitdelen-iedereen"
+              value={all}
+              inputMode="numeric"
+              /*
+               * §85: leeg, niet "3". Een placeholder van een getal in een vak
+               * waar een getal in moet leest als een waarde die er al staat —
+               * en het vak eronder zegt dan 0 terwijl je denkt dat het 3 is.
+               */
+              placeholder=""
+              readOnly={busy}
+              onChange={(event) => setGlobal(event.target.value)}
+            />
+            <span className="munten-vak-achter" aria-hidden="true">
+              {words.currencyPlural}
+            </span>
+          </span>
         </label>
 
         <label className="uitdelen-why">
-          <span className="small">{words.handoutWhy}</span>
+          <span className="small uitdelen-label">{words.handoutWhy}</span>
           <input
             className="input"
             data-testid="uitdelen-reden"
@@ -349,28 +396,51 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
             {/* §85: het saldo staat naast het vakje en niet aan de andere kant
                 van de rij — wat iemand heeft en wat je die geeft is één vraag,
                 twee keer gesteld, en de antwoorden stonden op de uiteinden. */}
-            <span className="tiny muted uitdelen-saldo" data-testid="uitdelen-saldo">
-              {munt(target.balance, words)}
+            <span className="tiny muted uitdelen-saldo" data-testid="uitdelen-saldo" data-balance={target.balance}>
+              {/* §103 golf H (T14): de nieuwe balans rolt in zodra de server antwoordt. */}
+              <SaldoGetal value={target.balance} side="voor" room={target.roomId} chip={false} />{' '}
+              {target.balance === 1 ? words.currency : words.currencyPlural}
+              {/*
+                §103 (K7): *+5* komt op naast het saldo, rij na rij — 240 ms,
+                gespreid met 40 ms (`--i`), en na de tiende rij niet verder
+                gespreid: een tafel van zestig hoeft niet op zijn laatste rij te
+                wachten.
+              */}
+              {given?.[target.roomId] && Number(given[target.roomId]) > 0 && (
+                <span
+                  className="uitdelen-chip"
+                  data-testid="uitdelen-chip"
+                  style={{ ['--i' as string]: Math.min(9, Object.keys(given).indexOf(target.roomId)) }}
+                >
+                  +{Number(given[target.roomId])}
+                </span>
+              )}
             </span>
 
-            <input
-              className="input uitdelen-bedrag"
-              data-testid="uitdelen-bedrag"
-              aria-label={`${words.handoutAmount} — ${target.name}`}
-              value={amounts[target.roomId] ?? ''}
-              inputMode="numeric"
-              /*
-               * §86: leeg, en om dezelfde reden als het globale vak in §85 —
-               * een `0` als placeholder in een getallenvak leest als een
-               * ingevulde waarde. Met zestig rijen die allemaal leeg beginnen
-               * stond het scherm vol met nullen die niemand getypt had.
-               */
-              placeholder=""
-              readOnly={busy}
-              onChange={(event) =>
-                setAmounts((prev) => ({ ...prev, [target.roomId]: event.target.value }))
-              }
-            />
+            {/* §103 golf H (D15): geen leeg vak van 72 × 44, maar een bedrag in munten. */}
+            <span className="munten-vak">
+              <input
+                className="input uitdelen-bedrag"
+                data-testid="uitdelen-bedrag"
+                aria-label={`${words.handoutAmount} — ${target.name}`}
+                value={amounts[target.roomId] ?? ''}
+                inputMode="numeric"
+                /*
+                 * §86: leeg, en om dezelfde reden als het globale vak in §85 —
+                 * een `0` als placeholder in een getallenvak leest als een
+                 * ingevulde waarde. Met zestig rijen die allemaal leeg beginnen
+                 * stond het scherm vol met nullen die niemand getypt had.
+                 */
+                placeholder=""
+                readOnly={busy}
+                onChange={(event) =>
+                  setAmounts((prev) => ({ ...prev, [target.roomId]: event.target.value }))
+                }
+              />
+              <span className="munten-vak-achter" aria-hidden="true">
+                {words.currencyPlural}
+              </span>
+            </span>
           </li>
         ))}
       </ul>
@@ -402,12 +472,8 @@ export function Uitdeler({ targets, words }: { targets: HandOutTarget[]; words: 
         </p>
 
         <span className="row-wrap uitdelen-voet-knoppen">
-          {done && (
-            <Link className="btn btn-small" href="/spelers" data-testid="uitdelen-naar-spelers">
-              <Icon name={MEANING.onderzoeker} size={13} />
-              {fill(words.toPlayers, { spelers: words.playerPlural })}
-            </Link>
-          )}
+          {/* §103 golf H (D15): de deur naar de spelers staat één keer, in de kop —
+              niet nog eens hier na het uitdelen. */}
           <button
             type="submit"
             className="btn btn-primary uitdelen-knop"
