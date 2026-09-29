@@ -13,6 +13,51 @@
 @import '@fontsource/opendyslexic/400.css';
 @import '@fontsource/opendyslexic/700.css';
 
+/*
+ * Golf K: de letters verspringen niet meer bij het eerste bezoek. De webfonts
+ * komen met `font-display: swap`, dus de eerste verf staat in een systeemletter
+ * en de tekst liep daarna anders af (koud tot CLS 0,32 op een computer, golf J).
+ * Deze vier gezichten zijn die systeemletter, rekkend op de maten van het
+ * webfont — dezelfde getallen die `next/font` uitrekent
+ * (`calculateSizeAdjustValues`, uit Nexts eigen `capsize-font-metrics.json`):
+ * breedte via `size-adjust`, en de regelhoogte via ascent en descent. Een regel
+ * breekt dan in de systeemletter op (bijna) dezelfde plek, en de wissel is
+ * alleen nog de vorm van de letters. Liberation en Arimo/Tinos zijn de
+ * maatvaste broers van Arial en Times op Linux en Android.
+ */
+@font-face {
+  font-family: 'Source Sans 3 Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Arimo');
+  size-adjust: 93.76%;
+  ascent-override: 109.21%;
+  descent-override: 42.66%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Source Serif 4 Fallback';
+  src: local('Times New Roman'), local('TimesNewRomanPSMT'), local('Liberation Serif'), local('Tinos');
+  size-adjust: 117.91%;
+  ascent-override: 87.87%;
+  descent-override: 28.41%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Archivo Narrow Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Arimo');
+  size-adjust: 82.55%;
+  ascent-override: 125.38%;
+  descent-override: 37.8%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Arimo');
+  size-adjust: 99.37%;
+  ascent-override: 95.6%;
+  descent-override: 29.18%;
+  line-gap-override: 0%;
+}
+
 /* ----------------------------------------------------------------- tokens */
 /*
  * What is *not* a colour. Everything that is one lives in the §45 block below,
@@ -21,9 +66,14 @@
  * stay here rather than being repeated four times over.
  */
 :root {
-  --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
-  --sans: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --stamp-face: 'Archivo Narrow', 'Arial Narrow', system-ui, sans-serif;
+  /* Golf K: eerst de voorgeladen letter van `next/font` (app/fonts.ts, met zijn
+     eigen systeemletter op maat), dan `@fontsource` voor tekens buiten het
+     latijnse deel, dan onze eigen systeemletter op maat (voor waar Arial of
+     Times ontbreekt: Liberation, Arimo, Tinos), dan wat het altijd was. Zonder
+     de klassen op `<html>` is `var()` leeg en begint de stapel bij het tweede. */
+  --serif: var(--font-bron-serif, 'Source Serif 4'), 'Source Serif 4', 'Source Serif 4 Fallback', Georgia, 'Times New Roman', serif;
+  --sans: var(--font-bron-sans, 'Source Sans 3'), 'Source Sans 3', 'Source Sans 3 Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --stamp-face: var(--font-stempel, 'Archivo Narrow'), 'Archivo Narrow', 'Archivo Narrow Fallback', 'Arial Narrow', system-ui, sans-serif;
 
   --radius: 2px;
   --shadow: 2px 2px 0 rgba(31, 27, 22, 0.14);
@@ -303,14 +353,14 @@
  */
 [data-font='atkinson'],
 :root:has([data-font='atkinson']) {
-  --serif: 'Atkinson Hyperlegible', 'Source Serif 4', Georgia, serif;
-  --sans: 'Atkinson Hyperlegible', 'Source Sans 3', system-ui, sans-serif;
+  --serif: 'Atkinson Hyperlegible', 'Atkinson Hyperlegible Fallback', var(--font-bron-serif, 'Source Serif 4'), 'Source Serif 4', Georgia, serif;
+  --sans: 'Atkinson Hyperlegible', 'Atkinson Hyperlegible Fallback', var(--font-bron-sans, 'Source Sans 3'), 'Source Sans 3', system-ui, sans-serif;
 }
 
 [data-font='opendyslexic'],
 :root:has([data-font='opendyslexic']) {
-  --serif: 'OpenDyslexic', 'Source Serif 4', Georgia, serif;
-  --sans: 'OpenDyslexic', 'Source Sans 3', system-ui, sans-serif;
+  --serif: 'OpenDyslexic', var(--font-bron-serif, 'Source Serif 4'), 'Source Serif 4', Georgia, serif;
+  --sans: 'OpenDyslexic', var(--font-bron-sans, 'Source Sans 3'), 'Source Sans 3', system-ui, sans-serif;
   /*
    * OpenDyslexic runs large and bottom-heavy: at the archive's 1.55 the lines
    * touch. A unitless line-height is inherited as the number, so naming it on
@@ -1023,18 +1073,24 @@ a.feed-item:hover {
   padding: var(--main-pad-t) var(--page-pad) var(--main-pad-b);
 }
 
-/* §102, golf h1 (D5): één paginaraster. Elke pagina begint op dezelfde linkerrand,
-   `--page-pad` naast de zijbalk, en een smalle pagina is alleen smaller — niet
-   gecentreerd. Tot hier stond de kop van Start op 252 px, die van de winkel op
-   318 en die van Spelers, /you en Zoeken op 380: elke klik in de zijbalk liet
-   hem opzij springen. */
+/* Golf K: de pagina staat weer in het midden van wat naast de zijbalk over is.
+   §102 (golf h1, D5) had elke pagina tegen de zijbalk gezet, zodat de kop bij
+   een klik in de zijbalk niet opzij sprong; op een breed scherm liet dat een
+   lege strook van een derde van het beeld rechts liggen (Nick: "On PC the
+   website now aligns to the left instead of using the whole screenspace").
+   Nu: een brede pagina mag 1440 px worden en staat gecentreerd, en een smalle
+   pagina staat gecentreerd in hetzelfde kader. Het springen van D5 is daarmee
+   kleiner dan het was: de lijsten van het archief (prikborden, tijdlijnen,
+   stambomen) zijn brede pagina's geworden, zoals landkaarten en dossiers al
+   waren, zodat alles onder *Het archief* dezelfde linkerrand heeft. Tot
+   1440 + zijbalk (± 1700 px) verandert er niets: daar vult de pagina al alles. */
 .page {
   max-width: 900px;
-  margin: 0 auto 0 0;
+  margin: 0 auto;
 }
 .page-wide {
-  max-width: 1200px;
-  margin: 0 auto 0 0;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 /* --------------------------------------------------------- a page that is a canvas
@@ -1081,6 +1137,20 @@ a.feed-item:hover {
   top: var(--main-pad-t);
   right: var(--page-pad);
   margin: 0;
+}
+/* Golf K: de pagina staat in het midden, en vanaf zo'n 1880 px is er naast een
+   brede pagina (1440 px) rechts een marge waar de strip in past. Daar hangt
+   hij in de hoek van de kolom, net als op een tekenvlak: als float duwde hij
+   een pagina die een eigen opmaakcontext is (Start is een raster) opzij, en
+   stond die pagina 65 px uit het midden. */
+@media (min-width: 1880px) {
+  .main .live-strip {
+    position: absolute;
+    float: none;
+    top: var(--main-pad-t);
+    right: var(--page-pad);
+    margin: 0;
+  }
 }
 
 /* The one line of heading: eyebrow, name, what it is a map of, and the
@@ -5103,9 +5173,6 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
   .entry-aside-box-stacked > .entry-figure .entry-cover {
     box-shadow: var(--shadow);
   }
-  .entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
-    max-height: 68vh;
-  }
 }
 
 /* The infobox: the facts of the artikel, label beside value. */
@@ -5234,11 +5301,7 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 .infobox-peek-label::after {
   content: ':';
 }
-@media (max-width: 767px) {
-  .entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
-    max-height: 40vh;
-  }
-}
+/* Golf K: de hoogte van de omslag onder 1280 px staat in app/leeskamer.css (golf k). */
 .entry-infobox-body {
   gap: 0.55rem;
 }
@@ -5849,6 +5912,37 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
 }
 .map-pin:focus-visible .map-pin-head {
   outline: 3px solid var(--stamp-red);
+}
+/* Golf K (M3): een naam die nergens paste zonder een andere te raken
+   (`placeLabels`, lib/maps/labels.ts) is er niet, tot je de speld aanwijst,
+   er met Tab op staat of hem kiest. Dan ligt hij bovenop, ook als hij iets
+   raakt: wie een speld aanwijst, wil zijn naam lezen. Een naam op een andere
+   plek dan onder de kop is een `translate`; de speld zelf staat stil. */
+/* Alleen wat je ziet, vangt een tik: de knop zelf niet (zijn doos staat nog
+   waar de naam van nature stond), wel de kop en een zichtbare naam. Anders
+   nam een onzichtbare of verschoven naam de tik van de speld ernaast. */
+.map-pins .map-pin {
+  pointer-events: none;
+}
+.map-pins .map-pin-head,
+.map-pins .map-pin-label {
+  pointer-events: auto;
+}
+.map-pin-label[data-label='weg'] {
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+.map-pins .map-pin:not(.map-pin-selected) .map-pin-label[data-label='weg'] {
+  pointer-events: none;
+}
+.map-pin:hover .map-pin-label[data-label='weg'],
+.map-pin:focus-visible .map-pin-label[data-label='weg'],
+.map-pin-selected .map-pin-label[data-label='weg'] {
+  opacity: 1;
+}
+.map-pin:not(.map-pin-dragging):hover,
+.map-pin:not(.map-pin-dragging):focus-visible {
+  z-index: 3;
 }
 .map-legend {
   position: absolute;
@@ -6511,6 +6605,20 @@ body:has(.tree-picker) .fab {
 .live-strip .live-dot {
   font-size: 0.68rem;
 }
+/* Golf K: de strip houdt op een computer vanaf de eerste verf zijn breedte.
+   Hij zweeft rechts in de kolom, dus elke pixel die hij bij de hydratatie
+   verloor (de stip van *verbinden* naar *live*, de telling die nog niet binnen
+   was) schoof de hele pagina ernaast mee en brak de tekst opnieuw af: CLS 0,08
+   tot 0,1 op een artikel op 1440 px, ook met alle webfonts tegengehouden —
+   dat was het, niet de letters. Een ondergrens die ruimer is dan de strip in
+   elke stand zonder anderen erbij; komen er mensen bij, dan groeit hij, en
+   dat is nieuws. */
+@media (min-width: 768px) {
+  .main:not(:has(.page-canvas)) .live-strip:not(.live-strip-save-only) {
+    min-width: 5.75rem;
+    justify-content: flex-end;
+  }
+}
 .live-strip-live .live-strip-word {
   position: absolute;
   width: 1px;
@@ -7083,6 +7191,29 @@ a.beurs:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Golf K (M2): een lange naam op twee regels in plaats van afgekapt. Het
+   label is dan smaller (de breedte staat erop, `tagLayout` in
+   TimelineCanvas) en 40 px hoog — 16 meer dan één regel —, en groeit van de as
+   af: boven staat hij met zijn onderkant op de steel, onder met zijn
+   bovenkant. `placeTags` geeft hem daarom twee banen. */
+.timeline-tag.timeline-tag-2 {
+  /* Ook op een telefoon (daar is een tagje van één regel hooguit 120 px):
+     twee regels van 120 px dragen een lange naam niet. `TAG_TWO_LINE_MAX`. */
+  max-width: 180px;
+  height: 40px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  line-height: 18px;
+  white-space: normal;
+}
+.timeline-tag-2 .timeline-tag-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .timeline-empty {
   position: absolute;

@@ -215,7 +215,12 @@ test('#13 #17 #23: de kop op een telefoon is één regel, en lege blokken zijn e
     await expect(page.locator('.entry-waar-rijen')).toBeHidden();
     // #17/#23: no Meer info in the chip row — the peek is right under it.
     await expect(outline.getByRole('link', { name: 'Meer info' })).toHaveCount(0);
-    expect((await first.boundingBox())!.y).toBeLessThan(700);
+    // Golf K: de omslag staat heel (hooguit de helft van het scherm), dus de
+    // eerste zin staat nu net onder de plaat en de feiten, niet meer op 700.
+    const cover = (await page.locator('.entry-cover-whole img').boundingBox())!;
+    expect(cover.height).toBeLessThanOrEqual(844 * 0.5 + 1);
+    expect((await first.boundingBox())!.y).toBeGreaterThan(cover.y + cover.height);
+    expect((await first.boundingBox())!.y).toBeLessThan(cover.y + cover.height + 400);
     await waar.locator('summary').click();
     await expect(page.locator('.entry-waar-rijen')).toBeVisible();
     await shot(page, 'kop-waar-open');
@@ -274,8 +279,9 @@ test('#14 #16: de voorpagina heeft één rij, de lijst zegt hoeveel van hoeveel'
   const tabs = page.getByRole('navigation', { name: 'Soorten' });
   await expect(tabs.getByRole('link', { name: 'Start' })).toBeVisible();
   await expect(tabs.getByRole('link', { name: /^Alles/ })).toBeVisible();
-  // #16: one compact row — Start, Alles and the way down to the tiles; the soorten are the tiles.
-  expect(await tabs.getByRole('link').count()).toBeLessThanOrEqual(3);
+  // Golf K: the voordeur has the row of every wiki page — each tab a page, no jump to the tiles.
+  expect(await tabs.getByRole('link').count()).toBeGreaterThan(3);
+  await expect(tabs.locator('a[href^="#"]')).toHaveCount(0);
 
   await page.goto('/wiki/alles');
   const listTabs = page.getByRole('navigation', { name: 'Soorten' });

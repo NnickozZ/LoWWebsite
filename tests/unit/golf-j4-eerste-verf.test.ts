@@ -49,7 +49,8 @@ describe('de breedte is op de server niet bekend', () => {
     const css = read('app/leeskamer.css');
     const block = css.slice(css.indexOf('/* ===== golf j4 */'));
     expect(block).toMatch(/@media \(min-width: 1280px\) \{\s*\/\*[^*]*\*\/\s*\.entry-layout-wide \{\s*grid-template-areas:/);
-    expect(block).toMatch(/@media \(max-width: 1279px\) \{\s*\.entry-figure-beide \.entry-cover-whole/);
+    // Golf K: de omslag staat op elke breedte heel; wat onder 1280 px anders is, is de kaart eromheen.
+    expect(css.slice(css.indexOf('/* ===== golf k */'))).toMatch(/@media \(max-width: 1279px\) \{\s*\.entry-aside-box-stacked > \.entry-figure \{/);
     expect(block).toMatch(/@media \(max-width: 1499px\) \{\s*\.entry-rail \{\s*display: none;/);
     expect(block).toMatch(/@media \(min-width: 1500px\) \{[\s\S]*\.entry-kop > \.entry-outline-row \{\s*display: none;/);
     // Het dossier kiest op 768 px, net als `PHONE`.

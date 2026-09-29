@@ -40,8 +40,6 @@ export function TypeTabs({
   query,
   allLabel = 'Alles',
   startLabel = 'Start',
-  compact = false,
-  kindsLabel = 'De soorten',
   moreLabel = 'Meer soorten',
 }: {
   types: TypeTab[];
@@ -56,12 +54,6 @@ export function TypeTabs({
   query: ListParams;
   allLabel?: string;
   startLabel?: string;
-  /**
-   * §104 (ronde 67·herstel, #16): the voordeur's row — Start, Alles and a jump
-   * to the tiles of *De soorten*, which are the index there.
-   */
-  compact?: boolean;
-  kindsLabel?: string;
   /** §104 (golf H, D6): the menu at the end of the row, with the soorten that are not in it. */
   moreLabel?: string;
 }) {
@@ -91,7 +83,7 @@ export function TypeTabs({
   const zichtbaar = (type: TypeTab) => rang.has(type.slug);
 
   return (
-    <nav className={`type-tabs-rij${compact ? ' type-tabs-rij-kort' : ''}`} aria-label="Soorten">
+    <nav className="type-tabs-rij" aria-label="Soorten">
       <Schuifrij className="type-tabs">
         {/* §75: de voordeur. Geen telling — een overzicht telt niets. */}
         <Link
@@ -111,16 +103,13 @@ export function TypeTabs({
           {allLabel}
           <span className="type-tab-count">{allCount}</span>
         </Link>
-        {compact ? (
-          /* §104 (ronde 67·herstel, #16): on the voordeur the soorten are the
-             tiles below (*De soorten*), so the row is Start, Alles and the way
-             down to them — one line instead of three rows of twenty tabs. */
-          <a className="type-tab type-tab-naar" href="#leeskamer-soorten-kop">
-            <Icon name="layers" size={14} />
-            {kindsLabel}
-          </a>
-        ) : (
-          types.filter(zichtbaar).map((type) => (
+        {/* Golf K: the voordeur has this same row. Until now it had Start, Alles
+            and *De soorten*, a tab that only scrolled to the tiles under it —
+            on a computer, where the tiles are already in view, it lit up on
+            hover and then did nothing (Nick: "hoverable maar niet
+            clickable"). One row, the same on every page of the wiki: every
+            tab in it is a page. */}
+        {types.filter(zichtbaar).map((type) => (
             <Link
               key={type.slug}
               /* §104 (#16): a soort with nothing in it on this side is there, and quiet. */
@@ -134,10 +123,9 @@ export function TypeTabs({
               {type.label}
               <span className="type-tab-count">{type.count}</span>
             </Link>
-          ))
-        )}
+          ))}
       </Schuifrij>
-      {!compact && inMenu.length > 0 && (
+      {inMenu.length > 0 && (
         <MeerSoorten
           label={moreLabel}
           nodigTot={nodigTot}

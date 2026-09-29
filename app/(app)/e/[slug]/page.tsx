@@ -62,6 +62,8 @@ import {
   type Change,
 } from '@/lib/entries/revisionDiff';
 import { getWords } from '@/lib/admin/words';
+// Golf K: the omslag's own size, so the whole picture keeps its place from the first paint.
+import { assetSize } from '@/lib/assets';
 import { presenceColour } from '@/lib/boards/live';
 import { snapshot } from '@/lib/live/docs';
 import { admit, entryRoomKey, sectionRoomKey } from '@/lib/live/rooms';
@@ -946,6 +948,7 @@ export default async function EntryPage({
           tags: entry.tags ?? [],
           coverAssetId: entry.coverAssetId,
           coverCrop: entry.coverCrop,
+          coverSize: assetSize(entry.coverAssetId),
           typeLabel: entry.typeLabel,
           typeIcon: entry.typeIcon,
           typeColour: entry.typeColour,

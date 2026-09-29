@@ -621,22 +621,29 @@ export function NewEntrySheet({
         </p>
       )}
 
-      <button
-        type="button"
-        className="btn btn-primary"
-        style={{ width: '100%' }}
-        onClick={create}
-        disabled={!mayStartEntry || !name.trim() || busy}
-      >
-        {busy ? 'Opbergen…' : 'Aanmaken'}
-      </button>
-      {/* §90: the Keeper has `SideChoice` above to say who reads this; a speler
-          was told nothing. One grey line, and where to change it afterwards. */}
-      {!ui.isKeeper && (
-        <p className="tiny muted" style={{ margin: '0.5rem 0 0' }}>
-          {fill(words.newEntryWhoReads, { beheer: words.manage })}
-        </p>
-      )}
+      {/* Golf K (rij 20 van de meting): met de drie winkelvelden is dit blad
+          op een telefoon langer dan het scherm, en *Aanmaken* kostte een halve
+          veeg. Alleen hier plakt hij onderaan het blad (`.sheet-actions-stick`,
+          het patroon van het tijdlijnblad); de andere maakbladen passen en
+          blijven zoals ze waren. */}
+      <div className={chosen?.shopFields ? 'sheet-actions-stick' : undefined} data-testid="new-entry-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ width: '100%' }}
+          onClick={create}
+          disabled={!mayStartEntry || !name.trim() || busy}
+        >
+          {busy ? 'Opbergen…' : 'Aanmaken'}
+        </button>
+        {/* §90: the Keeper has `SideChoice` above to say who reads this; a speler
+            was told nothing. One grey line, and where to change it afterwards. */}
+        {!ui.isKeeper && (
+          <p className="tiny muted" style={{ margin: '0.5rem 0 0' }}>
+            {fill(words.newEntryWhoReads, { beheer: words.manage })}
+          </p>
+        )}
+      </div>
     </Sheet>
   );
 }

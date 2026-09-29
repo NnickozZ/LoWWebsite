@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 144 bestanden, 2618 tests na golf J (branch
+npx vitest run         # 145 bestanden, 2633 tests na golf K; 144 / 2618 na golf J (branch
                        # `gevoel`, 4afc3a5); 140 / 2557 na golf I
                        # (d1dc532); 137 / 2487 na golf H;
                        # 134 / 2441 na rondes 65–67 en hun
@@ -28,7 +28,12 @@ npx vitest run         # 144 bestanden, 2618 tests na golf J (branch
                        # rounds 53, 54, 55 and 57: 118 / 2095; round 52:
                        # 113 / 2022; round 38: 99 / 1596)
 npm run build          # must exit 0
-npx playwright test    # na golf J: 960 zaken, 735 passed / 224 skipped /
+npx playwright test    # na golf K: 968 zaken, 738 passed / 225 skipped /
+                       # 5 rood in de volle run, waarvan per-place-crops
+                       # de bekende en keeper-side:232, round-34:50,
+                       # round-7:36 en timeline-coop:282 alleen gedraaid
+                       # groen (drukte op 2 kernen), ~1,2 u;
+                       # na golf J: 960 zaken, 735 passed / 224 skipped /
                        # 1 rood (per-place-crops), ~1,2 u op 2 kernen;
                        # na golf H: 880 zaken, 671 passed / 207 skipped /
                        # 1 rood (per-place-crops), ~1,2 u op 2 kernen;
@@ -72,7 +77,9 @@ echt. En `E2E_DEV=1` over de tekenvlakken is in golf I maar half gedraaid:
 `golf-i1-vlakken.spec.ts` (phone) was groen onder Strict Mode, daarna liep de
 dev-server van Next op tot 4,4 GB en hing `round-37-map`. Draai
 `round-37-map`, `round-37-pinch` en `round-37-timeline` onder `E2E_DEV=1` op
-een rustige machine, één tegelijk (zie §8).
+een rustige machine, één tegelijk (zie §8). *Golf K deed dat: alle drie groen
+onder Strict Mode, elk alleen (2, 1 en 2 passed; de `ECONNRESET`-regels van
+de dev-server zijn ruis).*
 
 **Drie dingen uit golf J.** `ronde-54-de-kamer.spec.ts` ZAAK 2 had hetzelfde
 als `kamer-ux:506`: alleen gedraaid staat `plek-picker-zoek` er op de telefoon
@@ -244,6 +251,15 @@ freely there.
   `visibility: hidden`; `releaseCaret`/`pressNewEntry` in de specs). Geen
   migratie. Zie `tests/unit/golf-j[1-4]-*.test.ts` en
   `tests/e2e/golf-j[1-4]-*.spec.ts`.
+  **Golf K** (Nick, 29 september: de omslag heel op een telefoon, de pagina in
+  het midden op een computer, en de tabrij op de voorpagina van de wiki; plus
+  de open eindjes van golf J) gaf **geen nieuw nummer** en draait drie dingen
+  om: §104 L5 (de liggende omslag onder 1280 px), golf H D5 (elke pagina tegen
+  de zijbalk) en ronde 67·herstel #16 (`TypeTabs compact`). Verder: *Aanmaken*
+  plakt in het huisraadblad (§93), een systeemletter op maat achter elk
+  webfont (§104), `placeLabels` voor de kaartnamen (§105, M3) en tagjes van
+  twee regels op de tijdlijn (§105, M2). Geen migratie. Zie
+  `tests/unit/golf-k.test.ts` en `tests/e2e/golf-k.spec.ts`.
   Rondes 65–67
   (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
   worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
@@ -678,6 +694,23 @@ freely there.
   (`.vooraf-tekst` in `app/leeskamer.css`: no ligatures, `break-spaces`, a
   chip breaks). A new node type in `documentExtensions` gets a case in
   `VoorafTekst` too, or its height is wrong until the editor arrives.
+- **A page stands in the middle of the column** (golf K, reversing golf H's
+  D5). `.page` (900 px) and `.page-wide` (1440 px, was 1200) are
+  `margin: 0 auto`. The lists behind the archive's tabs (prikborden,
+  tijdlijnen, stambomen, like landkaarten and dossiers) are `.page-wide`, and
+  so is their skeleton (`rows` in `Skeleton.tsx`), so everything under *Het
+  archief* keeps one left edge. A new list page of the archive is
+  `.page-wide`; a form or a personal page is `.page`. From 1880 px the live
+  strip hangs in the column's corner instead of floating, because a float
+  pushes a page that is its own formatting context (a grid, like Start) out
+  of the middle.
+- **An artikel's omslag is whole on every width** (golf K, reversing §104
+  L5): `CoverEditor` has no `landscape` any more, and under 1280 px the
+  figure is a card (`.entry-aside-box-stacked > .entry-figure`, the golf k
+  block in `app/leeskamer.css`), at most half the screen high. The `<img>`
+  carries `width`/`height` from `assetSize()` (`lib/assets.ts`), handed down
+  as `coverSize`; a new place that draws a whole picture of unknown shape
+  does the same, or the page jumps when it arrives.
 - **Search orders by the best name** (golf J, §100): `nameScore`,
   `orderSections` and `palettePlan` in `lib/search/rang.ts` (pure). A new
   section on `/search` or in the palette gets a `best` from `nameScore`, not a
@@ -2443,7 +2476,11 @@ mistakes. Check yours against these before declaring a spec finished.
   herstel; `data-testid="genoemd-in"`, `data-leeg="ja"`), geen `details`, en
   staat niet in de inhoudsopgave. Een artikel op de telefoon heeft
   `entry-waar` in plaats van de rijen "Op de landkaart / In:"; klap die eerst
-  open. Op een telefoon is de omslag `.entry-cover-liggend`.
+  open. ~~Op een telefoon is de omslag `.entry-cover-liggend`.~~ Sinds golf K
+  is de omslag op elke breedte `.entry-cover-whole` (met `img[width][height]`
+  als de grootte bekend is); `.entry-cover-liggend` bestaat niet meer. Een
+  staande omslag duwt op een telefoon de eerste zin onder de vouw: meet vanaf
+  de onderkant van de plaat, niet vanaf een vast getal.
 - **Een lange lijst in de wiki toont er 120** (§104, herstel) en zegt "n van
   totaal" met *Meer*. Een spec die er meer wil zien, gaat naar `?per=` of
   `?pagina=` (`lib/wiki/pagina.ts`), niet naar een scroll.
@@ -2561,6 +2598,26 @@ mistakes. Check yours against these before declaring a spec finished.
 - **`/spelers` heet *Spelerspagina's*** (§107, L1), met een apostrof:
   `aanwezig.spec.ts` zoekt de link zo.
 
+- **The voordeur of the wiki has the ordinary tab row** (golf K): Start,
+  Alles, `a.type-tab[data-rang]` and *Meer soorten*. There is no
+  `.type-tab-naar` and no `#leeskamer-soorten-kop` link any more; a spec that
+  counted "at most three links" there now counts more than three.
+- **A pin on a landkaart is hit on its head** (golf K). `.map-pin` itself is
+  `pointer-events: none`; only `.map-pin-head` and a visible
+  `.map-pin-label` take a press. `locator('.map-pin').click()` still works
+  (its middle is the head), but click `.map-pin-head` when labels may have
+  moved. A label carries `data-label` (`onder`, `rechts`, `links`, `boven`,
+  `weg`), and `.map-pins[data-labels="gemeten"]` says the placer has
+  measured. A `weg` label is attached with opacity 0: `toBeVisible()` passes
+  on it, so read `data-label`.
+- **A long name on a tijdlijn is `.timeline-tag.timeline-tag-2`** (golf K),
+  40 px high and two lanes deep. A spec that measures a tag's height or a
+  lane's reach allows for it.
+- **The new-entry sheet's button sits in `new-entry-actions`** (golf K),
+  which is `.sheet-actions-stick` only when the soort has winkelvelden
+  (huisraad). Its `Aanmaken` is then in view at the foot of the sheet on a
+  phone.
+
 If a spec fails once and passes on a re-run, it is the "not yet listening" race
 — fix it with the helpers above rather than shrugging at it.
 
@@ -2614,7 +2671,40 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I and J
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J and K
+
+*Golf K (29 september; Nick: de omslag heel op een telefoon, de pagina in het
+midden op een computer, *De soorten* die oplicht en niets doet, en de open
+punten van golf J) is in één werkboom gebouwd, zonder fan-out: geen nieuw
+nummer, geen migratie, geen verwijderd bestand, geen nieuwe route; één nieuw
+bestand in `app/` (`fonts.ts`) en één in `lib/` (`maps/labels.ts`). De
+rondenotitie is `claude/golf-k-drie-dingen-en-de-eindjes.md`.*
+
+**Leftovers — golf K, allemaal met opzet genoemd.** Hij sloot uit golf J rij
+20 op de telefoon (8,5 → 8), het wisselen van de webfonts en de 5 px van *Wie
+is er?* (samen de CLS van een eerste bezoek; zie README §104), en uit golf I
+de labels van twee regels op de tijdlijn en de plaatser voor kaartlabels.
+
+- **Een smalle pagina springt ten opzichte van een brede** (de prijs van het
+  omdraaien van D5): Jij, Spelers, Zoeken, de kamer en de winkel staan in het
+  midden, de pagina's van het archief op één linkerrand. Onder ±1700 px zie je
+  het niet, daarboven wel.
+- **Tussen ±1700 en 1880 px zweeft *Wie is er?* nog**, en duwt daar Start (een
+  raster) tot 65 px uit het midden. Vanaf 1880 px hangt hij in de hoek.
+- **Een staande omslag duwt op een telefoon de eerste zin onder de vouw**
+  (de prijs van het omdraaien van L5; hooguit de helft van het scherm).
+- **Wat er op een artikel op 1440 px nog verspringt (≤ 0,021)**: een knop in
+  de rij handelingen die bij de hydratatie 10 px breder wordt, en de kaart
+  onder *Hier gevonden* die 20 px zakt. Niet uitgezocht.
+- **De kaartnamen hebben vier plekken**, geen vijfde en geen verbindingslijn;
+  wat nergens past is `weg` tot je de speld aanwijst. De eerste verf staat elke
+  naam nog onder zijn kop (de breedtes meet de browser).
+- **De tijdlijn**: ruitclusters bleven liggen; een tagje heeft hooguit twee
+  regels, en de breedte is nog een schatting per teken (`tagWidth`,
+  `tagLayout`), geen meting.
+- **`@fontsource` voor de drie letters staat nog in `app/globals.css`**, voor de
+  tekens buiten het latijnse deel. De build zet die bestanden erbij; een
+  browser haalt ze alleen voor zo'n teken.
 
 *Golf J (na de meting na golf I, `meting-na-golf-i.md`; Nick: "Ja ga zeker
 verder :)") is gebouwd in vijf worktrees op `gevoel`: j1 de vlakken (§105),
@@ -2634,10 +2724,10 @@ reduced-motion-fade van de `+` van een vlak (`docs/beweging.md` §8). Uit ronde
 uit ronde 62 half de specs die `n` drukken. Het springende artikel op een
 telefoon, dat j3 bij stuk 12 vond en liet liggen, sloot j4 in dezelfde golf.
 
-- **Rij 20 op de telefoon is 8,5** (was 9,5; kortst 5): het maakblad met drie
+- ~~**Rij 20 op de telefoon is 8,5** (was 9,5; kortst 5): het maakblad met drie
   winkelvelden is langer dan het scherm, en *Aanmaken* kost een halve veeg.
   Een plakkende *Aanmaken* zou het oplossen, maar raakt het gedrag van elk
-  blad boven een toetsenbord.
+  blad boven een toetsenbord.~~ **Gesloten in golf K:** *Aanmaken* plakt in het huisraadblad; rij 20 is 8.
 - **Rij 27 (veld hernoemen, telefoon) is 8** (was 8,5; kortst ±6). Eén stap
   daarboven is *alles kiezen* in het veld. Bewust geen select-all bij focus:
   een tikfout verbeteren is even gewoon.
@@ -2645,14 +2735,14 @@ telefoon, dat j3 bij stuk 12 vond en liet liggen, sloot j4 in dezelfde golf.
   zet de caret alleen met een muis (`(pointer: fine)`). Op een aanraakscherm
   opent een focus zonder gebaar geen toetsenbord, en de caret liet de `+`
   wijken; een vak zonder toetsenbord en zonder `+` is erger dan een tik.
-- **Webfonts wisselen nog bij het eerste bezoek** (`@fontsource`,
+- ~~**Webfonts wisselen nog bij het eerste bezoek** (`@fontsource`,
   `font-display: swap`, geen preload): koud gemeten CLS tot 0,32 op een
   computer en eens 0,034 op een Pixel 5, 0 met de lettertypen in de cache of
   tegengehouden. Alleen het eerste bezoek; de oplossing is een preload van de
   latijnse 400/600-bestanden of een fallback met `size-adjust`, voor alle
-  pagina's tegelijk.
-- **De strook *Wie is er?* verschuift de kolom nog 5 px** bij de hydratatie
-  (bekend sinds 65·herstel; zie het blok van rondes 65–67).
+  pagina's tegelijk.~~ **Gesloten in golf K:** `next/font/local` (`app/fonts.ts`) met preload; het meeste verspringen bleek de strip hieronder.
+- ~~**De strook *Wie is er?* verschuift de kolom nog 5 px** bij de hydratatie
+  (bekend sinds 65·herstel; zie het blok van rondes 65–67).~~ **Gesloten in golf K:** een ondergrens van 5,75 rem op een computer.
 - **Een chip in de lopende tekst breekt wél af**: Tiptap zet
   `[contenteditable="false"] { white-space: normal }` over de `nowrap` van
   `.entry-chip`. `VoorafTekst` doet hetzelfde, met opzet; wie dat wil
@@ -2689,13 +2779,13 @@ D17, en uit rondes 65–67 de peek die op `max-height` bewoog.
   `-Make`, `-String`): `CanvasEmpty` leest ze niet meer, maar ze staan nog in
   `lib/words.ts` omdat `tests/unit/ronde-51-canvas.test.ts` ze navraagt. Weg
   met beide als iemand in die test is.
-- **`E2E_DEV=1` is maar half gedraaid** (zie §1): `round-37-map`,
+- ~~**`E2E_DEV=1` is maar half gedraaid** (zie §1): `round-37-map`,
   `round-37-pinch` en `round-37-timeline` wachten nog op een run onder Strict
-  Mode op een rustige machine.
-- **Bewust niet gedaan op de vlakken** (review 4): labels van twee regels en
+  Mode op een rustige machine.~~ **Gesloten in golf K:** alle drie groen onder `E2E_DEV=1`, één tegelijk.
+- ~~**Bewust niet gedaan op de vlakken** (review 4): labels van twee regels en
   ruitclusters op de tijdlijn (nieuwe baangeometrie, een eigen ronde), een
   plaatser voor botsende kaartlabels, en M3 op een kaart waarvan de spelden de
-  hele breedte beslaan (Walcheren: daar is de fit al "op de spelden").
+  hele breedte beslaan (Walcheren: daar is de fit al "op de spelden").~~ **Half gesloten in golf K:** twee regels op de tijdlijn en `placeLabels` voor de kaartnamen; de ruitclusters en Walcheren staan nog open.
 - **De handelingstelling van de vlakken veranderde niet**: de winst van i1 is
   ruimte en bereik, geen tik minder. De kortste routes van de meting vragen
   een vlak dat in Lezen al iets maakt, en dat is §73.

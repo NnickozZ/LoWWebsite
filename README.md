@@ -4255,7 +4255,8 @@ A hundred and seven rules worth knowing before changing anything:
     > blokken zijn lijsten (`visibleEntryCondition`, dan `sideCondition`) en
     > lezen het archief van de kant waar je staat. Sinds het herstel heeft de
     > voorpagina één tabrij (`TypeTabs compact`: Start, Alles, De soorten) en
-    > zijn de tegels de index. Zie regel 104.
+    > zijn de tegels de index. Zie regel 104. *Golf K: `compact` is weg; de
+    > voorpagina heeft de gewone rij, zie regel 104.*
 
 76. **Een plek krijgt een naam per kijker, of helemaal niet.** §76. Nick, ronde
     39: *"a page/indicator/popup menu where you can see all currently online
@@ -5586,6 +5587,11 @@ A hundred and seven rules worth knowing before changing anything:
     > open. De winkelvelden van huisraad staan in de vorm van de infobox
     > (`compact`), *Wat het geeft* is twee regels hoog. Op een telefoon kost
     > rij 20 van de meting daarmee 8,5 (was 9,5); zie `CLAUDE.md` §8.
+    >
+    > *Golf K:* in het blad van huisraad plakt *Aanmaken* op een telefoon
+    > onderaan het blad (`.sheet-actions-stick`, het patroon van het
+    > tijdlijnblad), zodat de halve veeg weg is: rij 20 kost 8. Alleen daar:
+    > een blad zonder winkelvelden past en blijft zoals het was.
 
 93. **Wat je hebt is wat je bezit, en een koop mag je vlak erna terugdraaien.**
     §93. Ronde 54, *De kamer, tweede pas*. Nick besliste na de review: een lade
@@ -6575,11 +6581,20 @@ A hundred and seven rules worth knowing before changing anything:
       hoekknop op een telefoon hangen aan `.shell[data-keeper-hand]` (door de
       server gezet), niet aan de knop, zodat de strook er vóór de hydratatie
       staat. `k` en `>` in het palet werken als voorheen, zonder cirkel.
-    - **Eén paginaraster** (D5). `.page` en `.page-wide` staan links, op
+    - ~~**Eén paginaraster** (D5). `.page` en `.page-wide` staan links, op
       `--page-pad` naast de zijbalk (`margin: 0 auto 0 0`), niet gecentreerd;
       een smalle pagina is alleen smaller. Gemeten: op 1440 en 1920 begint elke
       pagina op x = 252. De kop springt niet meer opzij bij een klik in de
-      zijbalk.
+      zijbalk.~~ **Omgekeerd in golf K** (Nick: *"On PC the website now aligns
+      to the left instead of using the whole screenspace. This doesn't look
+      great"*): elke pagina staat in het midden van de kolom
+      (`margin: 0 auto`), een brede pagina mag 1440 px worden (was 1200), en
+      de lijsten van het archief (prikborden, tijdlijnen, stambomen) zijn
+      brede pagina's geworden, zoals landkaarten en dossiers al waren. Alles
+      onder *Het archief* deelt zo nog één linkerrand; een smalle pagina (Jij,
+      Spelers, Zoeken) staat in het midden en springt dus ten opzichte van
+      een brede. Tot ongeveer 1700 px breed verandert er niets: daar vult een
+      brede pagina de kolom al.
     - **Elke interne link antwoordt binnen 100 ms** (D3, T7). `NavProgress`
       luistert in de capture-fase op `document` en zet `data-pending` op de
       link zelf; op een deur in het Jij-blad draagt de Jij-tab het, want het
@@ -6935,8 +6950,14 @@ A hundred and seven rules worth knowing before changing anything:
         nooit een id dat de pagina al gebruikt.
       - Een klik kopieert `…/e/slug#kop` en meldt *Link gekopieerd*.
       - Een hash bij het laden springt naar de kop.
-    - Onder 1280 px is de omslag de liggende uitsnede, hooguit 40 % van de
-      hoogte. Een tik opent de lichtbak.
+    - ~~Onder 1280 px is de omslag de liggende uitsnede, hooguit 40 % van de
+      hoogte.~~ **Golf K:** op elke breedte staat de omslag heel (Nick: *"in
+      articles on phone the images are fully visible just like on PC. Not
+      cropped up"*). Onder 1280 px in een eigen kaart (rand, papier en
+      schaduw van de infobox), hooguit de helft van de hoogte; een staande foto
+      wordt smaller, niet afgesneden. Het `<img>` draagt de opgeslagen
+      `width`/`height` (`assetSize` in `lib/assets.ts`), zodat de foto zijn
+      plek houdt vóór hij er is. Een tik opent de lichtbak.
     - `.prose` is 17 px met regelafstand 1,6 en `max-width: 68ch`. De
       tekstafstand van WCAG 1.4.12 knipt niets af; een e2e-spec toetst dat.
     - Zonder ingevuld feit en zonder omslag is er geen infobox, en de tekst
@@ -7002,8 +7023,13 @@ A hundred and seven rules worth knowing before changing anything:
     inhoudsopgave (`emptyBlocks` op `EntryView`).
 
     **De wiki.**
-    - De voorpagina heeft één rij (`TypeTabs compact`: Start, Alles, De
-      soorten); de tegels zijn de index.
+    - ~~De voorpagina heeft één rij (`TypeTabs compact`: Start, Alles, De
+      soorten); de tegels zijn de index.~~ **Golf K:** de voorpagina heeft de
+      rij van elke wikipagina (Start, Alles, de grootste soorten, *Meer
+      soorten ▾*). *De soorten* was een tab die alleen naar de tegels
+      sprong; op een computer stonden die al in beeld, dus hij lichtte op en
+      deed niets (Nick: *"hoverable but not clickable"*). Elke tab is nu een
+      pagina; de tegels blijven de index eronder.
     - Een lege soort is in de tabrij gedempt (`.type-tab.is-leeg`).
     - `/wiki/alles` en `/wiki/<soort>` zeggen "n van totaal" en hebben *Meer*.
     - Hoe ver je leest staat in het adres (§12): `?pagina=` (cumulatief, max
@@ -7174,6 +7200,17 @@ A hundred and seven rules worth knowing before changing anything:
     >   de eerste alinea staan vóór en na de hydratatie op dezelfde pixel. Op
     >   een computer (1280/1440/1600): 0,42–0,82 → ≤ 0,001 zonder webfonts.
     >   Wat overblijft is het wisselen van lettertype (`CLAUDE.md` §8).
+    >   *Golf K:* de drie letters van het archief komen via `next/font/local`
+    >   (`app/fonts.ts`): voorgeladen met een `Link`-header, met een eigen
+    >   systeemletter op maat; `@fontsource` staat erachter voor tekens buiten
+    >   het latijnse deel, en daarachter een tweede systeemletter op maat voor
+    >   waar Arial of Times ontbreekt (Liberation, Arimo, Tinos). En de strip
+    >   *Wie is er?* heeft op een computer een ondergrens van 5,75 rem: dáár
+    >   kwam het meeste verspringen vandaan, niet van de letters (met alle
+    >   webfonts tegengehouden was het artikel op 1440 px nog 0,084). Gemeten,
+    >   koud, 0 en 150 ms latentie: artikel 1440 0,15–0,20 → ≤ 0,021, artikel
+    >   telefoon 0,061 → 0, Start telefoon 0,24–0,29 → 0, Start 1440 0,052 →
+    >   ≤ 0,003, wiki telefoon 0,072 → 0.
     > - *Raden 7* van de meting (*Meer info* soms open, soms dicht) is hiermee
     >   weg: de server tekende de open kaart, de telefoon vouwde hem na de
     >   hydratatie dicht.
@@ -7333,6 +7370,29 @@ A hundred and seven rules worth knowing before changing anything:
     kaartlabels, en M3 op een kaart waarvan de spelden de hele breedte beslaan
     (Walcheren: daar is de fit al "op de spelden"). De proef staat in
     `tests/unit/golf-i1-vlakken.test.ts` en `tests/e2e/golf-i1-vlakken.spec.ts`.
+
+    > **Aangevuld in golf K: de namen.**
+    > - **Een lange naam op de tijdlijn staat op twee regels** (M2). Past een
+    >   naam niet op één regel van 170 px, dan wordt het tagje ongeveer half
+    >   zo breed en 40 px hoog (`tagLayout` in `TimelineCanvas`,
+    >   `.timeline-tag-2`). `placeTags` geeft zo'n tagje twee banen boven
+    >   elkaar; zijn er geen twee vrij, dan krijgt hij één regel met het
+    >   beletselteken van vroeger, en pas daarna, zoals altijd, geen tagje.
+    >   Een venster boven een tagje van twee regels begint 16 px verder.
+    >   Ruitclusters bleven liggen.
+    > - **Een naam op een landkaart kiest een plek** (M3). `clusterPins` neemt
+    >   koppen samen, niet namen; `placeLabels` (`lib/maps/labels.ts`, puur)
+    >   probeert per speld onder, rechts, links en boven de kop, en neemt de
+    >   eerste plek die geen andere naam of kop raakt en niet over de rand
+    >   van het glas valt. De gekozen spelden kiezen eerst, daarna van voor
+    >   naar achter. Past er geen, dan is de naam `weg` en komt hij terug bij
+    >   hover, focus en een keuze. Een andere plek is een `translate` van de
+    >   naam: de speld zelf beweegt nooit. De breedtes meet de browser, na de
+    >   verf en opnieuw als de letters binnen zijn; tot dan staat elke naam
+    >   onder zijn kop (`data-labels="gemeten"` op `.map-pins` zegt wanneer).
+    >
+    > De proef staat in `tests/unit/golf-k.test.ts` en
+    > `tests/e2e/golf-k.spec.ts`.
 
     > **Aangevuld in golf J (j1, na de meting na golf I).**
     > - **Lezen in Bewerken vraagt niets.** De schrijfvraag (§18b) hoort bij

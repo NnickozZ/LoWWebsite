@@ -268,7 +268,8 @@ test.describe('§104 de leeskamer', () => {
     await shot(page, 'artikel-phone-zonder-omslag-donker');
     await page.emulateMedia({ colorScheme: 'light' });
 
-    // Met een omslag: liggend, hooguit 40 % van de hoogte, en een tik = de lichtbak.
+    // Met een omslag: heel, in een kaart, hooguit de helft van de hoogte (golf K:
+    // tot golf J was dit de liggende uitsnede), en een tik = de lichtbak.
     const photo = readFileSync(join(root, 'data-e2e', 'fixture-photo.png'));
     const upload = await page.request.post('/api/assets', {
       multipart: { file: { name: `omslag-${stamp}.png`, mimeType: 'image/png', buffer: photo } },
@@ -281,11 +282,18 @@ test.describe('§104 de leeskamer', () => {
       body: doc(para(text('De eerste zin staat nog op het eerste scherm, onder de plaat.'))),
     });
     await page.goto(`/e/${artikel.slug}`);
-    const cover = page.locator('.entry-cover-liggend');
+    const cover = page.locator('.entry-cover-whole');
     await expect(cover).toBeVisible({ timeout: 20_000 });
-    const box = (await cover.boundingBox())!;
-    expect(box.height).toBeLessThanOrEqual(844 * 0.4 + 1);
-    expect(box.width).toBeGreaterThan(box.height);
+    await expect(page.locator('.entry-cover-liggend')).toHaveCount(0);
+    const img = cover.locator('img');
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+    const box = (await img.boundingBox())!;
+    expect(box.height).toBeLessThanOrEqual(844 * 0.5 + 1);
+    // Heel: de verhouding op het scherm is die van de foto (800 × 500), niets afgesneden.
+    expect(Math.abs(box.width / box.height - 800 / 500)).toBeLessThan(0.03);
+    // En een kaart: het figuur eromheen heeft een rand.
+    const figure = page.locator('.entry-aside-box-stacked > .entry-figure');
+    expect(await figure.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('1px');
     const firstLine = page.locator('.entry-body-block .ProseMirror p').first();
     await expect(firstLine).toBeVisible();
     expect((await firstLine.boundingBox())!.y).toBeLessThan(844);

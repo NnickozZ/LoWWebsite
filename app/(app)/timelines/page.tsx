@@ -49,7 +49,7 @@ export default async function TimelinesPage({ searchParams }: { searchParams: Pr
     place ? `/timelines/${slug}?place=${encodeURIComponent(place)}&name=${encodeURIComponent(placeName ?? '')}` : `/timelines/${slug}`;
 
   return (
-    <div className="page">
+    <div className="page-wide">
       <LivePage place="page:/timelines" watch={['timelines', 'cases']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>

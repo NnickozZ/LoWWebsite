@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { assetUrl } from '@/components/Cover';
 import { Icon } from '@/components/Icon';
 import { cameraKey } from '@/components/canvas/cameraKeys';
@@ -34,6 +34,7 @@ import {
   viewForCluster,
   type LayerCommand,
 } from '@/lib/maps/cluster';
+import { placeLabels } from '@/lib/maps/labels';
 import { InkCanvas } from '@/components/ink/InkCanvas';
 import { InkShell } from '@/components/ink/InkShell';
 import { UnderFold } from '@/components/ink/UnderFold';
@@ -1652,6 +1653,58 @@ export function MapCanvas({
     [keepApart, map.height, map.width, shown, view.zoom],
   );
 
+  /*
+   * Golf K (M3): elke naam kiest een plek waar hij geen andere naam of kop
+   * raakt (`placeLabels`, lib/maps/labels.ts). De breedte van een naam is wat
+   * de browser ervan maakte; gemeten na de verf, opnieuw als de namen
+   * veranderen of de letters binnen zijn. Tot dan staat elke naam waar hij
+   * altijd stond.
+   */
+  const pinsLayerRef = useRef<HTMLDivElement>(null);
+  const [labelWidths, setLabelWidths] = useState<Record<string, number>>({});
+  const labelKey = clusters.map(({ lead }) => `${lead.id}:${lead.name}`).join('|');
+  useLayoutEffect(() => {
+    const layer = pinsLayerRef.current;
+    if (!layer) return;
+    const measure = () => {
+      const next: Record<string, number> = {};
+      for (const label of layer.querySelectorAll<HTMLElement>('.map-pin-label')) {
+        const id = label.closest<HTMLElement>('[data-pin-id]')?.dataset.pinId;
+        if (id) next[id] = label.offsetWidth;
+      }
+      setLabelWidths((current) => {
+        const keys = Object.keys(next);
+        if (keys.length === Object.keys(current).length && keys.every((key) => current[key] === next[key])) return current;
+        return next;
+      });
+    };
+    measure();
+    let alive = true;
+    void document.fonts?.ready.then(() => alive && measure());
+    return () => {
+      alive = false;
+    };
+  }, [labelKey]);
+  const labelPlaces = useMemo(
+    () =>
+      placeLabels(
+        clusters.map(({ lead }) => {
+          const hand = dragging === lead.id ? undefined : carried.get(lead.id);
+          const px = hand ? hand[0] : lead.x;
+          const py = hand ? hand[1] : lead.y;
+          return {
+            id: lead.id,
+            x: view.tx + px * map.width * view.zoom,
+            y: view.ty + py * map.height * view.zoom,
+            width: labelWidths[lead.id] ?? 0,
+            chosen: selectedIds.has(lead.id),
+          };
+        }),
+        stageSize.w && stageSize.h ? { width: stageSize.w, height: stageSize.h } : undefined,
+      ),
+    [carried, clusters, dragging, labelWidths, map.height, map.width, selectedIds, stageSize.h, stageSize.w, view.tx, view.ty, view.zoom],
+  );
+
   /** §71: één klik op een `+n` zet precies díe spelden op het glas. */
   const zoomToCluster = useCallback(
     (bounds: { minX: number; minY: number; maxX: number; maxY: number }) => {
@@ -2045,7 +2098,7 @@ export function MapCanvas({
         )}
 
         {/* The pins: stage pixels, never scaled — see the note at the top. */}
-        <div className="map-pins">
+        <div className="map-pins" ref={pinsLayerRef} data-labels={Object.keys(labelWidths).length ? 'gemeten' : undefined}>
           {/*
             §71: getekend per groepje, van achter naar voren.
 
@@ -2084,7 +2137,19 @@ export function MapCanvas({
                   <span className="map-pin-head">
                     <Icon name={pinIcon(pin)} size={13} />
                   </span>
-                  <span className="map-pin-label">{pin.name}</span>
+                  {(() => {
+                    // Golf K (M3): the place `placeLabels` chose; `weg` shows on hover, focus and choice.
+                    const place = labelPlaces.get(pin.id);
+                    return (
+                      <span
+                        className="map-pin-label"
+                        data-label={place?.spot ?? 'onder'}
+                        style={place && (place.dx || place.dy) ? { transform: `translate(${place.dx}px, ${place.dy}px)` } : undefined}
+                      >
+                        {pin.name}
+                      </span>
+                    );
+                  })()}
                 </button>
                 {count > 0 && (
                   /*

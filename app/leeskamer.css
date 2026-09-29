@@ -349,10 +349,6 @@
 .leeskamer-tegel.is-leeg .leeskamer-tegel-icoon {
   opacity: 0.55;
 }
-/* De sprong vanuit de tabrij landt met de kop in beeld, niet onder de rand. */
-#leeskamer-soorten-kop {
-  scroll-margin-top: 1.5rem;
-}
 
 /* §104 (ronde 67·herstel, #16): de tabrij op een lijstpagina — een soort met
    niets erin staat er, stil: lichter gezet, het icoon en de 0 flauw. De tekst
@@ -363,9 +359,6 @@
 .type-tab.is-leeg:not([aria-current='page']) svg,
 .type-tab.is-leeg:not([aria-current='page']) .type-tab-count {
   opacity: 0.45;
-}
-.type-tab-naar {
-  margin-left: auto;
 }
 
 /* §104 (#14): onder een lijst die niet alles toont — *Meer*, en hoeveel er nog komen. */
@@ -575,23 +568,7 @@
   outline: 2px solid var(--link);
   outline-offset: 2px;
 }
-/* Onder de kop, op een smal scherm: liggend, en nooit meer dan 40 % van het scherm. */
-.entry-cover-liggend {
-  display: block;
-  width: 100%;
-  max-height: 40vh;
-  max-height: 40dvh;
-  overflow: hidden;
-  border: 1px solid var(--rule);
-  background: var(--paper-dark);
-  box-shadow: var(--shadow);
-}
-.entry-cover-liggend img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+/* Golf K: de liggende strook onder de kop (`.entry-cover-liggend`) is weg; ook op een smal scherm staat de omslag heel, in een kaart (zie golf k onderaan). */
 .entry-lightbox {
   animation: leeskamer-komt var(--dur-4) var(--ease-enter);
 }
@@ -840,11 +817,6 @@
   }
   .entry-waar[open] > summary {
     margin-bottom: 0;
-  }
-  /* §104 (golf H, T9): 10,5rem — de knoppen erboven werden 44 px in plaats van 34, en de eerste zin houdt zijn plek, ook voor de Keeper met zijn knop in de hoek. */
-  .entry-page-reading .entry-cover-liggend {
-    max-height: min(34vh, 10.5rem);
-    max-height: min(34dvh, 10.5rem);
   }
   .entry-page-reading .entry-outline-row {
     margin-bottom: 0.6rem;
@@ -1539,16 +1511,16 @@
 /*
  * §104 (golf H, D30/D1): het skelet van een artikel (components/shell/Skeleton.tsx,
  * de rest van de vorm in app/navigatie.css). Een omslagvlak bovenaan de
- * zijkolom — staand vanaf 1280 px, liggend daaronder zoals de echte omslag —
+ * zijkolom — staand, op elke breedte, zoals de echte omslag (golf K) —
  * en tussen 1280 en 1499 px de vorm van D1: tekst en feiten, met de wegwijzer
  * als rij chips boven de tekst.
  */
 .sk-omslag {
   display: block;
-  width: 100%;
-  aspect-ratio: 3 / 2;
-  max-height: min(40dvh, 12rem);
-  margin: 0 0 0.6rem;
+  /* Golf K: staand, zoals de hele omslag in zijn kaart (golf k, onderaan). */
+  width: min(100%, 45dvh);
+  aspect-ratio: 3 / 4;
+  margin: 0 auto 0.6rem;
   border-radius: 0;
 }
 @media (min-width: 1280px) {
@@ -1783,11 +1755,6 @@
     display: none;
   }
 }
-@media (max-width: 1279px) {
-  .entry-figure-beide .entry-cover-whole {
-    display: none;
-  }
-}
 @media (min-width: 1280px) {
   /* De kop boven de tekst, de feiten ernaast over allebei. De tweede rij
      neemt wat een lange zijkolom meer nodig heeft, niet de eerste. */
@@ -1815,8 +1782,7 @@
 
   /* Wat alleen onder 1280 px hoort, zolang het er nog staat. */
   .entry-outline-smal,
-  .entry-aside-box > .infobox-peek,
-  .entry-figure-beide .entry-cover-liggend {
+  .entry-aside-box > .infobox-peek {
     display: none;
   }
 
@@ -1906,5 +1872,40 @@
   }
   p.sticky-section-head.case-vroeg-smal {
     line-height: 1.2;
+  }
+}
+
+/* ===== golf k */
+
+/*
+ * Golf K (Nick: "On phone the images are not cards anymore, I want to make
+ * sure that in articles on phone the images are fully visible just like on PC.
+ * Not cropped up."). Onder 1280 px staat de omslag heel, in een kaart: het
+ * kader, het papier en de schaduw van de infobox eronder, met de afbeelding in
+ * zijn eigen vorm erin — zoals in de zijkolom van een computer. Hooguit
+ * de helft van het scherm hoog; een staande foto wordt smaller, niet afgesneden.
+ * De `width`/`height` op het `<img>` (`assetSize`) houden de plek vast
+ * voordat de foto er is.
+ */
+@media (max-width: 1279px) {
+  .entry-aside-box-stacked > .entry-figure {
+    padding: 0.5rem;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
+  }
+  .entry-aside-box-stacked > .entry-figure .entry-cover-whole {
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    box-shadow: none;
+  }
+  .entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: min(50vh, 30rem);
+    max-height: min(50dvh, 30rem);
   }
 }

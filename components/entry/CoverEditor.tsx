@@ -1,18 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { assetUrl, coverClass, coverStyle } from '@/components/Cover';
+import { assetUrl } from '@/components/Cover';
 import { createPortal } from 'react-dom';
 import { fill } from '@/lib/words';
 import { CropFrame } from '@/components/CropFrame';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
-import { cropFor, normaliseCrops, SHAPE_ORDER, SHAPES, type CoverCrops, type Crop, type CropShape } from '@/lib/images/shapes';
+import { cropFor, SHAPE_ORDER, SHAPES, type CoverCrops, type Crop, type CropShape } from '@/lib/images/shapes';
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { useDismiss } from '@/components/ui/useDismiss';
-import { NARROW_MEDIA, WIDE_MEDIA } from '@/components/useIsPhone';
 
 /**
  * §6: upload from device or paste from clipboard.
@@ -50,7 +49,7 @@ export function CoverEditor({
   icon,
   colour,
   readOnly: locked = false,
-  landscape = false,
+  size = null,
   onChange,
 }: {
   assetId: string | null;
@@ -61,12 +60,12 @@ export function CoverEditor({
   /** §22: the reading face — the picture, and not one control. */
   readOnly?: boolean;
   /**
-   * §104 (L5): reading on a narrow screen — the landscape crop, not the whole
-   * picture. Golf J (j4): `null` while the width is not known yet (the server
-   * and the hydration): both are drawn, lazily, and the stylesheet shows one
-   * (`.entry-figure-beide`); once it is known the other goes.
+   * Golf K: the stored width and height of the picture, when known. They go on
+   * the `<img>`, so the whole picture holds its place before it has arrived.
+   * (§104 L5 had a `landscape` flag here that cut the picture to its liggend
+   * crop under 1280 px; Nick asked for it whole on a telefoon as well.)
    */
-  landscape?: boolean | null;
+  size?: { width: number; height: number } | null;
   onChange: (next: { coverAssetId: string | null; coverCrop: CoverCrops | null }) => void;
 }) {
   const ui = useUi();
@@ -169,14 +168,13 @@ export function CoverEditor({
   const picture = (
     <div className={assetId ? 'entry-cover-whole' : 'entry-cover entry-cover-empty'}>
       {assetId ? (
-        /* Golf J (j4): while the width is not known both pictures are in the
-           page; a `<source>` for the other width hands this one an empty
-           pixel, so the copy `display: none` hides is never fetched. */
-        <picture>
-          {landscape === null && <source media={NARROW_MEDIA} srcSet={LEEG_BEELD} />}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={assetUrl(assetId, 'full')} alt={alt} />
-        </picture>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={assetUrl(assetId, 'full')}
+          alt={alt}
+          width={size?.width}
+          height={size?.height}
+        />
       ) : (
         <Icon name={icon} size={48} style={{ color: colour, opacity: 0.5 }} />
       )}
@@ -186,16 +184,13 @@ export function CoverEditor({
   /*
    * §104 (ronde 67, L5): reading, the picture is a door to itself. A tap or a
    * click opens it whole in the lichtbak the prikbord and the tijdlijn already
-   * use (`.board-lightbox`). On a narrow screen it stands *liggend* — the
-   * landscape crop this picture already has for every list (round 19), at most
-   * 40 % of the screen high — so the first sentence is still on the first
-   * screen; the whole picture is one tap away.
+   * use (`.board-lightbox`). Golf K: on every width it is the whole picture,
+   * in a card of its own under 1280 px (`app/leeskamer.css`, golf k) — the
+   * liggend strip that cut it on a telefoon is gone.
    */
   if (readOnly && assetId) {
     return (
-      <figure
-        className={`entry-figure${landscape ? ' entry-figure-liggend' : ''}${landscape === null ? ' entry-figure-beide' : ''}`}
-      >
+      <figure className="entry-figure">
         <button
           type="button"
           ref={openerRef}
@@ -203,17 +198,7 @@ export function CoverEditor({
           aria-label={fill(ui.words.coverOpen, { naam: alt })}
           onClick={() => setBig(true)}
         >
-          {/* Golf J (j4): two slots, so the one that stays keeps its element. */}
-          {landscape !== false && (
-            <span className={`entry-cover-liggend ${coverClass('landscape')}`}>
-              <picture>
-                {landscape === null && <source media={WIDE_MEDIA} srcSet={LEEG_BEELD} />}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={assetUrl(assetId, 'card')} alt={alt} style={liggendStijl(crop)} />
-              </picture>
-            </span>
-          )}
-          {landscape !== true && picture}
+          {picture}
         </button>
         {big && (
           <CoverLightbox
@@ -414,16 +399,3 @@ function CoverLightbox({
   );
 }
 
-/**
- * §104 (golf H, T10): the liggend strip on a phone. With a landscape crop of
- * its own the picture is drawn by it (`coverStyle`); without one the strip is
- * cut from the lower part of the picture (50 % 85 %), because that is where a
- * drawn cover prints its name band — centred, "De familie De Kok" lost *Kok*.
- */
-/** Golf J (j4): one transparent pixel, for the `<source>` of the width a picture is not shown at. */
-const LEEG_BEELD = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-
-function liggendStijl(crop: CoverCrops | null | undefined): React.CSSProperties {
-  if (normaliseCrops(crop)?.landscape) return coverStyle(crop, 'landscape');
-  return { objectFit: 'cover', objectPosition: '50% 85%' };
-}

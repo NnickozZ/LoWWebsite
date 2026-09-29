@@ -220,6 +220,8 @@ type Placed = {
   lane: number;
   /** §62: no room for a tag here; the mark stays and a chip counts it. */
   hidden: boolean;
+  /** Golf K (M2): a long name on two lines, in a narrower tag two lanes deep. */
+  lines: 1 | 2;
 };
 
 /** §105: half the widest tag — the air a fenced day keeps at either end. */
@@ -227,6 +229,23 @@ const TAG_AIR = 85;
 
 function tagWidth(name: string): number {
   return Math.max(64, Math.min(170, name.length * 6.6 + 30));
+}
+
+/**
+ * Golf K (M2): a name that does not fit on one line of tag (170 px) asks for
+ * two, in a tag about half as wide, so "De nacht dat de dijk bij Westkapelle
+ * brak" is read instead of cut off after "De nacht dat de dijk…". `placeTags`
+ * gives it two lanes where there are two, and one line with the old ellipsis
+ * where there are not.
+ */
+const TAG_TWO_LINE_EXTRA = 16;
+/** The widest a two-line tag gets — `.timeline-tag-2`'s `max-width` in app/globals.css, on a phone too. */
+const TAG_TWO_LINE_MAX = 180;
+function tagLayout(name: string): { width: number; lines: 1 | 2; oneLineWidth: number } {
+  const oneLine = name.length * 6.6 + 30;
+  const oneLineWidth = tagWidth(name);
+  if (oneLine <= 170) return { width: oneLineWidth, lines: 1, oneLineWidth };
+  return { width: Math.min(TAG_TWO_LINE_MAX, Math.max(112, Math.ceil(oneLine / 2) + 30)), lines: 2, oneLineWidth };
 }
 
 export function TimelineCanvas({
@@ -853,12 +872,12 @@ export function TimelineCanvas({
   const placed = useMemo<Placed[]>(() => {
     if (!view) return [];
     const ats = new Map(events.map((event) => [event.id, shownAt(event)]));
-    const items = events.map((event) => ({ id: event.id, x: xOf(ats.get(event.id)!), width: tagWidth(event.name) }));
+    const items = events.map((event) => ({ id: event.id, x: xOf(ats.get(event.id)!), ...tagLayout(event.name) }));
     const spots = placeTags(items, lanes);
     return events.map((event) => {
       const spot = spots.get(event.id) ?? { side: 'up' as Side, lane: 0, hidden: false };
       const at = ats.get(event.id)!;
-      return { event, at, x: xOf(at), side: spot.side, lane: spot.lane, hidden: spot.hidden };
+      return { event, at, x: xOf(at), side: spot.side, lane: spot.lane, hidden: spot.hidden, lines: spot.lines ?? 1 };
     });
   }, [events, view, xOf, lanes, shownAt]);
 
@@ -2210,8 +2229,9 @@ export function TimelineCanvas({
      */
     const baseUp = axisY - TAG_H / 2 - 6;
     const baseDown = axisY + TAG_H / 2 + 6;
-    const boxes = wanted.map(({ event, x, side, lane }) => {
-      const reach = LANE_0 + lane * LANE_STEP;
+    const boxes = wanted.map(({ event, x, side, lane, lines }) => {
+      // Golf K (M2): a two-line tag reaches further; its window starts past it.
+      const reach = LANE_0 + lane * LANE_STEP + (lines === 2 ? TAG_TWO_LINE_EXTRA : 0);
       const height = windowHeights[event.id] ?? 0;
       return {
         id: event.id,
@@ -2445,7 +2465,7 @@ export function TimelineCanvas({
           eventsForSweep.current = placed.map((one) => one.event);
           return null;
         })()}
-        {placed.map(({ event, at, x, side, lane, hidden }) => {
+        {placed.map(({ event, at, x, side, lane, hidden, lines }) => {
           // §62: a tag a hand is carrying is never culled — unmounting the
           // element under the pointer takes the capture, the move and the drop
           // with it, and leaves the drag stuck half-done.
@@ -2467,6 +2487,9 @@ export function TimelineCanvas({
             width: TAG_HIT_HALF * 2,
             height: reach + TAG_HIT_HALF * 2,
           });
+          /* Golf K (M2): a two-line tag is its own width, set here (`tagLayout`). */
+          const twoLine = lines === 2 && !hidden;
+          const tagStyle = twoLine ? { width: tagLayout(event.name).width } : undefined;
           /*
            * Where the tag sends a reader who asks the browser instead of the
            * axis. A gebeurtenis that stands for an artikel has an address; a
@@ -2521,8 +2544,8 @@ export function TimelineCanvas({
                 <a
                   href={tagHref}
                   draggable={false}
-                  className="timeline-tag"
-                  style={TAG_LINK_RESET}
+                  className={`timeline-tag${twoLine ? ' timeline-tag-2' : ''}`}
+                  style={{ ...TAG_LINK_RESET, ...tagStyle }}
                   onClick={(click) => {
                     /*
                      * A press that travelled was a drag, and a drag's trailing
@@ -2552,7 +2575,8 @@ export function TimelineCanvas({
               ) : (
                 <button
                   type="button"
-                  className="timeline-tag"
+                  className={`timeline-tag${twoLine ? ' timeline-tag-2' : ''}`}
+                  style={tagStyle}
                   onClick={(click) => click.detail === 0 && toggle(event.id)}
                   aria-expanded={shown}
                   aria-label={`${event.name}, ${when}`}

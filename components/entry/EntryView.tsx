@@ -79,6 +79,8 @@ export type EntryViewData = {
   tags: string[];
   coverAssetId: string | null;
   coverCrop: CoverCrops | null;
+  /** Golf K: the stored size of the omslag (`assetSize`), for the `<img>`'s width and height. */
+  coverSize?: { width: number; height: number } | null;
   typeLabel: string;
   typeIcon: string;
   typeColour: string;
@@ -861,9 +863,11 @@ export function EntryView({
       icon={entry.typeIcon}
       colour={entry.typeColour}
       readOnly={reading}
-      /* §104 (L5): stacked under the header, the picture lies down. Golf J
-         (j4): `null` until the width is known — both, and CSS picks. */
-      landscape={wide === null ? null : !wide}
+      /* Golf K (Nick: "in articles on phone the images are fully visible
+         just like on PC. Not cropped up."): the whole picture on every
+         width, in its own card. §104 L5 laid it down under 1280 px, cut to
+         the liggend crop; that is undone. The stored size keeps its place. */
+      size={cover.assetId === entry.coverAssetId ? entry.coverSize ?? null : null}
       onChange={(next) => {
         setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
         set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });

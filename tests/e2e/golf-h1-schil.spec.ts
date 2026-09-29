@@ -7,7 +7,7 @@ import { becomeInvestigator, inviteCode, signIn } from './helpers';
  *
  *   D4   De Keeperkant is op een computer een schakelaar in de mast, zonder
  *        strook boven de pagina en zonder 12 rem naast een canvaskop.
- *   D5   Eén linkerrand naast de zijbalk, op elke pagina en elke breedte.
+ *   D5   (golf K) Elke pagina in het midden van de kolom; de brede met één linkerrand.
  *   D2   Een onbekend adres is een 404 in de schil.
  *   D3   Een kaart krijgt binnen 100 ms `data-pending`.
  *   T7   De tabpagina's hebben een skelet; de Jij-tab is actief in jouw plek.
@@ -33,10 +33,22 @@ async function signUpPlayer(page: Page, name: string) {
   await page.waitForURL('**/');
 }
 
-const leftOf = (page: Page) =>
+/**
+ * Golf K: waar de pagina staat in de kolom naast de zijbalk — de ruimte links
+ * en rechts van `.page`/`.page-wide`/het artikel, gemeten tegen de inhoud van
+ * `.main` (zonder zijn opvulling).
+ */
+const gapsOf = (page: Page) =>
   page.evaluate(() => {
     const el = document.querySelector('.main > :is(.page, .page-wide, article)');
-    return el ? Math.round(el.getBoundingClientRect().left) : null;
+    const main = document.querySelector('.main');
+    if (!el || !main) return null;
+    const box = el.getBoundingClientRect();
+    const col = main.getBoundingClientRect();
+    const pad = getComputedStyle(main);
+    const left = col.left + parseFloat(pad.paddingLeft);
+    const right = col.right - parseFloat(pad.paddingRight);
+    return { left: Math.round(box.left - left), right: Math.round(right - box.right), x: Math.round(box.left) };
   });
 
 test.describe('golf h1 — de computer', () => {
@@ -70,21 +82,39 @@ test.describe('golf h1 — de computer', () => {
     await expect(toggle).toHaveAttribute('data-side-now', 'player', { timeout: 20_000 });
   });
 
-  test('D5: één linkerrand op elke pagina, op 1440 en 1920', async ({ page }) => {
+  /*
+   * Golf K draaide D5 om (Nick: "On PC the website now aligns to the left
+   * instead of using the whole screenspace"). Elke pagina staat in het midden
+   * van de kolom: evenveel lucht links als rechts. De brede pagina's van het
+   * archief (Start, de wiki, een artikel, de lijsten) delen nog steeds één
+   * linkerrand; een smalle pagina (Spelers, Jij, Zoeken) staat in het midden.
+   */
+  test('D5 (golf K): elke pagina in het midden, de brede met één linkerrand, op 1440 en 1920', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page, ...KEEPER);
     for (const width of [1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
-      const lefts: Record<string, number | null> = {};
-      for (const path of ['/', '/wiki', '/e/westkapelle-lighthouse', '/spelers', '/you', '/search', '/uitdelen', '/timelines', '/bestaat-niet-h1']) {
+      const wide: Record<string, number> = {};
+      for (const path of ['/', '/wiki', '/e/westkapelle-lighthouse', '/timelines', '/boards', '/maps', '/spelers', '/you', '/search', '/uitdelen', '/bestaat-niet-h1']) {
         await page.goto(path);
         await page.waitForTimeout(600);
-        lefts[path] = await leftOf(page);
+        const gaps = await gapsOf(page);
+        expect(gaps, path).not.toBeNull();
+        // In het midden — of, waar de pagina de kolom vult, vanaf de linkerrand
+        // (dan houdt de zwevende strip *Wie is er?* rechts een stukje vrij).
+        const centred = Math.abs(gaps!.left - gaps!.right) <= 2;
+        const fills = gaps!.left <= 2;
+        expect(centred || fills, `${width} ${path} ${JSON.stringify(gaps)}`).toBe(true);
+        if (['/', '/wiki', '/e/westkapelle-lighthouse', '/timelines', '/boards', '/maps'].includes(path)) wide[path] = gaps!.x;
       }
-      console.log(width, JSON.stringify(lefts));
-      const values = new Set(Object.values(lefts));
-      expect(values.size, JSON.stringify(lefts)).toBe(1);
+      console.log(width, JSON.stringify(wide));
+      expect(new Set(Object.values(wide)).size, JSON.stringify(wide)).toBe(1);
     }
+    // Op 1920 vult een brede pagina de kolom niet meer tot de rechterrand
+    // leeg: hij is 1440 px en staat in het midden.
+    await page.goto('/wiki');
+    const gaps = (await gapsOf(page))!;
+    expect(gaps.left).toBeGreaterThan(40);
   });
 
   test('D2: een onbekend adres is een 404 in de schil', async ({ page }) => {

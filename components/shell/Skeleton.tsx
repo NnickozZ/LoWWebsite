@@ -407,7 +407,8 @@ const SHAPES: Record<SkeletonShape, { wide: boolean; draw: () => React.ReactNode
   kamer: { wide: false, draw: Kamer },
   winkel: { wide: false, draw: Winkel },
   speler: { wide: false, draw: Speler },
-  rows: { wide: false, draw: Rows },
+  // Golf K: de vier lijsten achter de tabs zijn allemaal brede pagina's (landkaarten was dat al).
+  rows: { wide: true, draw: Rows },
   cases: { wide: true, draw: Cases },
   hal: { wide: false, draw: Hal },
   voordeur: { wide: true, draw: Voordeur },

@@ -68,6 +68,23 @@ export type StoredAsset = {
 };
 
 /**
+ * Golf K: the size a picture was stored at, so the page can give its `<img>`
+ * a `width` and `height`. The artikel shows its omslag whole on every width
+ * now (a telefoon too), and a whole picture of unknown shape would push the
+ * text down when it arrives; with the two numbers the browser keeps its place
+ * from the first paint. Null for an asset without them (an old upload).
+ */
+export function assetSize(id: string | null | undefined): { width: number; height: number } | null {
+  if (!id) return null;
+  const row = db
+    .select({ width: schema.assets.width, height: schema.assets.height })
+    .from(schema.assets)
+    .where(eq(schema.assets.id, id))
+    .get();
+  return row?.width && row.height ? { width: row.width, height: row.height } : null;
+}
+
+/**
  * §6: resize to max 1600 px, generate a 400 px thumbnail — plus a 900 px card
  * variant. All stored as webp; the crop rectangle lives on the placement, so
  * the stored image is never cropped and a player can recrop forever.

@@ -7396,3 +7396,80 @@ meting. Deze besluiten draaien een eerdere keuze (deels) om:
   `VoorafTekst` doet hetzelfde.
 
 De open eindjes staan in `CLAUDE.md` §8, onder golf J.
+
+## Golf K — drie dingen van Nick en de eindjes van golf J (§90, §93, §102, §104, §105 aangevuld)
+
+Nick, 29 september, bij de open punten van golf J: *"On phone the images are
+not cards anymore, I want to make sure that in articles on phone the images
+are fully visible just like on PC. Not cropped up."* — *"On PC the website now
+aligns to the left instead of using the whole screenspace. This doesn't look
+great."* — en over de voorpagina van de wiki: *"De soorten is hoverable maar
+niet clickable. Ik ben niet zo'n fan van hoe deze UX werkt."* Geen nieuw
+nummer, geen migratie, geen verwijderd bestand, geen nieuwe route.
+
+- **De omslag staat op een telefoon heel, in een kaart. Dit draait §104 L5
+  (ronde 67) om.** L5 legde de omslag onder 1280 px neer als de liggende
+  uitsnede, hooguit 40 % hoog, zodat de eerste zin op het eerste scherm
+  stond; de hele foto was één tik weg. Nick wil de foto zien zoals op een
+  computer. Nu: de hele foto in een kaart (rand, papier, schaduw van de
+  infobox), hooguit de helft van het scherm hoog; een staande foto wordt
+  smaller, niet afgesneden. Prijs: bij een staande omslag staat de eerste zin
+  op een telefoon onder de vouw (`ronde-67-herstel-lezen` #13 meet nu "vlak
+  onder de plaat" in plaats van "boven 700 px"). Het `<img>` draagt de
+  opgeslagen breedte en hoogte (`assetSize`), zodat de pagina niet springt als
+  de foto binnenkomt — dat was de andere reden voor L5's vaste strook. De
+  dubbele tekening van golf J (`landscape === null`, twee `<picture>`s en een
+  lege `<source>`) is weg: er is nog maar één vorm.
+- **De pagina staat in het midden. Dit draait golf H D5 om.** D5 zette elke
+  pagina tegen de zijbalk, zodat de kop niet opzij sprong bij een klik; op een
+  breed scherm liet dat rechts een lege strook liggen. Nu `margin: 0 auto`, en
+  een brede pagina mag 1440 px worden (was 1200). Om D5's reden niet helemaal
+  kwijt te raken zijn de lijsten van het archief (prikborden, tijdlijnen,
+  stambomen) brede pagina's geworden, zoals landkaarten en dossiers al waren:
+  alles onder *Het archief* deelt één linkerrand. Een smalle pagina (Jij,
+  Spelers, Zoeken, de kamer) staat in het midden en springt dus ten opzichte
+  van een brede; dat is de prijs, en die is bewust. Onder ±1700 px verandert
+  er niets, omdat een brede pagina daar de kolom al vult. Vanaf 1880 px hangt
+  *Wie is er?* in de hoek van de kolom in plaats van te zweven: als float
+  duwde hij Start (een raster, dus een eigen opmaakcontext) 65 px uit het
+  midden. Overwogen en niet gedaan: één kader voor alle pagina's met de smalle
+  links daarin (geen sprong, maar precies het "links uitgelijnd" waar Nick
+  over klaagde) en alle pagina's even breed (een formulier van 1440 px leest
+  niet).
+- **De voorpagina van de wiki heeft de tabrij van elke wikipagina. Dit draait
+  ronde 67·herstel #16 om.** De rij was daar *Start · Alles · De soorten*, en
+  *De soorten* was een ankerlink naar de tegels eronder. Op een computer staan
+  die tegels al in beeld, dus de tab lichtte op en deed niets. Een tab die
+  geen pagina is, is een raadsel; nu is de rij overal dezelfde (Start, Alles,
+  de grootste soorten, *Meer soorten ▾*) en is elke tab een pagina. #16's
+  zorg — twintig tabs op drie rijen — bestaat sinds golf H D6 niet meer: de
+  rij is één regel met een menu. De tegels blijven de index eronder.
+  Overwogen: de rij kort laten en *De soorten* een menu maken; dat zou op de
+  voorpagina een vierde vorm van dezelfde rij zijn.
+- **Huisraad maken op een telefoon kost 8.** *Aanmaken* plakt onderaan het
+  blad (`.sheet-actions-stick`) — alleen in het blad met de winkelvelden. Golf
+  J liet het liggen omdat het "elk blad boven een toetsenbord raakt"; door het
+  aan de winkelvelden te hangen raakt het geen ander blad.
+- **Webfonts: `next/font/local` op de bestanden van `@fontsource`.** Eerst
+  alleen een systeemletter op maat in CSS geprobeerd; gemeten deed dat niets,
+  en met alle webfonts tegengehouden sprong een artikel nog steeds (0,084). Het
+  verspringen kwam van de strip *Wie is er?*, die bij de hydratatie een paar
+  pixels smaller werd en als float de hele kolom meenam. Nu: de strip heeft op
+  een computer een ondergrens (5,75 rem), en de drie letters komen via
+  `next/font/local` uit dezelfde `node_modules/@fontsource/*/files` — dus één
+  waarheid, maar met een preload en Nexts eigen systeemletter op maat.
+  `@fontsource` blijft in de stapel voor tekens buiten het latijnse deel; dat
+  bestand wordt alleen gehaald als zo'n teken er staat. Niet gedaan:
+  `font-display: optional` (dan blijft een eerste bezoek op een trage lijn tot
+  een herlaadbeurt in Arial staan, want de navigaties daarna zijn in de app).
+  Gemeten (koud, 0 en 150 ms): artikel 1440 0,15–0,20 → ≤ 0,021; Start op
+  een telefoon 0,24–0,29 → 0.
+- **Twee regels op de tijdlijn** (M2, golf I): een naam die niet op één regel
+  van 170 px past, krijgt een tagje van twee regels dat twee banen neemt; zijn
+  die er niet, dan één regel met het beletselteken, zoals altijd. Ruitclusters
+  bleven liggen.
+- **Kaartnamen botsen niet** (M3, golf I): `placeLabels` kiest per naam onder,
+  rechts, links of boven de kop, of `weg`. De speld beweegt nooit; de naam is
+  een `translate`. Een onzichtbare naam vangt geen tik (anders nam hij de tik
+  van de speld ernaast), en de knop van een speld zelf ook niet meer: alleen
+  de kop en een zichtbare naam.

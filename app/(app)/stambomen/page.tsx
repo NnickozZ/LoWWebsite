@@ -43,7 +43,7 @@ export default async function FamilyTreesPage({ searchParams }: { searchParams: 
   });
 
   return (
-    <div className="page">
+    <div className="page-wide">
       <LivePage place="page:/stambomen" watch={['family_trees', 'cases']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>

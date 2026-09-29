@@ -621,7 +621,16 @@ export function fitView(
 
 export type Side = 'up' | 'down';
 
-export type Spot = { side: Side; lane: number; hidden: boolean };
+export type Spot = {
+  side: Side;
+  lane: number;
+  hidden: boolean;
+  /**
+   * Golf K (M2): how many lines of text the tag got. A two-line tag is taller
+   * than a lane, so it takes the lane it is in *and* the next one out.
+   */
+  lines?: 1 | 2;
+};
 /** A pile of tags that found no lane, and the chip that stands for them. */
 export type Cluster = { x: number; ids: string[] };
 
@@ -659,24 +668,55 @@ const TAG_GAP = 8;
  * to gets a chip (`clusterTags`). Pure geometry, so the canvas and its test
  * agree on it.
  */
-export function placeTags(items: { id: string; x: number; width: number }[], lanes = 3): Map<string, Spot> {
+export function placeTags(
+  items: {
+    id: string;
+    x: number;
+    width: number;
+    /**
+     * Golf K (M2): a name too long for one line of tag asks for two. It then
+     * needs two free lanes, one above the other, over its width; when there
+     * are not two, it falls back to one line — the ellipsis it always had —
+     * at `oneLineWidth`, and only then, as before, to no tag at all.
+     */
+    lines?: 1 | 2;
+    oneLineWidth?: number;
+  }[],
+  lanes = 3,
+): Map<string, Spot> {
   const out = new Map<string, Spot>();
   const sorted = [...items].sort((a, b) => a.x - b.x || (a.id < b.id ? -1 : 1));
   const rightEdge: Record<Side, number[]> = { up: [], down: [] };
+  const free = (edges: number[], lane: number, left: number) => edges[lane] === undefined || edges[lane] <= left;
   for (const item of sorted) {
     const side = sideOfId(item.id);
     const edges = rightEdge[side];
-    const left = item.x - item.width / 2;
+    const take = (lane: number, lines: 1 | 2, width: number) => {
+      for (let k = 0; k < lines; k++) {
+        edges[lane + k] = Math.max(edges[lane + k] ?? -Infinity, item.x + width / 2 + TAG_GAP);
+      }
+      out.set(item.id, lines === 2 ? { side, lane, hidden: false, lines } : { side, lane, hidden: false });
+    };
+    if (item.lines === 2) {
+      const left = item.x - item.width / 2;
+      let lane = 0;
+      while (lane + 1 < lanes && !(free(edges, lane, left) && free(edges, lane + 1, left))) lane++;
+      if (lane + 1 < lanes) {
+        take(lane, 2, item.width);
+        continue;
+      }
+    }
+    const width = item.lines === 2 ? (item.oneLineWidth ?? item.width) : item.width;
+    const left = item.x - width / 2;
     let lane = 0;
-    while (lane < lanes && edges[lane] !== undefined && edges[lane] > left) lane++;
+    while (lane < lanes && !free(edges, lane, left)) lane++;
     if (lane >= lanes) {
       // §62: no room left on this side. The mark stays on the axis; the tag
       // does not, or the last lane would pile up into an unreadable smear.
       out.set(item.id, { side, lane: lanes - 1, hidden: true });
       continue;
     }
-    edges[lane] = Math.max(edges[lane] ?? -Infinity, item.x + item.width / 2 + TAG_GAP);
-    out.set(item.id, { side, lane, hidden: false });
+    take(lane, 1, width);
   }
   return out;
 }

@@ -39,12 +39,12 @@ export const dynamic = 'force-dynamic';
  *
  * Twee dingen die makkelijk stil fout gaan en dat hier niet doen:
  *
- *  1. **De tabrij staat er nog steeds**, maar kort: Start, Alles met zijn
- *     telling, en een sprong naar *De soorten* (§104, ronde 67·herstel). De
- *     voordeur is een pagina *in* de wiki, geen eigen eilandje; wie hier landt
- *     en meteen wil bladeren is één klik verder — en de tegels onderaan zijn
- *     de index van de soorten, dus die staan er niet nog eens als twintig tabs
- *     op drie rijen boven het welkom.
+ *  1. **De tabrij staat er nog steeds**, dezelfde als op elke pagina van de
+ *     wiki: Start, Alles, de grootste soorten en *Meer soorten ▾* (golf K; van
+ *     ronde 67·herstel tot golf J was het hier Start, Alles en een sprong naar
+ *     de tegels, die op een computer niets deed omdat de tegels al in beeld
+ *     stonden). De voordeur is een pagina *in* de wiki, geen eigen eilandje;
+ *     wie hier landt en meteen wil bladeren is één klik verder.
  *  2. **Een thuisoverzicht dat van de Keeper is, is voor een speler afwezig**
  *     (`getHomeOverzicht` geeft dan null) — en dan valt deze pagina terug op de
  *     lijst in plaats van 404 te geven, want een wiki zonder voordeur is geen
@@ -117,9 +117,7 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
       active="start"
       allCount={total}
       query={query}
-      /* §104 (ronde 67·herstel, #16): one row here; the tiles are the index. */
-      compact
-      kindsLabel={words.wikiKinds}
+      /* Golf K: the same row as every page of the wiki (no jump to the tiles). */
     />
   );
 

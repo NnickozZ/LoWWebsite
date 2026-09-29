@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { ErrorReporter } from '@/components/ErrorReporter';
 import { FLIP_SCRIPT } from '@/components/keeper/flipRoad';
 import { siteIdentity } from '@/lib/admin/identity';
+// Golf K: de drie letters voorgeladen, met een systeemletter op maat (app/fonts.ts).
+import { fontVariables } from './fonts';
 import './globals.css';
 // Eén bestand per laag van het gevoel (§102–§104), na globals.css zodat ze winnen.
 import './navigatie.css';
@@ -54,7 +56,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="nl">
+    <html lang="nl" className={fontVariables}>
       {/*
         §102: de omslag-cirkel. The one inline script: it has to be listening
         for `pagereveal` before the first frame, which no effect is. What it

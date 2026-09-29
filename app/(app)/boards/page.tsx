@@ -38,7 +38,7 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
   });
 
   return (
-    <div className="page">
+    <div className="page-wide">
       <LivePage place="page:/boards" watch={['boards', 'cases']} />
       <div className="row" style={{ marginBottom: '0.3rem' }}>
         <div>
