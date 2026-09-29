@@ -35,7 +35,7 @@ import {
   centreView,
   FIT_PADDING,
   followPoint,
-  panIntoView,
+  panToBring,
   passedSlop,
   readableFit,
   readingFloor,
@@ -89,6 +89,7 @@ import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 import { usePinch } from '@/components/canvas/usePinch';
 import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
+import { CanvasEmpty } from '@/components/canvas/CanvasEmpty';
 import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 import {
   TreeHandles,
@@ -103,6 +104,11 @@ import { announceTreeMode } from './TreeTitle';
 import { createUndoStack, UNDO_LIMIT } from './treeUndo';
 import { useTreeHolding } from './useTreeHolding';
 import { useTreeSync, type PendingIds } from './useTreeSync';
+
+/** §105 (golf J): the glass and the things on it, for `gatePress`. */
+/** §105 (golf J): the height the round `+` takes off the foot of a phone's glass. */
+const PHONE_DOCK = 72;
+const TREE_GLASS = { glass: '.tree-stage', things: '.tree-node, .tree-line-hit' };
 
 /**
  * §66 — de stamboom.
@@ -457,7 +463,8 @@ export function FamilyTreeCanvas({
   });
   /* §90: the §18b question only where this tree can write — Bewerken, or the
      potlood in the hand. A tap in Lezen asks nothing. */
-  const gate = useCanvasAuthorGate(editOn || ink.inkActive);
+  // §105 (golf J): a kaartje chosen to be read asks nothing.
+  const gate = useCanvasAuthorGate(editOn || ink.inkActive, TREE_GLASS);
   /* §101: en elke maakknop — op de balk en om een kaartje heen — vraagt het
      zélf, vóórdat hij maakt. */
   const maker = useCanvasMaker();
@@ -968,11 +975,14 @@ export function FamilyTreeCanvas({
     const held = followPoint(current, keep.at, now);
     // En het nieuwe kaartje erbij — maar nooit ten koste van het kaartje waar
     // de hand mee bezig was: ver ingezoomd passen twee generaties niet samen.
-    const next = bring ? panIntoView(held, bring, size, FIT_PADDING, boxOf(keep.anchor) ?? undefined) : held;
+    // §105 (golf J, stuk 8): and if both do not fit (a phone, zoomed in), the
+    // new card wins; on a phone above the round `+` and *Ongedaan maken*.
+    const glass = isPhone ? { width: size.width, height: Math.max(0, size.height - PHONE_DOCK) } : size;
+    const next = bring ? panToBring(held, bring, glass, FIT_PADDING, boxOf(keep.anchor) ?? undefined) : held;
     if (next.x === current.x && next.y === current.y) return;
     setView(next);
     rememberView(next);
-  }, [layout, boxOf, size, rememberView]);
+  }, [layout, boxOf, size, rememberView, isPhone]);
 
   // §94 (C5): the one card chosen is in the address, so Back chooses it again.
   useEffect(() => {
@@ -2522,7 +2532,8 @@ export function FamilyTreeCanvas({
             </div>
             <button
               type="button"
-              className="btn btn-small"
+              /* §105: `canvas-make` — the stamboom's own `+` on a phone. */
+              className="btn btn-small canvas-make"
               {...maker(() => addLoose(''))}
               data-testid="tree-add-loose"
               aria-label={capitalise(words.looseCard)}
@@ -2984,20 +2995,35 @@ export function FamilyTreeCanvas({
             switch and keeps the potlood §33 gave everybody who may look. */}
         <InkShell shell={ink} corner="bottom-right" toolbar={editOn || !canEdit} />
 
+        {/* §105 (golf i1): één zin, één werkwoord, drie kaartjes met een haak
+            (`CanvasEmpty`). In Bewerken brengt de knop de caret naar het
+            zoekvak dat iemand erbij zet — de weg die een stamboom het eerst
+            neemt; *Los kaartje* is de `+`. In Lezen zet *Beginnen* het vlak in
+            Bewerken. */}
         {empty && !inkActive && (
-          <div className="tree-empty">
-            <p className="small muted">
-              {editOn
-                ? `Nog niemand in deze ${words.familyTree}. Zoek een ${words.entry} hierboven, of maak een ${words.looseCard}.`
-                : canEdit
-                  ? `Deze ${words.familyTree} is nog leeg. Kies Bewerken om iemand erbij te zetten.`
-                  : `Deze ${words.familyTree} is nog leeg.`}
-            </p>
-          </div>
+          <CanvasEmpty
+            kind="tree"
+            className="tree-empty"
+            sentence={fill(words.vlakLeegStamboom, { stamboom: words.familyTree })}
+            action={
+              !canEdit
+                ? undefined
+                : !editOn
+                  ? { label: words.vlakLeegBegin, icon: 'pencil', primary: true, props: { ...AUTHOR_GATE_OFF, onClick: () => mode.setMode('edit') } }
+                  : {
+                      label: words.vlakLeegStamboomDoe,
+                      icon: 'search',
+                      props: {
+                        ...AUTHOR_GATE_OFF,
+                        onClick: () => document.getElementById('tree-add-person')?.focus(),
+                      },
+                    }
+            }
+          />
         )}
       </div>
 
-      <p className="tiny muted tree-count">
+      <p className="tiny muted tree-count canvas-count">
         {state.members.length + state.loose.length}{' '}
         {state.members.length + state.loose.length === 1 ? 'kaartje' : 'kaartjes'}
         {ghosts.length > 0 && <> · {ghosts.length} verwant{ghosts.length === 1 ? '' : 'en'} erbuiten</>}
@@ -3164,6 +3190,16 @@ function TreePickerBox({
    */
   useEffect(() => {
     if (child) skipRef.current?.focus();
+  }, [child]);
+  /*
+   * §105 (golf J, stuk 9): *Ouders bij …* is a search, and nothing else is
+   * asked of the hand — so the caret is in its box, as in every other kiezer.
+   * It asked a tap first, on both sizes. Not scrolled: the kiezer is placed.
+   */
+  useEffect(() => {
+    if (child) return;
+    const box = boxRef.current?.querySelector<HTMLInputElement>('#tree-picker-search');
+    box?.focus({ preventScroll: true });
   }, [child]);
 
   if (child) {

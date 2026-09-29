@@ -1,10 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Cover } from '@/components/Cover';
+import { CanvasPeek } from '@/components/canvas/CanvasPeek';
+import { useIsPhone } from '@/components/useIsPhone';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { capitalise } from '@/lib/words';
+import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 import type { CoverCrops } from '@/lib/images/shapes';
 
 export type TrayEntry = {
@@ -38,15 +41,28 @@ export function BoardTray({
   entries,
   onAdd,
   onDragStart,
+  startOpen = true,
 }: {
   entries: TrayEntry[];
+  /** §105 (golf J): whether a desk opens the drawer or its spine. */
+  startOpen?: boolean;
   /** Tapped: put it at the viewport centre, like the search box does. */
   onAdd: (entry: TrayEntry) => void;
   /** Dragged: the canvas takes over and drops it where the pointer lands. */
   onDragStart: (entry: TrayEntry, event: React.DragEvent) => void;
 }) {
   const words = useUi().words;
-  const [open, setOpen] = useState(true);
+  const isPhone = useIsPhone();
+  const [open, setOpen] = useState(startOpen);
+  /*
+   * §105 (review 4, M5): on a phone the lade starts shut — it took 40 % of the
+   * glass in the first picture of Bewerken, with the `+` over its foot. Its
+   * spine is a small folder with a number; opened, it is a `CanvasPeek`, the
+   * same drawer as everything else a tap opens on the glass.
+   */
+  useEffect(() => {
+    if (isPhone) setOpen(false);
+  }, [isPhone]);
   const [filter, setFilter] = useState('');
 
   const shown = useMemo(() => {
@@ -65,6 +81,7 @@ export function BoardTray({
         type="button"
         className="board-tray-spine"
         onClick={() => setOpen(true)}
+        {...AUTHOR_GATE_OFF}
         aria-expanded={false}
         title="Nog niet op dit prikbord"
       >
@@ -75,25 +92,9 @@ export function BoardTray({
     );
   }
 
-  return (
-    <aside className="board-tray" aria-label={`${capitalise(words.entryPlural)} uit het ${words.case} die nog niet op dit ${words.board} staan`}>
-      <div className="board-tray-head">
-        <Icon name="folder" size={15} />
-        <strong className="small" style={{ flex: 1 }}>
-          Uit het dossier
-        </strong>
-        <span className="tiny muted">{entries.length}</span>
-        <button
-          type="button"
-          className="btn btn-small btn-ghost"
-          onClick={() => setOpen(false)}
-          aria-expanded
-          aria-label="Lade inklappen"
-        >
-          <Icon name="chevron" size={16} />
-        </button>
-      </div>
-
+  const trayLabel = `${capitalise(words.entryPlural)} uit het ${words.case} die nog niet op dit ${words.board} staan`;
+  const body = (
+    <>
       {entries.length > 6 && (
         <>
           <label className="visually-hidden" htmlFor="board-tray-filter">
@@ -147,6 +148,45 @@ export function BoardTray({
           {!shown.length && <li className="tiny muted board-tray-empty">Niets gevonden.</li>}
         </ul>
       )}
+    </>
+  );
+
+  if (isPhone) {
+    return (
+      <CanvasPeek label="Uit het dossier" onClose={() => setOpen(false)} closeLabel="Lade inklappen" className="board-tray-peek">
+        <aside className="board-tray board-tray-in-peek" aria-label={trayLabel} {...AUTHOR_GATE_OFF}>
+          <p className="board-tray-peek-head small">
+            <Icon name="folder" size={15} /> <strong>Uit het dossier</strong>{' '}
+            <span className="tiny muted">{entries.length}</span>
+          </p>
+          {body}
+        </aside>
+      </CanvasPeek>
+    );
+  }
+
+  return (
+    /* §105 (golf J): the drawer asks nothing on the way down; a card taken
+       from it asks for itself (`onAdd`). */
+    <aside className="board-tray" aria-label={trayLabel} {...AUTHOR_GATE_OFF}>
+      <div className="board-tray-head">
+        <Icon name="folder" size={15} />
+        <strong className="small" style={{ flex: 1 }}>
+          Uit het dossier
+        </strong>
+        <span className="tiny muted">{entries.length}</span>
+        <button
+          type="button"
+          className="btn btn-small btn-ghost"
+          onClick={() => setOpen(false)}
+          aria-expanded
+          aria-label="Lade inklappen"
+        >
+          <Icon name="chevron" size={16} />
+        </button>
+      </div>
+
+      {body}
     </aside>
   );
 }

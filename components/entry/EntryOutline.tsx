@@ -11,6 +11,12 @@ export type OutlineItem = {
   /** 0 for a block, 1 for something inside one (a section's title). */
   level?: 0 | 1;
   icon?: string;
+  /**
+   * Golf J (j4): only under 1280 px (`.entry-outline-smal`). Before hydration
+   * the row of chips also stands at 1280–1499 px, where this item — *Meer
+   * info*, which on a phone is above the text — is beside it instead.
+   */
+  smal?: boolean;
 };
 
 /**
@@ -87,7 +93,10 @@ export function EntryOutline({
       {shape === 'column' && <p className="entry-outline-title">{label}</p>}
       <ul className={`entry-outline-list${shape === 'row' ? ' schuifrij' : ''}`} ref={listRef}>
         {items.map((item) => (
-          <li key={item.id} className={item.level ? 'entry-outline-sub' : undefined}>
+          <li
+            key={item.id}
+            className={[item.level ? 'entry-outline-sub' : '', item.smal ? 'entry-outline-smal' : ''].filter(Boolean).join(' ') || undefined}
+          >
             <a
               href={`#${item.id}`}
               className={`entry-outline-link${current === item.id ? ' entry-outline-current' : ''}`}

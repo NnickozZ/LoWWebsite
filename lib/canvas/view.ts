@@ -270,6 +270,38 @@ export function panIntoView(
   return { x: tidy(view.x + dx), y: tidy(view.y + dy), zoom: view.zoom };
 }
 
+/** §105 (golf J): does this box stand wholly on the glass at this view? */
+export function boxOnGlass(
+  view: CanvasView,
+  box: { x: number; y: number; width: number; height: number },
+  stage: { width: number; height: number },
+): boolean {
+  const left = view.x + box.x * view.zoom;
+  const top = view.y + box.y * view.zoom;
+  const right = left + box.width * view.zoom;
+  const bottom = top + box.height * view.zoom;
+  return left >= -1 && top >= -1 && right <= stage.width + 1 && bottom <= stage.height + 1;
+}
+
+/**
+ * §105 (golf J, stuk 8): bring a new card into view, keeping `hold` on the
+ * glass *if both fit*. When they do not (a phone, zoomed in: two generations
+ * are taller than the glass), the new card wins — it is the one that is
+ * chosen, the one the `+`s now hang off, and "waar is hij?" was the question.
+ * Still no zoom (§102 rule 9): the line down to `hold` shows where it went.
+ */
+export function panToBring(
+  view: CanvasView,
+  box: { x: number; y: number; width: number; height: number },
+  stage: { width: number; height: number },
+  padding = FIT_PADDING,
+  hold?: { x: number; y: number; width: number; height: number },
+): CanvasView {
+  const both = panIntoView(view, box, stage, padding, hold);
+  if (!hold || boxOnGlass(both, box, stage)) return both;
+  return panIntoView(view, box, stage, padding);
+}
+
 /** §94 (C4/C5): een wereldpunt in het midden van het glas, op deze zoom. */
 export function centreView(
   point: { x: number; y: number },

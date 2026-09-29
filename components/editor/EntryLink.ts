@@ -214,8 +214,20 @@ export function naadDecorations(doc: PmNode, kind: NaadKind): DecorationSet {
     if (!hidden) return;
     const sneden = naadSneden(pieces);
     sneden.forEach((cuts, index) => {
+      const text = pieces[index] && 'tekst' in pieces[index] ? (pieces[index] as { tekst: string }).tekst : '';
       for (const [a, b] of cuts) {
-        decorations.push(Decoration.inline(where[index] + a, where[index] + b, { class: 'naad' }));
+        /*
+         * Golf J (stuk 13): a cut that is only white space is `naad-wit` as
+         * well. In Bewerken that one closes too ("Was er bij , en" read as a
+         * typo, over a name this writer cannot see and cannot remove); a
+         * comma or a bracket the seam would drop stays, because there you
+         * type into the text as it is stored and a stop you cannot see is a
+         * stop you cannot delete on purpose.
+         */
+        const white = /^\s+$/.test(text.slice(a, b));
+        decorations.push(
+          Decoration.inline(where[index] + a, where[index] + b, { class: white ? 'naad naad-wit' : 'naad' }),
+        );
       }
     });
     // §104 (golf H, D28): a paragraph that now begins after a hidden name begins with a capital — in the drawing only.

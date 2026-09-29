@@ -2,6 +2,19 @@ import { expect, test, type Page } from '@playwright/test';
 import { editArticle, editCanvas, editCase, pasteImage, signIn, signUp, expectBoxValue, fillWhenReady, openEntryWaar } from './helpers';
 
 /**
+ * §105 (review 4, M2): on a phone *Alles tonen* lives in the gear's sheet, not
+ * in the bar (Vind has its place). This returns the button, visible, on either.
+ */
+async function allToggle(page: Page) {
+  const button = page.getByTestId('timeline-toggle-all');
+  if (!(await button.isVisible().catch(() => false))) {
+    await page.getByTestId('timeline-settings').click();
+    await expect(button).toBeVisible();
+  }
+  return button;
+}
+
+/**
  * §32: tijdlijnen.
  *
  *  1. A tijdlijn is made from the shelf with a name and a measure, and a
@@ -162,12 +175,12 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   await expect(fresh.getByTestId('timeline-read-more')).toBeVisible();
 
   // Alles tonen / inklappen. Both are open already, so the button says so.
-  await expect(page.getByTestId('timeline-toggle-all')).toHaveText(/inklappen/);
-  await page.getByTestId('timeline-toggle-all').click();
+  await expect(await allToggle(page)).toHaveText(/inklappen/);
+  await (await allToggle(page)).click();
   await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   await expect(page.getByTestId('timeline-popout')).toHaveCount(2);
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
 
   /*
@@ -205,7 +218,7 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
   // after that shows both chips.
   await page.waitForTimeout(2500);
   await page.reload();
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   const named = page.getByTestId('timeline-popout').filter({ hasText: `Storm boven Zeeland ${stamp}` }).locator('.entry-chip');
   await expect(named).toHaveText(['Jacob den Hollander', 'Sister Clasina']);
   // Round 21: it is the artikel, not a highlight — the same chip the rich
@@ -488,12 +501,22 @@ test('a tijdlijn that speelt op one day fills it in and will not leave it', asyn
    * being tested, not the number of clicks it takes to reach it.
    */
   const zoomOut = page.getByRole('button', { name: 'Uitzoomen' });
+  /*
+   * §105 (review 4): the button zooms about the middle of the glass, and a
+   * gebeurtenis that has just been set can sit exactly there — then the tag
+   * stands still while the axis does change. So the axis is asked too: the
+   * words under the buttons ("≈ 11 uur") stop changing at the fence.
+   */
+  const level = page.locator('.canvas-zoom-level').first();
   let resting = Number.NaN;
+  let restingLevel = '';
   for (let i = 0; i < 30; i++) {
     await zoomOut.click();
     const box = (await tag.boundingBox())!;
-    if (Math.abs(box.x - resting) < 0.5) break;
+    const words = (await level.textContent()) ?? '';
+    if (Math.abs(box.x - resting) < 0.5 && words === restingLevel) break;
     resting = box.x;
+    restingLevel = words;
   }
   const before = (await tag.boundingBox())!;
   const stage = (await page.getByTestId('timeline-stage').boundingBox())!;
@@ -610,7 +633,7 @@ test('§69: tags kiezen met een kader en met shift op de stip, samen slepen, en 
   await put(`Drie ${stamp}`, 25);
   await expect(page.getByTestId('timeline-event')).toHaveCount(3);
   // Elke gebeurtenis klapte bij het maken uit; leg ze weg.
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   await expect(page.getByTestId('timeline-popout')).toHaveCount(0);
 
   const ev = (name: string) => page.getByTestId('timeline-event').filter({ hasText: `${name} ${stamp}` });

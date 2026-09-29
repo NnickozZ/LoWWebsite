@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useAuthorGate, useAuthorOptional } from '@/components/you/AuthorProvider';
-import { AUTHOR_GATE_OFF, gateAsks } from '@/lib/canvas/authorGate';
+import { AUTHOR_GATE_OFF, PRESS_SLOP, gateAsks, gatePress } from '@/lib/canvas/authorGate';
 
 export { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 
@@ -29,24 +29,65 @@ export { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
  */
 type Evt = { target: EventTarget | null };
 
-export function useCanvasAuthorGate(writing: boolean) {
+type PressEvt = Evt & { clientX: number; clientY: number; pointerId: number };
+
+/**
+ * §105 (golf J): `where` names the glass and the things on it (see
+ * `gatePress`). With it, a press on a thing asks only once it has become a
+ * drag, a press on bare paper never, and a focus that lands on the glass only
+ * when it lands in a box — so reading in Bewerken asks nothing.
+ */
+export function useCanvasAuthorGate(writing: boolean, where?: { glass: string; things: string }) {
   const gate = useAuthorGate();
-  return useMemo(
-    () => ({
+  const glass = where?.glass;
+  const things = where?.things;
+  /** The press that may still become a drag: where it started, and on what. */
+  const press = useRef<{ id: number; x: number; y: number; target: EventTarget | null } | null>(null);
+  return useMemo(() => {
+    const spot = glass && things ? { glass, things } : undefined;
+    return {
       // §101: the event goes through, so the answer knows where to put the
       // caret back — and so a focus is told apart from a key or a press.
       onFocusCapture: (event: Evt) => {
-        if (gateAsks(writing, event.target)) gate.onFocusCapture(event);
+        // A card or a speld that takes the focus is being looked at; its box is
+        // what asks (`now`), and a key on it still asks below.
+        if (gatePress(writing, event.target, spot) === 'now') gate.onFocusCapture(event);
       },
       onKeyDownCapture: (event: Evt) => {
         if (gateAsks(writing, event.target)) gate.onKeyDownCapture(event);
       },
-      onPointerDownCapture: (event: Evt) => {
-        if (gateAsks(writing, event.target)) gate.onPointerDownCapture(event);
+      onPointerDownCapture: (event: PressEvt) => {
+        const how = gatePress(writing, event.target, spot);
+        if (how === 'now') {
+          press.current = null;
+          gate.onPointerDownCapture(event);
+          return;
+        }
+        // A second finger is a pinch — looking, not moving the card.
+        if (press.current) {
+          press.current = null;
+          return;
+        }
+        if (how === 'on-move') {
+          press.current = { id: event.pointerId, x: event.clientX, y: event.clientY, target: event.target };
+        }
       },
-    }),
-    [gate, writing],
-  );
+      onPointerMoveCapture: (event: PressEvt) => {
+        const held = press.current;
+        if (!held || held.id !== event.pointerId) return;
+        if (Math.hypot(event.clientX - held.x, event.clientY - held.y) <= PRESS_SLOP) return;
+        press.current = null;
+        // The drag writes: now the question, with the thing as its origin.
+        gate.onPointerDownCapture({ target: held.target });
+      },
+      onPointerUpCapture: () => {
+        press.current = null;
+      },
+      onPointerCancelCapture: () => {
+        press.current = null;
+      },
+    };
+  }, [gate, writing, glass, things]);
 }
 
 /**

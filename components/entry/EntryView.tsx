@@ -30,7 +30,8 @@ import { openSheetCount } from '@/lib/sheetStack';
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
   ssr: false,
-  loading: () => <div className="editor-body" aria-busy="true" />,
+  // §104, golf J (j4): the text as the server drew it (`VoorafTekst`), through a context — `loading` takes no props.
+  loading: () => <VoorafPlek />,
 });
 import {
   DEFAULT_BODY_PLACEHOLDER,
@@ -47,6 +48,7 @@ import { tagListHref } from '@/lib/entries/tagHref';
 import { isEmptyDoc } from '@/lib/entries/doc';
 import { CoverEditor } from './CoverEditor';
 import { EntryOutline, type OutlineItem } from './EntryOutline';
+import { Vooraf, VoorafPlek, VoorafTekst } from '@/components/editor/VoorafTekst';
 import { HeadingAnchors } from './HeadingAnchors';
 import { OriginLine, type OriginCaseLite } from './OriginLine';
 import { PlaceOnButton } from './PlaceOnButton';
@@ -62,8 +64,10 @@ import {
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
 import { SectionsEditor, type SectionLite } from './SectionsEditor';
 import { TagsEditor } from './TagsEditor';
+import { typingScroll } from '@/lib/entries/typingView';
 import { toSaveReport, useAutosave, useSaveState } from './useAutosave';
 import { useReportSave } from '@/components/live/saveRegister';
+import { takeEarlyPress, VROEGE_KLIK_SCRIPT } from '@/lib/vroegeKlik';
 
 export type EntryViewData = {
   id: string;
@@ -152,9 +156,12 @@ export type LastEdit = {
  * places.
  *
  * There is exactly one wide layout and one narrow one, and the whole page
- * turns on `useIsWide` at 1280 px — the same number as the `@media` block
- * around `.entry-layout-wide` in `app/globals.css`, which is where the
- * arithmetic for it is written down. Under 1280 px the header comes first, the
+ * turns at 1280 px — the `@media` block around `.entry-layout-wide` in
+ * `app/globals.css`, which is where the arithmetic for it is written down,
+ * and `useIsWide` in `components/useIsPhone.ts`, the same number. Since golf
+ * J (j4) the stylesheet does the turning and the hook only tidies up after
+ * hydration: the server cannot know the width, so the first paint has to be
+ * right at every width by CSS alone. Under 1280 px the header comes first, the
  * picture and the infobox fold up under it at full width, the outline becomes
  * a row of jump chips, and the text runs on alone underneath. Nothing between
  * those two shapes: the outline used to step back under the infobox between
@@ -336,9 +343,17 @@ export function EntryView({
 }) {
   const ui = useUi();
   const router = useRouter();
+  /*
+   * §104 (golf J, j4): `null` until hydration — the server cannot know the
+   * width. While it is `null` the page is drawn in a shape the stylesheet lays
+   * out right at every width (see the golf j4 block in `app/leeskamer.css`);
+   * once it is known, what the stylesheet was hiding is dropped. Nothing
+   * moves: the first paint on a phone is already the phone's page.
+   */
   const wide = useIsWide();
   // §104 (golf H, D1): the outline is a column only from 1500 px; under it, a row above the text.
-  const rail = useHasRail() && wide;
+  const railKnown = useHasRail();
+  const rail = wide === false ? false : railKnown;
 
   /**
    * §21: the dossiers named in the fields. Seeded from the server and added to
@@ -394,7 +409,28 @@ export function EntryView({
       const editor = document.querySelector<HTMLElement>('.entry-body-block [contenteditable="true"]');
       if (!editor) return;
       stop();
-      editor.focus();
+      /*
+       * Golf J (stuk 5): and where the caret is, you can see it. A plain
+       * `focus()` scrolls the box in only just — on a phone its top edge
+       * landed under the tab bar, so the letters went where nobody could read
+       * them. The block (werkbalk and all) is put a fifth of the way down what
+       * is visible, above the tab bar and above where a keyboard will come
+       * (`typingScroll`). Not smooth: this is the page arriving, not a trip.
+       */
+      editor.focus({ preventScroll: true });
+      const block = editor.closest<HTMLElement>('.entry-body-block') ?? editor;
+      const tabs = document.querySelector<HTMLElement>('.tabs');
+      // A fixed bar has no `offsetParent`; on a desk it is `display: none` and measures 0.
+      const tabsRect = tabs?.getBoundingClientRect();
+      const tabsTop = tabsRect && tabsRect.height > 0 ? tabsRect.top : null;
+      const viewHeight = window.visualViewport?.height ?? window.innerHeight;
+      const delta = typingScroll({
+        blockTop: block.getBoundingClientRect().top,
+        caretTop: editor.getBoundingClientRect().top,
+        viewHeight,
+        coverBottom: tabsTop === null ? 0 : window.innerHeight - tabsTop,
+      });
+      if (delta) window.scrollBy({ top: delta, behavior: 'instant' });
     }, 150);
     window.addEventListener('keydown', stop, true);
     window.addEventListener('pointerdown', stop, true);
@@ -410,6 +446,19 @@ export function EntryView({
    * has opened or shut it, that is the state it keeps across the switch.
    */
   const [infoboxOpen, setInfoboxOpen] = useState<boolean | null>(null);
+
+  /*
+   * Golf J (stuk 12): *Bewerken* getikt vóór de hydratatie deed niets, dus
+   * bleef de pagina in Lezen en kwam de schrijfvraag niet. `VROEGE_KLIK_SCRIPT`
+   * (naast de knop) onthoudt zo'n druk; hier wordt hij alsnog uitgevoerd,
+   * precies zoals de knop het doet. Zie `lib/vroegeKlik.ts`.
+   */
+  useEffect(() => {
+    if (!canToggle || !takeEarlyPress('bewerken')) return;
+    setInfoboxOpen((was) => was ?? true);
+    setMode('edit');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [name, setName] = useState(entry.name);
   const [shortDescription, setShortDescription] = useState(entry.shortDescription);
@@ -656,7 +705,10 @@ export function EntryView({
    */
   const phoneOutline = useMemo<OutlineItem[]>(
     () =>
-      fieldsBlock && !reading ? [{ id: 'block-info', label: infoboxHeading, icon: 'info' }, ...outline] : outline,
+      fieldsBlock && !reading
+        ? // Golf J (j4): `smal` — before hydration this row also stands at 1280–1499 px, where the infobox is beside the text.
+          [{ id: 'block-info', label: infoboxHeading, icon: 'info', smal: true }, ...outline]
+        : outline,
     [fieldsBlock, infoboxHeading, outline, reading],
   );
 
@@ -753,8 +805,14 @@ export function EntryView({
   // hand opened it; editing, the soort's own "open" still decides.
   const infoboxShownOpen = infoboxOpen ?? ((Boolean(fieldsBlock?.open) && !reading) || openAddMore);
 
+  /*
+   * Golf J (j4): until the width is known this is the fold, and from 1280 px
+   * the stylesheet opens it into the card (`::details-content`, the summary as
+   * the card's title). On hydration a wide screen swaps it for the card
+   * itself; nothing on screen changes.
+   */
   const infobox = showInfobox ? (
-    wide ? (
+    wide === true ? (
       <section id="block-info" className="entry-infobox" aria-labelledby="infobox-title">
         <h2 id="infobox-title" className="entry-infobox-title">
           {infoboxHeading}
@@ -777,10 +835,10 @@ export function EntryView({
           onToggle={(event) => setInfoboxOpen(event.currentTarget.open)}
         >
           <summary>{infoboxHeading}</summary>
-          <div style={{ padding: '0.6rem 0 0.8rem' }}>{infoboxBody}</div>
+          <div className="entry-infobox-inhoud">{infoboxBody}</div>
         </details>
         {reading && !infoboxShownOpen && (
-          <FieldsPeek fields={entry.typeFields} values={fields} cases={caseRefs} refs={resolvedRefs} tags={tags} />
+          <FieldsPeek fields={entry.typeFields} values={fields} cases={caseRefs} refs={resolvedRefs} tags={tags} tagHref={tagHref} />
         )}
       </>
     )
@@ -803,8 +861,9 @@ export function EntryView({
       icon={entry.typeIcon}
       colour={entry.typeColour}
       readOnly={reading}
-      /* §104 (L5): stacked under the header, the picture lies down. */
-      landscape={!wide}
+      /* §104 (L5): stacked under the header, the picture lies down. Golf J
+         (j4): `null` until the width is known — both, and CSS picks. */
+      landscape={wide === null ? null : !wide}
       onChange={(next) => {
         setCover({ assetId: next.coverAssetId, crop: next.coverCrop });
         set({ coverAssetId: next.coverAssetId, coverCrop: next.coverCrop });
@@ -815,7 +874,9 @@ export function EntryView({
   /** The picture and the facts read as one box; either half may be missing. */
   const asideBox =
     figure || infobox ? (
-      <div className={`entry-aside-box${wide ? '' : ' entry-aside-box-stacked'}`}>
+      /* Golf J (j4): the stacked rules only hold under 1280 px (`@media`), so
+         until the width is known the class can be there at every width. */
+      <div className={`entry-aside-box${wide === true ? '' : ' entry-aside-box-stacked'}`}>
         {figure}
         {infobox}
       </div>
@@ -862,33 +923,38 @@ export function EntryView({
                 keeps its item, which jumps to this section. */}
             {(heading || !reading) && <h2 className="entry-block-title">{heading || 'Tekst'}</h2>}
             {note}
-            {live ? (
-              /* §20: everyone types in the same text; a reader watches it live. */
-              <LiveBody
-                room={live.room}
-                state={live.state}
-                user={live.user}
-                canEdit={live.canEdit}
-                /* §22: reading is the reader's own choice, not the room's. */
-                readOnly={reading}
-                placeholder={entry.typeText.bodyPlaceholder || DEFAULT_BODY_PLACEHOLDER}
-                /* Proposing is an act of editing; it belongs on that face. */
-                proposals={!reading}
-                onPropose={(doc) => {
-                  set({ body: doc });
-                  void flush();
-                }}
-                onStatus={setLiveStatus}
-                onSaved={setSavedAt}
-              />
-            ) : (
-              <RichEditor
-                initialDoc={entry.body}
-                editable={!reading}
-                placeholder={entry.typeText.bodyPlaceholder || DEFAULT_BODY_PLACEHOLDER}
-                onChange={(doc) => set({ body: doc })}
-              />
-            )}
+            {/* §104, golf J (j4): in Lezen the text is in the first paint, drawn on the server,
+                and the editor takes its place at the same height when it arrives. */}
+            <Vooraf.Provider value={reading && !bodyEmpty ? <VoorafTekst doc={entry.body} /> : null}>
+              {live ? (
+                /* §20: everyone types in the same text; a reader watches it live. */
+                <LiveBody
+                  room={live.room}
+                  state={live.state}
+                  user={live.user}
+                  canEdit={live.canEdit}
+                  /* §22: reading is the reader's own choice, not the room's. */
+                  readOnly={reading}
+                  placeholder={entry.typeText.bodyPlaceholder || DEFAULT_BODY_PLACEHOLDER}
+                  /* Proposing is an act of editing; it belongs on that face. */
+                  proposals={!reading}
+                  onPropose={(doc) => {
+                    set({ body: doc });
+                    void flush();
+                  }}
+                  onStatus={setLiveStatus}
+                  onSaved={setSavedAt}
+                />
+              ) : (
+                <RichEditor
+                  initialDoc={entry.body}
+                  editable={!reading}
+                  placeholder={entry.typeText.bodyPlaceholder || DEFAULT_BODY_PLACEHOLDER}
+                  onChange={(doc) => set({ body: doc })}
+                  vooraf={reading && !bodyEmpty ? <VoorafTekst doc={entry.body} /> : null}
+                />
+              )}
+            </Vooraf.Provider>
           </section>
         );
 
@@ -1116,6 +1182,7 @@ export function EntryView({
               type="button"
               className={`btn btn-small entry-mode-toggle${reading ? '' : ' entry-mode-toggle-on'}`}
               aria-pressed={!reading}
+              data-vroeg={reading ? 'bewerken' : undefined}
               onClick={() => {
                 // Anything half-typed goes to the archive before the inputs
                 // that hold it leave the page.
@@ -1129,6 +1196,8 @@ export function EntryView({
               {reading ? 'Bewerken' : 'Lezen'}
             </button>
           )}
+          {/* Golf J (stuk 12): een druk vóór de hydratatie telt alsnog (`lib/vroegeKlik.ts`). */}
+          {canToggle && <script dangerouslySetInnerHTML={{ __html: VROEGE_KLIK_SCRIPT }} />}
           {/* §21: who is here and whether the line is up now sit in the shell's strip, for every page alike. */}
         </div>
 
@@ -1310,8 +1379,10 @@ export function EntryView({
 
         {/* §104 (ronde 67·herstel, #17): where this artikel is — on which
             landkaarten, tijdlijnen and in which dossiers. On a wide screen the
-            rows as they were; on a phone one line that opens them. */}
-        {wide ? waarRijen : <EntryWaar summary={waarZin}>{waarRijen}</EntryWaar>}
+            rows as they were; on a phone one line that opens them. Golf J
+            (j4): until the width is known, the line — and from 1280 px the
+            stylesheet shows its rows without it. */}
+        {wide === true ? waarRijen : <EntryWaar summary={waarZin}>{waarRijen}</EntryWaar>}
       </div>
     </div>
   );
@@ -1490,45 +1561,39 @@ export function EntryView({
    * way in and left alone after, so it belongs in the margin the page already
    * has — the empty paper between the hoofdmenu and the text — and the text
    * and the picture that belongs to it are neighbours again.
-   * It stays there at every width where these three divs exist at all:
-   * `useIsWide` is 1280 px and so is the grid's media query, so the page has
-   * one wide shape and never rearranges itself halfway across a screen.
-   * Narrow screens are unchanged: header, picture, jump chips, then text.
+   * It stays there from 1500 px (golf H, D1); from 1280 px the page is text
+   * and facts with the outline as a row of chips above the text. Narrow
+   * screens are unchanged: header, jump chips, picture and facts, then text.
    */
   const article = (
     <article className={`page-wide entry-page${reading ? ' entry-page-reading' : ''}`}>
-      {!wide && header}
-
-      {/* Only worth saying on the face where it changes what happens next. */}
-      {!reading && !access.canEdit && (
-        <p className="small entry-readonly-note">
-          <Icon name="lock" size={13} /> Je kunt dit {words.entry} lezen. Wat je verandert gaat als
-          voorstel naar de eigenaar.
-        </p>
-      )}
-
-      {/* On a narrow screen the picture and the facts sit under the header,
-          where a phone wiki puts them, and above the jump chips. */}
-      {/* §92 (B11): the jump chips straight under the header, before what
-          they are there to skip — they used to come after the picture and the
-          facts, so you only saw them once you were past them. */}
-      {!wide && <EntryOutline items={phoneOutline} shape="row" label={words.onThisPage} />}
-
-      {!wide && asideBox}
-
+      {/*
+        §104 (golf J, j4): one skeleton at every width — the outline column,
+        the head, the picture and the facts, then the text — and the
+        stylesheet decides where each goes. On a narrow screen that is the
+        order it reads in; from 1280 px the grid puts the head above the text
+        and the facts beside both (`grid-template-areas`, the golf j4 block in
+        `app/leeskamer.css`). It used to be two trees chosen by `useIsWide`,
+        and the server, which cannot know the width, drew the wide one: a
+        phone got the computer's page first and rearranged itself on
+        hydration. The DOM order is the phone's order, which is also where a
+        wiki puts its infobox — before the prose — so a keyboard and a screen
+        reader meet the facts before the text on every screen.
+      */}
       {/* §104: an artikel with nothing for the side column (no picture, no
-          filled-in fact) lets the text have that room — up to its 68ch. */}
+          filled-in fact) lets the text have that room — up to its 68ch. The
+          two width classes only mean something inside their `@media`. */}
       <div
-        className={`entry-layout${wide ? ' entry-layout-wide' : ''}${rail ? ' entry-layout-rail' : ''}${wide && !asideBox ? ' entry-layout-zonder-kant' : ''}`}
+        className={`entry-layout entry-layout-wide${rail !== false ? ' entry-layout-rail' : ''}${!asideBox ? ' entry-layout-zonder-kant' : ''}`}
       >
         {/* §25: the outline is the first column, not the middle one. It is a
             signpost you glance at and leave, so it belongs in the margin the
             page already has — the empty paper between the hoofdmenu and the
             text — rather than wedged between the text and its picture, where
             it read as a third column of content and split the artikel in two.
-            The DOM order is the painted order, so the grid needs no `order`
-            and a keyboard walks the page left to right as it looks. */}
-        {rail && (
+            From 1500 px only (§104, golf H, D1); until the width is known it
+            is drawn and `display: none` below that. */}
+        {rail !== false && (
           <div className="entry-rail">
             <div className="entry-rail-sticky">
               <EntryOutline items={outline} shape="column" label={words.onThisPage} />
@@ -1536,19 +1601,38 @@ export function EntryView({
           </div>
         )}
 
+        <div className="entry-kop">
+          {header}
+
+          {/* Only worth saying on the face where it changes what happens next. */}
+          {!reading && !access.canEdit && (
+            <p className="small entry-readonly-note">
+              <Icon name="lock" size={13} /> Je kunt dit {words.entry} lezen. Wat je verandert gaat als
+              voorstel naar de eigenaar.
+            </p>
+          )}
+
+          {/* §92 (B11): the jump chips straight under the header, before what
+              they are there to skip. §104 (golf H, D1): up to 1499 px — from
+              1280 px the row of chips above the text, so the text keeps its
+              measure. */}
+          {rail !== true && (
+            <EntryOutline items={wide === true ? outline : phoneOutline} shape="row" label={words.onThisPage} />
+          )}
+        </div>
+
+        {/* On a narrow screen the picture and the facts sit under the header,
+            where a phone wiki puts them, above the text; from 1280 px they are
+            the side column. */}
+        {asideBox && <aside className="entry-aside">{asideBox}</aside>}
+
         <div className="entry-main" ref={mainRef}>
-          {wide && header}
-          {/* §104 (golf H, D1): 1280–1499 px — the outline as the row of chips
-              above the text, so the text keeps its measure. */}
-          {wide && !rail && <EntryOutline items={outline} shape="row" label={words.onThisPage} />}
           {entry.typeBlocks.map((block) => renderBlock(block))}
           {manage}
           {/* §104 (L7): a `#` beside every heading in the text and the
               secties, laid over them — reading only. */}
           {reading && <HeadingAnchors slug={entry.slug} scope={mainRef} />}
         </div>
-
-        {wide && asideBox && <aside className="entry-aside">{asideBox}</aside>}
       </div>
     </article>
   );

@@ -19,6 +19,7 @@ import { CHARACTER_TYPE_SLUG } from '@/lib/newEntryType';
 import { DEFAULT_WORDS, fill, type Words } from '@/lib/words';
 import type { FieldDef } from '@/lib/db/schema';
 import { FLIP_EVENT } from '@/components/keeper/SideToggle';
+import { SOLE_AUTHOR_EVENT } from '@/lib/authorChoice';
 import { NewEntrySheet, type NewEntryPrefill, type CreatedEntry } from './NewEntrySheet';
 import { NewCaseSheet, type NewCasePrefill, type CreatedCase } from './NewCaseSheet';
 import { Sheet } from './Sheet';
@@ -604,6 +605,27 @@ export function UiProvider({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  /*
+   * §106 (na review 4, H5): a speler with one onderzoeker is not asked who is
+   * writing — `AuthorProvider` picks that one and rings once per window, at the
+   * first act of writing. This is the one soft line that says so. `AuthorProvider`
+   * sits above this provider, so it rings instead of calling `toast` itself.
+   */
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
+  useEffect(() => {
+    const onSole = (event: Event) => {
+      const name = (event as CustomEvent<string>).detail;
+      if (!name) return;
+      // A task later, not now: the act that rang is often opening a sheet, and
+      // a melding that is running when a sheet arrives leaves (T6). One that
+      // comes after it belongs to the sheet and stays.
+      window.setTimeout(() => toast(fill(wordsRef.current.writesAsSole, { naam: name }), undefined, { key: 'schrijver' }), 0);
+    };
+    window.addEventListener(SOLE_AUTHOR_EVENT, onSole);
+    return () => window.removeEventListener(SOLE_AUTHOR_EVENT, onSole);
+  }, [toast]);
 
   const handleEntryCreated = useCallback(
     (entry: CreatedEntry) => {

@@ -96,12 +96,6 @@ const EXCEPTIONS: { file: string; selector: string; times: string[]; reason: str
   },
   {
     file: 'globals.css',
-    selector: '.canvas-peek',
-    times: ['0.18s'],
-    reason: 'Schuld: de peek op de telefoon beweegt op max-height, tegen regel 3 in; herbouwen hoort niet bij ronde 65.',
-  },
-  {
-    file: 'globals.css',
     selector: '.board-cursor',
     times: ['70ms'],
     reason: 'Het glas (§69): een cursor van een ander volgt het tempo van de stroom, niet een register.',

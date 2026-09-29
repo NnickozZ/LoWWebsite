@@ -106,7 +106,8 @@ test.describe('§89: de sloten', () => {
     const stamp = `${testInfo.project.name}-${Date.now().toString(36)}`;
     const { name } = await newPlayer(browser, stamp, 'Tweede Keeper');
     await signIn(page, KEEPER.name, KEEPER.password);
-    await page.goto('/admin');
+    // §107: op een telefoon is kaal /admin de index; de gebruikers staan achter ?tab=users.
+    await page.goto('/admin?tab=users');
     const row = page.locator(`li[data-username="${name}"]`);
     await expect(row.getByRole('button', { name: 'Nieuw wachtwoord instellen' })).toBeVisible();
     await row.getByRole('button', { name: 'Tot Keeper maken' }).click();

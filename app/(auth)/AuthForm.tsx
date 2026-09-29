@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { MIN_PASSWORD_LENGTH, passwordProblem } from '@/lib/auth/rules.mjs';
 import { usernameProblem } from '@/lib/auth/username.mjs';
 import { DEFAULT_WORDS, fill } from '@/lib/words';
+import { formatInvite } from '@/lib/eerste-keer/stappen';
 import { loginAction, signupAction, type AuthField, type AuthState } from './actions';
 
 /**
@@ -54,6 +55,14 @@ import { loginAction, signupAction, type AuthField, type AuthState } from './act
  * is the price of answering "too short" without asking the server. Worth naming
  * because it was true by accident before, and is false on purpose now.
  */
+
+/** §106: the words the code box needs, handed down by the page (§11). */
+export type CodeWords = { doorCodeLabel: string; doorCodeHint: string; doorCodeFromLink: string };
+const DEFAULT_CODE_WORDS: CodeWords = {
+  doorCodeLabel: DEFAULT_WORDS.doorCodeLabel,
+  doorCodeHint: DEFAULT_WORDS.doorCodeHint,
+  doorCodeFromLink: DEFAULT_WORDS.doorCodeFromLink,
+};
 
 const FIELD_ORDER = ['code', 'username', 'password', 'password2'] as const;
 type FieldName = (typeof FIELD_ORDER)[number];
@@ -106,8 +115,16 @@ export function AuthForm({
   mode,
   next,
   passwordNote,
+  initialCode,
+  codeWords,
 }: {
   mode: 'login' | 'signup';
+  /**
+   * §106: the code out of the Keeper's invitation link (`/signup?code=`),
+   * already formatted. Only the first render reads it; after a round trip the
+   * echo of §63 decides, as for every other box.
+   */
+  initialCode?: string;
   /**
    * §90: where the person was going when the voordeur stopped them — carried
    * in by the middleware as `?next=`. Handed on untouched in a hidden box;
@@ -116,7 +133,10 @@ export function AuthForm({
   next?: string;
   /** §90: the sentence about a forgotten password, in the Keeper's words. */
   passwordNote?: string;
+  /** §106: the three words of the code box, in the Keeper's words (§11). */
+  codeWords?: CodeWords;
 }) {
+  const words = codeWords ?? DEFAULT_CODE_WORDS;
   const serverAction = mode === 'signup' ? signupAction : loginAction;
   const helpId = useId();
 
@@ -185,7 +205,8 @@ export function AuthForm({
     if (state.error && target) boxes.current[target]?.focus();
   }, [state.seq, state.error, state.field, state.values, mode]);
 
-  const values = state.values ?? EMPTY;
+  const values = state.values ?? (initialCode ? { ...EMPTY, code: initialCode } : EMPTY);
+  const codeHintId = useId();
   /** The sentence under one box — and `null` for the ones it is not about. */
   const noteFor = (name: FieldName) =>
     state.error && state.field === name ? (
@@ -209,23 +230,44 @@ export function AuthForm({
       {mode === 'signup' && (
         <div className="field">
           <label className="label" htmlFor="code">
-            Uitnodigingscode
+            {words.doorCodeLabel}
           </label>
+          {/*
+            §106: the code as a person pastes it. Whatever is typed or pasted is
+            shown the way the Keeper's screen shows it — capitals, five, a dash,
+            five (`formatInvite`) — and the server strips the same things again
+            (`normaliseInvite`), so a space, a line break or a missing dash is
+            never the reason a code "klopt niet". Only while the caret is at the
+            end: a repair in the middle is left alone, or the caret would jump.
+          */}
           <input
             id="code"
             name="code"
-            className="input"
+            className="input voordeur-code"
             ref={(el) => {
               boxes.current.code = el;
             }}
             defaultValue={values.code}
             autoCapitalize="characters"
             autoComplete="off"
+            autoCorrect="off"
             spellCheck={false}
+            inputMode="text"
+            placeholder="XXXXX-XXXXX"
             aria-invalid={wrong('code')}
+            aria-describedby={codeHintId}
             readOnly={pending}
             required
+            onInput={(event) => {
+              const box = event.currentTarget;
+              if (box.selectionStart !== box.value.length) return;
+              const shaped = formatInvite(box.value);
+              if (shaped !== box.value) box.value = shaped;
+            }}
           />
+          <p className="tiny muted" id={codeHintId} style={{ margin: '0.3rem 0 0' }}>
+            {initialCode && !state.seq ? words.doorCodeFromLink : words.doorCodeHint}
+          </p>
           {noteFor('code')}
         </div>
       )}
@@ -243,7 +285,7 @@ export function AuthForm({
           }}
           defaultValue={values.username}
           autoComplete="username"
-          autoFocus={mode === 'login'}
+          autoFocus={mode === 'login' || Boolean(initialCode)}
           aria-invalid={wrong('username')}
           readOnly={pending}
           required

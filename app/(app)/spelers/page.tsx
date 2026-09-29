@@ -10,6 +10,9 @@ import { charactersWorn, listCharacters } from '@/lib/characters';
 import { visibleNamesOf } from '@/lib/kamers/service';
 import { listSpelers } from '@/lib/spelers/service';
 import { capitalise, fill } from '@/lib/words';
+import { db, schema } from '@/lib/db';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { Uitnodiging } from '@/components/eerste-keer/Uitnodiging';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +37,11 @@ export default async function SpelersPage() {
   const user = await requireViewer();
   const words = getWords();
   const spelers = listSpelers();
+  // §106: alleen voor de Keeper, en alleen gelezen als de hal leeg is.
+  const inviteCode =
+    user?.isKeeper && spelers.every((speler) => speler.isKeeper)
+      ? (db.select({ code: schema.siteSettings.inviteCode }).from(schema.siteSettings).get()?.code ?? '')
+      : '';
   const worn = charactersWorn(spelers.map((speler) => speler.id));
 
   /*
@@ -164,6 +172,21 @@ export default async function SpelersPage() {
           );
         })}
       </ul>
+      {/*
+       * §106: een hal met alleen Keepers. Voor de Keeper de uitnodiging zelf,
+       * zodat hij niet naar Beheer hoeft om de code te vinden; een speler komt
+       * hier nooit, want die staat zelf in de hal.
+       */}
+      {user?.isKeeper && spelers.every((speler) => speler.isKeeper) && (
+        <LegeStaat
+          icon="badge"
+          zin={words.emptyPlayers}
+          uitleg={words.routeInviteWhy}
+          soort="spelers"
+        >
+          <Uitnodiging code={inviteCode} />
+        </LegeStaat>
+      )}
     </div>
   );
 }

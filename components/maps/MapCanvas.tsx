@@ -50,7 +50,13 @@ import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
 import { CanvasPeek } from '@/components/canvas/CanvasPeek';
+import { CanvasEmpty } from '@/components/canvas/CanvasEmpty';
+import { CanvasFind } from '@/components/canvas/CanvasFind';
+import type { Findable } from '@/lib/canvas/find';
 import { fill } from '@/lib/words';
+
+/** §105 (golf J): the glass and the things on it, for `gatePress`. */
+const MAP_GLASS = { glass: '.map-stage', things: '.map-pin, .map-cluster-badge' };
 
 /**
  * §19: one map, its pins, and the legend that switches kinds of pin on and off.
@@ -452,6 +458,16 @@ export function MapCanvas({
     if (fitted.current || !stageSize.w) return;
     fitted.current = true;
     fit(stageSize);
+    /*
+     * §105 (review 4, M3): a landscape map in a portrait glass. The fit
+     * leaves half the phone's glass bare paper above and below; when more
+     * than 30 % of the glass is empty and there are spelden, the first view
+     * is the spelden (their box, with air), held inside the picture. It is
+     * the *opening* view, not a camera moving by itself (§102 rule 9), and
+     * *Alles in beeld* still shows the whole picture.
+     */
+    const first = openingOnPins(stageSize);
+    if (first) setView(first);
     const kept = readCamera('map', map.id, isMapView);
     if (kept) {
       resumed.current = true;
@@ -470,6 +486,41 @@ export function MapCanvas({
   useEffect(() => {
     if (fitted.current) writeCamera('map', map.id, { ...view, w: stageSizeRef.current.w, h: stageSizeRef.current.h });
   }, [view, map.id]);
+
+  /** §105 (review 4, M3): the opening view on the spelden, or null to keep the fit. */
+  const openingOnPins = (size: { w: number; h: number }): View | null => {
+    const W = map.width;
+    const H = map.height;
+    if (!size.w || !size.h || !W || !H) return null;
+    const fitZoom = Math.min(MAX_ZOOM, Math.min(size.w / W, size.h / H));
+    const covered = (W * fitZoom * H * fitZoom) / (size.w * size.h);
+    if (covered > 0.7) return null;
+    const placed = pins.filter((pin) => pin.x >= 0 && pin.x <= 1 && pin.y >= 0 && pin.y <= 1);
+    if (placed.length < 2) return null;
+    const xs = placed.map((pin) => pin.x * W);
+    const ys = placed.map((pin) => pin.y * H);
+    const padX = Math.max(W * 0.06, 40 / fitZoom);
+    const padY = Math.max(H * 0.08, 60 / fitZoom);
+    const minX = Math.max(0, Math.min(...xs) - padX);
+    const maxX = Math.min(W, Math.max(...xs) + padX);
+    const minY = Math.max(0, Math.min(...ys) - padY);
+    const maxY = Math.min(H, Math.max(...ys) + padY);
+    const want = Math.min(size.w / Math.max(1, maxX - minX), size.h / Math.max(1, maxY - minY));
+    // Never smaller than the fit, never past the ceiling, and no closer than
+    // the height of the picture filling the glass: the point is to use it.
+    const cover = Math.max(size.w / W, size.h / H);
+    const zoom = Math.min(MAX_ZOOM, Math.max(fitZoom, Math.min(want, cover)));
+    if (zoom <= fitZoom * 1.05) return null;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const hold = (t: number, span: number, room: number) =>
+      span >= room ? Math.min(0, Math.max(room - span, t)) : (room - span) / 2;
+    return {
+      zoom,
+      tx: hold(size.w / 2 - cx * zoom, W * zoom, size.w),
+      ty: hold(size.h / 2 - cy * zoom, H * zoom, size.h),
+    };
+  };
 
   const clampZoom = useCallback((zoom: number) => {
     const min = fitZoomRef.current * MIN_ZOOM_FACTOR;
@@ -653,9 +704,15 @@ export function MapCanvas({
   });
   /* §90: the §18b question only where this glas can write — Bewerken, or the
      potlood in the hand. Lezen and the legend's search ask nothing. */
-  const gate = useCanvasAuthorGate(editing || ink.inkActive);
+  // §105 (golf J): a speld chosen to be read asks nothing; a speld dragged does.
+  const gate = useCanvasAuthorGate(editing || ink.inkActive, MAP_GLASS);
   /* §101: en een maakknop op de werkbalk vraagt het zélf, vóórdat hij maakt. */
   const maker = useCanvasMaker();
+  /** §105: the bar's *Speld zetten*, the phone's `+` and an empty map's verb are one road. */
+  const startPlacing = () => {
+    setSelectedId(null);
+    setPlacing({ mode: 'pick' });
+  };
   const onInkKey = ink.onKeyDown;
   /*
    * §73: leaving Bewerken puts the potlood down too (the crosshair went at
@@ -1651,6 +1708,7 @@ export function MapCanvas({
          in Lezen; only arranging (the laag) and the drag hint are Bewerken's. */
       mayEdit={mayTouch(selected)}
       arranging={mayMove(selected)}
+      editing={editing}
       setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
       onSave={(patch) => void savePin(selected.id, patch)}
       onRemove={() => void removePin(selected)}
@@ -1664,13 +1722,84 @@ export function MapCanvas({
   const pinWord = words.mapPin;
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+  /** §105: what the loep in the bar finds — every speld with a name. */
+  const findablePins: Findable[] = pins
+    .filter((pin) => pin.name.trim())
+    .map((pin) => ({ id: pin.id, name: pin.name, icon: pinIcon(pin) }));
+  /** §105: the same road as a pick in the legend: shown, centred, chosen. */
+  const findPin = (id: string) => {
+    const pin = pins.find((one) => one.id === id);
+    if (!pin) return;
+    setHidden((current) => {
+      if (!current.has(legendKey(pin))) return current;
+      const next = new Set(current);
+      next.delete(legendKey(pin));
+      writeHidden(map.id, next);
+      return next;
+    });
+    centreOn(pin);
+    setSelectedId(pin.id);
+  };
+
+  /* §105 (golf J, stuk 9): the legend's search, first in the phone's blad. */
+  const legendFind = (
+      <div className="map-legend-find" style={{ position: 'relative', marginTop: isPhone ? 0 : '0.5rem', marginBottom: isPhone ? '0.6rem' : 0 }}>
+        <input
+          className="input"
+          value={find}
+          placeholder={`Zoek een ${pinWord}…`}
+          aria-label={`Zoek een ${pinWord}`}
+          onChange={(event) => setFind(event.target.value)}
+        />
+        {found.length > 0 && (
+          <ul
+            className="suggest-list"
+            /* §105 (golf J, stuk 9): in the phone's blad the hits are part of
+               the blad, straight under the box — not a layer that hangs off
+               its foot, under the fold and under the keyboard. */
+            style={isPhone ? undefined : { position: 'absolute', zIndex: 30, left: 0, right: 0 }}
+          >
+            {found.map((pin) => (
+              <li key={pin.id}>
+                <button
+                  type="button"
+                  className="suggest-item"
+                  onClick={() => {
+                    setFind('');
+                    setHidden((current) => {
+                      if (!current.has(legendKey(pin))) return current;
+                      const next = new Set(current);
+                      next.delete(legendKey(pin));
+                      writeHidden(map.id, next);
+                      return next;
+                    });
+                    centreOn(pin);
+                    setSelectedId(pin.id);
+                    setLegendOpen(false);
+                  }}
+                >
+                  <Icon
+                    name={pinIcon(pin)}
+                    size={14}
+                    style={{ color: pinColour(pin) }}
+                  />
+                  <span>{pin.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+  );
+
   const legendPanel = (
     /* §90: a legend filters and finds — reading, in either mode. */
     <div className="map-legend-body" {...AUTHOR_GATE_OFF}>
-      <div className="row" style={{ gap: '0.4rem' }}>
-        {isPhone ? (
-          <strong className="small">Legenda</strong>
-        ) : (
+      {/* §105 (golf J): on a phone the blad's own heading names it; the row
+          stays only for *Alles aan*. The search comes first there. */}
+      {isPhone && legendFind}
+      <div className="row" style={{ gap: '0.4rem' }} hidden={isPhone && hidden.size === 0}>
+        {isPhone ? null : (
           <button
             type="button"
             className="map-legend-fold"
@@ -1716,47 +1845,7 @@ export function MapCanvas({
         <input type="checkbox" checked={onlyMine} onChange={(event) => setOnlyMine(event.target.checked)} />
         <span>Alleen mijn {words.mapPinPlural}</span>
       </label>
-      <div style={{ position: 'relative', marginTop: '0.5rem' }}>
-        <input
-          className="input"
-          value={find}
-          placeholder={`Zoek een ${pinWord}…`}
-          aria-label={`Zoek een ${pinWord}`}
-          onChange={(event) => setFind(event.target.value)}
-        />
-        {found.length > 0 && (
-          <ul className="suggest-list" style={{ position: 'absolute', zIndex: 30, left: 0, right: 0 }}>
-            {found.map((pin) => (
-              <li key={pin.id}>
-                <button
-                  type="button"
-                  className="suggest-item"
-                  onClick={() => {
-                    setFind('');
-                    setHidden((current) => {
-                      if (!current.has(legendKey(pin))) return current;
-                      const next = new Set(current);
-                      next.delete(legendKey(pin));
-                      writeHidden(map.id, next);
-                      return next;
-                    });
-                    centreOn(pin);
-                    setSelectedId(pin.id);
-                    setLegendOpen(false);
-                  }}
-                >
-                  <Icon
-                    name={pinIcon(pin)}
-                    size={14}
-                    style={{ color: pinColour(pin) }}
-                  />
-                  <span>{pin.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {!isPhone && legendFind}
     </div>
   );
 
@@ -1794,12 +1883,10 @@ export function MapCanvas({
           (!mode.canEdit || editing) && (
           <button
             type="button"
-            className="btn btn-primary btn-small"
+            /* §105: `canvas-make` — the landkaart's own `+` on a phone. */
+            className="btn btn-primary btn-small canvas-make"
             disabled={!mayType}
-            {...maker(() => {
-              setSelectedId(null);
-              setPlacing({ mode: 'pick' });
-            })}
+            {...maker(startPlacing)}
             /* §64/§69 (6.6): de letters mogen weg op 390 px, de naam nooit —
                en vier specs zoeken deze knop op zijn naam. */
             aria-label={`${cap(pinWord)} zetten`}
@@ -1809,6 +1896,20 @@ export function MapCanvas({
             <span className="canvas-tool-word">{cap(pinWord)} zetten</span>
           </button>
           )
+        )}
+        {/* §105 (golf i1): Vind, zoals op het prikbord en de stamboom (§94) —
+            de loep in de balk, in beide standen. De legenda vindt ook, maar
+            dat is een filter met een zoekvak onderaan; hier is vinden één
+            gebaar en hetzelfde als op de andere vlakken (§69). */}
+        {!placing && (
+          <CanvasFind
+            items={findablePins}
+            onFind={findPin}
+            group={fill(words.findOnMap, { landkaart: mapWord })}
+            testId="map-find"
+            /* A loep at every width: on a desk the docked legend already has a box. */
+            compact
+          />
         )}
         <div className="spacer" />
         {isPhone && (
@@ -2116,21 +2217,25 @@ export function MapCanvas({
           Niet tijdens het tekenen en niet tijdens het zetten van een speld:
           dan staat er al iets anders om aandacht te vragen.
         */}
-        {!pins.length && !ink.ink.enabled && !placing && (
-          <div className="map-empty">
-            <p className="small muted">
-              {mayType && !editing
-                ? /* §73: in Lezen the gestures below do nothing, so do not offer them. */
-                  `Nog geen ${words.mapPinPlural} op deze ${mapWord}. Kies Bewerken om er een te zetten.`
-                : mayType
-                ? `Nog geen ${words.mapPinPlural} op deze ${mapWord}. ${
-                    isPhone
-                      ? `Houd de ${mapWord} ingedrukt om hier een ${pinWord} te zetten`
-                      : `Dubbelklik op de ${mapWord}`
-                  }, of gebruik '${cap(pinWord)} zetten'.`
-                : `Nog geen ${words.mapPinPlural} op deze ${mapWord}.`}
-            </p>
-          </div>
+        {/* §105 (golf i1): één zin, één werkwoord, een speld op een gevouwen
+            kaart (`CanvasEmpty`). In Lezen zet *Beginnen* het vlak in
+            Bewerken; wie niet mag zetten krijgt de zin alleen. */}
+        {/* §105: not while the potlood is in the hand (`inkActive`), as on the
+            other three — a layer that is merely switched on hid it for good. */}
+        {!pins.length && !ink.inkActive && !placing && (
+          <CanvasEmpty
+            kind="map"
+            className="map-empty"
+            strook
+            sentence={fill(words.vlakLeegLandkaart, { spelden: words.mapPinPlural, landkaart: mapWord })}
+            action={
+              !mayType
+                ? undefined
+                : !editing
+                  ? { label: words.vlakLeegBegin, icon: 'pencil', primary: true, props: { ...AUTHOR_GATE_OFF, onClick: () => mode.setMode('edit') } }
+                  : { label: fill(words.vlakLeegLandkaartDoe, { speld: pinWord }), icon: 'mapPin', props: maker(startPlacing) }
+            }
+          />
         )}
 
         {!isPhone &&
@@ -2201,6 +2306,8 @@ export function MapCanvas({
               aria-label="Sluiten"
               title="Sluiten (Esc)"
               onClick={() => setSelectedId(null)}
+              /* §105 (golf J): closing is looking away, not writing. */
+              {...AUTHOR_GATE_OFF}
             >
               <Icon name="close" size={14} />
             </button>
@@ -2212,7 +2319,7 @@ export function MapCanvas({
         )}
       </div>
 
-      <p className="tiny muted" style={{ margin: '0.4rem 0 0' }}>
+      <p className="tiny muted canvas-count map-count" style={{ margin: '0.4rem 0 0' }}>
         {shown.length} van {pins.length} {pins.length === 1 ? pinWord : words.mapPinPlural} te zien
         {/* §102, golf h1 (T18): a pointer's sentence and a finger's; the stylesheet
             shows one (`app/navigatie.css`, `pointer: coarse`). */}
@@ -2224,7 +2331,7 @@ export function MapCanvas({
           {' · '}
           {words.canvasHintTouch}
         </span>
-        {ink.ink.enabled && <> · het potlood tekent op de {mapWord}, Esc stopt</>}
+        {ink.ink.enabled && <span className="canvas-count-uitleg"> · het potlood tekent op de {mapWord}, Esc stopt</span>}
       </p>
 
       {isKeeper && <UnderFold slotId={UNDER_FOLD_ID}>{ink.keeperControls}</UnderFold>}
@@ -2272,6 +2379,7 @@ function PinSheet({
   busy,
   mayEdit,
   arranging,
+  editing,
   setBy,
   onSave,
   onRemove,
@@ -2285,6 +2393,8 @@ function PinSheet({
   mayEdit: boolean;
   /** §73: …and may arrange it right now — Bewerken, not Lezen. */
   arranging: boolean;
+  /** §105 (review 4, L9): the vlak is in Bewerken. */
+  editing: boolean;
   setBy: string | null;
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
@@ -2310,6 +2420,7 @@ function PinSheet({
           busy={busy}
           mayEdit={mayEdit}
           arranging={arranging}
+          editing={editing}
           setBy={setBy}
           onSave={onSave}
           onRemove={onRemove}
@@ -2325,6 +2436,7 @@ function PinSheet({
       busy={busy}
       mayEdit={mayEdit}
       arranging={arranging}
+      editing={editing}
       setBy={setBy}
       onSave={onSave}
       onRemove={onRemove}
@@ -2339,6 +2451,7 @@ function PinSheetBody({
   busy,
   mayEdit,
   arranging,
+  editing,
   setBy,
   onSave,
   onRemove,
@@ -2349,6 +2462,7 @@ function PinSheetBody({
   busy: boolean;
   mayEdit: boolean;
   arranging: boolean;
+  editing: boolean;
   setBy: string | null;
   onSave: (patch: { name?: string; text?: string }) => void;
   onRemove: () => void;
@@ -2526,10 +2640,14 @@ function PinSheetBody({
           </p>
         )
       ) : (
-        <p className="tiny muted" style={{ margin: 0 }}>
-          Deze {words.mapPin} is van iemand anders: alleen wie hem zette, of een {words.keeper}, kan hem verplaatsen of
-          weghalen.
-        </p>
+        /* §105 (review 4, L9): a reader is not trying to move it — the
+           sentence is for a hand in Bewerken that finds it will not budge. */
+        editing && (
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Deze {words.mapPin} is van iemand anders: alleen wie hem zette, of een {words.keeper}, kan hem verplaatsen
+            of weghalen.
+          </p>
+        )
       )}
 
       {mayEdit && arranging && pin.kind === 'note' && (

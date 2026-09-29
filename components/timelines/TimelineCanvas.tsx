@@ -54,6 +54,7 @@ import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { CHOICE_PARAM, readCamera, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { goToView, spanWords } from '@/lib/timelines/span';
+import { fill } from '@/lib/words';
 import { TimelineGoTo } from '@/components/timelines/TimelineGoTo';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
@@ -65,6 +66,9 @@ import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
 import { CanvasPeek } from '@/components/canvas/CanvasPeek';
+import { CanvasEmpty } from '@/components/canvas/CanvasEmpty';
+import { CanvasFind } from '@/components/canvas/CanvasFind';
+import type { Findable } from '@/lib/canvas/find';
 import {
   EditEventSheet,
   NewEventSheet,
@@ -73,6 +77,9 @@ import {
   type EventPatchInput,
   type NewEventInput,
 } from './EventSheets';
+
+/** §105 (golf J): the glass and the things on it, for `gatePress`. */
+const TIMELINE_GLASS = { glass: '.timeline-stage', things: '.timeline-event' };
 
 /**
  * §32: the tijdlijn itself.
@@ -215,6 +222,9 @@ type Placed = {
   hidden: boolean;
 };
 
+/** §105: half the widest tag — the air a fenced day keeps at either end. */
+const TAG_AIR = 85;
+
 function tagWidth(name: string): number {
   return Math.max(64, Math.min(170, name.length * 6.6 + 30));
 }
@@ -231,6 +241,7 @@ export function TimelineCanvas({
   placing,
   focusEventId,
   initialInk,
+  emptyCentre = null,
 }: {
   timeline: TimelineSummary;
   initialEvents: TimelineEvent[];
@@ -246,6 +257,11 @@ export function TimelineCanvas({
   placing: { entryId: string; name: string } | null;
   /** `?event=`: open this one and bring it into view. */
   focusEventId: string | null;
+  /**
+   * §105 (review 4, L10): where an empty tijdlijn opens — the latest moment on
+   * any tijdlijn this reader may see (the table's "now"), not the year 1930.
+   */
+  emptyCentre?: number | null;
 }) {
   const ui = useUi();
   const words = ui.words;
@@ -397,9 +413,19 @@ export function TimelineCanvas({
     const { span: bounds, width: stageWidth } = fenceRef.current;
     if (!value || !bounds || !stageWidth) return value;
     const seconds = bounds.to - bounds.from;
-    const pxPerSecond = Math.max(value.pxPerSecond, stageWidth / seconds);
+    /*
+     * §105 (review 4, M2): a rim of air at either end, the width of half a
+     * tag, so a gebeurtenis at the stroke of midnight is not half off the
+     * glass. The day is still the whole of what can be reached: zoomed all the
+     * way out it fills the glass less that rim, and nothing pans. At most a
+     * tenth of the glass per end: on a phone a full half-tag was 40 % air
+     * ("≈ 40 uur" for a day of 24).
+     */
+    const air = Math.min(TAG_AIR, stageWidth * 0.1);
+    const pxPerSecond = Math.max(value.pxPerSecond, Math.max(1, stageWidth - air * 2) / seconds);
     const shown = stageWidth / pxPerSecond;
-    const origin = Math.min(Math.max(value.origin, bounds.from), bounds.to - shown);
+    const rim = air / pxPerSecond;
+    const origin = Math.min(Math.max(value.origin, bounds.from - rim), bounds.to + rim - shown);
     return origin === value.origin && pxPerSecond === value.pxPerSecond ? value : { origin, pxPerSecond };
   }, []);
   const moveView = useCallback(
@@ -408,9 +434,25 @@ export function TimelineCanvas({
     [fence],
   );
   const fit = useCallback(
-    (list: TimelineEvent[], w: number) =>
-      moveView(fitView(list.map((e) => e.at), w || 900, timeline.scale, span ? (span.from + span.to) / 2 : undefined)),
-    [timeline.scale, span, moveView],
+    (list: TimelineEvent[], w: number) => {
+      /* §105 (review 4, M2): the first and the last tag stay on the glass —
+         half of the wider of the two sticks out past its mark. */
+      let edge = 0;
+      if (list.length > 1) {
+        const byTime = [...list].sort((a, b) => a.at - b.at);
+        edge = Math.max(tagWidth(byTime[0].name), tagWidth(byTime[byTime.length - 1].name)) / 2;
+      }
+      moveView(
+        fitView(
+          list.map((e) => e.at),
+          w || 900,
+          timeline.scale,
+          span ? (span.from + span.to) / 2 : (emptyCentre ?? undefined),
+          edge,
+        ),
+      );
+    },
+    [timeline.scale, span, moveView, emptyCentre],
   );
   // The first view: everything on the tijdlijn, once the stage has a width —
   // or, §94 (C5), the view this tab left here, so Back lands where it was.
@@ -735,9 +777,12 @@ export function TimelineCanvas({
   const inkActive = ink.inkActive;
   /* §90: the §18b question only where this axis can write — Bewerken, or the
      potlood in the hand. A tap in Lezen asks nothing. */
-  const gate = useCanvasAuthorGate(handsOn || inkActive);
+  // §105 (golf J): an event opened to be read asks nothing; one dragged does.
+  const gate = useCanvasAuthorGate(handsOn || inkActive, TIMELINE_GLASS);
   /* §101: en een maakknop op de werkbalk vraagt het zélf, vóórdat hij maakt. */
   const maker = useCanvasMaker();
+  /** §105: *Gebeurtenis toevoegen*, the phone's `+` and an empty axis's verb are one road. */
+  const openAdd = () => setSheet({ mode: 'add', at: null, entry: null });
   const askThen = useAskAuthorFirst();
   /* §73: switching to Lezen puts the potlood away — Lezen has no potlood. */
   const inkToolActive = ink.inkTool.active;
@@ -875,6 +920,21 @@ export function TimelineCanvas({
       moveView(goToView(at, precision, widthRef.current || width, timeline.scale));
     },
     [moveView, timeline.scale, width],
+  );
+
+  /** §105 (review 4, M2): Vind — the gebeurtenis in the middle, its window open, the zoom kept. */
+  const findEvent = useCallback(
+    (id: string) => {
+      const event = eventsRef.current.find((one) => one.id === id);
+      if (!event) return;
+      moveView((current) => {
+        if (!current) return current;
+        const w = widthRef.current || width;
+        return { origin: event.at - w / 2 / current.pxPerSecond, pxPerSecond: current.pxPerSecond };
+      });
+      setOpen((current) => (current.includes(id) ? current : [...current, id]));
+    },
+    [moveView, width],
   );
 
   const zoomAt = useCallback(
@@ -2208,6 +2268,9 @@ export function TimelineCanvas({
   if (editing) lastEditing.current = editing;
   const editingGone = sheet?.mode === 'edit' && !editing && lastEditing.current?.id === sheet.eventId;
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const findableEvents: Findable[] = events
+    .filter((event) => event.name.trim())
+    .map((event) => ({ id: event.id, name: event.name, hint: formatWhen(event.at, event.precision) }));
 
   return (
     <div className="timeline-frame" {...gate}>
@@ -2218,13 +2281,15 @@ export function TimelineCanvas({
         {/* §73: first in the bar, so the switch is where the eye starts. */}
         <CanvasModeToggle mode={canvasMode} />
         {handsOn && (
-          <button type="button" className="btn btn-primary btn-small" {...maker(() => setSheet({ mode: 'add', at: null, entry: null }))} data-testid="timeline-add" aria-label={`${cap(words.event)} toevoegen`} title={`${cap(words.event)} toevoegen`}>
+          <button type="button" className="btn btn-primary btn-small canvas-make" {...maker(openAdd)} data-testid="timeline-add" aria-label={`${cap(words.event)} toevoegen`} title={`${cap(words.event)} toevoegen`}>
             <Icon name="plus" size={15} />
             {/* §69 (6.6): de letters mogen weg op 390 px, de naam nooit (§64). */}
             <span className="canvas-tool-word">{cap(words.event)} toevoegen</span>
           </button>
         )}
-        {events.length > 0 && (
+        {/* §105 (review 4, M2): on a phone the bar's place is Vind's, and
+            *Alles tonen* moves into the gear's sheet, beside *Ga naar…*. */}
+        {events.length > 0 && !isPhone && (
           <button
             type="button"
             className="btn btn-small"
@@ -2240,6 +2305,17 @@ export function TimelineCanvas({
             <Icon name={allOpen ? 'fold' : 'unfold'} size={14} />
             <span className="canvas-tool-word">{allOpen ? 'Alles inklappen' : 'Alles tonen'}</span>
           </button>
+        )}
+        {/* §105 (review 4, M2): Vind, as on the other four — a loep at every
+            width, beside Ga naar… on a desk. */}
+        {events.length > 0 && (
+          <CanvasFind
+            items={findableEvents}
+            onFind={findEvent}
+            group={fill(words.findOnTimeline, { tijdlijn: words.timeline })}
+            testId="timeline-find"
+            compact
+          />
         )}
         <span className="spacer" />
         {/* §94 (C16): "Ga naar…" — here on a desk; on a phone it is in the
@@ -2540,20 +2616,23 @@ export function TimelineCanvas({
             window is open, so the bottom is still taken then. */}
         <InkShell shell={ink} corner="top-left" toolbar={handsOn || !canvasMode.canEdit} bottomTaken={openWindows.length > 0} />
 
+        {/* §105 (golf i1): één zin, één werkwoord, een as met één ruit
+            (`CanvasEmpty`). Het gebaar (dubbelklik, lang drukken) staat al in
+            de regel onder de as; hier staat het ene dat je nu doet. */}
         {!events.length && !inkActive && (
-          <p className="timeline-empty small muted">
-            {canEdit && handsOn
-              ? /* §62: a phone has no double-click. The gesture that puts a
-                   gebeurtenis on the axis there is a long press, and the empty
-                   stage says so in the same words as the line under it. */
-                `Nog geen ${words.eventPlural}. ${
-                  isPhone ? `Houd de as ingedrukt om hier een ${words.event} te zetten` : 'Dubbelklik op de as'
-                }, of gebruik '${cap(words.event)} toevoegen'.`
-              : canEdit
-                ? /* §73: Lezen does not advertise a gesture that does nothing. */
-                  `Nog geen ${words.eventPlural}. Kies Bewerken om er een te zetten.`
-                : `Nog geen ${words.eventPlural} op deze ${words.timeline}.`}
-          </p>
+          <CanvasEmpty
+            kind="timeline"
+            className="timeline-empty"
+            strook
+            sentence={fill(words.vlakLeegTijdlijn, { gebeurtenissen: words.eventPlural, tijdlijn: words.timeline })}
+            action={
+              !canEdit
+                ? undefined
+                : !handsOn
+                  ? { label: words.vlakLeegBegin, icon: 'pencil', primary: true, props: { ...AUTHOR_GATE_OFF, onClick: () => canvasMode.setMode('edit') } }
+                  : { label: fill(words.vlakLeegTijdlijnDoe, { gebeurtenis: words.event }), props: maker(openAdd) }
+            }
+          />
         )}
       </div>
 
@@ -2679,7 +2758,7 @@ export function TimelineCanvas({
       </div>
       </div>
 
-      <p className="tiny muted timeline-count">
+      <p className="tiny muted timeline-count canvas-count">
         {events.length} {events.length === 1 ? words.event : words.eventPlural}
         {span && anchorAt !== null && anchorUnit !== null && (
           <> · speelt op {formatWhen(anchorAt, anchorUnit)}</>
@@ -2694,10 +2773,13 @@ export function TimelineCanvas({
           {' · '}
           {words.canvasHintTouch}
         </span>
+        {/* §105: on a phone the line is the count and the span on the glass,
+            one line — the rest is `.canvas-count-uitleg`, for a desk. */}
+        {view && width > 0 && <span className="canvas-count-span"> · {spanWords(width / view.pxPerSecond)}</span>}
         {/* §73: in Lezen the line says where the moving and making went. */}
-        {canEdit && !handsOn && <> · kies Bewerken om {words.eventPlural} te verzetten of te zetten</>}
+        {canEdit && !handsOn && <span className="canvas-count-uitleg"> · kies Bewerken om {words.eventPlural} te verzetten of te zetten</span>}
         {canEdit && handsOn && (
-          <>
+          <span className="canvas-count-uitleg">
             {' '}· sleep een {words.event} om hem te verzetten ·{' '}
             {/* §62: the gesture that puts a gebeurtenis down is not the same
                 one on a phone, so neither is the sentence. */}
@@ -2710,7 +2792,7 @@ export function TimelineCanvas({
                 sentence the prikbord carries, in the same tiny grey line. */}
             {!isPhone && <> · plak een afbeelding voor een losse {words.event} met die afbeelding erop</>}
             {uploading && <> · uploaden…</>}
-          </>
+          </span>
         )}
       </p>
 
@@ -2777,6 +2859,23 @@ export function TimelineCanvas({
                 setSheet(null);
               }}
             />
+          )}
+          {/* §105 (review 4, M2): *Alles tonen* on a phone, out of the bar. */}
+          {isPhone && events.length > 0 && (
+            <p style={{ margin: '0 0 1rem' }}>
+              <button
+                type="button"
+                className="btn"
+                data-testid="timeline-toggle-all"
+                onClick={() => {
+                  setOpen(allOpen ? [] : events.map((e) => e.id));
+                  setSheet(null);
+                }}
+              >
+                <Icon name={allOpen ? 'fold' : 'unfold'} size={16} />
+                {allOpen ? 'Alles inklappen' : 'Alles tonen'}
+              </button>
+            </p>
           )}
           {canEdit ? (
             <TimelineSettingsSheet

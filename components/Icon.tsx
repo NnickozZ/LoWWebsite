@@ -89,6 +89,9 @@ const PATHS: Record<string, string> = {
   mapPin: 'M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11ZM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   // §33: the tekenlaag — a pencil, a gum, and an arrow that takes the last line back.
   pencil: 'M14.5 4.5l5 5L8 21H3v-5zM12 7l5 5',
+  // §105 (review 4, H4): *Tekenen* — een penpunt met een krabbel eronder, zodat
+  // het niet het potlood van Bewerken is.
+  krabbel: 'M15.5 3.5l5 5-7.5 7.5-5.5 1.5 1.5-5.5zM13 6l5 5M8.5 15.5l2-2M3 21c1.4-1.6 2.6-1.6 3.6 0s2.2 1.6 3.4 0 2.4-1.6 3.6 0',
   eraser: 'M14 4l6 6-8.5 8.5a2 2 0 0 1-2.8 0L4.5 14.3a2 2 0 0 1 0-2.8zM9 19.5 5 15.5M20 20h-9',
   undo: 'M9 14 4 9l5-5M4 9h10a5.5 5.5 0 0 1 0 11h-3',
   // §90 canvas: "Opnieuw schikken" — three kaartjes laid out in rows, not the
@@ -97,6 +100,18 @@ const PATHS: Record<string, string> = {
   // §90 canvas: fold every window out, and back in — not Lezen's eye.
   unfold: 'M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4',
   fold: 'M12 3v6M12 15v6M8 5l4 4 4-4M8 19l4-4 4 4M5 12h14',
+  // §107 (golf i3, D17): meer tekens voor een soort, zodat twee soorten niet
+  // hetzelfde hoeven te dragen. Berg, edelsteen, geest en rol waren gevraagd;
+  // anker, vuurtoren, sleutel, kaars en schedel passen bij het eiland.
+  mountain: 'M2.5 19.5 9 8.5l4 6.8 2.7-4.3 5.8 8.5zM6.6 12.6 9 14l1.6-1.2',
+  gem: 'M6.5 4.5h11l3.5 4.8L12 20 3 9.3zM3 9.3h18M9.5 4.5 8 9.3l4 10.7 4-10.7-1.5-4.8',
+  ghost: 'M5.5 20.5V10.5a6.5 6.5 0 0 1 13 0v10l-2.2-1.6-2.1 1.6-2.2-1.6-2.1 1.6-2.2-1.6zM9.8 10.5v.6M14.2 10.5v.6',
+  scroll: 'M8.5 3.5H18a2 2 0 0 1 0 4h-2M8.5 3.5a2 2 0 0 0-2 2V17a3 3 0 0 1-3 3.5h10A3 3 0 0 0 16 17.5v-12a2 2 0 0 0-2-2M9.5 10h3.5M9.5 13.5h3.5',
+  anchor: 'M12 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM12 7.5V20.5M8.5 11h7M4.5 13.5c.3 4 3.5 7 7.5 7s7.2-3 7.5-7M4.5 13.5 3 15.2M4.5 13.5l1.9 1.2M19.5 13.5l1.5 1.7M19.5 13.5l-1.9 1.2',
+  tower: 'M9.3 20.5 10.4 9h3.2l1.1 11.5zM7.5 20.5h9M10 9h4M10.5 5.5h3V9h-3zM12 5.5V4M5 5l3.3 1.6M19 5l-3.3 1.6M5 9.3l3.3-.6M19 9.3l-3.3-.6',
+  key: 'M7.5 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM11 12h10M18 12v3M15 12v2.2',
+  candle: 'M9.2 10.5h5.6v10H9.2zM12 10.5V8.8M12 8.8c-1.6-.9-1.6-2.9 0-5 1.6 2.1 1.6 4.1 0 5ZM6.5 20.5h11',
+  skull: 'M5 11a7 7 0 1 1 14 0c0 2.4-1.1 4-2.5 5v3.5h-9V16C6.1 15 5 13.4 5 11ZM9.3 12.6a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6ZM14.7 12.6a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6ZM10.6 19.5v-2M13.4 19.5v-2',
 };
 
 /** §43: the same strokes, for drawing on a canvas with `Path2D`. */

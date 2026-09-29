@@ -111,7 +111,8 @@ export function InkToolbar({
         onClick={() => onActive(!active)}
         data-testid="ink-pen"
       >
-        <Icon name="pencil" size={18} />
+        {/* §105 (review 4, H4): not the pencil — that is Bewerken's, one row up. */}
+        <Icon name="krabbel" size={18} />
       </button>
 
       {active && (

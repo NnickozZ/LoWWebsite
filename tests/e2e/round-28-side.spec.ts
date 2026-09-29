@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillWhenReady, newEntryButton, signIn } from './helpers';
+import { fillWhenReady, pressNewEntry, signIn } from './helpers';
 
 /**
  * §57: de knop weet weer aan welke kant hij staat.
@@ -30,7 +30,7 @@ const KEEPER = ['Keeper', 'abbeytower34'] as const;
 /** A fresh artikel, made the way a person makes one, on whichever side we stand. */
 async function newArticle(page: Page, name: string): Promise<string> {
   const before = page.url();
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: 'Locaties', exact: true }).click();
   await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);
@@ -82,7 +82,7 @@ test.describe('§57 omklappen zonder tweeling', () => {
     // The one that is not cosmetic (§48): what is made from here is born on
     // the side the browser actually stands on. The tickbox is `UiProvider`'s
     // answer read straight off the screen…
-    await newEntryButton(page).click();
+    await pressNewEntry(page);
     const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
     await expect(sheet.getByTestId('side-choice').locator('input')).not.toBeChecked();
 
@@ -121,7 +121,7 @@ test.describe('§57 omklappen zonder tweeling', () => {
     await expect(page.locator('.toast')).toContainText('je staat nu aan de Keeperkant.');
 
     // And born-on-a-side reads the shell that is actually on the screen.
-    await newEntryButton(page).click();
+    await pressNewEntry(page);
     await expect(
       page.getByRole('dialog', { name: 'Nieuw artikel' }).getByTestId('side-choice').locator('input'),
     ).toBeChecked();

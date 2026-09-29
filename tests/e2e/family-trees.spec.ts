@@ -7,7 +7,7 @@ import {
   editCase,
   fillWhenReady,
   newCaseFamilyTree,
-  newEntryButton,
+  pressNewEntry,
   signIn,
   signUp,
 } from './helpers';
@@ -598,7 +598,7 @@ test('een Familie wijst naar zijn stamboom, en de stamboom zegt van wie hij is',
   const treeUrl = await newTree(page, treeName);
 
   await page.goto('/');
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   const soort = sheet.getByRole('radio', { name: 'Families', exact: true });
   await expect(soort).toBeVisible({ timeout: 20_000 });

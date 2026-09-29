@@ -9,6 +9,9 @@ import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import type { CharacterLite } from '@/lib/characters';
 import { fill } from '@/lib/words';
+import { Sheet } from '@/components/ui/Sheet';
+import { copyText } from '@/components/admin/InviteCode';
+import { makePassword } from '@/lib/beheer';
 import { relativeTime } from '@/lib/diff';
 import { setPasswordAction, toggleDisabledAction, toggleKeeperAction, type AdminState } from './actions';
 
@@ -141,7 +144,8 @@ function AssignedCharacters({ user }: { user: UserLite }) {
 
       <EntryPicker
         value={null}
-        placeholder={`Zoek de ${words.entry} van een ${words.character}…`}
+        // Review 4, L1: *het* artikel, en de zin komt uit lib/words.ts.
+        placeholder={fill(words.userCharacterZoek, { artikel: words.entry, karakter: words.character })}
         onPick={(entry) => {
           void call('POST', entry.id).then((ok) => {
             if (ok) ui.toast(`${entry.name} is toegewezen aan ${user.username}.`);
@@ -156,6 +160,10 @@ function AssignedCharacters({ user }: { user: UserLite }) {
 export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [passwordState, setPassword] = useActionState<AdminState, FormData>(setPasswordAction, {});
+  // §107: een gelukt wachtwoord sluit het blad; de zin staat daarna in de rij.
+  useEffect(() => {
+    if (passwordState.ok) setShowSetPassword(false);
+  }, [passwordState]);
   /*
    * §89: Keepers are equals. Nobody sets another Keeper's password or switches
    * them off — the server refuses it (`admin/actions.ts`), and this only stops
@@ -223,7 +231,8 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
           <button
             type="button"
             className="btn btn-small btn-ghost"
-            onClick={() => setShowSetPassword((v) => !v)}
+            aria-haspopup="dialog"
+            onClick={() => setShowSetPassword(true)}
           >
             Nieuw wachtwoord instellen
           </button>
@@ -237,7 +246,11 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
         {!isSelf && !otherKeeper && (
           <form action={toggleDisabledAction}>
             <input type="hidden" name="userId" value={user.id} />
-            <button type="submit" className="btn btn-small btn-ghost">
+            {/* Review 4, L4: de gevaarlijkste van de drie ziet er ook zo uit. */}
+            <button
+              type="submit"
+              className={`btn btn-small btn-ghost${user.isDisabled ? '' : ' btn-gevaar'}`}
+            >
               {user.isDisabled ? 'Inschakelen' : 'Uitschakelen'}
             </button>
           </form>
@@ -249,30 +262,106 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
       <AssignedCharacters user={user} />
 
       {showSetPassword && !otherKeeper && (
-        <form action={setPassword} className="row-wrap" style={{ marginTop: '0.5rem', maxWidth: 420 }}>
-          <input type="hidden" name="userId" value={user.id} />
-          {/* §90: a real label, and the caret already in the box — a
-              placeholder alone is gone the moment you start typing. */}
-          <label className="label" htmlFor={`new-password-${user.id}`} style={{ flexBasis: '100%', margin: 0 }}>
-            {fill(ui.words.adminNewPasswordFor, { naam: user.username })}
-          </label>
+        <PasswordSheet
+          user={user}
+          state={passwordState}
+          action={setPassword}
+          onClose={() => setShowSetPassword(false)}
+        />
+      )}
+      {passwordState.error && !showSetPassword && <p className="error-note small">{passwordState.error}</p>}
+      {passwordState.ok && <p className="small">{passwordState.ok}</p>}
+    </li>
+  );
+}
+
+/**
+ * §107: *Nieuw wachtwoord* is een blad, geen vak dat onder de rij openvalt.
+ *
+ * Het vak stond onder de karakters van de speler, op de telefoon twee
+ * schermen onder de knop die het opende. Een blad staat waar je kijkt, zegt
+ * voor wie het is, zet de caret in het vak (`data-autofocus`, §101), kan een
+ * wachtwoord verzinnen dat je kunt voorlezen, en kopieert het — want na
+ * *Instellen* kan niemand het nog zien (§89).
+ */
+function PasswordSheet({
+  user,
+  state,
+  action,
+  onClose,
+}: {
+  user: UserLite;
+  state: AdminState;
+  action: (formData: FormData) => void;
+  onClose: () => void;
+}) {
+  const ui = useUi();
+  const [value, setValue] = useState('');
+  const boxRef = useRef<HTMLInputElement>(null);
+  const headingId = `password-sheet-${user.id}`;
+  return (
+    <Sheet onClose={onClose} labelledBy={headingId}>
+      <form action={action} className="wachtwoord-blad" data-testid="wachtwoord-blad">
+        <input type="hidden" name="userId" value={user.id} />
+        <h2 id={headingId} style={{ margin: 0 }}>
+          {fill(ui.words.adminNewPasswordFor, { naam: user.username })}
+        </h2>
+        <p className="small muted" style={{ margin: 0 }}>
+          {fill(ui.words.wachtwoordUitleg, { naam: user.username })}
+        </p>
+        <label className="visually-hidden" htmlFor={`new-password-${user.id}`}>
+          {fill(ui.words.adminNewPasswordFor, { naam: user.username })}
+        </label>
+        <div className="wachtwoord-rij">
           <input
             id={`new-password-${user.id}`}
+            ref={boxRef}
             className="input"
             name="password"
             type="text"
             placeholder="Nieuw wachtwoord (minstens 8 tekens)"
             autoComplete="off"
-            autoFocus
-            style={{ flex: '1 1 12rem', width: 'auto' }}
+            spellCheck={false}
+            autoCapitalize="none"
+            data-autofocus
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
           />
-          <button className="btn btn-small" type="submit">
+        </div>
+        <div className="wachtwoord-knoppen">
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            onClick={() => {
+              setValue(makePassword());
+              requestAnimationFrame(() => boxRef.current?.select());
+            }}
+          >
+            <Icon name="dice" size={14} />
+            {ui.words.wachtwoordMaak}
+          </button>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            disabled={!value}
+            onClick={() => {
+              void copyText(value).then((ok) =>
+                ui.toast(ok ? ui.words.wachtwoordGekopieerd : ui.words.kopieerMislukt, undefined, {
+                  key: `wachtwoord:${user.id}`,
+                }),
+              );
+            }}
+          >
+            <Icon name="note" size={14} />
+            {ui.words.kopieer}
+          </button>
+          <div className="spacer" />
+          <button className="btn btn-small btn-primary" type="submit" disabled={value.trim().length === 0}>
             Instellen
           </button>
-        </form>
-      )}
-      {passwordState.error && <p className="error-note small">{passwordState.error}</p>}
-      {passwordState.ok && <p className="small">{passwordState.ok}</p>}
-    </li>
+        </div>
+        {state.error && <p className="error-note small" style={{ margin: 0 }}>{state.error}</p>}
+      </form>
+    </Sheet>
   );
 }

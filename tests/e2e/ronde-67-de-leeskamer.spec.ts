@@ -258,7 +258,8 @@ test.describe('§104 de leeskamer', () => {
 
     // Zonder omslag: geen figuur, het icoon van de soort staat bij de titel.
     await page.goto('/e/middelburg');
-    const first = page.locator('.entry-body-block .ProseMirror p').first();
+    // Golf J (j4): wacht op de editor zelf, niet op de tekst van de eerste verf.
+    const first = page.locator('.entry-body-block .ProseMirror:not(.vooraf-tekst) p').first();
     await expect(first).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.entry-figure')).toHaveCount(0);
     expect((await first.boundingBox())!.y).toBeLessThan(700);

@@ -17,6 +17,8 @@ import {
 import { readListFilters, wikiFilterGroups, WIKI_SORTS } from '@/lib/entries/browseFilters';
 import type { ListParams } from '@/lib/listParams';
 import { fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { ArtikelDeur } from '@/components/eerste-keer/Deuren';
 import { moreHref, readPagina, remaining } from '@/lib/wiki/pagina';
 
 export const dynamic = 'force-dynamic';
@@ -81,16 +83,19 @@ export default async function WikiAllesPage({ searchParams }: { searchParams: Pr
         moreLabel={words.wikiMoreKinds}
       />
 
-      <SortFilterBar
-        sorts={WIKI_SORTS}
-        defaultSort="recent"
-        groups={wikiFilterGroups(tags, user, filters.tag)}
-        summary={
-          left
-            ? fill(words.listShownOf, { n: String(entries.length), totaal: String(matches.length), artikelen: words.entryPlural })
-            : `${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`
-        }
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(matches.length > 0 || Boolean(filters.tag || filters.mine || filters.restricted || filters.onMap || filters.visibility)) && (
+        <SortFilterBar
+          sorts={WIKI_SORTS}
+          defaultSort="recent"
+          groups={wikiFilterGroups(tags, user, filters.tag)}
+          summary={
+            left
+              ? fill(words.listShownOf, { n: String(entries.length), totaal: String(matches.length), artikelen: words.entryPlural })
+              : `${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`
+          }
+        />
+      )}
 
       {/* §104 (golf H, T1): the same Lijst/Kaarten as a soort's list — one line
           per artikel on a phone, and the reader's choice remembered for both. */}
@@ -113,11 +118,23 @@ export default async function WikiAllesPage({ searchParams }: { searchParams: Pr
           )}
         </>
       ) : (
-        <div className="empty">
-          {filters.tag || filters.mine || filters.restricted || filters.onMap || filters.visibility
-            ? 'Niets voldoet aan deze filters.'
-            : 'Daaronder is nog niets opgeborgen.'}
-        </div>
+        // §106: één familie van lege staten — status, één regel, één deur.
+        filters.tag || filters.mine || filters.restricted || filters.onMap || filters.visibility ? (
+          <LegeStaat icon="filter" zin={words.emptyFilter} soort="filter">
+            <Link className="btn btn-small" href="/wiki/alles">
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon="book"
+            zin={words.emptyAll}
+            uitleg={fill(words.emptyWikiWhy, { artikel: words.entry })}
+            soort="alles"
+          >
+            <ArtikelDeur label={fill(words.emptyWrite, { artikel: words.entry })} />
+          </LegeStaat>
+        )
       )}
     </div>
   );

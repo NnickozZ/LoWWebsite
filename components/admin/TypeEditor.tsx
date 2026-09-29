@@ -1,11 +1,23 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
+import { Cover } from '@/components/Cover';
+import { useReportSave, type SaveReport } from '@/components/live/saveRegister';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { slugify } from '@/lib/slug';
-import { BORDER_OPTIONS } from '@/components/borders';
+import { BORDER_OPTIONS, borderClass } from '@/components/borders';
 import { PageBlocksEditor, type TypeLite } from '@/components/admin/PageBlocksEditor';
+import { SoortKiezer } from '@/components/admin/SoortKiezer';
+import { useNietBewaard } from '@/components/admin/NietBewaard';
 import { FIELD_KINDS } from '@/lib/fieldKinds';
 // §66/§67: the roles and their Dutch words come from one place, so a role added
 // there turns up in this select on its own. `lib/families/roles.ts` is pure —
@@ -17,7 +29,18 @@ import {
   type PageBlock,
   type TypeText,
 } from '@/lib/pageBlocks';
-import { capitalise, type Words } from '@/lib/words';
+import { capitalise, fill, type Words } from '@/lib/words';
+import {
+  SOORT_ICONEN,
+  SOORT_KLEUREN,
+  FIELD_KIND_SHORT,
+  choicelessFields,
+  countTypeChanges,
+  fieldHasMore,
+  namelessFields,
+  othersWithIcon,
+  type SoortStaat,
+} from '@/lib/beheer';
 import { claimNewType, onNewType } from './newType';
 import type { FieldDef, FieldKind } from '@/lib/db/schema';
 import type { FieldRole } from '@/lib/families/types';
@@ -28,30 +51,11 @@ import {
   type AdminState,
 } from '@/app/(app)/admin/actions';
 
-const ICONS = [
-  'person',
-  'badge',
-  'pin',
-  'box',
-  'magnifier',
-  'eye',
-  'flag',
-  'calendar',
-  'book',
-  'notebook',
-  'file',
-  'folder',
-  'board',
-  'clock',
-  'shield',
-  'lock',
-];
-
 /**
  * §80: wat het archief van een rij in het veldenlijstje onthoudt zolang dit
  * scherm openstaat. Zie de lange uitleg bij `meta` in `TypeEditor`.
  */
-type FieldMeta = { fresh: boolean; keyTouched: boolean };
+type FieldMeta = { fresh: boolean; keyTouched: boolean; open: boolean };
 
 /**
  * §80: een label wordt een sleutel — en **precies zoals `cleanFields` het
@@ -99,6 +103,30 @@ function cleanKeyInput(typed: string): string {
  * value in the JSON, so putting it back brings the value back with it, and the
  * same is true of a hand-filled list: its values are filed under the block's
  * own key, which is assigned once and never changes when the heading does.
+ *
+ * §107 (golf i3): één scherm in plaats van één kolom van 3.755 px.
+ *
+ *   - **Twee kolommen op een computer.** Links wat je het vaakst doet: de naam,
+ *     het uiterlijk en de velden; rechts wat een soort *is*: het adres, de
+ *     gewoontes, de pagina en haar woorden. Op een telefoon onder elkaar, de
+ *     velden eerst.
+ *   - **Een veld is één rij.** Naam, soort, sleutel, ↑ ↓ en weg. Wat een veld
+ *     nog meer vraagt (keuzes, doel-soorten, een rol) staat als één regel
+ *     samenvatting eronder en klapt open met een knop — een nieuw veld en een
+ *     veld dat net van soort wisselde staan open. Herordenen gaat met knoppen,
+ *     niet met slepen (WCAG 2.5.7).
+ *   - **Pictogram en kleur** achter één knop die zelf het voorbeeld is, met de
+ *     chip en de kaart zoals een lezer ze ziet en een zachte zin als een
+ *     andere soort hetzelfde teken draagt (D17).
+ *   - **Opslaan blijft een knop**, in een voet die plakt en telt wat er nog
+ *     niet bewaard is (Ctrl/⌘ S doet hetzelfde). Geen autosave: `saveType`
+ *     schrijft de hele soort in één keer — velden, pagina, woorden — en wat
+ *     het schrijft staat meteen op elk artikel van die soort, bij elke
+ *     speler. Een half getypte keuzelijst of een veld zonder naam hoort daar
+ *     niet tussendoor te landen, een nieuw adres vraagt eerst (§11), en twee
+ *     velden met één sleutel houden de knop tegen (§80). Het *woord* over
+ *     opslaan staat wel op de ene plek van §100: `useReportSave` meldt zich
+ *     bij `SaveStatus` in de schil zolang de editor open is.
  */
 export function TypeEditor({
   type,
@@ -139,9 +167,12 @@ export function TypeEditor({
   const [pageText, setPageText] = useState<TypeText>(type.pageText);
   const [icon, setIcon] = useState(type.icon);
   const [colour, setColour] = useState(type.colour);
+  const [border, setBorder] = useState(type.border);
   const [prefixDefault, setPrefixDefault] = useState(type.prefixDefault);
   const [keeperMade, setKeeperMade] = useState(type.keeperMade);
   const [oneOfAKind, setOneOfAKind] = useState(type.oneOfAKind);
+  const [open, setOpen] = useState(false);
+  const [looksOpen, setLooksOpen] = useState(false);
 
   /*
    * §80: welke rij in dit lijstje is *nieuw in deze bewerking*?
@@ -164,10 +195,77 @@ export function TypeEditor({
    * archief zijn mond — een sleutel die je zelf hebt ingetypt (`plek`, `prijs`,
    * `effect`) mag niet door de volgende letter in het label overschreven
    * worden.
+   *
+   * §107: en `open`, of de instellingen van de rij openstaan. Loopt om dezelfde
+   * reden op index mee.
    */
   const [meta, setMeta] = useState<FieldMeta[]>(() =>
-    type.fields.map(() => ({ fresh: false, keyTouched: false })),
+    type.fields.map(() => ({ fresh: false, keyTouched: false, open: false })),
   );
+
+  /*
+   * §107: wat er bij de laatste opslag stond — de nul van de telling in de voet.
+   * Na een geslaagde opslag wordt het wat er toen gepost werd, niet wat de
+   * server terugstuurt: de editor houdt zijn eigen staat (§11), en de telling
+   * gaat over wat déze hand nog niet bewaard heeft.
+   */
+  const snapshot = (): SoortStaat => ({
+    label,
+    slug,
+    icon,
+    colour,
+    border,
+    prefixDefault,
+    keeperMade,
+    oneOfAKind,
+    fields,
+    blocks,
+    pageText,
+  });
+  const [baseline, setBaseline] = useState<SoortStaat>(() => ({
+    label: type.label,
+    slug: type.slug,
+    icon: type.icon,
+    colour: type.colour,
+    border: type.border,
+    prefixDefault: type.prefixDefault,
+    keeperMade: type.keeperMade,
+    oneOfAKind: type.oneOfAKind,
+    fields: type.fields,
+    blocks: type.blocks,
+    pageText: type.pageText,
+  }));
+  const posted = useRef<SoortStaat | null>(null);
+  useEffect(() => {
+    if (save.ok && posted.current) setBaseline(posted.current);
+  }, [save]);
+  const dirty = countTypeChanges(baseline, snapshot());
+  const nameless = namelessFields(fields);
+  const choiceless = choicelessFields(fields);
+
+  // §100/§107: het ene opslaan-woord in de schil, zolang deze soort open is.
+  const report: SaveReport | null = !open
+    ? null
+    : saving
+      ? 'saving'
+      : save.error
+        ? 'error'
+        : save.ok && !dirty
+          ? 'saved'
+          : 'idle';
+  useReportSave(report, save.error ?? null);
+  // §107, golf J: Beheer houdt dit paneel gemount zolang hier iets niet bewaard is.
+  useNietBewaard(dirty);
+
+  // §107: wie de pagina verlaat met iets dat niet bewaard is, krijgt de vraag van de browser.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   /*
    * §11: a rename of the *address* is not an ordinary save. It moves every
@@ -183,11 +281,13 @@ export function TypeEditor({
    * §96: de soort die je net maakte klapt open, schuift in beeld en zet de
    * focus op *Veld toevoegen* — het eerste wat je met een lege soort doet.
    * Zie `components/admin/newType.ts` voor waarom het id op twee manieren
-   * binnenkomt.
+   * binnenkomt. §107: en die knop typt meteen (zie `typeToAdd`).
    */
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  /** Golf J: de volgende `toggle` komt van een tik op de kop, niet van `reveal`. */
+  const openedByHand = useRef<false | 'hand' | 'toets'>(false);
   const addFieldRef = useRef<HTMLButtonElement>(null);
-  const focusField = useRef<number | null>(null);
+  const focusField = useRef<{ index: number; caretAtEnd: boolean } | null>(null);
   useEffect(() => {
     const reveal = () => {
       const details = detailsRef.current;
@@ -210,12 +310,15 @@ export function TypeEditor({
 
   // §96: a field just added gets the caret in its name, where the typing starts.
   useEffect(() => {
-    if (focusField.current === null) return;
-    detailsRef.current
-      ?.querySelector<HTMLInputElement>(`[data-field-name="${focusField.current}"]`)
-      ?.focus();
+    const want = focusField.current;
+    if (want === null) return;
+    const box = detailsRef.current?.querySelector<HTMLInputElement>(`[data-field-name="${want.index}"]`);
+    if (box) {
+      box.focus();
+      if (want.caretAtEnd) box.setSelectionRange(box.value.length, box.value.length);
+    }
     focusField.current = null;
-  }, [fields.length]);
+  });
 
   const slugChanged = Boolean(slug.trim()) && slugify(slug) !== type.slug;
   // The nudge that fixes Relieken and Voorwerpen: the seed could rename the
@@ -226,6 +329,7 @@ export function TypeEditor({
   async function guardSubmit(event: FormEvent<HTMLFormElement>) {
     if (confirmed.current) {
       confirmed.current = false;
+      posted.current = snapshot();
       return;
     }
     // The delete button submits this same form with its own action; it has
@@ -246,7 +350,10 @@ export function TypeEditor({
       return;
     }
 
-    if (!slugChanged) return;
+    if (!slugChanged) {
+      posted.current = snapshot();
+      return;
+    }
 
     event.preventDefault();
     const yes = await ui.confirm({
@@ -277,6 +384,10 @@ export function TypeEditor({
     );
   }
 
+  function patchMeta(index: number, patch: Partial<FieldMeta>) {
+    setMeta((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
   /**
    * §80: het label van een veld — en, zolang het veld nieuw is en niemand de
    * sleutel heeft aangeraakt, de sleutel eronder.
@@ -292,8 +403,14 @@ export function TypeEditor({
   }
 
   function setFieldKey(index: number, typed: string) {
-    setMeta((current) => current.map((row, i) => (i === index ? { ...row, keyTouched: true } : row)));
+    patchMeta(index, { keyTouched: true });
     patchField(index, { key: cleanKeyInput(typed) });
+  }
+
+  /** §107: een andere soort veld die iets vraagt, klapt zijn instellingen open. */
+  function setFieldKind(index: number, kind: FieldKind) {
+    patchField(index, { kind });
+    if (fieldHasMore(kind)) patchMeta(index, { open: true });
   }
 
   /**
@@ -325,13 +442,42 @@ export function TypeEditor({
     setMeta((current) => current.filter((_, i) => i !== index));
   }
 
-  function addField() {
-    focusField.current = fields.length;
+  /** §107: een veld erbij, van de gevraagde soort en eventueel met de eerste letter al getypt. */
+  function addField(kind: FieldKind = 'text', typed = '') {
+    focusField.current = { index: fields.length, caretAtEnd: Boolean(typed) };
     setFields((current) => [
       ...current,
-      { key: `veld_${current.length + 1}`, label: '', kind: 'text' },
+      {
+        key: fieldKeyFrom(typed) || `veld_${current.length + 1}`,
+        label: typed,
+        kind,
+        ...(kind === 'select' || kind === 'multiselect' ? { options: [] } : {}),
+      },
     ]);
-    setMeta((current) => [...current, { fresh: true, keyTouched: false }]);
+    setMeta((current) => [...current, { fresh: true, keyTouched: false, open: fieldHasMore(kind) }]);
+  }
+
+  /**
+   * §107: *Veld toevoegen* typt meteen. Staat de focus op de knop (zoals na
+   * *Soort aanmaken*), dan maakt de eerste letter het veld en staat die letter
+   * al in zijn naam.
+   */
+  function typeToAdd(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey || event.key === ' ') return;
+    event.preventDefault();
+    addField('text', event.key);
+  }
+
+  /** §107: Enter in de naam van een veld gaat naar het volgende, of maakt er een. */
+  function enterInName(event: KeyboardEvent<HTMLInputElement>, index: number) {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    if (index + 1 < fields.length) {
+      detailsRef.current?.querySelector<HTMLInputElement>(`[data-field-name="${index + 1}"]`)?.focus();
+      return;
+    }
+    if (!fields[index]?.label.trim()) return;
+    addField('text');
   }
 
   /**
@@ -347,494 +493,580 @@ export function TypeEditor({
       .filter((key, index, all) => key && all.indexOf(key) !== index),
   );
 
+  const kindLabel = (kind: FieldKind) => FIELD_KINDS.find((option) => option.kind === kind)?.label ?? kind;
+  const sharing = othersWithIcon(types, type.slug, icon);
+  const takenBy = new Map<string, string[]>();
+  for (const other of types) {
+    if (other.slug === type.slug || !other.icon) continue;
+    takenBy.set(other.icon, [...(takenBy.get(other.icon) ?? []), other.label]);
+  }
+
   return (
-    <details className="section admin-type" ref={detailsRef} data-type-id={type.id}>
-      <summary>
-        <Icon name={icon} size={15} style={{ color: colour }} />
-        {type.label}
-        <span className="muted tiny" style={{ marginLeft: '0.4rem' }}>
-          {type.entryCount} {type.entryCount === 1 ? 'artikel' : 'artikelen'}
+    <details
+      className="section admin-type"
+      ref={detailsRef}
+      data-type-id={type.id}
+      onToggle={(event) => {
+        const details = event.currentTarget as HTMLDetailsElement;
+        setOpen(details.open);
+        /*
+         * §107, golf J: op een telefoon schuift een soort die je met de hand
+         * openklapt naar boven, zodat de kop plakt en de velden het scherm
+         * krijgen — in plaats van onder de uitleg van het paneel en het vak
+         * voor een nieuwe soort te beginnen (rij 27 van de meting: ½ scroll).
+         * Alleen met de hand: een nieuwe soort schuift al naar *Veld toevoegen*.
+         */
+        if (details.open && openedByHand.current && window.matchMedia?.('(max-width: 767px)').matches) {
+          // §102: een toetsenbordactie beweegt niet; minder beweging ook niet.
+          const still =
+            openedByHand.current === 'toets' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          requestAnimationFrame(() => details.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' }));
+        }
+        openedByHand.current = false;
+      }}
+    >
+      {/*
+        Review 4, M11: een soort is een indexrij, zoals de index van Beheer:
+        het teken in de soortkleur, de naam in de serif, het getal gedempt en
+        een chevron. Open plakt de rij bovenaan, als kop van de editor.
+      */}
+      <summary
+        className="soort-rij"
+        onClick={(event) => {
+          openedByHand.current = event.detail === 0 ? 'toets' : 'hand';
+        }}
+      >
+        <span className="soort-rij-teken" style={{ ['--soort' as string]: colour } as CSSProperties} aria-hidden="true">
+          <Icon name={icon} size={16} />
         </span>
+        <span className="soort-rij-naam">{type.label}</span>
+        <span className="soort-rij-tal">
+          {type.entryCount} {type.entryCount === 1 ? words.entry : words.entryPlural}
+        </span>
+        {dirty > 0 && (
+          <span className="soort-kop-dirty" aria-hidden="true" title={fill(words.soortDirty, { n: String(dirty) })} />
+        )}
+        <Icon name="chevron" size={15} className="soort-rij-pijl" />
       </summary>
 
       <form
         ref={formRef}
         action={saveAction}
         onSubmit={guardSubmit}
-        className="stack"
-        style={{ padding: '0.7rem 0 1rem' }}
+        onKeyDown={(event) => {
+          // §107: Ctrl/⌘ S slaat de soort op, zoals overal waar een mens tekst bewaart.
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+            event.preventDefault();
+            formRef.current?.requestSubmit();
+          }
+        }}
+        className="soort-form"
       >
         <input type="hidden" name="typeId" value={type.id} />
         <input type="hidden" name="fields" value={JSON.stringify(fields)} />
         <input type="hidden" name="blocks" value={JSON.stringify(blocks)} />
         <input type="hidden" name="pageText" value={JSON.stringify(pageText)} />
+        <input type="hidden" name="icon" value={icon} />
+        <input type="hidden" name="colour" value={colour} />
+        <input type="hidden" name="border" value={border} />
 
-        <div className="row-wrap">
-          <span style={{ flex: '1 1 12rem' }}>
-            <label className="label" htmlFor={`label-${type.id}`}>
-              Naam
-            </label>
-            <input
-              id={`label-${type.id}`}
-              className="input"
-              name="label"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-            />
-          </span>
-          {/* §11: the address, beside the name, because they are one thing said
-              twice — and the line under it is the URL it actually makes. */}
-          <span style={{ flex: '1 1 12rem' }}>
-            <label className="label" htmlFor={`slug-${type.id}`}>
-              Adres (slug)
-            </label>
-            <input
-              id={`slug-${type.id}`}
-              className="input"
-              name="slug"
-              value={slug}
-              spellCheck={false}
-              autoCapitalize="none"
-              onChange={(event) => setSlug(event.target.value)}
-            />
-            <span className="tiny muted" style={{ display: 'block', marginTop: '0.2rem' }}>
-              /wiki/{slug.trim() ? slugify(slug) : '…'}
-            </span>
-            {/*
-              The nudge, not the fix: `Relieken` still lives at `object` and
-              `Voorwerpen` at `item`, because the seed could rename the words
-              and not the addresses. Nothing is renamed on its own — moving
-              every artikel of a soort and breaking every old link is a thing a
-              person decides. This only says so, and fills in the answer.
-            */}
-            {mismatched && (
-              <span className="tiny" style={{ display: 'block', marginTop: '0.3rem' }}>
-                Het adres van deze soort (<code>{slug}</code>) hoort niet meer bij de naam (
-                {label.trim()}).{' '}
-                <button
-                  type="button"
-                  className="btn btn-small btn-ghost"
-                  onClick={() => setSlug(suggestion)}
-                >
-                  <Icon name="edit" size={13} />
-                  {suggestion} gebruiken
-                </button>
+        <div className="soort-grid">
+          <div className="soort-hoofd">
+            <div className="soort-naamrij">
+              <span className="soort-naam">
+                <label className="label" htmlFor={`label-${type.id}`}>
+                  Naam
+                </label>
+                <input
+                  id={`label-${type.id}`}
+                  className="input"
+                  name="label"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                />
               </span>
-            )}
-          </span>
-          <span>
-            <label className="label" htmlFor={`colour-${type.id}`}>
-              Kleur
-            </label>
-            <input
-              id={`colour-${type.id}`}
-              className="input"
-              name="colour"
-              type="color"
-              value={colour}
-              onChange={(event) => setColour(event.target.value)}
-              style={{ width: 72, padding: '0.2rem' }}
-            />
-          </span>
-          <span style={{ flex: '1 1 10rem' }}>
-            <label className="label" htmlFor={`border-${type.id}`}>
-              Rand van de kaart
-            </label>
-            <select
-              id={`border-${type.id}`}
-              className="select"
-              name="border"
-              defaultValue={type.border}
-            >
-              {BORDER_OPTIONS.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </span>
-        </div>
-
-        {/*
-          §49: this used to say *where* a soort could be made ("alleen in een
-          dossier"), which was two rules in one tick: a gate on the maker, and a
-          dossier printed in front of every name. The gate is gone — every soort
-          is makeable everywhere again — and what is left is the habit: what the
-          tickbox in the "nieuw artikel"-venster starts on. Each artikel decides
-          for itself afterwards, on its own page, so changing this never touches
-          anything that already exists.
-        */}
-        <div>
-          <span className="label">Naam in de wiki</span>
-          <input type="hidden" name="prefixDefault" value={prefixDefault ? '1' : ''} />
-          <div className="row-wrap">
-            <button
-              type="button"
-              aria-pressed={prefixDefault}
-              className={`chip chip-selectable${prefixDefault ? ' chip-active' : ''}`}
-              onClick={() => setPrefixDefault((was) => !was)}
-            >
-              <Icon name={prefixDefault ? 'folder' : 'file'} size={13} />
-              {prefixDefault
-                ? `Standaard het ${words.case} voor de naam`
-                : `Standaard geen ${words.case} voor de naam`}
-            </button>
-            <span className="tiny muted" style={{ flex: '1 1 14rem' }}>
-              {prefixDefault
-                ? `Maak je er een in een ${words.case}, dan staat het vinkje "${capitalise(words.case)} voor de naam" al aan: in de wiki komen ze te staan als "${capitalise(words.case)}: naam". Elk artikel kan dat op zijn eigen pagina aan- en uitzetten.`
-                : `Maak je er een in een ${words.case}, dan staat het vinkje "${capitalise(words.case)} voor de naam" uit: in de wiki heten ze gewoon hoe ze heten. Elk artikel kan dat op zijn eigen pagina alsnog aanzetten.`}
-            </span>
-          </div>
-        </div>
-
-        {/*
-          §80: de twee vinkjes die van een soort huisraad maken.
-          Ze staan bij elkaar omdat ze samen één vraag zijn — *van wie is dit
-          ding en hoeveel zijn er van* — en ze staan hier, bij de andere
-          gewoontes van een soort, omdat het geen opmaak is maar een regel.
-          Waarom ze wél patchbaar zijn waar `caseOnly` dat niet is, staat in
-          `TypePatch` in `lib/admin/types.ts`.
-        */}
-        <div>
-          <span className="label">Wat voor soort dit is</span>
-          <div className="stack" style={{ gap: '0.35rem' }}>
-            <label className="row-wrap" style={{ gap: '0.45rem', alignItems: 'center' }}>
-              <input
-                type="checkbox"
-                name="keeperMade"
-                value="1"
-                data-testid="soort-keeper-made"
-                checked={keeperMade}
-                onChange={(event) => setKeeperMade(event.target.checked)}
-              />
-              <span className="small">{words.typeKeeperMade}</span>
-            </label>
-            <p className="tiny muted" style={{ margin: '0 0 0.2rem 1.5rem', maxWidth: '44rem' }}>
-              Een speler kan er geen maken, en het staat niet in zijn lijstje ‘nieuw’. Alleen zo’n
-              soort komt in de {words.catalogue.toLowerCase()} van een {words.room} terecht.
-            </p>
-            <label className="row-wrap" style={{ gap: '0.45rem', alignItems: 'center' }}>
-              <input
-                type="checkbox"
-                name="oneOfAKind"
-                value="1"
-                data-testid="soort-one-of-a-kind"
-                checked={oneOfAKind}
-                onChange={(event) => setOneOfAKind(event.target.checked)}
-              />
-              <span className="small">{words.typeOneOfAKind}</span>
-            </label>
-            <p className="tiny muted" style={{ margin: '0 0 0 1.5rem', maxWidth: '44rem' }}>
-              Er is er één van in de wereld: ligt hij in de {words.room} van de één, dan kan hij
-              nergens anders liggen. Laat dit uit voor {words.furnishingPlural} waarvan er meer
-              zijn — twee onderzoekers mogen dezelfde lamp hebben.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <span className="label">Pictogram</span>
-          <input type="hidden" name="icon" value={icon} />
-          <div className="row-wrap">
-            {ICONS.map((name) => (
+              {/* §107: de knop is zelf het voorbeeld — het teken in de kleur, met de naam. */}
               <button
-                key={name}
                 type="button"
-                aria-label={name}
-                aria-pressed={icon === name}
-                className={`chip chip-selectable${icon === name ? ' chip-active' : ''}`}
-                onClick={() => setIcon(name)}
+                className="soort-uiterlijk-knop"
+                aria-expanded={looksOpen}
+                aria-controls={`uiterlijk-${type.id}`}
+                data-testid="soort-uiterlijk"
+                onClick={() => setLooksOpen((was) => !was)}
+                style={{ ['--soort' as string]: colour } as CSSProperties}
               >
-                <Icon name={name} size={16} />
+                <span className="soort-uiterlijk-teken" aria-hidden="true">
+                  <Icon name={icon} size={20} />
+                </span>
+                <span className="soort-uiterlijk-woord">{words.soortUiterlijk}</span>
+                <Icon name="chevron" size={13} className="soort-chevron" />
               </button>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <div>
-          <span className="label">Velden</span>
-          {/*
-            §80: de ene zin die dit scherm tot nu toe niet zei.
-            `lib/kamers/shape.ts` vraagt een artikel of het een veld met de
-            sleutel `plek` draagt — niet van welke soort het is — en dat is met
-            opzet: zo mag de Keeper *Boeken*, *Relieken* en *Huisraad* maken en
-            passen ze alle drie in een kamer. Alleen was er nergens een vakje
-            om die sleutel te zetten, dus moesten §79 en §80 allebei hun soort
-            zaaien in een migratie. Dit vakje is die weg.
-          */}
-          <p className="tiny muted" style={{ margin: '0 0 0.45rem', maxWidth: '46rem' }}>
-            De <strong>{words.fieldKey.toLowerCase()}</strong> is de naam waaronder het antwoord in
-            het archief staat. Bij een <em>nieuw</em> veld kies je hem zelf — zo maak je een soort
-            die in een {words.room} past (<code>plek</code>, <code>prijs</code>,{' '}
-            <code>effect</code>). Bij een veld dat er al is staat hij vast en kun je hem niet meer
-            wijzigen: elk antwoord dat er al onder staat zou zijn veld kwijtraken.
-          </p>
-          {!fields.length && (
-            <p className="tiny muted" style={{ margin: 0 }}>
-              Deze soort heeft geen extra velden. Dat mag.
-            </p>
-          )}
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {fields.map((field, index) => (
-              <li key={`${field.key}-${index}`} className="admin-field-row">
-                <input
-                  className="input"
-                  aria-label={`Naam van veld ${index + 1}`}
-                  data-field-name={index}
-                  value={field.label}
-                  onChange={(event) => setFieldLabel(index, event.target.value)}
-                  style={{ flex: '1 1 8rem', minHeight: 38 }}
-                />
-                {/*
-                  §80: de sleutel. Een invulvak zolang het veld in déze
-                  bewerking is bijgekomen, en daarna nooit meer — zie de zin
-                  boven de lijst, en `meta` voor hoe "nieuw" wordt beslist.
-                */}
-                {meta[index]?.fresh ? (
-                  <input
-                    className="input"
-                    data-testid="veld-sleutel"
-                    data-field-index={index}
-                    aria-label={`${words.fieldKey} van veld ${index + 1}`}
-                    placeholder={words.fieldKey}
-                    value={field.key}
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    onChange={(event) => setFieldKey(index, event.target.value)}
-                    style={{ flex: '0 1 9rem', minHeight: 38, fontFamily: 'var(--mono, monospace)' }}
-                  />
-                ) : (
-                  <code
-                    className="tiny muted"
-                    data-testid="veld-sleutel-vast"
-                    data-field-key={field.key}
-                    title={`${words.fieldKey}: ${field.key} — ligt vast`}
-                    style={{ flex: '0 1 9rem', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
-                  >
-                    {field.key}
-                  </code>
-                )}
-                <select
-                  className="select"
-                  aria-label={`Soort van veld ${index + 1}`}
-                  value={field.kind}
-                  onChange={(event) =>
-                    patchField(index, { kind: event.target.value as FieldKind })
-                  }
-                  style={{ flex: '0 1 12rem', minHeight: 38 }}
-                >
-                  {FIELD_KINDS.map((option) => (
-                    <option key={option.kind} value={option.kind}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {/* §38: a Meerkeuze is a Keuzelijst that takes more than one
-                    answer, so it is configured with the same box. */}
-                {(field.kind === 'select' || field.kind === 'multiselect') && (
-                  <input
-                    className="input"
-                    aria-label={`Keuzes van veld ${index + 1}`}
-                    placeholder="keuzes, met komma's"
-                    value={(field.options ?? []).join(', ')}
-                    onChange={(event) =>
-                      patchField(index, {
-                        options: event.target.value.split(',').map((option) => option.trim()),
-                      })
-                    }
-                    style={{ flex: '1 1 8rem', minHeight: 38 }}
-                  />
-                )}
-                {/* §51: a koppelingsveld may be aimed at a handful of soorten
-                    at once — "Leden" takes personen, onderzoekers én
-                    abnormaliteiten. Same control as the page builder's list
-                    block, because it is the same question. */}
-                {/* §66: en wát dit veld betekent in een stamboom. Leeg is het
-                    normale geval — een koppelingsveld is meestal geen
-                    verwantschap. Staat er wel een rol in, dan tekent elke
-                    stamboom de lijn en schrijft de server de andere kant erbij. */}
-                {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
-                  <div style={{ flex: '1 1 100%', order: 2 }}>
-                    <select
-                      className="select"
-                      aria-label={`Rol in een stamboom van veld ${index + 1}`}
-                      value={field.role ?? ''}
-                      onChange={(event) => setRole(index, event.target.value)}
-                      style={{ minHeight: 38 }}
-                    >
-                      <option value="">Rol in een stamboom: —</option>
-                      {FIELD_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          Rol in een stamboom: {ROLE_LABELS[role]}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="tiny muted" style={{ display: 'block', marginTop: '0.2rem' }}>
-                      Met een rol tekent elke stamboom deze lijn, en vult het archief de
-                      andere kant zelf in (Ouder ↔ Kind, Partner ↔ Partner, Broer of zus ↔
-                      Broer of zus). Verwant wordt wel getekend en niet gespiegeld.
-                    </span>
-                  </div>
-                )}
-                {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
-                  <div style={{ flex: '1 1 100%', order: 1 }}>
-                    {/*
-                      §96: negentien chips per koppelveld maakten van Personen
-                      een scherm van 298 bedieningselementen. Ze staan nu achter
-                      één kiezer die zegt wat er gekozen is.
-                    */}
-                    <TargetsPicker
-                      types={types}
-                      chosen={field.ofType ?? []}
-                      words={words}
-                      onChange={(ofType) => patchField(index, { ofType })}
-                    />
-                  </div>
-                )}
-                {/* §80: dezelfde sleutel als een ander veld. `cleanFields`
-                    houdt de eerste en laat deze vallen — stil, tot nu. */}
-                {Boolean(field.key) && clashing.has(field.key) && (
-                  <span
-                    className="error-note tiny"
-                    data-testid="veld-sleutel-botsing"
-                    data-field-key={field.key}
-                    style={{ flex: '1 1 100%', order: 3, margin: 0 }}
-                  >
-                    Er is al een veld met de {words.fieldKey.toLowerCase()} <code>{field.key}</code>
-                    . Zo opslaan bewaart alleen het bovenste van de twee.
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-small btn-ghost"
-                  aria-label={`Veld ${index + 1} omhoog`}
-                  onClick={() => move(index, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-small btn-ghost"
-                  aria-label={`Veld ${index + 1} omlaag`}
-                  onClick={() => move(index, 1)}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-small btn-ghost"
-                  aria-label={`Veld ${index + 1} verwijderen`}
-                  onClick={() => removeField(index)}
-                >
-                  <Icon name="trash" size={14} />
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button
-            ref={addFieldRef}
-            type="button"
-            className="btn btn-small"
-            style={{ marginTop: '0.4rem' }}
-            onClick={addField}
-          >
-            <Icon name="plus" size={15} />
-            Veld toevoegen
-          </button>
-        </div>
-
-        <PageBlocksEditor
-          blocks={blocks}
-          onChange={setBlocks}
-          types={types}
-          words={words}
-          idPrefix={`blk-${type.id}`}
-        />
-
-        <div>
-          <span className="label">De woorden van deze soort</span>
-          <p className="tiny muted" style={{ margin: '0 0 0.45rem' }}>
-            Een locatie vraagt iets anders dan een persoon. Laat leeg voor de vraag die overal
-            staat.
-          </p>
-          <div className="stack" style={{ gap: '0.45rem' }}>
-            <span>
-              <label className="tiny muted" htmlFor={`txt-desc-${type.id}`}>
-                De vraag onder de titel
-              </label>
-              <textarea
-                id={`txt-desc-${type.id}`}
-                className="textarea"
-                rows={2}
-                value={pageText.descriptionPlaceholder ?? ''}
-                placeholder={DEFAULT_DESCRIPTION_PLACEHOLDER}
-                onChange={(event) =>
-                  setPageText((current) => ({
-                    ...current,
-                    descriptionPlaceholder: event.target.value,
-                  }))
-                }
+            {looksOpen && (
+              <Uiterlijk
+                id={type.id}
+                label={label || type.label}
+                icon={icon}
+                colour={colour}
+                border={border}
+                sharing={sharing}
+                takenBy={takenBy}
+                words={words}
+                onIcon={setIcon}
+                onColour={setColour}
+                onBorder={setBorder}
               />
-            </span>
-            <span>
-              <label className="tiny muted" htmlFor={`txt-body-${type.id}`}>
-                De regel in het grote tekstvak
+            )}
+
+            <section className="soort-velden" aria-labelledby={`velden-${type.id}`}>
+              <h4 className="label" id={`velden-${type.id}`} style={{ margin: '0 0 0.2rem' }}>
+                Velden
+              </h4>
+              {/*
+                §80: de ene zin die dit scherm tot nu toe niet zei.
+                `lib/kamers/shape.ts` vraagt een artikel of het een veld met de
+                sleutel `plek` draagt — niet van welke soort het is — en dat is met
+                opzet: zo mag de Keeper *Boeken*, *Relieken* en *Huisraad* maken en
+                passen ze alle drie in een kamer. Alleen was er nergens een vakje
+                om die sleutel te zetten, dus moesten §79 en §80 allebei hun soort
+                zaaien in een migratie. Dit vakje is die weg.
+              */}
+              <p className="tiny muted soort-uitleg">
+                De <strong>{words.fieldKey.toLowerCase()}</strong> is waaronder het antwoord
+                bewaard wordt. Bij een nieuw veld kies je hem zelf (<code>plek</code>,{' '}
+                <code>prijs</code>, <code>effect</code> voor een {words.room}); daarna ligt hij vast.
+              </p>
+              {!fields.length && (
+                <p className="tiny muted" style={{ margin: 0 }}>
+                  Deze soort heeft geen extra velden. Dat mag.
+                </p>
+              )}
+              <ol className="veld-lijst">
+                {fields.map((field, index) => {
+                  const more = fieldHasMore(field.kind);
+                  const isOpen = Boolean(meta[index]?.open) && more;
+                  const detailId = `veld-${type.id}-${index}`;
+                  return (
+                    <li
+                      key={`${index}`}
+                      className="veld-rij"
+                      data-open={isOpen ? 'ja' : undefined}
+                      data-fresh={meta[index]?.fresh ? 'ja' : undefined}
+                    >
+                      <div className="veld-kop">
+                        <input
+                          className="input veld-naam"
+                          aria-label={`Naam van veld ${index + 1}`}
+                          data-field-name={index}
+                          value={field.label}
+                          onChange={(event) => setFieldLabel(index, event.target.value)}
+                          onKeyDown={(event) => enterInName(event, index)}
+                        />
+                        <select
+                          className="select veld-soort"
+                          aria-label={`Soort van veld ${index + 1}`}
+                          value={field.kind}
+                          onChange={(event) => setFieldKind(index, event.target.value as FieldKind)}
+                        >
+                          {/* Review 4, M11: korte namen, de koppelingen in één groep. */}
+                          {FIELD_KINDS.filter((option) => !FIELD_KIND_SHORT[option.kind]).map((option) => (
+                            <option key={option.kind} value={option.kind}>
+                              {option.label}
+                            </option>
+                          ))}
+                          <optgroup label={words.soortKoppelingNaar}>
+                            {FIELD_KINDS.filter((option) => FIELD_KIND_SHORT[option.kind]).map((option) => (
+                              <option key={option.kind} value={option.kind}>
+                                {FIELD_KIND_SHORT[option.kind]}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                        {/*
+                          §80: de sleutel. Een invulvak zolang het veld in déze
+                          bewerking is bijgekomen, en daarna nooit meer — zie de zin
+                          boven de lijst, en `meta` voor hoe "nieuw" wordt beslist.
+                        */}
+                        {meta[index]?.fresh ? (
+                          <input
+                            className="input veld-sleutel"
+                            data-testid="veld-sleutel"
+                            data-field-index={index}
+                            aria-label={`${words.fieldKey} van veld ${index + 1}`}
+                            placeholder={words.fieldKey}
+                            value={field.key}
+                            spellCheck={false}
+                            autoCapitalize="none"
+                            onChange={(event) => setFieldKey(index, event.target.value)}
+                          />
+                        ) : (
+                          <code
+                            className="tiny muted veld-sleutel"
+                            data-testid="veld-sleutel-vast"
+                            data-field-key={field.key}
+                            title={`${words.fieldKey}: ${field.key} — ligt vast`}
+                          >
+                            {field.key}
+                          </code>
+                        )}
+                        <span className="veld-knoppen">
+                          <button
+                            type="button"
+                            className="btn btn-small btn-ghost veld-knop"
+                            aria-label={`Veld ${index + 1} omhoog`}
+                            disabled={index === 0}
+                            onClick={() => move(index, -1)}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-small btn-ghost veld-knop"
+                            aria-label={`Veld ${index + 1} omlaag`}
+                            disabled={index === fields.length - 1}
+                            onClick={() => move(index, 1)}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-small btn-ghost veld-knop"
+                            aria-label={`Veld ${index + 1} verwijderen`}
+                            onClick={() => removeField(index)}
+                          >
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </span>
+                      </div>
+
+                      {more && (
+                        <button
+                          type="button"
+                          className="veld-samenvatting"
+                          aria-expanded={isOpen}
+                          aria-controls={detailId}
+                          onClick={() => patchMeta(index, { open: !isOpen })}
+                        >
+                          <Icon name="chevron" size={12} className="soort-chevron" />
+                          <span className="visually-hidden">
+                            {words.soortVeldMeer} ({kindLabel(field.kind)}):{' '}
+                          </span>
+                          <span className="veld-samenvatting-tekst">
+                            {isOpen ? words.soortVeldMeer : fieldSummary(field, types, words)}
+                          </span>
+                        </button>
+                      )}
+
+                      {isOpen && (
+                        <div className="veld-meer" id={detailId}>
+                          {/* §38: a Meerkeuze is a Keuzelijst that takes more than one
+                              answer, so it is configured with the same box. */}
+                          {(field.kind === 'select' || field.kind === 'multiselect') && (
+                            <input
+                              className="input"
+                              aria-label={`Keuzes van veld ${index + 1}`}
+                              placeholder="keuzes, met komma's"
+                              value={(field.options ?? []).join(', ')}
+                              onChange={(event) =>
+                                patchField(index, {
+                                  options: event.target.value.split(',').map((option) => option.trim()),
+                                })
+                              }
+                            />
+                          )}
+                          {/* §51: a koppelingsveld may be aimed at a handful of soorten
+                              at once — "Leden" takes personen, onderzoekers én
+                              abnormaliteiten. */}
+                          {(field.kind === 'entry_link' || field.kind === 'entry_links') && (
+                            <>
+                              <SoortKiezer
+                                types={types}
+                                chosen={field.ofType ?? []}
+                                words={words}
+                                lead={words.soortDoelAlleen}
+                                testId="veld-soorten"
+                                onChange={(ofType) => patchField(index, { ofType })}
+                              />
+                              {/* §66: en wát dit veld betekent in een stamboom. Leeg is het
+                                  normale geval — een koppelingsveld is meestal geen
+                                  verwantschap. Staat er wel een rol in, dan tekent elke
+                                  stamboom de lijn en schrijft de server de andere kant erbij. */}
+                              <div className="veld-rol">
+                                <select
+                                  className="select"
+                                  aria-label={`Rol in een stamboom van veld ${index + 1}`}
+                                  value={field.role ?? ''}
+                                  onChange={(event) => setRole(index, event.target.value)}
+                                >
+                                  <option value="">Rol in een stamboom: —</option>
+                                  {FIELD_ROLES.map((role) => (
+                                    <option key={role} value={role}>
+                                      Rol in een stamboom: {ROLE_LABELS[role]}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span className="tiny muted">
+                                  Met een rol tekent elke stamboom deze lijn en vult het archief de
+                                  andere kant zelf in. Verwant wordt getekend en niet gespiegeld.
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* §80: dezelfde sleutel als een ander veld. `cleanFields`
+                          houdt de eerste en laat deze vallen — stil, tot nu. */}
+                      {Boolean(field.key) && clashing.has(field.key) && (
+                        <span
+                          className="error-note tiny"
+                          data-testid="veld-sleutel-botsing"
+                          data-field-key={field.key}
+                          style={{ margin: 0 }}
+                        >
+                          Er is al een veld met de {words.fieldKey.toLowerCase()} <code>{field.key}</code>
+                          . Zo opslaan bewaart alleen het bovenste van de twee.
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              <div className="veld-toevoegen">
+                <button
+                  ref={addFieldRef}
+                  type="button"
+                  className="btn btn-small veld-toevoegen-knop"
+                  aria-describedby={`veld-typt-${type.id}`}
+                  onClick={() => addField('text')}
+                  onKeyDown={typeToAdd}
+                >
+                  <Icon name="plus" size={15} />
+                  Veld toevoegen
+                </button>
+                <span className="tiny muted">{words.soortSnel}</span>
+                {QUICK_KINDS.map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className="btn btn-small btn-ghost veld-snel"
+                    onClick={() => addField(kind)}
+                  >
+                    <Icon name="plus" size={13} />
+                    {(QUICK_LABEL_KEY[kind] && words[QUICK_LABEL_KEY[kind]!]) || kindLabel(kind)}
+                  </button>
+                ))}
+                <span className="tiny muted veld-typt" id={`veld-typt-${type.id}`}>
+                  {words.soortVeldTypt}
+                </span>
+              </div>
+            </section>
+          </div>
+
+          <div className="soort-zij">
+            {/* §11: the address, and the line under it is the URL it actually makes. */}
+            <div>
+              <label className="label" htmlFor={`slug-${type.id}`}>
+                Adres (slug)
               </label>
               <input
-                id={`txt-body-${type.id}`}
+                id={`slug-${type.id}`}
                 className="input"
-                value={pageText.bodyPlaceholder ?? ''}
-                placeholder={DEFAULT_BODY_PLACEHOLDER}
-                onChange={(event) =>
-                  setPageText((current) => ({ ...current, bodyPlaceholder: event.target.value }))
-                }
+                name="slug"
+                value={slug}
+                spellCheck={false}
+                autoCapitalize="none"
+                onChange={(event) => setSlug(event.target.value)}
               />
-            </span>
-            <div className="row-wrap">
-              <span style={{ flex: '1 1 10rem' }}>
-                <label className="tiny muted" htmlFor={`txt-new-${type.id}`}>
-                  Wat de knop ‘nieuw’ zegt
-                </label>
-                <input
-                  id={`txt-new-${type.id}`}
-                  className="input"
-                  value={pageText.newButton ?? ''}
-                  placeholder={words.newOfType ?? 'Nieuw'}
-                  onChange={(event) =>
-                    setPageText((current) => ({ ...current, newButton: event.target.value }))
-                  }
-                />
+              {/*
+                §11: plain Dutch, beside the box, and always — not only once the
+                address has been touched. Somebody about to rename a soort should read
+                what it costs before they type, not after.
+              */}
+              <span className="tiny muted" style={{ display: 'block', marginTop: '0.2rem' }}>
+                /wiki/{slug.trim() ? slugify(slug) : '…'} · verander je dit, dan verhuist het archief
+                mee, maar oude links van buiten werken niet meer.
               </span>
-              <span style={{ flex: '1 1 14rem' }}>
-                <label className="tiny muted" htmlFor={`txt-noback-${type.id}`}>
-                  Wat er staat als niets hiernaar verwijst
-                </label>
-                <input
-                  id={`txt-noback-${type.id}`}
-                  className="input"
-                  value={pageText.noBacklinks ?? ''}
-                  placeholder="Nog niets verwijst hiernaar."
-                  onChange={(event) =>
-                    setPageText((current) => ({ ...current, noBacklinks: event.target.value }))
-                  }
-                />
+              {/*
+                The nudge, not the fix: `Relieken` still lives at `object` and
+                `Voorwerpen` at `item`, because the seed could rename the words
+                and not the addresses. Nothing is renamed on its own — moving
+                every artikel of a soort and breaking every old link is a thing a
+                person decides. This only says so, and fills in the answer.
+              */}
+              {mismatched && (
+                <span className="tiny" style={{ display: 'block', marginTop: '0.3rem' }}>
+                  Het adres (<code>{slug}</code>) hoort niet meer bij de naam ({label.trim()}).{' '}
+                  <button
+                    type="button"
+                    className="btn btn-small btn-ghost"
+                    onClick={() => setSlug(suggestion)}
+                  >
+                    <Icon name="edit" size={13} />
+                    {suggestion} gebruiken
+                  </button>
+                </span>
+              )}
+            </div>
+
+            {/*
+              §49: this used to say *where* a soort could be made ("alleen in een
+              dossier"), which was two rules in one tick. What is left is the habit:
+              what the tickbox in the "nieuw artikel"-venster starts on.
+            */}
+            <div>
+              <span className="label">Naam in de wiki</span>
+              <input type="hidden" name="prefixDefault" value={prefixDefault ? '1' : ''} />
+              <button
+                type="button"
+                aria-pressed={prefixDefault}
+                className={`chip chip-selectable${prefixDefault ? ' chip-active' : ''}`}
+                onClick={() => setPrefixDefault((was) => !was)}
+              >
+                <Icon name={prefixDefault ? 'folder' : 'file'} size={13} />
+                {prefixDefault
+                  ? `Standaard het ${words.case} voor de naam`
+                  : `Standaard geen ${words.case} voor de naam`}
+              </button>
+              <span className="tiny muted" style={{ display: 'block', marginTop: '0.25rem' }}>
+                {prefixDefault
+                  ? `In een ${words.case} gemaakt heten ze "${capitalise(words.case)}: naam". Elk artikel kan dat zelf uitzetten.`
+                  : `In een ${words.case} gemaakt heten ze gewoon hoe ze heten. Elk artikel kan het ${words.case} zelf voor zijn naam zetten.`}
               </span>
             </div>
+
+            {/*
+              §80: de twee vinkjes die van een soort huisraad maken.
+              Ze staan bij elkaar omdat ze samen één vraag zijn — *van wie is dit
+              ding en hoeveel zijn er van*. Waarom ze wél patchbaar zijn waar
+              `caseOnly` dat niet is, staat in `TypePatch` in `lib/admin/types.ts`.
+            */}
+            <div>
+              <span className="label">Wat voor soort dit is</span>
+              <label className="soort-vinkje">
+                <input
+                  type="checkbox"
+                  name="keeperMade"
+                  value="1"
+                  data-testid="soort-keeper-made"
+                  checked={keeperMade}
+                  onChange={(event) => setKeeperMade(event.target.checked)}
+                />
+                <span>
+                  <span className="small">{words.typeKeeperMade}</span>
+                  <span className="tiny muted" style={{ display: 'block' }}>
+                    Een speler kan er geen maken. Alleen zo’n soort komt in de{' '}
+                    {words.catalogue.toLowerCase()} van een {words.room}.
+                  </span>
+                </span>
+              </label>
+              <label className="soort-vinkje">
+                <input
+                  type="checkbox"
+                  name="oneOfAKind"
+                  value="1"
+                  data-testid="soort-one-of-a-kind"
+                  checked={oneOfAKind}
+                  onChange={(event) => setOneOfAKind(event.target.checked)}
+                />
+                <span>
+                  <span className="small">{words.typeOneOfAKind}</span>
+                  <span className="tiny muted" style={{ display: 'block' }}>
+                    Ligt hij in de {words.room} van de één, dan kan hij nergens anders liggen. Uit
+                    voor {words.furnishingPlural} waarvan er meer zijn.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <PageBlocksEditor
+              blocks={blocks}
+              onChange={setBlocks}
+              types={types}
+              words={words}
+              idPrefix={`blk-${type.id}`}
+            />
+
+            <div>
+              <span className="label">De woorden van deze soort</span>
+              <p className="tiny muted" style={{ margin: '0 0 0.45rem' }}>
+                Een locatie vraagt iets anders dan een persoon. Laat leeg voor de vraag die overal
+                staat.
+              </p>
+              <div className="stack" style={{ gap: '0.45rem' }}>
+                <span>
+                  <label className="tiny muted" htmlFor={`txt-desc-${type.id}`}>
+                    De vraag onder de titel
+                  </label>
+                  <textarea
+                    id={`txt-desc-${type.id}`}
+                    className="textarea"
+                    rows={2}
+                    value={pageText.descriptionPlaceholder ?? ''}
+                    placeholder={DEFAULT_DESCRIPTION_PLACEHOLDER}
+                    onChange={(event) =>
+                      setPageText((current) => ({
+                        ...current,
+                        descriptionPlaceholder: event.target.value,
+                      }))
+                    }
+                  />
+                </span>
+                <span>
+                  <label className="tiny muted" htmlFor={`txt-body-${type.id}`}>
+                    De regel in het grote tekstvak
+                  </label>
+                  <input
+                    id={`txt-body-${type.id}`}
+                    className="input"
+                    value={pageText.bodyPlaceholder ?? ''}
+                    placeholder={DEFAULT_BODY_PLACEHOLDER}
+                    onChange={(event) =>
+                      setPageText((current) => ({ ...current, bodyPlaceholder: event.target.value }))
+                    }
+                  />
+                </span>
+                <span>
+                  <label className="tiny muted" htmlFor={`txt-new-${type.id}`}>
+                    Wat de knop ‘nieuw’ zegt
+                  </label>
+                  <input
+                    id={`txt-new-${type.id}`}
+                    className="input"
+                    value={pageText.newButton ?? ''}
+                    placeholder={words.newOfType ?? 'Nieuw'}
+                    onChange={(event) =>
+                      setPageText((current) => ({ ...current, newButton: event.target.value }))
+                    }
+                  />
+                </span>
+                <span>
+                  <label className="tiny muted" htmlFor={`txt-noback-${type.id}`}>
+                    Wat er staat als niets hiernaar verwijst
+                  </label>
+                  <input
+                    id={`txt-noback-${type.id}`}
+                    className="input"
+                    value={pageText.noBacklinks ?? ''}
+                    placeholder="Nog niets verwijst hiernaar."
+                    onChange={(event) =>
+                      setPageText((current) => ({ ...current, noBacklinks: event.target.value }))
+                    }
+                  />
+                </span>
+              </div>
+            </div>
+
+            {type.entryCount === 0 && (
+              <button className="btn btn-small btn-danger soort-weg" type="submit" formAction={removeAction}>
+                <Icon name="trash" size={14} />
+                Soort verwijderen
+              </button>
+            )}
+            {remove.error && <p className="error-note">{remove.error}</p>}
           </div>
         </div>
-
-        {/*
-          §11: plain Dutch, above the save, and always — not only once the
-          address has been touched. Somebody about to rename a soort should read
-          what it costs before they type, not after.
-        */}
-        <p className="small muted" style={{ margin: 0, maxWidth: '46rem' }}>
-          <strong>Let op bij het adres.</strong> Verander je het adres, dan verhuist alles in het
-          archief automatisch mee: de {words.entryPlural} van deze soort, en elk veld en elke lijst
-          die deze soort noemt. Wat níet meeverhuist zijn links van buiten:{' '}
-          <code>/wiki/{type.slug}</code> en opgeslagen filter-links met dit adres erin werken daarna
-          niet meer.
-        </p>
 
         {/* §80: en nog een keer, vlak boven de knop, want daar wordt gekeken. */}
         {clashing.size > 0 && (
@@ -852,23 +1084,48 @@ export function TypeEditor({
 
         {/*
           §96: de voet plakt onderaan in beeld zolang deze editor open en
-          langer dan het scherm is — Opslaan stond 1.700 px onder de naam.
+          langer dan het scherm is. §107: en hij telt wat er nog niet bewaard
+          is, zegt het als een veld zonder naam zal wegvallen, en heeft een
+          deur naar een nieuw artikel van deze soort.
         */}
-        <div className="admin-sticky-foot admin-type-foot">
+        {/*
+          Review 4, M11: één taal voor de plakkende voeten van Soorten en
+          Woorden — de telling links (rood als er iets openstaat), Opslaan
+          rechts, en hier *Nieuw artikel* als tweede knop ernaast.
+        */}
+        <div className="admin-sticky-foot admin-type-foot beheer-voet soort-voet" data-testid="soort-voet">
+          <span className="small beheer-voet-telling soort-voet-telling" aria-live="polite" data-dirty={dirty}>
+            {dirty > 0 ? (
+              <strong>{fill(words.soortDirty, { n: String(dirty) })}</strong>
+            ) : (
+              <span className="muted">{words.soortSchoon}</span>
+            )}
+            {nameless > 0 && (
+              <span className="muted"> · {fill(words.soortZonderNaam, { n: String(nameless) })}</span>
+            )}
+            {/* Review 4, L5: een keuzelijst zonder keuzes wordt niet stil opgeslagen. */}
+            {choiceless.length > 0 && (
+              <span className="muted" data-testid="soort-geen-keuzes">
+                {' '}
+                · {fill(words.soortGeenKeuzes, { veld: choiceless.join(', ') })}
+              </span>
+            )}
+            {save.error && <span className="error-note"> {save.error}</span>}
+          </span>
+          <span className="tiny muted soort-sneltoets">{words.soortSneltoets}</span>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            data-testid="soort-nieuw-artikel"
+            onClick={() => ui.openNewEntry({ typeSlug: type.slug })}
+          >
+            <Icon name="plus" size={14} />
+            {fill(words.soortNieuwArtikel, { artikel: words.entry })}
+          </button>
           <button className="btn btn-small btn-primary" type="submit" disabled={saving}>
             {saving ? 'Opslaan…' : 'Opslaan'}
           </button>
-          {save.error && <span className="error-note small">{save.error}</span>}
-          {save.ok && <span className="small muted">{save.ok}</span>}
-          <div className="spacer" />
-          {type.entryCount === 0 && (
-            <button className="btn btn-small btn-danger" type="submit" formAction={removeAction}>
-              <Icon name="trash" size={14} />
-              Soort verwijderen
-            </button>
-          )}
         </div>
-        {remove.error && <p className="error-note">{remove.error}</p>}
       </form>
 
       {/*
@@ -881,66 +1138,169 @@ export function TypeEditor({
   );
 }
 
+/** §107: de soorten die *Veld toevoegen* meteen aanbiedt, naast gewone tekst. */
+const QUICK_KINDS: FieldKind[] = ['select', 'entry_links', 'number', 'date'];
+/** Golf J: de naam van een snelknop, als die anders is dan de lange naam van de soort veld (§11: uit `lib/words.ts`). */
+const QUICK_LABEL_KEY: Partial<Record<FieldKind, string>> = { entry_links: 'soortSnelKoppelingen' };
+
+/** §107: één regel over wat een veld nog meer heeft ingesteld, voor de ingeklapte rij. */
+function fieldSummary(field: FieldDef, types: TypeLite[], words: Words): string {
+  if (field.kind === 'select' || field.kind === 'multiselect') {
+    const options = (field.options ?? []).filter(Boolean);
+    return options.length ? options.join(', ') : words.soortNogGeenKeuzes;
+  }
+  const names = types.filter((option) => (field.ofType ?? []).includes(option.slug)).map((option) => option.label);
+  const target = names.length ? `→ ${names.join(', ')}` : `→ ${words.typeTargetsAll}`;
+  // De rol eerst: een lange rij soorten wordt afgekapt, de rol mag dat niet.
+  return field.role ? `${ROLE_LABELS[field.role]} · ${target}` : target;
+}
+
 /**
- * §96 (C32): de doel-soorten van een koppelveld, achter één kiezer.
+ * §107: pictogram, kleur en rand van een soort, met het voorbeeld ernaast.
  *
- * Negentien chips per koppelveld maakten van Personen een editor van 298
- * bedieningselementen. De rij zegt nu wat er gekozen is en klapt de chips pas
- * open als je erom vraagt. Een knop met `aria-expanded` en geen `<details>`:
- * een tweede `<summary>` binnen de soort zou elke zoektocht naar "de soort
- * wiens kop X heet" laten matchen op de kiezer van een andere soort.
+ * Het voorbeeld is geen plaatje maar de echte klassen: `.chip-soort` zoals
+ * een soort in een lijst staat, en `.card` met de rand zoals een kaart van
+ * deze soort in zijn eigen lijst staat. Draagt een andere soort hetzelfde
+ * pictogram, dan zegt één zachte zin wie (D17) — geen weigering.
  */
-function TargetsPicker({
-  types,
-  chosen,
+function Uiterlijk({
+  id,
+  label,
+  icon,
+  colour,
+  border,
+  sharing,
+  takenBy,
   words,
-  onChange,
+  onIcon,
+  onColour,
+  onBorder,
 }: {
-  types: TypeLite[];
-  chosen: string[];
+  id: string;
+  label: string;
+  icon: string;
+  colour: string;
+  border: string;
+  sharing: string[];
+  /** Welke pictogrammen andere soorten al dragen, en welke soorten dat zijn. */
+  takenBy: Map<string, string[]>;
   words: Words;
-  onChange: (next: string[]) => void;
+  onIcon: (name: string) => void;
+  onColour: (value: string) => void;
+  onBorder: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const names = types.filter((option) => chosen.includes(option.slug)).map((option) => option.label);
+  const soort = { ['--soort' as string]: colour } as CSSProperties;
+  const listed = SOORT_ICONEN.some((option) => option.name === icon);
+  const icons = listed ? SOORT_ICONEN : [{ name: icon, label: icon }, ...SOORT_ICONEN];
+  const inRow = SOORT_KLEUREN.some((swatch) => swatch.toLowerCase() === colour.toLowerCase());
   return (
-    <div className="admin-oftype" data-testid="veld-soorten">
-      <div className="row-wrap admin-oftype-head">
-        <span className="tiny muted">Alleen deze soorten mogen erin (leeg = alles):</span>
-        <span className="small admin-oftype-chosen">{names.length ? names.join(', ') : words.typeTargetsAll}</span>
-        <button
-          type="button"
-          className="btn btn-small btn-ghost admin-oftype-pick"
-          aria-expanded={open}
-          onClick={() => setOpen((was) => !was)}
-        >
-          <Icon name="chevron" size={13} />
-          {words.typeTargetsPick}
-        </button>
-      </div>
-      {open && (
-        <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
-          {types.map((option) => {
-            const on = chosen.includes(option.slug);
-            return (
+    <div className="soort-uiterlijk" id={`uiterlijk-${id}`} data-testid="soort-uiterlijk-paneel">
+      <div className="soort-uiterlijk-kiezers">
+        <fieldset className="soort-fieldset">
+          <legend className="label">{words.soortPictogram}</legend>
+          <div className="soort-iconen" role="radiogroup" aria-label={words.soortPictogram}>
+            {icons.map((option) => {
+              const taken = option.name !== icon ? takenBy.get(option.name) : undefined;
+              return (
+                <button
+                  key={option.name}
+                  type="button"
+                  role="radio"
+                  aria-checked={icon === option.name}
+                  aria-label={option.label}
+                  title={taken ? `${option.label} · ${taken.join(', ')}` : option.label}
+                  className="soort-icoon"
+                  data-taken={taken ? 'ja' : undefined}
+                  style={soort}
+                  onClick={() => onIcon(option.name)}
+                >
+                  <Icon name={option.name} size={18} />
+                </button>
+              );
+            })}
+          </div>
+          {sharing.length > 0 && (
+            <p className="tiny soort-teken-ook" data-testid="soort-teken-ook" role="status">
+              <Icon name="info" size={13} />
+              {fill(sharing.length > 1 ? words.soortTekenOokMeer : words.soortTekenOok, {
+                soorten: sharing.join(', '),
+              })}
+            </p>
+          )}
+        </fieldset>
+
+        <fieldset className="soort-fieldset">
+          <legend className="label">{words.soortKleur}</legend>
+          <div className="soort-kleuren" role="radiogroup" aria-label={words.soortKleur}>
+            {SOORT_KLEUREN.map((swatch) => (
               <button
-                key={option.slug}
+                key={swatch}
                 type="button"
-                className={`chip chip-selectable${on ? ' chip-active' : ''}`}
-                aria-pressed={on}
-                onClick={() =>
-                  onChange(on ? chosen.filter((slug) => slug !== option.slug) : [...chosen, option.slug])
-                }
-              >
+                role="radio"
+                aria-checked={swatch.toLowerCase() === colour.toLowerCase()}
+                aria-label={swatch}
+                className="soort-staal"
+                style={{ background: swatch }}
+                onClick={() => onColour(swatch)}
+              />
+            ))}
+            <label className={`soort-eigen${inRow ? '' : ' soort-eigen-aan'}`}>
+              <input
+                id={`colour-${id}`}
+                type="color"
+                value={colour}
+                onChange={(event) => onColour(event.target.value)}
+              />
+              <span className="tiny">{words.soortEigenKleur}</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div>
+          <label className="label" htmlFor={`border-${id}`}>
+            Rand van de kaart
+          </label>
+          <select
+            id={`border-${id}`}
+            className="select"
+            value={border}
+            onChange={(event) => onBorder(event.target.value)}
+          >
+            {BORDER_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>
                 {option.label}
-              </button>
-            );
-          })}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
+      </div>
+
+      <div className="soort-voorbeeld" aria-label={words.soortVoorbeeld} role="img">
+        <span className="label">{words.soortVoorbeeld}</span>
+        <span className="chip chip-soort" style={soort}>
+          <Icon name={icon} size={12} />
+          {label}
+        </span>
+        <div className={`card ${borderClass(border)} soort-voorbeeld-kaart`} style={soort}>
+          <Cover assetId={null} shape="portrait" alt="" icon={icon} colour={colour} />
+          <div className="card-body">
+            <p className="card-name">{fill(words.soortVoorbeeldNaam, { artikel: words.entry })}</p>
+            <p className="tiny muted card-meta">
+              <Icon name={icon} size={13} className="soort-inkt" />
+              <span className="card-meta-soort">{label}</span>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+/*
+ * §96 (C32) en §107: de doel-soorten van een koppelveld staan achter één kiezer —
+ * `SoortKiezer` (components/admin/SoortKiezer.tsx), sinds golf J dezelfde als
+ * die van de pagina (`PageBlocksEditor`).
+ */
 
 /**
  * §38: "Oude waarden" — what is still stored under a key this soort no longer

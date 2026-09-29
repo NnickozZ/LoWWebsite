@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
+import { useAuthorOptional } from '@/components/you/AuthorProvider';
 
 /**
  * §69 — bare paper makes the thing this surface is for.
@@ -109,6 +110,20 @@ export function useMakeOnEmpty(options: {
 }): MakeOnEmpty {
   const latest = useRef(options);
   latest.current = options;
+  /*
+   * §105 (golf J): bare paper no longer asks §18b's question on the way down
+   * (`gatePress`: pannen is lezen), so the gesture that *makes* asks for
+   * itself — vraag eerst, doe daarna, like every maker button (§101).
+   */
+  const author = useAuthorOptional();
+  const authorRef = useRef(author);
+  authorRef.current = author;
+  const make = useCallback((point: { clientX: number; clientY: number }) => {
+    const then = () => latest.current.onMake(point);
+    const ensure = authorRef.current?.ensureAuthor;
+    if (ensure) ensure(then);
+    else then();
+  }, []);
 
   const timer = useRef<{ id: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
 
@@ -129,11 +144,11 @@ export function useMakeOnEmpty(options: {
 
   const onDoubleClick = useCallback(
     (event: { clientX: number; clientY: number; target: EventTarget | null }) => {
-      const { enabled, onMake } = latest.current;
+      const { enabled } = latest.current;
       if (!enabled || !onBarePaper(event.target)) return;
-      onMake({ clientX: event.clientX, clientY: event.clientY });
+      make({ clientX: event.clientX, clientY: event.clientY });
     },
-    [onBarePaper],
+    [onBarePaper, make],
   );
 
   const onPointerDown = useCallback(
@@ -148,11 +163,11 @@ export function useMakeOnEmpty(options: {
         // Asked *now*, not when the press began: by this point it may have
         // turned into a pan or picked up a second finger.
         if (latest.current.busy?.()) return;
-        latest.current.onMake({ clientX, clientY });
+        make({ clientX, clientY });
       }, LONG_PRESS_MS);
       timer.current = { id, x: clientX, y: clientY };
     },
-    [cancel, onBarePaper],
+    [cancel, onBarePaper, make],
   );
 
   const onPointerMove = useCallback(

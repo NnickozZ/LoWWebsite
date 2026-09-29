@@ -28,7 +28,7 @@ import { presenceColour } from '@/lib/boards/live';
 import { displayNames, windowPresenceName } from '@/lib/characters';
 import { db, schema } from '@/lib/db';
 import { timelineKey } from '@/lib/live/keys';
-import { getTimelineBySlug, listEvents } from '@/lib/timelines/service';
+import { getTimelineBySlug, latestSeenMoment, listEvents } from '@/lib/timelines/service';
 import { inkForViewer } from '@/lib/ink/merge';
 import { getInk } from '@/lib/ink/service';
 
@@ -154,6 +154,8 @@ export default async function TimelinePage({
         <TimelineCanvas
           timeline={timeline}
           initialEvents={events}
+          /* §105 (review 4, L10): an empty tijdlijn opens where the table is. */
+          emptyCentre={events.length ? null : latestSeenMoment(user)}
           canEdit={mayEdit}
           viewerId={user?.id ?? ''}
           isKeeper={Boolean(user?.isKeeper)}

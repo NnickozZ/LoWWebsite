@@ -476,9 +476,13 @@ hr,
 .btn svg {
   flex-shrink: 0;
 }
-.btn:hover:not(:disabled) {
-  background: var(--paper-dark);
-  border-color: var(--ink-muted);
+/* §106 (na review 4, M6): hover alleen waar een muis zweeft. Op touch bleef
+   een knop die onder de vinger verscheen "ingedrukt" staan. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    background: var(--paper-dark);
+    border-color: var(--ink-muted);
+  }
 }
 .btn:active {
   transform: translate(1px, 1px);
@@ -493,9 +497,11 @@ hr,
   border-color: var(--stamp-red);
   color: #fbf7ee;
 }
-.btn-primary:hover:not(:disabled) {
-  background: #93291a;
-  border-color: #93291a;
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    background: #93291a;
+    border-color: #93291a;
+  }
 }
 
 /*
@@ -524,9 +530,11 @@ hr,
   box-shadow: none;
   border-color: transparent;
 }
-.btn-ghost:hover:not(:disabled) {
-  background: var(--paper-dark);
-  border-color: var(--rule);
+@media (hover: hover) {
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--paper-dark);
+    border-color: var(--rule);
+  }
 }
 .btn-small {
   min-height: 34px;
@@ -539,9 +547,11 @@ hr,
   border-color: var(--stamp-red);
   background: transparent;
 }
-.btn-danger:hover:not(:disabled) {
-  background: rgba(168, 50, 30, 0.08);
-  border-color: var(--stamp-red);
+@media (hover: hover) {
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(168, 50, 30, 0.08);
+    border-color: var(--stamp-red);
+  }
 }
 
 /* ----------------------------------------------------------------- inputs */
@@ -753,14 +763,18 @@ hr,
     background-color var(--dur-2) var(--ease-standard),
     border-color var(--dur-2) var(--ease-standard);
 }
-.chip-selectable:hover {
-  border-color: var(--ink-muted);
-  background: var(--paper-dark);
-}
-.chip-selectable.chip-active:hover,
-.chip-selectable[aria-pressed='true']:hover {
-  background: var(--ink);
-  border-color: var(--ink);
+/* §106 (na review 4, M6): hover alleen waar een muis zweeft. Op touch bleef
+   een knop die onder de vinger verscheen "ingedrukt" staan. */
+@media (hover: hover) {
+  .chip-selectable:hover {
+    border-color: var(--ink-muted);
+    background: var(--paper-dark);
+  }
+  .chip-selectable.chip-active:hover,
+  .chip-selectable[aria-pressed='true']:hover {
+    background: var(--ink);
+    border-color: var(--ink);
+  }
 }
 .chip[aria-pressed='true'],
 .chip-active {
@@ -3167,65 +3181,8 @@ body:has(.uitdelen-voet) .toast-wrap {
     flex-wrap: wrap;
   }
 }
-/*
- * §69 (6.4/6.1) — op een telefoon dezelfde gedokte balk, met duimmaat.
- *
- * Niet modaal (zie de noot bij `InspectorShell`), over de volle breedte, met
- * een kop die zegt wat er gekozen is en een kruisje om het los te laten — want
- * een telefoon heeft geen Escape.
- *
- * **En kort.** Twee specs trekken aan dat ene getal, elk de andere kant op, en
- * samen bepalen ze het:
- *
- *  - te hoog en hij ligt over de kaartjes in het midden van de kurk; een
- *    dubbeltik op een notitie landt dan op de inspector (`flow-4-board`);
- *  - te smal en de bedieningen staan buiten beeld naar rechts, waar een duim ze
- *    niet haalt (`board-live`, op de maat `Extra groot`).
- *
- * Dus: de knoppen wikkelen (nooit opzij weg), en de rij geeft mee na ongeveer
- * twee regels en scrollt zichzelf verticaal. Alles te bereiken, en de kurk
- * houdt zijn midden.
- */
-.board-inspector-phone {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom));
-  z-index: 44;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.35rem;
-  border-left: none;
-  border-right: none;
-  border-radius: 0;
-  padding: 0.4rem 0.6rem 0.5rem;
-}
-.board-inspector-head {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.board-inspector-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.5rem;
-  /*
-   * Eén rij hoog, en de rest is er door verticaal te schuiven.
-   *
-   * Dat getal is de uitkomst van twee specs die er elk de andere kant op aan
-   * trekken, en het is krapper dan het lijkt: bij twee zichtbare rijen ligt de
-   * balk al over het midden van de kurk en landt een dubbeltik op een notitie
-   * op de inspector (`flow-4-board`). Wikkelen is wél nodig, want een rij die
-   * alleen opzij schuift zet bedieningen buiten beeld naar rechts, waar een
-   * duim ze niet haalt (`board-live`, op de maat `Extra groot`) — verticaal
-   * schuiven binnen een gewikkelde rij haalt ze wel.
-   */
-  max-height: 3rem;
-  overflow-y: auto;
-  /* Ruimte rechts voor de zwevende `+`, die over deze balk tekent. */
-  padding-right: 60px;
-}
+/* §105 (golf J): de gedokte balk van de telefoon (`.board-inspector-phone`,
+   `-head`, `-row`) is weg; op een telefoon is de inspector een `CanvasPeek`. */
 .board-inspector-title {
   display: inline-flex;
   align-items: center;
@@ -5126,23 +5083,29 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
  * in: the picture sits under the header at its own width and the facts stay
  * the fold they already were, so the wrapper gives up its frame and hands both
  * halves theirs back.
+ *
+ * Golf J (j4): inside the `@media` as well as behind the class. Until the
+ * width is known (the server, the hydration) the box carries the class at
+ * every width, and from 1280 px it must still be the framed box.
  */
-.entry-aside-box-stacked {
-  border: none;
-  box-shadow: none;
-  background: transparent;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
-}
-.entry-aside-box-stacked > .entry-figure {
-  padding: 0;
-}
-.entry-aside-box-stacked > .entry-figure .entry-cover-whole,
-.entry-aside-box-stacked > .entry-figure .entry-cover {
-  box-shadow: var(--shadow);
-}
-.entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
-  max-height: 68vh;
+@media (max-width: 1279px) {
+  .entry-aside-box-stacked {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+  }
+  .entry-aside-box-stacked > .entry-figure {
+    padding: 0;
+  }
+  .entry-aside-box-stacked > .entry-figure .entry-cover-whole,
+  .entry-aside-box-stacked > .entry-figure .entry-cover {
+    box-shadow: var(--shadow);
+  }
+  .entry-aside-box-stacked > .entry-figure .entry-cover-whole img {
+    max-height: 68vh;
+  }
 }
 
 /* The infobox: the facts of the artikel, label beside value. */
@@ -5522,7 +5485,7 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
   }
   /* §25: the header sits in the text column, so its own two-column grid is
      gone — it is the title, the one-liner and the chips, at reading width. */
-  .entry-main > .entry-head {
+  .entry-kop > .entry-head {
     display: block;
     margin-bottom: 1.1rem;
   }
@@ -6296,16 +6259,12 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
   border-top: 1px solid var(--rule);
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
-  transition: max-height 0.18s ease;
+  /* §105 (golf i1): no transition on `max-height` any more — a change of size
+     is a `transform` now, in `app/vlakken.css`. */
   touch-action: pan-y;
 }
 .canvas-peek.is-full {
   max-height: var(--peek-h-full);
-}
-@media (prefers-reduced-motion: reduce) {
-  .canvas-peek {
-    transition: none;
-  }
 }
 .canvas-peek-grip {
   display: flex;

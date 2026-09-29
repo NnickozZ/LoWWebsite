@@ -545,12 +545,15 @@ export function FieldsPeek({
   cases = {},
   refs = {},
   tags = [],
+  tagHref,
 }: {
   fields: FieldDef[];
   values: Values;
   cases?: CaseRefs;
   refs?: EntryRefs;
   tags?: string[];
+  /** Golf J (raden 7): where a tag chip goes — the soort's list on that tag. */
+  tagHref?: (tag: string) => string;
 }) {
   /*
    * §104 (ronde 67): three rows, and the ones that *lead somewhere* first. The
@@ -576,10 +579,30 @@ export function FieldsPeek({
           <span className="infobox-peek-label">{field.label}</span> <span className="infobox-peek-value">{shown}</span>
         </p>
       ))}
-      {!rows.length && tags.length > 0 && (
-        <p className="infobox-peek-row">
-          <span className="infobox-peek-label">Tags</span> <span className="infobox-peek-value">{tags.join(', ')}</span>
-        </p>
+      {/*
+        Golf J (raden 7): the tags are always under the fold, as chips. They
+        used to show only when no field was filled — and then as plain words —
+        so on most artikelen the tag chips were behind *Meer info*, and whether
+        you saw them depended on the artikel. Now the folded box always ends in
+        its tags, and a chip goes where the open box's chip goes.
+      */}
+      {tags.length > 0 && (
+        <div className="infobox-peek-row infobox-peek-tags" data-testid="infobox-peek-tags">
+          <span className="infobox-peek-label">Tags</span>{' '}
+          <span className="infobox-peek-value row-wrap infobox-tag-rij">
+            {tags.map((tag) =>
+              tagHref ? (
+                <a key={tag} className="tag" href={tagHref(tag)}>
+                  {tag}
+                </a>
+              ) : (
+                <span key={tag} className="tag">
+                  {tag}
+                </span>
+              ),
+            )}
+          </span>
+        </div>
       )}
     </div>
   );

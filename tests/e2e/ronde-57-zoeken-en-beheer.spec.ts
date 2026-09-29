@@ -115,8 +115,8 @@ test('zoeken vindt dossiers en vlakken — en van de Keeper niets', async ({ pag
 
 test('Beheer → Woorden: ingeklapt, een zoekvak, en Opslaan in beeld', async ({ page }) => {
   await signIn(page, ...KEEPER);
+  // §107 (review 4): het adres kiest de tab; op een telefoon is er dan geen strook.
   await page.goto('/admin?tab=words');
-  await page.getByRole('tab', { name: 'Woorden' }).click();
 
   const box = page.getByLabel('Meer prikborden', { exact: true });
   await expect(box).toBeHidden();

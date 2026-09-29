@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { relativeTime } from '@/lib/diff';
+import { fill } from '@/lib/words';
 import { destroyAction, restoreAction, type AdminState } from './actions';
 
 export type TrashRowItem = {
@@ -58,7 +59,15 @@ export function TrashRow({ item }: { item: TrashRowItem }) {
 
         {!done && (
           <>
-            <form action={restoreAction}>
+            {/* §107: terugzetten zegt dat het gebeurt, en wat er terugkomt. */}
+            <form
+              action={restoreAction}
+              onSubmit={() =>
+                ui.toast(fill(ui.words.trashTeruggezet, { naam: item.name }), undefined, {
+                  key: `terug:${item.kind}:${item.id}`,
+                })
+              }
+            >
               <input type="hidden" name="kind" value={item.kind} />
               <input type="hidden" name="id" value={item.id} />
               <button className="btn btn-small" type="submit">

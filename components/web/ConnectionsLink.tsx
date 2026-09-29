@@ -27,9 +27,11 @@ export function ConnectionsLink({
       href={`/web?focus=${encodeURIComponent(webNodeId(kind, id))}`}
       data-testid="connections-link"
       title="Het web, met dit in het midden"
+      /* §105: on a tekenvlak's head a phone shows only the icon; the name stays (§64). */
+      aria-label={ui.words.connections}
     >
       <Icon name="web" size={as === 'chip' ? 12 : 15} />
-      {ui.words.connections}
+      <span className="connections-word">{ui.words.connections}</span>
     </Link>
   );
 }

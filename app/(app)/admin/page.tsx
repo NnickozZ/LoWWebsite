@@ -4,12 +4,14 @@ import { notFound } from 'next/navigation';
 import { asc, desc, eq } from 'drizzle-orm';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { AdminTabs, type AdminPane } from '@/components/admin/AdminTabs';
+import { InviteCode } from '@/components/admin/InviteCode';
 import { NewTypeForm } from '@/components/admin/NewTypeForm';
 import { SchemesForm } from '@/components/admin/SchemesForm';
 import { SiteForm } from '@/components/admin/SiteForm';
 import { TypeEditor } from '@/components/admin/TypeEditor';
 import { WordsForm } from '@/components/admin/WordsForm';
 import { Icon } from '@/components/Icon';
+import { LegeStaat } from '@/components/ui/LegeStaat';
 import { requireViewer } from '@/lib/auth/session';
 import { db, schema } from '@/lib/db';
 import { relativeTime } from '@/lib/diff';
@@ -142,6 +144,9 @@ export default async function AdminPage({
     slug: type.slug,
     label: type.label,
     fields: type.fields,
+    // §107: teken en kleur, voor de kiezer van doel-soorten en D17's zachte zin.
+    icon: type.icon,
+    colour: type.colour,
   }));
   const trash = listTrash();
   const archived = listArchivedThings();
@@ -171,9 +176,10 @@ export default async function AdminPage({
         <>
           <h2 style={{ marginTop: 0 }}>Uitnodigingscode</h2>
           <div className="row-wrap">
-            <code className="invite-code">{settings?.inviteCode}</code>
+            {/* §107: kopiëren met een melding, en delen op een telefoon die dat kan. */}
+            <InviteCode code={settings?.inviteCode ?? ''} archive={settings?.name ?? ''} />
             <form action={regenerateInviteAction}>
-              <button className="btn btn-small" type="submit">
+              <button className="btn btn-small btn-ghost" type="submit">
                 Vernieuwen
               </button>
             </form>
@@ -329,7 +335,8 @@ export default async function AdminPage({
     {
       key: 'words',
       label: words.adminWords,
-      icon: 'book',
+      // Review 4, L6: elk onderdeel een eigen teken.
+      icon: 'scroll',
       content: (
         <>
           <h2 style={{ marginTop: 0 }}>{words.adminWords}</h2>
@@ -367,9 +374,8 @@ export default async function AdminPage({
             en daarna is het weg.
           </p>
           {!trash.length ? (
-            <div className="empty">
-              <p style={{ margin: 0 }}>De prullenbak is leeg.</p>
-            </div>
+            // Review 4 (§106): een lege plek is een `LegeStaat`, geen los `.empty`-kader.
+            <LegeStaat icon="trash" zin={words.trashLeeg} uitleg={words.trashLeegUitleg} soort="prullenbak" />
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {trash.map((item) => (
@@ -484,7 +490,7 @@ export default async function AdminPage({
     {
       key: 'site',
       label: words.adminSite,
-      icon: 'home',
+      icon: 'gear',
       content: (
         <>
           <h2 style={{ marginTop: 0 }}>{words.adminSite}</h2>
@@ -521,7 +527,7 @@ export default async function AdminPage({
     {
       key: 'audit',
       label: words.adminAudit,
-      icon: 'shield',
+      icon: 'notebook',
       content: (
         <>
           <h2 style={{ marginTop: 0 }}>{words.adminAudit}</h2>
@@ -552,7 +558,7 @@ export default async function AdminPage({
   ];
 
   return (
-    <div className="page">
+    <div className="page beheer-page">
       {/*
        * §45/§46: Beheer is only ever the Keeper's, so it is painted as such —
        * and it moves the browser to the Keeper's side like any other page on
@@ -570,7 +576,22 @@ export default async function AdminPage({
       <LivePage place="page:/admin" watch={['admin', 'types', 'words', 'site', 'users', 'entries', 'cases', 'boards', 'maps']} />
       <p className="eyebrow">{words.keeper}</p>
       <h1 style={{ marginBottom: 0 }}>{words.adminTitle}</h1>
-      <AdminTabs panes={panes} />
+      <AdminTabs
+        panes={panes}
+        /*
+          §107, golf J: op een telefoon kijkt een Keeper het eerst naar de index
+          van Beheer. De uitnodiging staat daar bovenaan, zodat *Kopieer de link*
+          geen tik op Gebruikers meer kost (rij 28 van de meting: 4 → 3).
+        */
+        vooraan={
+          <section className="beheer-uitnodiging" aria-labelledby="beheer-uitnodiging-kop" data-testid="index-uitnodiging">
+            <h2 id="beheer-uitnodiging-kop" className="eyebrow">
+              {words.beheerIndexUitnodiging}
+            </h2>
+            <InviteCode code={settings?.inviteCode ?? ''} archive={settings?.name ?? ''} plek="index" />
+          </section>
+        }
+      />
     </div>
   );
 }

@@ -4,7 +4,10 @@ import { Icon } from '@/components/Icon';
 import { siteIdentity } from '@/lib/admin/identity';
 import { safeReturnPath } from '@/lib/auth/paths';
 import { getSessionUser } from '@/lib/auth/session';
+import { getWords } from '@/lib/admin/words';
+import { fill } from '@/lib/words';
 import { AuthForm } from '../AuthForm';
+import { Voordeur } from '../Voordeur';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,27 +44,24 @@ export default async function LoginPage({
   // tab has used since §88, and no session needed for it.
   const site = siteIdentity();
 
-  return (
-    <main className="auth-page">
-      <div className="auth-card">
-        {site.tagline && <p className="eyebrow">{site.tagline}</p>}
-        <h1 className="auth-title">{site.name}</h1>
-        <p className="muted small" style={{ marginBottom: '1.2rem' }}>
-          Log in bij het archief.
-        </p>
-        <AuthForm mode="login" next={next === '/' ? undefined : next} />
+  const words = getWords();
 
-        <div className="auth-join">
-          <p className="auth-join-head">Nog geen account?</p>
-          <Link className="btn auth-join-btn" href="/signup">
-            <Icon name="badge" size={16} />
-            Registreer je nu
-          </Link>
-          <p className="auth-join-note">
-            Je hebt de uitnodigingscode van je Keeper nodig — die staat in je uitnodiging.
-          </p>
-        </div>
+  return (
+    // §106: de toegangskaart (`Voordeur`); het formulier is dat van §63.
+    <Voordeur stamp={words.doorStamp}>
+      {site.tagline && <p className="eyebrow voordeur-eyebrow">{site.tagline}</p>}
+      <h1 className="auth-title">{site.name}</h1>
+      <p className="voordeur-lead">{words.doorLoginLead}</p>
+      <AuthForm mode="login" next={next === '/' ? undefined : next} />
+
+      <div className="auth-join">
+        <p className="auth-join-head">{words.doorJoinHead}</p>
+        <Link className="btn auth-join-btn" href="/signup">
+          <Icon name="badge" size={16} />
+          {words.doorJoinButton}
+        </Link>
+        <p className="auth-join-note">{fill(words.doorJoinNote, { keeper: words.keeper })}</p>
       </div>
-    </main>
+    </Voordeur>
   );
 }

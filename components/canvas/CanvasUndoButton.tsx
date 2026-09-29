@@ -48,7 +48,7 @@ export default function CanvasUndoButton({
   return (
     <button
       type="button"
-      className="btn btn-small btn-ghost"
+      className="btn btn-small btn-ghost canvas-undo"
       {...maker(onUndo)}
       disabled={!canUndo}
       aria-label="Ongedaan maken"

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillWhenReady, newEntryButton, signIn } from './helpers';
+import { fillWhenReady, pressNewEntry, signIn } from './helpers';
 
 /**
  * Round 27, §54 — a name you are typing is already a chip.
@@ -18,7 +18,7 @@ const KEEPER = ['Keeper', 'abbeytower34'] as const;
 
 /** The nieuw-artikel sheet, told its soort and handed a name. */
 async function openNewEntry(page: Page, typeLabel: string, name: string) {
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet.getByRole('radio', { name: typeLabel, exact: true })).toBeVisible({
     timeout: 20_000,

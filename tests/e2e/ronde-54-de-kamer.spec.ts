@@ -145,8 +145,16 @@ test.describe('§93 De kamer, tweede pas', () => {
     // E1: onder *Wat je al hebt* staat hij niet, ook niet als je erom vraagt.
     const { tile, picker } = await openPickerOn(owner, 'plank');
     await owner.getByTestId('plek-picker-tab-bezit').click();
-    await owner.getByTestId('plek-picker-zoek').fill(name);
-    await expect(picker.getByTestId('plek-picker-leeg')).toBeVisible({ timeout: 20_000 });
+    // §103 golf H (T5): on a touch screen the box stands only from
+    // `PICK_SEARCH_FROM` things on (as `kamer-ux.spec.ts` §85 knows). Alone,
+    // this file's catalogue is shorter than that; then the list itself is asked.
+    const zoek = owner.getByTestId('plek-picker-zoek');
+    if (await zoek.isVisible().catch(() => false)) {
+      await zoek.fill(name);
+      await expect(picker.getByTestId('plek-picker-leeg')).toBeVisible({ timeout: 20_000 });
+    } else {
+      await expect(picker).toHaveAttribute('data-answered', 'ja', { timeout: 20_000 });
+    }
     await expect(picker.getByTestId('plek-picker-optie').filter({ hasText: name })).toHaveCount(0);
 
     // In de catalogus wel, en kopen spreekt met *Ongedaan maken* erbij.

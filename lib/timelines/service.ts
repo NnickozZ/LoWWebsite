@@ -563,6 +563,23 @@ function eventQuery() {
 }
 
 /** Every gebeurtenis this viewer may see on the tijdlijn, in time order. The tijdlijn itself must already have passed `getTimelineById`. */
+/**
+ * §105 (review 4, L10): the latest moment on any tijdlijn this reader may see
+ * — where an empty tijdlijn opens, so a new one lands in the year the table
+ * is playing instead of in 1930. Only asked for an empty tijdlijn; the lists
+ * are the reader's own (visibility and side), so it never points at a moment
+ * the reader could not have found.
+ */
+export function latestSeenMoment(viewer: Viewer): number | null {
+  let latest: number | null = null;
+  for (const line of listTimelines(viewer)) {
+    for (const event of listEvents(line.id, viewer)) {
+      if (latest === null || event.at > latest) latest = event.at;
+    }
+  }
+  return latest;
+}
+
 export function listEvents(timelineId: string, viewer: Viewer): TimelineEvent[] {
   return eventQuery()
     // §69: a buried gebeurtenis is not on the axis.

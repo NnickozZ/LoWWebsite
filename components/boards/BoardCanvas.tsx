@@ -19,10 +19,12 @@ import { useIsPhone } from '@/components/useIsPhone';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import {
+  AUTHOR_GATE_OFF,
   useAskAuthorFirst,
   useCanvasAuthorGate,
   useCanvasMaker,
 } from '@/components/canvas/useCanvasAuthorGate';
+import { CanvasEmpty } from '@/components/canvas/CanvasEmpty';
 import { capitalise, fill } from '@/lib/words';
 import {
   boardBounds,
@@ -110,6 +112,9 @@ import CanvasUndoButton from '@/components/canvas/CanvasUndoButton';
 import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
 import { CanvasPeek } from '@/components/canvas/CanvasPeek';
 import { useCanvasMode } from '@/components/canvas/useCanvasMode';
+
+/** §105 (golf J): the glass and the things on it, for `gatePress`. */
+const BOARD_GLASS = { glass: '.board-viewport', things: '.board-card, .board-string, .board-string-hit, .board-string-label, .board-grip, .board-handle' };
 
 /*
  * §67: the wall's zoom floor and ceiling, and its undo depth, are the shared
@@ -889,7 +894,8 @@ export function BoardCanvas({
   const askThen = useAskAuthorFirst();
   /* §90: the §18b question only where the wall can write — Bewerken, or the
      potlood in the hand. A tap on the cork in Lezen asks nothing. */
-  const gate = useCanvasAuthorGate(!handsOff || inkActive);
+  // §105 (golf J): a card chosen to be read asks nothing; a card dragged does.
+  const gate = useCanvasAuthorGate(!handsOff || inkActive, BOARD_GLASS);
   const onInkKey = ink.onKeyDown;
 
   /**
@@ -2844,6 +2850,16 @@ export function BoardCanvas({
     return out;
   }, [strings]);
 
+  /** §105: the wall's first maker — the bar's *Nieuwe notitie*, the phone's `+`
+      and the verb on an empty wall are one road. */
+  const makeNote = () => {
+    const placed = addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '' });
+    // §90: chosen, and the box open with the caret in it.
+    setSelected(new Set([placed.id]));
+    setSelectedStringId(null);
+    setWriteCardId(placed.id);
+  };
+
   return (
     <>
     {/*
@@ -2904,12 +2920,16 @@ export function BoardCanvas({
         {(access.canManage || access.settings.locked) && (
           <button
             type="button"
-            className="chip chip-selectable"
+            className="chip chip-selectable board-rechten"
             onClick={() => setAccessOpen(true)}
             title="Wie mag dit prikbord zien en bewerken"
+            /* §105: the word goes on a phone, the name stays (§64). */
+            aria-label="Rechten"
           >
-            <Icon name={access.settings.viewMode === 'all' ? 'eye' : 'lock'} size={12} />
-            Rechten
+            {/* §105: on a phone the eye would stand right beside Lezen's eye in
+                the one row, so there it is the lock whatever the setting. */}
+            <Icon name={isPhone || access.settings.viewMode !== 'all' ? 'lock' : 'eye'} size={12} />
+            <span className="canvas-tool-word">Rechten</span>
           </button>
         )}
         {/* §94 (C4): in Lezen there is nothing to add, so the wall's search
@@ -3103,17 +3123,17 @@ export function BoardCanvas({
 
         <button
           type="button"
-          className="btn btn-small"
-          {...maker(() => {
-            const placed = addCard({ id: newCardId(), kind: 'note', name: 'Notitie', text: '' });
-            // §90: chosen, and the box open with the caret in it.
-            setSelected(new Set([placed.id]));
-            setSelectedStringId(null);
-            setWriteCardId(placed.id);
-          })}
+          /* §105: `canvas-make` — on a phone this is the canvas's own `+`, where
+             the shell's `+` stands everywhere else (app/vlakken.css). */
+          className="btn btn-small canvas-make"
+          {...maker(makeNote)}
           aria-label="Nieuwe notitie"
         >
-          <Icon name="plus" size={15} />
+          {/* §105 (golf J, raden 6): on a phone the round button says what it
+              makes — a notitie, as the landkaart's says a speld — so it is not
+              read as "prik iets". Prikken is the box at the top, with the
+              punaise in it (`BoardPicker`). */}
+          <Icon name={isPhone ? 'note' : 'plus'} size={15} />
           {/* §99: the word goes below 768 px; the name stays (§64). */}
           <span className="canvas-tool-word">Nieuwe notitie</span>
         </button>
@@ -3168,11 +3188,16 @@ export function BoardCanvas({
           }
         }}
         onPointerMoveCapture={(event) => {
+          // §105 (golf J): the gate hears the move too — a card that is
+          // dragged is written, and that is when the question comes.
+          gate.onPointerMoveCapture(event);
           if (pinchHand.onPointerMove(event)) event.stopPropagation();
         }}
         onPointerUpCapture={(event) => {
+          gate.onPointerUpCapture();
           if (pinchHand.onPointerUp(event)) event.stopPropagation();
         }}
+        onPointerCancelCapture={() => gate.onPointerCancelCapture()}
         onPointerDown={(event) => {
           onSurfacePointerDown(event);
           makeOnEmpty.onPointerDown(event);
@@ -3219,7 +3244,8 @@ export function BoardCanvas({
           if (!entry || handsOff) return;
           event.preventDefault();
           const point = toBoard(event.clientX, event.clientY);
-          placeEntry(entry, { at: point });
+          // §105 (golf J): the drop writes, so it asks — and then hangs it there.
+          askThen(() => placeEntry(entry, { at: point }));
         }}
       >
         {/* §33: the tekenlaag, under the cork's cards and strings. */}
@@ -3648,43 +3674,26 @@ export function BoardCanvas({
         {/* §73: no potlood in Lezen, for a hand that has the switch. */}
         <InkShell shell={ink} corner="bottom-right" toolbar={!inkHandsOff} />
 
+        {/*
+          §105 (golf i1): één zin, één werkwoord, een fiche met een punaise
+          (`CanvasEmpty`). §90's zinnen per stand en per toestel zeiden twee
+          of drie dingen tegelijk; de knop zegt nu het ene dat je doet — in
+          Bewerken een notitie, in Lezen *Beginnen*. Een hand die alleen mag
+          kijken krijgt de zin alleen.
+        */}
         {!cards.length && !inkActive && (
-          <div className="board-empty">
-            <p
-              style={{
-                margin: 0,
-                fontFamily: 'var(--serif)',
-                fontSize: '1.1rem',
-              }}
-            >
-              Nog niets geprikt.
-            </p>
-            {/*
-              §90: one sentence per mode and per device, as the landkaart, the
-              tijdlijn and the stamboom already had. It sent a phone in Lezen to
-              a search box that is not there ("hierboven") and to a draad a
-              finger cannot pull, and two JSX line breaks ate the spaces round
-              {pin} ("eenpunaise", "punaisein"). A hand that may only look gets
-              the heading alone.
-            */}
-            {!readOnly && (
-              <p className="small" style={{ margin: '0.3rem 0 0' }}>
-                {fill(
-                  handsOff
-                    ? ui.words.boardEmptyRead
-                    : [ui.words.boardEmptyFind, ui.words.boardEmptyMake, ...(isPhone ? [] : [ui.words.boardEmptyString])].join(' '),
-                  {
-                    artikel: ui.words.entry,
-                    notitie: ui.words.note,
-                    punaise: ui.words.pin,
-                    kaart: ui.words.card,
-                    draad: ui.words.string,
-                    prikbord: ui.words.board,
-                  },
-                )}
-              </p>
-            )}
-          </div>
+          <CanvasEmpty
+            kind="board"
+            className="board-empty"
+            sentence={fill(ui.words.vlakLeegPrikbord, { prikbord: ui.words.board })}
+            action={
+              readOnly
+                ? undefined
+                : handsOff
+                  ? { label: ui.words.vlakLeegBegin, icon: 'pencil', primary: true, props: { ...AUTHOR_GATE_OFF, onClick: () => mode.setMode('edit') } }
+                  : { label: fill(ui.words.vlakLeegPrikbordDoe, { notitie: ui.words.note }), props: maker(makeNote) }
+            }
+          />
         )}
 
         {/* §73: the lade is a drawer of things to hang up — by a press or by a
@@ -3692,7 +3701,14 @@ export function BoardCanvas({
         {caseId && !handsOff && (
           <BoardTray
             entries={trayEntries}
-            onAdd={(entry) => placeEntry(entry)}
+            /* §105 (golf J, stuk 10): open on a wall that is still being
+               filled from its dossier (no more on the wall than in the
+               drawer); shut — a spine with a number — on a wall that already
+               hangs more, where the open drawer covered the right-hand column
+               (the meting's wall: 13 on the cork, 2 in the drawer). */
+            startOpen={cards.length <= trayEntries.length}
+            /* §105 (golf J): hanging one up writes — ask first, then hang it. */
+            onAdd={(entry) => askThen(() => placeEntry(entry))}
             onDragStart={(entry, event) => {
               dragging.current = entry;
               event.dataTransfer.effectAllowed = 'copy';

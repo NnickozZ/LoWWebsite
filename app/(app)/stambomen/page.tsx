@@ -11,7 +11,9 @@ import { requireViewer } from '@/lib/auth/session';
 import { relativeTime } from '@/lib/diff';
 import { listFamilyTrees } from '@/lib/families/service';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { MaakDeur } from '@/components/eerste-keer/Deuren';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,33 +54,36 @@ export default async function FamilyTreesPage({ searchParams }: { searchParams: 
         <NewFamilyTreeButton />
       </div>
 
-      <SortFilterBar
-        sorts={[
-          { value: 'recent', label: 'Laatst veranderd' },
-          { value: 'name', label: 'Op naam' },
-          { value: 'created', label: 'Nieuwste eerst' },
-        ]}
-        defaultSort="recent"
-        summary={`${trees.length} ${trees.length === 1 ? words.familyTree : words.familyTreePlural}`}
-        groups={[
-          {
-            key: 'where',
-            label: 'Waar',
-            options: [
-              { value: 'loose', label: 'Los', icon: 'tree' },
-              { value: 'case', label: `Bij een ${words.case}`, icon: 'folder' },
-            ],
-          },
-          {
-            key: 'show',
-            label: 'Alleen',
-            options: [
-              { value: 'mine', label: 'Van mij', icon: 'you' },
-              { value: 'restricted', label: 'Privé of gekozen personen', icon: 'lock' },
-            ],
-          },
-        ]}
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(trees.length > 0 || filtering) && (
+        <SortFilterBar
+          sorts={[
+            { value: 'recent', label: 'Laatst veranderd' },
+            { value: 'name', label: 'Op naam' },
+            { value: 'created', label: 'Nieuwste eerst' },
+          ]}
+          defaultSort="recent"
+          summary={`${trees.length} ${trees.length === 1 ? words.familyTree : words.familyTreePlural}`}
+          groups={[
+            {
+              key: 'where',
+              label: 'Waar',
+              options: [
+                { value: 'loose', label: 'Los', icon: 'tree' },
+                { value: 'case', label: `Bij een ${words.case}`, icon: 'folder' },
+              ],
+            },
+            {
+              key: 'show',
+              label: 'Alleen',
+              options: [
+                { value: 'mine', label: 'Van mij', icon: 'you' },
+                { value: 'restricted', label: 'Privé of gekozen personen', icon: 'lock' },
+              ],
+            },
+          ]}
+        />
+      )}
 
       {trees.length ? (
         // §98: the omschrijvingen's chips, for this reader, with the page.
@@ -124,17 +129,23 @@ export default async function FamilyTreesPage({ searchParams }: { searchParams: 
         </ul>
         </ShortChips>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>
-            {filtering
-              ? `Geen ${words.familyTree} die hieraan voldoet.`
-              : `Nog geen ${words.familyTreePlural}. Maak er een, of open een ${words.case} en begin daar.`}
-          </p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Wie familie van wie is staat op de {words.entryPlural} zelf, in velden als Ouders, Kinderen en Partner. Een{' '}
-            {words.familyTree} tekent wat daar staat — en houdt losse kaartjes bij voor wie nog geen {words.entry} heeft.
-          </p>
-        </div>
+        // §106: één familie van lege staten — status, één regel, één deur.
+        filtering ? (
+          <LegeStaat icon="filter" zin={words.emptyFilter} soort="filter">
+            <Link className="btn btn-small" href="/stambomen">
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon="tree"
+            zin={fill(words.emptyTrees, { stamboom: words.familyTree })}
+            uitleg={fill(words.emptyTreesWhy, { artikelen: words.entryPlural, stamboom: words.familyTree })}
+            soort="stambomen"
+          >
+            <MaakDeur icon="tree" label={fill(words.emptyTreesGo, { stamboom: words.familyTree })} />
+          </LegeStaat>
+        )
       )}
     </div>
   );

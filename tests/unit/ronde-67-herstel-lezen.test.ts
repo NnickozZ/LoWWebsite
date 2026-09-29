@@ -128,8 +128,9 @@ describe('#1 de naad in de lopende tekst: decoraties, geen andere tekst', () => 
       // letter after a hidden name at the start of a paragraph — shown as a
       // capital in Lezen, never hidden (tests/unit/golf-h3-lezen.test.ts).
       const cls = (deco as unknown as { type: { attrs: { class?: string } } }).type.attrs.class;
-      expect(['naad', 'naad-hoofd']).toContain(cls);
-      if (cls !== 'naad') continue;
+      // Golf J (stuk 13): a cut of only white space also carries `naad-wit`.
+      expect(['naad', 'naad naad-wit', 'naad-hoofd']).toContain(cls);
+      if (cls === 'naad-hoofd') continue;
       for (let pos = deco.from; pos < deco.to; pos++) hidden.add(pos);
     }
     const lines: string[] = [];

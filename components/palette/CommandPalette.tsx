@@ -12,6 +12,7 @@ import type { Purse } from '@/components/shell/JouwPlek';
 import { KIND_ICON, KIND_WORD } from '@/lib/keeper/kinds';
 import { filterActions, paletteActions, paletteMode, type PaletteAction } from '@/lib/palette/actions';
 import { readRecent, rememberRecent, recentPath } from '@/lib/palette/recent';
+import { bestScore, nameScore, palettePlan } from '@/lib/search/rang';
 import { capitalise, fill } from '@/lib/words';
 import { MAKE_EVENT } from './useMakeOnArrival';
 
@@ -37,7 +38,17 @@ import { MAKE_EVENT } from './useMakeOnArrival';
  * listbox; de pijltjes lopen door de opties, Enter kiest.
  */
 
-type EntryHit = { id: string; slug: string; name: string; typeIcon: string; typeLabel: string; caseName?: string | null };
+type EntryHit = {
+  id: string;
+  slug: string;
+  name: string;
+  typeIcon: string;
+  typeLabel: string;
+  caseName?: string | null;
+  tags?: string[];
+  /** Golf J (stuk 6): how well the *name* fits — 0 for a hit in the text. */
+  score?: number;
+};
 type OtherHit = { kind: string; id: string; name: string; href: string; caseName?: string | null };
 type RecentHit = { kind: string; href: string; name: string; icon: string; hint?: string | null };
 
@@ -116,7 +127,11 @@ export function CommandPalette({
         .then((data: { names?: EntryHit[]; bodies?: EntryHit[]; others?: OtherHit[] }) => {
           if (!live) return;
           const seen = new Set<string>();
-          const entries = [...(data.names ?? []), ...(data.bodies ?? [])].filter((hit) => {
+          // Golf J (stuk 6): a name hit carries how well it fits; a text hit weighs nothing.
+          const entries = [
+            ...(data.names ?? []).map((hit) => ({ ...hit, score: nameScore(hit.name, text, hit.tags ?? []) })),
+            ...(data.bodies ?? []).map((hit) => ({ ...hit, score: 0 })),
+          ].filter((hit) => {
             if (seen.has(hit.id)) return false;
             seen.add(hit.id);
             return true;
@@ -221,8 +236,21 @@ export function CommandPalette({
     groups.push({ key: 'actions', label: words.paletteActions, options: actions.map(actionOption) });
   } else {
     const fresh = answer && answer.q === text ? answer : null;
-    const entries = (fresh?.entries ?? []).slice(0, 8);
-    const others = (fresh?.others ?? []).slice(0, 6);
+    /*
+     * Golf J (stuk 6, raden 2): the best name goes on top, whatever kind of
+     * thing it names (`palettePlan`, `lib/search/rang.ts`). A dossier, a
+     * landkaart or a stamboom called what you typed used to wait at row nine,
+     * behind eight artikelen that only said it in their text, half under the
+     * edge of the list.
+     */
+    const plan = palettePlan({
+      entryCount: fresh?.entries.length ?? 0,
+      otherCount: fresh?.others.length ?? 0,
+      bestEntryName: bestScore(fresh?.entries ?? [], (hit) => hit.score ?? 0),
+      bestOther: bestScore(fresh?.others ?? [], (hit) => nameScore(hit.name, text)),
+    });
+    const entries = (fresh?.entries ?? []).slice(0, plan.entries);
+    const others = (fresh?.others ?? []).slice(0, plan.others);
     const fitting = filterActions(actions, text).slice(0, 4);
     /*
      * Ronde 65·herstel (review #27): a group with nothing in it is not drawn.
@@ -233,8 +261,10 @@ export function CommandPalette({
      * without a heading over it.
      */
     const nothing = Boolean(fresh) && !entries.length && !others.length && !fitting.length;
+    const entryGroups: Group[] = [];
+    const otherGroups: Group[] = [];
     if (!fresh || entries.length || nothing) {
-      groups.push({
+      entryGroups.push({
         key: 'entries',
         label: nothing ? '' : capitalise(words.entryPlural),
         options: entries.map((hit) => ({
@@ -250,7 +280,7 @@ export function CommandPalette({
       });
     }
     if (others.length) {
-      groups.push({
+      otherGroups.push({
         key: 'others',
         label: words.searchOthers,
         options: others.map((hit) => ({
@@ -265,6 +295,8 @@ export function CommandPalette({
         })),
       });
     }
+    if (plan.first === 'others') groups.push(...otherGroups, ...entryGroups);
+    else groups.push(...entryGroups, ...otherGroups);
     if (fitting.length) groups.push({ key: 'actions', label: words.paletteActions, options: fitting.map(actionOption) });
     groups.push({
       key: 'all',

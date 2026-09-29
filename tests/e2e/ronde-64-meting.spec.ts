@@ -3,6 +3,7 @@ import {
   becomeInvestigator,
   editArticle,
   editCanvas,
+  keeperHandsOutSecond,
   newBoard,
   openNewEntry,
   signIn,
@@ -197,6 +198,8 @@ test('3: Escape annuleert de schrijfvraag, en maakt niets', async ({ page, brows
 
   await signUp(page, `Wegloper ${stamp}`, PASSWORD);
   await becomeInvestigator(page, `Weglopertje ${stamp}`);
+  // §106 (na review 4, H5): one onderzoeker is not asked; two are.
+  await keeperHandsOutSecond(browser, `Wegloper ${stamp}`);
   await forget(page, paths.stamboom);
   await editCanvas(page);
 

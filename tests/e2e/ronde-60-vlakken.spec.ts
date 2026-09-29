@@ -81,10 +81,16 @@ test('Bewerken op een telefoon: de muur houdt het scherm, en Lezen houdt een gri
   const id = await newWall(page, `Glasmuur ${info.project.name} ${Date.now()}`);
   await page.goto(`/b/${id}`);
   await readCanvas(page);
-  // C10: in Lezen the button is there, and grey.
+  // C10: in Lezen the button is there, and grey — on a desk. §105 (golf i1):
+  // on a phone Lezen is quiet, and the undo is Bewerken's, beside the `+`.
   const undo = page.getByRole('button', { name: 'Ongedaan maken' });
-  await expect(undo).toBeVisible();
-  await expect(undo).toBeDisabled();
+  if (info.project.name === 'phone') {
+    await expect(page.getByRole('button', { name: 'Ongedaan maken', includeHidden: true })).toBeDisabled();
+    await expect(undo).toBeHidden();
+  } else {
+    await expect(undo).toBeVisible();
+    await expect(undo).toBeDisabled();
+  }
 
   await editCanvas(page);
   await expect(page.getByRole('button', { name: 'Nieuwe notitie', exact: true })).toBeVisible();
@@ -95,12 +101,18 @@ test('Bewerken op een telefoon: de muur houdt het scherm, en Lezen houdt een gri
   if (info.project.name === 'phone') {
     // Measured: 517 of 844 (61 %), was 422 (50 %) before this round.
     expect(glass.height, `the wall is ${Math.round(glass.height)} of ${viewport.height}`).toBeGreaterThan(viewport.height * 0.58);
-    // One row: the search and the three makers stand side by side.
+    // One row: the search and the makers stand side by side. §105 (golf i1):
+    // *Nieuwe notitie* is the wall's `+` now, under the thumb in the corner
+    // where the shell's `+` stands everywhere else — so the row is the search,
+    // Foto and Punaise, and the notitie is below the glass's bottom half.
     const find = (await page.getByLabel('Kaart toevoegen').boundingBox())!;
-    for (const name of ['Nieuwe notitie', 'Foto', 'Punaise']) {
+    for (const name of ['Foto', 'Punaise']) {
       const button = (await page.getByRole('button', { name, exact: true }).boundingBox())!;
       expect(Math.abs(button.y + button.height / 2 - (find.y + find.height / 2))).toBeLessThan(12);
     }
+    const plus = (await page.getByRole('button', { name: 'Nieuwe notitie', exact: true }).boundingBox())!;
+    expect(plus.width).toBeGreaterThanOrEqual(44);
+    expect(plus.y).toBeGreaterThan(viewport.height * 0.6);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(sideways).toBeLessThanOrEqual(1);
   }

@@ -1,4 +1,6 @@
 import '@/app/kamer.css';
+import { EersteBezoek } from '@/components/eerste-keer/EersteBezoek';
+import { firstVisitOffer } from '@/lib/eerste-keer/bezoek';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Icon } from '@/components/Icon';
@@ -171,6 +173,15 @@ export default async function KamerPage({ params }: { params: Promise<{ slug: st
         een speler — "openen betaalt Adriaan Sinke zelf" — en Adriaan Sinke kan
         niets betalen, want niemand draagt hem. Die kamer heeft zijn eigen zin.
       */}
+      {/* §106: één regel bij je eerste bezoek aan je eigen kamer, daarna nooit meer. */}
+      {isOwn && (
+        <EersteBezoek
+          {...(await firstVisitOffer('kamer', user))}
+          place="kamer"
+          text={fill(words.firstVisitRoom, { kamer: words.room, keeper: words.keeper })}
+          gotIt={words.firstVisitGotIt}
+        />
+      )}
       {isGuest && (
         <p className="kamer-guest" data-testid="kamer-guest" data-nobody={room.ownerId ? 'nee' : 'ja'}>
           <Icon name={MEANING.onderzoeker} size={14} />

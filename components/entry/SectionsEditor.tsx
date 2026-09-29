@@ -6,18 +6,20 @@ import dynamic from 'next/dynamic';
 import { Icon } from '@/components/Icon';
 import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
+import { Vooraf, VoorafPlek, VoorafTekst } from '@/components/editor/VoorafTekst';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
 import { useUi } from '@/components/ui/UiProvider';
 import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 import { SECTION_TEXT_SELECTOR, movesToSectionText } from '@/lib/entries/sectionTab';
-import { useAskAuthorFirst } from '@/components/canvas/useCanvasAuthorGate';
-import { useAuthorGate, useMayType } from '@/components/you/AuthorProvider';
+import { useAskAuthorFirst, useCanvasAuthorGate } from '@/components/canvas/useCanvasAuthorGate';
+import { useMayType } from '@/components/you/AuthorProvider';
 import { useReportRoomSave, type SaveState } from '@/components/entry/useAutosave';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
   ssr: false,
-  loading: () => <div className="editor-body" aria-busy="true" />,
+  // §104, golf J (j4): in Lezen the sectie's text as the server drew it (`VoorafTekst`).
+  loading: () => <VoorafPlek />,
 });
 import type { SectionOwnerKind, Visibility } from '@/lib/db/schema';
 import { RevealPicker, type RevealableCase, type RevealableUser } from './RevealPicker';
@@ -60,6 +62,8 @@ function SectionText({
   // §101 naden: a sectie's room tells the shell's one save word (§100) —
   // while it is typed in, and only when it is a room (the rest is `patch`).
   useReportRoomSave(Boolean(section.live && user && editable && !readOnly), [status]);
+  // §104, golf J (j4): reading, the text is in the first paint and the editor replaces it at the same height.
+  const vooraf = readOnly ? <VoorafTekst doc={section.body} /> : null;
   if (!section.live || !user) {
     return (
       <RichEditor
@@ -67,11 +71,12 @@ function SectionText({
         editable={editable && !readOnly}
         placeholder={placeholder}
         onChange={onChange}
+        vooraf={vooraf}
       />
     );
   }
   return (
-    <>
+    <Vooraf.Provider value={vooraf}>
       <LiveBody
         room={section.live.room}
         state={section.live.state}
@@ -81,12 +86,14 @@ function SectionText({
         placeholder={placeholder}
         onStatus={setStatus}
       />
-      {(status.others.length > 0 || status.status !== 'live') && (
+      {/* Golf J (j4): in Lezen not while the line is still being made — "verbinden…" under every
+          sectie for the first second pushed the page down and then pulled it back. */}
+      {(status.others.length > 0 || status.status === 'offline' || (status.status === 'connecting' && !readOnly)) && (
         <p className="tiny" style={{ margin: '0.3rem 0 0' }}>
           <LivePeople others={status.others} status={status.status} />
         </p>
       )}
-    </>
+    </Vooraf.Provider>
   );
 }
 
@@ -168,7 +175,17 @@ export function SectionsEditor({
    * already gets) is what everyone without a name to sign with gets too.
    */
   const mayType = useMayType();
-  const gate = useAuthorGate();
+  /*
+   * §101, aangevuld in golf J (stuk 2a): the surface's gate honours `AUTHOR_GATE_OFF`.
+   * §101 gave *Sectie toevoegen* its own "ask first, then make" and marked it
+   * off — but this surface wore the bare `useAuthorGate`, which reads no
+   * marks, so the question still came up on the button's `pointerdown`, the
+   * `click` landed on the backdrop, and after the answer there was no sectie
+   * and the caret was back on the button. `useCanvasAuthorGate(true)` is the
+   * same three handlers with the one rule a writing surface needs: everything
+   * asks, except what is marked off (`gateAsks`).
+   */
+  const gate = useCanvasAuthorGate(true);
   /*
    * §101: *Sectie toevoegen* is een maakknop op een schrijfvlak, en dit vlak
    * draagt `useAuthorGate` — dus de vraag kwam op de `pointerdown`, het blad
@@ -388,7 +405,8 @@ export function SectionsEditor({
               type="button"
               className="btn btn-small btn-ghost"
               aria-label={`Sectie ${section.title || 'zonder titel'} verwijderen`}
-              onClick={() => void remove(section.id)}
+              {...AUTHOR_GATE_OFF}
+              onClick={() => askThen(() => void remove(section.id))}
             >
               <Icon name="trash" size={14} />
             </button>

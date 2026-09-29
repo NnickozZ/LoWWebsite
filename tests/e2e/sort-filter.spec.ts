@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import { inviteCode, signIn } from './helpers';
+// §101 naden: `openNewEntry` presses the button, not `n`. Golf J (j3) puts the
+// caret of a new speler on Start in *Wie ben jij aan tafel?*, where `n` is a letter.
+import { inviteCode, openNewEntry, signIn } from './helpers';
 
 /**
  * §14: the sort-and-filter bar, on the three shelves that got it. The bar
@@ -12,16 +14,6 @@ async function openFilters(page: Page) {
   const button = page.getByRole('button', { name: /^Filters/ });
   if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
-}
-
-/** `n` opens the new-entry sheet; right after a navigation the listener can still be on its way. */
-async function openNewEntry(page: Page) {
-  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  for (let attempt = 0; attempt < 8 && !(await sheet.isVisible()); attempt++) {
-    await page.keyboard.press('n');
-    await page.waitForTimeout(400);
-  }
-  return sheet;
 }
 
 async function signUpAs(page: Page, name: string) {

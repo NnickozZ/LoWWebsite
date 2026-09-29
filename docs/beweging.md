@@ -13,6 +13,22 @@ en het menu *Meer soorten*. Golf H bracht **geen nieuwe losse duur en geen
 nieuwe uitzondering**: `EXCEPTIONS` in `tests/unit/beweging.test.ts` is
 ongewijzigd, en elke nieuwe `@keyframes`-naam komt één keer voor.
 
+Bijgewerkt na golf I (28 september 2026, na design-review 4): de peek op de
+telefoon volgt de duim en beweegt alleen op `transform` (§105), met een
+rubberen rand als hij niet kan groeien; de `+` van een vlak die meeklimt; het
+welkom, de stempel van de voordeur en de regel van een eerste bezoek (§106);
+en de soort-editor in Beheer (§107). Golf I bracht **geen nieuwe losse duur**
+en haalde **één uitzondering weg**: `.canvas-peek 0.18s` staat niet meer in
+`EXCEPTIONS`. Nieuwe `@keyframes`: `vlak-peek-komt`, `vlak-peek-verschijnt`,
+`wie-welkom-neer`, `voordeur-stempel-neer`, `eerste-bezoek-in` en `soort-open`.
+
+Bijgewerkt na golf J (29 september 2026, na de meting na golf I): de FAB wijkt
+op een telefoon ook voor een caret in een schrijfvak en is daarna echt weg
+(`visibility: hidden`, getrapt ná de fade); de `+` van een vlak houdt onder
+reduced motion zijn fade; en de onderrand van het palet vervaagt aan de
+scrollpositie (`palet-rand`, zonder duur, zoals `.schuifrij`). Golf J bracht
+**geen nieuwe losse duur en geen nieuwe uitzondering**.
+
 Vóór deze ronde stonden er twaalf losse duren (70 tot 2000 ms) en vijf
 easings in `app/*.css`, zonder één token en zonder afspraak over *wanneer* iets
 mocht bewegen. Daarom voelde het ene moment levendig en het volgende dood. Wat
@@ -116,7 +132,7 @@ allemaal `--dur-2`, zodat elk pijltje in het archief even snel draait.
 | De nieuwe pagina na een navigatie | productief | van opacity 0,6 en 4 px naar zijn plek in `--dur-3` (`nav-page-in`); niet bij een documentlading, niet op een tekenvlak | `navigatie.css`, `html[data-navigated]` |
 | De voorbeeldkaart bij een naam | productief | in: een fade van `--dur-2` (`kaartje-in`); uit: direct | `kaartje.css`, `EntryPreview.tsx` |
 | De achtergrond van een blad | productief | in met het blad (`sheet-shade-in`, `--dur-4`, alleen opacity); uit in `--dur-3` op `--ease-standard`. Onder reduced motion (golf H, T25) staat hij meteen vol en vervaagt alleen het blad; bij sluiten blijft hij tot het blad weg is | `globals.css`, `navigatie.css` |
-| De FAB (telefoon) | productief | wijkt bij naar beneden scrollen, sinds golf H (T4) op **elke** pagina met een FAB: uit in `--dur-3`, terug in `--dur-4`; klimt boven een melding. Niet op de kamer, `/you` en zolang *Wie is er?* open is | `globals.css`, `useFabAway` in `AppShell` |
+| De FAB (telefoon) | productief | wijkt bij naar beneden scrollen, sinds golf H (T4) op **elke** pagina met een FAB: uit in `--dur-3`, terug in `--dur-4`; klimt boven een melding. Niet op de kamer, `/you` en zolang *Wie is er?* open is. Sinds golf J (§90) wijkt hij met dezelfde uitgang ook zolang er een caret in een schrijfvak van de pagina staat, en krijgt hij daarna `visibility: hidden` (`visibility 0s linear var(--dur-3)`, dus ná de fade; terug is meteen zichtbaar). Onder reduced motion wijkt hij dan zonder reis | `globals.css`, `useFabAway` in `AppShell` |
 | De Keeperkant-schakelaar in de mast (computer, golf H) | productief | het verhoogde plaatje schuift in `--dur-3` op `--ease-standard` naar de andere helft, terwijl het document al onderweg is; de helften wisselen van kleur in `--dur-2`. Onder reduced motion schuift er niets | `navigatie.css`, `SideToggle.tsx` (`variant="mast"`) |
 | Een rij die opzij scrolt (`.schuifrij`, golf H) | de hand | de rand vervaagt aan de kant waar meer staat, via een scroll-gestuurde animatie (`schuifrij-rand`, `animation-timeline: scroll(self inline)`): geen duur, hij volgt de duim. Het gekozen item komt in beeld zonder animatie (`useSchuifrij`) | `globals.css`, `useSchuifrij.ts` |
 | Het menu *Meer soorten* (golf H) | productief | in: 4 px en opacity in `--dur-3`, `--ease-enter` (`meer-soorten-komt`); uit: direct | `leeskamer.css`, `MeerSoorten.tsx` |
@@ -131,6 +147,12 @@ allemaal `--dur-2`, zodat elk pijltje in het archief even snel draait.
 | De vouw van de dichte plekken (telefoon, golf H) | productief | het pijltje draait in `--dur-2`, zoals dat van een `<details>`; de tegels erachter komen direct | `kamer.css`, `DichtePlekken.tsx` |
 | De landing na *Bekijk* | aanwijzing | een ring van 2 px in `--stamp-red`, 1,4 s | `kamer.css`, `plek-aangewezen` |
 | De omslag naar de Keeperkant | expressief | het schildje (`side-toggle-turn`, `--dur-5`, `--ease-land`; sinds golf H alleen de hoekknop op een telefoon) en de cirkel (`side-flip-wipe`, `--dur-5` + `--dur-3` = 550 ms, `--ease-enter`). Op een computer groeit de cirkel uit het midden van de helft van de schakelaar waar je heen gaat, op een telefoon uit het midden van de knop | `globals.css`, `kaartje.css` (`@view-transition`) |
+| De peek (telefoon, golf I, §105) | productief | in: van achter de tabbalk in `--dur-4` op `--ease-enter` (`vlak-peek-komt`), niet als hij binnen 250 ms een andere vervangt. De greep volgt de duim zonder overgang (`data-move="none"`); na het loslaten naar zijn plek of zijn nieuwe maat in `--dur-4` op `--ease-enter` (een FLIP, alleen `transform`). Uit, na het kruisje met een vinger of een veeg omlaag vanuit klein: achter de tabbalk in `--dur-3` op `--ease-exit`. Escape en het toetsenbord: meteen (regel 2). **De rubberen rand**: een peek die niet kan groeien (`data-groeit="nee"`) gaat bij een tik op de greep in één frame 10 px omhoog en veert terug in `--dur-4` op `--ease-enter`; slepen voorbij de ruimte rekt een vijfde mee, hooguit 24 px (`peekDragOffset`). Niets bij een toets of onder reduced motion. Onder reduced motion komt de peek met een fade van `--dur-3` (`vlak-peek-verschijnt`), en verder beweegt er niets | `vlakken.css`, `CanvasPeek.tsx`, `lib/canvas/peek.ts` |
+| De `+` van een vlak en *Ongedaan maken* (telefoon, golf I) | productief | klimmen als de FAB boven een melding en boven de peek (`--dock-lift`), in `--dur-4` op `--ease-enter`; wijken (opacity) in `--dur-3` als de peek hoog is (`data-peek-hoog`). Onder reduced motion: alleen de fade van `--dur-3`, zonder klim (sinds golf J; zie §8) | `vlakken.css` |
+| Het welkom na *Dit ben ik* (golf I, §106) | expressief | de stempel *Ingeschreven* komt één keer neer, schuin, van 1,5 naar 1, in `--dur-5` op `--ease-land` (`wie-welkom-neer`). Het welkom zelf schuift niets opzij: zolang het staat, staat *Jouw plek* er niet. Onder reduced motion ligt de stempel er | `eerste-keer.css`, `WieBenJij.tsx` |
+| De stempel *Toegang* op de voordeur (golf I) | expressief | ligt stil bij het laden (regel 7 en 9); komt alleen neer terwijl een inschrijving naar het archief gaat (`form[aria-busy='true']`), van 1,4 naar 1 in `--dur-4` op `--ease-land` (`voordeur-stempel-neer`). Onder reduced motion ligt hij er | `eerste-keer.css`, `Voordeur.tsx` |
+| De regel van een eerste bezoek (golf I) | productief | een fade van `--dur-3` op `--ease-enter` (`eerste-bezoek-in`), alleen opacity; staat al in de eerste lading, dus er schuift niets. Onder reduced motion staat hij er | `eerste-keer.css`, `EersteBezoek.tsx` |
+| De soort-editor in Beheer (golf I, §107) | productief | *Pictogram en kleur* klapt open met 4 px en opacity in `--dur-4` op `--ease-enter` (`soort-open`); de instellingen van een veld en de kiezer van doel-soorten in `--dur-3`. De chevron van een soortrij draait in `--dur-2`, zoals een `<details>`. Onder reduced motion niets | `beheer.css`, `TypeEditor.tsx` |
 | Een eerste keer | expressief | *Ingericht* komt ná de landing (golf H, T21): eerst `--dur-5` wachten, dan schuin neerkomen in `--dur-4` × 1,25 (`kamer-ingericht-hoek`, samen 700 ms), op de rechterrand van het beeld en niet over het ding; ligt 2,5 s en vervaagt in `--dur-3`. Een plek die opengaat, draait zijn slotje open (`kamer-slot-open`) | `kamer.css`, `Neerzetten.tsx` |
 
 **Herstel na de review (ronde 65·herstel, de schil).**
@@ -197,7 +219,7 @@ blijven. Een nieuwe uitzondering is een beslissing, geen reparatie.
 |---|---|---|
 | `globals.css` `.save-state-busy` (`save-state-turn`) | 900 ms | Een spinner draait rond, hij reist niet. Een omwenteling is een tempo, geen duur. |
 | ~~`globals.css` `::view-transition-new(root)` (`side-flip-wipe`)~~ | ~~550 ms~~ | **Dode regel.** De omslag-cirkel staat sinds ronde 65·c in `kaartje.css` en is geschreven als `calc(var(--dur-5) + var(--dur-3))`, dus hij heeft geen uitzondering meer nodig. De regel staat nog in `EXCEPTIONS` en vangt niets; hij kan weg als iemand in de test is. |
-| `globals.css` `.canvas-peek` | 0,18 s | **Schuld.** De peek op de telefoon beweegt op `max-height`, tegen regel 3 in. Herbouwen hoort niet bij ronde 65. |
+| ~~`globals.css` `.canvas-peek`~~ | ~~0,18 s~~ | ~~**Schuld.** De peek op de telefoon beweegt op `max-height`, tegen regel 3 in. Herbouwen hoort niet bij ronde 65.~~ **Weg in golf I (§105):** de peek beweegt alleen op `transform`, in tokens (zie §4), en de regel is uit `EXCEPTIONS`. |
 | `globals.css` `.board-cursor`, `.board-card-carried`, `.map-pin-carried`, `.map-cursor` | 70 ms | Het glas: wat een ander vasthoudt, loopt mee met de stroom van de server, niet met een register. |
 | `globals.css` `.live-cursor` | 120 ms | Het glas: de cursor van een ander in een gedeeld vak. |
 | `stambomen.css` `.tree-node` | 220 ms | Het glas: de stamboom die herschikt na een wijziging. Een tween op het vlak (§69). |
@@ -235,6 +257,13 @@ stempel van `toast-munt`, de verplaatsbalk en het plaatje van de
 Keeperkant-schakelaar staan er onder reduced motion zonder te bewegen; de pil
 van de koper komt alleen in opacity.
 
+Sinds golf I: de peek komt onder reduced motion met een fade van `--dur-3` en
+verandert daarna van maat zonder reis; de rubberen rand is er dan niet. De
+`+` van een vlak klimt zonder overgang en wijkt ~~zonder overgang~~ sinds
+golf J met een fade van `--dur-3`. De stempels *Ingeschreven* en
+*Toegang*, de regel van een eerste bezoek en de onderdelen van de
+soort-editor staan er zonder te bewegen.
+
 ## 8. Wat open staat
 
 - `EXCEPTIONS` in `tests/unit/beweging.test.ts` heeft de dode regel voor
@@ -243,8 +272,16 @@ van de koper komt alleen in opacity.
   nog op een letterlijke `ease-out`, en regel 5 (niets routineus boven
   500 ms) wordt alleen door lezen bewaakt.
 
-- De peek op de telefoon (`.canvas-peek`) beweegt op `max-height`. Dat moet
-  een `transform` worden. Het staat als schuld in de uitzonderingen.
+- ~~De peek op de telefoon (`.canvas-peek`) beweegt op `max-height`. Dat moet
+  een `transform` worden. Het staat als schuld in de uitzonderingen.~~
+  **Gesloten in golf I (§105).**
+- ~~**Golf I:** `vlakken.css` geeft `.canvas-make` en `.canvas-undo` onder
+  reduced motion een opacity-overgang van `--dur-3`, maar de algemene
+  `* { transition: none !important }` in `globals.css` (§7) wint. Onder reduced
+  motion klimt en wijkt de `+` van een vlak dus zonder overgang; dat mag
+  (regel 8: een crossfade of niets), maar de regel in `vlakken.css` doet niets.~~
+  **Gesloten in golf J (§105):** de regel draagt `!important`; de fade blijft,
+  de klim niet.
 - `summary::marker` van een `<details>` zonder eigen pijltje (de legenda van
   het web) draait niet: een ingebouwd driehoekje kun je niet draaien. Dat mag
   zo blijven tot iemand er een eigen pijltje aan geeft.

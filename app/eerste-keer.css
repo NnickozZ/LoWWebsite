@@ -1,0 +1,656 @@
+/* ==========================================================================
+   §106 (golf i2): de eerste keer.
+
+   Vijf dingen, in deze volgorde:
+     1. de lege staat (`LegeStaat`): één familie voor elke lege plek;
+     2. *Wie ben jij aan tafel?* en het welkom daarna (`WieBenJij`);
+     3. de route van een verse Keeper op Start (`EersteRoute`, `Uitnodiging`);
+     4. de voordeur (`app/(auth)/Voordeur.tsx`, de code in `AuthForm`);
+     5. de regel bij een eerste bezoek (`EersteBezoek`) en de ene regel van
+        een speler zonder karakter (`ReadOnlyBanner`).
+
+   Beweging (§102): alleen tokens, alleen transform en opacity. Het welkom en
+   de stempel op de voordeur zijn een eerste keer, dus het expressieve register
+   (`--dur-4`/`--dur-5`, `--ease-land`); de rest komt met een fade van
+   `--dur-3`. Onder reduced motion ligt alles er meteen.
+   ========================================================================== */
+
+/* ------------------------------------------------------------ 1. lege staat */
+.lege-staat {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  padding: 1.15rem 1.3rem 1.2rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--paper-raised) 75%, transparent);
+  color: var(--ink);
+}
+.lege-staat-stempel {
+  /* De ronde archiefstempel: de inkt van `.stamp`, met een binnenring in stippels. */
+  --stempel-inkt: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel), var(--ink));
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border: 2px solid var(--stempel-inkt);
+  border-radius: 50%;
+  color: var(--stempel-inkt);
+  opacity: var(--stempel-dekking);
+  transform: rotate(-9deg);
+}
+.lege-staat-stempel::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed currentColor;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+.lege-staat-tekst {
+  min-width: 0;
+  max-width: 38rem;
+  padding-top: 0.2rem;
+}
+.lege-staat-zin {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+.lege-staat-uitleg {
+  margin: 0.3rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.lege-staat-deur {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+/* In een zijkolom (de feed op Start) en op een telefoon: alles onder elkaar, in het midden. */
+.lege-staat-klein {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: center;
+  padding: 1.2rem 1rem;
+}
+.lege-staat-klein .lege-staat-stempel {
+  width: 2.8rem;
+  height: 2.8rem;
+}
+.lege-staat-klein .lege-staat-deur {
+  justify-content: center;
+}
+@media (max-width: 767px) {
+  .lege-staat {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.2rem 1rem;
+    text-align: center;
+  }
+  .lege-staat-deur {
+    justify-content: center;
+  }
+}
+
+/* ------------------------------------------ de eerste stap op Start, bovenaan */
+/*
+ * Start is een raster met benoemde vlakken (`globals.css`, §91). De vraag van
+ * een nieuwe speler en de route van een verse Keeper staan er boven alles, over
+ * de volle breedte — maar alleen als ze er zijn (`:has`), anders zou een lege
+ * rij met zijn tussenruimte elke Start een streep lager zetten.
+ */
+.home-layout:has(> .eerste-plek) {
+  grid-template-areas:
+    'eerste'
+    'jij'
+    'welcome'
+    'aside'
+    'rest';
+}
+@media (min-width: 1024px) {
+  .home-layout:has(> .eerste-plek) {
+    grid-template-areas:
+      'eerste eerste'
+      'jij jij'
+      'welcome aside'
+      'rest aside';
+  }
+}
+.home-layout > .eerste-plek {
+  grid-area: eerste;
+  margin-bottom: 0;
+}
+
+/* ---------------------------------------------- 2. wie ben jij aan tafel? */
+.wie-ben-jij {
+  position: relative;
+  display: flex;
+  gap: 1.2rem;
+  align-items: flex-start;
+  margin: 0 0 1.4rem;
+  padding: 1.3rem 1.4rem 1.3rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow);
+  scroll-margin-top: 1rem;
+}
+/* De lege pasfoto: waar straks je karakter staat. */
+.wie-portret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 4.6rem;
+  height: 5.8rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-muted);
+}
+.wie-tekst {
+  flex: 1;
+  min-width: 0;
+  max-width: 40rem;
+}
+.wie-tekst .eyebrow {
+  margin: 0 0 0.2rem;
+}
+.wie-kop {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.wie-kop:focus {
+  outline: none;
+}
+.wie-lead {
+  margin: 0.35rem 0 0.9rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+.wie-vorm .label {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.wie-regel {
+  display: flex;
+  gap: 0.5rem;
+}
+.wie-regel .input {
+  flex: 1;
+  min-width: 0;
+}
+.wie-regel .btn {
+  flex: 0 0 auto;
+}
+.wie-al {
+  margin-top: 0.9rem;
+}
+.wie-al > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--tap);
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.9rem;
+  color: var(--link);
+}
+.wie-al > summary::-webkit-details-marker {
+  display: none;
+}
+.wie-al > summary::before {
+  content: '▸';
+  transition: transform var(--dur-2) var(--ease-standard);
+}
+.wie-al[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* Het welkom: één keer, en in het expressieve register (§102 regel 7). */
+.wie-welkom {
+  display: block;
+  padding-right: 3.2rem;
+}
+.wie-welkom .wie-lead {
+  max-width: 38rem;
+}
+.wie-welkom-stempel {
+  position: absolute;
+  top: 1rem;
+  right: 3.4rem;
+  font-size: 0.8rem;
+  animation: wie-welkom-neer var(--dur-5) var(--ease-land) both;
+}
+.wie-deuren {
+  gap: 0.5rem;
+}
+.wie-sluit {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.wie-sluit:hover {
+  color: var(--ink);
+  background: var(--paper-dark);
+}
+@keyframes wie-welkom-neer {
+  from {
+    opacity: 0;
+    transform: rotate(-3deg) scale(1.5);
+  }
+  to {
+    opacity: var(--stempel-dekking);
+    transform: rotate(-3deg) scale(1);
+  }
+}
+@media (max-width: 767px) {
+  .wie-ben-jij {
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1.1rem 1rem;
+  }
+  /* De lege pasfoto als een geniet fotootje in de hoek, niet als een eigen regel. */
+  .wie-portret {
+    position: absolute;
+    top: 0.9rem;
+    right: 0.9rem;
+    width: 3rem;
+    height: 3.8rem;
+    transform: rotate(2deg);
+  }
+  .wie-portret svg {
+    width: 22px;
+    height: 22px;
+  }
+  .wie-tekst .eyebrow,
+  .wie-tekst .wie-kop {
+    padding-right: 3.6rem;
+  }
+  .wie-regel {
+    flex-direction: column;
+  }
+  .wie-regel .btn {
+    width: 100%;
+  }
+  .wie-welkom {
+    padding-right: 1rem;
+  }
+  .wie-welkom .wie-kop {
+    padding-right: 2.6rem;
+  }
+  .wie-welkom-stempel {
+    position: static;
+    display: inline-block;
+    margin-bottom: 0.6rem;
+  }
+  .wie-deuren .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* ------------------------------------------------- 3. de route van de Keeper */
+.eerste-route {
+  margin: 0 0 1.4rem;
+  padding: 1.2rem 1.4rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow);
+}
+.eerste-route-kop-rij {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+.eerste-route-kop {
+  margin: 0;
+  font-size: 1.35rem;
+}
+.eerste-route-tel {
+  margin-left: auto;
+  font-family: var(--stamp-face);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+.eerste-route-lead {
+  margin: 0.3rem 0 0.6rem;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+}
+.eerste-route-stappen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.eerste-stap {
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--rule);
+}
+.eerste-stap-nummer {
+  --stempel-inkt: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel), var(--ink));
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--rule);
+  border-radius: 50%;
+  font-family: var(--stamp-face);
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.eerste-stap.is-nu .eerste-stap-nummer {
+  border-color: var(--stempel-inkt);
+  color: var(--stempel-inkt);
+}
+.eerste-stap.is-gedaan .eerste-stap-nummer {
+  border-color: var(--live);
+  color: var(--live);
+}
+.eerste-stap-tekst {
+  flex: 1;
+  min-width: 0;
+}
+.eerste-stap-titel {
+  margin: 0.2rem 0 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.eerste-stap.is-gedaan .eerste-stap-titel {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+.eerste-stap-gedaan {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+}
+.eerste-stap-why {
+  margin: 0.2rem 0 0.6rem;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  max-width: 40rem;
+}
+
+.uitnodiging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 40rem;
+}
+.uitnodiging-link {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+}
+.uitnodiging-code {
+  flex: 1 1 100%;
+}
+.uitnodiging-code code {
+  font-family: var(--stamp-face);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-size: 0.95rem;
+}
+.lege-staat .uitnodiging {
+  margin-top: 0.1rem;
+}
+@media (max-width: 767px) {
+  .eerste-route {
+    padding: 1rem 1rem 0.4rem;
+  }
+  .lege-staat .uitnodiging {
+    justify-content: center;
+  }
+}
+
+/* -------------------------------------------------------------- 4. voordeur */
+/*
+ * De lade: haarlijnen op `--paper-dark`, zo zacht dat ze pas opvallen als je
+ * kijkt. De kaart ligt erop, met een rode lijn onder de kop zoals de 404 en
+ * een zegel dat half over de bovenrand steekt.
+ */
+.voordeur {
+  background-color: var(--paper-dark);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 31px,
+    color-mix(in oklab, var(--rule) 26%, transparent) 31px 32px
+  );
+}
+.voordeur-kaart {
+  position: relative;
+  max-width: 440px;
+  margin-top: 1.6rem;
+  padding: 2.4rem 1.6rem 1.5rem;
+  background: var(--paper-raised);
+  box-shadow: 4px 5px 0 color-mix(in oklab, var(--ink) 16%, transparent);
+}
+.voordeur-kaart::before {
+  /* De lijn van een systeemkaart, onder het zegel. */
+  content: '';
+  position: absolute;
+  left: 1.6rem;
+  right: 1.6rem;
+  top: 1.5rem;
+  border-top: 1px solid color-mix(in oklab, var(--stamp-red) 35%, transparent);
+}
+.voordeur-zegel {
+  --stempel-inkt: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel), var(--ink));
+  position: absolute;
+  top: -1.6rem;
+  left: 1.4rem;
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  border: 2px solid var(--stempel-inkt);
+  border-radius: 50%;
+  background: var(--paper-raised);
+  color: var(--stempel-inkt);
+  transform: rotate(-8deg);
+}
+.voordeur-zegel::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed currentColor;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+.voordeur-stempel {
+  /* Op de lijn, niet eronder: de stempel heeft het papier als ondergrond. */
+  background: var(--paper-raised);
+  position: absolute;
+  top: 0.75rem;
+  right: 1.2rem;
+  transform: rotate(-4deg);
+}
+/*
+ * §106 (na review 4, M12): de stempel ligt er stil — hij landde bij elke
+ * lading van /login, en §102 zegt: vieren is zeldzaam, en geen beweging bij een
+ * documentlading. Hij komt alleen neer op de drempel: terwijl een inschrijving
+ * naar het archief gaat (`aria-busy` op het formulier).
+ */
+.voordeur-inschrijven:has(form[aria-busy='true']) .voordeur-stempel {
+  animation: voordeur-stempel-neer var(--dur-4) var(--ease-land) both;
+}
+@keyframes voordeur-stempel-neer {
+  from {
+    opacity: 0;
+    transform: rotate(-4deg) scale(1.4);
+  }
+  to {
+    opacity: var(--stempel-dekking);
+    transform: rotate(-4deg) scale(1);
+  }
+}
+.voordeur-eyebrow {
+  margin: 0.4rem 0 0.35rem;
+}
+.voordeur-kaart .auth-title {
+  font-size: 1.75rem;
+  line-height: 1.15;
+}
+.voordeur-lead {
+  margin: 0.2rem 0 1.3rem;
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+}
+/* De code: in de letter van de stempels, gespatieerd, in het midden — zoals hij op een briefje staat. */
+.voordeur-code {
+  font-family: var(--stamp-face);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.voordeur-code::placeholder {
+  /* §106 (M12): `XXXXX-XXXXX` in de stempelletter, op 40 %: een vorm, geen wachtwoord. */
+  color: var(--ink-muted);
+  opacity: 0.4;
+  letter-spacing: 0.28em;
+}
+@media (max-width: 767px) {
+  .voordeur-kaart {
+    padding: 2.3rem 1.2rem 1.3rem;
+  }
+  .voordeur-kaart::before {
+    left: 1.2rem;
+    right: 1.2rem;
+  }
+}
+
+/* ------------------------------------ 5. eerste bezoek, en de ene regel */
+.eerste-bezoek {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--link);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  animation: eerste-bezoek-in var(--dur-3) var(--ease-enter) both;
+}
+.eerste-bezoek > svg {
+  flex: 0 0 auto;
+  color: var(--link);
+}
+.eerste-bezoek > span {
+  flex: 1;
+  min-width: 0;
+}
+.eerste-bezoek-weg {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--tap);
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.eerste-bezoek-weg:hover {
+  color: var(--ink);
+  background: var(--paper-dark);
+}
+@media (max-width: 479px) {
+  /* Op een smalle telefoon alleen het vinkje; de naam blijft voor een schermlezer. */
+  .eerste-bezoek-woord {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .eerste-bezoek-weg {
+    min-width: var(--tap);
+    justify-content: center;
+  }
+}
+@keyframes eerste-bezoek-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.author-banner-regel {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.author-banner-regel > span {
+  flex: 1 1 14rem;
+}
+.author-banner-deur {
+  flex: 0 0 auto;
+}
+
+/* §106 (na review 4, M6): het welkom ís jouw plek. Zolang het staat, geen
+   Jouw plek eronder die 160 px binnenschuift en *Naar de kamer* nog eens zegt. */
+.home-layout:has(> .wie-welkom) > .home-jij {
+  display: none;
+}
+
+/* §106 (na review 4, M8): een deur is iets wat een duim raakt — 44 px op een telefoon. */
+@media (max-width: 767px) {
+  .lege-staat .btn-small,
+  .eerste-route .btn-small,
+  .uitnodiging .btn-small {
+    min-height: var(--tap);
+    padding: 0 0.9rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wie-welkom-stempel,
+  .voordeur-inschrijven:has(form[aria-busy='true']) .voordeur-stempel,
+  .eerste-bezoek {
+    animation: none;
+  }
+}
+
+/* De hal met alleen de Keeper: de uitnodiging onder zijn eigen regel, niet ertegenaan. */
+.lege-staat[data-leeg='spelers'] {
+  margin-top: 1rem;
+  max-width: 48rem;
+}

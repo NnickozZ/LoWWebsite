@@ -1,5 +1,14 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editCanvas, expectBoxValue, newBoard, readCanvas, signIn, signUp } from './helpers';
+import {
+  becomeInvestigator,
+  editCanvas,
+  expectBoxValue,
+  keeperHandsOutSecond,
+  newBoard,
+  readCanvas,
+  signIn,
+  signUp,
+} from './helpers';
 
 /**
  * §90, ronde 51 — "De deuren", de helft van de tekenvlakken en Beheer.
@@ -92,6 +101,8 @@ test('C1: in Lezen vraagt geen tekenvlak wie er schrijft; in Bewerken vraagt het
   // A speler with an onderzoeker, in a window that has not said who is writing.
   await signUp(page, `Kijker ${stamp}`, PASSWORD);
   await becomeInvestigator(page, `Kijkster ${stamp}`);
+  // §106 (na review 4, H5): one onderzoeker is not asked; two are.
+  await keeperHandsOutSecond(browser, `Kijker ${stamp}`);
   await page.evaluate(() => window.sessionStorage.clear());
 
   for (const [name, path] of Object.entries(paths)) {
@@ -109,15 +120,27 @@ test('C1: in Lezen vraagt geen tekenvlak wie er schrijft; in Bewerken vraagt het
     await expect(askSheet(page), `${name}: een tik in Lezen opent geen dialoog`).toHaveCount(0);
   }
 
-  // And the question is not gone, only moved: in Bewerken the glas asks it.
+  // And the question is not gone, only moved — §105 (golf J): in Bewerken a
+  // touch on the glas is still looking (pannen), so it asks nothing; what
+  // *writes* asks, and the handeling goes on after the answer.
   await page.goto(paths.prikbord);
   await editCanvas(page);
   await expect(askSheet(page)).toHaveCount(0);
   const cork = page.locator(STAGES.prikbord);
-  await expect(async () => {
-    if ((await askSheet(page).count()) === 0) await touch(page, cork, isPhone);
-    await expect(askSheet(page)).toBeVisible({ timeout: 1500 });
-  }).toPass({ timeout: 15_000 });
+  await touch(page, cork, isPhone);
+  await page.waitForTimeout(600);
+  await expect(askSheet(page), 'een tik op het kurk in Bewerken is lezen').toHaveCount(0);
+  if (isPhone) {
+    await page.locator('.canvas-make').tap();
+  } else {
+    // A double-click on bare cork makes a notitie: ask first, then make.
+    const box = (await cork.boundingBox())!;
+    await page.mouse.dblclick(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  }
+  await expect(askSheet(page)).toBeVisible({ timeout: 5000 });
+  await askSheet(page).getByRole('radio').first().click();
+  await expect(askSheet(page)).toHaveCount(0);
+  await expect(page.locator('.board-card'), 'na het antwoord staat de notitie er').toHaveCount(1, { timeout: 10_000 });
 });
 
 test('C2/C3: Nieuwe notitie landt in tekstmodus, de n opent niets, en in Lezen is er geen Artikel aanmaken', async ({
@@ -154,7 +177,10 @@ test('C2/C3: Nieuwe notitie landt in tekstmodus, de n opent niets, en in Lezen i
   await expect(card.getByRole('button', { name: /aanmaken/ })).toHaveCount(0);
 });
 
-test('C10: Ongedaan maken staat in Lezen op de tijdlijn en de stamboom, grijs', async ({ page }) => {
+test('C10: Ongedaan maken staat in Lezen op de tijdlijn en de stamboom, grijs', async ({ page }, info) => {
+  // §105 (golf i1): op een telefoon is Lezen stil; daar staat de knop naast de
+  // `+` in Bewerken (golf-i1-vlakken.spec.ts).
+  test.skip(info.project.name === 'phone', 'op een telefoon is de ongedaan-knop van Bewerken');
   test.setTimeout(120_000);
   await signIn(page, ...KEEPER);
 
@@ -217,5 +243,6 @@ test('C30: een tab in Beheer staat in het adres en blijft na herladen', async ({
     await expect(page).toHaveURL(/[?&]tab=trash/, { timeout: 1500 });
   }).toPass({ timeout: 15_000 });
   await page.reload();
-  await expect(page.getByRole('tab', { name: /Prullenbak/ })).toHaveAttribute('aria-selected', 'true');
+  // §107 (review 4): op een telefoon is er na een keuze geen tab meer te zien; het paneel zegt welk.
+  await expect(page.locator('.beheer-paneel')).toHaveAttribute('data-tab', 'trash');
 });

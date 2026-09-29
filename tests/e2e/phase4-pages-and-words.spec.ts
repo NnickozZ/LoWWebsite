@@ -74,7 +74,9 @@ test('the Keeper adds a list of their own to every page of a soort', async ({ pa
   const block = editor.locator('.admin-block', { hasText: 'Eigen lijst' }).last();
   await block.getByRole('textbox').first().fill(title);
   await editor.getByRole('button', { name: 'Opslaan', exact: true }).click();
-  await expect(editor.getByText('Opgeslagen.')).toBeVisible();
+  // §107: het opslaan-woord staat op de ene plek van §100, in de schil; de voet telt.
+  await expect(page.getByTestId('save-state')).toHaveAttribute('data-save', 'saved', { timeout: 20_000 });
+  await expect(editor.getByTestId('soort-voet')).toContainText('Alles bewaard');
 
   // It is on the page, and what is filed in it stays filed.
   await page.goto('/wiki/faction');

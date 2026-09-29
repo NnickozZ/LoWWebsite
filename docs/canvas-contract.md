@@ -7,6 +7,14 @@ uit `claude/plan-ui-ux-eenheid.md`: de drie tafels, ingevuld met wat de code
 voorgesteld doelgedrag, de open vragen voor Nick, en de werklijst voor fase 2
 per as met een maat.
 
+Latere rondes staan als blokken onder de rij die ze raken. Golf I (§105, de
+tekenvlakken op de telefoon) staat bij rij 12 (het paneel), rij 14 (de kop,
+de compacte balk, `.canvas-make`, de peek met `data-groeit` en
+`data-peek-hoog`) en rij 15 (`CanvasEmpty` en de strook). Golf J (§105, na de
+meting na golf I) staat bij rij 14: lezen in Bewerken vraagt niets
+(`gatePress`), Vind boven het toetsenbord, het web en de stamboom op de
+telefoon.
+
 ## Hoe je dit leest
 
 - **Kolommen** zijn de plekken, **rijen** de gebaren. Elk vakje beschrijft
@@ -402,6 +410,14 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 
 **Doel.** Op desktop een niet-modaal paneel bij het gekozen ding, met dezelfde drie sluitwegen (Escape, druk op leeg papier, kruisje `Sluiten`), binnen de stage geklemd, met de knoppen `Openen`, `Bewerken`/velden en `Verwijderen` één klik diep; op de telefoon een bottom sheet (rij 14). *Waarom:* vier van de vijf plekken zijn al niet-modaal; de landkaart is de enige die het glas afdekt, en dat blokkeert twee andere rijen.
 
+> **Golf I (§105): op de telefoon is het paneel op alle vijf een
+> `CanvasPeek`.** Het prikbord was de laatste: `BoardInspector` rendert daar
+> sinds review 4 (H1) een peek (`.board-peek`, kruisje *Selectie loslaten*) in
+> plaats van de platte balk `.board-inspector-phone`, die onder de `+` lag.
+> Klein toont hij wat gekozen is en de weg ernaartoe, groot de rand, de stalen
+> en de maat. Ook de lade *Uit het dossier* is op de telefoon een peek (M5).
+> Zie rij 14 voor hoe de peek beweegt.
+
 ### Rij 13 — Het potlood
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -520,6 +536,72 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 >   onder 768 px alleen hun icoon, met hun naam; de tip "Verschuiven werkt het
 >   best op een tablet" is weg. En het prikbord heeft een beschrijving.
 
+> **Golf I (§105): het glas, één regel eromheen, en een `+` onder de duim.**
+> Alles in `app/vlakken.css`, onder 768 px, tenzij anders gezegd.
+> - **De kop is twee regels**: de weg terug (die opzij scrolt als
+>   `.schuifrij`), en de naam met *Verbindingen* als icoon van 44 px. Een
+>   `h1` in een kop is `flex: 1 1`; de stamboom noemt
+>   `.page-canvas .canvas-head > h1.tree-title` zelf.
+> - **De compacte balk.** De werkbalk is één regel: Lezen/Bewerken als twee
+>   iconen, Vind, de zoombalk met *Alles in beeld*, en wat een vlak nog heeft.
+>   Het getal naast de zoomknoppen (`.canvas-zoom-level`) staat er niet; de
+>   tijdlijn zegt haar tijd op het glas onder de as (`.canvas-count-span`).
+>   Eén grammatica (review 4, H4): een groep (schakelaar, zoombalk) heeft een
+>   rand, een losse knop (loep, trechter, ↕, tandwiel, slotje) is 44 × 44
+>   kaal in `--ink-muted`; gekozen is `--paper-dark` met inkt, alleen
+>   Bewerken is stempelrood. *Tekenen* is de glyph `krabbel` en dicht één
+>   ronde knop. Vind staat nu op alle vijf: ook `map-find` en
+>   `timeline-find`; op de tijdlijn staat *Alles tonen* daarom in het
+>   tandwielblad.
+> - **`.canvas-make`**: de maakknop van de balk (`useCanvasMaker`, dezelfde
+>   naam) staat op een telefoon `position: fixed` rechtsonder, rond en 56 px,
+>   waar elders de FAB staat; `.canvas-undo` staat er rond en 44 px naast.
+>   Alleen in Bewerken; in Lezen staan ze er geen van beide, ook niet de
+>   grijze undo van rij 9. Ze klimmen boven een melding (`--toast-stack`) en de
+>   peek (`--peek-now`) via `--dock-lift`, en wijken alleen bij
+>   `:root[data-peek-hoog]`. Alleen op `.page-canvas`: de tijdlijn in een
+>   dossier houdt haar maker in de balk.
+> - **De peek** (`CanvasPeek`, `lib/canvas/peek.ts`) ligt onder de tabbalk
+>   (z 39) met een rok van papier en beweegt alleen op `transform`: van achter
+>   de tabbalk op, aan de greep met de duim mee, omhoog groot, omlaag klein of
+>   weg (`peekRelease`: 48 px of 0,5 px/ms). Hij groeit alleen als zijn
+>   inhoud overloopt: `data-groeit="ja|nee"` staat op de peek, en zonder
+>   overloop geeft de greep een rubberen rand. `data-peek-hoog` staat op
+>   `:root` zodra de peek hoger is dan de halve viewport; zijn hoogte staat als
+>   `--peek-now` op `:root`. Op het web rekenen fit en centreren de peek af
+>   (`bottomInset`), en randlabels staan op de telefoon niet (M4).
+> - **De eerste stand** (M2, M3). *Alles in beeld* op een tijdlijn houdt de
+>   halve breedte van de eerste en laatste tag vrij (`fitView(…, edge)`); een
+>   landkaart die na de fit hooguit 70 % van het glas vult en minstens twee
+>   spelden heeft, opent op hun kader (`openingOnPins`). Een eerste stand,
+>   geen springende camera: §102 regel 9 blijft.
+> - **Gemeten** (390×844): het glas 73–76 % in Lezen, 70 % in Bewerken (was
+>   59–68 % en 55–62 %); `golf-i1-vlakken.spec.ts` eist ≥ 68 % van 390×844 en
+>   ≥ 62 % van 393×727.
+
+> **Golf J (§105): lezen vraagt niets, en Vind staat boven het toetsenbord.**
+> - **De schrijfvraag komt bij een handeling die schrijft**, ook in Bewerken
+>   en op elke breedte. `gatePress` (`lib/canvas/authorGate.ts`) zegt per
+>   druk *nu*, *pas als hij beweegt* of *nooit*, met de selectors van het glas
+>   en de dingen erop (`BOARD_GLASS`, `MAP_GLASS`, `TIMELINE_GLASS`,
+>   `TREE_GLASS`). Een ding kiezen leest; een sleep schrijft en vraagt na
+>   `PRESS_SLOP` (4 px); kaal papier vraagt nooit, en de dubbelklik of lange
+>   druk die daar iets maakt, vraagt zelf (`useMakeOnEmpty`) en maakt daarna.
+>   Een link leest in elke stand, dus *Artikel openen* op een speld navigeert.
+>   Dit verfijnt de regel van ronde 51 (O12) en ronde 64 hierboven.
+> - **Een computer opent een vlak in Bewerken, en dat blijft** (besloten; ronde
+>   64 liet het open). De telefoon opent in Lezen (§73).
+> - **Vind klapt op elk vlak open onder de werkbalk** (`.map-toolbar` en
+>   `.timeline-toolbar` zijn het anker, zoals de balk van het prikbord en de
+>   stamboom), en de lijst is nooit hoger dan wat er boven het toetsenbord en
+>   de tabbalk over is (`findListRoom` met `visualViewport`, `--find-room`).
+> - **Het web vanaf *Verbindingen*** opent met de peek groot
+>   (`CanvasPeek startFull`); na een rij is hij klein, met *Openen* in beeld.
+> - **De stamboom na een `+`**: past de nieuwe kaart niet samen met de oude op
+>   het glas, dan wint de nieuwe (`panToBring`, `boxOnGlass`). Niet gezoomd.
+> - **De legenda op een telefoon**: het zoekvak bovenaan het blad, de
+>   treffers direct eronder, en met opzet geen focus bij openen.
+
 ### Rij 15 — Lege staat, laadstaat, foutstaat
 
 | | Prikbord | Landkaart | Tijdlijn | Stamboom | Web |
@@ -546,6 +628,27 @@ Wie op welke gedeelde code staat (`grep` in de map van elke plek):
 > alleen mag kijken, krijgt alleen de kop. In Lezen is de naam van het
 > prikbord bovendien tekst en geen vak meer (review C27/B27), zoals op de
 > stamboom.
+
+> **Golf I (§105): één zin en één knop, en op de landkaart en de tijdlijn een
+> strook.** Een leeg vlak is `CanvasEmpty` (`components/canvas/CanvasEmpty.tsx`,
+> `data-testid="canvas-leeg"`), met de oude klasse van elk vlak erbij
+> (`board-empty`, `map-empty`, `timeline-empty`, `tree-empty`), op elke
+> breedte: een tekening in inkt met één stip stempelrood, één zin
+> (`vlakLeeg*`) en één knop. In Bewerken maakt de knop wat het vlak het eerst
+> maakt (`vlakLeeg*Doe`, nooit de naam van de maker in de balk, §64), als
+> gewone `.btn`; in Lezen is hij *Beginnen* (`vlakLeegBegin`), rood, en zet
+> hij Bewerken aan; wie niet mag bewerken, krijgt alleen de zin. De knop
+> houdt zijn eigen `pointerdown`, dus het glas ziet hem niet. Dit vervangt de
+> zinnen van ronde 51 (`boardEmpty*`, nu dode woorden). **De strook**
+> (`CanvasEmpty strook`, `.canvas-leeg.is-strook`, review 4 H3): op de
+> landkaart en de tijdlijn is de lege staat een smalle band met tekening, zin
+> en knop op één regel, op een computer onderaan links, op een telefoon
+> bovenaan. De strook is glas: alleen de knop vangt een druk, een sleep
+> erdoorheen pakt het vlak. Zo blijven de scan van de Keeper en de as in
+> beeld. Op het prikbord en de stamboom blijft de fiche in het glas. De
+> landkaart toont haar lege staat ook met de tekenlaag aan (`inkActive`), en
+> een lege tijdlijn opent bij het laatste moment op een tijdlijn die de lezer
+> mag zien (`latestSeenMoment`, L10).
 
 ---
 ## Tafel 2 — de makers

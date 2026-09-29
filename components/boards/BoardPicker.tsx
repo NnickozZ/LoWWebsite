@@ -7,7 +7,8 @@ import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 import { clampInside } from '@/lib/canvas/clamp';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
-import { capitalise } from '@/lib/words';
+import { useIsPhone } from '@/components/useIsPhone';
+import { capitalise, fill } from '@/lib/words';
 import { fuzzyScore } from '@/lib/search/fuzzy';
 import type { BoardCard } from '@/lib/boards/merge';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
@@ -109,6 +110,7 @@ export function BoardPicker({
   onFind?: (cardId: string) => void;
 }) {
   const ui = useUi();
+  const isPhone = useIsPhone();
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestedEntry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -295,6 +297,13 @@ export function BoardPicker({
           ? `${capitalise(ui.words.card)} hier vastknopen`
           : `${capitalise(ui.words.card)} toevoegen`}
       </label>
+      {/* §105 (golf J, raden 6): on a phone this box is where you prik — it
+          wears the loep of every search box, and the round button in the
+          corner now shows a notitie, so the two are never read as one. Not
+          the punaise: that is the bar's *Punaise* button, beside it. */}
+      {isPhone && variant === 'bar' && !holding && (
+        <Icon name="search" size={16} className="board-prik-loep" aria-hidden="true" />
+      )}
       <input
         ref={inputRef}
         id={`board-search${variant === 'float' ? '-here' : ''}`}
@@ -314,7 +323,10 @@ export function BoardPicker({
         placeholder={
           holding
             ? `Zoek wat er aan de ${ui.words.string} komt…`
-            : `Zoek een ${ui.words.entry}, landkaart, ${ui.words.case}, ${ui.words.board}, ${ui.words.timeline} of ${ui.words.familyTree}…`
+            : /* §105 (review 4, M5): the long list ended on "dossier, p" at 390 px. */
+              isPhone && variant === 'bar'
+              ? fill(ui.words.vlakPrikZoek, { artikel: ui.words.entry })
+              : `Zoek een ${ui.words.entry}, landkaart, ${ui.words.case}, ${ui.words.board}, ${ui.words.timeline} of ${ui.words.familyTree}…`
         }
         aria-describedby={holding ? `board-search-holding${variant}` : undefined}
         onChange={(event) => setSearch(event.target.value)}

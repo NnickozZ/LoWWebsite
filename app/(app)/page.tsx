@@ -18,11 +18,17 @@ import { defaultIntro, introParagraphs } from '@/lib/intro';
 import { listFamilyTrees } from '@/lib/families/service';
 import { listMaps } from '@/lib/maps/service';
 import { purseOf, visibleNamesOf } from '@/lib/kamers/service';
-import { activeCharacter } from '@/lib/characters';
+import { activeCharacter, listCharacters } from '@/lib/characters';
 import { OWN_WORK_SCAN, ownRecentWork } from '@/lib/home/jij';
 import { Beurs } from '@/components/kamer/Beurs';
 import { MEANING } from '@/components/kamer/plekWords';
-import { capitalise, fill } from '@/lib/words';
+import { fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { ArtikelDeur, DossierDeur } from '@/components/eerste-keer/Deuren';
+import { EersteRoute } from '@/components/eerste-keer/EersteRoute';
+import { WieBenJij } from '@/components/eerste-keer/WieBenJij';
+import { archiveFirsts } from '@/lib/eerste-keer/tellen';
+import { showsRoute } from '@/lib/eerste-keer/stappen';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +97,16 @@ export default async function HomePage() {
   const worn = user && !user.isKeeper ? activeCharacter(user.id) : null;
   const ownWork = user && (purse || user.isKeeper) ? ownRecentWork(recentActivity(user, OWN_WORK_SCAN), user.id) : [];
 
+  /*
+   * §106 (golf i2): de eerste keer. Een speler die nog niemand is, krijgt hier
+   * één vraag in plaats van de Jij-rij met alleen *Kies je karakter*; een
+   * Keeper in een archief dat nog niet begonnen is, krijgt drie stappen.
+   */
+  // A Keeper looking as a player (§44) is not a newcomer: no question for him.
+  const needsCharacter = Boolean(user && !user.isKeeper && !user.asPlayer && listCharacters(user.id).length === 0);
+  const firsts = user?.isKeeper ? archiveFirsts() : null;
+  const route = firsts && showsRoute(firsts) ? firsts : null;
+
   const intro = introParagraphs(settings?.intro?.trim() ? settings.intro : defaultIntro(words));
 
   const lastSeen = user?.lastSeenAt ?? 0;
@@ -112,6 +128,24 @@ export default async function HomePage() {
         />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span className="small" style={{ display: 'block' }}>
+            {/*
+              §106 (na review 4, M7): a speler tying on their first karakter.
+              It read "Adriaan Moens wijzigde Adriaan Moens" — the first line a
+              new speler's feed ever shows. The karakter *is* the subject.
+            */}
+            {item.verb === 'character.added' ? (
+              item.actorIsKeeper ? (
+                <>
+                  <strong title={item.actorAccount ?? undefined}>{item.actorLabel ?? 'Iemand'}</strong>{' '}
+                  {words.feedCast} <strong>{item.entry!.name}</strong>
+                </>
+              ) : (
+                <>
+                  <strong title={item.actorAccount ?? undefined}>{item.entry!.name}</strong> {words.feedSatDown}
+                </>
+              )
+            ) : (
+            <>
             <strong title={item.actorAccount ?? undefined}>{item.actorLabel ?? 'Iemand'}</strong>{' '}
             {(() => {
               const room = roomFeedPhrase(
@@ -138,6 +172,8 @@ export default async function HomePage() {
                 </>
               );
             })()}
+            </>
+            )}
           </span>
           <span className="tiny muted clamp-2" style={{ display: 'block' }}>
             {/* §48: flat chips — the whole row is a link. */}
@@ -154,8 +190,13 @@ export default async function HomePage() {
   return (
     <div className="page-wide home-layout">
       <LivePage place="page:/" watch={['feed', 'entries', 'cases', 'boards', 'maps', 'site', 'words']} />
+      {/* §106: rendered for every speler, also once they are somebody — the
+          welcome that follows *Dit ben ik* lives in its state and has to
+          survive the refresh that brings the kamer. */}
+      {user && !user.isKeeper && !user.asPlayer && <WieBenJij needs={needsCharacter} />}
+      {route && <EersteRoute firsts={route} words={words} inviteCode={settings?.inviteCode ?? ''} />}
       {/* §91: boven de welkomsttekst, die blijft staan zoals hij is. */}
-      {user && (
+      {user && !needsCharacter && (
         <section className="home-jij" aria-labelledby="home-jij-title" data-testid="home-jij">
           <h2 id="home-jij-title" className="nav-group-head home-jij-head">
             {words.navGroupYours}
@@ -250,20 +291,27 @@ export default async function HomePage() {
           ))}
         </div>
         <p className="home-numbers" aria-label="Wat het archief telt">
-          {numbers.map(([count, one, many, href], index) => (
-            <span key={href}>
-              {index > 0 && <span className="muted"> · </span>}
-              <Link href={href}>
-                <strong>{count}</strong> {count === 1 ? one : many}
-              </Link>
-            </span>
-          ))}
-          {/* §90: and the web, which has no count of its own — it is all of the above. */}
-          <span className="muted"> · </span>
-          <Link href="/web">{words.navWeb}</Link>
+          {/* §106 (na review 4, M8): under the route the numbers are five
+              noughts saying what the route already says; they come back with
+              the first thing in the archive. */}
+          {!route && (
+            <>
+              {numbers.map(([count, one, many, href], index) => (
+                <span key={href}>
+                  {index > 0 && <span className="muted"> · </span>}
+                  <Link href={href}>
+                    <strong>{count}</strong> {count === 1 ? one : many}
+                  </Link>
+                </span>
+              ))}
+              {/* §90: and the web, which has no count of its own — it is all of the above. */}
+              <span className="muted"> · </span>
+              <Link href="/web">{words.navWeb}</Link>
+            </>
+          )}
           {user?.isKeeper && (
             <>
-              <span className="muted"> · </span>
+              {!route && <span className="muted"> · </span>}
               <Link href="/admin?tab=site" className="tiny">
                 <Icon name="edit" size={12} /> Welkomsttekst aanpassen
               </Link>
@@ -277,12 +325,13 @@ export default async function HomePage() {
           Sinds je laatste bezoek
         </h2>
         {feed.length === 0 ? (
-          <div className="empty">
-            <p style={{ margin: 0 }}>Nog niets opgeborgen.</p>
-            <p className="small" style={{ margin: '0.4rem 0 0' }}>
-              Druk op <kbd>n</kbd>, of op de <strong>+</strong>-knop, om aan het eerste {words.entry} te beginnen.
-            </p>
-          </div>
+          // §106: de lege feed. Geen *Druk op n* meer (een telefoon heeft geen n);
+          // de deur is de knop zelf, behalve als de route hierboven hem al heeft.
+          <LegeStaat icon="notebook" zin={words.emptyFeed} uitleg={words.emptyFeedWhy} soort="feed">
+            {route || needsCharacter ? null : (
+              <ArtikelDeur label={fill(words.emptyWrite, { artikel: words.entry })} />
+            )}
+          </LegeStaat>
         ) : (
           <>
             <ul className="home-feed" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -339,12 +388,19 @@ export default async function HomePage() {
             ))}
           </ul>
         ) : (
-          <div className="empty" style={{ marginTop: '0.6rem' }}>
-            <p className="small" style={{ margin: 0 }}>
-              Er is nog geen {words.case} open. Open er een vanaf de pagina{' '}
-              <Link href="/cases">{words.navCases}</Link>.
-            </p>
-          </div>
+          // §106: geen open dossier. Is er helemaal geen, dan de deur om er een
+          // te openen; staan ze allemaal dicht, dan de deur naar de kast.
+          <LegeStaat icon="folder" zin={fill(words.emptyOpenCases, { dossier: words.case })} soort="open-dossiers">
+            {caseCount === 0 ? (
+              route || needsCharacter ? null : (
+                <DossierDeur label={fill(words.emptyCasesGo, { dossier: words.case })} />
+              )
+            ) : (
+              <Link className="btn btn-small" href="/cases">
+                {fill(words.toCases, { dossiers: words.casePlural })}
+              </Link>
+            )}
+          </LegeStaat>
         )}
 
         {recent.length > 0 && (
@@ -366,11 +422,8 @@ export default async function HomePage() {
             </div>
           </>
         )}
-        {recent.length === 0 && (
-          <p className="small muted" style={{ marginTop: '1.5rem' }}>
-            Nog geen {words.entryPlural}. {capitalise(words.newEntry)} staat in het menu.
-          </p>
-        )}
+        {/* §106: "Nog geen artikelen. Nieuw artikel staat in het menu." is weg:
+            de lege feed hierboven zegt het al, met de knop erbij. */}
       </div>
     </div>
   );

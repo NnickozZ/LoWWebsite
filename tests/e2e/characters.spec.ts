@@ -1,5 +1,14 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { editArticle, inviteCode, newEntryButton, openNewEntry, signIn, writeAs } from './helpers';
+import {
+  editArticle,
+  inviteCode,
+  keeperHandsOutSecond,
+  newEntryButton,
+  releaseCaret,
+  openNewEntry,
+  signIn,
+  writeAs,
+} from './helpers';
 
 /**
  * §18: who you are being. §18b: who *this window* is writing as.
@@ -126,6 +135,7 @@ async function clickUntil(
   target: ReturnType<Page['locator']>,
 ) {
   for (let attempt = 0; attempt < 8 && !(await target.isVisible().catch(() => false)); attempt++) {
+    await releaseCaret(page);
     await button.click({ timeout: 5000 }).catch(() => undefined);
     await page.waitForTimeout(400);
   }
@@ -251,6 +261,9 @@ test('a fresh window is asked at the first edit, and not one moment before', asy
   await page.goto(characterPath);
   await page.getByRole('button', { name: 'Dit is mijn karakter' }).click();
   await expect(page.getByText(`Je speelt nu als ${character}.`)).toBeVisible();
+  // §106 (na review 4, H5): with one onderzoeker nothing is asked any more —
+  // the window writes as that one. The question is for a choice, so give one.
+  await keeperHandsOutSecond(browser, account);
 
   /*
    * A fresh window. Reading the wiki is not an act of authorship, so nothing
@@ -326,6 +339,9 @@ test('the question comes before the nieuw-artikel sheet, not on top of it', asyn
   await page.goto(characterPath);
   await page.getByRole('button', { name: 'Dit is mijn karakter' }).click();
   await expect(page.getByText(`Je speelt nu als ${character}.`)).toBeVisible();
+  // §106 (na review 4, H5): with one onderzoeker nothing is asked any more —
+  // the window writes as that one. The question is for a choice, so give one.
+  await keeperHandsOutSecond(browser, account);
 
   /*
    * A fresh window: an onderzoeker on the peg, and no answer in *this* window
@@ -483,16 +499,22 @@ test('a speler with no onderzoeker may make their first artikel, and nothing els
 
   await signUpAs(page, `Toeschouwer ${stamp}`);
 
-  // The notice stands at the top of the page, in words, without being asked —
-  // and it says what they *can* do, not only what they cannot.
+  /*
+   * §106 (golf i2): Start *is* the first step now — *Wie ben jij aan tafel?* —
+   * so the notice is not on Start. Everywhere else it is one line, in words,
+   * with the door to that step: it says what they *can* do, not only what they
+   * cannot. (It used to be three lines on every page, Start included, saying
+   * "alleen lezen" and "koppel het aan je account".)
+   */
   const banner = page.locator('[data-testid="no-author-banner"]');
-  await expect(banner).toBeVisible();
-  await expect(banner).toContainText('alleen lezen');
-  await expect(banner).toContainText('koppel het aan je account');
+  await expect(page.getByTestId('wie-ben-jij')).toBeVisible();
+  await expect(banner).toHaveCount(0);
 
   // Nothing is asked of them: there is nothing to choose, so no sheet.
   await page.goto(notePath);
   await expect(banner).toBeVisible();
+  await expect(banner).toContainText('Je leest mee');
+  await expect(banner.getByTestId('no-author-door')).toHaveAttribute('href', '/#wie-ben-jij');
   await editArticle(page);
   await body(page).click();
   await page.keyboard.type('Toch iets');
@@ -536,7 +558,9 @@ test('a speler with no onderzoeker may make their first artikel, and nothing els
   await page.goto(madePath);
   await page.getByRole('button', { name: 'Dit is mijn karakter' }).click();
   await expect(page.getByText(`Je speelt nu als ${character}.`)).toBeVisible();
-  await page.goto('/');
+  // §106: not on Start in any case, so ask a page where it would stand.
+  await page.goto('/cases');
+  await expect(page.getByRole('heading', { name: 'Dossiers' })).toBeVisible();
   await expect(banner).toHaveCount(0);
 
   // And now the ordinary rule: a second artikel is signed like everything

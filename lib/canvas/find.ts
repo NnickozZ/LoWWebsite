@@ -26,3 +26,26 @@ export function findOnCanvas(items: Findable[], query: string, limit = FIND_LIMI
     .slice(0, limit)
     .map((row) => row.item);
 }
+
+/** §105 (golf J): the fewest pixels the list of hits gets — two rows. */
+export const FIND_ROOM_MIN = 96;
+
+/**
+ * §105 (golf J, stuk 1): how tall the list of hits under Vind may be. From its
+ * top to the lowest edge a person can see — the foot of the visual viewport,
+ * which a phone's keyboard shrinks, or the top of the tab bar when that is
+ * higher — less a breath of 8 px, and never under two rows. Pure, so the rule
+ * is a unit test and not a real keyboard, which Playwright does not have.
+ */
+export function findListRoom({
+  top,
+  viewBottom,
+  barTop,
+}: {
+  top: number;
+  viewBottom: number;
+  barTop: number | null;
+}): number {
+  const bottom = barTop !== null && barTop < viewBottom ? barTop : viewBottom;
+  return Math.max(FIND_ROOM_MIN, Math.floor(bottom - top - 8));
+}

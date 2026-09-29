@@ -77,6 +77,12 @@ export type WebCanvasProps = {
   editing?: boolean;
   /** How many knots are pinned right now (organic) — for a "losmaken" button. */
   onPinsChange?: (count: number) => void;
+  /**
+   * §105 (review 4, M4): screen pixels at the foot of the glass that a peek
+   * covers. A fit and "in beeld brengen" centre on what is left above it, so
+   * the middle of the web is not half under the drawer.
+   */
+  bottomInset?: number;
 };
 
 type Palette = {
@@ -966,8 +972,15 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     // Columns never fit below 0.45: a column of eighty rows shrunk to fit the
     // window is a column of needles, and a reader would rather scroll.
     const floor = propsRef.current.mode === 'columns' ? 0.45 : ZOOM_MIN;
-    const zoom = Math.max(floor, Math.min(propsRef.current.mode === 'columns' ? 1.15 : 1.6, (w - pad * 2) / bw, (h - pad * 2) / bh));
-    animateCamera({ x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2, zoom });
+    const inset = Math.min(h * 0.6, Math.max(0, propsRef.current.bottomInset ?? 0));
+    const zoom = Math.max(floor, Math.min(propsRef.current.mode === 'columns' ? 1.15 : 1.6, (w - pad * 2) / bw, (h - inset - pad * 2) / bh));
+    // §105 (review 4, M4): centred on the glass *above* the peek — and with a
+    // peek over it, on the middelpunt itself, which is what the peek is about.
+    const focusId = propsRef.current.graph.focus;
+    const middle = inset > 0 && focusId ? s.placed.get(focusId) : undefined;
+    const cx = middle ? middle.x : (b.minX + b.maxX) / 2;
+    const cy = middle ? middle.y : (b.minY + b.maxY) / 2;
+    animateCamera({ x: cx, y: cy + inset / 2 / zoom, zoom });
   };
 
   const reportPins = () => propsRef.current.onPinsChange?.(state.current.sim.pinnedCount);
@@ -983,7 +996,10 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
     },
     centreOn: (id) => {
       const p = state.current.placed.get(id);
-      if (p) animateCamera({ x: p.x, y: p.y, zoom: Math.max(state.current.camera.zoom, 0.8) });
+      if (!p) return;
+      const zoom = Math.max(state.current.camera.zoom, 0.8);
+      const inset = Math.min(state.current.size.h * 0.6, Math.max(0, propsRef.current.bottomInset ?? 0));
+      animateCamera({ x: p.x, y: p.y + inset / 2 / zoom, zoom });
     },
     zoomBy: (factor) => {
       const s = state.current;
@@ -1943,7 +1959,14 @@ export const WebCanvas = forwardRef<WebCanvasHandle, WebCanvasProps>(function We
 
     mark('folds');
     /* --- edge phrases: for the lit node, or for every line when asked --- */
-    const wantLabels = labelsAlways ? drawn : litEdges ? drawn.filter((d) => litEdges.has(d.edge.id)) : [];
+    /* §105 (review 4, M4): on a phone the phrases of a lit knot were a dozen
+       identical white labels over the names — the peek lists every line in
+       words already. There they come only when the legend asks for all. */
+    const wantLabels = labelsAlways
+      ? drawn
+      : litEdges && !propsRef.current.phone
+        ? drawn.filter((d) => litEdges.has(d.edge.id))
+        : [];
     if (wantLabels.length && zoom >= 0.35) {
       const size = 10 / zoom;
       const textK = textScale(zoom);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -13,6 +13,7 @@ import { Sheet } from './Sheet';
 import { useUi } from './UiProvider';
 import { capitalise, fill } from '@/lib/words';
 import { clearDraft, readDraft, writeDraft, DRAFT_ENTRY } from '@/lib/sheetDraft';
+import { TYPE_ROWS_DESK, TYPE_ROWS_PHONE, typeFold } from '@/lib/entries/typeFold';
 import type { EntryTypeLite } from './UiProvider';
 
 export type CreatedEntry = {
@@ -149,30 +150,61 @@ export function NewEntrySheet({
   const [typesOpen, setTypesOpen] = useState(false);
   const typeStripRef = useRef<HTMLDivElement | null>(null);
   /*
-   * §101: the chosen soort in view in the strip. This was an effect on mount,
-   * and it had `attachName`'s bug (§90): `Sheet` draws nothing on its first
-   * commit, so the effect found no strip and a prefilled soort far down the
-   * list stayed out of sight. A callback ref runs when the strip is attached;
-   * the effect below does it again when "Alle soorten" folds back in.
+   * Golf J (stuk 7, raden 8, rij 20): the soorten wrap, and fold after a few
+   * rows (`typeFold`, `lib/entries/typeFold.ts`). Golf H's strip was one
+   * line that scrolled sideways, and everything after the sixth soort was out
+   * of sight with nothing saying so: a Keeper looking for *Huisraad* (the
+   * seventh) pressed *Alle soorten* first. Now two rows on a desk and three on
+   * a phone stand in full, whole rows only, and *Alle soorten* says how many
+   * are under the fold. The name box stays on top, so the rest of golf H's
+   * calm is kept.
+   *
+   * §101 still holds: the chosen soort is in view. If it would be under the
+   * fold when the sheet opens (a prefilled soort far down the list), the
+   * sheet opens with every soort showing; and a Tab onto a folded chip opens
+   * them too, so the keyboard never walks into something it cannot see.
    */
-  const scrollChosenIntoStrip = (strip: HTMLDivElement | null) => {
-    const chip = strip?.querySelector<HTMLElement>('[data-chosen="true"]');
-    if (!strip || !chip) return;
-    const box = strip.getBoundingClientRect();
-    const at = chip.getBoundingClientRect();
-    if (at.left >= box.left && at.right <= box.right) return;
-    strip.scrollLeft += at.left - box.left - 8;
-  };
-  const stripScrolled = useRef(false);
-  const attachStrip = (element: HTMLDivElement | null) => {
-    typeStripRef.current = element;
-    if (!element || stripScrolled.current) return;
-    stripScrolled.current = true;
-    scrollChosenIntoStrip(element);
-  };
-  useEffect(() => {
-    if (!typesOpen) scrollChosenIntoStrip(typeStripRef.current);
-  }, [typesOpen]);
+  const [fold, setFold] = useState<{ height: number; hidden: number } | null>(null);
+  const measureStrip = useCallback(() => {
+    const strip = typeStripRef.current;
+    if (!strip) return;
+    const origin = strip.getBoundingClientRect().top - strip.scrollTop;
+    const chips = [...strip.querySelectorAll<HTMLElement>('[role="radio"]')].map((chip) => {
+      const box = chip.getBoundingClientRect();
+      return { top: box.top - origin, bottom: box.bottom - origin, chosen: chip.dataset.chosen === 'true' };
+    });
+    const rows = window.matchMedia('(max-width: 767px)').matches ? TYPE_ROWS_PHONE : TYPE_ROWS_DESK;
+    const next = typeFold(chips, rows);
+    setFold((current) =>
+      current && next && current.height === next.height && current.hidden === next.hidden ? current : next,
+    );
+    return next;
+  }, []);
+  const opened = useRef(false);
+  const stripObserver = useRef<ResizeObserver | null>(null);
+  // A callback ref, not an effect: `Sheet` draws nothing on its first commit (§101).
+  const attachStrip = useCallback(
+    (element: HTMLDivElement | null) => {
+      stripObserver.current?.disconnect();
+      stripObserver.current = null;
+      typeStripRef.current = element;
+      if (!element) return;
+      const first = measureStrip();
+      // §101: the chosen soort in view — opened once, on arrival, never by surprise later.
+      if (!opened.current) {
+        opened.current = true;
+        if (first?.chosenHidden) setTypesOpen(true);
+      }
+      // The sheet's width, and the fonts arriving, move the rows.
+      if (typeof ResizeObserver !== 'undefined') {
+        stripObserver.current = new ResizeObserver(() => measureStrip());
+        stripObserver.current.observe(element.parentElement ?? element);
+      }
+      void document.fonts?.ready.then(() => measureStrip());
+    },
+    [measureStrip],
+  );
+  useEffect(() => () => stripObserver.current?.disconnect(), []);
   /** §92 (C27): the open dossiers, for the optional "In dossier" line. */
   const [openCases, setOpenCases] = useState<{ id: string; name: string }[]>([]);
   const [chosenCase, setChosenCase] = useState('');
@@ -425,21 +457,43 @@ export function NewEntrySheet({
           <span className="label" id="new-entry-type-label" style={{ margin: 0 }}>
             {capitalise(words.entryType)}
           </span>
-          <button
-            type="button"
-            className="btn btn-ghost btn-small new-entry-types-more"
-            aria-expanded={typesOpen}
-            onClick={() => setTypesOpen((current) => !current)}
-          >
-            {words.newEntryTypeMore}
-            <Icon name="chevron" size={12} className={typesOpen ? 'new-entry-types-caret-open' : undefined} />
-          </button>
+          {(typesOpen || (fold?.hidden ?? 0) > 0) && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-small new-entry-types-more"
+              aria-expanded={typesOpen}
+              aria-controls="new-entry-type-strip"
+              onClick={() => setTypesOpen((current) => !current)}
+            >
+              {words.newEntryTypeMore}
+              {!typesOpen && fold && fold.hidden > 0 && (
+                <span className="new-entry-types-rest">{fill(words.newEntryTypeRest, { n: String(fold.hidden) })}</span>
+              )}
+              <Icon name="chevron" size={12} className={typesOpen ? 'new-entry-types-caret-open' : undefined} />
+            </button>
+          )}
         </div>
         <div
           ref={attachStrip}
-          className={`new-entry-types-strip${typesOpen ? ' new-entry-types-open' : ''}`}
+          id="new-entry-type-strip"
+          className={`new-entry-types-strip new-entry-types-rijen${typesOpen ? ' new-entry-types-open' : ''}`}
+          style={!typesOpen && fold ? ({ ['--vouw' as string]: `${fold.height}px` } as CSSProperties) : undefined}
+          data-folded={!typesOpen && fold && fold.hidden > 0 ? 'ja' : undefined}
           role="radiogroup"
           aria-labelledby="new-entry-type-label"
+          onFocus={(event) => {
+            // A Tab onto a chip under the fold opens the soorten: the keyboard sees what it touches.
+            if (typesOpen || !fold) return;
+            // Only the keyboard: a press is already aimed at what it can see, and
+            // opening under a pointer that is half-way through a click moves its target.
+            if (!(event.target as HTMLElement).matches(':focus-visible')) return;
+            const strip = event.currentTarget;
+            const bottom = (event.target as HTMLElement).getBoundingClientRect().bottom - strip.getBoundingClientRect().top;
+            if (bottom > fold.height + 1) {
+              strip.scrollTop = 0;
+              setTypesOpen(true);
+            }
+          }}
         >
           {types.map((type) => (
             <button
@@ -519,7 +573,11 @@ export function NewEntrySheet({
           <h3 id="new-entry-winkel-title" className="label" style={{ margin: '0 0 0.4rem' }}>
             {words.newFurnishing}
           </h3>
+          {/* Golf J (rij 20): in de vorm van de infobox — het etiket naast het
+              vak — zodat *Aanmaken* op een computer zonder scrollen in beeld
+              staat, met plek, prijs en wat het geeft erboven. */}
           <FieldsEditor
+            compact
             fields={chosen.shopFields}
             values={shopValues}
             onChange={(patch) => setShopValues((current) => ({ ...current, ...patch }))}

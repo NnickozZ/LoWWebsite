@@ -73,6 +73,22 @@ export function writeRemembered(storage: MiniStorage | null | undefined, id: str
   }
 }
 
+/**
+ * §106 (na review 4, H5): the one onderzoeker there is.
+ *
+ * "Met wie ben je nu aan het schrijven?" with one row and *Verder als …* is a
+ * question without a choice: a tap and a read, at exactly the moment a new
+ * speler makes their first thing. A speler who holds precisely one writes as
+ * that one, silently, and the window says so once (`SOLE_AUTHOR_EVENT`). With
+ * two or more §18b is unchanged: the window is asked.
+ */
+export function soleAuthor(characterIds: readonly string[]): string | null {
+  return characterIds.length === 1 ? characterIds[0] : null;
+}
+
+/** Rung once per window when it starts writing as its only onderzoeker. */
+export const SOLE_AUTHOR_EVENT = 'low:enige-schrijver';
+
 /** Asked, banned, or left alone. */
 export function authorStance(viewer: {
   isKeeper: boolean;
@@ -81,7 +97,9 @@ export function authorStance(viewer: {
 }): AuthorStance {
   if (viewer.isKeeper) return 'keeper';
   if (!viewer.characterIds.length) return 'no-author';
-  return readRememberedAuthor(viewer.remembered, viewer.characterIds) ? 'ready' : 'ask';
+  if (readRememberedAuthor(viewer.remembered, viewer.characterIds)) return 'ready';
+  // §106 (H5): one onderzoeker is not a choice.
+  return soleAuthor(viewer.characterIds) ? 'ready' : 'ask';
 }
 
 /** May this person write at all? The read-only banner's question, inverted. */

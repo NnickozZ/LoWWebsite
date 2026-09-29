@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, fillWhenReady, newBoard as makeBoardOnShelf, newEntryButton, signIn } from './helpers';
+import { editArticle, fillWhenReady, newBoard as makeBoardOnShelf, pressNewEntry, signIn } from './helpers';
 
 /**
  * §52, round 27: the wall's half.
@@ -118,7 +118,7 @@ test.describe('§52 het prikbord', () => {
 
     // An artikel of our own, so no other spec's fixture is renamed.
     await page.goto('/wiki');
-    await newEntryButton(page).click();
+    await pressNewEntry(page);
     const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
     await sheet.getByRole('radio', { name: 'Locaties', exact: true }).click();
     await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), was);

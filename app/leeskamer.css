@@ -512,9 +512,11 @@
     grid-template-columns: 12rem minmax(0, 1fr);
   }
 }
-/* De rij chips in de tekstkolom, tussen kop en tekst (1280–1499 px). */
-.entry-main > .entry-outline-row {
-  margin: 0 0 0.4rem;
+/* De rij chips in de tekstkolom, tussen kop en tekst (1280–1499 px). Golf J: in `.entry-kop`. */
+@media (min-width: 1280px) {
+  .entry-kop > .entry-outline-row {
+    margin: 0 0 0.4rem;
+  }
 }
 
 /* L7: de ankers liggen over de kolom heen; alleen het `#` zelf vangt de hand. */
@@ -598,56 +600,59 @@
 }
 
 /* De infobox op een telefoon: dicht, maar met een blik op drie feiten — één kaart. */
-.entry-aside-box-stacked > .entry-infobox-folded {
-  margin: 0;
-  padding: 0 0.85rem;
-  border: 1px solid var(--rule);
-  background: var(--paper-raised);
-  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
-}
-.entry-aside-box-stacked > .entry-infobox-folded:not([open]):has(+ .infobox-peek) {
-  border-bottom: 0;
-  box-shadow: none;
-}
-.entry-aside-box-stacked > .entry-infobox-folded:not([open]) + .infobox-peek {
-  display: grid;
-  gap: 0.3rem;
-  margin: -0.6rem 0 0;
-  padding: 0 0.85rem 0.75rem;
-  border: 1px solid var(--rule);
-  border-top: 0;
-  background: var(--paper-raised);
-  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
-  font-size: 0.92rem;
-  -webkit-line-clamp: unset;
-  line-clamp: none;
-  overflow: visible;
-}
-.entry-aside-box-stacked .infobox-peek-row {
-  display: grid;
-  grid-template-columns: minmax(5.5rem, 34%) minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: baseline;
-}
-.entry-aside-box-stacked .infobox-peek-row + .infobox-peek-row::before {
-  content: none;
-}
-.entry-aside-box-stacked .infobox-peek-label {
-  font-family: var(--stamp-face);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.entry-aside-box-stacked .infobox-peek-label::after {
-  content: none;
-}
-.entry-aside-box-stacked .infobox-peek-value {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.entry-aside-box-stacked .infobox-peek-value .entry-chip {
-  white-space: normal;
+/* Golf J (j4): onder 1280 px, want vóór de hydratatie draagt de kast deze klasse op elke breedte. */
+@media (max-width: 1279px) {
+  .entry-aside-box-stacked > .entry-infobox-folded {
+    margin: 0;
+    padding: 0 0.85rem;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
+  }
+  .entry-aside-box-stacked > .entry-infobox-folded:not([open]):has(+ .infobox-peek) {
+    border-bottom: 0;
+    box-shadow: none;
+  }
+  .entry-aside-box-stacked > .entry-infobox-folded:not([open]) + .infobox-peek {
+    display: grid;
+    gap: 0.3rem;
+    margin: -0.6rem 0 0;
+    padding: 0 0.85rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-top: 0;
+    background: var(--paper-raised);
+    box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.12);
+    font-size: 0.92rem;
+    -webkit-line-clamp: unset;
+    line-clamp: none;
+    overflow: visible;
+  }
+  .entry-aside-box-stacked .infobox-peek-row {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 34%) minmax(0, 1fr);
+    gap: 0.6rem;
+    align-items: baseline;
+  }
+  .entry-aside-box-stacked .infobox-peek-row + .infobox-peek-row::before {
+    content: none;
+  }
+  .entry-aside-box-stacked .infobox-peek-label {
+    font-family: var(--stamp-face);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .entry-aside-box-stacked .infobox-peek-label::after {
+    content: none;
+  }
+  .entry-aside-box-stacked .infobox-peek-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .entry-aside-box-stacked .infobox-peek-value .entry-chip {
+    white-space: normal;
+  }
 }
 
 /* ---------------------------------------------------- Genoemd in, met de zin */
@@ -1613,4 +1618,293 @@
 /* In Lezen is de ruimte om te typen geen ruimte: het kader sluit om de tekst. */
 .dossier-notities .ProseMirror[contenteditable='false'] {
   min-height: 0;
+}
+
+/* ===== golf j2 */
+
+/*
+ * Golf J (rij 14 T): op de voorpagina van de wiki komt op een telefoon eerst
+ * de kaartenbak. De soorten zijn de index van deze pagina — de reden dat een
+ * lezer hier komt — en ze stonden onder *Uit het archief* en *Onlangs
+ * bijgewerkt*, anderhalf scherm diep, en hoe diep hing af van het
+ * willekeurige artikel erboven. Op een computer blijft het krantenritme: het
+ * uitgelichte stuk en het register naast elkaar, de soorten eronder, want daar
+ * staan ze al in de zijbalk.
+ */
+@media (max-width: 767px) {
+  .leeskamer-soorten {
+    order: -1;
+  }
+}
+
+/*
+ * Golf J (stuk 5, raden 3): wie typt, heeft de `+` niet nodig. Op een telefoon
+ * lag hij in Bewerken over de fotoknop van de werkbalk en over de regel waar
+ * de caret stond. Zolang er een caret in een schrijfvak van de pagina staat,
+ * wijkt hij — zoals voor de hand (§102), met dezelfde uitgang — en hij komt
+ * terug zodra de caret weg is. `n` werkt gewoon.
+ *
+ * Golf J (j5): en wat weg is, is echt weg. Na de uitgang krijgt hij
+ * `visibility: hidden` (de stap valt ná de fade, dus de beweging blijft
+ * transform en opacity). Een knop die je niet ziet en niet kunt raken, hoort
+ * ook niet in de Tab-volgorde of bij een schermlezer te staan; zonder dit
+ * tabde een toetsenbord vanuit de tekst op een onzichtbare `+`. Terug is
+ * meteen zichtbaar: de terugweg van `.fab` noemt `visibility` niet.
+ */
+@media (max-width: 767px) {
+  body:has(.main :is([contenteditable='true'], textarea, input:not([type]), input[type='text'], input[type='search']):focus) .fab {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      transform var(--dur-3) var(--ease-exit),
+      opacity var(--dur-3) var(--ease-exit),
+      visibility 0s linear var(--dur-3);
+  }
+}
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  body:has(.main :is([contenteditable='true'], textarea, input:not([type]), input[type='text'], input[type='search']):focus) .fab {
+    transform: translateY(calc(-1 * var(--fab-lift)));
+  }
+}
+
+/*
+ * Golf J (raden 7, stuk 11): de tags staan altijd onder de dichte infobox, als
+ * chips. Het raakvlak van een chip is 44 px hoog (de rand van §104, T23), dus
+ * de rij krijgt genoeg lucht dat twee raakvlakken elkaar niet overlappen.
+ */
+@media (max-width: 1279px) {
+  .entry-aside-box-stacked .infobox-peek-tags .infobox-peek-value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.45rem;
+    padding: 0.15rem 0;
+  }
+}
+@media (max-width: 767px) {
+  /* Stuk 11: ook een korte tag ("ai") is een duim breed — de rand is
+     minstens 44 × 44, gecentreerd op het etiket, dat zelf niet groeit. */
+  :is(.entry-page, .infobox-peek, .infobox-tags) a.tag::before {
+    inset: -0.6rem auto;
+    left: 50%;
+    width: max(calc(100% + 0.4rem), var(--tap));
+    transform: translateX(-50%);
+  }
+}
+
+/*
+ * Golf J (stuk 13): in Bewerken sluit de naad ook, maar alleen het wit
+ * (`naad-wit`). "Was er bij , en" las als een tikfout, rond een naam die deze
+ * schrijver niet ziet en niet kan weghalen (§67). Het wit blijft in de tekst
+ * (de kamer is gedeeld); het krijgt alleen geen breedte. Een leesteken dat de
+ * naad in Lezen laat wijken, blijft in Bewerken staan: wat je niet ziet, kun
+ * je niet met opzet weghalen.
+ */
+.ProseMirror[contenteditable='true'] .naad-wit {
+  font-size: 0;
+}
+
+/*
+ * Golf J (stuk 7, raden 8, rij 20): de soorten in het maakblad lopen door over
+ * regels en vouwen na twee (computer) of drie (telefoon) hele regels. De rij
+ * scrolt niet meer opzij; wat onder de vouw staat, telt *Alle soorten* ("+9").
+ * De hoogte meet `typeFold` (lib/entries/typeFold.ts) en staat in `--vouw`.
+ * Drie px rand, zodat de focusring van een chip aan de rand niet wordt
+ * afgeknipt.
+ */
+.new-entry-types-strip.new-entry-types-rijen {
+  flex-wrap: wrap;
+  overflow: hidden;
+  padding: 3px;
+  margin: -3px;
+}
+.new-entry-types-strip.new-entry-types-rijen:not(.new-entry-types-open) {
+  max-height: calc(var(--vouw, 100vh) + 3px);
+}
+.new-entry-types-rest {
+  font-family: var(--stamp-face);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Golf J (rij 20): in het maakblad is *Wat het geeft* twee regels hoog — het
+   groeit mee als je meer schrijft — zodat *Aanmaken* op een computer in beeld
+   blijft met plek, prijs en effect erboven. */
+.new-entry-winkel .short-box .textarea.short-editor {
+  min-height: 3.4em;
+}
+
+/* ===== golf j4 */
+
+/*
+ * §104, golf J (j4, stuk 12 van de meting): de eerste verf van een artikel is
+ * al de vorm van het scherm. De server kent de breedte niet en tekende altijd
+ * de computer; een telefoon kreeg eerst *Op deze pagina* bovenaan en sprong
+ * bij de hydratatie (*Bewerken* van y 184 naar 21, CLS 0,85). Nu staat er één
+ * geraamte in de DOM — wegwijzer, kop, feiten, tekst — en kiezen deze
+ * `@media`-blokken wie waar staat. 1280 en 1500 zijn `WIDE` en `RAIL` in
+ * `components/useIsPhone.ts`; die hooks ruimen na de hydratatie alleen op wat
+ * hier al verborgen was, zodat er niets beweegt.
+ */
+.entry-infobox-inhoud {
+  padding: 0.6rem 0 0.8rem;
+}
+/*
+ * De tekst in de eerste verf (`VoorafTekst`) draagt `.ProseMirror`, dus de
+ * regels van de leesstand gelden al; dit zijn de regels die Tiptap pas in de
+ * browser zelf toevoegt. Zonder ligaturen en met hetzelfde wit breken de
+ * regels op dezelfde plek, en vervangt de editor hem op dezelfde hoogte.
+ */
+.vooraf-tekst {
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+}
+/* Ook Tiptaps: een chip (`contenteditable="false"`) breekt in de editor gewoon af. */
+.vooraf-tekst [contenteditable='false'] {
+  white-space: normal;
+}
+.vooraf-tekst pre {
+  white-space: pre-wrap;
+}
+/* De omslag draagt een `<picture>` (een lege `<source>` voor de breedte waar hij niet staat); die telt niet mee in de opmaak. */
+.entry-figure picture {
+  display: contents;
+}
+@media (max-width: 1499px) {
+  .entry-rail {
+    display: none;
+  }
+}
+@media (max-width: 1279px) {
+  .entry-figure-beide .entry-cover-whole {
+    display: none;
+  }
+}
+@media (min-width: 1280px) {
+  /* De kop boven de tekst, de feiten ernaast over allebei. De tweede rij
+     neemt wat een lange zijkolom meer nodig heeft, niet de eerste. */
+  .entry-layout-wide {
+    grid-template-areas:
+      'kop kant'
+      'tekst kant';
+    grid-template-rows: auto 1fr;
+  }
+  .entry-layout-wide.entry-layout-zonder-kant {
+    grid-template-areas:
+      'kop'
+      'tekst';
+  }
+  .entry-layout-wide > .entry-kop {
+    grid-area: kop;
+    min-width: 0;
+  }
+  .entry-layout-wide > .entry-main {
+    grid-area: tekst;
+  }
+  .entry-layout-wide > .entry-aside {
+    grid-area: kant;
+  }
+
+  /* Wat alleen onder 1280 px hoort, zolang het er nog staat. */
+  .entry-outline-smal,
+  .entry-aside-box > .infobox-peek,
+  .entry-figure-beide .entry-cover-liggend {
+    display: none;
+  }
+
+  /* *Meer info* vóór de hydratatie: de vouw, opengelegd tot de kaart. De
+     summary is de titel van de kaart; een klik erop zet `open`, en dat
+     verandert hier niets aan wat je ziet. */
+  .entry-aside-box > details.entry-infobox {
+    margin: 0;
+    padding: 0.8rem 0.9rem 0.9rem;
+  }
+  .entry-aside-box > details.entry-infobox::details-content {
+    content-visibility: visible;
+  }
+  .entry-aside-box > details.entry-infobox > summary {
+    display: block;
+    min-height: 0;
+    margin: 0 0 0.6rem;
+    cursor: default;
+    line-height: 1.2;
+    letter-spacing: 0.12em;
+    font-size: 0.74rem;
+    color: var(--ink-muted);
+  }
+  .entry-aside-box > details.entry-infobox > summary::before {
+    content: none;
+  }
+  .entry-aside-box > details.entry-infobox > .entry-infobox-inhoud {
+    padding: 0;
+  }
+
+  /* *Waar* vóór de hydratatie: de rijen, zonder de regel die ze opent. */
+  .entry-waar {
+    margin: 0;
+  }
+  .entry-waar > summary {
+    display: none;
+  }
+  .entry-waar::details-content {
+    content-visibility: visible;
+  }
+  .entry-waar-rijen {
+    padding: 0;
+  }
+  .entry-waar-rijen > p.entry-waar-rij:first-child {
+    margin-top: 0.45rem !important;
+  }
+}
+@media (min-width: 1500px) {
+  .entry-layout-wide.entry-layout-rail {
+    grid-template-areas:
+      'rail kop kant'
+      'rail tekst kant';
+  }
+  .entry-layout-wide.entry-layout-rail.entry-layout-zonder-kant {
+    grid-template-areas:
+      'rail kop'
+      'rail tekst';
+  }
+  .entry-layout-wide > .entry-rail {
+    grid-area: rail;
+  }
+  .entry-kop > .entry-outline-row {
+    display: none;
+  }
+}
+
+/*
+ * Het dossier, hetzelfde patroon (golf J, j4): vóór de hydratatie de tabbladen
+ * van de computer én de chiprij en de kop van de telefoon (`.case-vroeg`,
+ * `usePhoneKnown`); 768 px is `PHONE` in `components/useIsPhone.ts`. Zo is de
+ * eerste verf op een telefoon al de gestapelde pagina en niet acht rijen tabs.
+ */
+.case-vroeg-paneel {
+  padding-top: 1.1rem;
+}
+@media (min-width: 768px) {
+  .case-vroeg-smal {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .case-vroeg > .case-tabs {
+    display: none;
+  }
+  .case-vroeg-paneel {
+    padding-top: 0;
+  }
+  p.sticky-section-head.case-vroeg-smal {
+    line-height: 1.2;
+  }
 }

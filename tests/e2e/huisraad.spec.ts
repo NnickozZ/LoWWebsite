@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, newEntryButton, openRights, setPlekken, signIn, expectBoxValue, openEmptyFields } from './helpers';
+import { becomeInvestigator, editArticle, expectPlekken, fillWhenReady, inviteCode, newEntryButton, releaseCaret, openRights, setPlekken, signIn, expectBoxValue, openEmptyFields } from './helpers';
 
 /**
  * §80: huisraad — de catalogus, het kopen, en wat een kamer je zegt te geven.
@@ -82,6 +82,7 @@ async function openNewEntrySheet(page: Page): Promise<Locator> {
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(async () => {
     if (!(await sheet.isVisible().catch(() => false))) {
+      await releaseCaret(page);
       await newEntryButton(page).click({ timeout: 5000 });
     }
     await expect(sheet).toBeVisible({ timeout: 1500 });

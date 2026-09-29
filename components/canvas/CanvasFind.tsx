@@ -1,11 +1,11 @@
 'use client';
 
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { useSuggestKeys } from '@/components/ui/useSuggestKeys';
 import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
-import { findOnCanvas, type Findable } from '@/lib/canvas/find';
+import { findListRoom, findOnCanvas, type Findable } from '@/lib/canvas/find';
 
 /**
  * §94 (C4) — vinden op het vlak.
@@ -58,6 +58,33 @@ export function CanvasFind({
   const found = useMemo(() => findOnCanvas(items, text), [items, text]);
   const typed = text.trim();
   const keys = useSuggestKeys({ open: Boolean(typed), ref: rootRef });
+  const listRef = useRef<HTMLUListElement>(null);
+  /*
+   * §105 (golf J, stuk 1): de treffers staan boven het toetsenbord en boven de
+   * tabbalk. Het vak klapt open onder de werkbalk (op elk vlak dezelfde plek,
+   * `.map-toolbar`/`.timeline-toolbar` zijn nu het anker, net als de balk van
+   * het prikbord); de lijst eronder krijgt als hoogte wat er tot de onderrand
+   * van wat je *ziet* over is — `visualViewport`, want een echt toetsenbord
+   * krimpt dat en niet `innerHeight` — en nooit minder dan twee rijen.
+   */
+  useEffect(() => {
+    if (!typed) return;
+    const vv = typeof window === 'undefined' ? undefined : window.visualViewport;
+    const fit = () => {
+      const list = listRef.current;
+      if (!list) return;
+      list.style.setProperty('--find-room', `${findRoom(list, vv)}px`);
+    };
+    fit();
+    vv?.addEventListener('resize', fit);
+    vv?.addEventListener('scroll', fit);
+    window.addEventListener('resize', fit);
+    return () => {
+      vv?.removeEventListener('resize', fit);
+      vv?.removeEventListener('scroll', fit);
+      window.removeEventListener('resize', fit);
+    };
+  }, [typed, found.length]);
   const pick = (one: string) => {
     onFind(one);
     setText('');
@@ -108,7 +135,7 @@ export function CanvasFind({
         onChange={(event) => setText(event.target.value)}
       />
       {typed && (
-        <ul className="suggest-list canvas-find-list" aria-label={group}>
+        <ul ref={listRef} className="suggest-list canvas-find-list" aria-label={group}>
           <li className="suggest-group tiny muted">{group}</li>
           {found.length === 0 && <li className="suggest-empty small muted">{ui.words.findNothing}</li>}
           {found.map((item) => (
@@ -131,4 +158,23 @@ export function CanvasFind({
       </span>
     </div>
   );
+}
+
+/**
+ * §105 (golf J): read the three edges off the page for `findListRoom` — the
+ * list's top, the foot of the visual viewport (a keyboard shrinks it) and the
+ * top of the tab bar when it shows.
+ */
+function findRoom(list: HTMLElement, vv: VisualViewport | null | undefined): number {
+  const tabs = document.querySelector('.tabs');
+  let barTop: number | null = null;
+  if (tabs && getComputedStyle(tabs).display !== 'none') {
+    const bar = tabs.getBoundingClientRect();
+    if (bar.height > 0) barTop = bar.top;
+  }
+  return findListRoom({
+    top: list.getBoundingClientRect().top,
+    viewBottom: vv ? vv.offsetTop + vv.height : window.innerHeight,
+    barTop,
+  });
 }

@@ -426,7 +426,10 @@ test.describe('the case tray on a board', () => {
     await newCaseBoard(page);
 
     // Both are in the drawer, because neither is on the wall yet.
+    // §105 (review 4, M5): on a phone the lade starts shut, as a folder with a
+    // number on the cork; opened, it is a peek.
     const tray = page.locator('.board-tray');
+    if (testInfo.project.name === 'phone') await page.locator('.board-tray-spine').click();
     await expect(tray).toBeVisible();
     await expect(tray.locator('.board-tray-card')).toHaveCount(2);
 
@@ -442,6 +445,7 @@ test.describe('the case tray on a board', () => {
     await page.reload();
     // §73: the lade is Bewerken's, and a reloaded wall on a phone opens in Lezen.
     await editCanvas(page);
+    if (testInfo.project.name === 'phone') await page.locator('.board-tray-spine').click();
     await expect(page.locator('.board-tray-card')).toHaveCount(1);
     await expect(page.locator('.board-card', { hasText: 'Pier Boone' }).first()).toBeVisible();
 

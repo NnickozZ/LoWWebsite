@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillWhenReady, newEntryButton, signIn, signUp } from './helpers';
+import { fillWhenReady, pressNewEntry, signIn, signUp } from './helpers';
 
 /**
  * §44: de Keeperkant — the second side of the archive.
@@ -34,7 +34,7 @@ const PASSWORD = 'onderzeeboot';
 /** A fresh artikel, made the way a person makes one, left on its editing face. */
 async function newArticle(page: Page, name: string): Promise<string> {
   const before = page.url();
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: 'Locaties', exact: true }).click();
   await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);

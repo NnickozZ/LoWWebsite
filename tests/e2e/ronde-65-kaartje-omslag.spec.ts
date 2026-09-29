@@ -21,7 +21,11 @@ mkdirSync(SHOTS, { recursive: true });
 
 /** The chip in Westkapelle's running text (seed-demo) that names Jacob den Hollander. */
 function jacobChip(page: Page) {
-  return page.locator('.entry-body-block a.entry-chip[data-entry-id]', { hasText: 'Jacob den Hollander' }).first();
+  return page
+    // Golf J (j4): de tekst staat al in de eerste verf (`VoorafTekst`) en de
+    // editor neemt hem daarna over; wacht op de chip van de editor zelf.
+    .locator('.entry-body-block .ProseMirror:not(.vooraf-tekst) a.entry-chip[data-entry-id]', { hasText: 'Jacob den Hollander' })
+    .first();
 }
 
 async function centre(page: Page, locator: ReturnType<Page['locator']>) {

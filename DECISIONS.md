@@ -7033,3 +7033,366 @@ Aangepaste specs, met de reden:
   lopende tekst en niet elk ProseMirror-vak. De tweede kiest het vraagblad dat
   niet aan het sluiten is. De derde stuurt vóór elke scrollstap het signaal
   mee dat een duim ook stuurt.
+
+---
+
+## Golf I — de volgende pas (§105–§107)
+
+28 september 2026. Na golf H vroeg de coördinator Nick of dit alles was; Nick:
+*"Ja ga zeker verder :)"*. Drie bouwers werkten tegelijk op `gevoel` (basis
+`a629bab`): i1 de tekenvlakken op de telefoon, i2 de eerste keer, i3 Beheer
+voor de Keeper. Na de eerste samenvoeging (`e257c53`) keek een onafhankelijke
+reviewer (`REVIEW4.md`: H1–H5, M1–M12, L1–L11), en elke worktree kreeg een
+tweede pas. Samengevoegd als `d1dc532`. Anders dan golf H kreeg elk deel **een
+eigen nieuw nummer**: §105, §106 en §107. Geen migratie, geen verwijderd
+bestand, geen nieuwe route.
+
+**Wat niet van Nick kwam.** Net als bij golf H besliste de coördinator op het
+advies van de reviewer. Vijf besluiten draaien een eerdere keuze om en staan
+hier zodat niemand denkt dat Nick ze nam:
+
+- **Eén karakter vraagt niets** (H5). Dit keert de regel van round 11 om voor
+  wie precies één onderzoeker heeft: *Every window asks a player once*.
+- **De grijze ongedaan-knop in Lezen is weg op een telefoon.** Dit keert
+  ronde 51 (O2) en ronde 60 (C10) om, alleen op een telefoon.
+- **Kaal `/admin` is op een telefoon de index, niet Gebruikers.** Dit keert
+  ronde 51's "Gebruikers, Beoordelen en Prullenbak vooraan" om als eerste
+  scherm, alleen op een telefoon.
+- **Geen `+` op `/admin`** (M10). Dit keert ronde 64's "De FAB op Beheer is
+  terug" om.
+- **Het percentage naast de zoomknoppen staat op een telefoon niet.** Ronde
+  35 beantwoordde vraag 11 van §69 met "overal erbij".
+
+### i1 — de tekenvlakken op de telefoon (§105)
+
+- **De maakknop verlaat de balk op een telefoon.** Het is hetzelfde element
+  met dezelfde naam en dezelfde handeling (`useCanvasMaker`), alleen met de
+  klasse `.canvas-make` rechtsonder, waar overal elders de `+` van de schil
+  staat. Zo werd de werkbalk één regel. Een tweede knop voor de telefoon had
+  §64 gebroken (twee knoppen, één naam). `ronde-60-vlakken.spec.ts` eiste
+  *Nieuwe notitie* naast het zoekvak; nu eist hij de `+` rechtsonder, 44 px of
+  meer.
+- **De grijze ongedaan-knop in Lezen, alleen op een telefoon.** Ronde 51 (O2)
+  en ronde 60 (C10) zetten hem in Lezen grijs op alle vier. Op een telefoon
+  kost hij in de enige werkbalkregel 44 px die er niet zijn (de regel past op
+  344 px precies zonder hem), en de opdracht was "in Lezen geen ruis". Hij
+  staat nog in de DOM, uitgeschakeld. Op een computer blijft hij grijs.
+- **Het percentage naast de zoomknoppen staat op een telefoon niet.** Een
+  percentage zegt een lezer niets. De tijdlijn zegt haar tijd op het glas daar
+  onder de as. Dit keert ronde 35's antwoord op vraag 11 van §69 ("overal
+  erbij") om voor de telefoon; ronde 55 had het voor de tijdlijn al anders
+  beantwoord.
+- **De peek beweegt alleen op `transform` en ligt onder de tabbalk.** Dat
+  sluit de schuld van ronde 65 (`.canvas-peek 0.18s` op `max-height`, in
+  `EXCEPTIONS`). Onder de tabbalk (z 39, met een rok) kan elke maatwissel een
+  FLIP zijn zonder dat er glas door een kier flitst.
+- **"Groot" alleen bij overloop** (H2). De eerste pas liet elke peek groeien.
+  Een korte peek kreeg dan de klasse `is-full`, bleef even hoog, en nam de `+`
+  weg. Nu meet de peek of zijn inhoud overloopt (`data-groeit`); zonder
+  overloop geeft de greep een rubberen rand en verder niets. De `+` wijkt
+  alleen bij `data-peek-hoog` (hoger dan de halve viewport), niet meer bij
+  elke `is-full`. De reviewer opperde ook om "groot" meer te laten tonen (de
+  eerste alinea, *Verbindingen*); dat is niet gedaan.
+- **Het prikbord krijgt dezelfde peek** (H1, M5). De oude
+  `board-inspector-phone` lag onder de `+` en voelde als een tweede app. De
+  lade *Uit het dossier* staat op een telefoon dicht, als een map-knop, en is
+  open een peek.
+- **Een leeg vlak: één zin en één knop** (`CanvasEmpty`). Dat vervangt de
+  zinnen van ronde 51 (`boardEmptyRead/Find/Make/String` en de losse zinnen van
+  landkaart, tijdlijn en stamboom). De knop heet nooit zoals de maakknop in de
+  balk (§64). In Lezen is hij *Beginnen*, want Bewerken aanzetten is de juiste
+  handeling; in Bewerken is hij een gewone knop, want de `+` is dan de enige
+  rode (L11).
+- **De strook als glas** (H3). Op de landkaart en de tijdlijn lag de fiche
+  midden op de scan van de Keeper of op de as. Daar is de lege staat nu een
+  strook: op een computer onderaan links, als een onderschrift, en op een
+  telefoon bovenaan, omdat onderaan de pen en de `+` staan (de reviewer
+  stelde overal "onderaan het glas" voor). De strook is glas: alleen haar
+  knop vangt een druk, en wie erdoorheen sleept, pakt het vlak. Dat ze op een
+  computer links staat en niet in het midden, komt door `ink.spec`: die sleepte
+  precies over de plek waar de knop stond. Op het prikbord en de stamboom
+  blijft de fiche in het midden, want daar is nog niets te zien.
+- **Eén grammatica voor de werkbalk** (H4): een groep heeft een rand, een
+  losse knop niet; gekozen is `--paper-dark` met inkt, behalve Bewerken, dat
+  stempelrood blijft omdat het iets betekent. *Tekenen* kreeg een eigen glyph
+  (`krabbel`), zodat er niet twee potloden met twee betekenissen zijn.
+- **De eerste stand van een landkaart gaat naar de spelden** (M3), alleen als
+  het plaatje na de fit hooguit 70 % van het glas vult en er minstens twee
+  spelden zijn. Het is de eerste stand en geen camera die uit zichzelf springt,
+  dus §102 regel 9 blijft staan.
+- **Een lege tijdlijn opent bij het laatste moment op een tijdlijn die deze
+  lezer mag zien** (`latestSeenMoment`, L10), zodat een nieuwe tijdlijn landt
+  in het jaar waarin de tafel speelt en niet in 1930. De reviewer noemde "de
+  laatste sessie of `site.year`". De lezing gaat door de eigen lijsten van de
+  lezer (zichtbaarheid en kant), dus hij wijst nooit naar een moment dat die
+  lezer niet had kunnen vinden.
+- **Bewust niet**: labels van twee regels en ruitclusters op de tijdlijn (M2),
+  een plaatser voor botsende kaartlabels (M3), en M3 op een kaart waarvan de
+  spelden de hele breedte beslaan (Walcheren).
+
+### i2 — de eerste keer (§106)
+
+- **De eerste stap is een vraag op Start, geen banner op elke pagina.** De
+  banner van drie regels werd één regel met een deur; de uitleg staat bij de
+  vraag. Maken en koppelen gaan in één knop langs de twee bestaande
+  schrijfwegen, dus §18c is niet verruimd: het is nog steeds alleen je *eerste*
+  eigen karakter.
+- **Het venster neemt de keuze mee na *Dit ben ik*.** Dat is §91's wie-regel
+  (een wissel van *speelt als* neemt de schrijfkeuze mee), niet een
+  uitzondering op §18b.
+- **H5 keert een besluit om: één karakter vraagt niets.** Sinds round 11
+  (§18b) vroeg elk venster een speler één keer wie er schrijft, ook als hij
+  maar één onderzoeker had; de unit-test heette letterlijk *asks a speler who
+  holds exactly one, rather than choosing for them* ("de vraag gaat over het
+  venster, niet over hoeveel keuze er is"). Review 4 liet zien dat dat op het
+  moment van het eerste maken een vraag zonder antwoord is: één rij, *Verder
+  als …*, een tik en een keer lezen. Nu: één onderzoeker is stil kiezen plus
+  één melding, *Je schrijft als …* (`key` `schrijver`); twee of meer is de
+  vraag, zoals altijd; een Keeper wordt nooit gevraagd. De header en de
+  server veranderen niet. Specs die de vraag willen zien, geven het account
+  eerst een tweede (`keeperHandsOutSecond`).
+- **M9: het eerste bezoek alleen voor een account jonger dan 14 dagen.** De
+  regel van het eerste bezoek verscheen ook voor spelers die al maanden
+  speelden, op elk nieuw toestel. De reviewer stelde twee wegen voor: de
+  leeftijd van het account, of "de server kent geen eerder bezoek aan die
+  plek", met het koekje per account. Gekozen is de **leeftijd**, niet de
+  activiteit: het is één `SELECT` op `users.created_at`, het geldt voor de wiki
+  net zo goed als voor de kamer, en een veteraan is per definitie ouder dan
+  een paar avonden aan tafel. Binnen die twee weken blijft het per browser
+  (`localStorage` plus een koekje als spiegel).
+- **Eerste bezoek: `localStorage` plus een koekje als spiegel.** Alleen
+  `localStorage` gaf een verschuiving na de hydratatie, en die liet een
+  bestaande spec op de verkeerde tegel tikken. Het koekje zegt alleen welke
+  plekken gezien zijn.
+- **De uitnodigingscode wordt genormaliseerd, niet geraden.** Spaties,
+  streepjes en hoofdletters tellen niet; O/0 en I/1 worden niet omgezet.
+- **De uitnodiging staat op Start (de route) en in de lege hal, alleen voor de
+  Keeper**, als link met de code erin. De code stond al in Beheer; het is geen
+  nieuw geheim, alleen een kortere weg.
+- **Het welkom ís jouw plek** (M6). Zolang het welkom staat, staat *Jouw plek*
+  er niet; zo springt de pagina niet en staat *Naar de kamer* er niet twee
+  keer. En `:hover` op knoppen en chips staat in `@media (hover: hover)`, want
+  op touch bleef een knop die onder de vinger verscheen "ingedrukt".
+- **De stempel *Toegang* ligt stil** (M12). De eerste pas liet hem bij elke
+  lading van `/login` neerkomen; §102 zegt dat vieren zeldzaam is en dat een
+  documentlading niet beweegt. Hij landt alleen terwijl een inschrijving naar
+  het archief gaat. De reviewer stelde "na een geslaagde inschrijving, op de
+  drempel naar Start" voor; de drempel is hier het moment van versturen.
+- **Het feed zegt *schoof aan*** (M7), zonder het object erachter, en *gaf een
+  speler …* als de Keeper het deed.
+
+### i3 — Beheer voor de Keeper (§107)
+
+- **Geen autosave voor een soort.** De keuze tussen autosave per veld en een
+  plakkende voet met telling viel op de voet: een soort is één schrijf die elk
+  artikel van die soort bij elke speler verandert, met een vraag bij een nieuw
+  adres en een weigering bij dubbele sleutels. Het opslaan-*woord* ging wel
+  naar de schil (§100).
+- **Een index op de telefoon in plaats van een strook.** Kaal `/admin` op een
+  telefoon is de index. Dat keert ronde 51's "Gebruikers, Beoordelen en
+  Prullenbak vooraan" om als eerste scherm op een telefoon; op een computer is
+  kaal `/admin` nog Gebruikers. `flow-5-keeper` en `sloten` gaan daarom naar
+  `?tab=users`.
+- **Na een keuze alleen *‹ Beheer*** (M10, het patroon van iOS
+  Instellingen). De eerste pas zette na een keuze nog de strook en *Alle
+  onderdelen* bovenaan: twee navigaties van samen 150 px voor iets wat de
+  index al deed. Nu is de kop van het onderdeel de titel.
+- **Vanaf 1180 px is de index een linkerkolom** (M11, het patroon van de
+  instellingen van Linear), en tussen 768 en 1179 px één rij die scrolt. De
+  strook brak op 1280 en 1440 px met een wees op een tweede regel.
+- **Geen `+` op `/admin`** (M10). Ronde 64 zette hem terug, omdat §85's regel
+  achttien voeten in dichtgeklapte `<details>` telde. Op de index van een
+  telefoon lag hij over de chevron van *Logboek* en op Gebruikers over het
+  zoekvak, en de voet van een soort heeft nu zelf *Nieuw artikel*.
+- **Eén voet voor Soorten en Woorden** (M11): telling links (rood als er iets
+  openstaat), *Opslaan* rechts, bij een soort *Nieuw artikel* ernaast.
+  Woorden zegt *Opgeslagen* niet meer in zijn voet, maar in de schil.
+- **Korte namen voor de soort van een veld** (`FIELD_KIND_SHORT`, M11), in een
+  kolom van 12 rem. De reviewer gaf "12 rem breed" of "korte namen"; het werden
+  ze allebei, en alleen in deze keuzelijst: de lange namen blijven overal
+  elders.
+- **D17 is een rapport, geen weigering.** Dubbele pictogrammen worden gemeld
+  (unit-test, zachte zin in de editor); de seed bleef zoals hij was. Golf H
+  liet D17 bewust liggen; nu is het half gedaan.
+- **§-nummers in Woorden worden bij het tonen weggeknipt** (`zonderParagraaf`,
+  L2), niet in de bron herschreven: de notities in `lib/words.ts` zijn ook
+  voor wie de code leest.
+- **Kopieer in Gebruikers kopieert de link** (L3), dezelfde als de route op
+  Start, met de code groot ernaast. Een Keeper die uitnodigt, wil de link.
+- ***Uitschakelen* krijgt de gevaarkleur** (`.btn-gevaar`, L4), geen menu
+  *Meer*: de drie knoppen blijven zichtbaar.
+
+### Wat golf I bewust liet liggen
+
+- Op de vlakken: labels van twee regels en ruitclusters op de tijdlijn, een
+  plaatser voor kaartlabels, en M3 op Walcheren.
+- De welkomsttekst met *maak met de +*: dat is tekst van de Keeper.
+- Een tabwissel in Beheer gooit niet-bewaarde soort-bewerkingen weg.
+- De chips van `PageBlocksEditor`.
+
+De open eindjes staan in `CLAUDE.md` §8, onder golf I.
+
+---
+
+## Golf J — na de meting (§90–§107 aangevuld)
+
+29 september 2026. Na golf I is de handelingstelling opnieuw gedaan
+(`meting-na-golf-i.md`, 28 september): vooral goed nieuws (rij 22 van 21,5
+naar 12, Beheer en de eerste keer werken), maar met terugvallen, en de loep
+van golf I werkte op de telefoon niet. Nick: *"Ja ga zeker verder :)"*. Vijf
+worktrees op `gevoel`: j1 de vlakken, j2 schrijven en zoeken, j3 de Keeper en
+de eerste keer, daarna j4 de eerste verf (het tweede deel van stuk 12, dat j3
+vond en liet liggen) en j5 de suite weer groen, met één kleine reparatie van
+de coördinator; samengevoegd tot `4afc3a5`. **Geen nieuw nummer**: elk deel
+vult de regel van zijn gebied aan met een blok *Aangevuld in golf J*. Geen
+migratie, geen verwijderd bestand, geen nieuwe route.
+
+**Wat niet van Nick kwam.** De coördinator en de bouwers besloten op de
+meting. Deze besluiten draaien een eerdere keuze (deels) om:
+
+- **In Bewerken vraagt een druk die leest niets** (j1). §90 zei: "while
+  writing, every press, key and focus asks". Nu beslist `gatePress`: kiezen is
+  lezen, een sleep schrijft, kaal papier en een link vragen nooit.
+- **De `+` wijkt op een telefoon voor een caret in een schrijfvak** (j2). Golf
+  h4 besliste dat de `+` alleen wijkt voor een scroll van de hand, en dat een
+  caret in een nieuw artikel hem niet weg mocht sturen. Voor een caret in een
+  schrijfvak is dat nu omgekeerd: dan staat op een echte telefoon het
+  toetsenbord op, en lag de `+` over de fotoknop van de werkbalk. Voor een
+  scroll die de pagina zelf doet, blijft h4 staan.
+- **De soorten in het maakblad vouwen na hele regels** (j2). Ronde 53 (C26)
+  koos één scrollende strook, en golf H zette hem op één regel; alles na de
+  zesde soort was daardoor onvindbaar zonder *Alle soorten*. De radio's
+  bleven, dus de specs van C26 kiezen nog op dezelfde manier.
+- **De nieuwe ouder wint als hij niet samen met de oude op het glas past** (j1).
+  Ronde 64 (§101) hield het oude kaartje op zijn plek en haalde het nieuwe
+  erbij; dat blijft, zolang ze samen passen.
+- **Een tabwissel in Beheer houdt het paneel gemount** (j3). Golf I (§107)
+  mountte alleen het actieve paneel.
+- **De server gokt de breedte niet meer** (j4). `useIsWide` en `useHasRail`
+  gaven op de server `true` (§25, golf H); nu `null` tot de hydratatie.
+- ***Wie ben jij aan tafel?* zet de caret alleen met een muis** (coördinator,
+  `4afc3a5`). Dit draait j3's eigen besluit in dezelfde golf half terug; zie
+  j3 hieronder.
+
+### j1 — de vlakken (§105)
+
+- **Een computer opent een vlak in Bewerken, en dat blijft.** Ronde 64 liet
+  dit open ("om te beslissen"), golf I ook. Met `gatePress` kost lezen in
+  Bewerken niets meer (rij 15 D en 16 D verloren hun vraag); Lezen als start
+  zou elke maakrij op een computer één tik duurder maken. De stand wordt niet
+  onthouden. Op een telefoon blijft §73: Lezen.
+- **De vraag hoort bij een handeling die schrijft.** Dat is §18b zelf, en de
+  regel van ronde 64: een handeling die de vraag oproept, gaat na het antwoord
+  door. Een ding kiezen is lezen; wie het versleept, schrijft, en de vraag
+  komt na `PRESS_SLOP` (4 px). Kaal papier is pannen; de dubbelklik die daar
+  iets maakt, vraagt zelf (`useMakeOnEmpty`) en maakt het daarna. Een link
+  leest in elke stand, ook in `gateAsks`.
+- **De legenda krijgt geen autofocus.** De meting vroeg om focus in het
+  zoekvak (stuk 9). De legenda is eerst een filter; een toetsenbord zou op
+  een telefoon de vinkjes bedekken, en vinden op naam is de loep. Het vak
+  staat wel bovenaan het blad, met de treffers direct eronder.
+- **De nieuwe ouder wint, zonder zoom.** Na *+ Ouder* op een telefoon is de
+  nieuwe kaart gekozen en is hij waar de `+`'en nu aan hangen; "waar is hij?"
+  was de vraag. Passen oude en nieuwe samen niet op het glas, dan pant de
+  camera naar de nieuwe (`panToBring`). Zoomen blijft verboden (§102 regel 9):
+  de lijn naar de oude laat zien waar hij heen ging.
+- **Vind is op elk vlak hetzelfde**: het vak onder de werkbalk, de lijst nooit
+  hoger dan wat er boven het toetsenbord en de tabbalk over is
+  (`findListRoom`, met `visualViewport`). Dat is een rekensom en geen echt
+  toetsenbord, want Playwright heeft er geen; de unit-test houdt hem vast.
+- **Het web vanaf *Verbindingen* opent groot**: de lijst is waarvoor je kwam.
+  Na een rij is de peek klein met *Openen* in beeld.
+- **Het prikbord op een telefoon**: de ronde maakknop toont het teken van een
+  notitie, en het prikvak een loep, zodat je ziet welke knop prikt (raden 6).
+  De lade *Uit het dossier* opent op een computer alleen als er niet meer op
+  de muur hangt dan erin ligt.
+
+### j2 — schrijven en zoeken (§90, §92, §100, §101, §104)
+
+- ***Sectie toevoegen* draagt `useCanvasAuthorGate(true)`**, niet de kale
+  `useAuthorGate`. Alleen de eerste leest `AUTHOR_GATE_OFF`, en zonder dat at
+  de vraag de klik op. De gedeelde schrijfvraag-code bleef zoals hij was.
+- **Een goede naamtreffer van een ander soort ding staat bovenaan.** De vakken
+  blijven, alleen hun volgorde komt uit de beste naam (`nameScore`); een
+  treffer in de tekst weegt niets, een tag hooguit `TAG_CEILING`. Dossier,
+  landkaart, tijdlijn en stamboom stonden in het palet altijd op plek 9, en
+  "Walcheren" zette op `/search` de landkaart op plek 21.
+- **Het palet houdt anders vijf artikelen**, zodat het eerste andere ding in
+  beeld staat, en de rand vervaagt zolang er iets onder staat: niets hangt
+  half onder een rand.
+- **De soorten vouwen na twee (computer) of drie (telefoon) hele regels**,
+  met *Alle soorten* en een telling alleen als er iets gevouwen is. Van de
+  opties in de opdracht (twee regels, de laatst gebruikte eerst, een rand die
+  zegt dat er meer is) werd het de eerste. Rij 20 op de telefoon ging van 9,5
+  naar 8,5.
+- **Op de voorpagina van de wiki komen op een telefoon eerst de soorten**
+  (rij 14 T): de soorttegels stonden onder *Nog één* en *Onlangs*, onder de
+  vouw. Op een computer blijft het krantenritme.
+- **De tags staan altijd onder de dichte infobox**, ook als er een veld gevuld
+  is, zodat *Meer info* ze niet verstopt. Het raakvlak wordt 44 px zonder
+  dat de chip groeit.
+- **De naad in Bewerken sluit alleen het wit.** "Was er bij , en" las als een
+  tikfout rond een naam die deze schrijver niet ziet en niet kan weghalen
+  (§67). Het wit blijft in de gedeelde tekst en krijgt alleen geen breedte;
+  een leesteken dat in Lezen wijkt, blijft in Bewerken staan, want wat je niet
+  ziet, kun je niet met opzet weghalen.
+
+### j3 — de Keeper en de eerste keer (§106, §107)
+
+- **Bij een tabwissel in Beheer bewaren, niet vragen.** Het paneel blijft
+  gemount tot het bewaard is, met een rood puntje bij de naam. Een vraag bij
+  een wissel zou vragen naar iets wat niet verloren gaat. De opdracht noemde
+  ook "vraag, in de stijl van het archief"; die weg is niet genomen.
+  `beforeunload` blijft voor het verlaten van de pagina.
+- **De uitnodiging staat bovenaan de index op een telefoon, niet in het
+  Jij-blad.** Het Jij-blad is van elke dag; uitnodigen is zeldzaam en hoort
+  bij Beheer. Prijs: Export en Logboek staan nu onder de vouw.
+- **De welkomsttekst blijft.** De zin *maak met de + een nieuw artikel* klopt
+  op beide maten: op een computer draagt *Nieuw artikel* in de zijbalk het
+  teken +. Ronde 51 (S10) koos voor de +, en `ronde-51-schrijven.test.ts`
+  houdt dat vast.
+- **Eén kiezer voor soorten** (`SoortKiezer`): de doel-soorten van een
+  koppelveld en de twee lijsten van de pagina zijn hetzelfde onderdeel, geen
+  rij van negentien chips meer.
+- **Stuk 12 was een druk vóór de hydratatie**, geen fout in de vraag. Een
+  inline script onthoudt de druk op *Bewerken* en de pagina voert hem daarna
+  uit (`lib/vroegeKlik.ts`). Het springen van het artikel op een telefoon liet
+  j3 liggen; dat werd j4.
+- **Geen select-all bij focus in een veldnaam** (rij 27): een tikfout
+  verbeteren is even gewoon als een naam vervangen.
+- **De caret in *Wie ben jij aan tafel?*** (rij 24): het is de enige vraag op
+  de pagina, net als het naamvak van de voordeur. **Na j5 (coördinator):
+  alleen met een muis** (`(pointer: fine)`). Op een aanraakscherm opent een
+  focus zonder gebaar geen toetsenbord, en een caret in een schrijfvak laat de
+  `+` wijken (j2); samen gaf dat een vak zonder toetsenbord en geen `+`. Rij 24
+  op de telefoon blijft daarmee 11, op een computer 10.
+
+### j4 — de eerste verf (§104)
+
+- **Geen koekje en geen user-agent voor de eerste verf.** De server tekent één
+  vorm en de stylesheet kiest. Een gok is op een tablet of een gedraaide
+  telefoon fout, en dan springt de pagina weer.
+- **Na de hydratatie de DOM van vroeger.** Wat verborgen stond, gaat weg, zodat
+  de specs en een schermlezer na de hydratatie precies de oude pagina zien.
+  Alleen de plek van de kop veranderde (`.entry-kop`), omdat de volgorde van
+  de telefoon ook die van een wiki is (de infobox vóór de tekst).
+
+### j5 — de suite weer groen
+
+- **De specs tikken eerst uit de tekst; de app laat de `+` weg zolang er een
+  caret staat** (besluit van de coördinator). Eén helper (`releaseCaret`,
+  `pressNewEntry`) in plaats van een uitzondering in de app.
+- **De geweken `+` krijgt `visibility: hidden`**, getrapt ná de fade: wat niet
+  te zien en niet te raken is, hoort niet in de Tab-volgorde. De beweging
+  blijft transform en opacity.
+
+### Wat golf J bewust liet liggen
+
+- Rij 20 op de telefoon (8,5): een plakkende *Aanmaken* raakt elk blad boven
+  een toetsenbord.
+- Het wisselen van webfonts bij het eerste bezoek (een preload of
+  `size-adjust`, voor alle pagina's tegelijk).
+- Een chip in de lopende tekst die afbreekt: Tiptap doet het, en
+  `VoorafTekst` doet hetzelfde.
+
+De open eindjes staan in `CLAUDE.md` §8, onder golf J.

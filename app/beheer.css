@@ -1,0 +1,908 @@
+/*
+ * §107 (golf i3): Beheer voor de Keeper.
+ *
+ * Een eigen laag na globals.css. Productief register: rustig en precies,
+ * papier en etiketten, geen dashboard. Beweging alleen met de tokens van §102
+ * en alleen op `transform`/`opacity`; elke ingang heeft een tak voor minder
+ * beweging.
+ */
+
+/* ------------------------------------------------------------ de index */
+/*
+ * Drie tekeningen van één lijst onderdelen (review 4, M10/M11):
+ *   - telefoon: de index als eerste scherm; na een keuze alleen *‹ Beheer*;
+ *   - 768–1179 px: één rij die opzij scrolt (`.schuifrij`), nooit een wees;
+ *   - vanaf 1180 px: de index als linkerkolom, altijd zichtbaar.
+ */
+.beheer-index,
+.beheer-terug {
+  display: none;
+}
+.beheer-strip {
+  margin: 0.8rem 0 1.2rem;
+}
+.beheer-index-rij {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-2) var(--ease-standard);
+}
+.beheer-index-icoon {
+  flex: none;
+  color: var(--ink-muted);
+}
+.beheer-index-tekst {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 0.1rem;
+}
+.beheer-index-naam {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--serif);
+  font-weight: 600;
+}
+.beheer-index-wat {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--ink-muted);
+}
+.beheer-index-pijl {
+  flex: none;
+  color: var(--ink-muted);
+  opacity: 0.7;
+}
+
+/* Beheer heeft geen `+` (review 4, M10): de soort heeft zijn eigen *Nieuw artikel*. */
+body:has(.beheer-tabs) .fab {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .beheer-strip {
+    display: none;
+  }
+  .beheer-tabs[data-index] > .beheer-paneel {
+    display: none;
+  }
+  .beheer-tabs[data-index] > .beheer-index {
+    display: flex;
+  }
+  /* Na een keuze: alleen *‹ Beheer*; de kop van het onderdeel is de titel. */
+  .beheer-tabs:not([data-index]) > .beheer-terug {
+    display: inline-flex;
+    margin: 0 0 0.6rem -0.5rem;
+    min-height: var(--tap);
+    font-size: 0.95rem;
+  }
+  .beheer-page:has(.beheer-tabs:not([data-index])) > .eyebrow {
+    display: none;
+  }
+  .beheer-page:has(.beheer-tabs:not([data-index])) > h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .beheer-paneel > h2:first-child {
+    font-size: 1.6rem;
+  }
+  .beheer-index {
+    flex-direction: column;
+    margin: 0.9rem 0 1.2rem;
+    border-top: 1px solid var(--rule);
+  }
+  .beheer-index-rij {
+    min-height: 64px;
+    padding: 0.55rem 0.2rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .beheer-index-rij:active {
+    background: var(--paper-dark);
+  }
+  .beheer-index-naam {
+    font-size: 1.08rem;
+  }
+}
+
+@media (min-width: 1180px) {
+  .beheer-page {
+    max-width: 1200px;
+  }
+  .beheer-tabs {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    gap: 0 2.2rem;
+    margin-top: 1.2rem;
+    align-items: start;
+  }
+  .beheer-strip {
+    display: none;
+  }
+  .beheer-index {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    position: sticky;
+    top: 1rem;
+    padding-top: 0.2rem;
+  }
+  .beheer-index-rij {
+    gap: 0.6rem;
+    min-height: 40px;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius);
+    border-left: 3px solid transparent;
+  }
+  .beheer-index-rij:hover {
+    background: var(--paper-dark);
+  }
+  .beheer-index-rij[aria-selected='true'] {
+    background: var(--paper-raised);
+    border-left-color: var(--stamp-red);
+    box-shadow: var(--shadow);
+  }
+  .beheer-index-icoon {
+    width: 17px;
+    height: 17px;
+  }
+  .beheer-index-naam {
+    font-size: 0.98rem;
+  }
+  /* In de kolom alleen de naam; de zin blijft de beschrijving voor een schermlezer. */
+  .beheer-index-wat,
+  .beheer-index-pijl {
+    display: none;
+  }
+  .beheer-paneel {
+    min-width: 0;
+  }
+}
+
+/* ---------------------------------------------------- de soort-editor */
+
+/* Een open soort mag de breedte van het scherm gebruiken. */
+.page:has(details.admin-type[open]) {
+  max-width: 1200px;
+}
+.beheer-paneel {
+  container-type: inline-size;
+}
+.soort-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 0.7rem 0 1rem;
+}
+.soort-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.4rem;
+}
+/* Twee kolommen zodra het paneel breed genoeg is (vanaf ±1440 px met de index ernaast). */
+@container (min-width: 880px) {
+  .soort-grid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+  }
+  .soort-zij {
+    border-left: 1px solid var(--rule);
+    padding-left: 1.6rem;
+  }
+}
+.soort-hoofd,
+.soort-zij {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.soort-zij .admin-block {
+  padding: 0.45rem 0.5rem;
+}
+/*
+ * In de smalle tweede kolom: het soort blok en *Zichtbaar* op de eerste
+ * regel, de kop met ↑ ↓ op de tweede — in plaats van vier regels per blok.
+ */
+.soort-zij .admin-block > .row-wrap:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.3rem 0.25rem;
+}
+.soort-zij .admin-block > .row-wrap:first-child > :nth-child(1) {
+  grid-area: 1 / 1;
+  justify-self: start;
+}
+.soort-zij .admin-block > .row-wrap:first-child > :nth-child(2) {
+  grid-area: 2 / 1;
+}
+.soort-zij .admin-block > .row-wrap:first-child > :nth-child(3) {
+  grid-area: 2 / 2;
+}
+.soort-zij .admin-block > .row-wrap:first-child > :nth-child(4) {
+  grid-area: 2 / 3;
+}
+.soort-zij .admin-block > .row-wrap:first-child > :nth-child(5) {
+  grid-area: 1 / 2 / 2 / 4;
+  justify-self: end;
+}
+.soort-zij .admin-block .input {
+  min-height: 34px;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+.soort-zij .admin-block .chip-selectable {
+  min-height: 30px;
+}
+
+/*
+ * Review 4, M11: een soort is een indexrij — teken in de soortkleur, naam in
+ * de serif, het getal gedempt, een chevron. Open plakt hij bovenaan.
+ */
+details.admin-type {
+  padding: 0;
+}
+details.admin-type > summary.soort-rij {
+  gap: 0.7rem;
+  min-height: 52px;
+  padding: 0.35rem 0.3rem;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  border-radius: var(--radius);
+  transition: background-color var(--dur-2) var(--ease-standard);
+}
+details.admin-type > summary.soort-rij::before {
+  content: none;
+}
+details.admin-type > summary.soort-rij:hover {
+  background: var(--paper-dark);
+}
+details.admin-type[open] > summary.soort-rij {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  font-size: 1.25rem;
+}
+.soort-rij-teken {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--soort) 16%, var(--paper-raised));
+  color: color-mix(in oklab, var(--soort) var(--soort-aandeel, 80%), var(--ink));
+}
+.soort-rij-naam {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.soort-rij-tal {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: normal;
+  color: var(--ink-muted);
+}
+.soort-rij-pijl {
+  margin-left: auto;
+  flex: none;
+  color: var(--ink-muted);
+  transition: transform var(--dur-2) var(--ease-standard);
+}
+details.admin-type[open] > summary .soort-rij-pijl {
+  transform: rotate(90deg);
+}
+
+/* Een puntje naast de naam van een soort met iets dat nog niet bewaard is. */
+.soort-kop-dirty {
+  width: 7px;
+  height: 7px;
+  margin-left: 0.2rem;
+  border-radius: 50%;
+  background: var(--stamp-red);
+}
+
+.soort-naamrij {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+.soort-naam {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.soort-uiterlijk-knop {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0 0.7rem 0 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-standard);
+}
+.soort-uiterlijk-knop:hover {
+  border-color: var(--ink-muted);
+}
+.soort-uiterlijk-teken {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  background: var(--soort);
+  color: #fbf7ee;
+}
+.soort-chevron {
+  transition: transform var(--dur-2) var(--ease-standard);
+}
+[aria-expanded='true'] > .soort-chevron {
+  transform: rotate(90deg);
+}
+
+.soort-uiterlijk {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  animation: soort-open var(--dur-4) var(--ease-enter);
+}
+@media (min-width: 700px) {
+  .soort-uiterlijk {
+    grid-template-columns: minmax(0, 1fr) 11rem;
+  }
+}
+@keyframes soort-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.soort-uiterlijk-kiezers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.soort-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.soort-iconen {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 0.3rem;
+}
+.soort-icoon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 38px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-standard);
+}
+.soort-icoon:hover {
+  border-color: var(--ink-muted);
+}
+.soort-icoon[aria-checked='true'] {
+  background: var(--soort);
+  border-color: var(--soort);
+  color: #fbf7ee;
+}
+/* D17: een teken dat een andere soort al draagt, krijgt een klein puntje. */
+.soort-icoon[data-taken]::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  opacity: 0.6;
+}
+.soort-teken-ook {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  color: var(--ink-muted);
+}
+.soort-teken-ook svg {
+  flex: none;
+  margin-top: 0.1rem;
+}
+.soort-kleuren {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.soort-staal {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--paper-raised);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--rule);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-standard);
+}
+.soort-staal:hover {
+  transform: scale(1.08);
+}
+.soort-staal[aria-checked='true'] {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.soort-eigen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.3rem;
+  padding: 0 0.4rem 0 0.2rem;
+  min-height: 32px;
+  border: 1px dashed var(--rule);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.soort-eigen-aan {
+  border-style: solid;
+  border-color: var(--ink);
+}
+.soort-eigen input {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.soort-voorbeeld {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.soort-voorbeeld-kaart {
+  width: 10rem;
+  pointer-events: none;
+}
+.soort-voorbeeld-kaart .card-cover {
+  aspect-ratio: 4 / 3;
+}
+
+/* De velden: één rij per veld. */
+.soort-uitleg {
+  margin: 0 0 0.35rem;
+  max-width: 44rem;
+}
+.veld-lijst {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+.veld-rij {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px dashed var(--rule);
+}
+.veld-rij[data-open] {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--paper-dark) 70%, transparent), transparent 70%);
+}
+.veld-kop {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(8rem, 12rem) minmax(5rem, 7rem) auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+.veld-kop .input,
+.veld-kop .select {
+  min-height: 34px;
+  width: 100%;
+  min-width: 0;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.92rem;
+}
+.veld-sleutel {
+  font-family: var(--mono, monospace);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.veld-knoppen {
+  display: inline-flex;
+}
+.veld-knop {
+  min-width: 34px;
+  justify-content: center;
+}
+.veld-knop:disabled {
+  opacity: 0.3;
+}
+.veld-samenvatting {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 0 0.3rem 0 0.1rem;
+  line-height: 1.2;
+  background: none;
+  border: 0;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+.veld-samenvatting:hover .veld-samenvatting-tekst {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.veld-samenvatting-tekst {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.veld-meer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.3rem 0 0.4rem 1.1rem;
+  animation: soort-open var(--dur-3) var(--ease-enter);
+}
+.veld-rol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.veld-rol .select {
+  max-width: 22rem;
+  min-height: 36px;
+}
+.veld-toevoegen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.veld-snel {
+  min-height: 34px;
+}
+/* De zin onder Veld toevoegen staat er alleen als de knop de focus heeft. */
+.veld-typt {
+  flex-basis: 100%;
+  display: none;
+}
+.veld-toevoegen:has(.veld-toevoegen-knop:focus) .veld-typt {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  .veld-kop {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .veld-kop .veld-naam {
+    grid-column: 1 / -1;
+  }
+  .veld-kop code.veld-sleutel {
+    display: none;
+  }
+  .veld-knoppen {
+    grid-column: -2 / -1;
+  }
+  .veld-knop {
+    min-height: var(--tap);
+    min-width: 40px;
+  }
+  .veld-samenvatting {
+    min-height: 36px;
+  }
+  .veld-kop .input,
+  .veld-kop .select {
+    min-height: var(--tap);
+    font-size: 1rem;
+  }
+}
+
+/* De doel-soorten van een koppelveld. */
+.admin-oftype-chosen {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.doel-chip {
+  padding-right: 0.15rem;
+}
+.doel-weg {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.doel-weg:hover {
+  background: var(--paper-dark);
+}
+.doel-kiezer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-raised);
+  animation: soort-open var(--dur-3) var(--ease-enter);
+}
+.doel-zoek {
+  max-width: 18rem;
+  min-height: 36px;
+}
+.doel-lijst {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.1rem 0.6rem;
+  width: 100%;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+.doel-optie {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 34px;
+  padding: 0 0.3rem;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.doel-optie:hover {
+  background: var(--paper-dark);
+}
+.doel-vink {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--ink-muted);
+  border-radius: 2px;
+}
+.doel-optie-aan .doel-vink {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.soort-vinkje {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0 0 0.45rem;
+  cursor: pointer;
+}
+.soort-vinkje input {
+  margin-top: 0.2rem;
+}
+
+/* Soort verwijderen staat onderaan de tweede kolom, niet in de voet: zelden, en nooit naast Opslaan. */
+.soort-weg {
+  align-self: flex-start;
+}
+
+/*
+ * Review 4, M11: één voet voor Soorten en Woorden. De telling links (rood als
+ * er iets openstaat), de knoppen rechts, Opslaan als laatste.
+ */
+.beheer-voet {
+  justify-content: flex-start;
+}
+.beheer-voet > .btn {
+  margin-left: 0;
+}
+.beheer-voet-telling {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.beheer-voet-telling strong {
+  color: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel, 80%), var(--ink));
+  font-weight: 600;
+}
+.soort-sneltoets {
+  display: none;
+}
+@media (min-width: 768px) and (hover: hover) {
+  .soort-sneltoets {
+    display: inline;
+  }
+}
+
+/* ----------------------------------------------------------- woorden */
+.woord-context {
+  flex-basis: 100%;
+  margin: 0.1rem 0 0.15rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--rule);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.woord-context q {
+  color: var(--ink);
+  font-style: italic;
+}
+.woord-context q::before,
+.woord-context q::after {
+  content: '';
+}
+.woord-context-weg {
+  display: block;
+  color: var(--stamp-red);
+}
+.admin-words-hint {
+  margin: -0.3rem 0 0.2rem;
+}
+
+/* ------------------------------------------------------- gebruikers */
+/* Review 4, L4: *Uitschakelen* is de gevaarlijkste knop in de rij, en ziet er zo uit. */
+.btn-gevaar {
+  color: color-mix(in oklab, var(--stamp-red) var(--stempel-aandeel, 80%), var(--ink));
+}
+.btn-gevaar:hover {
+  border-color: var(--stamp-red);
+}
+.invite-rij {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.invite-code {
+  user-select: all;
+}
+.invite-rij .btn {
+  min-height: 38px;
+}
+.wachtwoord-blad {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.wachtwoord-rij {
+  display: flex;
+  gap: 0.4rem;
+}
+.wachtwoord-rij .input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono, monospace);
+  letter-spacing: 0.04em;
+}
+.wachtwoord-knoppen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soort-uiterlijk,
+  .veld-meer,
+  .doel-kiezer {
+    animation: none;
+  }
+  .soort-chevron,
+  .soort-staal,
+  .soort-rij-pijl {
+    transition: none;
+  }
+  .soort-staal:hover {
+    transform: none;
+  }
+}
+
+/* ===== golf j3 */
+/*
+ * §107, aangevuld in golf J: het puntje bij een onderdeel waar nog iets niet
+ * bewaard is, het paneel dat verborgen gemount blijft, en de uitnodiging
+ * bovenaan de index op een telefoon.
+ */
+.beheer-paneel[hidden] {
+  display: none;
+}
+.beheer-niet-bewaard {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--stamp-red);
+}
+.beheer-strip .beheer-niet-bewaard {
+  margin-left: 0.1rem;
+}
+.beheer-vooraan {
+  display: none;
+}
+@media (max-width: 767px) {
+  .beheer-tabs[data-index] > .beheer-vooraan {
+    display: block;
+    margin: 0.9rem 0 0;
+    padding: 0.7rem 0.8rem 0.8rem;
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--stamp-red);
+    background: var(--paper-raised);
+  }
+  .beheer-uitnodiging .eyebrow {
+    margin: 0 0 0.45rem;
+    font-size: 0.72rem;
+  }
+  .beheer-uitnodiging .invite-rij {
+    gap: 0.45rem;
+  }
+  .beheer-uitnodiging .invite-code {
+    font-size: 1.02rem;
+    padding: 0.3rem 0.55rem;
+  }
+  .beheer-uitnodiging .invite-rij .btn {
+    min-height: var(--tap);
+  }
+  /* De index sluit aan op de uitnodiging: geen tweede lijn erboven. */
+  .beheer-tabs[data-index] > .beheer-vooraan + .beheer-index {
+    margin-top: 0.9rem;
+  }
+}

@@ -1,0 +1,908 @@
+/* ==========================================================================
+   §105 (golf i1) — de tekenvlakken op de telefoon.
+
+   Het prikbord, de landkaart, de tijdlijn, de stamboom en het web. Aan tafel
+   wordt hier het meest mee gewerkt, en op een telefoon is het hier het
+   krapst: vóór deze laag kreeg het glas 53–60 % van een scherm van 844 px,
+   omdat de kop drie regels was (terug, naam, *Verbindingen* op een eigen
+   rij), de werkbalk twee (de schakelaar, dan de zoombalk), en de telregel
+   onder het glas nog eens twee of drie.
+
+   Wat deze laag doet, in één zin per blok:
+
+   1. De kop is twee regels: de weg terug (en waar het vlak bij hoort), en de
+      naam met *Verbindingen* als icoon ernaast.
+   2. De werkbalk is één regel: Lezen/Bewerken, Vind, de zoombalk en *Alles in
+      beeld*. Wat maakt staat niet in die regel maar onder de duim (3).
+   3. De maakknop van het vlak (`.canvas-make`) staat op een telefoon waar de
+      `+` van de schil overal elders staat, rond en 56 px — en *Ongedaan
+      maken* (`.canvas-undo`) ernaast. Alleen in Bewerken: Lezen is stil.
+   4. De telregel onder het glas is één regel: hoeveel, en niets over gebaren.
+   5. De peek (`CanvasPeek`) komt van achter de tabbalk op, volgt de duim aan
+      zijn greep, en gaat er weer achter weg. Alleen `transform` (§102 regel 3).
+   6. Een leeg vlak (`CanvasEmpty`): een fiche met een tekening, één zin, één
+      knop. Ook op een computer.
+
+   Alles hier leeft onder 768 px, de breuklijn van `useIsPhone` (CLAUDE.md §5:
+   een breuklijn die in twee bestanden staat, is in beide hetzelfde getal),
+   behalve blok 6 en de peek-basis, die overal gelden.
+   ========================================================================== */
+
+/* ------------------------------------------------------------ 6. leeg vlak */
+/*
+ * De fiche. Hij ligt midden in het glas en vangt niets: alleen de knop is
+ * aanraakbaar (`CanvasEmpty` houdt die druk voor zich). De oude klassen van
+ * elk vlak zetten hem al absoluut in het glas; hier wordt het één vorm.
+ */
+.canvas-leeg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* In het bovenste derde, niet in het midden: daar ligt op een tijdlijn de
+     as, en het optische midden van een glas ligt hoger dan het echte. */
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1rem, 12vh, 6rem) 1rem 1rem;
+  pointer-events: none;
+  z-index: 1;
+  /* De oude `.timeline-empty` stond op 25 % en was een regel tekst. */
+  transform: none;
+  left: 0;
+  top: 0;
+  text-align: center;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  max-width: none;
+}
+.canvas-leeg-fiche {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: min(20rem, 100%);
+  padding: 1rem 1.2rem 1.1rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: 2px 3px 0 color-mix(in oklab, var(--ink) 12%, transparent);
+}
+.canvas-leeg-beeld {
+  display: block;
+  color: var(--ink-muted);
+}
+.canvas-leeg-beeld .canvas-leeg-papier {
+  fill: var(--paper);
+}
+.canvas-leeg-beeld .canvas-leeg-rood {
+  fill: var(--stamp-red);
+  stroke: var(--stamp-red);
+}
+.canvas-leeg-beeld .canvas-leeg-rand-rood {
+  fill: var(--paper);
+  stroke: var(--stamp-red);
+}
+.canvas-leeg .canvas-leeg-zin {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  line-height: 1.35;
+  color: var(--ink);
+  /* De oude `.map-empty p`/`.tree-empty p` gaven een eigen stippelrand. */
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.canvas-leeg-doe {
+  pointer-events: auto;
+  min-height: var(--tap);
+  padding-inline: 1rem;
+  gap: 0.4rem;
+}
+
+/*
+ * Review 4 (H3): de strook. Een landkaart is de scan van de Keeper en een
+ * tijdlijn is een as; een fiche in het midden lag er precies overheen. Daar
+ * wordt de lege staat een smalle strook langs de rand: tekening, zin en knop
+ * op één regel. Onderaan op een computer; op een telefoon bovenaan, want
+ * onderaan staan daar de potloodknop (links) en de `+` (rechts).
+ */
+.canvas-leeg.is-strook {
+  align-items: flex-end;
+  /* Links, als een onderschrift: het midden van het glas blijft van het vlak
+     (en van de hand die het versleept). */
+  justify-content: flex-start;
+  padding: 0 0.75rem 0.75rem;
+}
+.canvas-leeg.is-strook .canvas-leeg-fiche {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: min(36rem, 100%);
+  padding: 0.4rem 0.5rem 0.4rem 0.6rem;
+  text-align: left;
+}
+.canvas-leeg.is-strook .canvas-leeg-beeld {
+  flex: none;
+  width: 44px;
+  height: 32px;
+}
+.canvas-leeg.is-strook .canvas-leeg-zin {
+  flex: 1 1 auto;
+  font-size: 0.95rem;
+}
+.canvas-leeg.is-strook .canvas-leeg-doe {
+  flex: none;
+}
+/* Review 4 (H3): de strook ligt óp het vlak; een duim of muis die daar het
+   papier pakt, pakt het papier. Alleen de knop is hard. */
+.canvas-leeg.is-strook,
+.canvas-leeg.is-strook .canvas-leeg-fiche {
+  pointer-events: none;
+}
+.canvas-leeg.is-strook .canvas-leeg-doe {
+  pointer-events: auto;
+}
+@media (max-width: 767px) {
+  .canvas-leeg.is-strook {
+    align-items: flex-start;
+    padding: 0.5rem;
+  }
+  .canvas-leeg.is-strook .canvas-leeg-fiche {
+    width: 100%;
+    gap: 0.5rem;
+  }
+  .canvas-leeg.is-strook .canvas-leeg-zin {
+    min-width: 0;
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+  .canvas-leeg.is-strook .canvas-leeg-doe {
+    max-width: 46%;
+    white-space: normal;
+    line-height: 1.15;
+    text-align: left;
+    padding-inline: 0.65rem;
+  }
+}
+
+/* ------------------------------------------------------------------ 5. peek */
+/*
+ * De peek ligt één laag *onder* de tabbalk (40), met een rok van zijn eigen
+ * papier eronder. Zo kan elke verandering van maat een `transform` zijn: hij
+ * schuift achter de tabbalk weg, en als hij kleiner wordt, vult de rok wat hij
+ * teruggeeft — er is nooit een kier waar het glas doorheen flitst. Boven het
+ * glas (dat geen eigen laag boven 39 heeft) blijft hij toch.
+ */
+.canvas-peek {
+  z-index: 39;
+  /* Review 4 (L8): een harde, verschoven schaduw zoals de rest van het archief
+     (de `+`: 2px 3px 0), niet een zachte wolk. */
+  box-shadow: 0 -3px 0 color-mix(in oklab, var(--ink) 10%, transparent);
+  /* De hoogte waarop hij groot is laat 3,5 rem glas bovenaan (`--peek-h-full`). */
+  will-change: transform;
+}
+.canvas-peek::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 100vh;
+  background: var(--paper-raised);
+  pointer-events: none;
+}
+/* Waar de duim hem heen trekt: geen overgang, hij is in de hand. */
+.canvas-peek[data-move='none'] {
+  transition: none;
+}
+/* Naar zijn plek, na een tik of een losgelaten sleep. */
+.canvas-peek[data-move='enter'] {
+  transition: transform var(--dur-4) var(--ease-enter);
+}
+/* Weg, achter de tabbalk: korter dan de ingang (§102 regel 4). */
+.canvas-peek[data-move='exit'] {
+  transition: transform var(--dur-3) var(--ease-exit);
+}
+.canvas-peek[data-closing] {
+  pointer-events: none;
+}
+/* Hij komt op van achter de tabbalk. Niet als hij er een vervangt die net
+   wegging (een tik op de volgende speld): dan veranderde het ding, niet de la. */
+.canvas-peek[data-komt] {
+  animation: vlak-peek-komt var(--dur-4) var(--ease-enter) both;
+}
+@keyframes vlak-peek-komt {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-peek[data-move='enter'],
+  .canvas-peek[data-move='exit'] {
+    transition: none;
+  }
+  /* Regel 8: een crossfade van hooguit 150 ms. */
+  .canvas-peek[data-komt] {
+    animation: vlak-peek-verschijnt var(--dur-3) var(--ease-standard) both;
+  }
+}
+@keyframes vlak-peek-verschijnt {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* De greep: een streep die je ziet, en een vlak dat je voelt. */
+.canvas-peek-handle {
+  cursor: grab;
+  touch-action: none;
+}
+.canvas-peek-handle span {
+  width: 44px;
+  height: 5px;
+  background: color-mix(in oklab, var(--ink-muted) 55%, var(--rule));
+}
+.canvas-peek-handle:active span {
+  background: var(--ink-muted);
+}
+
+/* ================================================================ telefoon */
+@media (max-width: 767px) {
+  /* ------------------------------------------------------------- 1. de kop */
+  /*
+   * Twee regels. De eerste is de weg terug (en de dossier- en familielinks,
+   * die opzij scrollen als ze niet passen) plus, op een landkaart, *Van … ·
+   * Op …*. De tweede is de naam, met *Verbindingen* als icoon van 44 px aan
+   * het eind. De hoek rechtsboven blijft vrij voor de live-stip (een lege
+   * spacer, `::after`, in de eerste regel).
+   */
+  .canvas-head {
+    align-items: center;
+    column-gap: 0.4rem;
+    row-gap: 0.1rem;
+    padding-right: 0;
+    margin-bottom: 0.3rem;
+  }
+  .canvas-head::after {
+    content: '';
+    order: 3;
+    flex: 0 0 2.75rem;
+    height: 1px;
+  }
+  /* De Keeper: de strip plus de knop van de kant (§90: 6 rem), maar alleen op
+     de eerste regel — de naam en *Verbindingen* staan eronder en hebben de
+     hele breedte. */
+  .shell[data-keeper-hand] .canvas-head {
+    padding-right: 0;
+  }
+  .shell[data-keeper-hand] .canvas-head::after {
+    flex-basis: 6rem;
+  }
+  /* …en de knop van de kant (32 px, tot 38 px van boven) raakt de tweede regel
+     niet: die begint een paar pixels lager. */
+  .shell[data-keeper-hand] .canvas-head {
+    row-gap: 0.45rem;
+  }
+  .canvas-head > .keeper-stamp {
+    order: 0;
+  }
+  .canvas-head > .eyebrow {
+    order: 1;
+    flex: 0 1 auto;
+    /* Samen met de lege hoek voor de live-stip op de eerste regel: zo lang als
+       hij is, maar nooit zo lang dat de hoek naar de tweede regel valt. */
+    max-width: calc(100% - 2.75rem - 0.6rem);
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    white-space: nowrap;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    /* De rand van `.schuifrij` (§104, golf H): hij vervaagt alleen aan de kant
+       waar meer staat, en alleen als er iets te scrollen is. */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--schuif-links), #000 calc(100% - var(--schuif-rechts)), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 var(--schuif-links), #000 calc(100% - var(--schuif-rechts)), transparent 100%);
+    animation: schuifrij-rand linear both;
+    animation-timeline: scroll(self inline);
+  }
+  .shell[data-keeper-hand] .canvas-head > .eyebrow {
+    max-width: calc(100% - 6rem - 0.6rem);
+  }
+  .canvas-head > .eyebrow::-webkit-scrollbar {
+    display: none;
+  }
+  .canvas-head > .eyebrow > * {
+    flex: 0 0 auto;
+  }
+  .canvas-head > .map-head-links {
+    order: 2;
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 0.78rem;
+  }
+  .canvas-head > h1 {
+    order: 4;
+    /* Een regel voor zich, met de knop van 44 px en één tussenruimte ernaast. */
+    flex: 1 1 calc(100% - var(--tap) - 0.4rem);
+    min-width: 0;
+    line-height: 1.25;
+  }
+  /* Twee klassen diep, want `stambomen.css` (dat later kan laden) zet
+     `.canvas-head h1.tree-title` op `flex: 0 0 auto` — dan drukte een lange
+     naam in het vak *Verbindingen* naar een derde regel. */
+  .page-canvas .canvas-head > h1:has(> .canvas-name-input),
+  .page-canvas .canvas-head > h1.tree-title {
+    flex: 1 1 calc(100% - var(--tap) - 0.4rem);
+    min-width: 0;
+  }
+  .canvas-head > h1 > .canvas-name-input {
+    max-width: 100%;
+  }
+  .canvas-head > [data-testid='connections-link'] {
+    order: 5;
+    flex: 0 0 var(--tap);
+    width: var(--tap);
+    min-height: var(--tap);
+    padding: 0;
+    justify-content: center;
+  }
+  .canvas-head > [data-testid='connections-link'] .connections-word {
+    display: none;
+  }
+
+  /* ------------------------------------------------------- 2. de werkbalk */
+  /*
+   * Eén regel. Op 360 px is er 344 px: de schakelaar (2 × 44), Vind of de
+   * legenda (44), de zoombalk (3 × 44) en wat een vlak nog meer heeft. Dat past
+   * alleen als de woorden gaan (§64: de namen blijven) en het getal naast de
+   * zoomknoppen ook — een percentage zegt een lezer niets, en de knijp zoomt al.
+   * De tijdlijn zegt zijn tijd op het glas onder de as (`.canvas-count-span`).
+   */
+  .board-bar,
+  .map-toolbar,
+  .timeline-toolbar,
+  .tree-tools,
+  .web-toolbar {
+    gap: 0.25rem !important;
+    row-gap: 0.35rem !important;
+    align-items: center;
+  }
+  .canvas-mode {
+    padding: 0.1rem;
+  }
+  .canvas-mode button {
+    min-width: var(--tap);
+    padding: 0;
+    justify-content: center;
+  }
+  .canvas-mode .canvas-mode-word {
+    display: none;
+  }
+  .canvas-zoom {
+    gap: 0;
+  }
+  .canvas-zoom .canvas-zoom-level {
+    display: none;
+  }
+  /* De rechten van een prikbord: een icoon, net als de rest van de regel. */
+  .board-bar .board-rechten {
+    min-width: var(--tap);
+    min-height: var(--tap);
+    justify-content: center;
+    padding: 0;
+  }
+  /* Wie er nog meer is, staat al bij de live-stip in de hoek. */
+  .board-bar .board-people,
+  .tree-tools .tree-people {
+    display: none;
+  }
+  /* De stamboom in Bewerken: het zoekvak dat iemand erbij zet, met *Verwanten
+     erbij* en *Opnieuw schikken*, is de tweede regel — onder de kijkregel. */
+  /* Een regelbreuk vóór het zoekvak, alleen als dat er is (Bewerken). */
+  .tree-tools:has(> .tree-tools-find)::after {
+    content: '';
+    order: 9;
+    flex: 0 0 100%;
+    height: 0;
+  }
+  .tree-tools > .tree-tools-find {
+    order: 10;
+    flex: 1 1 0;
+    min-width: 8rem;
+  }
+  .tree-tools > [data-testid='tree-adopt-all'],
+  .tree-tools > [data-testid='tree-rearrange'] {
+    order: 11;
+  }
+  .tree-tools > [data-testid='tree-adopt-all'] {
+    padding-inline: 0.3rem;
+  }
+
+  /* Het web, als het een middelpunt heeft (zonder is het op een telefoon een
+     lijst). Vier regels werden er twee: de kijkregel — de schakelaar, Vind
+     (het zoekvak als loep, dat over de regel openklapt), de legenda en de
+     zoombalk met *Alles in beeld* — en daaronder de vorm: terug, het hele
+     web, de diepte, Kolommen of Web. */
+  .web-toolbar {
+    position: relative;
+  }
+  .web-toolbar .btn-small {
+    min-height: var(--tap);
+    min-width: var(--tap);
+    justify-content: center;
+  }
+  .web-toolbar > .web-search {
+    order: 1;
+    flex: 0 0 var(--tap);
+    min-width: var(--tap);
+    max-width: none;
+    height: var(--tap);
+  }
+  .web-toolbar > .web-search .input {
+    width: var(--tap);
+    height: var(--tap);
+    padding: 0;
+    color: transparent;
+    cursor: pointer;
+  }
+  .web-toolbar > .web-search .input::placeholder {
+    color: transparent;
+  }
+  .web-toolbar > .web-search::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    transform: translate(-50%, -50%);
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E") center / contain no-repeat;
+    pointer-events: none;
+  }
+  .web-toolbar > .web-search:focus-within {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 31;
+  }
+  .web-toolbar > .web-search:focus-within::before {
+    display: none;
+  }
+  .web-toolbar > .web-search:focus-within .input {
+    width: 100%;
+    padding: 0 0.7rem;
+    color: inherit;
+    cursor: text;
+  }
+  .web-toolbar > .web-search:focus-within .input::placeholder {
+    color: var(--ink-muted);
+  }
+  .web-toolbar > .spacer {
+    order: 2;
+  }
+  .web-toolbar > [data-testid='web-legend-toggle'] {
+    order: 3;
+    padding: 0;
+  }
+  .web-toolbar > .web-zoom {
+    display: inline-flex;
+    order: 4;
+  }
+  .web-toolbar::after {
+    content: '';
+    order: 5;
+    flex: 0 0 100%;
+    height: 0;
+  }
+  .web-toolbar > .web-tool-back,
+  .web-toolbar > .web-tool-all,
+  .web-toolbar > .web-stepper,
+  .web-toolbar > .web-modes,
+  .web-toolbar > [data-testid='web-unpin'] {
+    order: 6;
+  }
+  .web-toolbar > .web-tool-back,
+  .web-toolbar > .web-tool-all {
+    padding: 0;
+  }
+
+  /* ------------------------------------------------- 3. de maakknop */
+  /*
+   * Waar de `+` van de schil overal elders staat (`.fab`, die op een vlak weg
+   * is, §90) staat nu de `+` van het vlak zelf: een speld, een gebeurtenis, een
+   * notitie, een los kaartje. Rond, 56 px, stempelrood, onder de duim. Hij
+   * klimt boven een melding (`--toast-stack`) en boven de peek (`--peek-now`),
+   * en gaat opzij als de peek het hele scherm neemt.
+   *
+   * Het is dezelfde knop als op een computer — zelfde handelingen, zelfde naam
+   * (§64) — alleen op een andere plek: `position: fixed` haalt hem uit de
+   * werkbalk, dus de werkbalk wordt er één regel door.
+   */
+  .page-canvas .canvas-make,
+  .page-canvas:has(.canvas-mode.is-editing) .canvas-undo {
+    /* `--dock-lift` is only ever set by the three rules below; a default here
+       would outrank them for the undo (review 4: it stayed under the peek). */
+    position: fixed;
+    z-index: 45;
+    transform: translateY(calc(-1 * var(--dock-lift, 0px)));
+    transition:
+      transform var(--dur-4) var(--ease-enter),
+      opacity var(--dur-3) var(--ease-standard);
+  }
+  .page-canvas .canvas-make {
+    right: 1rem;
+    bottom: calc(var(--tabs-h) + 1rem + env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    min-height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    background: var(--stamp-red);
+    border-color: var(--stamp-red);
+    color: var(--paper);
+    box-shadow: 2px 3px 0 rgba(31, 27, 22, 0.28);
+  }
+  .page-canvas .canvas-make svg {
+    width: 24px;
+    height: 24px;
+  }
+  .page-canvas .canvas-make .canvas-tool-word,
+  .page-canvas .canvas-make .tree-tool-word {
+    display: none;
+  }
+  .page-canvas .canvas-make:disabled {
+    opacity: 0.55;
+  }
+  .page-canvas:has(.canvas-mode.is-editing) .canvas-undo {
+    right: calc(1rem + 56px + 0.6rem);
+    bottom: calc(var(--tabs-h) + 1rem + 6px + env(safe-area-inset-bottom));
+    width: var(--tap);
+    height: var(--tap);
+    min-width: var(--tap);
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    box-shadow: 2px 2px 0 rgba(31, 27, 22, 0.18);
+  }
+  .page-canvas:has(.canvas-mode.is-editing) .canvas-undo:disabled {
+    color: var(--ink-muted);
+    opacity: 0.7;
+  }
+  /* In Lezen is er niets om terug te nemen, en dat hoeft ook niet grijs in beeld
+     (§99 zei grijs; op een telefoon is dat ruis in de enige regel). */
+  .page-canvas:has(.canvas-mode.is-reading) .canvas-undo {
+    display: none;
+  }
+  body:has(.toast-wrap > .toast) :is(.page-canvas .canvas-make, .page-canvas .canvas-undo) {
+    --dock-lift: calc(var(--toast-stack, 0px) + 0.5rem);
+  }
+  body:has(.canvas-peek) :is(.page-canvas .canvas-make, .page-canvas .canvas-undo) {
+    --dock-lift: calc(var(--peek-now, 0px) - 0.25rem);
+  }
+  /* Een peek die het hele scherm neemt: de knop gaat opzij, niet eronder. */
+  /* Review 4 (H2): alleen als hij echt groot werd (meer dan de helft van het
+     scherm, `data-peek-hoog` uit `CanvasPeek`), niet omdat hij `is-full` heet. */
+  :root[data-peek-hoog] :is(.page-canvas .canvas-make, .page-canvas .canvas-undo) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* Een open blad of de legenda: de knop staat er niet onder te wachten. */
+  body:has(.sheet-backdrop) :is(.page-canvas .canvas-make, .page-canvas .canvas-undo) {
+    visibility: hidden;
+  }
+
+  /* ---------------------------------------------------- 4. de telregel */
+  .canvas-count {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.25rem !important;
+    /* Links van de maakknop, die over de rechterhoek van het glas ligt. */
+    padding-right: 5rem;
+  }
+  .canvas-count .hint-vinger,
+  .canvas-count .hint-wijzer,
+  .canvas-count .canvas-count-uitleg {
+    display: none;
+  }
+}
+/* De tijd op het glas staat op een computer al naast de zoomknoppen. */
+.canvas-count-span {
+  display: none;
+}
+@media (max-width: 767px) {
+  .canvas-count-span {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* §105 (golf J): `!important`, because `globals.css` ends every transition
+     under reduced motion with `* { transition: none !important }`, and that
+     beat this crossfade (the golf-I leftover). Rule 8: the fade stays, the
+     climb does not. */
+  .page-canvas .canvas-make,
+  .page-canvas .canvas-undo {
+    transition: opacity var(--dur-3) var(--ease-standard) !important;
+  }
+}
+
+/* §105: het web noemt zijn zoomknoppen al zoals `CanvasZoomControls`; nu staan
+   ze ook in dezelfde volgorde — uit, in, alles in beeld (§69: één hand). */
+.web-zoom > :nth-child(2) {
+  order: 3;
+}
+
+/* ======================================================= review 4 (golf i1) */
+
+/* M4: de knoppen in de peek van het web hebben de maat van die op de landkaart. */
+@media (max-width: 767px) {
+  .web-peek .btn-small,
+  .canvas-peek .btn-small {
+    min-height: var(--tap);
+  }
+  .web-peek .btn-small:has(> svg:only-child) {
+    min-width: var(--tap);
+    justify-content: center;
+  }
+}
+
+/* H4: *Kolommen/Web* kiest zoals het oog kiest — papier, geen inktzwart. Eén
+   kleur voor "gekozen" in het archief, behalve Bewerken (stempelrood). */
+.web-modes .btn[aria-pressed='true'] {
+  background: var(--paper-dark);
+  color: var(--ink);
+  border-color: var(--rule);
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  /*
+   * H4 — één grammatica voor de werkbalk. **Een groep heeft een rand, een losse
+   * knop niet**: de schakelaar en de zoombalk zijn groepen; de loep, de
+   * trechter, de ↕, het tandwiel, het slotje en de losse knoppen naast een
+   * zoekvak zijn 44 × 44 kaal, in `--ink-muted`, met `--paper-dark` onder de
+   * vinger. Wat gekozen of open is (de legenda open) krijgt `--paper-dark`
+   * met inkt — de kleur van het gekozen oog.
+   */
+  .canvas-find-toggle,
+  .map-toolbar > .btn-small:not(.canvas-make):not(.canvas-undo),
+  .timeline-toolbar > .btn-small:not(.canvas-make):not(.canvas-undo),
+  .tree-tools > .btn-small:not(.canvas-make):not(.canvas-undo),
+  .board-tools > .btn-small:not(.canvas-make),
+  .board-bar .board-rechten,
+  .web-toolbar > .btn-small {
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--ink-muted);
+    border-radius: var(--radius);
+    min-width: var(--tap);
+    min-height: var(--tap);
+    padding: 0;
+    justify-content: center;
+    transform: none;
+  }
+  .canvas-find-toggle:active,
+  .map-toolbar > .btn-small:not(.canvas-make):not(.canvas-undo):active,
+  .timeline-toolbar > .btn-small:not(.canvas-make):not(.canvas-undo):active,
+  .tree-tools > .btn-small:not(.canvas-make):not(.canvas-undo):active,
+  .board-tools > .btn-small:not(.canvas-make):active,
+  .board-bar .board-rechten:active,
+  .web-toolbar > .btn-small:active,
+  .map-toolbar > .btn-small[aria-expanded='true'],
+  .web-toolbar > .btn-small[aria-expanded='true'],
+  .canvas-find.is-open .canvas-find-toggle {
+    background: var(--paper-dark);
+    color: var(--ink);
+  }
+  /* De stamboom: *Verwanten erbij (n)* houdt zijn getal. */
+  .tree-tools > [data-testid='tree-adopt-all'] {
+    padding-inline: 0.35rem;
+  }
+  /* Het zoekvak van het web als loep: geen doos zolang het dicht is. */
+  .web-toolbar > .web-search:not(:focus-within) .input {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  /*
+   * H4 — *Tekenen* is geen potlood meer (dat is Bewerken) maar een penpunt met
+   * een krabbel, en rond, van dezelfde familie als *Ongedaan maken* en de `+`
+   * onderaan: drie ronde dingen in plaats van één vierkant en twee rondjes.
+   * Dicht is het alleen de knop; open houdt de balk zijn rand.
+   */
+  .ink-toolbar:not(.ink-toolbar-open) {
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  .ink-toolbar .ink-tool.ink-tool-pen {
+    border-radius: 50%;
+  }
+  .ink-toolbar:not(.ink-toolbar-open) .ink-tool.ink-tool-pen {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    box-shadow: 2px 2px 0 rgba(31, 27, 22, 0.18);
+    color: var(--ink);
+  }
+
+  /* M1: de stamboom zegt op de telefoon ook hoeveel kaartjes er zijn — het
+     eerste scherm toont er soms twee van elf. */
+  .tree-count.canvas-count {
+    display: block;
+  }
+}
+
+/*
+ * Review 4 (H1): de inspector van het prikbord in de peek. Klein toont hij de
+ * eerste regel — wat er gekozen is en de weg ernaartoe — en blijft hij zo laag
+ * als de oude balk (een dubbeltik op een notitie in het midden van de kurk
+ * landt dan niet op hem, `flow-4-board`); groot staat alles er, gewikkeld en
+ * niet meer in een doos van 3 rem die zelf scrolt. Het eigen kruisje van de
+ * rij is dubbel met dat van de peek, en de titel mag de hele breedte.
+ */
+.canvas-peek.board-peek {
+  --peek-h: min(10.5rem, 30dvh);
+}
+.canvas-peek .board-inspector-in-peek {
+  position: static;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.5rem;
+  padding: 0 0 0.25rem;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  max-width: none;
+}
+.canvas-peek .board-inspector-in-peek > [aria-label='Selectie opheffen'] {
+  display: none;
+}
+.canvas-peek .board-inspector-in-peek .board-inspector-title {
+  flex: 1 0 100%;
+  max-width: none;
+  white-space: normal;
+  font-family: var(--serif);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/*
+ * Review 4 (M5): de lade op de telefoon. Dicht is ze een mapje met een getal
+ * rechtsboven op de kurk (44 px, zonder het woord); open is ze een peek.
+ */
+@media (max-width: 767px) {
+  .board-tray-spine {
+    top: 8px;
+    right: 8px;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    padding: 0 0.55rem;
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 rgba(31, 27, 22, 0.18);
+    background: var(--paper-raised);
+  }
+  .board-tray-spine .board-tray-spine-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+.canvas-peek .board-tray-in-peek {
+  position: static;
+  width: auto;
+  max-height: none;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+}
+.board-tray-peek-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+}
+
+/* ===== golf j1 */
+/*
+ * §105 (golf J, stuk 1): Vind opent op elk vlak op dezelfde plek — onder de
+ * werkbalk, over het glas. Het prikbord en de stamboom hadden hun balk al als
+ * anker; de landkaart en de tijdlijn niet, en daar klapte het vak open onder
+ * de hele pagina: op een telefoon onder de tabbalk, de treffers onder de rand.
+ * De lijst is nooit hoger dan wat er boven het toetsenbord en de tabbalk over
+ * is (`--find-room`, gezet door `CanvasFind` uit `visualViewport`).
+ */
+.map-toolbar,
+.timeline-toolbar {
+  position: relative;
+}
+.canvas-find-list {
+  max-height: min(18rem, var(--find-room, 18rem));
+}
+
+/*
+ * §105 (golf J, stuk 10): de inspector van het prikbord op een computer. Eén
+ * regel werd "DE ZE…" met knoppen die over twee regels braken. Nu staat de naam
+ * als etiket op een eigen regel (heel, of pas met een ellips als hij de hele
+ * breedte vol heeft), het kruisje rechtsboven, en daaronder de knoppen, die
+ * nooit breken: wordt het te breed, dan wikkelt de rij, per knop.
+ */
+@media (min-width: 768px) {
+  .board-inspector:not(.board-inspector-in-peek) {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+    padding-right: 2.75rem;
+  }
+  .board-inspector:not(.board-inspector-in-peek) > .board-inspector-title {
+    flex: 1 0 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  .board-inspector:not(.board-inspector-in-peek) > [aria-label='Selectie opheffen'] {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+  }
+  .board-inspector:not(.board-inspector-in-peek) {
+    column-gap: 0.35rem;
+    /* Zo breed als wat erin staat, niet als het kurk. */
+    width: fit-content;
+    /* En de pen van de tekenlaag rechtsonder blijft vrij. */
+    max-width: calc(100% - 20px - var(--board-tray-w, 0px) - 3.5rem);
+  }
+  .board-inspector:not(.board-inspector-in-peek) .btn {
+    flex: none;
+    white-space: nowrap;
+  }
+  .board-inspector:not(.board-inspector-in-peek) .btn-small {
+    padding-inline: 0.55rem;
+  }
+  .board-inspector:not(.board-inspector-in-peek) .board-border-select {
+    max-width: 10.5rem;
+  }
+}
+
+/*
+ * §105 (golf J, raden 6): op een telefoon draagt het zoekvak van het prikbord
+ * in Bewerken de loep van elk zoekvak — hier zoek je iets om te prikken — en de
+ * ronde knop in de hoek het teken van een notitie (`BoardCanvas`). Geen
+ * punaise in het vak: die is de knop *Punaise* ernaast.
+ */
+@media (max-width: 767px) {
+  .board-picker > .board-prik-loep {
+    position: absolute;
+    left: 0.8rem;
+    top: calc(50% - 8px);
+    color: var(--ink-muted);
+    pointer-events: none;
+  }
+  .board-picker:has(> .board-prik-loep) > .input {
+    padding-left: 2.1rem;
+  }
+}

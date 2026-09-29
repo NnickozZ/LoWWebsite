@@ -85,8 +85,24 @@ async function editMap(page: Page) {
  * all, so a fraction of *its* box is a fraction of the map at any fit or zoom.
  */
 async function placeAt(page: Page, fx: number, fy: number) {
-  const box = await page.locator('.map-world').boundingBox();
+  let box = await page.locator('.map-world').boundingBox();
   if (!box) throw new Error('no map');
+  /*
+   * §105 (review 4, M3): a map with its spelden close together opens on them,
+   * not on the whole picture, so a spot given as a share of the picture can
+   * lie off the glass. Then "Alles in beeld" first, as a hand would.
+   */
+  const stage = (await page.locator('.map-stage').boundingBox())!;
+  const off = (b: NonNullable<typeof box>) => {
+    const x = b.x + b.width * fx;
+    const y = b.y + b.height * fy;
+    return x < stage.x + 8 || x > stage.x + stage.width - 8 || y < stage.y + 8 || y > stage.y + stage.height - 8;
+  };
+  if (off(box)) {
+    await page.getByRole('button', { name: 'Alles in beeld' }).click();
+    await page.waitForTimeout(400);
+    box = (await page.locator('.map-world').boundingBox())!;
+  }
   await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
 }
 
@@ -184,7 +200,10 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await expect(other.locator('.map-pin')).toHaveCount(2);
   await other.locator('.map-pin', { hasText: 'Hier lag de boot' }).click();
   const theirs = other.getByRole('dialog', { name: 'Hier lag de boot' });
-  await expect(theirs.getByText(/van iemand anders/)).toBeVisible();
+  // §105 (review 4, L9): the sentence is for a hand in Bewerken that finds
+  // the speld will not budge; a phone opens in Lezen, where it is noise.
+  if (info.project.name === 'phone') await expect(theirs.getByText(/van iemand anders/)).toHaveCount(0);
+  else await expect(theirs.getByText(/van iemand anders/)).toBeVisible();
   await expect(theirs.getByRole('button', { name: 'Speld weghalen' })).toHaveCount(0);
   const pinId = await other.locator('.map-pin', { hasText: 'Hier lag de boot' }).getAttribute('data-pin-id');
   const mapSlug = mapUrl.split('/maps/')[1];

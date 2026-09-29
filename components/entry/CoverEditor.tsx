@@ -12,6 +12,7 @@ import { cropFor, normaliseCrops, SHAPE_ORDER, SHAPES, type CoverCrops, type Cro
 import { fitUpload } from '@/components/shrinkImage';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { useDismiss } from '@/components/ui/useDismiss';
+import { NARROW_MEDIA, WIDE_MEDIA } from '@/components/useIsPhone';
 
 /**
  * §6: upload from device or paste from clipboard.
@@ -59,8 +60,13 @@ export function CoverEditor({
   colour: string;
   /** §22: the reading face — the picture, and not one control. */
   readOnly?: boolean;
-  /** §104 (L5): reading on a narrow screen — the landscape crop, not the whole picture. */
-  landscape?: boolean;
+  /**
+   * §104 (L5): reading on a narrow screen — the landscape crop, not the whole
+   * picture. Golf J (j4): `null` while the width is not known yet (the server
+   * and the hydration): both are drawn, lazily, and the stylesheet shows one
+   * (`.entry-figure-beide`); once it is known the other goes.
+   */
+  landscape?: boolean | null;
   onChange: (next: { coverAssetId: string | null; coverCrop: CoverCrops | null }) => void;
 }) {
   const ui = useUi();
@@ -163,8 +169,14 @@ export function CoverEditor({
   const picture = (
     <div className={assetId ? 'entry-cover-whole' : 'entry-cover entry-cover-empty'}>
       {assetId ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={assetUrl(assetId, 'full')} alt={alt} />
+        /* Golf J (j4): while the width is not known both pictures are in the
+           page; a `<source>` for the other width hands this one an empty
+           pixel, so the copy `display: none` hides is never fetched. */
+        <picture>
+          {landscape === null && <source media={NARROW_MEDIA} srcSet={LEEG_BEELD} />}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={assetUrl(assetId, 'full')} alt={alt} />
+        </picture>
       ) : (
         <Icon name={icon} size={48} style={{ color: colour, opacity: 0.5 }} />
       )}
@@ -181,7 +193,9 @@ export function CoverEditor({
    */
   if (readOnly && assetId) {
     return (
-      <figure className={`entry-figure${landscape ? ' entry-figure-liggend' : ''}`}>
+      <figure
+        className={`entry-figure${landscape ? ' entry-figure-liggend' : ''}${landscape === null ? ' entry-figure-beide' : ''}`}
+      >
         <button
           type="button"
           ref={openerRef}
@@ -189,14 +203,17 @@ export function CoverEditor({
           aria-label={fill(ui.words.coverOpen, { naam: alt })}
           onClick={() => setBig(true)}
         >
-          {landscape ? (
+          {/* Golf J (j4): two slots, so the one that stays keeps its element. */}
+          {landscape !== false && (
             <span className={`entry-cover-liggend ${coverClass('landscape')}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={assetUrl(assetId, 'card')} alt={alt} style={liggendStijl(crop)} />
+              <picture>
+                {landscape === null && <source media={WIDE_MEDIA} srcSet={LEEG_BEELD} />}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={assetUrl(assetId, 'card')} alt={alt} style={liggendStijl(crop)} />
+              </picture>
             </span>
-          ) : (
-            picture
           )}
+          {landscape !== true && picture}
         </button>
         {big && (
           <CoverLightbox
@@ -403,6 +420,9 @@ function CoverLightbox({
  * cut from the lower part of the picture (50 % 85 %), because that is where a
  * drawn cover prints its name band — centred, "De familie De Kok" lost *Kok*.
  */
+/** Golf J (j4): one transparent pixel, for the `<source>` of the width a picture is not shown at. */
+const LEEG_BEELD = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
 function liggendStijl(crop: CoverCrops | null | undefined): React.CSSProperties {
   if (normaliseCrops(crop)?.landscape) return coverStyle(crop, 'landscape');
   return { objectFit: 'cover', objectPosition: '50% 85%' };

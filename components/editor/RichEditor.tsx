@@ -7,7 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { PluginKey } from '@tiptap/pm/state';
 import Suggestion from '@tiptap/suggestion';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
 import { Icon } from '@/components/Icon';
@@ -120,6 +120,7 @@ export function RichEditor({
   onChange,
   editable: allowed = true,
   live,
+  vooraf,
 }: {
   initialDoc: unknown;
   placeholder?: string;
@@ -127,6 +128,12 @@ export function RichEditor({
   editable?: boolean;
   /** §20: bind to a room instead of `initialDoc`. Fixed for the editor's life. */
   live?: LiveBinding | null;
+  /**
+   * §104, golf J (j4): what stands here until the editor exists — the same
+   * text drawn on the server (`VoorafTekst`), so the editor replaces it at
+   * the same height instead of pushing the page down.
+   */
+  vooraf?: ReactNode;
 }) {
   const ui = useUi();
   /*
@@ -440,7 +447,7 @@ export function RichEditor({
   }, [editor, editable]);
 
   if (!editor) {
-    return <div className="editor-body" aria-busy="true" />;
+    return vooraf ? <>{vooraf}</> : <div className="editor-body" aria-busy="true" />;
   }
 
   return (

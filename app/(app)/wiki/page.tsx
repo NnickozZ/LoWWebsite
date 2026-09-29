@@ -22,6 +22,11 @@ import { archiveCard, randomEntry, recentlyUpdated, type RecentCard } from '@/li
 import type { ArchiveCard } from '@/lib/wiki/leeskamer';
 import type { TypeTab } from '@/components/TypeTabs';
 import { UitHetArchief } from './willekeurig/UitHetArchief';
+import type { ReactNode } from 'react';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { EersteBezoek } from '@/components/eerste-keer/EersteBezoek';
+import { firstVisitOffer } from '@/lib/eerste-keer/bezoek';
+import { ArtikelDeur } from '@/components/eerste-keer/Deuren';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +87,23 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
   const recent = recentlyUpdated(user, 6);
   const archive = archiveCard(user, randomEntry(user));
 
+  /*
+   * §106: een wiki zonder één artikel. *Uit het archief* en *Onlangs
+   * bijgewerkt* zeiden allebei "nog niets"; nu zegt één lege staat het, met de
+   * deur naar het eerste artikel. De tegels van de soorten blijven eronder.
+   */
+  const leeg =
+    total === 0 ? (
+      <LegeStaat
+        icon="book"
+        zin={words.emptyWiki}
+        uitleg={fill(words.emptyWikiWhy, { artikel: words.entry })}
+        soort="wiki"
+      >
+        <ArtikelDeur primary label={fill(words.emptyWrite, { artikel: words.entry })} />
+      </LegeStaat>
+    ) : undefined;
+
   const typeTabs: TypeTab[] = types.map((type) => ({
     slug: type.slug,
     label: type.label,
@@ -115,8 +137,11 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
           <NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />
         </div>
         {tabs}
+      {/* §106: één regel bij je eerste bezoek aan de wiki, daarna nooit meer. */}
+      {/* §106 (na review 4, M8): een lege wiki heeft zijn lege staat al; geen tweede uitleg. */}
+      {total > 0 && <EersteBezoek {...(await firstVisitOffer('wiki', user))} place="wiki" text={fill(words.firstVisitWiki, { artikel: words.entry })} gotIt={words.firstVisitGotIt} />}
         <p className="empty">Er is nog geen voorpagina voor deze kant van het archief.</p>
-        <Leeskamer recent={recent} archive={archive} kinds={typeTabs} words={words} />
+        <Leeskamer recent={recent} archive={archive} kinds={typeTabs} words={words} leeg={leeg} />
       </div>
     );
   }
@@ -128,6 +153,9 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
         watch={['entries', 'types', 'overzichten', `overzicht:${loaded.overzicht.id}`]}
       />
       {tabs}
+      {/* §106: één regel bij je eerste bezoek aan de wiki, daarna nooit meer. */}
+      {/* §106 (na review 4, M8): een lege wiki heeft zijn lege staat al; geen tweede uitleg. */}
+      {total > 0 && <EersteBezoek {...(await firstVisitOffer('wiki', user))} place="wiki" text={fill(words.firstVisitWiki, { artikel: words.entry })} gotIt={words.firstVisitGotIt} />}
       {/* §98: the inleiding's chips, resolved for this reader with the page —
           §101 naden: and the secties' (`chipTexts`). */}
       <ShortChips map={shortChipsFor(user, loaded.chipTexts)}>
@@ -148,7 +176,7 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
           actions={<NewOverzichtButton keeperSideDefault={newOverzichtSide(user) === 'keeper'} />}
         />
       </ShortChips>
-      <Leeskamer recent={recent} archive={archive} kinds={typeTabs} words={words} />
+      <Leeskamer recent={recent} archive={archive} kinds={typeTabs} words={words} leeg={leeg} />
     </div>
   );
 }
@@ -177,14 +205,18 @@ function Leeskamer({
   archive,
   kinds,
   words,
+  leeg,
 }: {
   recent: RecentCard[];
   archive: ArchiveCard | null;
   kinds: TypeTab[];
   words: Words;
+  /** §106: in een wiki zonder één artikel staat hier de lege staat, niet twee lege blokken. */
+  leeg?: ReactNode;
 }) {
   return (
     <div className="leeskamer" data-testid="leeskamer">
+      {leeg ?? (
       <div className="leeskamer-rij">
         <section className="leeskamer-blok leeskamer-archief" aria-labelledby="leeskamer-archief-kop">
           <h2 id="leeskamer-archief-kop" className="leeskamer-kop">
@@ -231,6 +263,7 @@ function Leeskamer({
           )}
         </section>
       </div>
+      )}
 
       <section className="leeskamer-blok leeskamer-soorten" aria-labelledby="leeskamer-soorten-kop">
         <h2 id="leeskamer-soorten-kop" className="leeskamer-kop">

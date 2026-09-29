@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, inviteCode, newEntryButton, openRights, signIn } from './helpers';
+import { becomeInvestigator, inviteCode, newEntryButton, releaseCaret, openRights, signIn } from './helpers';
 
 /**
  * §76: Aanwezig — wie er is, waar ze zijn, en wat je daarvan te zien krijgt.
@@ -76,7 +76,10 @@ async function newEntry(page: Page, name: string): Promise<string> {
   const before = page.url();
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(async () => {
-    if (!(await sheet.isVisible().catch(() => false))) await newEntryButton(page).click({ timeout: 5000 });
+    if (!(await sheet.isVisible().catch(() => false))) {
+      await releaseCaret(page);
+      await newEntryButton(page).click({ timeout: 5000 });
+    }
     await expect(sheet).toBeVisible({ timeout: 1500 });
   }).toPass({ timeout: 30_000 });
   await sheet.getByLabel('Naam', { exact: true }).fill(name);
@@ -403,7 +406,7 @@ test.describe('§76 Aanwezig', () => {
 
     // En vanaf Jij kom je er ook: de knop staat naast die van je eigen pagina.
     await page.goto('/you');
-    await page.getByRole('link', { name: 'Spelerspaginas' }).click();
+    await page.getByRole('link', { name: "Spelerspagina's" }).click();
     await expect(page.getByTestId('spelers-page')).toBeVisible({ timeout: 15_000 });
   });
 

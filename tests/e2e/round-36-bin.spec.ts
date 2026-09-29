@@ -77,6 +77,9 @@ test('een stamboom gaat naar de prullenbak en komt er weer uit', async ({ page }
   await expect(row).toBeVisible();
   await expect(row).toContainText('Stamboom');
   await row.getByRole('button', { name: 'Terugzetten' }).click();
+  // §107 (golf i3): wacht tot hij uit de prullenbak weg is — wat een mens ziet —
+  // voordat de pagina weggaat; anders kan de navigatie de terugzet afbreken.
+  await expect(page.locator('li').filter({ hasText: name })).toHaveCount(0, { timeout: 15_000 });
 
   await page.goto('/stambomen');
   await expect(page.getByRole('main').getByText(name).first()).toBeVisible();

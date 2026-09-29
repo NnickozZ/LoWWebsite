@@ -19,6 +19,9 @@ import { clampDepth, filterGraph, focusSlice } from '@/lib/web/slice';
 import { WEB_DEPTH_MAX, WEB_DEPTH_MIN, type WebEdge, type WebEdgeKind, type WebGraph, type WebNode, type WebNodeId, type WebNodeKind } from '@/lib/web/types';
 import { WebCanvas, type WebCanvasHandle, type WebMode } from './WebCanvas';
 import { PinSelectionButton } from './PinSelectionButton';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { ArtikelDeur } from '@/components/eerste-keer/Deuren';
+import { fill } from '@/lib/words';
 
 /**
  * §43: the page around the web.
@@ -115,6 +118,10 @@ export function WebView({
    * first had to be found among fifteen labels.
    */
   const [panelOpen, setPanelOpen] = useState(Boolean(initialFocus));
+  /** §105 (golf J, stuk 4): the first peek of an arrival on `?focus=` opens big — once. */
+  const [openBig, setOpenBig] = useState(Boolean(initialFocus));
+  /** §105: how tall a peek stands on this screen (`--peek-h`: 36dvh, at most 300 px). */
+  const [peekGuess] = useState(() => (typeof window === 'undefined' ? 0 : Math.min(window.innerHeight * 0.36, 300)));
 
   // Remembered choices — per browser, a convenience and nothing more.
   useEffect(() => {
@@ -638,6 +645,19 @@ export function WebView({
     );
   }
 
+  /*
+   * §106 (na review 4, M8): an archive with nothing in it has no web. It used
+   * to be a search box on a blank screen; now it is the family of empty states,
+   * with the door to the first artikel.
+   */
+  if (full && full.nodes.length === 0) {
+    return (
+      <LegeStaat icon="web" zin={words.emptyWeb} uitleg={words.emptyWebWhy} soort="web">
+        <ArtikelDeur label={fill(words.emptyWrite, { artikel: words.entry })} />
+      </LegeStaat>
+    );
+  }
+
   // A phone without a focus: a search box, not a drawing.
   if (phone && !focus) {
     return (
@@ -672,16 +692,17 @@ export function WebView({
       <div className="row-wrap web-toolbar">
         <CanvasModeToggle mode={canvasMode} />
         {search}
+        {/* §105: on a phone the words of these two go and their names stay (§64). */}
         {focus && trail.length > 0 && (
-          <button type="button" className="btn btn-small btn-ghost" onClick={goBack} title={`Terug naar ${nodeById.get(trail[trail.length - 1])?.name ?? 'het vorige middelpunt'}`} data-testid="web-back">
+          <button type="button" className="btn btn-small btn-ghost web-tool-back" onClick={goBack} title={`Terug naar ${nodeById.get(trail[trail.length - 1])?.name ?? 'het vorige middelpunt'}`} aria-label="Terug" data-testid="web-back">
             <Icon name="chevron" size={14} style={{ transform: 'rotate(180deg)' }} />
-            Terug
+            <span className="canvas-tool-word">Terug</span>
           </button>
         )}
         {focus && (
-          <button type="button" className="btn btn-small btn-ghost" onClick={() => setFocus(null)} title="Het hele archief">
+          <button type="button" className="btn btn-small btn-ghost web-tool-all" onClick={() => setFocus(null)} title="Het hele archief" aria-label="Hele web">
             <Icon name="web" size={15} />
-            Hele web
+            <span className="canvas-tool-word">Hele web</span>
           </button>
         )}
         {depthStepper}
@@ -710,10 +731,14 @@ export function WebView({
           aria-expanded={legendOpen}
           onClick={() => setLegendOpen((v) => !v)}
           data-testid="web-legend-toggle"
+          aria-label="Legenda"
+          title="Legenda"
         >
           <Icon name="filter" size={15} />
-          Legenda
+          <span className="canvas-tool-word">Legenda</span>
         </button>
+        {/* §105: on a phone too now, and with the same names as `CanvasZoomControls`
+            — *Alles in beeld* is the one button that answers "where did it go". */}
         <div className="web-zoom" role="group" aria-label="Zoom">
           <button type="button" className="btn btn-small btn-ghost" onClick={() => canvasRef.current?.zoomBy(1 / 1.3)} aria-label="Uitzoomen">
             <Icon name="zoomOut" size={15} />
@@ -773,6 +798,9 @@ export function WebView({
             labelsAlways={labelsAlways}
             showImages={showImages}
             fitKey={fitKey}
+            /* §105 (review 4, M4): the peek covers the foot of the glass; the
+               middle of the web goes above it. */
+            bottomInset={phone && (panelOpen || Boolean(focus)) ? peekGuess : 0}
             phone={phone}
             editing={canvasMode.editing}
             onPinsChange={setPins}
@@ -799,7 +827,21 @@ export function WebView({
         element carried, so the sheet had no name at all.
       */}
       {phone && panelOpen && selected.size > 0 && (
-        <CanvasPeek labelledBy="web-panel-title" onClose={() => setPanelOpen(false)} className="web-peek">
+        <CanvasPeek
+          labelledBy="web-panel-title"
+          onClose={() => {
+            setPanelOpen(false);
+            setOpenBig(false);
+          }}
+          className="web-peek"
+          /* §105 (golf J, stuk 4): opened from *Verbindingen* (`?focus=`),
+             the list is what you came for — the peek opens big, with it in
+             view. A row picked from it is a new thing in the peek: small again,
+             from the top, so its *Openen* is in view (every knot shares the
+             heading id, so the key is the knot). */
+          startFull={openBig}
+          resetKey={one?.id ?? [...selected][0] ?? 'geen'}
+        >
           {panelBody}
         </CanvasPeek>
       )}

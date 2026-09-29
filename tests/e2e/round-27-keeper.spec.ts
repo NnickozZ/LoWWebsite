@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillWhenReady, newEntryButton, signIn } from './helpers';
+import { fillWhenReady, pressNewEntry, signIn } from './helpers';
 
 /**
  * Round 27, the two things a person can only see by looking:
@@ -23,7 +23,7 @@ const KEEPER = ['Keeper', 'abbeytower34'] as const;
 /** A fresh artikel, made the way a person makes one. Returns its address. */
 async function newArticle(page: Page, name: string): Promise<string> {
   const before = page.url();
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: 'Locaties', exact: true }).click();
   await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), name);

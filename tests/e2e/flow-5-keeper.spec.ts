@@ -31,12 +31,16 @@ test('recovery: an audited new password, and a section revealed to a player', as
 
   // -- the Keeper sets a new password; nothing can show the old one ----------
   await signIn(page, 'Keeper', 'abbeytower34');
-  await page.goto('/admin');
+  // §107: op een telefoon is kaal /admin de index; de gebruikers staan achter ?tab=users.
+  await page.goto('/admin?tab=users');
   const row = page.locator('li', { hasText: playerName }).first();
   await expect(row.getByRole('button', { name: 'Wachtwoord tonen' })).toHaveCount(0);
   await row.getByRole('button', { name: 'Nieuw wachtwoord instellen' }).click();
-  await row.getByPlaceholder(/Nieuw wachtwoord/).fill('zoutwater12');
-  await row.getByRole('button', { name: 'Instellen', exact: true }).click();
+  // §107: het nieuwe wachtwoord is een blad, niet een vak onder de rij.
+  const pwSheet = page.getByRole('dialog', { name: `Nieuw wachtwoord voor ${playerName}` });
+  await pwSheet.getByPlaceholder(/Nieuw wachtwoord/).fill('zoutwater12');
+  await pwSheet.getByRole('button', { name: 'Instellen', exact: true }).click();
+  await expect(pwSheet).toHaveCount(0);
   await expect(row.getByText('Nieuw wachtwoord ingesteld.')).toBeVisible();
 
   // §89: the player's open session is gone, the old password no longer works,
@@ -50,8 +54,8 @@ test('recovery: an audited new password, and a section revealed to a player', as
   await signIn(player, playerName, 'zoutwater12');
 
   // The log was rendered before the change happened, so ask for it again.
-  await page.reload();
-  await page.getByRole('tab', { name: 'Logboek' }).click();
+  // §107 (review 4): op een telefoon staat er na een keuze geen strook meer; het adres kiest.
+  await page.goto('/admin?tab=audit');
   await expect(
     page.locator('li', { hasText: 'nieuw wachtwoord ingesteld' }).filter({ hasText: playerName }).first(),
   ).toBeVisible();

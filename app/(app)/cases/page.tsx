@@ -10,6 +10,9 @@ import { requireViewer } from '@/lib/auth/session';
 import { countEntriesPerCase, listCases, type CaseStatus } from '@/lib/cases/service';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
+import { fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { DossierDeur } from '@/components/eerste-keer/Deuren';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,39 +59,42 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
         <div className="spacer" />
         <NewCaseButton />
       </div>
-      <SortFilterBar
-        sorts={[
-          { value: 'status', label: 'Open eerst' },
-          { value: 'recent', label: 'Laatst veranderd' },
-          { value: 'name', label: 'Op naam' },
-          { value: 'created', label: 'Nieuwste eerst' },
-          { value: 'size', label: `Meeste ${words.entryPlural}` },
-        ]}
-        defaultSort="status"
-        summary={`${cases.length} ${cases.length === 1 ? words.case : words.casePlural}`}
-        groups={[
-          {
-            key: 'status',
-            label: 'Status',
-            multi: true,
-            options: [
-              { value: 'open', label: 'Open', icon: 'folder' },
-              { value: 'cold', label: 'Koud', icon: 'clock' },
-              { value: 'closed', label: 'Gesloten', icon: 'check' },
-            ],
-          },
-          {
-            key: 'show',
-            label: 'Alleen',
-            multi: true,
-            options: [
-              { value: 'member', label: 'Waar ik bij zit', icon: 'person' },
-              { value: 'mine', label: 'Van mij', icon: 'you' },
-              { value: 'restricted', label: 'Vertrouwelijk', icon: 'lock' },
-            ],
-          },
-        ]}
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(sorted.length > 0 || statuses.length > 0 || show.length > 0) && (
+        <SortFilterBar
+          sorts={[
+            { value: 'status', label: 'Open eerst' },
+            { value: 'recent', label: 'Laatst veranderd' },
+            { value: 'name', label: 'Op naam' },
+            { value: 'created', label: 'Nieuwste eerst' },
+            { value: 'size', label: `Meeste ${words.entryPlural}` },
+          ]}
+          defaultSort="status"
+          summary={`${cases.length} ${cases.length === 1 ? words.case : words.casePlural}`}
+          groups={[
+            {
+              key: 'status',
+              label: 'Status',
+              multi: true,
+              options: [
+                { value: 'open', label: 'Open', icon: 'folder' },
+                { value: 'cold', label: 'Koud', icon: 'clock' },
+                { value: 'closed', label: 'Gesloten', icon: 'check' },
+              ],
+            },
+            {
+              key: 'show',
+              label: 'Alleen',
+              multi: true,
+              options: [
+                { value: 'member', label: 'Waar ik bij zit', icon: 'person' },
+                { value: 'mine', label: 'Van mij', icon: 'you' },
+                { value: 'restricted', label: 'Vertrouwelijk', icon: 'lock' },
+              ],
+            },
+          ]}
+        />
+      )}
 
       {sorted.length ? (
         // §104 (golf H, T1): on a phone one line per dossier (`.rijen`) — five
@@ -135,14 +141,23 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
           ))}
         </div>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>{statuses.length || show.length ? 'Geen dossier voldoet hieraan.' : 'Nog geen dossiers.'}</p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            {statuses.length || show.length
-              ? 'Zet een filter uit om meer te zien.'
-              : 'Een dossier hoort bij één onderzoek — een naam en één regel samenvatting zijn genoeg om te beginnen.'}
-          </p>
-        </div>
+        // §106: één familie van lege staten — status, één regel, één deur.
+        statuses.length || show.length ? (
+          <LegeStaat icon="filter" zin={words.emptyFilter} soort="filter">
+            <Link className="btn btn-small" href="/cases">
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon="folder"
+            zin={words.emptyCases}
+            uitleg={fill(words.emptyCasesWhy, { dossier: words.case })}
+            soort="dossiers"
+          >
+            <DossierDeur label={fill(words.emptyCasesGo, { dossier: words.case })} />
+          </LegeStaat>
+        )
       )}
     </div>
   );

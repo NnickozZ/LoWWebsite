@@ -56,7 +56,14 @@ export default function CanvasZoomControls({
 }) {
   return (
     /* §90: the camera is looking, never writing — in either mode. */
-    <span className="canvas-zoom" role="group" aria-label="Zoomen" {...AUTHOR_GATE_OFF}>
+    <span
+      /* §105: a readout in words (the tijdlijn's span) is marked, so a phone
+         can keep it off the bar and say it under the axis instead. */
+      className={`canvas-zoom${level ? ' is-woorden' : ''}`}
+      role="group"
+      aria-label="Zoomen"
+      {...AUTHOR_GATE_OFF}
+    >
       <button
         type="button"
         className="btn btn-small btn-ghost"

@@ -21,6 +21,8 @@ import {
 } from '@/lib/entries/service';
 import type { ListParams } from '@/lib/listParams';
 import { fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { ArtikelDeur } from '@/components/eerste-keer/Deuren';
 import { moreHref, readPagina, remaining } from '@/lib/wiki/pagina';
 
 export const dynamic = 'force-dynamic';
@@ -105,16 +107,19 @@ export default async function BrowseTypePage({
         </nav>
       )}
 
-      <SortFilterBar
-        sorts={WIKI_SORTS}
-        defaultSort="recent"
-        groups={wikiFilterGroups(tags, user, filters.tag)}
-        summary={
-          left
-            ? fill(words.listShownOf, { n: String(entries.length), totaal: String(matches.length), artikelen: words.entryPlural })
-            : `${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`
-        }
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(matches.length > 0 || Boolean(filters.tag || filters.mine || filters.restricted || filters.onMap || filters.visibility)) && (
+        <SortFilterBar
+          sorts={WIKI_SORTS}
+          defaultSort="recent"
+          groups={wikiFilterGroups(tags, user, filters.tag)}
+          summary={
+            left
+              ? fill(words.listShownOf, { n: String(entries.length), totaal: String(matches.length), artikelen: words.entryPlural })
+              : `${entries.length} ${entries.length === 1 ? words.entry : words.entryPlural}`
+          }
+        />
+      )}
 
       {entries.length > 0 && <WikiViewToggle target="wiki-entries" />}
 
@@ -137,13 +142,25 @@ export default async function BrowseTypePage({
           )}
         </>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>
-            {filters.tag || filters.mine || filters.restricted || filters.onMap || filters.visibility
-              ? 'Niets voldoet aan deze filters.'
-              : `Nog niets onder ${type.label.toLowerCase()}.`}
-          </p>
-        </div>
+        // §106: één familie van lege staten — status, één regel, één deur.
+        filters.tag || filters.mine || filters.restricted || filters.onMap || filters.visibility ? (
+          <LegeStaat icon="filter" zin={words.emptyFilter} soort="filter">
+            <Link className="btn btn-small" href={`/wiki/${type.slug}`}>
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon={type.icon}
+            zin={fill(words.emptyKind, { soort: type.label.toLowerCase() })}
+            soort="soort"
+          >
+            {/* §80: huisraad maakt alleen de Keeper — geen deur die geweigerd wordt. */}
+            {!type.keeperMade || user?.isKeeper ? (
+              <ArtikelDeur typeSlug={type.slug} label={words.emptyKindGo} />
+            ) : null}
+          </LegeStaat>
+        )
       )}
     </div>
   );

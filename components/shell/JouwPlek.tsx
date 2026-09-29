@@ -142,10 +142,10 @@ function Tail({ door, purse, online, words }: { door: Door; purse: Purse; online
   return null;
 }
 
-/** §91: the karakter-less line — the door to choosing one, which already existed on /you. */
+/** §91: the karakter-less line. §106: it goes to *Wie ben jij aan tafel?* on Start, which makes or finds the first one. */
 function PickCharacter({ words, onClick }: { words: Words; onClick?: () => void }) {
   return (
-    <Link href="/you#karakters" className="nav-pick" data-testid="yours-pick" onClick={onClick}>
+    <Link href="/#wie-ben-jij" className="nav-pick" data-testid="yours-pick" onClick={onClick}>
       <Icon name="mask" size={16} />
       {fill(words.pickCharacter, { karakter: words.character })}
     </Link>
@@ -397,7 +397,7 @@ export function JijSheet({
             </Link>
           ))}
           {!purse && !me.isKeeper && (
-            <Link className="btn jij-door" href="/you#karakters" data-testid="jij-pick" onClick={close}>
+            <Link className="btn jij-door" href="/#wie-ben-jij" data-testid="jij-pick" onClick={close}>
               <Icon name="mask" size={18} />
               <span className="nav-word">{fill(words.pickCharacter, { karakter: words.character })}</span>
             </Link>

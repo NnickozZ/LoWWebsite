@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { newEntryButton, signUp, expectBoxValue } from './helpers';
+import { pressNewEntry, signUp, expectBoxValue } from './helpers';
 
 /**
  * Golden flow 1 (§15): enter invite code, pick a username and password, tap +,
@@ -15,7 +15,7 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
   // Landed straight in the archive.
   await expect(page.getByRole('heading', { name: 'Sinds je laatste bezoek' })).toBeVisible();
 
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
 
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet).toBeVisible();

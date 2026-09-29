@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editCase, fillWhenReady, newEntryButton, signIn, signUp } from './helpers';
+import { becomeInvestigator, editCase, fillWhenReady, newEntryButton, releaseCaret, signIn, signUp } from './helpers';
 
 /**
  * §70, round 36: a sectie belongs to a *thing*, and anyone who may edit the
@@ -140,6 +140,7 @@ test('een speler zet een sectie op een artikel, en iedereen kan die lezen', asyn
   // §6: the page has just navigated, so press until the sheet answers.
   for (let attempt = 0; attempt < 8; attempt++) {
     if (await sheet.isVisible().catch(() => false)) break;
+    await releaseCaret(page);
     await newEntryButton(page).click({ timeout: 5000 }).catch(() => undefined);
     await page.waitForTimeout(400);
   }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, fillWhenReady, newEntryButton, openEmptyFields, signIn } from './helpers';
+import { editArticle, fillWhenReady, pressNewEntry, openEmptyFields, signIn } from './helpers';
 
 /**
  * Round 26, §49–§51 — the three things of this round, in a browser.
@@ -53,7 +53,7 @@ async function newCase(page: Page, name: string): Promise<string> {
  * *before* it presses Aanmaken — which is the whole point of §49.
  */
 async function openNewEntry(page: Page, typeLabel: string, name: string) {
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet.getByRole('radio', { name: typeLabel, exact: true })).toBeVisible({
     timeout: 20_000,

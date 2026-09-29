@@ -558,6 +558,16 @@ test.describe('§85 De kamer in de hand', () => {
     } else {
       await expect(picker).toHaveAttribute('data-tab', 'catalogus');
     }
+    /*
+     * §106 (golf i2): de hand gaat eerst van het blad af. De muis bleef staan
+     * waar *Neerzetten* was, en sinds de regel van het eerste bezoek boven de
+     * kamer staat, ligt die plek in het blad precies op de naam van een stuk
+     * uit de catalogus — dan komt de voorbeeldkaart (§102), en Escape pelt
+     * eerst die (§69: één laag per druk). Dat is goed gedrag; de zaak vroeg
+     * alleen iets anders.
+     */
+    await owner.mouse.move(2, 2);
+    await expect(owner.getByTestId('preview-card')).toHaveCount(0, { timeout: 5_000 });
     await owner.keyboard.press('Escape');
     await expect(picker).toHaveCount(0, { timeout: 10_000 });
 
@@ -598,12 +608,24 @@ test.describe('§85 De kamer in de hand', () => {
     const tabs = owner.getByRole('tab');
     await expect(tabs).toHaveCount(2);
     await expect(owner.getByRole('tab', { selected: true })).toHaveCount(1);
-    await expect(owner.getByTestId('plek-picker-zoek')).toBeVisible();
+    // §103 golf H (T5): on a touch screen the box stands there only from
+    // `PICK_SEARCH_FROM` things on; with fewer, two rows need no search.
+    await owner.getByTestId('plek-picker-tab-catalogus').click();
+    await expect(owner.getByTestId('plek-catalogus-rij')).not.toHaveCount(0, { timeout: 20_000 });
+    const zoek = owner.getByTestId('plek-picker-zoek');
+    if (isMobile && !(await zoek.isVisible().catch(() => false))) {
+      // §69 6.1: een tabblad is iets wat een duim raakt.
+      for (const tab of await tabs.all()) {
+        const box = await tab.boundingBox();
+        expect(box!.height, 'een tab onder de 44 px').toBeGreaterThanOrEqual(40);
+      }
+      await ownerCtx.close();
+      return;
+    }
+    await expect(zoek).toBeVisible();
 
     // En het vak filtert de catalogus ook, want anders is "boven allebei" een
     // belofte die het niet waarmaakt.
-    await owner.getByTestId('plek-picker-tab-catalogus').click();
-    await expect(owner.getByTestId('plek-catalogus-rij')).not.toHaveCount(0, { timeout: 20_000 });
     await owner.getByTestId('plek-picker-zoek').fill('zoiets bestaat niet');
     await expect(owner.getByTestId('plek-catalogus-leeg')).toBeVisible({ timeout: 20_000 });
     await owner.getByTestId('plek-picker-zoek').fill(`Lamp ${stamp}`);

@@ -1529,3 +1529,84 @@ een eerdere ronde is veranderd.
 | **Dossiernotities** (`caseNotes`) · **Nog niets opgeschreven.** (`caseNotesNone`) | de kop boven de notities van een dossier, en de regel als ze leeg zijn | Leeg is in Lezen één gedempte regel. |
 | **rijvorm** | begrip | Een lijst op de telefoon als rijen: miniatuur, naam, één regel, de soort. |
 | **Op de landkaart** (`onTheMap`, bestond al) | de kop van een artikel | Nu één regel voor elke landkaart, ook waar het ding alleen *uitgetekend* is. Nooit *Op de kaart*. |
+
+## Golf I — de volgende pas (§105–§107): drie groepen, 151 sleutels
+
+Drie nieuwe groepen onderaan `lib/words.ts`, één per worktree: *De tekenvlakken
+(golf i1)* (12 sleutels), *De eerste keer (golf I)* (91) en *Beheer (golf i3)*
+(48). Eén woord van een eerdere ronde is veranderd: **Spelerspagina's**
+(`spelerPagePlural`), dat *Spelerspaginas* was. Hieronder de woorden die een
+lezer het vaakst ziet en de begrippen; de rest staat met zijn uitleg in Beheer →
+Woorden.
+
+### i1 — de tekenvlakken op de telefoon (§105): groep *De tekenvlakken (golf i1)*, 12 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Nog niets geprikt op dit {prikbord}.** (`vlakLeegPrikbord`) · **Nog geen {spelden} op deze {landkaart}.** · **Nog geen {gebeurtenissen} op deze {tijdlijn}.** · **Nog niemand in deze {stamboom}.** | een leeg vlak | Eén zin; vervangt de zinnen van §90 (`boardEmpty*`). |
+| **Prik een {notitie}** · **Zet een {speld}** · **Zet een {gebeurtenis}** · **Zoek iemand** (`vlakLeeg*Doe`) | de knop op een leeg vlak, in Bewerken | Gebiedende wijs, zodat de knop nooit heet als de maakknop in de balk (§64). |
+| **Beginnen** (`vlakLeegBegin`) | de knop op een leeg vlak, in Lezen | Zet het vlak in Bewerken. Niet *Bewerken*: zo heet de schakelaar al. |
+| **Op deze {landkaart}** (`findOnMap`) · **Op deze {tijdlijn}** (`findOnTimeline`) | de bovenste groep onder de loep | Zoals *Op dit prikbord*. |
+| **Zoek iets om te prikken…** (`vlakPrikZoek`) | het zoekvak van een prikbord in Bewerken, op een telefoon | De korte placeholder; de lange werd afgekapt. |
+| **de `+` van het vlak** | begrip | Op een telefoon de maakknop van een vlak (*Nieuwe notitie*, *Speld zetten*, …), rond, rechtsonder, alleen in Bewerken; *Ongedaan maken* staat er rond naast. Dezelfde knop als in de balk op een computer. |
+| **de peek** · **de greep** | begrip | Wat een tik op een vlak op een telefoon opent: een paneel van onderen, met bovenaan een greep die de duim volgt. Omhoog is groot, omlaag is klein of weg. |
+| **de rubberen rand** | begrip | Een peek die al alles toont, groeit niet: de greep geeft 10 px mee en veert terug. |
+| **peek-hoog** | begrip | De peek is hoger dan de helft van het scherm (`data-peek-hoog` op `:root`); alleen dan wijkt de `+`. |
+| **de strook** | begrip | De lege staat van een landkaart en een tijdlijn: tekening, zin en knop op één regel langs de rand van het glas, zodat de kaart of de as zichtbaar blijft. Alleen de knop is aan te raken. |
+| **Selectie loslaten** | het kruisje van de peek van het prikbord | Hetzelfde als Escape: niets meer gekozen. |
+| **Uit het dossier** | de lade van het prikbord | Op een telefoon een ronde map-knop op het glas; open is ze een peek. |
+
+### i2 — de eerste keer (§106): groep *De eerste keer (golf I)*, 91 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Wie ben jij aan tafel?** (`whoAtTable`) · **Dit ben ik** (`whoAtTableGo`) · **Sta je er al in?** (`whoAtTableExisting`) | Start, voor een speler die nog geen karakter heeft | De eerste stap: een naam, en je staat in het archief. |
+| **Welkom, {naam}.** (`welcomeName`) · **Ingeschreven** (`welcomeStamp`) · **Schrijf je eerste {artikel}** · **Vul je {karakter} aan** · **Klaar** | het welkom na die stap | Eén keer vieren, met een stempel. |
+| **Je leest mee tot je zegt wie je aan tafel bent.** (`readOnlyLine`) · **Wie ben jij?** (`readOnlyDoor`) | één regel boven elke pagina behalve Start, voor een speler zonder karakter | Was drie regels op elke pagina. |
+| **Je schrijft als {naam}.** (`writesAsSole`) | melding, één keer per venster | Wie precies één karakter heeft, wordt niets gevraagd; dit zegt als wie hij schrijft. |
+| **schoof aan** (`feedSatDown`) · **gaf een speler** (`feedCast`) | het feed, bij een eerste koppeling | *Adriaan Moens schoof aan*; *Keeper gaf een speler Adriaan Moens*. |
+| **Het archief inrichten** (`routeTitle`) · **Stap {n} van 3** · **Gedaan** | Start, voor een Keeper in een leeg archief | De route: het eerste artikel, een dossier, de spelers uitnodigen. |
+| **Kopieer de link** (`inviteCopyLink`) · **Gekopieerd. Plak het in je bericht aan de tafel.** · **Code** | de uitnodiging, op Start, in de lege hal en in Beheer → Gebruikers | De link `/signup?code=…`; de code staat ernaast. |
+| **Toegang** (`doorStamp`) · **Nog geen account?** · **Registreer je nu** · **Word lid van het archief** · **Ingevuld uit je uitnodiging.** | de voordeur (`/login`, `/signup`) | Een toegangskaart. Let op: *de voordeur* is ook `/wiki` (§75); hier is het de deur van het archief zelf. |
+| **Filters wissen** (`emptyFilterClear`) · **Niets voldoet aan deze filters.** | een lijst die leeg is door de filters | |
+| **Hang het eerste {prikbord} op** · **Open het eerste {dossier}** · **Trek de eerste {tijdlijn}** · **Teken de eerste {stamboom}** · **Schrijf de eerste** … (`empty*Go`) | de knop in een lege lijst | Nooit het label van de knop bovenaan de lijst. |
+| **Dit is je {kamer}. …** · **Hier koop je huisraad …** · **Dit is de wiki: …** (`firstVisit*`) · **Begrepen** | één regel bij het eerste bezoek | Alleen voor een account jonger dan 14 dagen, en per browser één keer. |
+| **lege staat** (`LegeStaat`) | begrip | Een lijst of plek zonder inhoud: een stempel, één zin, hooguit één regel uitleg en één deur. Nooit een los `.empty`-kader. |
+| **de route** | begrip | De drie stappen van een verse Keeper op Start; verdwijnt als ze gedaan zijn. |
+| **eerste bezoek** | begrip | De ene regel die zegt wat een plek is, bij de eerste keer dat een nieuw account er komt. |
+
+### i3 — Beheer (§107): groep *Beheer (golf i3)*, 48 sleutels
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **‹ Beheer** · **Terug naar alle onderdelen** (`beheerTerug`) | bovenaan een onderdeel van Beheer op een telefoon | De enige navigatie na een keuze; de lange naam is voor een schermlezer. |
+| `beheerWat*` (*Uitnodiging, wachtwoorden en wie wie speelt*, …) | onder elke rij van de index | Eén zin per onderdeel. |
+| **Pictogram en kleur** (`soortUiterlijk`) · **Zo ziet het eruit** · **Eigen kleur** | de soort-editor | De knop is zelf het voorbeeld. |
+| **{soorten} draagt dit teken ook.** · **{soorten} dragen dit teken ook.** (`soortTekenOok`, `soortTekenOokMeer`) | onder een gekozen pictogram | Een zachte zin, geen weigering. |
+| **{n} niet opgeslagen** (`soortDirty`) · **Alles bewaard** (`soortSchoon`) · **{veld} heeft nog geen keuzes** · **Ctrl S slaat op** | de voet van een soort (en de telling in die van Woorden) | Links de telling, rechts *Opslaan*. *Opgeslagen* staat in de schil. |
+| **Of meteen:** (`soortSnel`) · **Instellen** (`soortVeldMeer`) · **Koppeling naar** (`soortKoppelingNaar`) | bij de velden van een soort | De snelknoppen, de knop die een veld openklapt, en de groep koppelingen in de keuzelijst. |
+| **Zo leest het:** · **Ook in:** · **en nog {n}** (`woord*`) | Woorden, onder een veranderd woord | Waar het woord staat. |
+| **Kopieer** (`kopieer`) · **Delen** (`delen`) | Gebruikers, het wachtwoordblad | *Delen* alleen op een toestel dat kan delen. |
+| **Verzin er een** (`wachtwoordMaak`) · **Wachtwoord gekopieerd.** | het blad *Nieuw wachtwoord voor …* | Drie blokjes van vier, zonder 0, 1, i, l en o. |
+| **Zoek het {artikel} van een {karakter}…** (`userCharacterZoek`) | Gebruikers, het zoekvak om een karakter toe te wijzen | Was *Zoek de artikel …*. |
+| **De prullenbak is leeg.** (`trashLeeg`) · **{naam} staat weer waar het stond.** (`trashTeruggezet`) | de prullenbak | Leeg is een lege staat; de tweede is de melding na *Terugzetten*. |
+| **Spelerspagina's** (`spelerPagePlural`, bestond al) | de kop van `/spelers` | Met een apostrof. |
+| **de index** | begrip | Beheer op een telefoon: elk onderdeel een rij met een zin; vanaf 1180 px een linkerkolom. |
+| **de voet** | begrip | De plakkende regel onderaan Soorten en Woorden: telling links, *Opslaan* rechts. |
+
+## Golf J — na de meting (§90–§107 aangevuld): twee groepen, 8 sleutels
+
+Twee nieuwe groepen onderaan `lib/words.ts`: *Schrijven en zoeken (golf j2)*
+(1 sleutel) en *Beheer, tweede pas (golf j3)* (7). j1, j4 en j5 brachten geen
+nieuw woord. Twee woorden die golf I nog letterlijk in `TypeEditor` had
+staan, zijn nu sleutels.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **+{n}** (`newEntryTypeRest`) | het maakblad, naast *Alle soorten* | Hoeveel soorten er nog onder de vouw staan. Alleen als er iets gevouwen is. |
+| **Koppelingen** (`soortSnelKoppelingen`) · **Nog geen keuzes** (`soortNogGeenKeuzes`) | de soort-editor: de snelknop, en onder een ingeklapte keuzelijst zonder keuzes | Stonden tot golf J letterlijk in de code. |
+| **Alleen deze soorten mogen erin:** (`soortDoelAlleen`, `blokMagErin`) · **Kijk in deze soorten:** (`blokKijkIn`) | vóór een `SoortKiezer`: de doel-soorten van een koppelveld, en de twee soortenlijsten van de pagina | Eén kiezer: chips met een kruisje, *Kies soorten*, een zoekvak. |
+| **Hier staat nog iets dat niet is opgeslagen** (`beheerNietBewaard`) | Beheer, bij een onderdeel op de index of de strook | De tip van het rode puntje, en voor een schermlezer de beschrijving. |
+| **Een speler uitnodigen** (`beheerIndexUitnodiging`) | Beheer op een telefoon, bovenaan de index | Het etiket boven de uitnodiging met *Kopieer de link*. |
+| **de vouw** (van het maakblad) | begrip | Na twee (computer) of drie (telefoon) hele regels soorten klapt de rij dicht; *Alle soorten* klapt hem open. |
+| **de eerste verf** | begrip | Wat de server tekent vóór de hydratatie. Sinds golf J is dat al de vorm van het scherm: de stylesheet kiest, en er springt niets. |

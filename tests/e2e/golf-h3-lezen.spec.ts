@@ -31,7 +31,7 @@ test('D1: op 1280 px leest een artikel op zijn maat, de wegwijzer staat erboven'
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/e/pier-boone');
-    await expect(page.locator('.entry-main .entry-outline-row')).toBeVisible();
+    await expect(page.locator('.entry-kop .entry-outline-row')).toBeVisible();
     await expect(page.locator('.entry-rail')).toHaveCount(0);
     const main = (await page.locator('.entry-main').boundingBox())!;
     // The text column was 367 px at 1280 (±43 tekens); now it is wider than

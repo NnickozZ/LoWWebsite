@@ -348,7 +348,8 @@ test('a Keeper signs with their account name, in the feed as well as on the stri
   await page.getByTestId('words-filter').fill('De spelleider');
   await page.getByLabel('De spelleider', { exact: true }).fill('Spelleider');
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-  await expect(page.getByText(/^Opgeslagen\./)).toBeVisible();
+  // §107 (review 4): Woorden zegt *Opgeslagen* in de schil (§100), niet in de voet.
+  await expect(page.getByTestId('save-state')).toHaveAttribute('data-save', 'saved', { timeout: 15_000 });
 
   try {
     // Something for the feed to say, by the Keeper.
@@ -419,7 +420,8 @@ test('a Keeper signs with their account name, in the feed as well as on the stri
     await page.getByTestId('words-filter').fill('De spelleider');
     await page.getByLabel('De spelleider', { exact: true }).fill('');
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByText(/^Opgeslagen\./)).toBeVisible();
+    // §107 (review 4): Woorden zegt *Opgeslagen* in de schil (§100), niet in de voet.
+  await expect(page.getByTestId('save-state')).toHaveAttribute('data-save', 'saved', { timeout: 15_000 });
   }
 });
 

@@ -2,6 +2,19 @@ import { expect, test, type Page } from '@playwright/test';
 import { editCanvas, signIn } from './helpers';
 
 /**
+ * §105 (review 4, M2): on a phone *Alles tonen* lives in the gear's sheet, not
+ * in the bar (Vind has its place). This returns the button, visible, on either.
+ */
+async function allToggle(page: Page) {
+  const button = page.getByTestId('timeline-toggle-all');
+  if (!(await button.isVisible().catch(() => false))) {
+    await page.getByTestId('timeline-settings').click();
+    await expect(button).toBeVisible();
+  }
+  return button;
+}
+
+/**
  * §62: de tijdlijn met z'n tweeën.
  *
  * Everything here is asserted on a second browser that is never reloaded —
@@ -365,7 +378,7 @@ test('alles tonen lays the windows out, and a click on the axis shuts one', asyn
   await page.goto(`/timelines/${line.slug}`);
   await expect(page.locator('.timeline-event')).toHaveCount(12);
 
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   const windows = page.getByTestId('timeline-popout');
   await expect(windows).toHaveCount(12);
   // Let the measuring settle: the lanes are reckoned from real heights.
@@ -422,8 +435,8 @@ test('alles tonen lays the windows out, and a click on the axis shuts one', asyn
   expect(box.width).toBeGreaterThan(0);
 
   // And the button still shuts the lot.
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   await expect(windows).toHaveCount(12);
-  await page.getByTestId('timeline-toggle-all').click();
+  await (await allToggle(page)).click();
   await expect(windows).toHaveCount(0);
 });

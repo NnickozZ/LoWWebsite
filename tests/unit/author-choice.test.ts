@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   WRITING_AS_KEY,
   authorStance,
+  soleAuthor,
   effectiveAuthorId,
   mayStartEntryWith,
   mayTypeWith,
@@ -119,17 +120,22 @@ describe('authorStance', () => {
   });
 
   it('asks again once the remembered answer has gone stale', () => {
-    expect(authorStance({ isKeeper: false, characterIds: ['e_a'], remembered: 'e_gone' })).toBe('ask');
+    expect(authorStance({ isKeeper: false, characterIds: ['e_a', 'e_b'], remembered: 'e_gone' })).toBe('ask');
   });
 
   it('leaves a window that has answered alone', () => {
     expect(authorStance({ isKeeper: false, characterIds: ['e_a', 'e_b'], remembered: 'e_b' })).toBe('ready');
   });
 
-  it('asks a speler who holds exactly one, rather than choosing for them', () => {
-    // One window may still be somebody else's; the question is about the
-    // window, not about how much choice there happens to be in it.
-    expect(authorStance({ isKeeper: false, characterIds: ['e_a'], remembered: null })).toBe('ask');
+  it('does not ask a speler who holds exactly one — there is nothing to choose (§106, H5)', () => {
+    // Reversed after review 4: "Met wie ben je nu aan het schrijven?" with one
+    // row was a tap and a read at the moment a new speler makes their first
+    // thing. The window writes as that one and says so once. Two or more: asked.
+    expect(authorStance({ isKeeper: false, characterIds: ['e_a'], remembered: null })).toBe('ready');
+    expect(authorStance({ isKeeper: false, characterIds: ['e_a'], remembered: 'e_gone' })).toBe('ready');
+    expect(soleAuthor(['e_a'])).toBe('e_a');
+    expect(soleAuthor(['e_a', 'e_b'])).toBeNull();
+    expect(soleAuthor([])).toBeNull();
   });
 });
 

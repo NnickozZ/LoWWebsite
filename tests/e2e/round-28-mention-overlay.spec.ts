@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fillWhenReady, newEntryButton, signIn } from './helpers';
+import { fillWhenReady, pressNewEntry, signIn } from './helpers';
 
 /**
  * Round 28, §56 — the chip is *inside* the box.
@@ -26,7 +26,7 @@ import { fillWhenReady, newEntryButton, signIn } from './helpers';
 const KEEPER = ['Keeper', 'abbeytower34'] as const;
 
 async function openNewEntry(page: Page, typeLabel: string, name: string) {
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet.getByRole('radio', { name: typeLabel, exact: true })).toBeVisible({ timeout: 20_000 });
   await sheet.getByRole('radio', { name: typeLabel, exact: true }).click();

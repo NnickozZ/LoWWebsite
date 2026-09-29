@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { Icon } from '@/components/Icon';
+import { SoortKiezer } from '@/components/admin/SoortKiezer';
 import {
   ADDABLE_KINDS,
   BUILT_IN_KINDS,
@@ -13,7 +14,8 @@ import {
 import type { FieldDef } from '@/lib/db/schema';
 import type { Words } from '@/lib/words';
 
-export type TypeLite = { slug: string; label: string; fields: FieldDef[] };
+/** §107: met teken en kleur, voor de kiezers en de zachte waarschuwing in de soort-editor. */
+export type TypeLite = { slug: string; label: string; fields: FieldDef[]; icon?: string; colour?: string };
 
 /**
  * §11's page builder, Keeper side.
@@ -228,32 +230,15 @@ function BlockRow({
 
       {block.kind === 'derived' && (
         <div className="stack" style={{ gap: '0.4rem', marginTop: '0.45rem' }}>
-          <div>
-            <span className="tiny muted">Kijk in deze soorten (leeg = alle)</span>
-            <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
-              {types.map((type) => {
-                const on = block.fromType?.includes(type.slug) ?? false;
-                return (
-                  <button
-                    key={type.slug}
-                    type="button"
-                    className={`chip chip-selectable${on ? ' chip-active' : ''}`}
-                    aria-pressed={on}
-                    onClick={() => {
-                      const current = block.fromType ?? [];
-                      onPatch({
-                        fromType: on
-                          ? current.filter((slug) => slug !== type.slug)
-                          : [...current, type.slug],
-                      });
-                    }}
-                  >
-                    {type.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {/* §107, golf J: dezelfde kiezer als de doel-soorten van een koppelveld, niet negentien chips. */}
+          <SoortKiezer
+            types={types}
+            chosen={block.fromType ?? []}
+            words={words}
+            lead={words.blokKijkIn}
+            testId="blok-kijk-in"
+            onChange={(fromType) => onPatch({ fromType })}
+          />
 
           <div className="row-wrap">
             <span style={{ flex: '1 1 13rem' }}>
@@ -315,30 +300,14 @@ function BlockRow({
 
       {block.kind === 'links' && (
         <div style={{ marginTop: '0.45rem' }}>
-          <span className="tiny muted">Alleen deze soorten mogen erin (leeg = alles)</span>
-          <div className="row-wrap" style={{ marginTop: '0.2rem' }}>
-            {types.map((type) => {
-              const on = block.ofType?.includes(type.slug) ?? false;
-              return (
-                <button
-                  key={type.slug}
-                  type="button"
-                  className={`chip chip-selectable${on ? ' chip-active' : ''}`}
-                  aria-pressed={on}
-                  onClick={() => {
-                    const current = block.ofType ?? [];
-                    onPatch({
-                      ofType: on
-                        ? current.filter((slug) => slug !== type.slug)
-                        : [...current, type.slug],
-                    });
-                  }}
-                >
-                  {type.label}
-                </button>
-              );
-            })}
-          </div>
+          <SoortKiezer
+            types={types}
+            chosen={block.ofType ?? []}
+            words={words}
+            lead={words.blokMagErin}
+            testId="blok-mag-erin"
+            onChange={(ofType) => onPatch({ ofType })}
+          />
         </div>
       )}
 

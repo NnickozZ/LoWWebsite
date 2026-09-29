@@ -17,6 +17,7 @@ import { createSession, destroyCurrentSession } from '@/lib/auth/session';
 import { usernameKey, usernameProblem } from '@/lib/auth/username.mjs';
 import { newId } from '@/lib/ids';
 import { logAudit } from '@/lib/entries/service';
+import { normaliseInvite } from '@/lib/eerste-keer/stappen';
 
 /**
  * §63: which box the sentence is about, so the form can put it under that box
@@ -94,7 +95,13 @@ export async function signupAction(_prev: AuthState, formData: FormData): Promis
     return { error: 'Het archief is nog niet ingericht. Voer `make bootstrap` uit.' };
   }
 
-  if (!constantTimeEqual(code.toUpperCase(), settings.inviteCode.toUpperCase())) {
+  /*
+   * §106: the code as a person pastes it — a space, a line break out of a
+   * message, the dash left out or in another place, small letters. Both sides
+   * lose everything that is not a letter or a digit; what is left must match.
+   * The alphabet has no O/0 or I/1, so nothing is guessed on anybody's behalf.
+   */
+  if (!constantTimeEqual(normaliseInvite(code), normaliseInvite(settings.inviteCode))) {
     return fail({ error: 'Die uitnodigingscode klopt niet.', field: 'code' });
   }
 

@@ -1,4 +1,8 @@
 import '@/app/kamer.css';
+import { EersteBezoek } from '@/components/eerste-keer/EersteBezoek';
+import { firstVisitOffer } from '@/lib/eerste-keer/bezoek';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { ArtikelDeur } from '@/components/eerste-keer/Deuren';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Beurs } from '@/components/kamer/Beurs';
@@ -152,7 +156,23 @@ export default async function WinkelPage({
            * de tweede iets vertellen wat niet waar is.
            */}
           {user?.isKeeper ? words.shopKeeper : words.shopNoCharacter}
+          {/* §106: wie nog niemand is, krijgt de deur naar de eerste stap. */}
+          {!user?.isKeeper && (
+            <>
+              {' '}
+              <Link href="/#wie-ben-jij">{words.readOnlyDoor}</Link>
+            </>
+          )}
         </p>
+      )}
+      {/* §106: één regel bij je eerste bezoek, daarna nooit meer. */}
+      {canBuy && (
+        <EersteBezoek
+          {...(await firstVisitOffer('winkel', user))}
+          place="winkel"
+          text={fill(words.firstVisitShop, { kamer: words.room })}
+          gotIt={words.firstVisitGotIt}
+        />
       )}
 
       {/* §103 golf H (T17): de koper één keer, plakkend, zodra de kiezer uit beeld is. */}
@@ -161,9 +181,22 @@ export default async function WinkelPage({
       )}
 
       {shop.items.length === 0 ? (
-        <p className="small muted" data-testid="winkel-leeg">
-          {words.shopEmpty}
-        </p>
+        // §106: de lege winkel in de familie van lege staten. De Keeper krijgt
+        // de deur naar het eerste huisraad (§80: alleen hij maakt het).
+        <LegeStaat
+          icon={MEANING.winkel}
+          zin={words.shopEmpty}
+          uitleg={user?.isKeeper ? words.emptyShopWhy : undefined}
+          testId="winkel-leeg"
+          soort="winkel"
+        >
+          {user?.isKeeper ? (
+            <ArtikelDeur
+              typeSlug="huisraad"
+              label={fill(words.emptyShopGo, { huisraad: words.furnishing, winkel: words.shop.toLowerCase() })}
+            />
+          ) : null}
+        </LegeStaat>
       ) : (
         <WinkelFilter
           items={shop.items}

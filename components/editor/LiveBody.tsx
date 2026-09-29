@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
 import { RichEditor } from './RichEditor';
+import { Vooraf } from './VoorafTekst';
 import { liveBodyJSON, useLiveDoc, type LivePerson, type LiveSave, type LiveStatus, type LiveUser } from './useLiveDoc';
 
 /**
@@ -80,7 +81,9 @@ export function LiveBody({
     if (live.savedAt) onSavedRef.current?.(live.savedAt);
   }, [live.savedAt]);
 
-  if (!live.synced) return <div className="editor-body" aria-busy="true" />;
+  // §104, golf J (j4): until the room is in, the text as the server drew it (`VoorafTekst`), not a blank.
+  const vooraf = useContext(Vooraf);
+  if (!live.synced) return vooraf ? <>{vooraf}</> : <div className="editor-body" aria-busy="true" />;
 
   return (
     <>
@@ -90,6 +93,7 @@ export function LiveBody({
         onChange={() => undefined}
         editable={mayType && !proposing}
         live={{ doc: live.doc, provider: live.provider, user }}
+        vooraf={vooraf}
       />
 
       {proposals && hasAuthor && !mayType && !proposing && (

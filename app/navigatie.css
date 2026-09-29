@@ -1041,3 +1041,37 @@ a.card[data-pending]::after {
     right: 0.9rem;
   }
 }
+
+/* ===== golf j2 */
+
+/*
+ * Golf J (stuk 6): de onderrand van het palet zegt dat er meer is. Een rij die
+ * half onder de rand hing, las als een fout in de lijst; nu vervaagt de rand
+ * zolang er nog iets onder staat, en is hij scherp als je onderaan bent — de
+ * `.schuifrij` van golf H, rechtop. Alleen CSS, aan de scrollpositie van de
+ * lijst zelf; past alles, dan is er geen tijdlijn en geen rand. Het beweegt
+ * niets (het masker volgt de duim, zoals een schuifbalk), dus geen duur en
+ * geen tak voor minder beweging (docs/beweging.md).
+ */
+@property --palet-onder {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+.palette-list {
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - var(--palet-onder)), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 calc(100% - var(--palet-onder)), transparent 100%);
+  animation: palet-rand linear both;
+  animation-timeline: scroll(self block);
+}
+@keyframes palet-rand {
+  0% {
+    --palet-onder: 2.2rem;
+  }
+  92% {
+    --palet-onder: 2.2rem;
+  }
+  100% {
+    --palet-onder: 0px;
+  }
+}

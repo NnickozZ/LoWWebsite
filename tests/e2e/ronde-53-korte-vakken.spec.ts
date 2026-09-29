@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { boxValue, editArticle, editCase, expectBoxValue, newEntryButton, signIn } from './helpers';
+import { boxValue, editArticle, editCase, expectBoxValue, pressNewEntry, signIn } from './helpers';
 
 /**
  * §92, ronde 53 — de korte vakken (variant c+).
@@ -237,11 +237,11 @@ test('B11/B12/B23: een artikel op de telefoon — sprongen bovenaan, infobox dic
   }
 });
 
-test('C26/C27: het maakblad begint bij de naam, de soort is één regel, en er is een dossierregel', async ({ page }) => {
+test('C26/C27: het maakblad begint bij de naam, de soort is een paar regels, en er is een dossierregel', async ({ page }) => {
   test.setTimeout(90_000);
   await signIn(page, KEEPER.name, KEEPER.password);
   await page.goto('/');
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   const name = sheet.getByLabel('Naam', { exact: true });
   await expect(name).toBeVisible({ timeout: 20_000 });
@@ -249,9 +249,12 @@ test('C26/C27: het maakblad begint bij de naam, de soort is één regel, en er i
   // The name comes before the soort.
   const strip = sheet.getByRole('radiogroup');
   expect((await name.boundingBox())!.y).toBeLessThan((await strip.boundingBox())!.y);
-  // One line: the strip is no taller than two chips, however many soorten.
+  // A few whole rows, however many soorten: golf J (stuk 7) folds the strip
+  // after two rows on a desk and three on a phone, where golf H kept one line
+  // that scrolled sideways and hid everything after the sixth soort.
   const chipHeight = (await strip.getByRole('radio').first().boundingBox())!.height;
-  expect((await strip.boundingBox())!.height).toBeLessThan(chipHeight * 2);
+  const rows = (page.viewportSize()?.width ?? 1440) < 768 ? 3 : 2;
+  expect((await strip.boundingBox())!.height).toBeLessThan(chipHeight * (rows + 1));
   // Every soort is still a radio you can press by name.
   await strip.getByRole('radio', { name: 'Clues', exact: true }).click();
   await expect(strip.getByRole('radio', { name: 'Clues', exact: true })).toHaveAttribute('aria-checked', 'true');

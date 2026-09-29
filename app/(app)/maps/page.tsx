@@ -12,7 +12,9 @@ import { requireViewer } from '@/lib/auth/session';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
 import { listMaps } from '@/lib/maps/service';
-import { capitalise } from '@/lib/words';
+import { fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { MaakDeur } from '@/components/eerste-keer/Deuren';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,23 +56,26 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
         </p>
       )}
 
-      <SortFilterBar
-        sorts={[
-          { value: 'order', label: 'Volgorde van de Keeper' },
-          { value: 'name', label: 'Op naam' },
-          { value: 'recent', label: 'Laatst veranderd' },
-          { value: 'created', label: 'Nieuwste eerst' },
-        ]}
-        defaultSort="order"
-        summary={`${maps.length} ${maps.length === 1 ? words.map : words.mapPlural}`}
-        groups={[
-          {
-            key: 'show',
-            label: 'Alleen',
-            options: [{ value: 'mine', label: `Met mijn ${words.mapPinPlural}`, icon: 'mapPin' }],
-          },
-        ]}
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(maps.length > 0 || mine) && (
+        <SortFilterBar
+          sorts={[
+            { value: 'order', label: 'Volgorde van de Keeper' },
+            { value: 'name', label: 'Op naam' },
+            { value: 'recent', label: 'Laatst veranderd' },
+            { value: 'created', label: 'Nieuwste eerst' },
+          ]}
+          defaultSort="order"
+          summary={`${maps.length} ${maps.length === 1 ? words.map : words.mapPlural}`}
+          groups={[
+            {
+              key: 'show',
+              label: 'Alleen',
+              options: [{ value: 'mine', label: `Met mijn ${words.mapPinPlural}`, icon: 'mapPin' }],
+            },
+          ]}
+        />
+      )}
 
       {maps.length ? (
         // §98: an omschrijving's chips, for this reader, with the page.
@@ -101,16 +106,27 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
         </div>
         </ShortChips>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>
-            {mine ? `Je hebt nog nergens een ${words.mapPin} gezet.` : `Er hangt nog geen ${words.map}.`}
-          </p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            {user?.isKeeper
-              ? `Hang er een op met '${capitalise(words.map)} ophangen': een scan of tekening is genoeg. Daarna kan iedereen er ${words.entryPlural} en ${words.note}s op prikken.`
-              : `De ${words.keeper} hangt de ${words.mapPlural} op. Zodra er een hangt, kun je er ${words.entryPlural} en ${words.note}s op prikken.`}
-          </p>
-        </div>
+        // §106: één familie van lege staten. Een speler heeft hier geen deur:
+        // de landkaarten hangt de Keeper op (§34), dus de zin zegt dat.
+        mine ? (
+          <LegeStaat icon="pin" zin={fill(words.emptyMapsMine, { speld: words.mapPin })} soort="filter">
+            <Link className="btn btn-small" href="/maps">
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon="map"
+            zin={fill(words.emptyMaps, { landkaart: words.map })}
+            uitleg={fill(user?.isKeeper ? words.emptyMapsWhy : words.emptyMapsWhyPlayer, {
+              artikelen: words.entryPlural,
+              keeper: words.keeper,
+            })}
+            soort="landkaarten"
+          >
+            {user?.isKeeper ? <MaakDeur icon="upload" label={fill(words.emptyMapsGo, { landkaart: words.map })} /> : null}
+          </LegeStaat>
+        )
       )}
     </div>
   );

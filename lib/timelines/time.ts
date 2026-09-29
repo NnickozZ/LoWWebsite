@@ -587,6 +587,12 @@ export function fitView(
   width: number,
   scale: Scale,
   centre = partsToSeconds(START),
+  /**
+   * §105 (review 4, M2): pixels a tag reaches past its mark at either end. A
+   * tag is centred on its moment, so the first and the last one stick out by
+   * half their width — "alles in beeld" cut them off at the rim of a phone.
+   */
+  edge = 0,
 ): { origin: number; pxPerSecond: number } {
   const w = Math.max(200, width);
   if (!moments.length) {
@@ -605,7 +611,7 @@ export function fitView(
    * gebeurtenissen left twelve years of blank paper on either side, and an
    * afternoon left an hour.
    */
-  const room = Math.max(1, w - FIT_PADDING * 2);
+  const room = Math.max(w * 0.25, w - (FIT_PADDING + Math.max(0, edge)) * 2);
   const pxPerSecond = Math.min(maxPxPerSecond(scale), Math.max(MIN_PX_PER_SECOND, room / span));
   const shown = w / pxPerSecond;
   return { origin: (min + max) / 2 - shown / 2, pxPerSecond };

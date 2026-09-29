@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, newBoard, newEntryButton, signIn } from './helpers';
+import { editArticle, newBoard, pressNewEntry, signIn } from './helpers';
 
 /**
  * §24/§25: Nick's round of 5 September, late.
@@ -118,7 +118,7 @@ test('een clue wordt in een dossier gemaakt, en staat in de wiki onder het dossi
   // §49: everywhere, in fact — the sheet offers every soort now, in the wiki
   // as well as in a dossier. What is left of §24 is the *name*, below.
   await page.goto('/wiki');
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(sheet.getByRole('radio', { name: 'Relieken' })).toBeVisible();
   await expect(sheet.getByRole('radio', { name: 'Clues', exact: true })).toBeVisible();
@@ -183,7 +183,7 @@ test('de artikelpagina staat in drie kolommen', async ({ page }, info) => {
 
   // The title lives in the text column now, so the picture and Meer info start
   // at the same height as it rather than a heading and a lead further down.
-  const title = page.locator('.entry-main .entry-head');
+  const title = page.locator('.entry-kop .entry-head');
   await expect(title).toBeVisible();
 
   const head = (await title.boundingBox())!;
@@ -230,7 +230,7 @@ test('de drie kolommen houden hun volgorde over de hele brede band', async ({ pa
     const main = (await page.locator('.entry-main').boundingBox())!;
     const aside = (await page.locator('.entry-aside').boundingBox())!;
     expect(main.x + main.width).toBeLessThanOrEqual(aside.x + 1);
-    const head = (await page.locator('.entry-main .entry-head').boundingBox())!;
+    const head = (await page.locator('.entry-kop .entry-head').boundingBox())!;
     expect(Math.abs(aside.y - head.y)).toBeLessThan(24);
 
     if (width >= 1500) {
@@ -239,7 +239,7 @@ test('de drie kolommen houden hun volgorde over de hele brede band', async ({ pa
       expect(rail.x + rail.width).toBeLessThanOrEqual(main.x + 1);
     } else {
       await expect(page.locator('.entry-rail')).toHaveCount(0);
-      const row = (await page.locator('.entry-main .entry-outline-row').boundingBox())!;
+      const row = (await page.locator('.entry-kop .entry-outline-row').boundingBox())!;
       expect(row.y).toBeGreaterThan(head.y);
       // The text column has its measure back: at 1300 px it was ±385 px.
       expect(main.width).toBeGreaterThan(560);

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   createContext,
   useCallback,
@@ -26,6 +27,8 @@ import {
   rememberedFrom,
   shouldPrompt,
   showsWritingLine,
+  SOLE_AUTHOR_EVENT,
+  soleAuthor,
   writeRemembered,
   type MiniStorage,
 } from '@/lib/authorChoice';
@@ -293,9 +296,23 @@ export function AuthorProvider({
    */
   const [chosen, setChosen] = useState<string | null>(() => {
     const remembered = me.isKeeper ? null : rememberedFrom(windowStore(), characterIds);
-    setWritingAs(remembered);
-    return remembered;
+    // §106 (na review 4, H5): one onderzoeker is not a choice — this window
+    // writes as that one, and says so at its first act of writing.
+    const picked = remembered ?? (me.isKeeper ? null : soleAuthor(characterIds));
+    setWritingAs(picked);
+    return picked;
   });
+  /**
+   * §106 (H5): true while this window writes as its only onderzoeker by
+   * default rather than by an answer. The first act of writing turns it into an
+   * answer (`announceSole`) and rings the one soft line; a second onderzoeker
+   * arriving turns it back into §18b's question.
+   */
+  const soleRef = useRef(
+    !me.isKeeper && !rememberedFrom(windowStore(), characterIds) && soleAuthor(characterIds) !== null,
+  );
+  const charactersRef = useRef(me.characters);
+  charactersRef.current = me.characters;
 
   // Read by the stable callbacks below, which are wired into event handlers all
   // over the app and must not be rebuilt on every answer.
@@ -319,7 +336,25 @@ export function AuthorProvider({
     const still = chosenRef.current;
     if (still && !characterIds.includes(still)) {
       writeRemembered(windowStore(), null);
+      chosenRef.current = null;
+      soleRef.current = false;
       setChosen(null);
+    }
+    // §106 (H5): a second onderzoeker on the peg makes it a choice again, and
+    // a default is not an answer — so §18b's question comes back.
+    if (soleRef.current && characterIds.length > 1) {
+      soleRef.current = false;
+      chosenRef.current = null;
+      setChosen(null);
+    }
+    // §106 (H5): and exactly one, with nothing chosen: that one.
+    const sole = me.isKeeper ? null : soleAuthor(characterIds);
+    if (!chosenRef.current && sole) {
+      soleRef.current = true;
+      chosenRef.current = sole;
+      setWritingAs(sole);
+      setChosen(sole);
+      reconnectLive();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
@@ -367,8 +402,23 @@ export function AuthorProvider({
    */
   const letFocusPass = useRef(false);
 
+  /**
+   * §106 (H5): the first act of writing in a window that writes as its only
+   * onderzoeker by default. The default becomes this window's answer (so a
+   * reload remembers it and nothing rings twice), and the shell shows one soft
+   * line — *Je schrijft als …* — through `SOLE_AUTHOR_EVENT`.
+   */
+  const announceSole = useCallback(() => {
+    if (!soleRef.current || !chosenRef.current) return;
+    soleRef.current = false;
+    writeRemembered(windowStore(), chosenRef.current);
+    const name = charactersRef.current.find((c) => c.entryId === chosenRef.current)?.name;
+    if (name) window.dispatchEvent(new CustomEvent(SOLE_AUTHOR_EVENT, { detail: name }));
+  }, []);
+
   const ask = useCallback(
     (from?: EventTarget | null, viaFocus = false) => {
+      announceSole();
       // Exactly the `ask` stance: a Keeper has nothing to answer, somebody with
       // no onderzoeker has nothing to answer it with (and has the banner
       // instead), and a window that has answered is not asked twice.
@@ -383,7 +433,7 @@ export function AuthorProvider({
       if (!origin.current) origin.current = focusableFrom(from);
       setSheet((current) => current ?? 'blocking');
     },
-    [stanceNow],
+    [stanceNow, announceSole],
   );
 
   /**
@@ -394,6 +444,7 @@ export function AuthorProvider({
    */
   const ensureAuthor = useCallback(
     (then: () => void) => {
+      announceSole();
       if (!shouldPrompt(stanceNow())) {
         then();
         return;
@@ -411,7 +462,7 @@ export function AuthorProvider({
       if (!origin.current) origin.current = focusableFrom(document.activeElement);
       setSheet((current) => current ?? 'blocking');
     },
-    [stanceNow],
+    [stanceNow, announceSole],
   );
 
   const change = useCallback(() => {
@@ -820,20 +871,27 @@ export function WritingAsLine({
  */
 export function ReadOnlyBanner({ words }: { words: Words }) {
   const author = useAuthorOptional();
+  const pathname = usePathname();
   if (!author || author.mayType) return null;
+  /*
+   * §106 (golf i2): Start *is* de eerste stap (*Wie ben jij aan tafel?*), dus
+   * daar staat geen regel boven die hetzelfde nog eens zegt.
+   */
+  if (pathname === '/') return null;
 
+  /*
+   * §106: één regel in plaats van drie. De uitleg ("Alles wat iemand schrijft
+   * komt op naam van een karakter…") staat nu bij de vraag zelf, op Start; hier
+   * alleen wat waar is en de deur erheen. §90: het woord van de Keeper.
+   */
   return (
-    <p className="author-banner" role="status" data-testid="no-author-banner">
+    <p className="author-banner author-banner-regel" role="status" data-testid="no-author-banner">
       <Icon name="eye" size={16} />
-      <span>
-        {/* §90: the Keeper's word for it, the same one the Jij page uses on the
-            same screen — it said "onderzoeker" here and "karakter" there. */}
-        <strong>Je hebt nog geen {words.character}, dus je kunt alleen lezen.</strong> Alles wat
-        iemand schrijft komt op naam van een {words.character}. Maak met ‘{words.newEntry}’ een{' '}
-        {words.entry} voor je {words.character} en{' '}
-        <Link href="/you#karakters">koppel het aan je account</Link>, of vraag de {words.keeper} het
-        voor je te doen.
-      </span>
+      <span>{words.readOnlyLine}</span>
+      <Link href="/#wie-ben-jij" className="btn btn-small author-banner-deur" data-testid="no-author-door">
+        <Icon name="mask" size={15} />
+        {words.readOnlyDoor}
+      </Link>
     </p>
   );
 }

@@ -12,6 +12,7 @@ import { AdriftChip } from './entry/AdriftChip';
 import { useSchuifrij } from './useSchuifrij';
 import { KIND_ICON, KIND_WORD } from '@/lib/keeper/kinds';
 import type { OtherHit, OtherKind } from '@/lib/search/others';
+import { bestScore, nameScore, orderSections } from '@/lib/search/rang';
 import { capitalise, fill, type Words } from '@/lib/words';
 
 type Results = { names: EntrySummary[]; bodies: EntrySummary[]; others: OtherHit[] };
@@ -162,19 +163,23 @@ export function SearchScreen({
 
   /** Names grouped by type, in the order the ranking produced them (§10). */
   const grouped = useMemo(() => {
-    const groups = new Map<string, { label: string; icon: string; colour: string; items: EntrySummary[] }>();
+    const groups = new Map<string, { label: string; icon: string; colour: string; items: EntrySummary[]; best: number }>();
+    const q = query.trim();
     for (const entry of results.names) {
       const group = groups.get(entry.typeSlug) ?? {
         label: entry.typeLabel,
         icon: entry.typeIcon,
         colour: entry.typeColour,
         items: [],
+        best: 0,
       };
       group.items.push(entry);
+      // Golf J (stuk 6): a soort weighs as much as its best name.
+      group.best = Math.max(group.best, nameScore(entry.name, q, entry.tags ?? []));
       groups.set(entry.typeSlug, group);
     }
     return [...groups.values()];
-  }, [results.names]);
+  }, [results.names, query]);
 
   const typed = query.trim();
   const chosenType = types.find((t) => t.slug === type);
@@ -245,27 +250,49 @@ export function SearchScreen({
 
       {typed && (
         <>
-          {grouped.map((group) => (
-            <section key={group.label} style={{ marginBottom: '1.2rem' }}>
-              <p className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Icon name={group.icon} size={14} style={{ color: group.colour }} />
-                {group.label}
-              </p>
-              {group.items.map((entry) => (
-                <ResultRow key={entry.id} entry={entry} />
-              ))}
-            </section>
-          ))}
-
-          {/* §96: the other things in the archive, by name, under "Alles" only. */}
-          {!chosenType && results.others.length > 0 && (
-            <section style={{ marginBottom: '1.2rem' }} data-testid="search-others">
-              <p className="eyebrow">{ui.words.searchOthers}</p>
-              {results.others.map((hit) => (
-                <OtherRow key={`${hit.kind}:${hit.id}`} hit={hit} words={ui.words} />
-              ))}
-            </section>
-          )}
+          {/*
+            Golf J (stuk 6, raden 2): the sections stand in the order of their
+            best name (`orderSections`, `lib/search/rang.ts`). "Walcheren" put
+            the landkaart *Walcheren na de Drift* at row 21, under every
+            artikel that had the word somewhere in its name; now a thing that
+            is called what you typed comes first, whatever kind it is. The
+            text hits stay last.
+          */}
+          {orderSections([
+            ...grouped.map((group) => ({
+              key: `soort:${group.label}`,
+              best: group.best,
+              node: (
+                <section key={`soort:${group.label}`} style={{ marginBottom: '1.2rem' }}>
+                  <p className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Icon name={group.icon} size={14} style={{ color: group.colour }} />
+                    {group.label}
+                  </p>
+                  {group.items.map((entry) => (
+                    <ResultRow key={entry.id} entry={entry} />
+                  ))}
+                </section>
+              ),
+            })),
+            /* §96: the other things in the archive, by name, under "Alles" only. */
+            ...(!chosenType && results.others.length > 0
+              ? [
+                  {
+                    key: 'others',
+                    other: true,
+                    best: bestScore(results.others, (hit) => nameScore(hit.name, typed)),
+                    node: (
+                      <section key="others" style={{ marginBottom: '1.2rem' }} data-testid="search-others">
+                        <p className="eyebrow">{ui.words.searchOthers}</p>
+                        {results.others.map((hit) => (
+                          <OtherRow key={`${hit.kind}:${hit.id}`} hit={hit} words={ui.words} />
+                        ))}
+                      </section>
+                    ),
+                  },
+                ]
+              : []),
+          ]).map((section) => section.node)}
 
           {results.bodies.length > 0 && (
             <section style={{ marginBottom: '1.2rem' }}>

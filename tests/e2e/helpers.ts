@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type Browser, type Locator, type Page } from '@playwright/test';
 
 const root = resolve(__dirname, '../..');
 
@@ -15,6 +15,45 @@ export function inviteCode(): string {
  */
 export function newEntryButton(page: Page) {
   return page.getByRole('button', { name: 'Nieuw artikel' }).locator('visible=true').first();
+}
+
+/**
+ * Golf J (j2, §90): on a phone the `+` steps aside while a caret stands in a
+ * writing box of the page (`app/leeskamer.css`, `body:has(.main :is(…):focus)
+ * .fab`) — on a real phone the keyboard is up then, and the `+` would lie over
+ * the toolbar. An artikel just made (`?new=1`) has the caret in its text, and a
+ * new speler on Start has it in *Wie ben jij aan tafel?* (golf J, j3). A person
+ * taps out of the text first; this does the same, on a phone only: the focus
+ * leaves the writing box, and the `+` comes back. On a desk it does nothing
+ * (the side menu's *Nieuw artikel* does not step aside).
+ */
+export async function releaseCaret(page: Page) {
+  await page
+    .evaluate(() => {
+      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || !active.closest('.main')) return;
+      const writes =
+        active.isContentEditable ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLInputElement && ['', 'text', 'search'].includes(active.getAttribute('type') ?? ''));
+      if (writes) active.blur();
+    })
+    .catch(() => undefined);
+}
+
+/**
+ * Presses *Nieuw artikel* the way a person does: out of the text first (see
+ * `releaseCaret`), then the `+` (phone) or the side menu (desk). Pressed again
+ * until it lands, because an artikel just made puts its caret back in the text
+ * a moment after the page arrives. Use this instead of a bare
+ * `newEntryButton(page).click()`.
+ */
+export async function pressNewEntry(page: Page, timeout = 30_000) {
+  await expect(async () => {
+    await releaseCaret(page);
+    await newEntryButton(page).click({ timeout: 2_500 });
+  }).toPass({ timeout });
 }
 
 export async function signIn(page: Page, username: string, password: string) {
@@ -107,10 +146,35 @@ async function pressUntil(
  * drops in after any `signUp` without moving the test's own ground. Returns
  * the path of the artikel that is now their onderzoeker.
  */
+/**
+ * §106 (na review 4, H5): a speler with exactly **one** onderzoeker is not
+ * asked who is writing — the window writes as that one. A spec that means to
+ * meet §18b's question gives the account a second one first, the way a table
+ * does it: the Keeper hands it out (§18c). Over the API, because the screen for
+ * it (Beheer → Gebruikers) is not what these specs are about.
+ */
+export async function keeperHandsOutSecond(browser: Browser, account: string): Promise<string> {
+  const context = await browser.newContext();
+  const keeper = await context.newPage();
+  await signIn(keeper, 'Keeper', 'abbeytower34');
+  const name = `Tweede van ${account}`;
+  const made = await keeper.request.post('/api/entries', { data: { typeSlug: 'investigator', name } });
+  expect(made.ok(), 'de Keeper maakt een tweede onderzoeker').toBeTruthy();
+  const { entry } = (await made.json()) as { entry: { id: string } };
+  const listed = await keeper.request.get('/api/users');
+  const { users } = (await listed.json()) as { users: { id: string; username: string }[] };
+  const user = users.find((u) => u.username === account);
+  expect(user, `het account ${account}`).toBeTruthy();
+  const tied = await keeper.request.post('/api/characters', { data: { entryId: entry.id, userId: user!.id } });
+  expect(tied.ok(), 'de Keeper geeft hem uit').toBeTruthy();
+  await context.close();
+  return name;
+}
+
 export async function becomeInvestigator(page: Page, character: string): Promise<string> {
   await page.goto('/');
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await pressUntil(page, () => newEntryButton(page).click({ timeout: 5000 }), sheet);
+  await pressUntil(page, () => releaseCaret(page).then(() => newEntryButton(page).click({ timeout: 5000 })), sheet);
   await sheet.getByLabel('Naam', { exact: true }).fill(character);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');
@@ -451,6 +515,6 @@ export async function openEmptyFields(page: Page) {
  */
 export async function openNewEntry(page: Page) {
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  await pressUntil(page, () => newEntryButton(page).click({ timeout: 5000 }), sheet);
+  await pressUntil(page, () => releaseCaret(page).then(() => newEntryButton(page).click({ timeout: 5000 })), sheet);
   return sheet;
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { becomeInvestigator, fillWhenReady, inviteCode, newEntryButton, signIn } from './helpers';
+import { becomeInvestigator, fillWhenReady, inviteCode, newEntryButton, releaseCaret, signIn } from './helpers';
 
 /**
  * §91 (ronde 52): jouw plek.
@@ -61,6 +61,7 @@ async function keeperHandsOut(browser: Browser, account: string, name: string): 
   const sheet = keeper.getByRole('dialog', { name: 'Nieuw artikel' });
   await expect(async () => {
     if (!(await sheet.isVisible().catch(() => false))) {
+      await releaseCaret(keeper);
       await newEntryButton(keeper).click({ timeout: 5000 });
     }
     await expect(sheet).toBeVisible({ timeout: 1500 });

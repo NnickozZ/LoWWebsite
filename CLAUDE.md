@@ -18,15 +18,19 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 137 bestanden, 2487 tests na golf H (branch
-                       # `gevoel`); 134 / 2441 na rondes 65–67 en hun
+npx vitest run         # 144 bestanden, 2618 tests na golf J (branch
+                       # `gevoel`, 4afc3a5); 140 / 2557 na golf I
+                       # (d1dc532); 137 / 2487 na golf H;
+                       # 134 / 2441 na rondes 65–67 en hun
                        # herstel; 126 / 2224 at round 64;
                        # 125 / 2205 at golf 3 (rounds 58–62
                        # and the naden); round 56: 119 / 2110; golf 2 with
                        # rounds 53, 54, 55 and 57: 118 / 2095; round 52:
                        # 113 / 2022; round 38: 99 / 1596)
 npm run build          # must exit 0
-npx playwright test    # na golf H: 880 zaken, 671 passed / 207 skipped /
+npx playwright test    # na golf J: 960 zaken, 735 passed / 224 skipped /
+                       # 1 rood (per-place-crops), ~1,2 u op 2 kernen;
+                       # na golf H: 880 zaken, 671 passed / 207 skipped /
                        # 1 rood (per-place-crops), ~1,2 u op 2 kernen;
                        # 157 passed / 25 skipped / 0 failed at round 11, ~20 min
                        # rounds 12 and 13 both add cases (round 13 touches a
@@ -59,6 +63,25 @@ all five tests in it pass when the file is run alone
 anybody's damage, and it is the first thing that will look like damage. Fix it
 with the helpers in §6 the next time somebody is in that file; until then, a
 single red case in `keeper-side` is worth re-running alone before believing it.
+
+**Twee dingen uit golf I.** `kamer-ux.spec.ts:506` was op het `phone`-project
+rood als hij alleen draaide: sinds golf H (T5) staat `plek-picker-zoek` op een
+aanraakscherm pas vanaf `PICK_SEARCH_FROM` dingen, en in de volle suite waren
+die er toevallig. De spec kent die drempel nu (e257c53); rood daar is dus weer
+echt. En `E2E_DEV=1` over de tekenvlakken is in golf I maar half gedraaid:
+`golf-i1-vlakken.spec.ts` (phone) was groen onder Strict Mode, daarna liep de
+dev-server van Next op tot 4,4 GB en hing `round-37-map`. Draai
+`round-37-map`, `round-37-pinch` en `round-37-timeline` onder `E2E_DEV=1` op
+een rustige machine, één tegelijk (zie §8).
+
+**Drie dingen uit golf J.** `ronde-54-de-kamer.spec.ts` ZAAK 2 had hetzelfde
+als `kamer-ux:506`: alleen gedraaid staat `plek-picker-zoek` er op de telefoon
+niet. Hij kent de drempel (`PICK_SEARCH_FROM`) nu ook; rood daar is echt. En
+twee zaken waren elk één keer rood in een gecombineerde of volle run en groen
+alleen: `phase3-keeper-tools.spec.ts:349` (site settings, desktop) en
+`golf-i2-eerste-keer.spec.ts:132` (*Je schrijft als …* in een tweede venster;
+vermoedelijk de melding die vóór het blad komt en door T6 weggaat, niet verder
+uitgezocht). Draai ze alleen voordat je ze gelooft (zie §8).
 
 The Playwright run takes about twenty minutes and rebuilds the app each time.
 That is not a reason to skip it — it is a reason to run it *early*, while it is
@@ -180,7 +203,48 @@ freely there.
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5-9][0-9]\|§1[0-9][0-9]" app components lib`
   before choosing a number (the old pattern `§[5-9][0-9]` stops at 99) — the
-  latest is **§104 / rule 104**, so the next rule is **§105**. Rondes 65–67
+  latest is **§107 / rule 107**, so the next rule is **§108**. **Golf I** (na
+  golf H en design-review 4, `REVIEW4.md`; drie worktrees i1/i2/i3 op
+  `gevoel`, samengevoegd als `d1dc532`) voegde er drie toe, elk met een eigen
+  laag in `app/layout.tsx` na `leeskamer.css`: **§105** (i1, de tekenvlakken
+  op de telefoon, `app/vlakken.css`: een kop van twee regels en een werkbalk
+  van één, de maakknop als `+` onder de duim via `.canvas-make` met
+  `.canvas-undo` ernaast, `CanvasPeek` die de duim volgt op `transform` met
+  `lib/canvas/peek.ts`, `data-groeit` en `data-peek-hoog`, de inspector en de
+  lade van het prikbord als peek, `CanvasEmpty` met de `strook` op landkaart
+  en tijdlijn, de loep op landkaart en tijdlijn, `openingOnPins`), **§106**
+  (i2, de eerste keer, `app/eerste-keer.css`: `LegeStaat` +
+  `components/eerste-keer/*` (Deuren, WieBenJij, EersteRoute, Uitnodiging,
+  EersteBezoek), `lib/eerste-keer/stappen.ts` (puur: `normaliseInvite`,
+  `formatInvite`, `inviteLink`, `routeSteps`, `showsRoute`, `seenPlaces`/
+  `withSeen`, `isNewAccount`) en `tellen.ts`/`bezoek.ts`,
+  `app/(auth)/Voordeur.tsx`; één onderzoeker is geen keuze: `soleAuthor`) en
+  **§107** (i3, Beheer, `app/beheer.css`: de index op de telefoon met alleen
+  *‹ Beheer* na een keuze en een linkerkolom vanaf 1180 px in `AdminTabs`, de
+  soort-editor in twee kolommen, één voet `.beheer-voet` voor Soorten en
+  Woorden, *Pictogram en kleur*, Woorden in context, het wachtwoordblad; de
+  pure helften in `lib/beheer.ts`). Geen migratie. Zie
+  `tests/unit/golf-i[1-3]-*.test.ts` en `tests/e2e/golf-i[1-3]-*.spec.ts`.
+  **Golf J** (na de meting na golf I, `meting-na-golf-i.md`; vijf worktrees
+  j1–j5 op `gevoel`, samengevoegd tot `4afc3a5`) gaf **geen nieuw nummer**:
+  elk deel vult een regel aan met een blok *Aangevuld in golf J*. §105 (j1,
+  de vlakken: `gatePress` met `BOARD_GLASS`/`MAP_GLASS`/`TIMELINE_GLASS`/
+  `TREE_GLASS` en `PRESS_SLOP`, zodat lezen in Bewerken niets vraagt; Vind
+  onder de werkbalk met `findListRoom` en `--find-room`; `CanvasPeek
+  startFull`/`resetKey` voor het web; `panToBring`/`boxOnGlass` op de
+  stamboom). §90, §92, §100, §101 en §104 (j2, schrijven en zoeken:
+  `typingScroll`, de `+` die wijkt voor een caret, `naad-wit`, `typeFold`,
+  `lib/search/rang.ts` met `nameScore`/`palettePlan`/`orderSections`,
+  `SectionsEditor` op `useCanvasAuthorGate(true)`, de tags onder de dichte
+  infobox). §106 en §107 (j3: de caret in *Wie ben jij* met een muis,
+  `useNietBewaard` en `mountedPanes`, de uitnodiging op de index,
+  `SoortKiezer`), met stuk 12 onder §102 (`lib/vroegeKlik.ts`). §104 (j4, de
+  eerste verf: `useIsWide`/`useHasRail`/`usePhoneKnown` zijn `null` tot de
+  hydratatie, `.entry-kop`, `VoorafTekst`). §90 (j5: de geweken `+` is
+  `visibility: hidden`; `releaseCaret`/`pressNewEntry` in de specs). Geen
+  migratie. Zie `tests/unit/golf-j[1-4]-*.test.ts` en
+  `tests/e2e/golf-j[1-4]-*.spec.ts`.
+  Rondes 65–67
   (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
   worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
   voegden er drie toe: **§102** (round 65, het bewegingscontract: de tokens
@@ -598,6 +662,26 @@ freely there.
   `@media (min-width: 1500px)` block round `.entry-layout-rail` in
   `app/leeskamer.css` places it (§104, D1). From 1280 to 1499 px the page is
   text and facts, with the outline as a row of chips above the text.
+  **Since golf J the stylesheet does the choosing and the hooks only tidy
+  up** (§104, j4). `useIsWide`, `useHasRail` and `usePhoneKnown` return
+  `null` on the server and during hydration; a page that changes *shape* with
+  the width draws one DOM that the `@media` blocks lay out right at every
+  width, and prunes after hydration only what CSS was already hiding. **Never
+  give a layout hook a guess as its server snapshot** (`() => true`): that is
+  the phone that jumps (CLS 0,85 on a Pixel 5 before golf J). `WIDE_MEDIA`/
+  `NARROW_MEDIA` in the same file are the numbers for a `<source media>`.
+- **Text that only a browser editor can draw is drawn once more on the
+  server** (golf J, §104, `VoorafTekst` in `components/editor/VoorafTekst.tsx`):
+  in Lezen, `RichEditor` and `LiveBody` take a `vooraf` (or the `Vooraf`
+  context under `next/dynamic`) and show it until the editor exists. It
+  mirrors what ProseMirror and Tiptap draw, including Tiptap's own CSS
+  (`.vooraf-tekst` in `app/leeskamer.css`: no ligatures, `break-spaces`, a
+  chip breaks). A new node type in `documentExtensions` gets a case in
+  `VoorafTekst` too, or its height is wrong until the editor arrives.
+- **Search orders by the best name** (golf J, §100): `nameScore`,
+  `orderSections` and `palettePlan` in `lib/search/rang.ts` (pure). A new
+  section on `/search` or in the palette gets a `best` from `nameScore`, not a
+  fixed place.
 - **The autosave patch is a patch of *keys*, and one key is a bag.**
   `useAutosave` collects changes for 800 ms and, for every key but one, the
   second answer replaces the first — which is right for a name, a body or a
@@ -1277,7 +1361,17 @@ freely there.
   cancels the blocking question: nothing is made and the caret goes back to the
   button that raised it. The non-canvas editors (`RichEditor`,
   `FieldsEditor`, `LiveFields`, …) keep `useAuthorGate`, because everything
-  in them is writing.
+  in them is writing. **Since golf J (§105) it takes a second argument**, the
+  selectors of the glass and the things on it (`BOARD_GLASS`, `MAP_GLASS`,
+  `TIMELINE_GLASS`, `TREE_GLASS`); `gatePress` then decides: choosing a thing
+  asks nothing, a drag does (past `PRESS_SLOP`), bare paper never, a link
+  never. If a canvas spreads its own `onPointer…Capture` on the same element
+  (the prikbord), call `gate.onPointerMoveCapture`/`UpCapture`/`CancelCapture`
+  inside them, or the gate never hears the drag. **And a non-canvas surface
+  with a button that asks first carries `useCanvasAuthorGate(true)`, not the
+  bare `useAuthorGate`** (golf J, §101): only the former reads
+  `AUTHOR_GATE_OFF`, so under the bare one the question came on the
+  `pointerdown` and ate the click. `SectionsEditor` is the worked example.
 - **The camera of a canvas that computes its own layout stays where the hand
   was** (§101, ronde 64). A stamboom stores only its pins (§66), so anything
   that changes the drawing moves the world under a still camera: one parent
@@ -1286,7 +1380,9 @@ freely there.
   `FamilyTreeCanvas`), then put it right with `followPoint` + `panIntoView`
   (`lib/canvas/view.ts`, pure): the old card keeps its place on the glass and
   the new one is brought in, never further than that, and the zoom is never
-  touched.
+  touched. **Since golf J (§105) the new one wins when both do not fit**
+  (`panToBring`, with `boxOnGlass`, in the same file): on a phone two
+  generations are taller than the glass, and the new card is the chosen one.
 - **A `Sheet`'s `closable` is about the cross and the backdrop, never about
   Escape** (§101). Escape belongs to the topmost sheet, everywhere in the
   archive; the blocking author question was the one place that refused it.
@@ -1304,6 +1400,48 @@ freely there.
   `Sheet`** (§74). It is non-modal, fixed above the tab bar, one scrolling body
   (the thing first, its tools below), `role="dialog"` named by its heading. A
   `Sheet` is still right for a *form* someone chose to open (bewerken, a legend).
+  Since §105 the prikbord's inspector (`.board-peek`) and its lade are peeks
+  too; ~~`.board-inspector-phone` is dead CSS~~ `.board-inspector-phone` is
+  gone from `app/globals.css` since golf J.
+- **On a phone a canvas's first maker is the `+`, by one class** (§105). Give
+  the bar's maker button `canvas-make` and it becomes the round 56 px `+` in
+  the FAB's corner below 768 px (`position: fixed` in `app/vlakken.css`), with
+  `canvas-undo` beside it in Bewerken. Same element, same name, same
+  `useCanvasMaker` — only the place changes, so do not render a second button
+  for the phone. It climbs over `--toast-stack` and `--peek-now` through one
+  `--dock-lift`, which only those rules set: a default on the button itself
+  outranked them and left the undo under the peek. A new canvas's maker gets
+  the class on the day it is built; a maker that should stay in the bar (the
+  tijdlijn in a dossier, outside `.page-canvas`) does not.
+- **The peek moves only on `transform`, and it lies under the tab bar** (§105).
+  z 39 with a paper skirt (`::after`) below it: a change of size is a FLIP in
+  `CanvasPeek`, never a `max-height` transition. Do not give it a z-index
+  above `.tabs` (40) — its exit and its growth slide behind the bar. The
+  arithmetic of the grip is `lib/canvas/peek.ts` (pure). **It grows only when
+  its body overflows** (`data-groeit="ja|nee"`); otherwise the grip gives a
+  rubber rim of −10 px and nothing else. And the `+` steps aside only on
+  `:root[data-peek-hoog]` (the peek is taller than half the viewport), never on
+  `.is-full`: a short peek that is "full" still leaves the maker in reach.
+- **An empty canvas is `CanvasEmpty`** (§105): one sentence, one verb, the
+  surface's old class kept (`board-empty`, `map-empty`, `timeline-empty`,
+  `tree-empty`). Its button stops its own `pointerdown`, so the glass never
+  sees it. Its label must never be the name of the bar's maker (§64: two
+  buttons, one name, a strict-mode violation in every spec that looks), and it
+  is `primary` (red) only for *Beginnen* in Lezen — in Bewerken the `+` is the
+  one red button. Where the canvas itself is the thing to look at (a
+  landkaart's scan, a tijdlijn's axis) pass `strook`: a thin band that is
+  glass except for its button, so a drag through it still takes the canvas.
+- **A title in a canvas head on a phone is `flex: 1 1` on two classes**
+  (§105): `stambomen.css` sets `.canvas-head h1.tree-title { flex: 0 0 auto }`
+  and may load after `vlakken.css`, so the phone rule names
+  `.page-canvas .canvas-head > h1.tree-title` itself. A new canvas whose head
+  carries its own `h1` class adds it there, or a long name pushes
+  *Verbindingen* to a third row.
+- **On a phone a loose button in a canvas bar is bare, a group has a rim**
+  (§105, H4): the loep, the trechter, the ↕, the gear and the lock are 44 × 44
+  without a box; the switch and the zoom are groups. Chosen is `--paper-dark`
+  with ink everywhere, Bewerken alone is stamp red. A new bar button joins the
+  selector list in `app/vlakken.css` rather than bringing its own box.
 - **Take a canvas's pointer capture lazily, at the drag threshold — never on
   `pointerdown`** (§66). Chromium retargets the compatibility mouse events at
   the *capture element*, so a stage that captures on the way down means the
@@ -1485,7 +1623,8 @@ freely there.
   form posts, so a box that is not rendered loses its word on save. And never
   put a `<summary>` inside `details.admin-type`: a spec that finds a soort by
   its summary's name then matches a picker in another soort (`TargetsPicker`
-  is a button with `aria-expanded` for that reason).
+  was a button with `aria-expanded` for that reason; since golf J that is
+  `SoortKiezer`, which kept the button).
 - **A link in the running text is `{ type: 'entryLink', attrs: { handle } }`
   and nothing else** (§97). Never write an `id`, a `label`, a slug or a colour
   into the node: node attributes are what y-prosemirror sends to everybody in
@@ -1645,6 +1784,45 @@ freely there.
   (§104, golf H, D6): `rangSoorten` geeft een rang, `data-rang` en
   `data-nodig-tot` in `app/leeskamer.css` kiezen per breedte. Meet het niet in
   de browser; dan rendert de server een andere rij dan de browser toont.
+- **Een lege lijst is een `LegeStaat`, nooit een los `.empty`-kader** (§106,
+  golf I; `components/ui/LegeStaat.tsx`). Eén zin uit `lib/words.ts`, hooguit
+  één regel uitleg, één deur die op een bestaande knop drukt (`ArtikelDeur`,
+  `DossierDeur`, `MaakDeur` → `MAKE_EVENT`, in
+  `components/eerste-keer/Deuren.tsx`). Geef de deur een ander label dan de
+  knop bovenaan de lijst, anders vindt `getByRole('button', { name })` er
+  twee. Een lijst zonder één regel en zonder filter heeft geen sorteerbalk.
+- **Een regel die per browser één keer verschijnt, staat al in de eerste
+  lading** (§106, golf I): `localStorage` is de waarheid, een koekje
+  (`FIRST_VISIT_COOKIE`) de spiegel voor de server, en `firstVisitOffer` in
+  `lib/eerste-keer/bezoek.ts` leest beide, plus de leeftijd van het account
+  (`isNewAccount`, 14 dagen). Iets dat pas na de hydratatie in de flow
+  verschijnt, verschuift de pagina onder een vinger.
+- **Een speler met één onderzoeker wordt niets gevraagd** (§106, golf I, H5).
+  `soleAuthor` in `lib/authorChoice.ts` beslist, `authorStance` geeft dan
+  `ready`, en `AuthorProvider` meldt het één keer per venster via
+  `SOLE_AUTHOR_EVENT` (*Je schrijft als …*, `key` `schrijver`). Schrijf geen
+  eigen "is er maar één?"-tak ergens anders; §18b's vraag is voor twee of meer.
+- **`:hover` op een knop of chip staat in `@media (hover: hover)`** (§106,
+  golf I, M6). Op een aanraakscherm blijft een hover hangen onder de vinger,
+  en een knop die onder de vinger verscheen, bleef dan "ingedrukt". Een nieuwe
+  hover-regel op iets wat je aantikt, zet je daar ook in.
+- **Beheer op een telefoon is een index, en na een keuze alleen *‹ Beheer***
+  (§107, golf I). `AdminTabs` tekent één lijst onderdelen drie keer: index
+  (telefoon), een `.schuifrij` (768–1179 px) en een linkerkolom (vanaf
+  1180 px). ~~Alleen het actieve paneel is gemount.~~ Een paneel met iets
+  niet-bewaards blijft gemount, verborgen (`useNietBewaard`, `mountedPanes`,
+  golf J); een nieuw formulier in Beheer dat de hele staat post, meldt zich
+  daar ook. Een nieuw onderdeel krijgt
+  een pictogram en een zin (`ADMIN_WHAT_KEY` in `lib/beheer.ts`, `beheerWat*`
+  in `lib/words.ts`). Op `/admin` staat geen `+`.
+- **Een snelknop in de soort-editor mag *Veld toevoegen* niet in zijn naam
+  hebben** (§107, golf I): `getByRole('button', { name: 'Veld toevoegen' })`
+  matcht een deel van de naam. De vier snelknoppen heten *Keuzelijst*,
+  *Koppelingen*, *Getal* en *Datum*, na de zin *Of meteen:*.
+- **Soorten en Woorden hebben één voet, `.beheer-voet`** (§107, golf I): de
+  telling links, *Opslaan* rechts. *Opgeslagen* komt uit `useReportSave`
+  (§100), nooit uit de voet. Een soort wordt nog steeds in één keer bewaard
+  (`saveType`); er komt geen autosave.
 
 ---
 
@@ -1898,7 +2076,10 @@ mistakes. Check yours against these before declaring a spec finished.
   first — and clicking it opens the nieuw-artikel sheet instead of picking the
   thing that already exists. Add `.filter({ hasNotText: 'aanmaken' })`, as
   `addFromSearch` in `flow-3-case-dossier.spec.ts` and `keeperAssigns` in
-  `characters.spec.ts` do.
+  `characters.spec.ts` do. The same holds for *Op prikbord prikken* on an
+  artikel (golf J): *Nieuw prikbord 'X'* stands before the walls have arrived
+  and carries the typed name, so filter it out with
+  `hasNotText: 'Nieuw prikbord'` (`round-6.spec.ts`).
 - **`?new=1` lands on the editing face**, where the artikel's name is the title
   box `#entry-name` and there is **no heading at all**. Assert
   `toHaveValue(name)`, not `getByRole('heading', { name })` — and never a bare
@@ -2028,7 +2209,9 @@ mistakes. Check yours against these before declaring a spec finished.
   (`family-trees-33.spec.ts`) before touching a field — it is a no-op at
   1440 px, where the same block is a `<section>` — and press the summary until
   `details.open` answers true, because a page that has just switched faces is
-  not listening yet and a second click folds it back up.
+  not listening yet and a second click folds it back up. **Since golf J
+  `infobox-peek-tags` stands under the folded infobox on a phone**, with real
+  `a.tag` links, whether or not a field is filled.
 - **A card being visible is not `window.__tree` knowing about it.** The seam is
   put up by an effect, so straight after a reload — and reliably under
   `E2E_DEV=1`, where a dev build compiles on the way in and every render
@@ -2078,14 +2261,51 @@ mistakes. Check yours against these before declaring a spec finished.
 - **Finding on a canvas is a loep on a phone** (§94). The box is behind a
   44 px `.canvas-find-toggle`; press it before you fill. On the prikbord in
   Bewerken the find is not a box at all but the *Op dit prikbord* group at the
-  top of the `BoardPicker`.
+  top of the `BoardPicker`. Since §105 the landkaart (`map-find`) and the
+  tijdlijn (`timeline-find`) have the loep too, at every width.
+- **On a phone the maker is the `+` in the corner, and Lezen has no undo in
+  view** (§105). `getByRole('button', { name: 'Speld zetten' })` still finds
+  it (Bewerken only); `page.locator('.canvas-make')` finds it on any canvas.
+  In Lezen on the phone project *Ongedaan maken* is `toBeHidden()`, still
+  `disabled` with `includeHidden: true`. The switch's words are hidden on a
+  phone: find the radios by name, never by `getByText('Bewerken')`. The zoom
+  readout `.canvas-zoom-level` is `display: none` on a phone — `toHaveText`
+  still reads it, `toBeVisible` does not.
+- **A peek closed with the cross is in the DOM for `--dur-3`** (§105), with
+  `data-closing`; wait on `toHaveCount(0)`. Escape is immediate. A peek whose
+  body does not overflow says `data-groeit="nee"` and stays small after a
+  swipe up; assert that, not `is-full`.
+- **On a phone the prikbord's selection is a peek** (§105, review 4 H1):
+  `.board-peek`, closed with *Selectie loslaten*. The lade *Uit het dossier*
+  starts shut there; press `.board-tray-spine` to open it (as
+  `board-strings-borders.spec.ts` does).
+- **On a phone *Alles tonen* on a tijdlijn is in the gear's sheet** (§105,
+  M2). `timelines.spec.ts` and `timeline-coop.spec.ts` each have a local
+  `allToggle(page)` that returns `timeline-toggle-all` visible on either
+  project (it opens `timeline-settings` when the button is not in the bar);
+  copy it rather than clicking the testid bare.
+- **An empty landkaart or tijdlijn is a strook, not a card** (§105, H3):
+  `[data-testid="canvas-leeg"]` with `.is-strook`, at the foot on a desk and at
+  the top on a phone. Only its button takes a press; a drag across it pans.
+- **In Bewerken a tap on the glass asks nothing any more** (§105, golf J):
+  choosing a card, a speld or a tag is reading, and a link (*Artikel openen*)
+  never asks. A spec that wants to meet the question on a canvas drags a
+  thing, presses a maker or double-clicks bare paper (`ronde-51-canvas` C1,
+  `golf-j1-vlakken`).
+- **On a phone the web opens from `?focus=` with the peek full**
+  (`data-peek="full"`, golf J); after choosing a row it is small again, with
+  *Openen* in view.
 - **The new-entry sheet is name first, then a soort strip** (§92). The name box
   is on top and has the focus; the soort is a scrolling row of radios with
   *Alle soorten* to fold it out, so `getByRole('radio', { name, exact: true })`
   still works, but a soort scrolled out of view is attached and not visible
   until the strip scrolls it in. The sheet keeps a draft of name and
   description (`DRAFT_ENTRY`, §69), so a spec that opens it twice in one page
-  finds what it typed the first time.
+  finds what it typed the first time. **Since golf J the soorten fold after
+  whole rows** (§92), two on a desk and three on a phone, instead of
+  scrolling sideways: `data-folded="ja"` on the strip, and *Alle soorten*
+  exists only when something is folded. A radio under the fold is still
+  clickable (Playwright scrolls the strip), but not visible to a person.
 - ~~**A short box shows chips while it has no focus** (§92). Its raw text,
   brackets included, is in the box and visible only in focus; out of focus
   `[data-testid="mention-preview"]` draws it. Assert `toHaveValue` on the box,
@@ -2131,15 +2351,38 @@ mistakes. Check yours against these before declaring a spec finished.
   naden). On an artikel just made the caret is in the text, so `n` is a
   letter, and before the shell hydrates it is nothing. `openNewEntry` presses
   the button until the dialog answers and returns it.
+- **On a phone the `+` is gone while a caret is in a writing box of the
+  page** (golf J, j2, §90): after *Aanmaken* (`?new=1`, the caret is in the
+  text), or wherever a spec clicked into a box. `openNewEntry` and
+  `becomeInvestigator` tap out of the text first. A spec that presses the
+  button itself uses **`pressNewEntry(page)`**, never a bare
+  `newEntryButton(page).click()`; a loop of its own calls
+  **`releaseCaret(page)`** before each press (both in `helpers.ts`; on a desk
+  they do nothing). And a spec on Start for a speler without an onderzoeker
+  never presses `n`: on a desk the caret is in *Wie ben jij aan tafel?*
+  (`wie-naam`), so `n` or `/` types into the box. `article-faces` and
+  `entry-live` still press `n` (see §8).
+- **A button that fires a server action and changes the screen at once is
+  not done when the screen changes** (golf J). Wait for the action's answer
+  (`waitForResponse` on a POST with a `next-action` header) before a `goto`,
+  or the navigation overtakes it (`round-49-naam-en-icoon.spec.ts`, the
+  favicon's *Verwijderen*).
 - **The author question comes once per window** (§18b), and
   `becomeInvestigator` has already answered it. A spec that wants to meet it
   does `page.evaluate(() => sessionStorage.clear())` and then a `goto`. A
-  Keeper is never asked.
+  Keeper is never asked. **Since §106 (golf I, H5) a speler with exactly one
+  onderzoeker is not asked at all**: the window writes as that one and shows
+  *Je schrijft als …* once. A spec that means to meet the question gives the
+  account a second one first with `keeperHandsOutSecond(browser, account)`
+  from `helpers.ts` (the Keeper makes one and hands it out, over the API), as
+  `characters.spec.ts` (two cases), `ronde-64-meting.spec.ts` #3 and
+  `ronde-51-canvas.spec.ts` C1 now do.
 - **Escape cancels the blocking author question** (§101, ronde 64): nothing is
   made, the caret goes back, and the next key or press asks again.
   `characters.spec.ts` used to record that it stayed; it now records this.
 - **Tab from a sectie's title lands in that sectie's text** (§101), not on the
-  bin. And there is no FAB on `/winkel` any more, while `/admin` has one again.
+  bin. And there is no FAB on `/winkel` any more, ~~while `/admin` has one
+  again~~ and since golf I (§107, M10) none on `/admin` either.
 - ***Alles in beeld* on a single kaartje is 250 %**, so a stamboom spec that
   wants two generations on the glass zooms out first.
 - **On the prikbord the Keeper's tekenlaag switch is in
@@ -2229,9 +2472,17 @@ mistakes. Check yours against these before declaring a spec finished.
   zin staat er visueel verborgen in, dus `toContainText('+12 munten van de
   Keeper — …')` werkt nog. Twee giften kort na elkaar zijn één melding.
 - **Tussen 1280 en 1499 px is er geen `.entry-rail`** (§104, golf H). De
-  wegwijzer is dan `.entry-main .entry-outline-row`; het Desktop-project van
+  wegwijzer is dan ~~`.entry-main .entry-outline-row`~~
+  `.entry-kop .entry-outline-row` (sinds golf J); het Desktop-project van
   Playwright (1440) heeft dus geen rail. Een spec die de rail wil, zet de
   viewport op 1600 (`round-7.spec.ts`).
+- **Since golf J the head of an artikel is `.entry-kop`, not inside
+  `.entry-main`** (§104, j4): `.entry-kop .entry-head`; `.entry-main` is the
+  text. Before hydration there is a `.entry-rail` (hidden) at 1280–1499 px, a
+  `details#block-info` on a desk and in Lezen a `.vooraf-tekst` that carries
+  `.ProseMirror`; they go with the hydration, so `toHaveCount(0)` needs its
+  auto-wait. Wait for the editor with `[contenteditable="true"]` or
+  `.ProseMirror:not(.vooraf-tekst)`, never a bare `.ProseMirror`.
 - **Een soort staat niet altijd als tab in de rij** (§104, golf H, D6). Wat
   niet past, staat in *Meer soorten* (`getByTestId('meer-soorten')`, het menu
   is `.meer-soorten-lijst`). Een lege soort staat altijd in het menu, de soort
@@ -2243,11 +2494,72 @@ mistakes. Check yours against these before declaring a spec finished.
   `openEntryWaar(page)` aan uit `helpers.ts`. Op een computer doet die niets.
 - **De + wijkt alleen voor een scroll van de hand** (golf h4, `FAB_HAND_MS`).
   Een spec die met `mouse.wheel` scrolt, ziet hem weggaan. Na `scrollIntoView`
-  of een caret in de tekst blijft hij staan.
+  blijft hij staan. ~~Na een caret in de tekst ook.~~ Sinds golf J (§90) wijkt
+  hij op een telefoon wél zolang er een caret in een schrijfvak staat, en is
+  hij dan `visibility: hidden`; zie `pressNewEntry` hierboven.
 - **Een lege *Dossiernotities* in Lezen is `case-notes-leeg`** (§104, golf H),
   een `p.blok-leeg`, geen editor. De knop in het menu op een dossier toont
   *Nieuw in dit dossier*, met *Nieuw artikel in dit dossier* als
   toegankelijke naam.
+- **Een nieuwe speler landt op Start met *Wie ben jij aan tafel?*** (§106,
+  golf I, `wie-ben-jij`), niet met de banner: `no-author-banner` staat niet op
+  `/`, wel elders, als één regel met `no-author-door`. `becomeInvestigator`
+  werkt nog zoals het was. Wie de nieuwe weg wil: `wie-naam`, `wie-ga`, dan
+  `wie-welkom` (met `wie-welkom-schrijf` en `wie-welkom-kamer`). Zolang het
+  welkom staat, is `home-jij` verborgen: hij is er wel (`toBeHidden`, niet
+  `toHaveCount(0)`). **Sinds golf J staat de caret op een computer al in
+  `wie-naam`** (alleen bij `(pointer: fine)`): een spec die daar `n` of `/`
+  drukt, typt in het vak. Op het `phone`-project krijgt het vak geen focus;
+  `golf-j3-eindjes.spec.ts` tikt het daar aan.
+- **Bij het eerste bezoek aan de eigen kamer, de winkel en de wiki staat
+  `eerste-bezoek` boven de inhoud** (§106, golf I), alleen voor een account
+  jonger dan 14 dagen. In de fixture is elk account nieuw, dus de regel staat
+  er in elke spec bij het eerste bezoek. Een spec die klikt en daarna de muis
+  laat liggen, kan op een andere plek uitkomen dan zonder die regel; beweeg de
+  muis weg voor een Escape als er een naam onder kan liggen (de voorbeeldkaart
+  pelt eerst), zoals de zaak van de plek-kiezer in `kamer-ux.spec.ts` (:506)
+  nu doet.
+- **Een lege lijst heeft `[data-leeg="<plek>"]`** (§106, golf I), en een lege
+  lijst zonder filter heeft geen sorteerbalk. Een dossier op een telefoon heeft
+  geen tabbladen: zoek de lege staat op `[data-leeg="prikbord"]`, niet in
+  `getByRole('tabpanel')`.
+- **Beheer op een telefoon heeft na een keuze geen tabs** (§107, golf I).
+  Kaal `/admin` is daar de index; een spec op het `phone`-project kiest een
+  onderdeel via de index of via het adres (`/admin?tab=users`,
+  `/admin?tab=audit`, `/admin?tab=trash`). Een tweede tab klikken na een keuze,
+  of na een reload met `?tab=`, kan daar niet. Welk onderdeel open staat, lees
+  je aan `.beheer-paneel[data-tab]`. **Sinds golf J kan er een tweede
+  `.beheer-paneel` in de DOM staan**, met `hidden`, zolang een ander
+  onderdeel iets niet-bewaards heeft: lees het open paneel als
+  `.beheer-paneel:not([hidden])`. En op de index staat op een telefoon de
+  uitnodiging bovenaan (`index-uitnodiging`, knop `index-invite-kopieer`);
+  niet de hele index past nog op het eerste scherm, Gebruikers tot en met
+  Woorden wel. `golf-i3-beheer.spec.ts` meet dat nu zo. Vanaf 1180 px zijn de tabs de
+  linkerkolom (`beheer-index`); `getByRole('tab', { name })` werkt op elke
+  breedte, want de naam is alleen het label (plus het getal). `flow-5-keeper`,
+  `sloten`, `round-6` en `ronde-57-zoeken-en-beheer` gaan via het adres;
+  `ronde-51-canvas` C30 leest `data-tab`.
+- **Het opslaan-woord van een soort en van Woorden staat in de schil**
+  (§107, golf I): wacht op `getByTestId('save-state')` met
+  `data-save="saved"`, niet op een tekst in de voet (`board-live.spec.ts`,
+  `phase4-pages-and-words.spec.ts`). De telling lees je in `soort-voet`
+  (*Alles bewaard*, *n niet opgeslagen*).
+- **Nieuw wachtwoord is een blad** (§107, golf I):
+  `page.getByRole('dialog', { name: 'Nieuw wachtwoord voor <naam>' })`, niet
+  `row.getBy…`. Na *Instellen* is het blad weg en staat *Nieuw wachtwoord
+  ingesteld.* in de rij.
+- **Een veld met keuzes of doel-soorten staat dicht** tot je het opent
+  (`.veld-samenvatting`, *Instellen*), behalve een nieuw veld of een veld dat
+  net van soort wisselde. `Keuzes van veld n` en `veld-soorten` bestaan dus
+  niet voor een dicht bestaand veld (§107). **Sinds golf J is `veld-soorten`
+  een `SoortKiezer`**, net als de soortenlijsten van de pagina, `blok-kijk-in`
+  en `blok-mag-erin`: chips met een kruisje en *Kies soorten*, geen rij
+  chips om aan te vinken.
+- **Wacht na *Terugzetten* in de prullenbak tot de rij weg is** voordat je
+  navigeert (§107); anders kan de navigatie de terugzet afbreken
+  (`round-36-bin.spec.ts`).
+- **`/spelers` heet *Spelerspagina's*** (§107, L1), met een apostrof:
+  `aanwezig.spec.ts` zoekt de link zo.
 
 If a spec fails once and passes on a re-run, it is the "not yet listening" race
 — fix it with the helpers above rather than shrugging at it.
@@ -2302,7 +2614,125 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I and J
+
+*Golf J (na de meting na golf I, `meting-na-golf-i.md`; Nick: "Ja ga zeker
+verder :)") is gebouwd in vijf worktrees op `gevoel`: j1 de vlakken (§105),
+j2 schrijven en zoeken (§90, §92, §100, §101, §104), j3 de Keeper en de
+eerste keer (§106, §107, en stuk 12 onder §102), j4 de eerste verf (§104) en
+j5 de suite weer groen (§90 en de specs), met één kleine reparatie van de
+coördinator erna; samengevoegd tot `4afc3a5`. Geen nieuw nummer, geen
+migratie, geen verwijderd bestand. De rondenotitie is
+`claude/golf-j-na-de-meting.md`.*
+
+**Leftovers — golf J, allemaal met opzet genoemd.** Hij sloot, uit het blok
+van golf I hieronder, `.board-inspector-phone`, de tabwissel in Beheer, de
+chips van `PageBlocksEditor`, de twee woorden in `TypeEditor` en de docblock
+van `AdminTabs`, en hij keek de welkomsttekst na; daarbuiten de
+reduced-motion-fade van de `+` van een vlak (`docs/beweging.md` §8). Uit ronde
+64 sloot hij `makeOnEmpty` en besliste hij de stand waarin een vlak opent;
+uit ronde 62 half de specs die `n` drukken. Het springende artikel op een
+telefoon, dat j3 bij stuk 12 vond en liet liggen, sloot j4 in dezelfde golf.
+
+- **Rij 20 op de telefoon is 8,5** (was 9,5; kortst 5): het maakblad met drie
+  winkelvelden is langer dan het scherm, en *Aanmaken* kost een halve veeg.
+  Een plakkende *Aanmaken* zou het oplossen, maar raakt het gedrag van elk
+  blad boven een toetsenbord.
+- **Rij 27 (veld hernoemen, telefoon) is 8** (was 8,5; kortst ±6). Eén stap
+  daarboven is *alles kiezen* in het veld. Bewust geen select-all bij focus:
+  een tikfout verbeteren is even gewoon.
+- **Rij 24 op de telefoon blijft 11** (computer 10): *Wie ben jij aan tafel?*
+  zet de caret alleen met een muis (`(pointer: fine)`). Op een aanraakscherm
+  opent een focus zonder gebaar geen toetsenbord, en de caret liet de `+`
+  wijken; een vak zonder toetsenbord en zonder `+` is erger dan een tik.
+- **Webfonts wisselen nog bij het eerste bezoek** (`@fontsource`,
+  `font-display: swap`, geen preload): koud gemeten CLS tot 0,32 op een
+  computer en eens 0,034 op een Pixel 5, 0 met de lettertypen in de cache of
+  tegengehouden. Alleen het eerste bezoek; de oplossing is een preload van de
+  latijnse 400/600-bestanden of een fallback met `size-adjust`, voor alle
+  pagina's tegelijk.
+- **De strook *Wie is er?* verschuift de kolom nog 5 px** bij de hydratatie
+  (bekend sinds 65·herstel; zie het blok van rondes 65–67).
+- **Een chip in de lopende tekst breekt wél af**: Tiptap zet
+  `[contenteditable="false"] { white-space: normal }` over de `nowrap` van
+  `.entry-chip`. `VoorafTekst` doet hetzelfde, met opzet; wie dat wil
+  veranderen, doet het op beide.
+- **Twee zaken die één keer rood waren en alleen groen**:
+  `phase3-keeper-tools.spec.ts:349` (site settings) en
+  `golf-i2-eerste-keer.spec.ts:132` (*Je schrijft als …* in een tweede
+  venster; vermoedelijk de melding die vóór het blad komt en door T6 weggaat).
+  Niet van golf J, niet verder uitgezocht; zie §1.
+- **`article-faces` en `entry-live` drukken nog `n`** in een eigen lus (zie
+  ronde 62 hieronder); `sort-filter` en `access-rights` zijn over op
+  `openNewEntry`.
+
+*Golf I (na golf H; Nick: "Ja ga zeker verder :)") is gebouwd in drie
+worktrees op `gevoel`: i1 de tekenvlakken op de telefoon (§105), i2 de eerste
+keer (§106), i3 Beheer (§107). Na een eerste samenvoeging keek design-review 4
+(`REVIEW4.md`), en elke worktree kreeg een tweede pas; samengevoegd als
+`d1dc532`. Geen migratie, geen verwijderd bestand, geen nieuwe route. De
+rondenotitie is `claude/golf-i-de-volgende-pas.md`.*
+
+**Leftovers — golf I, allemaal met opzet genoemd.** Hij sloot, uit het blok
+van golf H hieronder, de twee regels werkbalk op de telefoon (T18) en half
+D17, en uit rondes 65–67 de peek die op `max-height` bewoog.
+
+- **De tijdlijn in een dossier (`.timeline-frame` buiten `.page-canvas`)
+  krijgt de `+` niet in de hoek**: `.canvas-make` staat alleen op
+  `.page-canvas` vast. Daar staat *Gebeurtenis toevoegen* nog in de balk.
+- ~~**`.board-inspector-phone` in `app/globals.css` is dode CSS.** Sinds review
+  4 is de inspector van het prikbord op een telefoon een `CanvasPeek`
+  (`.board-peek`); niets rendert de oude klasse nog. Weg ermee als iemand in
+  dat bestand is.~~ **Gesloten in golf J (§105):** weg, met `-head` en
+  `-row`.
+- **De vier `boardEmpty*`-woorden zijn dood** (`boardEmptyRead`, `-Find`,
+  `-Make`, `-String`): `CanvasEmpty` leest ze niet meer, maar ze staan nog in
+  `lib/words.ts` omdat `tests/unit/ronde-51-canvas.test.ts` ze navraagt. Weg
+  met beide als iemand in die test is.
+- **`E2E_DEV=1` is maar half gedraaid** (zie §1): `round-37-map`,
+  `round-37-pinch` en `round-37-timeline` wachten nog op een run onder Strict
+  Mode op een rustige machine.
+- **Bewust niet gedaan op de vlakken** (review 4): labels van twee regels en
+  ruitclusters op de tijdlijn (nieuwe baangeometrie, een eigen ronde), een
+  plaatser voor botsende kaartlabels, en M3 op een kaart waarvan de spelden de
+  hele breedte beslaan (Walcheren: daar is de fit al "op de spelden").
+- **De handelingstelling van de vlakken veranderde niet**: de winst van i1 is
+  ruimte en bereik, geen tik minder. De kortste routes van de meting vragen
+  een vlak dat in Lezen al iets maakt, en dat is §73.
+- **De welkomsttekst zegt op een computer nog *maak met de + een nieuw
+  artikel*** (`defaultIntro` in `lib/intro.ts`), terwijl daar geen `+` is. Het
+  is de tekst van de Keeper (Beheer → Site), niet van deze golf; een Keeper
+  die hem al herschreef, ziet het niet. **Nagekeken in golf J:** de zin klopt
+  op beide maten. Op een computer draagt *Nieuw artikel* in de zijbalk het
+  teken +; ronde 51 (S10) koos voor de + en `ronde-51-schrijven.test.ts`
+  houdt dat vast. Niet veranderd.
+- **Op een telefoon deelt *Kopieer de link* op Start niet** via
+  `navigator.share`; dat zou één tik schelen. In Beheer → Gebruikers staat er
+  wel *Delen* naast.
+- **Een lege staat in een dossier in Lezen heeft geen deur**: de maakknoppen
+  staan alleen in Bewerken.
+- **De index kost op een telefoon één tik voor Gebruikers**, dat vroeger het
+  eerste scherm was (wachtwoord op de telefoon: 5 → 5,5 handelingen). Bewust:
+  de prullenbak, Soorten en Woorden werden daardoor goedkoper.
+- ~~**Een tab wisselen in Beheer gooit niet-bewaarde soort-bewerkingen weg**:
+  alleen het actieve paneel is gemount. De browser vraagt bij het verlaten van
+  de pagina (`beforeunload` in `TypeEditor`), maar niet bij een wissel binnen
+  Beheer.~~ **Gesloten in golf J (§107):** een paneel met iets niet-bewaards
+  blijft gemount, verborgen (`useNietBewaard`, `mountedPanes`), met een rood
+  puntje bij de naam.
+- ~~**`PageBlocksEditor` is alleen via CSS compacter gemaakt**
+  (`.soort-zij .admin-block`), niet herschreven. Zijn eigen chips voor *Kijk
+  in deze soorten* zijn nog de oude rij van negentien.~~ **Gesloten in golf J
+  (§107):** `SoortKiezer`, dezelfde kiezer als bij een koppelveld.
+- **De zin *Ook in:* kent alleen de gaten in `HOLE_WORD`.** Waar een component
+  een woord zonder gat in een zin zet, weet Woorden niet dat het daar staat.
+- ~~**Twee woorden in de soort-editor staan letterlijk in de code**, niet in
+  `lib/words.ts`: *Koppelingen* (`QUICK_LABEL`) en *Nog geen keuzes*
+  (`fieldSummary`), beide in `components/admin/TypeEditor.tsx`.~~ **Gesloten
+  in golf J (§107):** `soortSnelKoppelingen` en `soortNogGeenKeuzes`.
+- ~~**De docblock van `AdminTabs` is verouderd**, geen gedrag: hij zegt nog dat
+  een telefoon na een keuze de strook (`.schuifrij`) toont. Sinds review 4 is
+  dat alleen *‹ Beheer*.~~ **Gesloten in golf J.**
 
 *Golf H (na design-review 3) is gebouwd in drie worktrees op `gevoel`: h1 de
 schil, h2 de economie, h3 lezen en de wiki. Geen nieuw nummer, geen migratie;
@@ -2319,10 +2749,12 @@ uit round 62 de tabbalk die *Jij* op 390 px zou afknippen.
   hem weghaalt, doet dat in `app/(app)/e/[slug]/page.tsx` en `KeeperStamp` en
   past de specs aan. Op de Keeperkant staan er dus nog drie tekens voor één
   feit: de schakelaar, deze stempel en *Alleen voor de Keeper*.
-- **De rij Lezen/Bewerken en de zoombalk van een tekenvlak staan op de
+- ~~**De rij Lezen/Bewerken en de zoombalk van een tekenvlak staan op de
   telefoon nog op twee regels** (T18). Samen zijn ze breder dan 358 px, en ze
   wonen in de canvasbestanden (§69); dat is niet zonder risico te doen met
-  alleen CSS. Het glas houdt dus ±55 % van de hoogte.
+  alleen CSS. Het glas houdt dus ±55 % van de hoogte.~~ **Gesloten in golf I
+  (§105):** één regel werkbalk en een kop van twee; het glas is 73–76 % in
+  Lezen op 390×844.
 - **`/favicon.ico` en elk ander onbekend adres met een sessie renderen nu de
   schil** (de catch-all). Goedkoop, maar het is een render per verzoek; een
   `app/icon` of een bestand in `public/` neemt dat weg.
@@ -2330,7 +2762,10 @@ uit round 62 de tabbalk die *Jij* op 390 px zou afknippen.
   Onderzoekers, Bovennatuurlijke wezens en Abnormaliteiten, Geschriften en de
   wiki). Bewust niet gedaan: het is data van de seed, en de Keeper zet een
   icoon per soort in Beheer. Een test die dubbelen weigert, hoort bij een
-  seed-wijziging.
+  seed-wijziging. **Half gesloten in golf I (§107):** `iconClashes` rapporteert
+  de dubbelen (een unit-test, geen weigering), de soort-editor zegt het met
+  een zachte zin, en er zijn negen tekens bij. De seed is niet veranderd, dus
+  de vier paren staan er nog.
 - **`kamer-ingericht` in `app/kamer.css` is dode code.** De regel
   `kamer-ingericht-hoek` verderop in hetzelfde bestand overschrijft de
   `animation` van `.plek-ingericht`, dus de oude keyframes spelen nooit meer.
@@ -2381,8 +2816,10 @@ blok hieronder.*
   in `calc(var(--dur-5) * 5)` (2 s, een meter, geen reis). Regel 5 van
   `docs/beweging.md` (niets routineus boven 500 ms) wordt dus niet door de test
   bewaakt, alleen door lezen.
-- **De peek op de telefoon (`.canvas-peek`) beweegt op `max-height`**, tegen
-  regel 3 in. Hij staat als schuld in de uitzonderingen.
+- ~~**De peek op de telefoon (`.canvas-peek`) beweegt op `max-height`**, tegen
+  regel 3 in. Hij staat als schuld in de uitzonderingen.~~ **Gesloten in golf
+  I (§105):** een maatwissel is een FLIP op `transform`, en de uitzondering
+  `.canvas-peek 0.18s` is uit `EXCEPTIONS`.
 - **`summary::marker` van een `<details>` zonder eigen pijltje** (de legenda
   van het web) draait niet: een ingebouwd driehoekje kun je niet draaien.
 - **De strip van *Wie is er?* verandert van breedte met wie er is**
@@ -2432,15 +2869,20 @@ the stamboom's camera, and the FAB on `/admin` and `/winkel`.
   cure is not to pin a card that came from a handle and let the layout place it
   — which touches §66's "a stamboom stores only its pins", so it is a round of
   its own. It is also why the camera still has to move about 100 px there.
-- **`makeOnEmpty` (double-click on bare glass) has the same fault the maker
+- ~~**`makeOnEmpty` (double-click on bare glass) has the same fault the maker
   buttons had:** the gate asks on the first `pointerdown` and the double-click
   is gone. The glass *may* ask there (that is §90's design), so this is a
-  decision rather than a seam.
-- **The four canvases open in Bewerken on a desk and in Lezen on a phone**, and
+  decision rather than a seam.~~ **Closed in golf J (§105):** bare paper never
+  asks (`gatePress`); the double-click or long press asks itself in
+  `useMakeOnEmpty` (`ensureAuthor`) and then makes.
+- ~~**The four canvases open in Bewerken on a desk and in Lezen on a phone**, and
   the mode is not remembered. Named in the measurement as something to decide,
-  not a bug.
+  not a bug.~~ **Decided in golf J (§105): it stays.** With `gatePress`
+  reading costs nothing in Bewerken; see DECISIONS, golf J.
 - **The palet does not rank "Wie van wie" into the first five rows** for a
-  query that names a stamboom.
+  query that names a stamboom. *Addressed in golf J (§100, `palettePlan`):
+  another thing's name now stands above the artikelen when it is at least as
+  good a match. "Wie van wie" itself was not measured again.*
 
 **Round 62 (§101, with the naden) leaves these, all named on purpose.** It
 closed, from earlier blocks: round 51's `room.placed` in a private kamer and
@@ -2460,7 +2902,9 @@ text and the 60-character test. All are struck through below.
 - **Four specs still press `n` in a loop of their own** instead of
   `openNewEntry`: `sort-filter`, `article-faces`, `entry-live` and
   `access-rights`, plus `shots.visual.ts`. They pass; they are the same race
-  `openNewEntry` exists for.
+  `openNewEntry` exists for. *Half closed in golf J:* `sort-filter` and
+  `access-rights` use `openNewEntry` now; `article-faces`, `entry-live` and
+  `shots.visual.ts` still press `n`.
 - **`SectionsEditor` says "Opslaan is niet gelukt." in the code**
   (`components/entry/SectionsEditor.tsx`, a toast), not through
   `lib/words.ts`.

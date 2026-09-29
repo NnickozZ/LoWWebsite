@@ -10,6 +10,10 @@ import { MentionText } from '@/components/ui/MentionPopover';
 import { ShortChips } from '@/components/ui/ShortChips';
 import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
+import { getWords } from '@/lib/admin/words';
+import { fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { MaakDeur } from '@/components/eerste-keer/Deuren';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +23,7 @@ const SHOW = ['mine', 'restricted'] as const;
 
 export default async function BoardsPage({ searchParams }: { searchParams: Promise<ListParams> }) {
   const user = await requireViewer();
+  const words = getWords();
   const query = await searchParams;
   const sort = readOne(query, 'sort', SORTS, 'recent') as (typeof SORTS)[number];
   const where = readOne(query, 'where', WHERE, '') as '' | (typeof WHERE)[number];
@@ -43,35 +48,38 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
         <div className="spacer" />
         <NewBoardButton />
       </div>
-      <SortFilterBar
-        sorts={[
-          { value: 'recent', label: 'Laatst veranderd' },
-          { value: 'name', label: 'Op naam' },
-          { value: 'created', label: 'Nieuwste eerst' },
-          { value: 'size', label: 'Meeste kaarten' },
-        ]}
-        defaultSort="recent"
-        summary={`${boards.length} ${boards.length === 1 ? 'prikbord' : 'prikborden'}`}
-        groups={[
-          {
-            key: 'where',
-            label: 'Waar',
-            options: [
-              { value: 'loose', label: 'Los', icon: 'board' },
-              { value: 'case', label: 'Bij een dossier', icon: 'folder' },
-            ],
-          },
-          {
-            key: 'show',
-            label: 'Alleen',
-            multi: true,
-            options: [
-              { value: 'mine', label: 'Van mij', icon: 'you' },
-              { value: 'restricted', label: 'Privé of gekozen', icon: 'lock' },
-            ],
-          },
-        ]}
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(boards.length > 0 || filtering) && (
+        <SortFilterBar
+          sorts={[
+            { value: 'recent', label: 'Laatst veranderd' },
+            { value: 'name', label: 'Op naam' },
+            { value: 'created', label: 'Nieuwste eerst' },
+            { value: 'size', label: 'Meeste kaarten' },
+          ]}
+          defaultSort="recent"
+          summary={`${boards.length} ${boards.length === 1 ? 'prikbord' : 'prikborden'}`}
+          groups={[
+            {
+              key: 'where',
+              label: 'Waar',
+              options: [
+                { value: 'loose', label: 'Los', icon: 'board' },
+                { value: 'case', label: 'Bij een dossier', icon: 'folder' },
+              ],
+            },
+            {
+              key: 'show',
+              label: 'Alleen',
+              multi: true,
+              options: [
+                { value: 'mine', label: 'Van mij', icon: 'you' },
+                { value: 'restricted', label: 'Privé of gekozen', icon: 'lock' },
+              ],
+            },
+          ]}
+        />
+      )}
 
       {boards.length ? (
         <ShortChips map={shortChipsFor(user, boards.map((board) => board.description))}>
@@ -129,14 +137,23 @@ export default async function BoardsPage({ searchParams }: { searchParams: Promi
         </ul>
         </ShortChips>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>{filtering ? 'Geen prikbord voldoet hieraan.' : 'Nog geen prikborden.'}</p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            {filtering
-              ? 'Zet een filter uit om meer te zien.'
-              : 'Een prikbord is een kurkbord: prik er artikelen en notities op en span er rode draad tussen.'}
-          </p>
-        </div>
+        // §106: één familie van lege staten — status, één regel, één deur.
+        filtering ? (
+          <LegeStaat icon="filter" zin={words.emptyFilter} soort="filter">
+            <Link className="btn btn-small" href="/boards">
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon="board"
+            zin={fill(words.emptyBoards, { prikbord: words.board })}
+            uitleg={fill(words.emptyBoardsWhy, { artikelen: words.entryPlural })}
+            soort="prikborden"
+          >
+            <MaakDeur icon="board" label={fill(words.emptyBoardsGo, { prikbord: words.board })} />
+          </LegeStaat>
+        )
       )}
     </div>
   );

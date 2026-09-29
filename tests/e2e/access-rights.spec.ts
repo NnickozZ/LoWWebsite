@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, inviteCode, newBoard, signIn, expectBoxValue } from './helpers';
+import { becomeInvestigator, editArticle, inviteCode, newBoard, openNewEntry, signIn, expectBoxValue } from './helpers';
 
 /**
  * §17: who may look, and who may touch.
@@ -38,13 +38,9 @@ async function openRights(page: Page) {
 }
 
 async function newEntry(page: Page, name: string): Promise<string> {
-  const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
-  // The `n` shortcut needs the page hydrated; right after a navigation it may
-  // not be yet, so press again until the sheet answers.
-  for (let attempt = 0; attempt < 8 && !(await sheet.isVisible()); attempt++) {
-    await page.keyboard.press('n');
-    await page.waitForTimeout(400);
-  }
+  // §101 naden: the button, not `n`. Golf J (j3) puts the caret of a new
+  // speler on Start in *Wie ben jij aan tafel?*, where `n` is a letter.
+  const sheet = await openNewEntry(page);
   await sheet.getByLabel('Naam', { exact: true }).fill(name);
   await sheet.getByRole('button', { name: 'Aanmaken' }).click();
   await page.waitForURL('**/e/**');

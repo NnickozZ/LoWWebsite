@@ -69,14 +69,18 @@ test('§73: op een telefoon opent de stamboom in Lezen, en Bewerken zet de geree
   await expect(modeRadio(page, 'Bewerken')).toHaveAttribute('aria-checked', 'false');
   // Absent, not hidden: Lezen has no toolbar that makes anything.
   await expect(page.getByTestId('tree-add-loose')).toHaveCount(0);
-  // §90: undo stays, grey — on all four canvases the same (it used to go with the group).
-  await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeDisabled();
+  // §90 said: undo stays, grey. §105 (golf i1): on a phone Lezen is quiet —
+  // the undo is Bewerken's, beside the `+` under the thumb. Still in the DOM,
+  // still disabled, only not on the glass.
+  await expect(page.getByRole('button', { name: 'Ongedaan maken', includeHidden: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeHidden();
   // And the heading is text, not a box a thumb can land in.
   await expect(page.locator('#tree-name')).toHaveCount(0);
   await expect(page.getByTestId('family-tree-title')).toContainText(name);
-  // The empty stage does not advertise a gesture Lezen will not answer.
-  await expect(page.locator('.tree-empty')).toContainText('Kies Bewerken');
+  // The empty stage does not advertise a gesture Lezen will not answer: its
+  // one verb (§105) puts the tree in Bewerken.
+  await expect(page.locator('.tree-empty')).toContainText('Nog niemand in deze stamboom');
+  await expect(page.locator('.tree-empty').getByRole('button', { name: 'Beginnen' })).toBeVisible();
 
   await editCanvas(page);
   await expect(modeRadio(page, 'Bewerken')).toHaveAttribute('aria-checked', 'true');

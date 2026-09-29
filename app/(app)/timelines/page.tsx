@@ -12,7 +12,9 @@ import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
 import { listTimelines } from '@/lib/timelines/service';
 import { SCALE_LABELS } from '@/lib/timelines/time';
-import { capitalise } from '@/lib/words';
+import { capitalise, fill } from '@/lib/words';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { MaakDeur } from '@/components/eerste-keer/Deuren';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,34 +65,37 @@ export default async function TimelinesPage({ searchParams }: { searchParams: Pr
         </p>
       )}
 
-      <SortFilterBar
-        sorts={[
-          { value: 'recent', label: 'Laatst veranderd' },
-          { value: 'name', label: 'Op naam' },
-          { value: 'created', label: 'Nieuwste eerst' },
-          { value: 'size', label: `Meeste ${words.eventPlural}` },
-        ]}
-        defaultSort="recent"
-        summary={`${timelines.length} ${timelines.length === 1 ? words.timeline : words.timelinePlural}`}
-        groups={[
-          {
-            key: 'where',
-            label: 'Waar',
-            options: [
-              { value: 'loose', label: 'Los', icon: 'timeline' },
-              { value: 'case', label: `Bij een ${words.case}`, icon: 'folder' },
-            ],
-          },
-          {
-            key: 'show',
-            label: 'Alleen',
-            options: [
-              { value: 'mine', label: 'Van mij', icon: 'you' },
-              { value: 'restricted', label: 'Privé of gekozen personen', icon: 'lock' },
-            ],
-          },
-        ]}
-      />
+      {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}
+      {(timelines.length > 0 || filtering) && (
+        <SortFilterBar
+          sorts={[
+            { value: 'recent', label: 'Laatst veranderd' },
+            { value: 'name', label: 'Op naam' },
+            { value: 'created', label: 'Nieuwste eerst' },
+            { value: 'size', label: `Meeste ${words.eventPlural}` },
+          ]}
+          defaultSort="recent"
+          summary={`${timelines.length} ${timelines.length === 1 ? words.timeline : words.timelinePlural}`}
+          groups={[
+            {
+              key: 'where',
+              label: 'Waar',
+              options: [
+                { value: 'loose', label: 'Los', icon: 'timeline' },
+                { value: 'case', label: `Bij een ${words.case}`, icon: 'folder' },
+              ],
+            },
+            {
+              key: 'show',
+              label: 'Alleen',
+              options: [
+                { value: 'mine', label: 'Van mij', icon: 'you' },
+                { value: 'restricted', label: 'Privé of gekozen personen', icon: 'lock' },
+              ],
+            },
+          ]}
+        />
+      )}
 
       {timelines.length ? (
         // §98: the omschrijvingen's chips, for this reader, with the page.
@@ -128,15 +133,23 @@ export default async function TimelinesPage({ searchParams }: { searchParams: Pr
         </ul>
         </ShortChips>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>
-            {filtering ? `Geen ${words.timeline} die hieraan voldoet.` : `Er is nog geen ${words.timeline}.`}
-          </p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Een {words.timeline} is een as in jaren, dagen of minuten, met {words.eventPlural} erop: {words.entryPlural} uit het
-            archief, of losse aantekeningen die alleen daar bestaan.
-          </p>
-        </div>
+        // §106: één familie van lege staten — status, één regel, één deur.
+        filtering ? (
+          <LegeStaat icon="filter" zin={words.emptyFilter} soort="filter">
+            <Link className="btn btn-small" href="/timelines">
+              {words.emptyFilterClear}
+            </Link>
+          </LegeStaat>
+        ) : (
+          <LegeStaat
+            icon="timeline"
+            zin={fill(words.emptyTimelines, { tijdlijn: words.timeline })}
+            uitleg={words.emptyTimelinesWhy}
+            soort="tijdlijnen"
+          >
+            <MaakDeur icon="timeline" label={fill(words.emptyTimelinesGo, { tijdlijn: words.timeline })} />
+          </LegeStaat>
+        )
       )}
     </div>
   );

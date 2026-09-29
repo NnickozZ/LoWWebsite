@@ -5,6 +5,8 @@ import { useIsPhone } from '@/components/useIsPhone';
 import { Icon } from '@/components/Icon';
 import { BORDER_OPTIONS } from '@/components/borders';
 import { useUi } from '@/components/ui/UiProvider';
+import { CanvasPeek } from '@/components/canvas/CanvasPeek';
+import { AUTHOR_GATE_OFF } from '@/lib/canvas/authorGate';
 import { capitalise } from '@/lib/words';
 import {
   CARD_SCALE_PRESETS,
@@ -38,9 +40,10 @@ import {
  * een kruisje om de keuze los te laten (een telefoon heeft geen Escape) en
  * raakdoelen van 44 px (§69 6.1).
  *
- * Hoe hoog hij mag worden is geen smaak maar een gemeten grens — twee specs
- * trekken er elk de andere kant op aan. Zie `.board-inspector-row` in
- * `app/globals.css`.
+ * Sinds §105 is hij op een telefoon een `CanvasPeek` (hieronder); de gedokte
+ * balk en zijn `.board-inspector-row` zijn weg (golf J). Op een computer is
+ * hij een strook onderaan de kurk: de naam op een eigen regel, de knoppen
+ * eronder (`app/vlakken.css`, golf j1).
  *
  * Eén omhulsel voor alle drie de gedaanten (een draad, een punaise, kaarten),
  * want anders zou elke gedaante het zelf moeten weten — en dan weet er vroeg of
@@ -63,23 +66,22 @@ function InspectorShell({
       </div>
     );
   }
+  /*
+   * §105 (review 4, H1): on a phone the inspector is a `CanvasPeek`, the same
+   * drawer the landkaart, the tijdlijn and the web open — with its grip, its
+   * skirt, `--peek-now` (so the `+` climbs over it) and its way out. It was a
+   * flat bar of its own under the `+`, with the swatches cut in half by a row
+   * three rem high. Small, it shows the first line (what is chosen, and the
+   * way to open it); grown, everything, wrapped rather than scrolled. The
+   * group inside keeps `.board-inspector`, which the stage's pointer
+   * allowlist and the specs look for.
+   */
   return (
-    <div className="board-inspector board-inspector-phone" role="group" aria-label={label}>
-      <div className="board-inspector-head">
-        <span className="board-inspector-title">{label}</span>
-        <span className="spacer" />
-        <button
-          type="button"
-          className="btn btn-small btn-ghost"
-          aria-label="Selectie loslaten"
-          title="Selectie loslaten"
-          onClick={onClose}
-        >
-          <Icon name="close" size={16} />
-        </button>
+    <CanvasPeek label={label} onClose={onClose} closeLabel="Selectie loslaten" className="board-peek">
+      <div className="board-inspector board-inspector-in-peek" role="group" aria-label={label}>
+        {children}
       </div>
-      <div className="board-inspector-row">{children}</div>
-    </div>
+    </CanvasPeek>
   );
 }
 
@@ -355,6 +357,7 @@ export function BoardInspector({
           className="btn btn-small btn-ghost"
           onClick={onClose}
           aria-label="Selectie opheffen"
+          {...AUTHOR_GATE_OFF}
         >
           <Icon name="close" size={16} />
         </button>
@@ -415,6 +418,7 @@ export function BoardInspector({
           className="btn btn-small btn-ghost"
           onClick={onClose}
           aria-label="Selectie opheffen"
+          {...AUTHOR_GATE_OFF}
         >
           <Icon name="close" size={16} />
         </button>
@@ -435,7 +439,8 @@ export function BoardInspector({
 
       {/* Round 19: no "Bijsnijden" here — a card draws the artikel's own crops. */}
       {openLabel && (
-        <button type="button" className="btn btn-small" onClick={onOpenEntry}>
+        /* §105 (golf J): opening is reading — it never asks who writes. */
+        <button type="button" className="btn btn-small" onClick={onOpenEntry} {...AUTHOR_GATE_OFF}>
           <Icon name="chevron" size={15} />
           {openLabel}
         </button>
@@ -505,6 +510,7 @@ export function BoardInspector({
         className="btn btn-small btn-ghost"
         onClick={onClose}
         aria-label="Selectie opheffen"
+        {...AUTHOR_GATE_OFF}
       >
         <Icon name="close" size={16} />
       </button>

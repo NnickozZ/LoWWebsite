@@ -18,15 +18,17 @@ import dynamic from 'next/dynamic';
 import { LiveField, LiveFields, ShortField } from '@/components/live/LiveFields';
 import { RichEditor } from '@/components/editor/RichEditor';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
-import { useIsPhone } from '@/components/useIsPhone';
+import { usePhoneKnown } from '@/components/useIsPhone';
 import { useSchuifrij } from '@/components/useSchuifrij';
 import { isEmptyDoc } from '@/lib/entries/doc';
 
 /** §20: client-only, so the server never holds a second copy of Yjs. */
 const LiveBody = dynamic(() => import('@/components/editor/LiveBody').then((m) => m.LiveBody), {
   ssr: false,
-  loading: () => <div className="editor-body" aria-busy="true" />,
+  // §104, golf J (j4): in Lezen the notes as the server drew them (`VoorafTekst`).
+  loading: () => <VoorafPlek />,
 });
+import { Vooraf, VoorafPlek, VoorafTekst } from '@/components/editor/VoorafTekst';
 import { MentionText } from '@/components/ui/MentionPopover';
 import { useIAmTheCase, useUi } from '@/components/ui/UiProvider';
 import { useMayType } from '@/components/you/AuthorProvider';
@@ -37,6 +39,8 @@ import type { CaseActivityItem, CaseEntry, CaseStatus } from '@/lib/cases/servic
 import type { CoverCrops } from '@/lib/images/shapes';
 import { PreferredCases } from '@/components/entry/PreferredCases';
 import { CaseAddSearch } from './CaseAddSearch';
+import { LegeStaat } from '@/components/ui/LegeStaat';
+import { ArtikelDeur } from '@/components/eerste-keer/Deuren';
 import { CaseTabsButton, type CaseTabSoort } from './CaseTabsButton';
 import { CaseEntryCard } from './CaseEntryCard';
 // §70: a dossier carries secties under its notities, the same component an
@@ -189,7 +193,15 @@ export function CaseDossier({
 }) {
   const ui = useUi();
   const router = useRouter();
-  const isPhone = useIsPhone();
+  /*
+   * §104, golf J (j4): `null` until hydration. The server cannot know the
+   * width and used to draw the computer's tabs, eight rows of them on a
+   * phone, with the stacked page arriving on hydration 580 px higher. While
+   * it is `null` the tabs' page is drawn with the phone's chip row and the
+   * first section's heading beside it, and `@media` picks (`.case-vroeg`).
+   */
+  const phone = usePhoneKnown();
+  const isPhone = phone === true;
 
   const [name, setName] = useState(data.name);
   const [summary, setSummary] = useState(data.summary);
@@ -376,25 +388,29 @@ export function CaseDossier({
           <span className="label row" style={{ gap: '0.6rem' }}>
             {ui.words.caseNotes}
           </span>
-          {liveNotes ? (
-            <LiveBody
-              room={liveNotes.room}
-              state={liveNotes.state}
-              user={liveNotes.user}
-              canEdit={liveNotes.canEdit && !readOnly}
-              /* §22: harder than `canEdit` — the room may say yes, the reader said no. */
-              readOnly={reading}
-              placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
-              onStatus={setNotesLive}
-            />
-          ) : (
-            <RichEditor
-              initialDoc={data.notes}
-              editable={!locked}
-              placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
-              onChange={(doc) => !locked && set({ notes: doc })}
-            />
-          )}
+          {/* §104, golf J (j4): reading, the notes are in the first paint; the editor replaces them at the same height. */}
+          <Vooraf.Provider value={reading ? <VoorafTekst doc={data.notes} /> : null}>
+            {liveNotes ? (
+              <LiveBody
+                room={liveNotes.room}
+                state={liveNotes.state}
+                user={liveNotes.user}
+                canEdit={liveNotes.canEdit && !readOnly}
+                /* §22: harder than `canEdit` — the room may say yes, the reader said no. */
+                readOnly={reading}
+                placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
+                onStatus={setNotesLive}
+              />
+            ) : (
+              <RichEditor
+                initialDoc={data.notes}
+                editable={!locked}
+                placeholder={`Wat is de werktheorie? Typ @ of [[ om een ${ui.words.entry} te koppelen.`}
+                onChange={(doc) => !locked && set({ notes: doc })}
+                vooraf={reading ? <VoorafTekst doc={data.notes} /> : null}
+              />
+            )}
+          </Vooraf.Provider>
         </div>
       </div>
       )}
@@ -474,13 +490,25 @@ export function CaseDossier({
           ))}
         </div>
       ) : (
-        <div className="empty">
-          {/* §30: a shelf that is here because this dossier was told it should
-              be says so, rather than looking like an accident. */}
-          {group.pinned
-            ? `Nog geen ${group.label.toLowerCase()} in dit dossier.`
-            : 'Hier is nog niets toegevoegd.'}
-        </div>
+        // §106: de lege staat van een plank. §30: een plank die hier staat omdat
+        // het dossier het zo wil, zegt dat — met de soort in de zin.
+        <LegeStaat
+          icon={group.pinned ? 'layers' : 'folder'}
+          zin={
+            group.pinned
+              ? fill(ui.words.emptyShelf, { soort: group.label.toLowerCase(), dossier: ui.words.case })
+              : fill(ui.words.emptyShelfAny, { dossier: ui.words.case })
+          }
+          soort="plank"
+        >
+          {locked ? null : (
+            <ArtikelDeur
+              caseId={data.id}
+              typeSlug={group.typeSlugs.length === 1 ? group.typeSlugs[0] : undefined}
+              label={ui.words.emptyShelfGo}
+            />
+          )}
+        </LegeStaat>
       )}
     </div>
   );
@@ -564,12 +592,13 @@ export function CaseDossier({
           ))}
         </ul>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>Nog geen prikbord.</p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Op een kurkbord zie je het snelst hoe deze stukken bij elkaar passen.
-          </p>
-        </div>
+        // §106: de maakknop staat er vlak boven; de lege staat wijst ernaar.
+        <LegeStaat
+          icon="board"
+          zin={fill(ui.words.emptyCaseBoards, { prikbord: ui.words.board, dossier: ui.words.case })}
+          uitleg={locked ? undefined : ui.words.emptyAboveButton}
+          soort="prikbord"
+        />
       )}
     </div>
   );
@@ -600,12 +629,13 @@ export function CaseDossier({
           ))}
         </ul>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>Nog geen tijdlijn.</p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Op een tijdlijn zie je in welke volgorde dit allemaal gebeurd is — en wat er tussen zit.
-          </p>
-        </div>
+        // §106: de maakknop staat er vlak boven; de lege staat wijst ernaar.
+        <LegeStaat
+          icon="timeline"
+          zin={fill(ui.words.emptyCaseTimelines, { tijdlijn: ui.words.timeline, dossier: ui.words.case })}
+          uitleg={locked ? undefined : ui.words.emptyAboveButton}
+          soort="tijdlijn"
+        />
       )}
     </div>
   );
@@ -694,13 +724,13 @@ export function CaseDossier({
           ))}
         </ul>
       ) : (
-        <div className="empty">
-          <p style={{ margin: 0 }}>Nog geen stamboom.</p>
-          <p className="small" style={{ margin: '0.4rem 0 0' }}>
-            Wie familie van wie is staat op de {ui.words.entryPlural} zelf. Een stamboom tekent wat daar staat — en
-            houdt losse kaartjes bij voor wie nog geen {ui.words.entry} heeft.
-          </p>
-        </div>
+        // §106: de maakknop staat er vlak boven; de lege staat wijst ernaar.
+        <LegeStaat
+          icon="tree"
+          zin={fill(ui.words.emptyCaseTrees, { stamboom: ui.words.familyTree, dossier: ui.words.case })}
+          uitleg={locked ? undefined : ui.words.emptyAboveButton}
+          soort="stamboom"
+        />
       )}
     </div>
   );
@@ -1047,9 +1077,23 @@ export function CaseDossier({
     );
   }
 
+  const vroeg = phone === null;
+  const activeItem = tabs.find((item) => item.key === activeTab);
   return inRoom(
-    <div className="page-wide">
+    <div className={`page-wide${vroeg ? ' case-vroeg' : ''}`}>
       {header}
+
+      {/* Golf J (j4): before hydration, the phone's chip row too — `display: none` from 768 px. */}
+      {vroeg && (
+        <div className="jump-menu schuifrij case-vroeg-smal" aria-hidden="true">
+          {tabs.map((item) => (
+            <span key={item.key} className="chip chip-selectable">
+              <Icon name={item.icon} size={13} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div
         // Round 36: the row wraps. Nick chose wrapping over a menu and over
@@ -1075,7 +1119,14 @@ export function CaseDossier({
         ))}
       </div>
 
-      <div role="tabpanel" style={{ paddingTop: '1.1rem' }}>
+      <div role="tabpanel" className={vroeg ? 'case-vroeg-paneel' : undefined} style={vroeg ? undefined : { paddingTop: '1.1rem' }}>
+        {/* Golf J (j4): the phone's heading over the section, before hydration — `display: none` from 768 px. */}
+        {vroeg && activeItem && (
+          <p className="sticky-section-head case-vroeg-smal" aria-hidden="true">
+            <Icon name={activeItem.icon} size={16} />
+            {activeItem.label}
+          </p>
+        )}
         {sectionFor(activeTab)}
       </div>
     </div>,

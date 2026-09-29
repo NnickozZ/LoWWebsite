@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, newBoard, newCaseBoard, newEntryButton, openEmptyFields, signIn, openEntryWaar } from './helpers';
+import { editArticle, newBoard, newCaseBoard, pressNewEntry, openEmptyFields, signIn, openEntryWaar } from './helpers';
 
 /**
  * §23: Nick's round of 5 September, evening.
@@ -54,7 +54,15 @@ test('a card pinned from the artikel still asks about the dossier', async ({ pag
   await page.getByRole('button', { name: 'Op prikbord prikken' }).click();
   const sheet = page.getByRole('dialog').first();
   await sheet.getByPlaceholder('Zoek een prikbord…').fill(boardName);
-  await page.locator('.suggest-item').filter({ hasText: boardName }).first().click();
+  // §6: the create row (*Nieuw prikbord 'Muur …'*) stands before the list of
+  // walls has arrived, and carries the typed name too; clicking it made a new
+  // wall outside the dossier, which asks nothing (golf J, j5).
+  await page
+    .locator('.suggest-item')
+    .filter({ hasText: boardName })
+    .filter({ hasNotText: 'Nieuw prikbord' })
+    .first()
+    .click();
 
   // The question the wall has always asked, now asked from here too.
   const ask = page.getByRole('dialog', { name: /Pier Boone zit nog niet in/ });
@@ -134,8 +142,8 @@ test('the bin has a bottom, and it asks for the name first', async ({ page }, in
   await page.getByRole('button', { name: 'Voorgoed wissen' }).click();
   await expect(page.locator('li').filter({ hasText: caseName })).toHaveCount(0);
 
-  await page.reload();
-  await page.getByRole('tab', { name: /Prullenbak/ }).click();
+  // §107 (review 4): op een telefoon staat er na een keuze geen strook meer; het adres kiest.
+  await page.goto('/admin?tab=trash');
   await expect(page.locator('li').filter({ hasText: caseName })).toHaveCount(0);
   // And it is not back among the dossiers either.
   await page.goto('/cases');
@@ -185,7 +193,7 @@ test('"Betrokken dossiers" links to a real dossier', async ({ page }, info) => {
 
   // The seeded "Sessierapporten" soort is the one carrying a dossier field.
   await page.goto('/wiki');
-  await newEntryButton(page).click();
+  await pressNewEntry(page);
   const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
   await sheet.getByRole('radio', { name: 'Sessierapporten' }).click();
   await sheet.getByLabel('Naam', { exact: true }).fill(entryName);

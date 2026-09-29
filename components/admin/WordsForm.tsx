@@ -15,6 +15,9 @@ import {
   type Words,
 } from '@/lib/words';
 import { saveWordsAction, type AdminState } from '@/app/(app)/admin/actions';
+import { droppedHoles, wordContext, zonderParagraaf } from '@/lib/beheer';
+import { useReportSave } from '@/components/live/saveRegister';
+import { useNietBewaard } from '@/components/admin/NietBewaard';
 
 /**
  * §11's Woorden pane.
@@ -59,6 +62,19 @@ export function WordsForm({ overrides }: { overrides: Words }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const posted = useRef<Words>(overrides);
+  const formRef = useRef<HTMLFormElement>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * §107: op een computer staat de caret meteen in het zoekvak — wie Woorden
+   * opent, komt een woord zoeken. Niet op een telefoon: daar zou het
+   * toetsenbord de lijst meteen half bedekken.
+   */
+  useEffect(() => {
+    if (window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) {
+      filterRef.current?.focus({ preventScroll: true });
+    }
+  }, []);
 
   // What the last successful save stored is the new baseline for "niet opgeslagen".
   useEffect(() => {
@@ -75,6 +91,11 @@ export function WordsForm({ overrides }: { overrides: Words }) {
   };
   const dirty = WORD_DEFS.filter((def) => effective(values, def.key) !== effective(saved, def.key)).length;
 
+  // Review 4, M11 / §100: het opslaan-woord staat in de schil, zoals bij een soort.
+  useReportSave(busy ? 'saving' : state.error ? 'error' : state.ok && !dirty ? 'saved' : 'idle', state.error ?? null);
+  // §107, golf J: Beheer houdt Woorden gemount zolang hier iets niet bewaard is.
+  useNietBewaard(dirty);
+
   const needle = normalise(filter);
   const matches = (def: WordDef, group: WordGroup) =>
     !needle ||
@@ -85,6 +106,7 @@ export function WordsForm({ overrides }: { overrides: Words }) {
 
   return (
     <form
+      ref={formRef}
       action={action}
       className="stack admin-words"
       onSubmit={() => {
@@ -104,13 +126,26 @@ export function WordsForm({ overrides }: { overrides: Words }) {
         placeholder={ui.words.wordsFilter}
         aria-label={ui.words.wordsFilter}
         data-testid="words-filter"
+        ref={filterRef}
         onChange={(event) => setFilter(event.target.value)}
-        // Enter in the filter must not post the whole list.
+        // Enter in the filter must not post the whole list. §107: it jumps to
+        // the first word that matches instead, with the caret at its end.
         onKeyDown={(event) => {
-          if (event.key === 'Enter') event.preventDefault();
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          const first = [
+            ...(formRef.current?.querySelectorAll<HTMLInputElement>('input[name^="word:"]') ?? []),
+          ].find((box) => !box.closest('[hidden]'));
+          if (!first) return;
+          first.focus();
+          first.setSelectionRange(first.value.length, first.value.length);
         }}
+        aria-describedby="words-filter-hint"
         autoComplete="off"
       />
+      <p className="tiny muted admin-words-hint" id="words-filter-hint">
+        {ui.words.woordFilterHint}
+      </p>
 
       {WORD_GROUPS.map((group) => {
         const groupChanged = group.words.filter((def) => effective(values, def.key)).length;
@@ -152,7 +187,7 @@ export function WordsForm({ overrides }: { overrides: Words }) {
             <div id={bodyId} hidden={!isOpen}>
               {group.note && (
                 <p className="tiny muted" style={{ margin: '0.2rem 0 0.5rem' }}>
-                  {group.note}
+                  {zonderParagraaf(group.note)}
                 </p>
               )}
 
@@ -166,9 +201,10 @@ export function WordsForm({ overrides }: { overrides: Words }) {
                         <label className="label" htmlFor={`word-${def.key}`}>
                           {def.what}
                         </label>
-                        {def.hint && (
+                        {/* Review 4, L2: geen §-nummers in wat de Keeper leest. */}
+                        {def.hint && zonderParagraaf(def.hint) && (
                           <span className="tiny muted" style={{ display: 'block' }}>
-                            {def.hint}
+                            {zonderParagraaf(def.hint)}
                           </span>
                         )}
                       </span>
@@ -195,6 +231,7 @@ export function WordsForm({ overrides }: { overrides: Words }) {
                       >
                         <Icon name="close" size={13} />
                       </button>
+                      {isChanged && <WordInContext def={def} values={values} />}
                     </li>
                   );
                 })}
@@ -206,21 +243,73 @@ export function WordsForm({ overrides }: { overrides: Words }) {
 
       {needle && shown === 0 && <p className="small muted">{ui.words.wordsNoMatch}</p>}
 
-      <div className="admin-sticky-foot" data-testid="words-foot">
-        <span className="tiny muted" aria-live="polite">
-          {dirty > 0 && (
-            <strong className="admin-words-dirty">{fill(ui.words.wordsDirty, { n: String(dirty) })} · </strong>
+      {/*
+        Review 4, M11: dezelfde voet als die van een soort — de telling links
+        (rood als er iets openstaat), Opslaan rechts. *Opgeslagen* zegt de
+        schil (§100, `useReportSave` hierboven), niet de voet.
+      */}
+      <div className="admin-sticky-foot beheer-voet" data-testid="words-foot">
+        <span className="small beheer-voet-telling" aria-live="polite">
+          {dirty > 0 ? (
+            <strong>{fill(ui.words.wordsDirty, { n: String(dirty) })}</strong>
+          ) : (
+            <span className="muted">{ui.words.soortSchoon}</span>
           )}
-          {changed
-            ? `${changed} ${changed === 1 ? 'woord wijkt' : 'woorden wijken'} af van de standaard.`
-            : 'Alles staat op de standaardwoorden.'}
+          <span className="muted">
+            {' · '}
+            {changed
+              ? `${changed} ${changed === 1 ? 'woord wijkt' : 'woorden wijken'} af van de standaard`
+              : 'alles staat op de standaardwoorden'}
+          </span>
           {state.error && <>{' '}<span className="error-note">{state.error}</span></>}
-          {state.ok && !dirty && <>{' '}<span>{state.ok}</span></>}
         </span>
         <button className="btn btn-primary btn-small" type="submit" disabled={busy}>
           {busy ? 'Opslaan…' : 'Opslaan'}
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * §107: een veranderd woord in zijn context — *waar het staat*.
+ *
+ * Een zin laat zich lezen zoals een speler hem straks ziet, met een voorbeeld
+ * in elk gat. Een woord dat in andere zinnen een gat vult (*artikel*,
+ * *dossier*, *Keeper*), laat een paar van die zinnen zien met het nieuwe
+ * woord erin. En een gat dat uit een zin verdwijnt, krijgt één zachte regel:
+ * dat mag (§84), maar dan staat daar niets meer.
+ */
+function WordInContext({ def, values }: { def: WordDef; values: Words }) {
+  const ui = useUi();
+  const context = wordContext(def.key, values);
+  const dropped = droppedHoles(def.fallback, values[def.key] ?? '');
+  if (!context.preview && !context.elsewhere.length && !dropped.length) return null;
+  return (
+    <p className="woord-context" data-testid="woord-context">
+      {context.preview && (
+        <>
+          {ui.words.woordZoLeest} <q>{context.preview}</q>
+        </>
+      )}
+      {!context.preview && context.elsewhere.length > 0 && (
+        <>
+          {ui.words.woordOokIn}{' '}
+          {context.elsewhere.map((sentence, index) => (
+            <span key={index}>
+              {index > 0 && ' · '}
+              <q>{sentence}</q>
+            </span>
+          ))}
+          {context.total > context.elsewhere.length &&
+            ` ${fill(ui.words.woordEnMeer, { n: String(context.total - context.elsewhere.length) })}`}
+        </>
+      )}
+      {dropped.map((hole) => (
+        <span key={hole} className="woord-context-weg">
+          {fill(ui.words.woordGatWeg, { gat: `{${hole}}` })}
+        </span>
+      ))}
+    </p>
   );
 }

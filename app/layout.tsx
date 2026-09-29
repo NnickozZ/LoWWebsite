@@ -8,6 +8,10 @@ import './navigatie.css';
 import './kaartje.css';
 import './moment.css';
 import './leeskamer.css';
+// Golf i: vlakken.css (i1), eerste-keer.css (i2), beheer.css (i3), in die volgorde.
+import './vlakken.css';
+import './eerste-keer.css';
+import './beheer.css';
 
 /**
  * §88: de naam in de tab is de naam van het archief.

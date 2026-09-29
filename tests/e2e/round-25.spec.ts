@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, editCase, fillWhenReady, newEntryButton, signIn } from './helpers';
+import { editArticle, editCase, fillWhenReady, pressNewEntry, signIn } from './helpers';
 
 /**
  * Round 25, §48 — three things that were missing, in a browser.
@@ -103,7 +103,7 @@ test.describe('§48 @ in een beschrijving', () => {
     await signIn(page, ...KEEPER);
     await page.goto('/api/keeper/flip?side=player&to=/wiki');
 
-    await newEntryButton(page).click();
+    await pressNewEntry(page);
     const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
     await fillWhenReady(sheet.getByLabel('Naam', { exact: true }), `De duiker ${stamp}`);
     await sheet.getByRole('button', { name: 'Aanmaken' }).click();
@@ -150,7 +150,7 @@ test.describe('§48 in een dossier', () => {
      * §48: the `+` in the menu knows it is in a dossier. Until round 25 it
      * never did — the only road was the box under the tabs.
      */
-    await newEntryButton(page).click();
+    await pressNewEntry(page);
     const sheet = page.getByRole('dialog', { name: 'Nieuw artikel' });
     await expect(sheet.getByRole('radio', { name: 'Voorwerpen', exact: true })).toBeVisible({
       timeout: 20_000,

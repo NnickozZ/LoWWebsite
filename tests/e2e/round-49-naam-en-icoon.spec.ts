@@ -82,8 +82,15 @@ test('een icoontje uit Beheer komt in de kop van elke pagina', async ({ page }, 
 
   // Weghalen zet de tab terug op het logo, of op niets als er geen logo is.
   await page.goto('/admin?tab=site');
+  // The button empties the preview at once and sends the server action after
+  // it; a `goto` in the same beat can overtake that request (seen in the full
+  // run after golf J). Wait for the action's answer, as a person's next click would.
+  const removed = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && Boolean(r.request().headers()['next-action']),
+  );
   await page.getByTestId('site-favicon').getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page.getByTestId('site-favicon-beeld')).toHaveCount(0);
+  await removed;
   await page.goto('/');
   await expect(page.locator(`link[rel="icon"][href*="${assetId}"]`)).toHaveCount(0);
 });
