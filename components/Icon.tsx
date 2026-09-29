@@ -8,6 +8,8 @@ const PATHS: Record<string, string> = {
   // §43: a web — three knots and the lines between them.
   web: 'M12 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM19 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM12 5l-7 11M12 5l7 11M7 18h10',
   minus: 'M5 12h14',
+  // Golf L: meer — drie puntjes, voor een menu dat uitklapt.
+  more: 'M5.5 13.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8ZM12 13.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8ZM18.5 13.4a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Z',
   /*
    * §84: vijf vormen die er niet waren, en daarom vier betekenissen deelden.
    *
@@ -20,8 +22,10 @@ const PATHS: Record<string, string> = {
   coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z',
   shop: 'M3 9.5h18L19.5 21h-15zM3 9.5 5 3.5h14l2 6M9.5 21v-6h5v6',
   gift: 'M3.5 11.5h17V21h-17zM2.5 7.5h19v4h-19zM12 7.5V21M12 7.5C10.5 3.5 6 3.9 6 6.1c0 1.2 1.8 1.7 6 1.4M12 7.5c1.5-4 6-3.6 6-1.4 0 1.2-1.8 1.7-6 1.4',
-  shelf: 'M3 14.5h18M5.5 14.5V18M18.5 14.5V18M7.5 14.5V9.5h3v5M13 14.5v-7h3.2v7',
-  desk: 'M2.5 10.5h19v2h-19zM4.5 12.5V21M19.5 12.5V21M8 16h7.5M8 16v3.5h7.5V16',
+  // Golf L: een boekenplank met drie ruggen, geen staafgrafiek meer.
+  shelf: 'M3 6.5h18M3 17.5h18M4.5 17.5V21M19.5 17.5V21M4.5 6.5V3M19.5 6.5V3M6.5 17.5v-7h2.5v7M9 17.5v-8.5h2.5v8.5M13.5 17.5l1.8-6.8 2.4.6-1.6 6.2',
+  // Golf L: een schrijftafel met een la en een inktpot met een pen erin.
+  desk: 'M2.5 10h19M4 10v10.5M20 10v10.5M12.5 10v5h7.5M15.5 12.5h1.5M6 10V7.5h4V10M7 7.5 8.5 4.5',
   /*
    * §103 herstel (ronde 66, #22): de muur en de kist hadden de vorm van een
    * soort — `pin` is ook *Locaties*, `box` ook *Voorwerpen*. Twee eigen vormen:
@@ -44,12 +48,14 @@ const PATHS: Record<string, string> = {
     'M2 12s3.8-6 10-6c1.7 0 3.2.4 4.5 1.1M22 12s-3.8 6-10 6c-1.7 0-3.2-.4-4.5-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18',
   flag: 'M5 21V4M5 4h11l-2 3.5L16 11H5',
   calendar: 'M4 6h16v15H4zM4 10h16M9 3v4M15 3v4',
-  book: 'M5 4h9a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H5zM19 4v13',
+  // Golf L: een open boek. Het oude leek op 16 px een tekstballon.
+  book: 'M12 6.5C10 5 7.2 4.4 3 4.8v13.4c4.2-.4 7 .2 9 1.8 2-1.6 4.8-2.2 9-1.8V4.8c-4.2-.4-7 .2-9 1.7ZM12 6.5V20',
   notebook: 'M7 3h12v18H7zM7 8H4M7 13H4M7 18H4',
   file: 'M6 3h8l4 4v14H6zM14 3v4h4',
   home: 'M4 11 12 4l8 7M6.5 9.5V20h11V9.5',
   folder: 'M3 6h6l2 2.5h10V20H3zM3 6v14',
-  board: 'M3 4h18v13H3zM12 17v3M8 20h8M8 8h3v3H8zM15 9h3v3h-3z',
+  // Golf L: een prikbord is punaises en een draad; het oude was een beeldscherm.
+  board: 'M3 5h18v14H3zM5.5 9.5h5v6.5h-5zM13.5 8h5v5.5h-5zM8 9.5a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM16 8a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM9.2 8.1l5.6-1.5',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM20 20l-4-4',
   you: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21c0-3.9 3.6-6 8-6s8 2.1 8 6',
   plus: 'M12 5v14M5 12h14',
@@ -63,11 +69,13 @@ const PATHS: Record<string, string> = {
   check: 'M5 12.5 10 17.5 19 7',
   chevron: 'M9 6l6 6-6 6',
   map: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
-  // §32: a ruled axis with marks above and below it — a tijdlijn.
-  timeline: 'M2 12h20M7 12V6M7 6h4M12 12v6M12 18h4M17 12V8M17 8h3M7 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM12 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM17 14a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z',
+  // §32: a ruled axis with marks above and below it — a tijdlijn. Golf L: drie
+  // stelen met een knop, om en om, zodat het op 16 px geen kriebel is.
+  timeline: 'M2.5 12h19M7 12V8.5M12 12v3.5M17 12V8.5M7 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM12 19.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM17 7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
   // §66: een stamboom — one above, a bar, two below.
   tree: 'M12 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM12 7.5V12M6 12h12M6 12v4.5M18 12v4.5M6 21.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM18 21.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
-  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 3l1.5 2.5h2.8l.7 2.7 2.4 1.4-.7 2.7 .7 2.7-2.4 1.4-.7 2.7h-2.8L12 21l-1.5-2.5H7.7L7 15.8l-2.4-1.4.7-2.7-.7-2.7L7 7.6l.7-2.7h2.8z',
+  // Golf L: acht gelijke tanden, uitgerekend in plaats van met de hand geschat.
+  gear: 'M18.8 9.9 21.2 10.4 21.2 13.6 18.8 14.1 18.3 15.3 19.6 17.4 17.4 19.6 15.3 18.3 14.1 18.8 13.6 21.2 10.4 21.2 9.9 18.8 8.7 18.3 6.6 19.6 4.4 17.4 5.7 15.3 5.2 14.1 2.8 13.6 2.8 10.4 5.2 9.9 5.7 8.7 4.4 6.6 6.6 4.4 8.7 5.7 9.9 5.2 10.4 2.8 13.6 2.8 14.1 5.2 15.3 5.7 17.4 4.4 19.6 6.6 18.3 8.7ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
   mask: 'M4 5c2.5-1.3 5.3-2 8-2s5.5.7 8 2v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10zM8.5 11h2M13.5 11h2M9 15.5c1 .8 2 1.2 3 1.2s2-.4 3-1.2',
   swap: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4',
   // Ronde 65·herstel (review #27): *Verras me* — a die showing five. It wore
@@ -108,10 +116,39 @@ const PATHS: Record<string, string> = {
   ghost: 'M5.5 20.5V10.5a6.5 6.5 0 0 1 13 0v10l-2.2-1.6-2.1 1.6-2.2-1.6-2.1 1.6-2.2-1.6zM9.8 10.5v.6M14.2 10.5v.6',
   scroll: 'M8.5 3.5H18a2 2 0 0 1 0 4h-2M8.5 3.5a2 2 0 0 0-2 2V17a3 3 0 0 1-3 3.5h10A3 3 0 0 0 16 17.5v-12a2 2 0 0 0-2-2M9.5 10h3.5M9.5 13.5h3.5',
   anchor: 'M12 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM12 7.5V20.5M8.5 11h7M4.5 13.5c.3 4 3.5 7 7.5 7s7.2-3 7.5-7M4.5 13.5 3 15.2M4.5 13.5l1.9 1.2M19.5 13.5l1.5 1.7M19.5 13.5l-1.9 1.2',
-  tower: 'M9.3 20.5 10.4 9h3.2l1.1 11.5zM7.5 20.5h9M10 9h4M10.5 5.5h3V9h-3zM12 5.5V4M5 5l3.3 1.6M19 5l-3.3 1.6M5 9.3l3.3-.6M19 9.3l-3.3-.6',
-  key: 'M7.5 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM11 12h10M18 12v3M15 12v2.2',
-  candle: 'M9.2 10.5h5.6v10H9.2zM12 10.5V8.8M12 8.8c-1.6-.9-1.6-2.9 0-5 1.6 2.1 1.6 4.1 0 5ZM6.5 20.5h11',
+  tower: 'M9.2 20.5 10.3 10h3.4l1.1 10.5zM6.5 20.5h11M8.8 10h6.4M10.2 10V6.5h3.6V10M9.6 6.5 12 4l2.4 2.5M9.8 15.2h4.4M16.5 6.2l4-1.7M16.5 8.8l4 1.7M7.5 6.2l-4-1.7M7.5 8.8l-4 1.7',
+  key: 'M8 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM8 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM12 12h9M18.5 12v3.5M15.5 12v2.5',
+  candle: 'M8.8 10h6.4v9.5H8.8zM12 10V8.2M12 8.2c-1.9-1-1.9-3.2 0-5.7 1.9 2.5 1.9 4.7 0 5.7ZM5.5 19.5h13M11.3 13.5v2.5',
   skull: 'M5 11a7 7 0 1 1 14 0c0 2.4-1.1 4-2.5 5v3.5h-9V16C6.1 15 5 13.4 5 11ZM9.3 12.6a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6ZM14.7 12.6a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6ZM10.6 19.5v-2M13.4 19.5v-2',
+  /*
+   * Golf L: de tekens die de soorten misten. Kosmische Goden droegen een klok,
+   * Eldritch een slot, Talen een blad en Relieken dezelfde penning als de
+   * Onderzoekers, omdat er niets beters was. Nu wel: sterren en de maan voor
+   * wat boven is, loof voor wat in de grond zit, een tentakel voor wat eronder
+   * zit, en voor het eiland zelf het water, een schip, een kerk en een bel.
+   */
+  star: 'M11 3c.7 4.8 2.7 6.8 7.5 7.5-4.8.7-6.8 2.7-7.5 7.5-.7-4.8-2.7-6.8-7.5-7.5C8.3 9.8 10.3 7.8 11 3ZM19 15.5v5M16.5 18h5M5 20.5v.01M19.5 4.5v.01',
+  moon: 'M19.5 14.8A8 8 0 1 1 9.2 4.5a6.5 6.5 0 0 0 10.3 10.3ZM17 4v3M15.5 5.5h3',
+  leaf: 'M5 19C4.2 10.8 9.2 5 19.5 4.5 19 14.8 13.2 19.8 5 19ZM5 19 15 9M9.4 14.6H13M11.9 12.1V8.6M3.5 20.5 5 19',
+  tentacle: 'M4.5 21C4.5 13 8 7 13.5 5c3.8-1.4 6.5.6 6 3.3-.4 2.1-3 2.8-4.3 1.2M9.5 21c0-5.6 2.4-9.6 6-10.8M7.6 16.8v.01M9.2 12.6v.01M12 9.4v.01M15.6 7.4v.01',
+  rune: 'M12 3v18M6.5 3.5 12 9l5.5-5.5M8 16.5l4-3.5 4 3.5M8.5 21h7',
+  chalice: 'M6 3.5h12c0 5-2.6 8-6 8s-6-3-6-8ZM12 11.5V17M8 20.5h8M9.5 17.2h5l1 3.3M8.5 20.5l1-3.3M7 6.5h10',
+  crown: 'M3.5 8.5 7.5 13 12 5.5l4.5 7.5 4-4.5L19 18H5zM5 20.5h14M12 5.5V4M3.5 8.5v-.01M20.5 8.5v-.01',
+  sword: 'M20.5 3.5v3.2L9.8 17.4l-3.2-3.2L17.3 3.5zM4.8 12.4l6.8 6.8M7 16.8l-3 3M3.4 21.4a1 1 0 1 0 0-.01',
+  bottle: 'M9.5 3h5M10.3 3v5.5L5.8 15a4.2 4.2 0 0 0 3.5 6.5h5.4a4.2 4.2 0 0 0 3.5-6.5l-4.5-6.5V3M7 14.5h10M10.5 18v.01M13.5 17v.01',
+  quill: 'M20 3.5C12.5 4.2 7.8 9.4 7 17.2c5.2-1 10.4-5 13-13.7ZM7 17.2 3.5 20.5M16 7.5l-6.4 6.4M9 20.5h11',
+  speech: 'M4 4.5h16v11.5H11l-5 4.5v-4.5H4zM8 8.5h8M8 12h5.5',
+  wave: 'M2 8.5q2.5-3 5 0t5 0 5 0 5 0M2 13.5q2.5-3 5 0t5 0 5 0 5 0M2 18.5q2.5-3 5 0t5 0 5 0 5 0',
+  ship: 'M3 15.5h18l-2.8 4.5H5.8zM12 3v12.5M12 4.5l6.5 9H12M11 7l-4.5 6.5H11M12 3l3 1',
+  fish: 'M2.5 12c3.2-4.6 9.3-6 14.3-2.2l3.7-3.3v11l-3.7-3.3C11.8 18 5.7 16.6 2.5 12ZM7.5 11v.01M11 9.2c.8 1.8.8 3.8 0 5.6',
+  church: 'M12 2v4M10.3 3.6h3.4M12 6l-4.5 4.5V21h9V10.5zM3.5 21h17M3.5 21v-7l4-3M20.5 21v-7l-4-3M10.5 21v-3.5a1.5 1.5 0 0 1 3 0V21M12 12.5v.01',
+  bell: 'M6 16.5V11a6 6 0 0 1 12 0v5.5l1.8 2.2H4.2zM10 18.7a2 2 0 0 0 4 0M12 5V2.8M9.5 11a2.5 2.5 0 0 1 2.5-2.5',
+  /*
+   * Golf L: het merk van het archief — een vuurtoren op twee golven. Het staat
+   * in de zijbalk zolang er geen eigen logo is, en is (in `public/merk.svg`) ook
+   * het icoontje van de tab. Geen soort-teken: het staat niet in de kiezer.
+   */
+  merk: 'M2.5 15.5q2.4-2.4 4.8 0t4.7 0 4.7 0 4.8 0M2.5 19.5q2.4-2.4 4.8 0t4.7 0 4.7 0 4.8 0M10.2 13.5l.8-7h2l.8 7M9.5 6.5h5M10.4 6.5V4.2h3.2v2.3M16 4.5l3-1M16 6.5l3 1M8 4.5l-3-1M8 6.5l-3 1',
 };
 
 /** §43: the same strokes, for drawing on a canvas with `Path2D`. */

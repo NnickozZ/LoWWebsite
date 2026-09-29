@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 145 bestanden, 2633 tests na golf K; 144 / 2618 na golf J (branch
+npx vitest run         # 146 bestanden, 2649 tests na golf L; 145 / 2633 na golf K; 144 / 2618 na golf J (branch
                        # `gevoel`, 4afc3a5); 140 / 2557 na golf I
                        # (d1dc532); 137 / 2487 na golf H;
                        # 134 / 2441 na rondes 65–67 en hun
@@ -260,6 +260,15 @@ freely there.
   webfont (§104), `placeLabels` voor de kaartnamen (§105, M3) en tagjes van
   twee regels op de tijdlijn (§105, M2). Geen migratie. Zie
   `tests/unit/golf-k.test.ts` en `tests/e2e/golf-k.spec.ts`.
+  **Golf L** (Nick, 29 september: de tekens — alle iconen, vormen, randen en
+  lijnen geïndexeerd, en het donkere prikbord was kaal) gaf **geen nieuw
+  nummer** en draait één ding om: §58's gedeelde rand van het pantheon. Negen
+  iconen opnieuw getekend, zeventien erbij (zestien in de kiezer plus `more`),
+  `merk`; zeven soorten en vier randen verhuisd onder `seed:golf-l-tekens`
+  (`GOLF_L_TEKENS`, `GOLF_L_RANDEN`); vier randen erbij (`sigil`, `tide`,
+  `burnt`, `seal`); het kurk en de punaise in een nieuwe laag
+  `app/tekens.css`; het merk als icoontje (`public/merk.svg`, `lib/merk.ts`).
+  Geen migratie. Zie `tests/unit/golf-l.test.ts`.
   Rondes 65–67
   (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
   worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
@@ -1764,8 +1773,23 @@ freely there.
   hetzelfde, anders ververst `LivePage` hem na 150 ms weg.
 - **Plek-iconen botsen niet met soort-iconen** (§103, herstel):
   `tests/unit/ronde-66-herstel.test.ts` leest de iconen uit `lib/db/seed.mjs`.
-  Botsingen buiten de plekken staan nog open: `home` (kamer en Huisraad),
-  `lock` (openen en Eldritch), `book` (catalogus en Werken).
+  Botsingen buiten de plekken staan nog open: `home` (kamer en Huisraad).
+  ~~`lock` (openen en Eldritch), `book` (catalogus en Werken).~~ Gesloten in
+  golf L: Eldritch draagt `tentacle`, Geschriften `quill`.
+- **Een icoon is een lijn van 1,6 op een raster van 24, en wordt op 16 px
+  bekeken** (golf L). Teken het in `components/Icon.tsx` (een `d` met `M`,
+  `l`, `q`/`t`, `a` voor cirkels; geen `fill`), kijk het na op een contactvel
+  op 48, 20 en 16 px in beide thema's, en een teken voor een soort gaat ook
+  in `SOORT_ICONEN` (`lib/beheer.ts`) met een Nederlandse naam van één woord.
+  Het web tekent dezelfde `d` met `Path2D`, dus een pad dat alleen in SVG
+  werkt, werkt daar niet.
+- **Het kurk is `.board-viewport::before`, niet de achtergrond van het glas**
+  (golf L, `app/tekens.css`): een eigen laag onder alles (`isolation:
+  isolate`, z −1), gebouwd uit `--cork`, `--cork-speck` en de lichtval
+  `--cork-lamp`/`--cork-shade`/`--cork-fleck`/`--cork-hole`/
+  `--cork-mottle-*` (geen tokens in Kleuren). Leg niets anders op die
+  `::before`, en geen `background-image` terug op `.board-viewport`: dat is
+  de tegel met de vaste kleur die het token van de Keeper negeerde.
 - **"Waarom noemt dit mij?" is `mentionSentences`** (`lib/wiki/genoemd.ts`,
   §104). Het leest alleen bronnen die `listMentions` en `getBacklinks` al voor
   deze lezer teruggaven, per id (`sectionId` voor een sectie). Een nieuwe
@@ -2673,6 +2697,32 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J and K
 
+*Golf L (29 september; Nick: de tekens, en een kaal donker prikbord) is in
+één werkboom gebouwd, na een index van elke vorm op de site. Geen nieuw
+nummer, geen migratie, geen verwijderd bestand; nieuw zijn `app/tekens.css`,
+`lib/merk.ts`, `public/merk.svg` en `public/merk-180.png`. De rondenotitie is
+`claude/golf-l-de-tekens.md`.*
+
+**Leftovers — golf L, allemaal met opzet genoemd.**
+
+- **Een speld van een Locatie is een speld in een speld**: de kop van een
+  kaartspeld draagt het teken van de soort, en dat van Locaties is `pin`.
+  Een eigen teken voor Locaties (een kompas, een huisje) zou het oplossen en
+  raakt `ronde-66-herstel` (plek-iconen mogen geen soort-iconen zijn).
+- **Geen `favicon.ico`**: sharp schrijft geen ICO. Een browser die om
+  `/favicon.ico` vraagt zonder de `<link>` te lezen, krijgt nog de schil
+  (golf H); de SVG en de PNG van 180 staan wel buiten de inlog.
+- **De korrel van het kurk beweegt niet mee met een veeg**, net als de oude
+  tegel. Hem op `.board-world` leggen maakt hem een vlak van 40 000 px.
+- **`home` draagt nog twee betekenissen** (kamer en Huisraad).
+- **Nog dubbel bij de randen**: *Foto* (Personen, Huisraad), *Bewijslabel*
+  (Relieken, Voorwerpen), *Fotohoekjes* (Families, Gebeurtenissen) en
+  *Vergeeld* (Geschriften, Talen). Golf L nam alleen de vijf keer
+  *Gearceerd*.
+- **De e2e-suite is niet volledig gedraaid**, alleen de specs die de schil,
+  het prikbord, de randen, Beheer, de tijdlijn en het icoontje raken; zie de
+  rondenotitie.
+
 *Golf K (29 september; Nick: de omslag heel op een telefoon, de pagina in het
 midden op een computer, *De soorten* die oplicht en niets doet, en de open
 punten van golf J) is in één werkboom gebouwd, zonder fan-out: geen nieuw
@@ -2846,9 +2896,10 @@ uit round 62 de tabbalk die *Jij* op 390 px zou afknippen.
   (§105):** één regel werkbalk en een kop van twee; het glas is 73–76 % in
   Lezen op 390×844.
 - **`/favicon.ico` en elk ander onbekend adres met een sessie renderen nu de
-  schil** (de catch-all). Goedkoop, maar het is een render per verzoek; een
+  schil** (de catch-all). *Half gesloten in golf L:* zonder eigen icoontje
+  wijst de `<link rel="icon">` naar `public/merk.svg`. Goedkoop, maar het is een render per verzoek; een
   `app/icon` of een bestand in `public/` neemt dat weg.
-- **D17: soorten delen hun icoon** (Aardse Goden en Locaties, Relieken en
+- ~~**D17: soorten delen hun icoon**~~ **Gesloten in golf L** (zestien tekens erbij en `seed:golf-l-tekens`). (Aardse Goden en Locaties, Relieken en
   Onderzoekers, Bovennatuurlijke wezens en Abnormaliteiten, Geschriften en de
   wiki). Bewust niet gedaan: het is data van de seed, en de Keeper zet een
   icoon per soort in Beheer. Een test die dubbelen weigert, hoort bij een
@@ -2916,7 +2967,8 @@ blok hieronder.*
   (65·herstel). De float draagt de schijfjes en de telling, dus de kolom van
   iedereen verspringt een paar pixels als er iemand binnenkomt.
 - **Drie iconen hebben nog twee betekenissen** (66·herstel): `home` (kamer
-  en Huisraad), `lock` (openen en Eldritch), `book` (catalogus en Werken).
+  en Huisraad), ~~`lock` (openen en Eldritch), `book` (catalogus en
+  Werken)~~ — die twee zijn in golf L gesloten.
   Plek-iconen botsen niet meer met soort-iconen, en daar staat een test op.
 - **Een plaatsing door een ander landt zonder beweging**, en de munt van een
   gift klinkt alleen als de `AudioContext` in dit tabblad al loopt (een

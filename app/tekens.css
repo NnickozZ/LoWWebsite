@@ -1,0 +1,341 @@
+/*
+ * Golf L: de tekens — vormen, randen en lijnen, na een index van alles wat er
+ * stond (`claude/golf-l-de-tekens.md` in het project). Een eigen laag, na
+ * beheer.css, zodat hij wint zonder dat een oudere regel verandert (§102).
+ *
+ * Drie dingen staan hier:
+ *
+ *   1. Het kurk. De spikkels waren één SVG-tegel met een vaste kleur
+ *      (`#5a3e20`), dus het token *De spikkels in het kurk* (`--cork-speck`,
+ *      §45) bereikte het prikbord nooit, en op het donkere kurk verdwenen ze.
+ *      Nu is het kurk korrels in vier maten uit dat token, lichte vezels uit
+ *      het kurk zelf, oude gaatjes van punaises die er niet meer zitten, en een
+ *      rand die naar binnen donker wordt. In het donker hangt er een lamp
+ *      boven: een warme kring licht bovenaan, en de hoeken in de schaduw.
+ *   2. De punaise: een kop met een glimlicht en een slagschaduw, in dezelfde
+ *      maat, zodat geen draad en geen kaartje een pixel verschuift.
+ *   3. Het merk achter de naam, en het pijltje van een uitklapper als het
+ *      pijltje van de iconen in plaats van een letter uit het lettertype.
+ */
+
+/* ------------------------------------------------------------ 1. het kurk */
+
+/*
+ * De lamp is alleen in het donker aan. De twee kiezers zijn die van het
+ * gegenereerde blok in globals.css (§45) — hier niet gegenereerd, want het is
+ * geen kleur die een Keeper kiest maar een lichtval.
+ */
+:root {
+  --cork-mottle-dark: color-mix(in srgb, var(--cork) 90%, #000);
+  --cork-mottle-light: color-mix(in srgb, var(--cork) 92%, #fff);
+  --cork-lamp: transparent;
+  --cork-shade: rgb(40 26 12 / 0.16);
+  --cork-fleck: color-mix(in srgb, var(--cork) 78%, #fff8e6);
+  --cork-hole: color-mix(in srgb, var(--cork) 55%, #000);
+}
+:root:has([data-theme='dark']) {
+  --cork-lamp: rgb(255 214 150 / 0.13);
+  --cork-shade: rgb(0 0 0 / 0.42);
+  --cork-fleck: color-mix(in srgb, var(--cork) 82%, #ffe7b8);
+  --cork-hole: color-mix(in srgb, var(--cork) 45%, #000);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(:has([data-theme='light'])) {
+    --cork-lamp: rgb(255 214 150 / 0.13);
+    --cork-shade: rgb(0 0 0 / 0.42);
+    --cork-fleck: color-mix(in srgb, var(--cork) 82%, #ffe7b8);
+    --cork-hole: color-mix(in srgb, var(--cork) 45%, #000);
+  }
+}
+
+/*
+ * De korrel zit op een eigen laag onder alles (`::before`, z −1 in een eigen
+ * stapel), niet op de achtergrond van het glas: zo wordt hij één keer getekend
+ * en niet bij elke veeg opnieuw, en blijft wat erop ligt wat het was.
+ *
+ * Vier tegels met maten die niets gemeen hebben (23, 37, 53, 97, 173), zodat er
+ * geen raster te zien is; elk met een eigen verschuiving.
+ */
+.board-viewport {
+  isolation: isolate;
+  background-image: none;
+}
+.board-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+  background:
+    /* de lamp boven het bord (alleen in het donker niet doorzichtig) */
+    radial-gradient(ellipse 75% 65% at 50% -8%, var(--cork-lamp), transparent 72%),
+    /* oude gaatjes: een donker puntje met een licht randje eromheen */
+    radial-gradient(circle at 30% 40%, var(--cork-hole) 0 0.9px, var(--cork-fleck) 1.3px 1.9px, transparent 2.3px)
+      11px 29px / 173px 149px,
+    radial-gradient(circle at 70% 65%, var(--cork-hole) 0 0.9px, var(--cork-fleck) 1.3px 1.9px, transparent 2.3px)
+      83px 7px / 211px 181px,
+    /* grove korrels */
+    radial-gradient(circle at 50% 50%, var(--cork-speck) 0 1.9px, transparent 2.6px) 13px 17px / 97px 83px,
+    radial-gradient(circle at 20% 70%, var(--cork-speck) 0 1.5px, transparent 2.2px) 41px 5px / 53px 61px,
+    /* lichte vezels */
+    radial-gradient(ellipse 1.6px 1px at 60% 30%, var(--cork-fleck) 0 100%, transparent 110%) 3px 9px / 37px 29px,
+    radial-gradient(circle at 25% 75%, var(--cork-fleck) 0 0.8px, transparent 1.4px) 19px 2px / 31px 43px,
+    /* fijne korrels */
+    radial-gradient(circle at 40% 30%, var(--cork-speck) 0 1px, transparent 1.6px) 0 0 / 23px 19px,
+    radial-gradient(circle at 80% 80%, var(--cork-speck) 0 0.8px, transparent 1.4px) 7px 11px / 17px 23px,
+    /* vlekken: kurk is nooit één kleur, het is geperst uit stukjes */
+    /* (met een straal die binnen de tegel blijft: een verloop dat tot de rand
+       loopt, wordt daar afgeknipt en tekent een naad) */
+    radial-gradient(circle 52px at 50% 50%, var(--cork-mottle-dark), transparent) 0 0 / 131px 113px,
+    radial-gradient(circle 64px at 50% 50%, var(--cork-mottle-light), transparent) 47px 23px / 167px 139px,
+    radial-gradient(circle 90px at 50% 50%, var(--cork-mottle-dark), transparent) 91px 67px / 229px 197px;
+  /* De rand van het bord ligt in de schaduw; het midden krijgt het licht. */
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.05),
+    inset 0 0 90px var(--cork-shade);
+}
+
+/* Het lapje kurk in de lijst van prikborden: dezelfde korrel, kleiner. */
+.cork-swatch {
+  background-image:
+    radial-gradient(circle at 40% 30%, var(--cork-speck) 0 1px, transparent 1.6px) 0 0 / 11px 9px,
+    radial-gradient(circle at 70% 70%, var(--cork-fleck) 0 0.7px, transparent 1.2px) 3px 2px / 13px 11px,
+    radial-gradient(ellipse 80% 90% at 50% -10%, var(--cork-lamp), transparent 75%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.1),
+    inset 0 0 14px var(--cork-shade);
+}
+
+/* ------------------------------------------------------------ 2. de punaise */
+
+/*
+ * Een bolle kop: licht linksboven, donker rechtsonder, en een schaduw die
+ * schuin op het papier valt. De maat en de plek blijven die van §8 — een draad
+ * vertrekt nog steeds uit het midden van dezelfde dertien pixels.
+ */
+.board-pin,
+.cork-swatch-pin {
+  background:
+    radial-gradient(circle at 34% 30%, rgb(255 255 255 / 0.75) 0 12%, transparent 30%),
+    radial-gradient(
+      circle at 40% 36%,
+      color-mix(in srgb, var(--string-red) 78%, #fff) 0,
+      var(--string-red) 48%,
+      color-mix(in srgb, var(--string-red) 62%, #000) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--string-red) 45%, #000);
+  box-shadow:
+    1.5px 2.5px 1.5px rgb(20 10 4 / 0.38),
+    3px 5px 5px rgb(20 10 4 / 0.18);
+}
+.cork-swatch-pin {
+  box-shadow: 1px 1.5px 1px rgb(20 10 4 / 0.4);
+}
+/* De kop als teken in een knop of een titel ligt niet op kurk: geen slagschaduw. */
+.board-pin-inline {
+  box-shadow: none;
+}
+/* Een los eind van een draad: een koperen spijkertje, geen wit knoopje. */
+.board-anchor {
+  background: radial-gradient(
+    circle at 38% 34%,
+    #f4e3b4 0 18%,
+    #b88a3c 55%,
+    #6e4f1c 100%
+  );
+  border: 1px solid #5a3e14;
+  box-shadow: 1px 2px 1.5px rgb(20 10 4 / 0.4);
+}
+
+/* ------------------------------------------------------- 3. merk en pijltje */
+
+/* Het merk als watermerk achter de naam: het neemt geen plaats in, zodat de
+   zijbalk niet langer wordt (ronde 52 meet dat *Nieuw artikel* op 1440 × 900
+   boven de vouw staat) en een lange archiefnaam niet eerder afbreekt. */
+.masthead:has(> .masthead-merk) {
+  position: relative;
+  isolation: isolate;
+}
+.masthead > .masthead-merk {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.2rem;
+  z-index: -1;
+  color: var(--stamp-red);
+  opacity: 0.2;
+  pointer-events: none;
+}
+.masthead > .masthead-merk > svg {
+  display: block;
+  stroke-width: 1.3;
+}
+
+/*
+ * Het pijltje van een uitklapper was de letter ▸ uit het lettertype: elk
+ * lettertype (ook OpenDyslexic, §11) tekende hem anders, en nergens zoals de
+ * chevron van de iconen. Nu is het die chevron, als masker in `currentColor`.
+ * `content` blijft staan waar een ander hem op `none` zet (de infobox).
+ */
+details.section > summary::before,
+.rev-more > summary::before,
+.home-feed-more > summary::before,
+.wie-al > summary::before {
+  content: '';
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.3em;
+  vertical-align: -0.04em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5l7 7-7 7'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5l7 7-7 7'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* ------------------------------------------------------- 4. vier nieuwe randen */
+
+/*
+ * Golf L: vijf soorten — de Abnormaliteiten en het hele pantheon — droegen
+ * dezelfde rand (*Gearceerd*), dus een muur vol goden las als één stapel. Vier
+ * randen erbij, elk met een eigen silhouet dat je van de andere kant van de
+ * kamer ziet, in dezelfde spelregels als de tien van globals.css: alles binnen
+ * de border-box, wat erover ligt is een pseudo-element zonder pointer-events,
+ * geen beeldbestand, en de kleuren uit `--brd-*` zodat een kaart op kurk en een
+ * kaart in een lijst er allebei goed uitzien.
+ */
+
+/* Bezworen — een dubbele lijn met vier cirkeltjes op de hoeken, als een
+   bezweringscirkel die het ding binnen houdt. */
+.brd-sigil {
+  border: 1px solid var(--brd-ink);
+}
+.brd-sigil::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--brd-ink);
+  pointer-events: none;
+  z-index: 2;
+}
+.brd-sigil::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    radial-gradient(circle at 4.5px 4.5px, var(--brd-ink) 0 1.1px, var(--brd-face) 1.5px 2.8px, var(--brd-ink) 3.2px 4.1px, transparent 4.6px),
+    radial-gradient(circle at calc(100% - 4.5px) 4.5px, var(--brd-ink) 0 1.1px, var(--brd-face) 1.5px 2.8px, var(--brd-ink) 3.2px 4.1px, transparent 4.6px),
+    radial-gradient(circle at 4.5px calc(100% - 4.5px), var(--brd-ink) 0 1.1px, var(--brd-face) 1.5px 2.8px, var(--brd-ink) 3.2px 4.1px, transparent 4.6px),
+    radial-gradient(circle at calc(100% - 4.5px) calc(100% - 4.5px), var(--brd-ink) 0 1.1px, var(--brd-face) 1.5px 2.8px, var(--brd-ink) 3.2px 4.1px, transparent 4.6px);
+}
+
+/* Getijde — de onderrand is een golf: wat het land bij hoog water nog kan
+   houden. Twee rijen, de tweede halfdoorzichtig, zoals de vloedlijn op een
+   kaart van de Schelde. */
+.brd-tide {
+  border: 1px solid var(--brd-ink);
+  border-bottom-color: transparent;
+}
+.brd-tide::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  height: 11px;
+  pointer-events: none;
+  z-index: 2;
+  background: var(--brd-ink);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='11' viewBox='0 0 16 11'%3E%3Cpath d='M0 8.5q4-4 8 0t8 0' fill='none' stroke='black' stroke-width='1.4'/%3E%3Cpath d='M0 3.5q4-4 8 0t8 0' fill='none' stroke='rgba(0,0,0,.45)' stroke-width='1'/%3E%3C/svg%3E")
+    0 0 / 16px 11px repeat-x;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='11' viewBox='0 0 16 11'%3E%3Cpath d='M0 8.5q4-4 8 0t8 0' fill='none' stroke='black' stroke-width='1.4'/%3E%3Cpath d='M0 3.5q4-4 8 0t8 0' fill='none' stroke='rgba(0,0,0,.45)' stroke-width='1'/%3E%3C/svg%3E")
+    0 0 / 16px 11px repeat-x;
+}
+
+/* Geschroeid — een blad dat uit het vuur is gehaald: verkoolde randen, een
+   gloed van as eronder, en een paar brandplekken die tot over de rand lopen.
+   Donkerder en harder dan *Vergeeld*, dat alleen oud is. */
+.brd-burnt {
+  border: 1px solid color-mix(in srgb, var(--brd-ink) 45%, #1a0d04);
+}
+.brd-burnt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 1px rgb(26 13 4 / 0.55),
+    inset 0 0 6px 1px rgb(40 18 4 / 0.6),
+    inset 0 0 18px 2px rgb(150 70 15 / 0.22);
+  background:
+    radial-gradient(circle at 0% 32%, rgb(30 14 4 / 0.7) 0 3px, rgb(120 55 10 / 0.3) 6px, transparent 11px),
+    radial-gradient(circle at 100% 71%, rgb(30 14 4 / 0.65) 0 4px, rgb(120 55 10 / 0.28) 7px, transparent 13px),
+    radial-gradient(circle at 38% 100%, rgb(30 14 4 / 0.6) 0 3px, rgb(120 55 10 / 0.26) 6px, transparent 11px),
+    radial-gradient(circle at 83% 0%, rgb(30 14 4 / 0.6) 0 2.5px, rgb(120 55 10 / 0.25) 5px, transparent 9px);
+}
+
+/* Gelakt — een lakzegel rechtsboven, met een ring erin gedrukt: iets wat
+   dichtgemaakt is, en wat je niet had mogen openen. Rechtsboven, omdat
+   rechtsonder op het prikbord de greep zit waarmee je een kaart groter maakt. */
+.brd-seal {
+  border: 1px solid var(--brd-ink);
+}
+.brd-seal::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 48% 52% 46% 54% / 53% 47% 55% 45%;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    radial-gradient(circle, transparent 0 4px, rgb(0 0 0 / 0.28) 4.5px 5.5px, transparent 6px),
+    radial-gradient(circle at 50% 50%, rgb(0 0 0 / 0.22) 0 1.3px, transparent 1.8px),
+    radial-gradient(
+      circle at 36% 30%,
+      color-mix(in srgb, var(--stamp-red) 60%, #fff) 0,
+      var(--stamp-red) 42%,
+      color-mix(in srgb, var(--stamp-red) 60%, #000) 100%
+    );
+  box-shadow:
+    -3px 6px 0 -6px var(--stamp-red),
+    5px -2px 0 -7px var(--stamp-red),
+    1px 2px 2px rgb(20 10 4 / 0.35);
+}
+
+/* ------------------------------------------------- 5. kleine tekens, groter */
+
+/*
+ * Het teken van de soort in de ruit op een tijdlijn was 12 px in een lijn van
+ * 1,6: op de as een vlekje. Nu 14 px en dikker, zodat een gebeurtenis en een
+ * persoon van elkaar te onderscheiden zijn zonder de naam te lezen.
+ */
+.timeline-event-entry .timeline-marker > svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+/*
+ * Een omslag zonder beeld in het licht: het vlak krijgt een zweem van de
+ * soortkleur in plaats van overal hetzelfde grijsbruin, zodat een rij lege
+ * vakjes in *Sinds je laatste bezoek* al zegt wat voor ding er staat. In het
+ * donker geldt de regel van golf H (leeskamer.css), die zwaarder weegt.
+ */
+:is(.card-cover, .feed-thumb).cover-leeg {
+  background: color-mix(in oklab, var(--soort, var(--paper-dark)) 9%, var(--paper-dark));
+}
+
+/* Op een kaart in een dossier staat rechtsboven het menu (⋯): het zegel wijkt
+   ernaast, in plaats van eronder te verdwijnen. */
+.card.brd-seal:has(> [data-testid='case-entry-kebab'])::after {
+  right: 42px;
+}

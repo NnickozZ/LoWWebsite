@@ -99,5 +99,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   // Everything but Next's own build output. `_next/data` does not exist in the
   // app router; a page or a route is always behind this.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Golf L: en het merk (`public/merk.svg`, `merk-180.png`), dat ook voor de
+  // inlogpagina het icoontje van de tab is en dus geen sessie mag vragen.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|merk.svg|merk-180.png).*)'],
 };

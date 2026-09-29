@@ -121,8 +121,12 @@ describe('de vier machten', () => {
       expect(row!.sort_order > 60 && row!.sort_order < 70, slug).toBe(true);
       // Een god wordt niet in een dossier gevonden.
       expect(row?.case_only, slug).toBe(0);
-      // Eén familie op het prikbord: dezelfde rand als de Abnormaliteiten.
-      expect(row?.border, slug).toBe('frame');
+      // ~~Eén familie op het prikbord: dezelfde rand als de Abnormaliteiten.~~
+      // Golf L draait dat om: vijf keer *Gearceerd* maakte van een muur vol
+      // goden één stapel. Elke macht een eigen rand; de familie is de kern.
+      expect(row?.border, slug).toBe(
+        { 'kosmische-goden': 'sigil', 'aardse-goden': 'tide', 'eldritch-entiteiten': 'burnt', 'bovennatuurlijke-wezens': 'seal' }[slug],
+      );
     }
   });
 

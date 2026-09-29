@@ -7740,3 +7740,56 @@ A hundred and seven rules worth knowing before changing anything:
     >
     > De proef staat in `tests/unit/golf-j3-eindjes.test.ts` en
     > `tests/e2e/golf-j3-eindjes.spec.ts`.
+
+    > **Aangevuld in golf L: de tekens.** Nick, 29 september: *"alle symbols
+    > en shapes en borders indexen en kijken wat we missen"*, en het donkere
+    > prikbord was kaal. Geen nieuw nummer; het raakt §8 (het kurk), §45 (het
+    > token van de spikkels), §84 (één vorm per betekenis), §88 (het
+    > icoontje) en deze regel.
+    > - **Iconen.** Opnieuw getekend: `board` (twee punaises en een draad, was
+    >   een beeldscherm), `book` (een open boek, was op 16 px een
+    >   tekstballon), `timeline` (drie stelen om en om), `gear` (acht
+    >   uitgerekende tanden), `tower`, `shelf` (was een staafgrafiek), `desk`,
+    >   `key` en `candle`. Erbij, in de kiezer: `star`, `moon`, `leaf`,
+    >   `tentacle`, `rune`, `chalice`, `bottle`, `wave`, `ship`, `fish`,
+    >   `church`, `bell`, `crown`, `sword`, `quill` en `speech` (49 in de
+    >   kiezer, was 33). Buiten de kiezer: `more` (drie puntjes, het menu op
+    >   een dossierkaart, was de letter ⋯) en `merk`.
+    > - **D17 is dicht voor de seed**: geen twee soorten dragen nog hetzelfde
+    >   teken. Relieken `chalice`, Kosmische Goden `star`, Aardse Goden
+    >   `leaf`, Eldritch `tentacle`, Bovennatuurlijke wezens `ghost`, Talen
+    >   `speech`, Geschriften `quill` (`GOLF_L_TEKENS` in `lib/db/seed.mjs`).
+    >   Een bestaand archief verhuist één keer (`seed:golf-l-tekens`), en
+    >   alleen waar het teken nog het meegeleverde is. `iconClashes` blijft
+    >   een rapport voor wat de Keeper zelf kiest.
+    > - **Vier randen erbij** (`lib/borders.mjs`, de regels in
+    >   `app/tekens.css`): *Bezworen* (`sigil`, een dubbele lijn met vier
+    >   cirkeltjes), *Getijde* (`tide`, de onderrand een golf), *Geschroeid*
+    >   (`burnt`, verkoolde randen en brandplekken) en *Gelakt* (`seal`, een
+    >   lakzegel rechtsboven, want rechtsonder zit op het prikbord de greep).
+    >   Het pantheon krijgt ze, één per macht (`GOLF_L_RANDEN`, zelfde
+    >   marker); de Abnormaliteiten houden *Gearceerd*. Dat draait de
+    >   gedeelde rand van §58 om (zie DECISIONS, golf L).
+    > - **Het kurk leest `--cork-speck`.** De spikkels waren één SVG-tegel met
+    >   een vaste kleur, dus *De spikkels in het kurk* in Kleuren bereikte het
+    >   prikbord nooit. Nu tekent `.board-viewport::before` (z −1 in een
+    >   eigen stapel, `isolation: isolate`, een eigen laag die bij een veeg
+    >   niet opnieuw getekend wordt) korrels in vier maten uit dat token,
+    >   lichte vezels, vlekken, oude punaisegaatjes en een rand in de
+    >   schaduw. In het donker hangt er een lamp boven (`--cork-lamp`, alleen
+    >   in de twee donkere kiezers). Het lapje op `/boards` doet mee.
+    > - **De punaise heeft een kop**: glimlicht, rand en slagschaduw, in
+    >   dezelfde dertien pixels, zodat geen draad verschuift. Een los eind
+    >   (`.board-anchor`) is een koperen spijkertje.
+    > - **Het merk**: een vuurtoren op twee golven (`merk` in `Icon.tsx`). Het
+    >   is het icoontje van de tab zolang Beheer → Site er geen heeft
+    >   (`public/merk.svg`, `public/merk-180.png`, `lib/merk.ts`; buiten de
+    >   inlog in `middleware.ts`), en een watermerk achter de naam in de
+    >   zijbalk zolang er geen logo is — een watermerk, omdat een merk naast
+    >   de naam hem op drie regels zette en ronde 52 de zijbalk meet.
+    > - **Kleine tekens**: het pijltje van een uitklapper is de chevron van
+    >   de iconen als masker (was de letter ▸ uit het lettertype), het teken
+    >   in de ruit op een tijdlijn is 14 px en dikker, en een lege omslag in
+    >   het licht draagt een zweem van zijn soortkleur.
+    >
+    > De proef staat in `tests/unit/golf-l.test.ts`.

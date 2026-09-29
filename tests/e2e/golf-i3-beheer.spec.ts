@@ -114,8 +114,11 @@ test('de soort-editor: een soort met drie velden in één scherm', async ({ page
   const looks = editor.getByTestId('soort-uiterlijk-paneel');
   await looks.getByRole('radio', { name: 'Speld', exact: true }).click();
   await expect(looks.getByTestId('soort-teken-ook')).toContainText('Locaties');
-  // Review 4, L1: twee soorten *dragen* het, één *draagt* het.
-  await expect(looks.getByTestId('soort-teken-ook')).toContainText(/dragen dit teken ook/);
+  // Review 4, L1: twee soorten *dragen* het, één *draagt* het. Sinds golf L
+  // draagt alleen Locaties de speld nog (Aardse Goden kregen `leaf`), dus hier
+  // staat het enkelvoud. Het meervoud (`soortTekenOokMeer`) komt in de seed
+  // niet meer voor; alleen als een Keeper zelf twee soorten gelijk maakt.
+  await expect(looks.getByTestId('soort-teken-ook')).toContainText(/draagt dit teken ook/);
   await looks.getByRole('radio', { name: 'Anker', exact: true }).click();
   await looks.getByRole('radio', { name: '#31556B' }).click();
   await expect(looks.locator('.chip-soort')).toContainText(soort);

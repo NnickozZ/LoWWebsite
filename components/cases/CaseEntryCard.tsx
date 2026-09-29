@@ -175,9 +175,13 @@ export function CaseEntryCard({
           borderRadius: 2,
           cursor: 'pointer',
           lineHeight: 1,
+          display: 'inline-grid',
+          placeItems: 'center',
+          color: 'var(--ink-muted)',
         }}
       >
-        ⋯
+        {/* Golf L: de drie puntjes als teken, niet als letter uit het lettertype. */}
+        <Icon name="more" size={18} />
       </button>
       )}
 

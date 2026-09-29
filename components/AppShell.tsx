@@ -200,9 +200,15 @@ function Nav({
     <>
       <nav className="sidenav" aria-label="Hoofdmenu">
         <div className="masthead">
-          {logoAssetId && (
+          {logoAssetId ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img className="masthead-logo" src={assetUrl(logoAssetId, 'thumb')} alt="" />
+          ) : (
+            // Golf L: zonder eigen logo het merk van het archief, als watermerk
+            // achter de naam — het neemt geen plaats in (ronde 52 meet de zijbalk).
+            <span className="masthead-merk" aria-hidden="true">
+              <Icon name="merk" size={58} />
+            </span>
           )}
           <span className="masthead-name">{siteName}</span>
           {tagline && <span className="masthead-tagline">{tagline}</span>}

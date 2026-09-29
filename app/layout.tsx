@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { ErrorReporter } from '@/components/ErrorReporter';
 import { FLIP_SCRIPT } from '@/components/keeper/flipRoad';
 import { siteIdentity } from '@/lib/admin/identity';
+import { MERK_APPLE, MERK_ICON } from '@/lib/merk';
 // Golf K: de drie letters voorgeladen, met een systeemletter op maat (app/fonts.ts).
 import { fontVariables } from './fonts';
 import './globals.css';
@@ -14,6 +15,8 @@ import './leeskamer.css';
 import './vlakken.css';
 import './eerste-keer.css';
 import './beheer.css';
+// Golf L: de tekens — het kurk, de punaise, het merk en het pijltje.
+import './tekens.css';
 
 /**
  * §88: de naam in de tab is de naam van het archief.
@@ -40,7 +43,13 @@ export async function generateMetadata(): Promise<Metadata> {
     title: site.name,
     description: site.tagline || 'Archief van de campagne',
     robots: { index: false, follow: false },
-    ...(site.iconUrl ? { icons: { icon: site.iconUrl, shortcut: site.iconUrl, apple: site.iconUrl } } : {}),
+    // Golf L: zonder eigen icoontje het merk van het archief (`public/merk.svg`),
+    // in plaats van het lege tabje van de browser — en een `/favicon.ico` die de
+    // schil rendert (golf H). Het merk staat buiten de inlog, het eigen icoontje
+    // niet (§88).
+    icons: site.iconUrl
+      ? { icon: site.iconUrl, shortcut: site.iconUrl, apple: site.iconUrl }
+      : { icon: [{ url: MERK_ICON, type: 'image/svg+xml' }], apple: MERK_APPLE },
   };
 }
 

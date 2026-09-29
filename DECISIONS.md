@@ -7473,3 +7473,56 @@ nummer, geen migratie, geen verwijderd bestand, geen nieuwe route.
   een `translate`. Een onzichtbare naam vangt geen tik (anders nam hij de tik
   van de speld ernaast), en de knop van een speld zelf ook niet meer: alleen
   de kop en een zichtbare naam.
+
+## Golf L — de tekens (§8, §45, §58, §84, §88, §107 aangevuld)
+
+Nick, 29 september: *"Kun jij alle symbols en shapes en borders indexen en
+kijken wat we missen, kijken of we nog wat cools ervan kunnen maken. Also
+darkmode prikbord achtergrond is momenteel kaal."* Eerst de index (de 72
+iconen op een contactvel op 48, 20 en 16 px, elk glyph in de bron, de tien
+randen, de vormen van de vier vlakken), daarna wat eruit volgde. Geen nieuw
+nummer, geen migratie (twee seed-tabellen onder één marker), geen verwijderd
+bestand, geen nieuwe route.
+
+- **Een icoon wordt opnieuw getekend als het op 16 px iets anders leest.**
+  *Prikborden* las als een beeldscherm, *Wiki* als een tekstballon,
+  *Tijdlijnen* als een kriebel, *Plank* als een staafgrafiek. De vorm van het
+  prikbord is nu wat de site al laat zien: twee punaises en een draad. Niet
+  opnieuw getekend wat werkte, ook als het beter kon (`mask`, `web`).
+- **D17 dicht door tekens bij te maken, niet door te weigeren.** Golf I liet
+  de dubbelen een rapport; de echte oorzaak was dat er voor een kosmische god,
+  een taal of een reliek geen teken bestond. Zestien erbij, en de seed
+  verhuist zeven soorten — alleen waar het teken nog het meegeleverde is, één
+  keer, zoals `seed:round-7-soorten` het deed. `home` (kamer en Huisraad) blijft
+  de enige dubbele betekenis, en die is van de kamer, niet van een soort.
+- **Draait §58 om: het pantheon deelt geen rand meer.** Ronde 28 gaf de vier
+  machten met opzet de rand van de Abnormaliteiten: *één familie*. Op de muur
+  betekende dat vijf keer *Gearceerd*, en een god was niet van een
+  verschijnsel te onderscheiden zonder te lezen — precies wat een rand moet
+  voorkomen (`lib/borders.mjs`: "sorts itself by shape before anyone reads a
+  word"). De familie blijft de kern (`PANTHEON_KERN`) en de plek in de
+  volgorde; de rand is per macht. Een Keeper die de oude eenheid wil, zet in
+  Beheer vier keer *Gearceerd* terug; de marker komt niet terug.
+- **Het zegel rechtsboven**, omdat rechtsonder op een prikbordkaart de greep
+  zit om te vergroten, en op een dossierkaart wijkt het naast het menu.
+- **Het kurk is een laag onder de muur, geen achtergrond van het glas.** Met
+  twaalf verlopen op de achtergrond van `.board-viewport` zou elke veeg ze
+  opnieuw tekenen als de wereld geen eigen laag heeft; als `::before` met
+  `will-change` is het één keer. `isolation: isolate` zodat z −1 onder alles
+  in het glas ligt en boven zijn achtergrond. De korrel beweegt niet mee met
+  een veeg, zoals de oude tegel ook niet deed.
+- **De lamp is een lichtval, geen kleur.** `--cork-lamp` en zijn drie
+  broertjes zijn geen tokens in Kleuren (§45): de Keeper kiest het kurk en de
+  spikkels, het licht volgt daaruit met `color-mix`. Alleen in de twee
+  donkere kiezers aan.
+- **Het merk is een watermerk.** Naast de naam zette het *LoW: Land over
+  Water Archief* op drie regels en de tagline op twee; ronde 52 meet dat
+  *Nieuw artikel* op 1440 × 900 boven de vouw staat. Achter de naam, op 20 %,
+  neemt het geen plaats in. In de tab is het het icoontje zolang Beheer → Site
+  er geen heeft; het staat buiten de inlog, want de loginpagina heeft ook een
+  tab.
+- **Niet gedaan**: een eigen `favicon.ico` (sharp schrijft geen ICO; elke
+  browser van deze eeuw neemt de SVG), de symbolen in lopende tekst (→, ·,
+  ⟦⟧ — dat zijn leestekens, geen iconen), de kaartspelden (een speld van een
+  Locatie draagt nog een speld in een speld), en het web, dat zijn vormen per
+  soort al heeft (`knotPath`).
