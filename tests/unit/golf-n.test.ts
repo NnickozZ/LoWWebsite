@@ -33,7 +33,7 @@ describe('golf N: de laag', () => {
       .filter(Boolean);
     expect(selectors.length).toBeGreaterThan(10);
     for (const selector of selectors) expect(selector.startsWith('.main ')).toBe(true);
-    for (const name of ['.prose', '.overzicht-page .entry-lead', '.home-intro', '.page']) {
+    for (const name of ['.prose', '.dossier-notities .editor-body', '.overzicht-page .entry-lead', '.home-intro', '.page']) {
       expect(selectors).toContain(`.main ${name}`);
     }
   });

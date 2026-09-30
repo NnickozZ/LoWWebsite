@@ -12,6 +12,8 @@
  *      op de tekst erin is weg. Elke regel begint met `.main`: een paar van
  *      die plafonds staan in een stylesheet die een component zelf laadt
  *      (overzichten.css, spelers.css), en die komt na deze laag.
+ *      Na golf N (Nick): ook het kader van de dossiernotities, dat golf H
+ *      (D24) op `calc(68ch + 2rem)` had gezet, is zo breed als de kolom.
  *
  *   2. Elke soort is een tab. *Meer soorten ▾* is weg (components/TypeTabs.tsx);
  *      de rij breekt naar een tweede en derde rij als ze niet passen. Elke tab
@@ -23,6 +25,7 @@
 /* ------------------------------------------------------------ 1. de kolom */
 
 .main .prose,
+.main .dossier-notities .editor-body,
 .main .entry-page-reading .entry-lead,
 .main .overzicht-page .entry-lead,
 .main .overzicht-page .entry-section,

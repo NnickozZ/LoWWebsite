@@ -1905,8 +1905,9 @@ freely there.
   `app/ruimte.css`); de rij breekt. `rangSoorten`, `MeerSoorten` en
   `data-rang` bestaan niet meer.
 - **Tekst heeft geen maat van zichzelf** (golf N, §104): hij vult de kolom
-  waar hij in staat. Zet geen `max-width` in `ch` of `rem` op lopende tekst,
-  een inleiding of een beschrijving; wie een smallere regel wil, maakt de
+  waar hij in staat — ook het kader van de dossiernotities (`.editor-body`,
+  was `calc(68ch + 2rem)`). Zet geen `max-width` in `ch` of `rem` op lopende
+  tekst, een tekstvak, een inleiding of een beschrijving; wie een smallere regel wil, maakt de
   *kolom* smaller. Een stylesheet die een pagina zelf laadt, komt na de lagen
   van `app/layout.tsx`: daarom begint elke regel in `app/ruimte.css` met
   `.main`.
