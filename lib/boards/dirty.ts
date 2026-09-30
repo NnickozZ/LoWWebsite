@@ -251,3 +251,13 @@ export function dropCards(
     strings: strings.filter((line) => !touches(line.from) && !touches(line.to)),
   };
 }
+
+/**
+ * Golf M (herstel): what a drag that lost the tie to another hand may forget.
+ * Only the dirtiness the drag itself brought: a card that was already waiting
+ * to be saved when the drag began (a line of text typed on it) stays dirty, or
+ * that text would never reach the archive.
+ */
+export function dragOwnDirt(dragged: readonly string[], dirtyBefore: ReadonlySet<string>): string[] {
+  return dragged.filter((id) => !dirtyBefore.has(id));
+}

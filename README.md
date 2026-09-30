@@ -464,8 +464,8 @@ app/
                      that is a stamboom
   navigatie.css      §102: the layers of rounds 65–67, imported by the root
   kaartje.css        layout after globals.css so globals.css stays one hand's:
-  moment.css         the nav pending mark, the streep, the skeleton and the page
-  leeskamer.css      fade; the preview card and the flip's view transition;
+  moment.css         the nav pending mark, the streep (the skeleton and the page
+  leeskamer.css      fade went in golf M); the preview card and the flip's view transition;
                      the rolling saldo and its chip (§103); the wiki's front
                      page, *Genoemd in*, the heading anchors and the naad (§104)
   vlakken.css        golf I, three more layers after leeskamer.css, in this
@@ -487,7 +487,8 @@ app/
                      both places on the site line now
 components/
   editor/            Tiptap: the entryLink node, @ and [[ suggestions, toolbar;
-                     the shared-text editor (useLiveDoc, LiveBody, LivePeople)
+                     the shared-text editor (useLiveDoc, LiveBody; LivePeople
+                     went in golf M)
   entry/             cover (its tools behind one "Omslag" menu), the three
                      crops (round 19), type fields — as a form on the editing face and as
                      printed facts on the reading one (`FieldsView`) — tags,
@@ -543,8 +544,8 @@ components/
                      drawn twice: the side menu's groups and search box on a
                      desk, the Jij tab and the Jij-blad on a phone. §102:
                      NavPending (the clicked door is drawn active at once),
-                     NavProgress (the streep or the skeleton after 150 ms) and
-                     Skeleton + skeletonShape (the browser-only skeleton —
+                     NavProgress (the streep after 150 ms; since golf M no
+                     skeleton — Skeleton and skeletonShape are gone — and
                      there is deliberately no `loading.tsx`)
   kamer/             the kamer and its moments: Plek, the pickers, the beurs,
                      the uitdeler; since §103 moment.ts (`markLanding`,
@@ -1755,6 +1756,54 @@ A hundred and seven rules worth knowing before changing anything:
     that is **required rather than optional**, is what a new kind of thing gets
     on the day it is built. An optional viewer is how a dial ends up missing for
     four rounds, and a `_viewer` nobody uses is the tell.
+
+    > **Omgekeerd in golf M: de Bewerken-knop van de landkaart beslist over
+    > elke speld.** Nick, 29 september: spelers konden een speld niet
+    > verschuiven die de Keeper wél kon, en op een landkaart die op *Privé*
+    > stond, kon een speler die niet mocht bewerken toch een speld zetten.
+    > Tot golf M zei de code "anyone signed in may set a pin" en "the edit
+    > dial of the map is deliberately not consulted — a speld is not the map":
+    > zetten mocht iedereen die de kaart zag, verschuiven, herschrijven en
+    > weghalen alleen wie hem zette of een Keeper (§19, zie DECISIONS). Nu:
+    > - **Eén recht voor elke speld: `viewerCanEditMap`** (Iedereen · Gekozen
+    >   personen · Privé, een Keeper altijd; hij vraagt eerst de kijkregel).
+    >   Wie de kaart mag bewerken, mag *elke* speld zetten, verschuiven,
+    >   herschrijven, van laag wisselen, weghalen, omzetten en terugzetten,
+    >   wie hem ook zette; wie alleen mag kijken, kijkt. `addPin`, `ownPin`,
+    >   `viewerCanEditPin` en `restorePin` in `lib/maps/service.ts` vragen
+    >   alle vier dat ene; de drie speld-routes (`pins`, `pins/[pinId]`,
+    >   `pins/[pinId]/restore`) antwoorden 403 met `PIN_NOT_ALLOWED` vóór ze
+    >   iets lezen (`PIN_IS_SOMEONE_ELSE_S` is nog een alias). De tekstkamer
+    >   van een notitie-speld (`pin:{id}:fields`, `lib/live/rooms.ts`) volgt
+    >   hetzelfde recht, niet meer "wie hem zette".
+    > - **Let op de standaard van §40:** `edit_mode` begint op `'private'`.
+    >   Op een landkaart waarvan niemand de knop ooit omzette, zetten spelers
+    >   dus geen spelden meer; wie dat wil, zet de kaart in Rechten op
+    >   *Iedereen* of kiest personen.
+    > - **Op het scherm**: de pagina geeft `mayEditMap` mee aan `MapCanvas`;
+    >   wie alleen mag kijken, krijgt geen Lezen/Bewerken-schakelaar, geen
+    >   maakknoppen en geen *Ongedaan maken*. De tekenlaag blijft wel van
+    >   iedereen die mag kijken (§33): die is niet de Bewerken-knop van de
+    >   kaart. De zin *Deze speld is van iemand anders…* is weg, met de regel
+    >   die hij uitlegde. Wie een fiche draagt om hem op een kaart te zetten
+    >   (`/maps?place=`), krijgt alleen de landkaarten waarop dat mag.
+    > - **Een dubbelklik op het kale papier zet weer een speld** (§69).
+    >   `useMakeOnEmpty` vroeg `!ink.ink.enabled`, de schakelaar van de Keeper
+    >   op de tekenlaag, en die staat standaard aan, dus de dubbelklik deed
+    >   op bijna elke kaart niets; nu `!ink.inkActive`, het potlood in de hand,
+    >   zoals op de tijdlijn en de stamboom. In Lezen zegt een dubbelklik op
+    >   de kaart één keer waarom er niets gebeurt (`mapLezenDubbelklik`), en
+    >   alleen tegen wie kán bewerken.
+    > - **Andermans hand is een ring om de speld zelf** (§69 2.1). De kaart
+    >   tekende voor elke speld in iemand anders' hand een tweede, lege kop
+    >   (`.map-held`), die door het naamstrookje zo'n twintig pixel naast de
+    >   echte stond: "twee spelden". Nu draagt de echte speld de ring
+    >   (`.map-pin-held`, `data-held-by`), of, in een kluitje (§71), het
+    >   cijfertje (`.map-cluster-badge-held`). `heldByOthers` en `heldMarks`
+    >   in `lib/maps/held.ts` zijn puur.
+    >
+    > De proef staat in `tests/unit/golf-m-landkaart.test.ts` en
+    > `tests/e2e/golf-m-landkaart.spec.ts`.
 
 41. **A card on a wall can be made bigger, and it grows about its centre.** §41.
     A card carries `scale` (0.5–5, default 1, two decimals), and it is one number
@@ -3011,6 +3060,32 @@ A hundred and seven rules worth knowing before changing anything:
     stage is focusable; arrows pan (Shift faster), `+` and `−` zoom, `0` shows
     everything, Esc closes the last window.
 
+    > **Aangevuld in golf M: een tag die langs een buur gaat, en een venster
+    > buiten beeld.**
+    > - **Een gesleepte tag blijft in de DOM staan waar hij stond toen je hem
+    >   pakte.** Nick: een gebeurtenis die je langs een andere sleepte, sprong
+    >   terug. Elke stap sorteerde de gebeurtenissen opnieuw; React verplaatste
+    >   het element, dat verloor zijn pointer capture, en
+    >   `onLostPointerCapture` las dat als afbreken. Nu tekent de tijdlijn de
+    >   tags, zolang er een hand op een tag ligt, in de volgorde van het
+    >   indrukken (`stableRanks`/`inRankOrder` in `lib/timelines/glass.ts`,
+    >   puur); na het loslaten weer in tijdsvolgorde (Tab, schermlezer). Alleen
+    >   een capture die de tag zélf hield, breekt een sleep af
+    >   (`lost.target === lost.currentTarget`), en tot de drempel luistert ook
+    >   het venster (`listenPress`), zodat een snelle veeg niet van de tag
+    >   afglijdt.
+    > - **Een uitgeklapt venster waarvan de tag van het glas is, wordt niet
+    >   getekend** (`anchorOnGlass`, met een halve tag speling). Het blijft
+    >   open (`open`, `?event=`), komt terug met zijn tag, en neemt zolang geen
+    >   baan. Escape en een klik op de kale as sluiten het voorste venster dat
+    >   je kúnt zien. Op een telefoon blijven alle vensters in de peek.
+    > - Sinds golf M toont de tijdlijn ook ringen om wat een ander gekozen
+    >   heeft of sleept (`setHolding`), zoals het prikbord en de stamboom; zie
+    >   regel 108.
+    >
+    > De proef staat in `tests/unit/golf-m-tijdlijn.test.ts` en
+    > `tests/e2e/golf-m-tijdlijn.spec.ts`.
+
 63. **De voordeur gooit nooit weg wat je al getypt had, en heeft een tweede
     deur die je kunt zien.** §63. `<form action={…}>` met `useActionState` is een
     React-formulieractie, en React roept er `requestFormReset()` op zodra de
@@ -3339,9 +3414,11 @@ A hundred and seven rules worth knowing before changing anything:
     het beeld is van de lezer (`localStorage`, `tree:{id}:view`). Vijf randen:
     sterveling, godheid, huis, wezen, onbekend — de laatste is wat een los
     kaartje draagt. Ctrl+Z gaat over wat dit scherm bezit (plekken, kaartjes,
-    lijnen, wie erin staat) en nooit over een veld op een artikel, om §29's
+    lijnen, wie erin staat) ~~en nooit over een veld op een artikel, om §29's
     reden: één iemands Ctrl+Z mag niet iets weghalen dat een ander net
-    opschreef.
+    opschreef.~~ **Omgekeerd in golf M**, alleen voor de stamboom: Ctrl+Z zet
+    ook de ene verwijzing terug die een `+` of *Lijn verwijderen* schreef,
+    gericht en langs dezelfde weg; zie het blok onderaan deze regel.
 
     **Eén weg naar een veld, en één weg naar een artikel.** Het `+`-handvat gaat
     via `POST /api/family-trees/[id]/relations` naar `writeRelation`, en die
@@ -3410,6 +3487,36 @@ A hundred and seven rules worth knowing before changing anything:
     waarop je hem trok — de vijfde vermelding in de lijst van §33's breedtes.
     De Keeperschakelaar van die laag hangt onder de vouw (`#tree-underfold`),
     zoals bij de landkaart, want in de rij nam hij 132 px van het doek af.
+
+    > **Omgekeerd in golf M: een lijn weghalen kan terug.** Nick: een
+    > weggehaalde lijn was niet terug te zetten. Op een stamboom mag Ctrl+Z nu
+    > ook een lijn terugzetten die op een artikel staat. Dat draait §29 en §66
+    > om, **alleen voor de stamboom** (zie DECISIONS, golf M).
+    > - **Een stap is `{ state?, relations }`** (`lib/families/undoSteps.ts`,
+    >   puur): het document van de boom zoals het vóór de stap was, en de
+    >   verwijzingen die de stap op artikelen schreef, elk één ref in één veld.
+    >   Ongedaan maken stuurt elke ref gespiegeld terug, de laatste eerst, langs
+    >   dezelfde weg (`POST /relations` → `writeRelation` → `updateEntry`), dus
+    >   de §38-poort, de spiegel, de revisie en het voorstel gelden ook terug.
+    >   **Nooit een heel veld terug**: `writeRelation` leest het veld zoals het
+    >   nú is en raakt alleen die ene ref.
+    > - Staat de ref al waar de stap hem zou zetten (iemand anders was eerst),
+    >   dan is hij `unchanged`: er wordt niets geschreven en het glas zegt het.
+    >   Een eenvaks-`entry_link` die intussen iemand anders draagt, wordt niet
+    >   overschreven (`replace: false` in `writeRelation` en de
+    >   relations-route). Alleen wat echt landde, kan opnieuw.
+    > - **Opnieuw doen**: Ctrl+Shift+Z of Ctrl+Y, over alle stappen, en een knop
+    >   naast *Ongedaan maken* (`treeRedo`; niet op de telefoon). `undoStack`
+    >   kreeg `peek`, `pushRedo`, `popRedo`, `redoSize` en `pushFromRedo`,
+    >   allemaal toevoegingen; een nieuwe stap vergeet wat nog opnieuw kon.
+    > - Een oudere stap brengt niets terug dat een ander intussen weghaalde:
+    >   alleen wat deze hand met opzet terugzet (`revive` in de patch,
+    >   `lib/families/merge.ts`), tilt een grafsteen op, een verplaatsing nooit.
+    >   Zie regel 108.
+    >
+    > De proef staat in `tests/unit/golf-m-stamboom.test.ts`,
+    > `tests/unit/golf-m-stamboom-terug.test.ts` en
+    > `tests/e2e/golf-m-stamboom.spec.ts`.
 
 67. **De stamboom, tweede pas: één potlood, één manier van kiezen, en broers en
     zussen die niemand hoeft te typen.** §67. Ronde 31 zette de stamboom neer en
@@ -3618,6 +3725,27 @@ A hundred and seven rules worth knowing before changing anything:
     en het kaartje verdwenen; de marker valt hoe dan ook, want dit is een
     eenmalige opruiming en geen regel die elke start opnieuw langsloopt.
 
+    > **Aangevuld in golf M: de stamboom, een QOL-pas.**
+    > - **Een weggehaalde lijn zegt het, met een deur terug**: *Lijn
+    >   weggehaald.* met *Ongedaan maken* (`treeLineRemoved`, sleutel
+    >   `tree-line-removed`). Terugzetten gaat zoals in het blok bij regel 66.
+    > - **Een `+` op de lijn tussen twee ouders** (`TreeLineHandle`, bij
+    >   aanwijzen of kiezen, alleen in Bewerken) opent de kiezer met beide
+    >   ouders al vast: *Kind van {a} en {b} toevoegen*.
+    > - **Delete/Backspace** haalt de gekozen lijn of kaartjes weg; **Esc**
+    >   pelt laag voor laag. **De rechtermuisknop** opent het menu van een
+    >   kaartje of lijn bij de wijzer (`TreeContextMenu`); op de naam van een
+    >   kaartje blijft hij van de browser (§68).
+    > - **Een `+` slepen naar een ander kaartje tekent die lijn zonder kiezer**
+    >   (`lib/families/connect.ts`, puur: niet naar zichzelf, niet dubbel, geen
+    >   kringloop). Alleen met een muis of pen.
+    > - **De bloedlijn licht op**: met één kaartje gekozen dimt wie erbuiten
+    >   staat (`lib/families/lineage.ts`, puur: voorouders, nakomelingen, de
+    >   partners van het kaartje en van zijn nakomelingen), ook in Lezen.
+    >
+    > De proef staat in `tests/unit/golf-m-stamboom.test.ts` en
+    > `tests/e2e/golf-m-stamboom.spec.ts`.
+
 68. **Een verwijzing is een link, en de browser is de baas over elke knop
     behalve de linker.** §68. Vier kleine dingen aan het *lezen* van een
     archief, en drie ervan zijn dezelfde zin van drie kanten bekeken. Een
@@ -3810,6 +3938,9 @@ A hundred and seven rules worth knowing before changing anything:
     om terug te draaien* op de stapel — waar deze speld stond, of welke speld op
     te graven. Een momentopname zou daar stilletjes het werk van de ander
     terugzetten. §29 staat overeind: undo verwijdert nooit aan de serverkant.
+    *(Eén uitzondering sinds golf M: op een stamboom zet Ctrl+Z ook de ene
+    verwijzing terug die een lijn op een artikel schreef, gericht en langs
+    `writeRelation`; zie het blok bij regel 66.)*
 
     **Wat zweeft, gaat op één manier dicht.** `components/ui/useDismiss.ts` —
     Escape, een druk buiten het paneel, en de caret terug naar de knop die het
@@ -4318,6 +4449,37 @@ A hundred and seven rules worth knowing before changing anything:
     recordsleutel netjes langs de knoppen en de prullenbak ging: één ding, twee
     sleutels, twee antwoorden. En `nudge` antwoordde vrolijk voor een
     onzichtbare Keeper, wat in één klik verraadde dat hij er was.
+
+    > **Aangevuld in golf M: de plek op de plek.** Nick: naar iemand toe gaan
+    > moet landen waar hij kijkt, ook op een prikbord, en iemand roepen moet
+    > overal kunnen. Een rij in *Wie is er?* en een uitnodiging (*Kom kijken*)
+    > gaan nu naar de plek zelf: de camera op een tekenvlak, de sectie op een
+    > artikel of dossier.
+    > - **Een plek** is `c.{soort}.{id}.{camera}` of `s.{sectie}`
+    >   (`lib/live/spot.ts`, puur; de camera is alleen getallen, in base64url).
+    >   De browser zegt hem pas als de hand stil ligt (`LiveSpot`,
+    >   `onCameraWrite` in `lib/canvas/memory.ts`, `SPOT_SETTLE_MS` = 700 ms).
+    > - **De server hangt een plek alleen aan een deur via `spotForViewer`**
+    >   (`lib/live/roster.ts`), met de regels van deze regel: een camera alleen
+    >   van het vlak dat de plaats zelf is, een sectie alleen als de kijker haar
+    >   mag lezen (`canSeeSection`). Wat daar niet door komt, is er niet: geen
+    >   plek, niet een lege. De rij noemt de sectie (`roster-detail`) als de
+    >   kijker die mag lezen.
+    > - **Het adres draagt `?waar=`** (`SPOT_PARAM`). `readCamera` leest hem,
+    >   maakt hem de camera van dít tabblad en haalt hem uit het adres
+    >   (`writeChoice`); een sectie scrolt `LiveSpot` in beeld. Een camera wordt
+    >   dus nog steeds niet gedeeld (regel 20): hij wordt aangeboden, en wie op
+    >   de deur drukt, neemt hem mee.
+    > - **Elke rij toont *Ga naar* (`roster-go`) en *Kom kijken*
+    >   (`.roster-ask`) altijd**, niet pas bij een hover; de uitnodiging heeft
+    >   een knop *Ga* (`nudge-go`) die op de plek van wie roept landt, vanaf
+    >   elke pagina, ook het prikbord.
+    > - `sideDetour` neemt op het prikbord en de landkaart nu ook de zoekvraag
+    >   mee (`queryTail`), zoals de andere pagina's al deden, zodat `?waar=`
+    >   een omslag van kant overleeft.
+    >
+    > De proef staat in `tests/unit/golf-m-aanwezig.test.ts` en
+    > `tests/e2e/golf-m-aanwezig.spec.ts`.
 
 77. **Een speler is een adres, en een paneel is een samenvatting met een deur.**
     §77. `/spelers/<slug>` is de voordeur van één persoon — niet van één
@@ -5772,6 +5934,15 @@ A hundred and seven rules worth knowing before changing anything:
     `tests/unit/ronde-55-tekenvlakken.test.ts` en
     `tests/e2e/ronde-55-tekenvlakken.spec.ts`.
 
+    > **Aangevuld in golf M.** `?event=` centreert op een tijdlijn alleen de
+    > gebeurtenis waarmee de pagina geopend werd (`askedFor` in
+    > `TimelineCanvas`), niet wat `writeChoice` er later in schrijft; anders
+    > sprong een nieuwe tijdlijn na een `router.refresh()` naar het voorste
+    > venster. En een adres kan nu ook een camera dragen (`?waar=`, zie het
+    > blok bij regel 76): `readCamera` neemt hem één keer over en haalt hem
+    > weg. Een nieuw vlak dat `readCamera`/`writeCamera` gebruikt, meldt en
+    > ontvangt zijn plek vanzelf.
+
 95. **Een naam in een kort vak is een verwijzing, geen woord.** §95. Ronde 56,
     *Eén regel, één id*. Nick koos op 21 september voor variant (a) uit de
     review (`claude/review-ui-ux-bijlage-schrijven.md`, §3.Z): in een kort vak
@@ -6478,6 +6649,9 @@ A hundred and seven rules worth knowing before changing anything:
       als ronde 68 voorstelde; een morph komt er niet.
     - Reduced motion: een vaste streep, een skelet zonder fade, een pagina die
       alleen in opacity komt (`nav-page-fade`).
+    - *(Het skelet en de fade zijn **omgekeerd in golf M**: alleen de streep,
+      en de oude pagina blijft staan tot de nieuwe er is. Zie het blok
+      onderaan deze regel.)*
 
     **De voorbeeldkaart is een kaartje dat je kunt pakken** (65·c, J5,
     WCAG 1.4.13). Een muis rust 500 ms op een chip voor hij komt
@@ -6512,8 +6686,9 @@ A hundred and seven rules worth knowing before changing anything:
     - Een toetsenbordactie beweegt niet: Escape, `/`, `n`, `k`, het palet,
       Enter op een knop.
     - Alleen `transform` en `opacity`, en de uitgang is korter dan de ingang.
-    - Het skelet komt pas na 150 ms, nooit op een tekenvlak, en er komt geen
-      `loading.tsx` terug zonder eerst de mount-updates van de schil in
+    - ~~Het skelet komt pas na 150 ms, nooit op een tekenvlak, en~~ Er komt
+      geen skelet terug (golf M), en geen
+      `loading.tsx` zonder eerst de mount-updates van de schil in
       `startTransition` te zetten.
     - `aria-current` volgt de pagina, niet de klik.
     - Alleen de omslag krijgt een pagina-overgang. Niemand anders dan
@@ -6605,10 +6780,10 @@ A hundred and seven rules worth knowing before changing anything:
       feedregel of naam in de tekst krijgt `--paper-dark`, zonder beweging.
       Wat `startsNavigation` weigert (een bewerkbaar vak, een tekenvlak, een
       `#`, `/api`), weigert het nog steeds.
-    - **De tabpagina's hebben een skelet** (T7): `rows` (prikborden,
+    - ~~**De tabpagina's hebben een skelet** (T7): `rows` (prikborden,
       landkaarten, tijdlijnen, stambomen), `cases`, `hal` (`/spelers`) en
-      `voordeur` (`/` en `/wiki`), in `skeletonShapeFor`. Nog steeds geen
-      `loading.tsx`.
+      `voordeur` (`/` en `/wiki`), in `skeletonShapeFor`.~~ **Weg in golf M**,
+      met het hele skelet. Nog steeds geen `loading.tsx`.
     - **De Jij-tab is actief in jouw plek** (`jijIsHere`, T7): `/kamer/*`,
       `/winkel`, `/spelers*` en `/you`. In de zijbalk wint van de deuren van
       jouw plek alleen de langste overeenkomst (`currentDoor`, D18), dus op je
@@ -6676,6 +6851,35 @@ A hundred and seven rules worth knowing before changing anything:
     > pagina* bovenaan), en bij de hydratatie sprong *Bewerken* van y 184 naar
     > y 21; een tik middenin landde op iets anders. **Dat deel sloot j4** (zie
     > het blok bij regel 104): de server gokt de breedte niet meer.
+
+    > **Omgekeerd en aangevuld in golf M: de schil.** Nick, 29 september: een
+    > tabwissel knipperde, en *Wie is er?* stond op een breed scherm links
+    > bovenaan en liep rechts van de rand. Hij wil alle aanwezigheid
+    > rechtsboven, en aanklikbaar.
+    > - **Een navigatie wisselt in één keer.** De oude pagina blijft staan tot
+    >   de nieuwe er is, met alleen de streep na 150 ms en het vakje dat meteen
+    >   antwoordt (`NavPending`). Geen skelet (`Skeleton.tsx` en
+    >   `skeletonShape.ts` zijn weg) en geen fade (`nav-page-in`,
+    >   `nav-page-fade` en `html[data-navigated]` zijn weg): Nick zag die
+    >   twee samen als een knippering. Dat draait 65·b's "na 150 ms een skelet
+    >   of een streep", ronde 68's fade vanaf 0,6 en golf H's skeletten voor
+    >   de tabpagina's om (zie DECISIONS, golf M).
+    > - ***Wie is er?* staat op elke pagina rechtsboven, ook op het prikbord
+    >   en op een tekenvlak.** De plaats van de strip staat in één blok in
+    >   `app/navigatie.css`, één regel per maat: van 768 tot 1879 px op een
+    >   gewone pagina een float rechtsboven (zoals het was, met golf K's
+    >   ondergrens); op een tekenvlak, en op elke pagina vanaf 1880 px,
+    >   absoluut in de band boven de pagina, in de rechterhoek van de kolom.
+    >   Nooit breder dan de kolom; hooguit vier plekken (`STRIP_DISCS`): bij
+    >   meer dan vier drie schijfjes en `+n`.
+    > - **Het prikbord heeft geen eigen rij schijfjes meer, een sectie geen
+    >   `LivePeople`-regel** (`components/editor/LivePeople.tsx` is weg). Of de
+    >   lijn er is, zegt de stip van de strip; wie er is, zegt de strip, en de
+    >   roster noemt de sectie (`roster-detail`) als de kijker die mag lezen.
+    >   Naar iemand toe gaan en iemand roepen staan in het blok bij regel 76.
+    >
+    > De proef staat in `tests/unit/golf-m-aanwezig.test.ts` en
+    > `tests/e2e/golf-m-aanwezig.spec.ts`.
 
 103. **Het geld klinkt: een koop, een gift en een plek die opengaat hebben een
     moment, en het scherm rekent nog steeds niet.** §103. Ronde 66, *Het geld
@@ -7363,7 +7567,8 @@ A hundred and seven rules worth knowing before changing anything:
     van die spelden, nooit buiten de kaart (`openingOnPins` in `MapCanvas`,
     M3). Dat is de eerste stand en geen camera die uit zichzelf springt: §102
     regel 9 blijft. De zin *Deze speld is van iemand anders…* staat alleen nog
-    in Bewerken (L9).
+    in Bewerken (L9). *(Sinds golf M is hij weg: de Bewerken-knop van de
+    landkaart beslist over elke speld; zie het blok bij regel 40.)*
 
     Bewust niet: labels van twee regels en ruitclusters op de tijdlijn (dat
     vraagt nieuwe baangeometrie, een eigen ronde), een plaatser voor botsende
@@ -7793,3 +7998,115 @@ A hundred and seven rules worth knowing before changing anything:
     >   het licht draagt een zweem van zijn soortkleur.
     >
     > De proef staat in `tests/unit/golf-l.test.ts`.
+
+    > **Aangevuld in golf M: Gebruikers zoeken.** Nick vroeg een zoekvak in
+    > Beheer → Gebruikers.
+    > - **Een zoekvak** (`app/(app)/admin/SpelersLijst.tsx`) op de accountnaam,
+    >   het karakter dat hij speelt en elk karakter dat hij heeft
+    >   (`spelerPast` in `lib/beheer.ts`; zonder hoofdletters en accenten via
+    >   `normalise`, en elk woord moet ergens passen).
+    > - **Filterknoppen *Alle · Keepers · Uitgeschakeld***, elk met zijn
+    >   telling over de hele lijst (`spelerTellingen`), en *n van m* voor wat
+    >   er in beeld staat (`spelersTelling`).
+    > - Een rij die niet past, is `hidden`, niet weg (de regel van §96: een
+    >   formulier in een rij verliest niets). De caret staat er alleen met een
+    >   muis in (`(hover: hover) and (pointer: fine)`), zoals bij *Wie ben jij
+    >   aan tafel?*.
+    >
+    > De proef staat in `tests/unit/golf-m-beheer.test.ts` en
+    > `tests/e2e/golf-m-beheer.spec.ts`.
+
+108. **Samen op een vlak: wat een ander sleept, glijdt, en is van hem zolang
+    hij het draagt.** §108. Golf M. Nick, 29 september: samenwerken op een
+    prikbord voelde schokkerig, en twee handen konden hetzelfde kaartje
+    pakken. Geen migratie, geen nieuwe route. De codemarkers zeggen
+    `Golf M (samen)` (nog niet `§108`), in `lib/live/hands.ts`,
+    `lib/canvas/follow.ts`, `components/canvas/useFollow.ts`,
+    `components/canvas/useSoftLock.ts`, `lib/live/wire.ts` en de vier
+    tekenvlakken (`BoardCanvas`, `useBoardLive`, `useBoardSync`, `MapCanvas`,
+    `TimelineCanvas`, `FamilyTreeCanvas`, `TreeNode`), plus de regels in
+    `app/globals.css`, `app/stambomen.css` en `app/timelines.css`.
+
+    **Wat een ander draagt, glijdt.** Op alle vier de tekenvlakken volgt een
+    gedragen ding, en elk pijltje van een ander, zijn frames met een kritisch
+    gedempte veer (`lib/canvas/follow.ts`, puur, en `useFollow`). React tekent
+    het ding waar het laatste frame het zet; de volger legt er per
+    animatieframe een `translate` overheen op elk element met `data-follow`
+    (de losse eigenschap, die stapelt vóór een bestaande `transform`). Een
+    stamboomlijn of een prikborddraad volgt de getekende plek, niet het
+    frame. De veer meet de afstand tussen de frames per ding en trekt zo
+    strak als die toelaat: ω = 2 / frame-afstand, tussen 8 en 40
+    (`omegaFor`). Het eerste frame en een sprong van meer dan 900 px
+    (`FOLLOW_SNAP_PX`) staan meteen; onder `prefers-reduced-motion` volgt er
+    niets. **Dit vervangt de CSS-overgangen van 70 ms** op `.board-cursor`,
+    `.board-card-carried`, `.map-pin-carried`, `.map-cursor`,
+    `.tree-node.is-carried` en `.timeline-event-carried` (§21, §60): 70 ms is
+    korter dan de afstand tussen twee frames, dus het ding bewoog, stond stil
+    en bewoog weer. Twee versnellingen op één ding vechten; zet er geen
+    `transition` op `left`/`top` terug.
+
+    **Frames komen vaker tijdens een sleep**: om de 50 ms
+    (`POINTER_CARRY_THROTTLE_MS` in `lib/live/wire.ts`, `pointerWait`), en
+    alleen als er iemand is om het te zien; een kale cursor blijft op 80 ms
+    (`POINTER_THROTTLE_MS`, §60).
+
+    **Wat in iemands `m` staat, is zacht op slot** (`lib/live/hands.ts`,
+    puur, en `components/canvas/useSoftLock.ts`). Een druk erop zegt
+    *{naam} heeft dit vast* (`liveHeldBy`) en doet verder niets; weghalen en
+    een groepssleep slaan het over; openen en lezen mag gewoon. Een ding dat
+    alleen *gekozen* is, draagt een ring, geen slot. De klokken:
+    - een dragende hand herhaalt haar frame elke seconde, ook stil
+      (`CARRY_KEEPALIVE_MS`);
+    - na 3 s stilte (`HAND_STALE_MS`), bij loslaten of bij vertrek gaat het
+      slot open; loslaten wordt meteen gezegd, en het laatste dragende frame
+      gaat vóór het lege;
+    - wat neergezet is, blijft bij de ontvanger staan waar de hand het liet
+      tot zijn eigen document zegt waar het is, of hooguit 4 s
+      (`SETTLE_MS`, `settleCarry`).
+
+    **Gelijkspel**: pakken twee handen hetzelfde in dezelfde tel, dan wint het
+    kleinste client-id (`winsTie`), op elk scherm hetzelfde zonder dat ze
+    elkaar spreken. De verliezer zet terug zonder op te slaan en krijgt
+    *{naam} pakte dit net eerder.* (`liveTakenFirst`). **Geen serverslot**:
+    er staat niets in een tabel, een tab die het slot negeert, schrijft zoals
+    altijd, en de merge (§8, §61) blijft de scheidsrechter. De tijdlijn toont
+    sinds golf M ook ringen (`setHolding`), zoals het prikbord en de
+    stamboom; de landkaart tekende ze al (zie het blok bij regel 40).
+
+    **Wat een ander weghaalt, blijft weg.** Ctrl+Z van een oudere stap brengt
+    niets terug dat een ander intussen weghaalde: op het prikbord onthoudt
+    `goneByOthers` wat een ander van de muur haalde, en op de stamboom
+    hetzelfde, plus `revive` in de patch (`lib/families/merge.ts`): alleen
+    wat deze hand met opzet terugzet, tilt een grafsteen op, een verplaatsing
+    nooit. Wat een ander weghaalt terwijl het hier gekozen of open is, laat
+    los met *{naam} is net door iemand anders weggehaald.*
+    (`liveGoneByOther`), op alle vier. Op de landkaart haalt een mislukte
+    opslag op een weggehaalde speld hem ook hier weg.
+
+    **Wat niet gebroken mag worden.**
+    - Een nieuw vlak dat iets laat dragen, zet het in `m` en laat een ander
+      het volgen met `useFollow` en het slot vragen met `useSoftLock`; geen
+      eigen `transition`, geen eigen slot.
+    - Het slot is beleefdheid, geen recht: de server weigert niets op grond
+      ervan, en een lezer mag altijd openen.
+    - Een pointerframe blijft zicht, geen staat (regel 20): de volger tekent,
+      het document beslist.
+
+    De proef staat in `tests/unit/golf-m-samen.test.ts` en
+    `tests/e2e/golf-m-samen.spec.ts` (de glijproef slaat over onder
+    `E2E_DEV`: een productiemaat).
+
+
+    **Aangevuld in golf M·herstel** (na een onafhankelijke review, `30945ce`).
+    Wat een hand zelf weghaalt, is niet "door een ander weggehaald":
+    `lib/live/ownDeletes.ts` houdt de ids vast van vóór de `DELETE` tot het
+    antwoord plus `OWN_DELETE_GRACE_MS`, want de lijn meldt ook de eigen
+    schrijf (landkaart en tijdlijn; prikbord en stamboom haalden al eerst
+    lokaal weg). Een `+` die iemand uit een vak van één verving, is op de
+    stamboom twee ops (`writeRelation` geeft `replaced`, `landedOps`): Ctrl+Z
+    zet de oude terug. Elk gebaar draagt zijn eigen `StepGroup`; er is geen
+    gedeelde "huidige stap" meer, en een redo blijft alleen als de stapel
+    niet bewoog tijdens het wachten. Van een glijdend kaartje worden alleen
+    de lijnen die het raakt opnieuw getekend (`lib/families/followEdges.ts`).
+    Een verloren sleep op het prikbord vergeet alleen zijn eigen vuil
+    (`dragOwnDirt`), niet een onbewaarde tekst op hetzelfde kaartje.

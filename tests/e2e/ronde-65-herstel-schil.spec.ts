@@ -311,16 +311,15 @@ test('#4: op de telefoon ligt de Keeperkant-knop over geen enkele kopknop', asyn
 
 /* ------------------------------------------------------------------ #5 */
 
-test('#5: een navigatie begint bij 0,6 en niet bij een leeg frame', async ({ page }, info) => {
+test('#5 (golf M): een navigatie heeft geen fade meer — de pagina wisselt in één keer', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'één keer is genoeg: het is een regel in de css');
   await signIn(page, ...KEEPER);
-  const from = await page.evaluate(() => {
-    const out: Record<string, string> = {};
+  const names = await page.evaluate(() => {
+    const out: string[] = [];
     const walk = (list: CSSRuleList) => {
       for (const rule of list) {
-        if (rule instanceof CSSKeyframesRule && (rule.name === 'nav-page-in' || rule.name === 'nav-page-fade')) {
-          out[rule.name] = (rule.cssRules[0] as CSSKeyframeRule).style.opacity;
-        } else if ('cssRules' in rule) walk((rule as CSSGroupingRule).cssRules);
+        if (rule instanceof CSSKeyframesRule) out.push(rule.name);
+        else if ('cssRules' in rule) walk((rule as CSSGroupingRule).cssRules);
       }
     };
     for (const sheet of document.styleSheets) {
@@ -332,15 +331,9 @@ test('#5: een navigatie begint bij 0,6 en niet bij een leeg frame', async ({ pag
     }
     return out;
   });
-  console.log('#5 keyframes', JSON.stringify(from));
-  check(from['nav-page-in']).toBe('0.6');
-  check(from['nav-page-fade']).toBe('0.6');
-
-  // And the frame itself, 30 ms after a click in the side menu.
-  await page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Wiki' }).click();
-  await page.waitForURL('**/wiki');
-  await page.waitForTimeout(20);
-  await shot(page, 'desktop-5-nav-direct');
+  check(names).not.toContain('nav-page-in');
+  check(names).not.toContain('nav-page-fade');
+  check(names).not.toContain('skeleton-in');
 });
 
 /* ------------------------------------------------------------------ #10 */

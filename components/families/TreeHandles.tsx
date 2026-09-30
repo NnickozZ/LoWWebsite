@@ -69,6 +69,7 @@ export function TreeHandles({
   menuOpen,
   onMenu,
   onAdd,
+  onHandlePointerDown,
   nodeName,
 }: {
   /** The card, in world coordinates. */
@@ -79,6 +80,12 @@ export function TreeHandles({
   menuOpen: boolean;
   onMenu: (open: boolean) => void;
   onAdd: (role: HandleRole) => void;
+  /**
+   * Golf M: the press on a `+`, handed to the canvas before anything else, so a
+   * drag out of it can become a line (`lib/families/connect.ts`). A plain click
+   * still reaches `onAdd` and opens the kiezer.
+   */
+  onHandlePointerDown?: (role: HandleRole, event: React.PointerEvent) => void;
   nodeName: string;
 }) {
   const ui = useUi();
@@ -172,7 +179,10 @@ export function TreeHandles({
           title={offer.enabled ? offer.label : offer.hint}
           aria-label={`${offer.label} bij ${nodeName}`}
           aria-describedby={offer.enabled ? undefined : `tree-handle-hint-${offer.role}`}
-          onPointerDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (offer.enabled) onHandlePointerDown?.(offer.role, event);
+          }}
           {...maker(() => {
             if (offer.enabled) onAdd(offer.role);
           })}
@@ -443,5 +453,158 @@ export function TreeSelectionMenu({
       menuOpen={menuOpen}
       onMenu={onMenu}
     />
+  );
+}
+
+/**
+ * Golf M — de `+` op de lijn tussen twee ouders.
+ *
+ * The line between a couple (and the bar their children hang from) is where a
+ * child *is* drawn, so it is where a hand looks for "another one of these".
+ * The `+` there opens the same kiezer the shared handle does, with both parents
+ * fixed — or one, under a bar that hangs from one parent. It is small and
+ * appears only on the line a hand is on (hover) or has chosen (a tap, or a
+ * click), in Bewerken, for a hand that may edit: a `+` standing on every line
+ * of a large family would be the drawing's loudest thing.
+ *
+ * `onHover` keeps it standing while the pointer crosses from the line to the
+ * button: the two are separate elements and the gap between them is a leave.
+ */
+export function TreeLineHandle({
+  at,
+  zoom,
+  label,
+  hint,
+  enabled,
+  onAdd,
+  onHover,
+}: {
+  /** World coordinates: the middle of the line, or the bar's centre. */
+  at: { x: number; y: number };
+  zoom: number;
+  label: string;
+  hint?: string;
+  enabled: boolean;
+  onAdd: () => void;
+  onHover?: (over: boolean) => void;
+}) {
+  const maker = useCanvasMaker();
+  return (
+    <button
+      type="button"
+      className="tree-handle tree-handle-line"
+      data-testid="tree-line-add-child"
+      style={{
+        left: at.x,
+        top: at.y,
+        transform: `translate(-50%, 6px) scale(${1 / (zoom || 1)})`,
+        transformOrigin: '50% 0',
+      }}
+      disabled={!enabled}
+      title={enabled ? label : hint}
+      aria-label={label}
+      aria-describedby={enabled ? undefined : 'tree-line-add-child-hint'}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerEnter={() => onHover?.(true)}
+      onPointerLeave={() => onHover?.(false)}
+      {...maker(() => {
+        if (enabled) onAdd();
+      })}
+    >
+      <Icon name="plus" size={14} />
+      {!enabled && hint && (
+        <span className="visually-hidden" id="tree-line-add-child-hint">
+          {hint}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Golf M — het menu onder de rechtermuisknop.
+ *
+ * The same items a card's `…` offers (or a line's *Lijn verwijderen*), opened
+ * where the pointer is rather than on the card's corner. It lives in the
+ * stage's own coordinates — not the world's — so it is placed with plain
+ * arithmetic and never scaled: `left`/`top` are the pointer's, pulled back
+ * inside the glass when the pointer is near an edge. It closes on a press
+ * anywhere else, on Escape (the canvas's key handler), and when an item is
+ * chosen.
+ */
+export function TreeContextMenu({
+  at,
+  stage,
+  label,
+  menu,
+  onClose,
+}: {
+  /** Stage coordinates of the pointer. */
+  at: { x: number; y: number };
+  stage: { width: number; height: number };
+  label: string;
+  menu: TreeMenuItem[];
+  onClose: () => void;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 192, height: 36 * menu.length + 4 });
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const next = { width: el.offsetWidth || 192, height: el.offsetHeight || 40 };
+    setSize((current) => (current.width === next.width && current.height === next.height ? current : next));
+  }, [menu.length]);
+  useEffect(() => {
+    const onDown = (event: PointerEvent) => {
+      if (boxRef.current && !boxRef.current.contains(event.target as Node)) onClose();
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [onClose]);
+  // The first item takes the focus, as a menu does, so the keyboard can walk it.
+  useEffect(() => {
+    boxRef.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+  }, []);
+
+  const margin = 6;
+  const left = Math.max(margin, Math.min(at.x, stage.width - size.width - margin));
+  const top = at.y + size.height + margin <= stage.height ? at.y : Math.max(margin, at.y - size.height);
+
+  return (
+    <div
+      ref={boxRef}
+      className="tree-menu tree-context-menu"
+      role="menu"
+      aria-label={label}
+      data-testid="tree-context-menu"
+      {...AUTHOR_GATE_OFF}
+      style={{ left, top }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        event.preventDefault();
+        const items = [...(boxRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
+        const now = items.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === 'ArrowDown' ? (now + 1) % items.length : (now - 1 + items.length) % items.length;
+        items[next]?.focus();
+      }}
+    >
+      {menu.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          role="menuitem"
+          className={`tree-menu-item${item.danger ? ' tree-menu-item-danger' : ''}`}
+          onClick={() => {
+            onClose();
+            item.onSelect();
+          }}
+        >
+          {item.icon && <Icon name={item.icon} size={13} />}
+          {item.label}
+        </button>
+      ))}
+    </div>
   );
 }

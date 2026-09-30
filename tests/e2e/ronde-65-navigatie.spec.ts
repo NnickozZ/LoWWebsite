@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { becomeInvestigator, editArticle, inviteCode, signIn } from './helpers';
+import { editArticle, signIn } from './helpers';
 
 /**
  * §102 (ronde 65·b, J2): een navigatie zegt dat hij loopt.
@@ -10,12 +10,12 @@ import { becomeInvestigator, editArticle, inviteCode, signIn } from './helpers';
  *   (a2) een chip in een editor in Bewerken start geen streep;
  *   (b)  bij 300 ms vertraging is de streep na 150–300 ms zichtbaar;
  *   (c)  bij 0 ms wordt de streep nooit zichtbaar;
- *   (d)  bij 300 ms staat binnen 250 ms een `.skeleton` in `main`;
+ *   (d)  golf M: bij 300 ms blijft de oude pagina staan, met alleen de streep
+ *        erboven — geen skelet — en het anker landt daarna;
  *   (e)  de 404-status blijft een 404 (§89);
- * plus het anker na *Bekijk*, de vorm per route, en de fade van ronde 68.
+ * plus, sinds golf M, dat de nieuwe pagina niet meer invervaagt: één wissel.
  *
- * Het skelet is geen `loading.tsx` maar wordt door `NavProgress` over de
- * inhoudskolom gelegd; waarom staat in `components/shell/Skeleton.tsx`.
+ * Golf M (A1) haalde het skelet en de fade van ronde 68 weg (Nick: "it blinks").
  *
  * De vertraging gaat via CDP (`Network.emulateNetworkConditions`), dus die
  * zaken draaien alleen in Chromium op de desk. Tijden worden in de pagina zelf
@@ -237,23 +237,25 @@ test.describe('ronde 65·b — de navigatie zegt dat hij loopt', () => {
     expect(fast, 'navigaties onder 150 ms').toBeGreaterThan(0);
   });
 
-  test('(d) bij 300 ms staat binnen 250 ms een skelet in main, en het anker landt daarna', async ({ page }) => {
+  test('(d) golf M: bij 300 ms blijft de oude pagina staan onder de streep, en het anker landt daarna', async ({ page }) => {
     await signIn(page, ...KEEPER);
     const cdp = await lagOf(page);
     await settle(page, cdp, '/wiki/alles');
     await lag(cdp, 300);
     await arm(page);
+    // Iets van de oude pagina, om te zien dat hij blijft staan tot de nieuwe er is.
+    await page.evaluate(() => document.querySelector('main :is(.page, .page-wide)')?.setAttribute('data-oud', ''));
     const article = page.locator('main a[href^="/e/"]').first();
     const href = (await article.getAttribute('href'))!;
     await article.click({ noWaitAfter: true });
-    await expect.poll(async () => (await read(page)).skeleton, { timeout: 5_000 }).not.toBeNull();
-    expect((await read(page)).skeleton!).toBeLessThanOrEqual(250);
-    // Het skelet zegt het tegen een schermlezer, en de streep komt niet: één
-    // teken per klik.
-    await expect(page.getByTestId('nav-skeleton').getByRole('status')).toHaveText('Pagina wordt geladen');
+    // De streep komt, en zolang hij er staat, staat de oude pagina er ook.
+    await expect.poll(async () => (await read(page)).shownEver, { timeout: 5_000 }).toBe(true);
+    expect(await page.locator('main [data-oud]').isVisible()).toBe(true);
+    await expect(page.getByTestId('nav-skeleton')).toHaveCount(0);
+    expect((await read(page)).skeleton).toBeNull();
     await page.waitForURL(`**${href}`);
-    await expect(page.locator('main .skeleton')).toHaveCount(0, { timeout: 10_000 });
-    expect((await read(page)).shownEver).toBe(false);
+    await expect(page.locator('main [data-oud]')).toHaveCount(0, { timeout: 10_000 });
+    expect((await read(page)).skeleton).toBeNull();
 
     /*
      * Het anker. *Bekijk* in de koopmelding gaat met `router.push` naar
@@ -278,7 +280,6 @@ test.describe('ronde 65·b — de navigatie zegt dat hij loopt', () => {
     await lag(cdp, 300);
     await page.evaluate((to) => (window as unknown as { next: { router: { push: (h: string) => void } } }).next.router.push(to), `/e/westkapelle-lighthouse#${anchor}`);
     await page.waitForURL('**/e/westkapelle-lighthouse#*');
-    await expect(page.locator('main .skeleton')).toHaveCount(0, { timeout: 10_000 });
     await expect
       .poll(() =>
         page.evaluate((id) => {
@@ -301,127 +302,51 @@ test.describe('ronde 65·b — de navigatie zegt dat hij loopt', () => {
     expect((await page.goto('/winkel'))?.status()).toBe(200);
   });
 
-  test('ronde 68: de inhoud vervaagt in bij een navigatie, niet bij het laden en niet op een tekenvlak', async ({ page }) => {
+  test('golf M: de nieuwe pagina vervaagt niet in — één wissel, ook niet op een tekenvlak', async ({ page }) => {
     await signIn(page, ...KEEPER);
     await page.goto('/cases');
     await arm(page);
-    // Bij het laden van het document: niets.
-    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-navigated'))).toBe(false);
     await page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Wiki', exact: true }).click();
     await page.waitForURL('**/wiki');
-    await expect.poll(async () => (await read(page)).animations.map((a) => a.name)).toContain('nav-page-in');
-
-    // Een prikbord: het glas beweegt voor de hand (§34).
     await page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Prikborden', exact: true }).click();
     await page.waitForURL('**/boards');
-    // De lijst zelf vervaagt nog in; laat die eerst uitspelen.
-    await page.waitForTimeout(500);
-    const board = page.locator('main a[href^="/b/"]').first();
-    await page.evaluate(() => {
-      (window as unknown as { __nav: NavRecord }).__nav.animations = [];
-    });
-    await board.click();
+    await page.locator('main a[href^="/b/"]').first().click();
     await page.waitForURL('**/b/**');
     await expect(page.locator('.page-canvas')).toBeVisible();
     await page.waitForTimeout(300);
     const names = (await read(page)).animations.map((a) => a.name);
     expect(names).not.toContain('nav-page-in');
     expect(names).not.toContain('nav-page-fade');
+    expect(names).not.toContain('skeleton-in');
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-navigated'))).toBe(false);
   });
 });
 
 /**
- * De screenshots om te beoordelen: het skelet van elke vorm en de streep, op
- * de desk en de telefoon. Een lange vertraging houdt het skelet stil in beeld.
+ * De streep om te beoordelen, op de desk en de telefoon, bij een lange
+ * vertraging: de oude pagina staat eronder, onaangeroerd (golf M).
  */
 test.describe('ronde 65·b — hoe het eruitziet', () => {
   test.beforeEach(({ browserName }) => {
     test.skip(browserName !== 'chromium', 'de vertraging gaat via CDP');
   });
 
-  test('het skelet en de streep, per vorm', async ({ page, browser, isMobile }, info) => {
-    test.setTimeout(240_000);
+  test('de streep over de oude pagina', async ({ page, isMobile }) => {
+    test.setTimeout(120_000);
     mkdirSync(SHOTS, { recursive: true });
     const tag = isMobile ? 'phone' : 'desktop';
     await signIn(page, ...KEEPER);
     const cdp = await lagOf(page);
-
-    const hold = async (name: string, from: string, click: () => Promise<void>) => {
-      await settle(page, cdp, from);
-      await lag(cdp, 4000);
-      await click();
-      await expect(page.getByTestId('nav-skeleton')).toBeVisible({ timeout: 5_000 });
-      await page.waitForTimeout(450);
-      await page.screenshot({ path: `${SHOTS}/${tag}-skelet-${name}.png` });
-      await lag(cdp, 0);
-      await expect(page.locator('main .skeleton')).toHaveCount(0, { timeout: 20_000 });
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: `${SHOTS}/${tag}-echt-${name}.png` });
-    };
-
-    await hold('artikel', '/wiki/alles', () => page.locator('main a[href^="/e/"]').first().click({ noWaitAfter: true }));
-    await hold('dossier', '/cases', () => page.locator('main a[href^="/c/"]').first().click({ noWaitAfter: true }));
-    await hold('lijst', '/wiki/alles', () => page.locator('main a[href^="/wiki/"]:not([href="/wiki/alles"]):not([href="/wiki"])').first().click({ noWaitAfter: true }));
-
-    // De streep: een pagina zonder skelet, bij een lange vertraging. Golf h1
-    // (T7) gaf de tabpagina's een vorm, dus hier Zoeken (telefoon) en Beheer.
     await settle(page, cdp, '/wiki');
     await lag(cdp, 4000);
     await arm(page);
     if (isMobile) await page.getByRole('navigation', { name: 'Tabbalk' }).getByRole('link', { name: /Zoeken/ }).click({ noWaitAfter: true });
     else await page.getByTestId('nav-admin').click({ noWaitAfter: true });
     await expect(page.locator('.nav-progress')).toHaveAttribute('data-shown', '1', { timeout: 5_000 });
+    await expect(page.getByTestId('nav-skeleton')).toHaveCount(0);
     await page.waitForTimeout(900);
     await page.screenshot({ path: `${SHOTS}/${tag}-streep.png` });
-    const width = page.viewportSize()!.width;
-    await page.screenshot({ path: `${SHOTS}/${tag}-streep-zoom.png`, clip: { x: 0, y: 0, width, height: 90 } });
     await lag(cdp, 0);
     await page.waitForURL(isMobile ? '**/search' : '**/admin', { timeout: 20_000 });
-
-    // Een speler met een kamer: kamer, winkel en spelerspagina.
-    const ctx = await browser.newContext(info.project.use);
-    const player = await ctx.newPage();
-    const stamp = `${tag}-${Date.now().toString(36)}`;
-    await player.goto('/signup');
-    await player.getByLabel('Uitnodigingscode').fill(inviteCode());
-    await player.getByLabel('Naam', { exact: true }).fill(`Nav ${stamp}`);
-    await player.getByLabel('Wachtwoord', { exact: true }).fill('wachtwoord65b');
-    await player.getByLabel('Wachtwoord nogmaals').fill('wachtwoord65b');
-    await player.getByRole('button', { name: 'Account aanmaken' }).click();
-    await player.waitForURL('**/');
-    await becomeInvestigator(player, `Vera ${stamp}`);
-    const pcdp = await lagOf(player);
-    const doors: [string, string][] = [
-      ['kamer', 'kamer'],
-      ['winkel', 'winkel'],
-      ['speler', 'mine'],
-    ];
-    for (const [name, door] of doors) {
-      await lag(pcdp, 0);
-      await player.goto('/wiki');
-      await player.waitForTimeout(1500);
-      let link;
-      if (isMobile) {
-        await player.getByTestId('tab-jij').click();
-        link = player.getByTestId(`jij-${door}`);
-      } else {
-        link = player.getByTestId(`yours-${door}`);
-      }
-      if (!(await link.count())) {
-        info.annotations.push({ type: 'geen deur', description: name });
-        if (isMobile) await player.keyboard.press('Escape');
-        continue;
-      }
-      await lag(pcdp, 4000);
-      await link.click({ noWaitAfter: true });
-      await expect(player.getByTestId('nav-skeleton')).toBeVisible({ timeout: 5_000 });
-      await player.waitForTimeout(450);
-      await player.screenshot({ path: `${SHOTS}/${tag}-skelet-${name}.png` });
-      await lag(pcdp, 0);
-      await expect(player.locator('main .skeleton')).toHaveCount(0, { timeout: 20_000 });
-      await player.waitForTimeout(300);
-      await player.screenshot({ path: `${SHOTS}/${tag}-echt-${name}.png` });
-    }
-    await ctx.close();
   });
 });

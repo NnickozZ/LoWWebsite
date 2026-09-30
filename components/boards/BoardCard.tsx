@@ -457,6 +457,7 @@ export function BoardCardView({
         }}
         onPointerDown={onPointerDown}
         data-card-id={card.id}
+        data-follow={card.id}
         title={card.name ? undefined : 'Een punaise — selecteer hem om er een label aan te geven'}
       >
         <span
@@ -575,6 +576,7 @@ export function BoardCardView({
       }}
       onPointerDown={onPointerDown}
       data-card-id={card.id}
+      data-follow={card.id}
     >
       <span
         className="board-pin"

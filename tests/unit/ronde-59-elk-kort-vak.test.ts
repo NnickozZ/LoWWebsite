@@ -111,6 +111,8 @@ describe('elke weg in schrijft een handvat, en een speler leest wat hij mag zien
     const map = deps.maps.createMap({ name: 'Walcheren', assetId: 'a59', width: 100, height: 100, description: `Volgens ${tokenFor(jan)}` }, KEEPER);
     expect(one<{ description: string }>('SELECT description FROM maps WHERE id = ?', map.id).description).toBe(`Volgens ${tokenFor(jan)}`);
 
+    // Golf M: a speler sets a speld only on a landkaart whose Bewerken dial lets them.
+    run(`UPDATE maps SET edit_mode = 'all' WHERE id = ?`, map.id);
     const pin = deps.maps.addPin(map.id, { kind: 'note', name: 'Hier', text: 'Zag [[Jan Vermeer]] bij de sluis', x: 0.5, y: 0.5 }, KEEPER);
     const stored = one<{ text: string }>('SELECT text FROM map_pins WHERE id = ?', pin.id).text;
     expect(stored).not.toContain('[[');
@@ -122,6 +124,7 @@ describe('elke weg in schrijft een handvat, en een speler leest wat hij mag zien
 
   it('de speld via de kamer: wat het archief schoonmaakt, zet de kamer recht', () => {
     const map = deps.maps.listMaps(KEEPER)[0];
+    run(`UPDATE maps SET edit_mode = 'all' WHERE id = ?`, map.id);
     const pin = deps.maps.addPin(map.id, { kind: 'note', name: 'Live', text: '', x: 0.2, y: 0.2 }, SPELER);
     run(`INSERT INTO live_docs (room, state) VALUES (?, x'00')`, `pin:${pin.id}:fields`);
     deps.maps.updatePin(pin.id, { text: 'Gewoon tekst ' }, SPELER, { live: true });

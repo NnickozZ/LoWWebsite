@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { BoardState } from '@/lib/boards/merge';
 import type { BoardRefs } from '@/lib/boards/service';
 import { useLiveBase, useLivePointers } from '@/components/live/LiveProvider';
 import { boardKey } from '@/lib/live/keys';
+import type { Carry, DocAt } from '@/lib/live/hands';
+import { useCarried, useLocks } from '@/components/canvas/useSoftLock';
 
 export type Person = {
   clientId: string;
@@ -18,8 +20,8 @@ export type LiveState = 'connecting' | 'live' | 'polling';
 /** Somebody else's pointer on the cork, in board coordinates. */
 export type Cursor = { clientId: string; name: string; colour: string; x: number; y: number; at: number };
 
-/** A card somebody else is carrying right now, and where they have it. */
-export type Carried = { x: number; y: number; by: string; at: number };
+/** A card somebody else is carrying right now (or just put down), and where. Golf M: the shared shape. */
+export type Carried = Carry;
 
 /** A selection box somebody else is dragging open, in board coordinates. */
 export type Marquee = {
@@ -36,8 +38,6 @@ export type Marquee = {
 const POLL_MS = 4000;
 /** A pull that has not answered in this long is abandoned and tried again. */
 const PULL_TIMEOUT_MS = 10_000;
-/** A carried card with no frame behind it for this long is put back down. */
-const CARRIED_TTL_MS = 20_000;
 /**
  * A selection box is a gesture in progress, so it is dropped much sooner than a
  * cursor: a hand that goes quiet mid-drag has let go, and a rectangle left
@@ -88,6 +88,7 @@ export function useBoardLive({
   dirty,
   onRemote,
   onRename,
+  docAt,
 }: {
   boardId: string;
   /** This tab. Stable for its lifetime; the server keys presence on it. */
@@ -101,23 +102,15 @@ export function useBoardLive({
   onRemote: (state: BoardState, refs: BoardRefs) => void;
   /** §99 (O8): and the description, which travels on the same pull. */
   onRename: (name: string, description?: string) => void;
+  /**
+   * Golf M (samen): where the wall's own document has a card, or null when it
+   * has none — a new function whenever the document changed (see `useCarried`).
+   */
+  docAt: DocAt;
 }) {
   const live = useLiveBase();
   const hands = useLivePointers();
   const { setAlias, setHolding, onChanged, watch, reportPointer: reportSiteFrame, status } = live;
-
-  /**
-   * Cards other people are carrying, keyed by card. Derived from the pointer
-   * frames, but *not* purely: a card stays where the hand put it until this
-   * tab's own pull lands (see `settling`), so a drop does not snap back for the
-   * length of one round trip.
-   */
-  const [carried, setCarried] = useState<Map<string, Carried>>(new Map());
-  /**
-   * Tabs whose save has been announced but not yet pulled. Their carried
-   * positions stay on screen until the pull lands.
-   */
-  const settling = useRef<Set<string>>(new Set());
 
   const quiet = !paused && !dirty;
   const quietRef = useRef(quiet);
@@ -187,15 +180,6 @@ export function useBoardLive({
       pullBackoff.current = 0;
       onRemoteRef.current(data.state, { entries: data.entries, maps: data.maps, cases: data.cases, timelines: data.timelines ?? {}, boards: data.boards ?? {}, familyTrees: data.familyTrees ?? {} });
       onRenameRef.current(data.name, data.description);
-      // Whatever those tabs were carrying is now where the document says.
-      if (settling.current.size) {
-        const done = settling.current;
-        settling.current = new Set();
-        setCarried((current) => {
-          const next = new Map([...current].filter(([, item]) => !done.has(item.by)));
-          return next.size === current.size ? current : next;
-        });
-      }
     } catch (err) {
       timedOut = (err as { name?: string } | null)?.name === 'AbortError';
     } finally {
@@ -239,8 +223,7 @@ export function useBoardLive({
    * quoted in every save (`publishChange(boardId, {by})`). Telling the hub that
    * it is this line means two things: the author is not told about their own
    * save, and the `by` everybody else receives is the same client id their
-   * pointer frames carry, which is what makes `settling` line up with
-   * `carried`.
+   * pointer frames carry.
    */
   useEffect(() => {
     setAlias(clientId);
@@ -258,7 +241,6 @@ export function useBoardLive({
       // it, and this is the belt to that pair of braces — the ORM's own signal
       // for the same write carries no `by` at all.
       if (info?.by && info.by === clientId) return;
-      if (info?.by) settling.current.add(info.by);
       void pull();
     });
   }, [boardId, clientId, onChanged, pull]);
@@ -350,14 +332,24 @@ export function useBoardLive({
    * and the fields it does not mention keep their last value — so something has
    * to say when the cards are no longer in the air. `paused` is exactly that:
    * it is true for the length of a drag, a resize, a string or a marquee, and
-   * the moment it falls the hand is empty. (The watcher does not act on the
-   * emptying until its own pull has landed; see `settling`.)
+   * the moment it falls the hand is empty. (The watcher keeps the cards where
+   * they were put until its own document says otherwise; see `carried`.)
+   *
+   * Golf M (samen): and it is *said*, at once. A hand that let go used to go on
+   * naming its cards until the mouse next moved — which was harmless while a
+   * frame was only sight, and is not now that a named card is locked
+   * (`lib/live/hands.ts`): the wall would have stayed shut for as long as the
+   * mouse lay still. The line sends the last carrying frame first, so the spot
+   * the cards were dropped on is never lost.
    */
   useEffect(() => {
     if (paused) return;
-    frame.current.m = {};
-    frame.current.s = null;
-  }, [paused]);
+    const current = frame.current;
+    const wasCarrying = Object.keys(current.m).length > 0 || current.s !== null;
+    current.m = {};
+    current.s = null;
+    if (wasCarrying) reportSiteFrame({ x: current.x, y: current.y, m: {}, s: null });
+  }, [paused, reportSiteFrame]);
 
   /* ------------------------------------------------------- what to render */
 
@@ -414,74 +406,17 @@ export function useBoardLive({
   }, [hands, clientId]);
 
   /*
-   * The cards other people have in the air.
-   *
-   * Kept in state rather than derived straight from the frames, because a card
-   * has to *stay* where the hand put it after the hand stopped sending frames —
-   * from the drop until this tab's own pull lands (`settling`). A frame from a
-   * tab replaces everything that tab was carrying; a tab that leaves the wall
-   * takes what it held with it.
+   * Golf M (samen): the cards other people have in the air, and what they just
+   * put down. The rules are the four canvases' shared ones (`lib/live/hands.ts`):
+   * a card stays where the hand put it until this tab's own document says
+   * something else — the drop's save has landed — or `SETTLE_MS` has passed.
+   * That replaces the old `settling` list (keyed on the `by` of a `changed`),
+   * which had to wait for the *signal* rather than the document, and left a
+   * card in the air for twenty seconds when a hand vanished mid-drag.
    */
-  useEffect(() => {
-    if (!hands.length) return;
-    setCarried((current) => {
-      const next = new Map(current);
-      const at = Date.now();
-      let changed = false;
-      for (const hand of hands) {
-        if (hand.clientId === clientId) continue;
-        /*
-         * A hand that has let go stops naming its cards — but its save may
-         * still be on its way here. Until this tab's own pull has landed
-         * (`settling`), the cards stay exactly where the hand put them: taking
-         * them off now would drop each one back to where the document still has
-         * it and then jump it forward again a round trip later, which is the
-         * snap-back §8 went to some trouble to be rid of.
-         */
-        const landing = settling.current.has(hand.clientId);
-        for (const [id, item] of [...next]) {
-          if (item.by !== hand.clientId) continue;
-          if (!hand.m[id] && !landing) {
-            next.delete(id);
-            changed = true;
-          }
-        }
-        for (const [cardId, [x, y]] of Object.entries(hand.m)) {
-          const before = next.get(cardId);
-          if (before && before.x === x && before.y === y && before.by === hand.clientId) continue;
-          next.set(cardId, { x, y, by: hand.clientId, at });
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [hands, clientId]);
+  const carried = useCarried({ hands, self: live.clientId, docAt });
+  /** Golf M (samen): wat een ander nu sleept, en dus niet te pakken is. */
+  const locks = useLocks(hands, live.clientId);
 
-  /** A tab that left the wall takes its pointer and whatever it was carrying with it. */
-  const hereKey = others.map((person) => person.clientId).join(',');
-  useEffect(() => {
-    const here = new Set(hereKey ? hereKey.split(',') : []);
-    setCarried((current) => {
-      const next = new Map([...current].filter(([, item]) => here.has(item.by)));
-      return next.size === current.size ? current : next;
-    });
-  }, [hereKey]);
-
-  /**
-   * A card left "carried" with no frame and no save behind it — the tab that
-   * held it lost its connection mid-drag — goes back to where the document has
-   * it.
-   */
-  useEffect(() => {
-    const prune = setInterval(() => {
-      const stale = Date.now() - CARRIED_TTL_MS;
-      setCarried((current) => {
-        const next = new Map([...current].filter(([, item]) => item.at >= stale));
-        return next.size === current.size ? current : next;
-      });
-    }, 2000);
-    return () => clearInterval(prune);
-  }, []);
-
-  return { others, heldByOthers, pointers, marquees, carried, reportPointer, state, pull };
+  return { others, heldByOthers, pointers, marquees, carried, locks, reportPointer, state, pull, hands, self: live.clientId };
 }

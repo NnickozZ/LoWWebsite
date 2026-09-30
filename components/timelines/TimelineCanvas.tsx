@@ -23,6 +23,7 @@ import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from 
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import type { AccessSettings } from '@/lib/access';
 import { eventKey, timelineKey } from '@/lib/live/keys';
+import { createOwnDeletes, lostByOthers } from '@/lib/live/ownDeletes';
 import type { TimelineEvent, TimelineSummary } from '@/lib/timelines/service';
 import { InkCanvas, type Project } from '@/components/ink/InkCanvas';
 import { InkShell } from '@/components/ink/InkShell';
@@ -54,7 +55,12 @@ import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
 import { CHOICE_PARAM, readCamera, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { goToView, spanWords } from '@/lib/timelines/span';
-import { fill } from '@/lib/words';
+import { anchorOnGlass, inRankOrder, stableRanks } from '@/lib/timelines/glass';
+import { capitalise, fill } from '@/lib/words';
+import { useFollow } from '@/components/canvas/useFollow';
+import { useCarried, useDragConflict, useLockHint, useLocks } from '@/components/canvas/useSoftLock';
+import { heldByOthers as heldByOthersOf } from '@/lib/maps/held';
+import type { Vec } from '@/lib/canvas/follow';
 import { TimelineGoTo } from '@/components/timelines/TimelineGoTo';
 import { DRAG_SLOP, passedSlop, wheelFactor, ZOOM_STEP } from '@/lib/canvas/view';
 import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
@@ -184,7 +190,11 @@ const TAG_DRAG_SLOP = DRAG_SLOP;
  * axis uses shift with a pointer (it is the coarse step for the arrow keys, and
  * a key is not a press).
  */
-function opensElsewhere(event: React.MouseEvent) {
+/** Golf M (C1): what the tag's handlers read off a pointer — React's or the window's. */
+type PointerLike = { pointerId: number; clientX: number; clientY: number };
+type ModifierLike = { metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean };
+
+function opensElsewhere(event: ModifierLike) {
   return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 }
 
@@ -283,6 +293,17 @@ export function TimelineCanvas({
   emptyCentre?: number | null;
 }) {
   const ui = useUi();
+  /* Golf M (samen): read by `takeEvents`, which is made before the things it reads. */
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
+  const openRef = useRef<string[]>([]);
+  const clearChosenRef = useRef<(dead: Set<string>) => void>(() => undefined);
+  /**
+   * Golf M (samen, herstel): wat deze hand zelf van de as haalt. De lijn meldt
+   * ook de eigen `DELETE`, dus `takeEvents` mag die niet "door iemand anders
+   * weggehaald" noemen (`lib/live/ownDeletes.ts`).
+   */
+  const ownDeletes = useRef(createOwnDeletes()).current;
   const words = ui.words;
   const router = useRouter();
   /**
@@ -338,6 +359,27 @@ export function TimelineCanvas({
    * the drop is what tells everybody else (§35).
    */
   const takeEvents = useCallback((next: TimelineEvent[]) => {
+    /*
+     * Golf M (samen): a gebeurtenis that somebody else took off the axis while
+     * its window was open here, or while it was chosen, says so — and its
+     * window and its ring go with it instead of hanging on to an id.
+     */
+    const there = new Set(next.map((e) => e.id));
+    const lost = lostByOthers(
+      eventsRef.current,
+      there,
+      (id) => openRef.current.includes(id) || selectedRef.current.has(id),
+      ownDeletes,
+    );
+    if (lost.length) {
+      const words = uiRef.current.words;
+      uiRef.current.toast(
+        fill(words.liveGoneByOther, { naam: lost.length === 1 ? lost[0].name || capitalise(words.event) : `${lost.length} ${words.eventPlural}` }),
+      );
+      const dead = new Set(lost.map((e) => e.id));
+      setOpen((current) => current.filter((id) => !dead.has(id)));
+      clearChosenRef.current(dead);
+    }
     setEvents((current) => {
       const drag = eventDrag.current;
       const held = drag?.moved ? current.find((e) => e.id === drag.id) : undefined;
@@ -346,7 +388,7 @@ export function TimelineCanvas({
         : next;
       return JSON.stringify(merged) === JSON.stringify(current) ? current : merged;
     });
-  }, []);
+  }, [ownDeletes]);
   useEffect(() => takeEvents(initialEvents), [initialEvents, takeEvents]);
   /**
    * §35: and the page is asked for again after every write.
@@ -505,6 +547,23 @@ export function TimelineCanvas({
    */
   const [open, setOpen] = useState<string[]>(() => (focusEventId ? [focusEventId] : []));
   const isOpen = useCallback((id: string) => open.includes(id), [open]);
+  openRef.current = open;
+  /**
+   * Golf M (C2): the windows that are actually drawn, once `openWindows` knows
+   * (null: all of them, as on a phone). Escape and a click on bare axis shut
+   * the last one *you can see* — shutting one whose tag is off the glass is a
+   * press that visibly does nothing.
+   */
+  const drawnWindows = useRef<Set<string> | null>(null);
+  const closeFront = useCallback(() => {
+    setOpen((current) => {
+      const seen = drawnWindows.current;
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        if (!seen || seen.has(current[index])) return [...current.slice(0, index), ...current.slice(index + 1)];
+      }
+      return current;
+    });
+  }, []);
   /*
    * §94 (C5): the window in front is in the address (`?event=`), so Back from
    * its artikel folds it out again. `replaceState` — the page is already here.
@@ -831,37 +890,32 @@ export function TimelineCanvas({
    * the tag snaps back to where it started for the length of one round trip
    * and then jumps to where it was put.
    */
-  const [carried, setCarried] = useState<Map<string, number>>(new Map());
-  useEffect(() => {
-    setCarried((current) => {
-      let changed = false;
-      const next = new Map(current);
-      for (const pointer of live.pointers) {
-        for (const [id, moment] of Object.entries(pointer.m)) {
-          if (next.get(id) !== moment[0]) {
-            next.set(id, moment[0]);
-            changed = true;
-          }
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [live.pointers]);
-  // What the archive last said is what a carried tag falls back to.
-  useEffect(() => {
-    setCarried((current) => {
-      if (!current.size) return current;
-      const next = new Map(current);
-      let changed = false;
-      for (const event of events) {
-        if (next.get(event.id) === event.at) {
-          next.delete(event.id);
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [events]);
+  /*
+   * Golf M (samen): the four canvases' shared rules (`lib/live/hands.ts`). A
+   * tag stays where the hand put it until this list says otherwise — the drop's
+   * save landed, rounded or not — or `SETTLE_MS` passed; it no longer waits for
+   * an exact match for ever (a drag called off with Escape saved nothing, and
+   * its tag hung where the hand had been until the page was reloaded).
+   */
+  const eventAt = useMemo(() => new Map(events.map((event) => [event.id, [event.at, 0] as const])), [events]);
+  const docAt = useCallback((id: string) => eventAt.get(id) ?? null, [eventAt]);
+  const carriedBy = useCarried({ hands: live.pointers, self: live.clientId, docAt });
+  const carried = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const [id, item] of carriedBy) out.set(id, item.x);
+    return out;
+  }, [carriedBy]);
+  /** Golf M (samen): wat een ander nu sleept — niet te pakken, wel te openen. */
+  const locks = useLocks(live.pointers, live.clientId);
+  const locksRef = useRef(locks);
+  locksRef.current = locks;
+  const sayHeld = useLockHint(ui.toast, words.liveHeldBy);
+  /** Golf M (samen): wie wat in handen heeft — gekozen (een ring) of gesleept (een ring én een slot). */
+  const heldByOthers = useMemo(() => {
+    const out = heldByOthersOf(live.people, live.clientId);
+    for (const [id, lock] of locks) out.set(id, { name: lock.name, colour: lock.colour });
+    return out;
+  }, [live.people, live.clientId, locks]);
 
   /** The moment a gebeurtenis is *drawn* at: this hand's, then theirs, then the row's. */
   const shownAt = useCallback(
@@ -880,6 +934,33 @@ export function TimelineCanvas({
       return { event, at, x: xOf(at), side: spot.side, lane: spot.lane, hidden: spot.hidden, lines: spot.lines ?? 1 };
     });
   }, [events, view, xOf, lanes, shownAt]);
+
+  /*
+   * Golf M (C1): while a hand is on a tag, the tags are *drawn* in the order
+   * they stood in when it came down, not in time order. `placed` follows
+   * `events`, which every step of a drag sorts again, and a keyed list in a
+   * new order makes React move the elements: a moved element is out of the
+   * document for an instant, the browser takes its pointer capture away,
+   * `onLostPointerCapture` read that as a cancelled drag, and the tag jumped
+   * back the moment it passed a neighbour (to the right always — that is the
+   * way React moves the carried one itself — to the left only sometimes).
+   * The order is frozen at the press, not at the first move, because a flick
+   * can pass a neighbour in its first event. When the hand comes off, the
+   * stage is in time order again, so Tab and a screen reader walk the axis
+   * from early to late. The lanes, the piles and the windows read `placed`.
+   */
+  const pressOrder = useRef<Map<string, number> | null>(null);
+  const drawnIds = useRef<string[]>([]);
+  const drawn = useMemo(() => {
+    if (!handDown || !pressOrder.current) {
+      pressOrder.current = null;
+      drawnIds.current = placed.map((one) => one.event.id);
+      return placed;
+    }
+    // A gebeurtenis that arrives mid-drag goes at the end (`stableRanks`).
+    pressOrder.current = stableRanks(pressOrder.current, placed.map((one) => one.event.id));
+    return inRankOrder(placed, (one) => one.event.id, pressOrder.current);
+  }, [placed, handDown]);
 
   /**
    * §62: the piles. A tag that found no lane is drawn as a bare mark, and the
@@ -916,8 +997,19 @@ export function TimelineCanvas({
   }, [view, width, timeline.scale, isPhone]);
 
   // `?event=`: bring the one asked for into the middle, once.
+  /*
+   * Golf M (C2): the one the page was *opened* with, not whatever `?event=`
+   * says later. §94's `writeChoice` puts every window you open into the
+   * address, and the next `router.refresh()` hands that back as this prop —
+   * so a tijdlijn made fresh (no `?event=`) jumped, seconds after its second
+   * gebeurtenis, to centre whichever window was in front, and pushed the
+   * others off the glass. Their windows then hid (C2) — correctly, over an
+   * axis that should never have moved.
+   */
+  const [askedFor] = useState(focusEventId);
   const focused = useRef(false);
   useEffect(() => {
+    const focusEventId = askedFor;
     if (focused.current || !view || !focusEventId || !width) return;
     // §94 (C5): coming back to a view this tab left, the gebeurtenis is
     // already where the hand left it.
@@ -929,7 +1021,7 @@ export function TimelineCanvas({
     if (!target) return;
     focused.current = true;
     moveView((current) => (current ? { ...current, origin: target.at - width / 2 / current.pxPerSecond } : current));
-  }, [view, focusEventId, events, width]);
+  }, [view, askedFor, events, width]);
 
   /* ---------------------------------------------------------------- zoom */
 
@@ -1025,6 +1117,12 @@ export function TimelineCanvas({
   type EventDrag = {
     id: string;
     pointerId: number;
+    /**
+     * Golf M (C1): the gebeurtenis's own element — the one that takes the
+     * capture at the slop, and the one the window listeners (`listenPress`)
+     * ask "was this move already yours?".
+     */
+    el: HTMLElement;
     startClientX: number;
     /** §69: travel is measured on the diagonal, so the press needs both. */
     startClientY: number;
@@ -1044,6 +1142,12 @@ export function TimelineCanvas({
      * frame na frame op.
      */
     group: Map<string, number>;
+    /**
+     * Golf M (samen): de tag is in de hand van een ander (het zachte slot). De
+     * druk opent nog steeds zijn venster; een sleep die erop begint, schuift
+     * de as, zoals in Lezen.
+     */
+    locked: boolean;
     /**
      * §69 (2.2): of deze druk een shift-druk op de stip of de steel was. Zo'n
      * druk is puur kiezen: hij klapt géén venster uit. Anders zou "voeg deze
@@ -1110,6 +1214,22 @@ export function TimelineCanvas({
   const selectedIds = selection.selected;
   const selectedRef = useRef<Set<string>>(new Set());
   selectedRef.current = selectedIds;
+  /*
+   * Golf M (samen): wat deze hand gekozen heeft, gaat de lijn op — zoals op de
+   * andere drie vlakken (`setHolding`). De tijdlijn deed dat nooit, dus een
+   * ander zag niet wie welke gebeurtenis in handen had.
+   */
+  const holdingKey = [...selectedIds].sort().join(',');
+  const setLiveHolding = live.setHolding;
+  useEffect(() => {
+    setLiveHolding(holdingKey ? holdingKey.split(',') : []);
+  }, [holdingKey, setLiveHolding]);
+  // En wie weggaat, houdt niets meer vast — ook als de plek blijft (een tijdlijn in een dossier).
+  useEffect(() => () => setLiveHolding([]), [setLiveHolding]);
+  clearChosenRef.current = (dead) => {
+    if (![...selectedRef.current].some((id) => dead.has(id))) return;
+    selection.setSelected(new Set([...selectedRef.current].filter((id) => !dead.has(id))));
+  };
   const boxOnWire = useRef<[number, number, number, number] | null>(null);
   /** One place says "this hand has a tag", so nothing can forget half of it. */
   const holdTag = useCallback((id: string | null) => {
@@ -1127,9 +1247,76 @@ export function TimelineCanvas({
     [],
   );
 
+  /*
+   * Golf M (samen): a tag in somebody else's hand glides between their frames
+   * (`useFollow`) — the tag, its window, and their arrow. The follower counts
+   * in moments, so a pan or a zoom of *this* axis moves nothing it has to catch
+   * up with; it writes in pixels at this zoom.
+   */
+  const followRootRef = useRef<HTMLDivElement>(null);
+  const pxPerSecond = view?.pxPerSecond ?? 0;
+  const followScale = useMemo(() => ({ x: pxPerSecond, y: 1 }), [pxPerSecond]);
+  const followTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    const mine = eventDrag.current?.moved ? eventDrag.current.group : null;
+    for (const [id, at] of carried) {
+      if (draggingId === id || mine?.has(id) || !eventAt.has(id)) continue;
+      out.set(id, { x: at, y: 0 });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carried, draggingId, eventAt]);
+  const tagFollow = useFollow({ rootRef: followRootRef, targets: view ? followTargets : null, scale: followScale });
+  const cursorScale = useMemo(() => ({ x: pxPerSecond, y: stageH }), [pxPerSecond, stageH]);
+  const cursorTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    for (const pointer of live.pointers) if (pointer.x !== null && pointer.y !== null) out.set(pointer.clientId, { x: pointer.x, y: pointer.y });
+    return out;
+  }, [live.pointers]);
+  useFollow({ rootRef: followRootRef, targets: view ? cursorTargets : null, scale: cursorScale, prefix: 'hand:' });
+  /*
+   * Golf M (samen): twee handen pakten dezelfde tag in dezelfde tel. Wie het
+   * gelijkspel verliest (`winsTie`), zet de hele groep terug en laat de tags
+   * glijden naar waar de andere hand ze heeft.
+   */
+  useDragConflict({
+    hands: live.pointers,
+    self: live.clientId,
+    mine: () => (eventDrag.current?.moved ? eventDrag.current.group.keys() : []),
+    onLose: ({ lock }) => {
+      const drag = eventDrag.current;
+      if (!drag) return;
+      for (const one of eventsRef.current) if (drag.group.has(one.id)) tagFollow.seed(one.id, { x: one.at, y: 0 });
+      for (const [id, from] of drag.group) moveOne(id, from);
+      drag.moved = false;
+      abortEventDrag();
+      uiRef.current.toast(fill(uiRef.current.words.liveTakenFirst, { naam: lock.name || 'Iemand' }));
+    },
+  });
+
+  /*
+   * Golf M (C1): a press on a tag, before it has become a drag, listened only
+   * on the tag. The capture is taken lazily, at the slop (§66 — or the tag's
+   * link never gets its click), so a hand that left the tag fast — one mouse
+   * event already 40 px away, which a quick flick is — moved over the stage
+   * instead, the tag never heard it, and the gebeurtenis stayed put; a release
+   * out there left the press hanging with its §62 hold taken. While a press is
+   * pending, the window hears the same pointer too and hands anything the tag
+   * did not get to the tag's own handlers. What the tag gets itself (its own
+   * moves, and every move once it holds the capture) is left to React, so
+   * nothing is handled twice.
+   */
+  const tagHandlers = useRef<{ move: (event: PointerLike) => void; up: (event: PointerLike & ModifierLike) => void } | null>(null);
+  const unlistenPress = useRef<(() => void) | null>(null);
+  const stopListeningPress = useCallback(() => {
+    unlistenPress.current?.();
+    unlistenPress.current = null;
+  }, []);
+
   /** Put it back where it was picked up: a cancelled pointer, or a second finger. */
   const abortEventDrag = useCallback(() => {
     const drag = eventDrag.current;
+    stopListeningPress();
     if (!drag) return;
     eventDrag.current = null;
     holdTag(null);
@@ -1140,7 +1327,42 @@ export function TimelineCanvas({
     // §62: whatever landed while the hand was down lands now.
     if (owed.current) void pull();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moveOne, holdTag]);
+  }, [moveOne, holdTag, stopListeningPress]);
+
+  /** Golf M (C1): the window's half of a pending press. See `tagHandlers`. */
+  const listenPress = useCallback(
+    (el: HTMLElement, pointerId: number) => {
+      stopListeningPress();
+      /** Ours, and not something the tag already heard for itself. */
+      const stray = (event: PointerEvent) =>
+        eventDrag.current?.pointerId === pointerId &&
+        event.pointerId === pointerId &&
+        !(event.target instanceof Node && el.contains(event.target));
+      const move = (event: PointerEvent) => {
+        if (!eventDrag.current) return stopListeningPress();
+        if (stray(event)) tagHandlers.current?.move(event);
+      };
+      const up = (event: PointerEvent) => {
+        if (!eventDrag.current) return stopListeningPress();
+        if (stray(event)) tagHandlers.current?.up(event);
+      };
+      const cancel = (event: PointerEvent) => {
+        if (stray(event)) abortEventDrag();
+      };
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', up, true);
+      window.addEventListener('pointercancel', cancel, true);
+      unlistenPress.current = () => {
+        window.removeEventListener('pointermove', move, true);
+        window.removeEventListener('pointerup', up, true);
+        window.removeEventListener('pointercancel', cancel, true);
+      };
+    },
+    [abortEventDrag, stopListeningPress],
+  );
+  useEffect(() => stopListeningPress, [stopListeningPress]);
+  // The handlers of *this* render: they read `view` and the mode as they are now.
+  tagHandlers.current = { move: onEventPointerMove, up: onEventPointerUp };
 
   function onEventPointerDown(event: React.PointerEvent, item: TimelineEvent) {
     if (event.button !== 0 || !view) return;
@@ -1195,14 +1417,19 @@ export function TimelineCanvas({
     const group = new Map<string, number>();
     if (!additive && already && selectedRef.current.size > 1) {
       for (const one of eventsRef.current) {
-        if (selectedRef.current.has(one.id)) group.set(one.id, one.at);
+        // Golf M (samen): wat een ander vasthoudt, reist niet mee.
+        if (selectedRef.current.has(one.id) && !locksRef.current.has(one.id)) group.set(one.id, one.at);
       }
     }
-    if (!group.has(item.id)) group.set(item.id, item.at);
+    const lock = locksRef.current.get(item.id);
+    if (lock && handsOn) sayHeld(lock, item.id);
+    if (!group.has(item.id) && !lock) group.set(item.id, item.at);
 
+    const el = event.currentTarget as HTMLElement;
     eventDrag.current = {
       id: item.id,
       pointerId: event.pointerId,
+      el,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startAt: item.at,
@@ -1211,13 +1438,18 @@ export function TimelineCanvas({
       onLink,
       group,
       additive,
+      locked: Boolean(lock),
     };
+    // Golf M (C1): the stage keeps the order it has now until the hand is off.
+    pressOrder.current = stableRanks(new Map(), drawnIds.current);
     // §62: a hand is on the wall. Nothing lands until it comes off.
     handOn.current = true;
     setHandDown(true);
+    // Golf M (C1): and the window listens too, until the press ends.
+    listenPress(el, event.pointerId);
   }
 
-  function onEventPointerMove(event: React.PointerEvent) {
+  function onEventPointerMove(event: PointerLike) {
     const drag = eventDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     /*
@@ -1239,7 +1471,7 @@ export function TimelineCanvas({
      * reader moving along the axis and grabbing a tag on the way, so it becomes
      * the pan it was meant to be rather than nothing at all.
      */
-    if (!handsOn) {
+    if (!handsOn || drag.locked) {
       if (travelled) panFromTag(event, drag);
       return;
     }
@@ -1254,7 +1486,11 @@ export function TimelineCanvas({
        * carrying a tag, so swallowing the trailing click is exactly right — it
        * is the click on the artikel's link that a drag must not fire.
        */
-      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      try {
+        drag.el.setPointerCapture(event.pointerId);
+      } catch {
+        /* the pointer is already gone; its release is on its way */
+      }
       holdTag(drag.id);
     }
     /*
@@ -1281,9 +1517,10 @@ export function TimelineCanvas({
    * §66's rule for a capture — from where the finger first came down, so the
    * axis does not jump by the slop it travelled before anybody knew.
    */
-  function panFromTag(event: React.PointerEvent, drag: EventDrag) {
+  function panFromTag(event: PointerLike, drag: EventDrag) {
     const el = stageRef.current;
     eventDrag.current = null;
+    stopListeningPress();
     handOn.current = false;
     setHandDown(false);
     selection.endPress(true);
@@ -1307,10 +1544,11 @@ export function TimelineCanvas({
     if (owed.current) void pull();
   }
 
-  function onEventPointerUp(event: React.PointerEvent) {
+  function onEventPointerUp(event: PointerLike & ModifierLike) {
     const drag = eventDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     eventDrag.current = null;
+    stopListeningPress();
     holdTag(null);
     handOn.current = false;
     setHandDown(false);
@@ -1350,16 +1588,22 @@ export function TimelineCanvas({
       if (now && now.at !== was) landed.push({ id, at: now.at, was });
     }
     if (!landed.length) {
+      // Golf M (samen): the hand is empty — say so, or the tag stays locked.
+      reportHand({ clientX: event.clientX, clientY: event.clientY });
       if (owed.current) void pull();
       return;
     }
-    // The carry is kept on the other screens until their pull lands (`m`), so
-    // the frame goes out once more with the moments they were dropped on.
+    // The carry is kept on the other screens until their list lands
+    // (`useCarried`), so the frame goes out once more with the moments they
+    // were dropped on — and then, golf M (samen), the empty hand: a frame that
+    // names a tag is a lock on every other screen, and it stayed shut until
+    // this mouse next moved. The line sends the first before the second.
     reportHand(
       { clientX: event.clientX, clientY: event.clientY },
       { id: drag.id, at: landed.find((one) => one.id === drag.id)?.at ?? drag.startAt },
       Object.fromEntries(landed.map((one) => [one.id, one.at])),
     );
+    reportHand({ clientX: event.clientX, clientY: event.clientY });
     // §69: where they sat before this drag, so Ctrl+Z can put them back.
     if (landed.length === 1) rememberUndo({ kind: 'move', eventId: landed[0].id, at: landed[0].was });
     else rememberUndo({ kind: 'moveMany', at: Object.fromEntries(landed.map((one) => [one.id, one.was])) });
@@ -1508,7 +1752,7 @@ export function TimelineCanvas({
       // §62: a click on bare axis shuts the window that was opened last, not
       // every window at once — "alles tonen" then a stray click used to undo
       // the lot. The button in the toolbar is still there for all of them.
-      if (!g.moved) setOpen((current) => current.slice(0, -1));
+      if (!g.moved) closeFront();
       gesture.current = null;
       setGrabbing(false);
     } else {
@@ -1675,8 +1919,10 @@ export function TimelineCanvas({
           return;
         }
         if (!open.length) return;
+        // Golf M (C2): a window you cannot see is not the one Escape peels.
+        if (drawnWindows.current && !open.some((id) => drawnWindows.current!.has(id))) return;
         event.preventDefault();
-        setOpen((current) => current.slice(0, -1));
+        closeFront();
         return;
       /*
        * §69 (3.2): Delete haalt de keuze van de as, met een ongedaan-melding —
@@ -2031,7 +2277,15 @@ export function TimelineCanvas({
    */
   const removeEvent = useCallback(
     async (event: TimelineEvent) => {
+      // Golf M (samen): niet wat een ander nu sleept.
+      const lock = locksRef.current.get(event.id);
+      if (lock) {
+        sayHeld(lock, event.id);
+        return;
+      }
       setSaving(true);
+      ownDeletes.begin([event.id]);
+      let ok = false;
       try {
         const response = await fetch(`/api/timelines/${timeline.id}/events/${event.id}`, { method: 'DELETE' });
         if (!response.ok) {
@@ -2039,7 +2293,10 @@ export function TimelineCanvas({
           ui.toast(data.error ?? 'Weghalen is niet gelukt.');
           return;
         }
+        ok = true;
         setEvents((current) => current.filter((e) => e.id !== event.id));
+        // Its window goes with it, or the next refresh reads it as taken by somebody else.
+        setOpen((current) => current.filter((id) => id !== event.id));
         setSheet(null);
         refreshArchive();
         // §69: the toast and Ctrl+Z are the same step.
@@ -2052,10 +2309,12 @@ export function TimelineCanvas({
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
+        if (ok) ownDeletes.settle([event.id]);
+        else ownDeletes.drop([event.id]);
         setSaving(false);
       }
     },
-    [timeline.id, ui, words.event, words.timeline, refreshArchive, rememberUndo, undoRemoveEvent],
+    [timeline.id, ui, words.event, words.timeline, ownDeletes, refreshArchive, rememberUndo, undoRemoveEvent],
   );
 
   /**
@@ -2066,10 +2325,15 @@ export function TimelineCanvas({
    * hun woorden en hun afbeelding, wat opnieuw maken nooit zou kunnen.
    */
   const removeSelected = useCallback(async () => {
-    const mine = eventsRef.current.filter((e) => selectedRef.current.has(e.id));
+    // Golf M (samen): niet wat een ander nu sleept.
+    const lockedNow = eventsRef.current.find((e) => selectedRef.current.has(e.id) && locksRef.current.has(e.id));
+    if (lockedNow) sayHeld(locksRef.current.get(lockedNow.id)!, lockedNow.id);
+    const mine = eventsRef.current.filter((e) => selectedRef.current.has(e.id) && !locksRef.current.has(e.id));
     if (!mine.length || !canEdit) return;
     setSaving(true);
     const gone: string[] = [];
+    // Golf M (samen, herstel): de hele veeg vóór de eerste `DELETE`.
+    ownDeletes.begin(mine.map((e) => e.id));
     try {
       for (const one of mine) {
         const response = await fetch(`/api/timelines/${timeline.id}/events/${one.id}`, { method: 'DELETE' });
@@ -2098,10 +2362,13 @@ export function TimelineCanvas({
     } catch {
       ui.toast('Geen verbinding.');
     } finally {
+      ownDeletes.settle(gone);
+      ownDeletes.drop(mine.map((e) => e.id).filter((id) => !gone.includes(id)));
       setSaving(false);
     }
   }, [
     canEdit,
+    ownDeletes,
     refreshArchive,
     rememberUndo,
     selection,
@@ -2217,7 +2484,18 @@ export function TimelineCanvas({
     setWindowHeights((current) => (current[id] === height ? current : { ...current, [id]: height }));
   }, []);
   const openWindows = useMemo(() => {
-    const wanted = placed.filter(({ event }) => open.includes(event.id));
+    /*
+     * Golf M (C2): a window whose tag has been panned or zoomed off the glass
+     * is not drawn — it hung clamped against the left or right edge, over
+     * nothing. It stays open (`open` is untouched) and comes back with its tag;
+     * a tag still half on the glass keeps its window (`anchorOnGlass`, half the
+     * tag's width of slack). And it takes no lane while it is away, or the
+     * windows you can see would stand one storey up for one you cannot. On a
+     * phone the windows are the peek's, not the tags', so they all stay.
+     */
+    const wanted = placed.filter(
+      ({ event, x }) => open.includes(event.id) && (isPhone || anchorOnGlass(x, width, tagWidth(event.name) / 2)),
+    );
     /*
      * §62: one baseline per side, not one per tag.
      *
@@ -2275,7 +2553,8 @@ export function TimelineCanvas({
         ready: windowHeights[box.id] !== undefined,
       };
     });
-  }, [placed, open, width, windowHeights, axisY]);
+  }, [placed, open, width, windowHeights, axisY, isPhone]);
+  drawnWindows.current = isPhone ? null : new Set(openWindows.map((one) => one.event.id));
 
   const editing = sheet?.mode === 'edit' ? (events.find((e) => e.id === sheet.eventId) ?? null) : null;
   /**
@@ -2369,7 +2648,7 @@ export function TimelineCanvas({
         )}
       </div>
 
-      <div className="timeline-stage-wrap">
+      <div className="timeline-stage-wrap" ref={followRootRef}>
       <div
         ref={stageRef}
         className={`timeline-stage${grabbing ? ' timeline-stage-grabbing' : ''}`}
@@ -2465,7 +2744,7 @@ export function TimelineCanvas({
           eventsForSweep.current = placed.map((one) => one.event);
           return null;
         })()}
-        {placed.map(({ event, at, x, side, lane, hidden, lines }) => {
+        {drawn.map(({ event, at, x, side, lane, hidden, lines }) => {
           // §62: a tag a hand is carrying is never culled — unmounting the
           // element under the pointer takes the capture, the move and the drop
           // with it, and leaves the drag stuck half-done.
@@ -2497,19 +2776,37 @@ export function TimelineCanvas({
            * one whose artikel is out of reach has no `entry` to read a slug off.
            */
           const tagHref = event.kind === 'entry' && event.entry ? `/e/${event.entry.slug}` : null;
+          const holder = heldByOthers.get(event.id);
           return (
             <div
               key={event.id}
-              className={`timeline-event timeline-event-${side} timeline-event-${event.kind}${shown ? ' timeline-event-open' : ''}${dragging ? ' timeline-event-dragging' : ''}${hidden ? ' timeline-event-packed' : ''}${carried.has(event.id) && !dragging ? ' timeline-event-carried' : ''}${selectedIds.has(event.id) ? ' timeline-event-chosen' : ''}`}
-              style={{ left: x, top: axisY, ['--event-colour' as string]: colour, ['--reach' as string]: `${reach}px` }}
+              className={`timeline-event timeline-event-${side} timeline-event-${event.kind}${shown ? ' timeline-event-open' : ''}${dragging ? ' timeline-event-dragging' : ''}${hidden ? ' timeline-event-packed' : ''}${carried.has(event.id) && !dragging ? ' timeline-event-carried' : ''}${selectedIds.has(event.id) ? ' timeline-event-chosen' : ''}${holder ? ' timeline-event-held' : ''}${locks.has(event.id) ? ' is-locked' : ''}`}
+              style={{
+                left: x,
+                top: axisY,
+                ['--event-colour' as string]: colour,
+                ['--reach' as string]: `${reach}px`,
+                ...(holder ? { ['--held-colour' as string]: holder.colour } : {}),
+              }}
               data-testid="timeline-event"
               data-event-id={event.id}
+              data-follow={event.id}
+              data-held-by={holder?.name}
               data-side={side}
               onPointerDown={(pointer) => onEventPointerDown(pointer, event)}
               onPointerMove={onEventPointerMove}
               onPointerUp={onEventPointerUp}
               onPointerCancel={() => abortEventDrag()}
-              onLostPointerCapture={() => abortEventDrag()}
+              /*
+               * Golf M (C1): only a capture *this* element held. A finger is
+               * captured by what it lands on (the tag), and handing that over
+               * to this element at the slop fires `lostpointercapture` on the
+               * tag, which bubbles here: on a phone every drag of a tag was
+               * called off in its first few pixels and jumped back.
+               */
+              onLostPointerCapture={(lost) => {
+                if (lost.target === lost.currentTarget) abortEventDrag();
+              }}
             >
               <span className="timeline-stem" />
               {/*
@@ -2525,6 +2822,12 @@ export function TimelineCanvas({
               <span className="timeline-marker" aria-hidden="true">
                 {event.kind === 'entry' && <Icon name={event.entry?.typeIcon ?? 'file'} size={12} />}
               </span>
+              {/* Golf M (samen): wie deze gebeurtenis in handen heeft, in hun inkt. */}
+              {holder && (
+                <span className="timeline-held-name" aria-hidden="true">
+                  {holder.name}
+                </span>
+              )}
               {/*
                * The same strip of paper twice, with an address and without one.
                * A tag that stands for an artikel is a real `<a>`, because that
@@ -2617,6 +2920,7 @@ export function TimelineCanvas({
               <div
                 key={pointer.clientId}
                 className="board-cursor timeline-cursor"
+                data-follow={`hand:${pointer.clientId}`}
                 aria-hidden="true"
                 style={{ left: xOf(pointer.x), top: pointer.y * stageH, ['--cursor-colour' as string]: pointer.colour }}
               >
@@ -3052,6 +3356,8 @@ function Popout({
       <div
         ref={ref}
         className={`timeline-popout timeline-popout-${side} timeline-popout-${event.kind}`}
+        /* Golf M (samen): the window hangs on its tag, so it glides with it. */
+        data-follow={event.id}
         style={{ left, top, width: POPOUT_W, zIndex: z, visibility: ready ? undefined : 'hidden', ['--event-colour' as string]: colour }}
         role="dialog"
         aria-label={event.name}

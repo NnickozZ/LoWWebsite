@@ -54,7 +54,7 @@ import {
   type StringStyle,
   type Viewport,
 } from '@/lib/boards/merge';
-import { changedIds, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
+import { changedIds, dragOwnDirt, dropCards, restoredIds, shouldReadd } from '@/lib/boards/dirty';
 import { CHOICE_PARAM, readCamera, readChoice, writeCamera, writeChoice } from '@/lib/canvas/memory';
 import { cameraKey } from '@/components/canvas/cameraKeys';
 import CanvasZoomControls from '@/components/canvas/CanvasZoomControls';
@@ -98,6 +98,9 @@ import { BoardTray, type TrayEntry } from './BoardTray';
 import { offerToFileEntry } from './offerToFile';
 import { useBoardSync } from './useBoardSync';
 import { useBoardLive } from './useBoardLive';
+import { useFollow } from '@/components/canvas/useFollow';
+import { useDragConflict, useLockHint } from '@/components/canvas/useSoftLock';
+import type { Vec } from '@/lib/canvas/follow';
 import { imageFromClipboard, pasteIsForTyping, uploadForm, SHRUNK_NOTICE } from '@/lib/upload';
 import { fitUpload } from '@/components/shrinkImage';
 import { InkCanvas } from '@/components/ink/InkCanvas';
@@ -192,6 +195,26 @@ function stringPathOffset(ax: number, ay: number, bx: number, by: number, offset
 
 function sagOf(ax: number, ay: number, bx: number, by: number) {
   return Math.min(60, Math.hypot(bx - ax, by - ay) * 0.16);
+}
+
+/**
+ * The paths one string is drawn with: the centre curve (the hit area, and the
+ * string itself when it is single) and the strands. Golf M: one function, so
+ * the render and the follower (`followStrings`) draw the same string.
+ */
+function stringStrands(a: { x: number; y: number }, b: { x: number; y: number }, line: BoardString) {
+  const d = stringPath(a.x, a.y, b.x, b.y);
+  const width = line.width ?? DEFAULT_STRING_WIDTH;
+  // "Dubbel" is two thinner strands either side of the centre; the
+  // two together carry the thickness that was asked for.
+  const strands =
+    line.style === 'double'
+      ? [width * 0.45, -width * 0.45].map((offset) => ({
+          d: stringPathOffset(a.x, a.y, b.x, b.y, offset),
+          width: width * 0.4,
+        }))
+      : [{ d, width }];
+  return { d, width, strands };
 }
 
 export function BoardCanvas({
@@ -456,6 +479,8 @@ export function BoardCanvas({
     origin: Map<string, { x: number; y: number }>;
     /** The board before the press, pushed to undo only once something moves. */
     before: Snapshot;
+    /** Golf M (herstel): the cards already waiting to be saved when the press began. */
+    dirtyBefore: Set<string>;
   } | null>(null);
   /**
    * The second thing a press on a card can be, beside moving it: the corner
@@ -613,7 +638,16 @@ export function BoardCanvas({
    * because "the merge came back from my save" and "the merge came back because
    * Bram moved something" want exactly the same thing done with them.
    */
+  /** Golf M (samen): cards somebody else took off this wall while it was open. */
+  const goneByOthers = useRef<Set<string>>(new Set());
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
   const applyRemote = useCallback((state: BoardState, refs: BoardRefs) => {
+    const ui = uiRef.current;
+    /** Golf M (samen): the wall as it stood before this document — see `gone` below. */
+    const standingBefore = cardsRef.current;
     /*
      * §61: an incoming document is the archive's version of this wall, and the
      * archive is behind by whatever this hand has done and not yet saved. Two
@@ -704,6 +738,20 @@ export function BoardCanvas({
     // the wall as it ends up, which is the document plus whatever this hand
     // has not saved yet.
     const standing = new Set(nextCards.map((card) => card.id));
+    /*
+     * Golf M (samen): what somebody else took off the wall, remembered — so
+     * a Ctrl+Z of an older step of this hand's cannot hand it back (see
+     * `undo`), and a card that was chosen here says where it went instead of
+     * silently letting go.
+     */
+    const gone = standingBefore.filter((card) => !standing.has(card.id) && !held?.deletedCards.has(card.id));
+    for (const id of goneByOthers.current) if (standing.has(id)) goneByOthers.current.delete(id);
+    for (const card of gone) goneByOthers.current.add(card.id);
+    const lostChosen = gone.filter((card) => selectedRef.current.has(card.id));
+    if (lostChosen.length) {
+      const name = lostChosen.length === 1 ? lostChosen[0].name.trim() || 'Een kaartje' : `${lostChosen.length} kaartjes`;
+      ui.toast(fill(ui.words.liveGoneByOther, { naam: name }));
+    }
     setSelected((current) => {
       const next = new Set([...current].filter((id) => standing.has(id)));
       return next.size === current.size ? current : next;
@@ -711,6 +759,7 @@ export function BoardCanvas({
     setSelectedStringId((current) =>
       current && nextStrings.some((line) => line.id === current) ? current : null,
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -759,9 +808,14 @@ export function BoardCanvas({
    * is queued or in flight — pulling on top of unsaved local work would throw
    * it away, and the save is about to return the merge anyway.
    */
+  /** Golf M (samen): where this wall's own document has a card — `useCarried` settles against it. */
+  const docCardAt = useMemo(() => new Map(cards.map((card) => [card.id, [card.x, card.y] as const])), [cards]);
+  const docAt = useCallback((id: string) => docCardAt.get(id) ?? null, [docCardAt]);
+
   const live = useBoardLive({
     boardId,
     clientId,
+    docAt,
     holding: useMemo(() => [...selected], [selected]),
     paused: busy,
     dirty: sync.state === 'dirty' || sync.state === 'saving',
@@ -777,6 +831,11 @@ export function BoardCanvas({
       setName((current) => (current === remoteName ? current : remoteName));
     },
   });
+
+  /** Golf M (samen): the soft lock, read from handlers that outlive their render. */
+  const locksRef = useRef(live.locks);
+  locksRef.current = live.locks;
+  const sayHeld = useLockHint(ui.toast, ui.words.liveHeldBy);
 
   /**
    * §33: the tekenlaag. Its own hook and its own line (the site line, not
@@ -995,9 +1054,25 @@ export function BoardCanvas({
 
   const undo = useCallback(() => {
     if (readOnly) return;
-    const previous = undoStack.pop();
+    const step = undoStack.pop();
     setUndoDepth(undoStack.size());
-    if (!previous) return;
+    if (!step) return;
+    /*
+     * Golf M (samen): a step from before somebody else took a card off the wall
+     * does not bring that card back. `restoredIds` below lifts the tombstone of
+     * every card the step has and the wall does not — which, for a card another
+     * hand deleted, was a resurrection by Ctrl+Z.
+     */
+    const buried = goneByOthers.current;
+    const previous: Snapshot = buried.size
+      ? {
+          cards: step.cards.filter((card) => !buried.has(card.id)),
+          strings: step.strings.filter(
+            (line) =>
+              !(isCardEnd(line.from) && buried.has(line.from.card)) && !(isCardEnd(line.to) && buried.has(line.to.card)),
+          ),
+        }
+      : step;
     const current: Snapshot = { cards: cardsRef.current, strings: stringsRef.current };
     /*
      * Anything undo brings back must not still be queued for deletion, and the
@@ -1047,15 +1122,120 @@ export function BoardCanvas({
    * you see is what you can point at. `cards` itself is untouched: it is what
    * gets saved, and another person's drag is not ours to save.
    */
+  /*
+   * Golf M (samen): "not while this hand has it" is the cards this hand is
+   * *dragging*, no longer every card it has chosen — somebody else may carry a
+   * card you merely selected (a choice is a ring, not a lock), and it used to
+   * stand still on your screen while it travelled on theirs.
+   */
+  const carryingHere = handOn && drag.current ? drag.current.origin : null;
   const shownCards = useMemo(() => {
     if (!live.carried.size) return cards;
     return cards.map((card) => {
       const held = live.carried.get(card.id);
-      return held && !selected.has(card.id) ? { ...card, x: held.x, y: held.y } : card;
+      return held && !carryingHere?.has(card.id) ? { ...card, x: held.x, y: held.y } : card;
     });
-  }, [cards, live.carried, selected]);
+  }, [cards, live.carried, carryingHere]);
+
+  /*
+   * Golf M (samen): the cards in somebody else's hand glide between their
+   * frames instead of jumping to each one (`components/canvas/useFollow.ts`).
+   * React draws them where the last frame put them; the follower lays a
+   * `translate` over the card and its ring, and re-threads the strings tied to
+   * them (`followStrings`, below) — so nothing on the wall renders sixty times
+   * a second, only the strings of the cards in the air.
+   */
+  const followTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    for (const [id, held] of live.carried) {
+      if (carryingHere?.has(id)) continue;
+      if (!docCardAt.has(id)) continue;
+      out.set(id, { x: held.x, y: held.y });
+    }
+    return out;
+  }, [live.carried, carryingHere, docCardAt]);
 
   const cardById = useMemo(() => new Map(shownCards.map((card) => [card.id, card])), [shownCards]);
+  const cardByIdRef = useRef<Map<string, BoardCard>>(cardById);
+  cardByIdRef.current = cardById;
+
+  /*
+   * Golf M (samen): the strings of a card in somebody else's hand follow the
+   * card as it glides, not the frame it is gliding towards. Only the strings
+   * that touch a moving card are rewritten, straight into their `d`; one that
+   * was rewritten and no longer needs to be is put back where React has it.
+   */
+  const threaded = useRef<Set<string>>(new Set());
+  const followStrings = useCallback((visual: ReadonlyMap<string, Vec>) => {
+    const root = viewportRef.current;
+    if (!root || (!visual.size && !threaded.current.size)) return;
+    const byId = cardByIdRef.current;
+    const at = (end: Endpoint) => {
+      if (!isCardEnd(end)) return { x: end.x, y: end.y };
+      const card = byId.get(end.card);
+      if (!card) return null;
+      const glide = visual.get(end.card);
+      return headOf(glide ? { ...card, x: glide.x, y: glide.y } : card);
+    };
+    const now = new Set<string>();
+    for (const line of stringsRef.current) {
+      const touches =
+        (isCardEnd(line.from) && visual.has(line.from.card)) || (isCardEnd(line.to) && visual.has(line.to.card));
+      if (!touches && !threaded.current.has(line.id)) continue;
+      const a = at(line.from);
+      const b = at(line.to);
+      if (!a || !b) continue;
+      const group = root.querySelector(`[data-string="${line.id}"]`);
+      if (!group) continue;
+      const { d, strands } = stringStrands(a, b, line);
+      group.querySelector('[data-strand="hit"]')?.setAttribute('d', d);
+      strands.forEach((strand, index) => group.querySelector(`[data-strand="${index}"]`)?.setAttribute('d', strand.d));
+      if (touches) now.add(line.id);
+    }
+    threaded.current = now;
+  }, []);
+  const cardFollow = useFollow({ rootRef: viewportRef, targets: followTargets, scale: { x: 1, y: 1 }, onFrame: followStrings });
+  /** Golf M (samen): other people's arrows glide as well. */
+  const cursorTargets = useMemo(
+    () => new Map(live.pointers.map((pointer) => [pointer.clientId, { x: pointer.x, y: pointer.y }])),
+    [live.pointers],
+  );
+  useFollow({ rootRef: viewportRef, targets: cursorTargets, scale: { x: 1, y: 1 }, prefix: 'hand:' });
+
+  /*
+   * Golf M (samen): two hands picked the same card up in the same instant — in
+   * the tenth of a second before either had heard of the other. The one that
+   * loses the tie (`winsTie`) puts its cards back where the archive has them,
+   * forgets it ever touched them (the save must not post the old spot over the
+   * other hand's drop) and lets them glide from where it had them to where the
+   * other hand has them now, rather than jump.
+   */
+  useDragConflict({
+    hands: live.hands,
+    self: live.self,
+    mine: () => (drag.current && dragMoved.current ? drag.current.origin.keys() : []),
+    onLose: ({ lock }) => {
+      const held = drag.current;
+      if (!held) return;
+      const ids = [...held.origin.keys()];
+      for (const card of cardsRef.current) if (held.origin.has(card.id)) cardFollow.seed(card.id, { x: card.x, y: card.y });
+      drag.current = null;
+      setHandOn(false);
+      undoStack.pop();
+      setUndoDepth(undoStack.size());
+      putBoard({
+        cards: cardsRef.current.map((card) => {
+          const was = held.origin.get(card.id);
+          return was ? { ...card, x: was.x, y: was.y } : card;
+        }),
+      });
+      // Golf M (herstel): only what the drag made dirty — a text typed on the
+      // card before it was picked up still has to reach the archive.
+      sync.untouch(dragOwnDirt(ids, held.dirtyBefore));
+      if (live.state === 'live') live.reportPointer({ moving: {} });
+      ui.toast(fill(ui.words.liveTakenFirst, { naam: lock.name || 'Iemand' }));
+    },
+  });
 
   /** Where an end of a string sits on the cork. Null if its card has gone. */
   const pointOf = useCallback(
@@ -1278,7 +1458,11 @@ export function BoardCanvas({
   );
 
   const removeCards = useCallback(
-    (ids: string[]) => {
+    (asked: string[]) => {
+      // Golf M (samen): nothing somebody else is carrying right now.
+      const locked = asked.filter((id) => locksRef.current.has(id));
+      if (locked.length) sayHeld(locksRef.current.get(locked[0])!, locked[0]);
+      const ids = asked.filter((id) => !locksRef.current.has(id));
       if (!ids.length) return;
       const doomed = new Set(ids);
       // A string tied to a card that is going has to go too; one tied to a bare
@@ -1306,7 +1490,7 @@ export function BoardCanvas({
         { label: 'Ongedaan maken', onAction: () => undo() },
       );
     },
-    [commit, sync, ui, undo],
+    [commit, sync, ui, undo, sayHeld],
   );
 
   const removeString = useCallback(
@@ -1527,6 +1711,21 @@ export function BoardCanvas({
       return;
     }
 
+    /*
+     * Golf M (samen): het zachte slot. Een kaartje dat een ander nu sleept, pak
+     * je niet op: de druk zegt wie het heeft, en doet verder niets — geen keuze
+     * (dan kon Delete het alsnog weghalen), geen sleep. Openen mag: een
+     * dubbelklik gaat gewoon door (`onOpen`). In Lezen schuift een druk het
+     * papier, en dat raakt het kaartje niet.
+     */
+    const lock = live.locks.get(cardId);
+    if (lock && !handsOff) {
+      pressWasSelected.current = null;
+      dragMoved.current = false;
+      sayHeld(lock, cardId);
+      return;
+    }
+
     const additive = event.shiftKey;
     const alreadySelected = selected.has(cardId);
     pressWasSelected.current = alreadySelected ? cardId : null;
@@ -1579,8 +1778,10 @@ export function BoardCanvas({
     const chosen = new Set(additive || alreadySelected ? selected : []);
     chosen.add(cardId);
     const origin = new Map<string, { x: number; y: number }>();
+    // Golf M (samen): wat een ander in de keuze vasthoudt, blijft staan — je
+    // hebt het aangewezen, niet opgepakt.
     for (const card of cardsRef.current)
-      if (chosen.has(card.id)) origin.set(card.id, { x: card.x, y: card.y });
+      if (chosen.has(card.id) && !live.locks.has(card.id)) origin.set(card.id, { x: card.x, y: card.y });
 
     // Not pushed to undo yet: a click, or the first half of a double-click, is
     // a press too, and undo should not be full of drags that went nowhere.
@@ -1589,6 +1790,7 @@ export function BoardCanvas({
       startY: event.clientY,
       origin,
       before: { cards: cardsRef.current, strings: stringsRef.current },
+      dirtyBefore: sync.dirtyCards(),
     };
     // §61: a hand is on the wall from this instant, not from the next render.
     setHandOn(true);
@@ -1606,6 +1808,13 @@ export function BoardCanvas({
   function onGripPointerDown(event: React.PointerEvent, card: BoardCard) {
     // §73: the grip and a draad are arranging — Bewerken only.
     if (!mayArrange) return;
+    // Golf M (samen): not a card somebody else is carrying.
+    const lock = live.locks.get(card.id);
+    if (lock) {
+      event.stopPropagation();
+      sayHeld(lock, card.id);
+      return;
+    }
     // §69/§68: only the left button is the archive's. A touch reports 0 too.
     if (event.button !== 0) return;
     // A grip is only ever dragged: no click, no focus, no pan underneath it.
@@ -2946,26 +3155,8 @@ export function BoardCanvas({
         )}
         <div className="spacer" />
 
-        {live.others.length > 0 && (
-          <span
-            className="board-people"
-            aria-label={`Ook op dit ${ui.words.board}: ${live.others.map((p) => p.name).join(', ')}`}
-          >
-            {live.others.slice(0, 5).map((person) => (
-              <span
-                key={person.clientId}
-                className="board-person"
-                style={{ background: person.colour }}
-                title={person.name}
-              >
-                {person.name.slice(0, 1).toUpperCase()}
-              </span>
-            ))}
-            {live.others.length > 5 && (
-              <span className="board-person board-person-more">+{live.others.length - 5}</span>
-            )}
-          </span>
-        )}
+        {/* Golf M (A2): who else is on this wall is the shell's strip, top right, with
+            the roster behind it — not a second row of discs in this bar. */}
 
         {/* §100 (B14): the save word is the shell's now, beside the live dot
             (`useReportSave` inside the sync hook) — §61's own reason included. */}
@@ -3269,24 +3460,14 @@ export function BoardCanvas({
               const a = pointOf(line.from);
               const b = pointOf(line.to);
               if (!a || !b) return null;
-              const d = stringPath(a.x, a.y, b.x, b.y);
               const colour = stringColourValue(line.colour);
               const isSelected = line.id === selectedStringId;
               // Board units, inside `.board-world`, which is scaled by the zoom
               // — so a thread grows and shrinks with the wall, like string.
-              const width = line.width ?? DEFAULT_STRING_WIDTH;
+              const { d, width, strands } = stringStrands(a, b, line);
               const dash = stringDash(line.style, width);
-              // "Dubbel" is two thinner strands either side of the centre; the
-              // two together carry the thickness that was asked for.
-              const strands =
-                line.style === 'double'
-                  ? [width * 0.45, -width * 0.45].map((offset) => ({
-                      d: stringPathOffset(a.x, a.y, b.x, b.y, offset),
-                      width: width * 0.4,
-                    }))
-                  : [{ d, width }];
               return (
-                <g key={line.id}>
+                <g key={line.id} data-string={line.id}>
                   {/*
                     A wide invisible path, because 2 px of string is not a
                     target — the centre curve for every kind of string, and
@@ -3294,6 +3475,7 @@ export function BoardCanvas({
                   */}
                   <path
                     className="board-string-hit"
+                    data-strand="hit"
                     d={d}
                     style={{ '--string-hit': `${Math.max(18, width * 3)}px` } as CSSProperties}
                     onPointerDown={(event) => onStringPointerDown(event, line.id)}
@@ -3307,6 +3489,7 @@ export function BoardCanvas({
                   {strands.map((strand, index) => (
                     <path
                       key={index}
+                      data-strand={index}
                       className={`board-string${isSelected ? ' board-string-selected' : ''}`}
                       d={strand.d}
                       stroke={colour}
@@ -3351,7 +3534,10 @@ export function BoardCanvas({
             stay exactly what they were.
           */}
           {shownCards.map((card) => {
-            const holder = live.heldByOthers.get(card.id);
+            // Golf M (samen): a card in somebody's hand wears their ring whether
+            // or not they have it chosen — it is the lock, said out loud.
+            const lock = live.locks.get(card.id);
+            const holder = lock ?? live.heldByOthers.get(card.id);
             if (!holder) return null;
             // The painted box, not the stored corner: this outline is drawn
             // beside the card rather than inside it, so it has to be told where
@@ -3360,7 +3546,9 @@ export function BoardCanvas({
             return (
               <div
                 key={`held-${card.id}`}
-                className={`board-held${live.carried.has(card.id) ? ' board-card-carried' : ''}`}
+                className={`board-held${live.carried.has(card.id) ? ' board-card-carried' : ''}${lock ? ' is-locked' : ''}`}
+                data-follow={card.id}
+                data-held-by={holder.name}
                 aria-hidden="true"
                 style={{
                   left: box.x,
@@ -3380,7 +3568,7 @@ export function BoardCanvas({
             <BoardCardView
               key={card.id}
               card={card}
-              carried={live.carried.has(card.id) && !selected.has(card.id)}
+              carried={live.carried.has(card.id) && !carryingHere?.has(card.id)}
               subject={subjectFor(card)}
               selected={selected.has(card.id)}
               interactive={interactive}
@@ -3588,6 +3776,7 @@ export function BoardCanvas({
             <div
               key={pointer.clientId}
               className="board-cursor"
+              data-follow={`hand:${pointer.clientId}`}
               aria-hidden="true"
               style={{
                 left: pointer.x,

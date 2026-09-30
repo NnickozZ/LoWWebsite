@@ -128,8 +128,8 @@ allemaal `--dur-2`, zodat elk pijltje in het archief even snel draait.
 | Een tekenvlak (prikbord, landkaart, tijdlijn, stamboom, web) | het glas | alleen wat de hand doet, en de cursors en kaartjes van anderen in het tempo van de stroom | `canvas-contract.md` |
 | Het vakje dat je aanklikt (zijbalk, jouw plek, tabbalk) | productief | meteen `data-pending`, een merkje dat in `--dur-2` opkomt (`nav-pending-in`) | `navigatie.css`, `NavPending.tsx` |
 | Elke andere interne link die je aanklikt (golf H, D3) | productief | `data-pending` op de link, in dezelfde klik (`NavProgress`, capture-fase), weg zodra de pagina er is. Een kaart blijft 1 px ingedrukt en krijgt een lijn van 2 px `--accent` die in `--dur-1` opkomt (`nav-pending-in`); een knop blijft ingedrukt; een rij, chip, feedregel of naam in de tekst krijgt `--paper-dark`, **zonder beweging**. Een deur in het Jij-blad: de Jij-tab krijgt het merkje. Onder reduced motion staan de lijn en het merkje er zonder op te komen | `navigatie.css` (*de hand op elke link*), `NavProgress.tsx` |
-| Een navigatie die na 150 ms niet binnen is | productief | een skelet dat in `--dur-3` opkomt (`skeleton-in`), of een streep van 2 px die als meter groeit (`calc(var(--dur-5) * 5)`, zie §6) | `navigatie.css`, `NavProgress.tsx` |
-| De nieuwe pagina na een navigatie | productief | van opacity 0,6 en 4 px naar zijn plek in `--dur-3` (`nav-page-in`); niet bij een documentlading, niet op een tekenvlak | `navigatie.css`, `html[data-navigated]` |
+| Een navigatie die na 150 ms niet binnen is | productief | een streep van 2 px die als meter groeit (`calc(var(--dur-5) * 5)`, zie §6). Sinds golf M geen skelet meer: de oude pagina blijft staan tot de nieuwe er is | `navigatie.css`, `NavProgress.tsx` |
+| De nieuwe pagina na een navigatie | productief | niets: sinds golf M wisselt de pagina in één keer, zonder fade (`nav-page-in` is weg). Nick zag het skelet en de fade samen als een knippering | `NavProgress.tsx` |
 | De voorbeeldkaart bij een naam | productief | in: een fade van `--dur-2` (`kaartje-in`); uit: direct | `kaartje.css`, `EntryPreview.tsx` |
 | De achtergrond van een blad | productief | in met het blad (`sheet-shade-in`, `--dur-4`, alleen opacity); uit in `--dur-3` op `--ease-standard`. Onder reduced motion (golf H, T25) staat hij meteen vol en vervaagt alleen het blad; bij sluiten blijft hij tot het blad weg is | `globals.css`, `navigatie.css` |
 | De FAB (telefoon) | productief | wijkt bij naar beneden scrollen, sinds golf H (T4) op **elke** pagina met een FAB: uit in `--dur-3`, terug in `--dur-4`; klimt boven een melding. Niet op de kamer, `/you` en zolang *Wie is er?* open is. Sinds golf J (§90) wijkt hij met dezelfde uitgang ook zolang er een caret in een schrijfvak van de pagina staat, en krijgt hij daarna `visibility: hidden` (`visibility 0s linear var(--dur-3)`, dus ná de fade; terug is meteen zichtbaar). Onder reduced motion wijkt hij dan zonder reis | `globals.css`, `useFabAway` in `AppShell` |
@@ -158,7 +158,8 @@ allemaal `--dur-2`, zodat elk pijltje in het archief even snel draait.
 **Herstel na de review (ronde 65·herstel, de schil).**
 
 - **Paginanavigatie.** Een navigatie begint bij opacity 0,6, niet bij 0
-  (`nav-page-in` en `nav-page-fade` in `app/navigatie.css`). Een leeg frame
+  (`nav-page-in` en `nav-page-fade` in `app/navigatie.css`; sinds golf M
+  allebei weg, zie de tabel). Een leeg frame
   tussen twee pagina's is geen overgang maar een flits.
 - **Achtergrond van een blad.** De achtergrond komt met het blad mee
   (`sheet-shade-in`, `--dur-4`, alleen opacity). Hij gaat weg op
@@ -218,12 +219,12 @@ blijven. Een nieuwe uitzondering is een beslissing, geen reparatie.
 | Waar | Duur | Reden |
 |---|---|---|
 | `globals.css` `.save-state-busy` (`save-state-turn`) | 900 ms | Een spinner draait rond, hij reist niet. Een omwenteling is een tempo, geen duur. |
-| ~~`globals.css` `::view-transition-new(root)` (`side-flip-wipe`)~~ | ~~550 ms~~ | **Dode regel.** De omslag-cirkel staat sinds ronde 65·c in `kaartje.css` en is geschreven als `calc(var(--dur-5) + var(--dur-3))`, dus hij heeft geen uitzondering meer nodig. De regel staat nog in `EXCEPTIONS` en vangt niets; hij kan weg als iemand in de test is. |
+| ~~`globals.css` `::view-transition-new(root)` (`side-flip-wipe`)~~ | ~~550 ms~~ | ~~**Dode regel.** De omslag-cirkel staat sinds ronde 65·c in `kaartje.css` en is geschreven als `calc(var(--dur-5) + var(--dur-3))`, dus hij heeft geen uitzondering meer nodig.~~ **Weg na golf M:** de regel is uit `EXCEPTIONS`. |
 | ~~`globals.css` `.canvas-peek`~~ | ~~0,18 s~~ | ~~**Schuld.** De peek op de telefoon beweegt op `max-height`, tegen regel 3 in. Herbouwen hoort niet bij ronde 65.~~ **Weg in golf I (§105):** de peek beweegt alleen op `transform`, in tokens (zie §4), en de regel is uit `EXCEPTIONS`. |
-| `globals.css` `.board-cursor`, `.board-card-carried`, `.map-pin-carried`, `.map-cursor` | 70 ms | Het glas: wat een ander vasthoudt, loopt mee met de stroom van de server, niet met een register. |
+| ~~`globals.css` `.board-cursor`, `.board-card-carried`, `.map-pin-carried`, `.map-cursor`~~ | ~~70 ms~~ | ~~Het glas: wat een ander vasthoudt, loopt mee met de stroom van de server, niet met een register.~~ **Weg sinds golf M (§108):** wat een ander draagt en zijn pijltje glijden met `useFollow` (een `translate`, per animatieframe), zonder CSS-overgang; de regels zijn na golf M ook uit `EXCEPTIONS`. |
 | `globals.css` `.live-cursor` | 120 ms | Het glas: de cursor van een ander in een gedeeld vak. |
 | `stambomen.css` `.tree-node` | 220 ms | Het glas: de stamboom die herschikt na een wijziging. Een tween op het vlak (§69). |
-| `stambomen.css` `.tree-node.is-carried`, `timelines.css` `.timeline-event-carried` | 70 ms | Het glas: in de hand van een ander. |
+| ~~`stambomen.css` `.tree-node.is-carried`, `timelines.css` `.timeline-event-carried`~~ | ~~70 ms~~ | ~~Het glas: in de hand van een ander.~~ **Weg sinds golf M (§108)**, om dezelfde reden: `.tree-node.is-carried` heeft `transition: none`, en de gebeurtenis glijdt met `useFollow`. |
 | `kamer.css` `.plek:target` (`plek-aangewezen`) | 1,4 s | K1: de landingsring na *Bekijk* is een aanwijzing, geen reis. Hij moet lang genoeg staan om je oog te vinden. Onder reduced motion staat dezelfde ring stil en verdwijnt hij na 1,4 s in één keer (`steps(1)`). |
 
 **Boven 500 ms zonder letterlijke waarde.** De test vangt alleen een losse
@@ -245,8 +246,7 @@ opgebouwd, zodat ze niet in `EXCEPTIONS` hoeven:
 verplaatst of schaalt, krijgt een eigen tak: een crossfade van `--dur-3`
 (`sheet-fade-in`/`-out`, `toast-fade-in`/`-out`) of niets. Wat feedback is,
 blijft: de indruk van een knop staat er nog (zonder overgang), de ring in de
-kamer staat er nog (zonder vervagen), het skelet staat er nog (zonder
-beweging).
+kamer staat er nog (zonder vervagen).
 
 Sinds golf H (T25): onder reduced motion staat de **achtergrond** van een blad
 meteen vol, en vervaagt alleen het blad zelf. Kwamen ze samen in, dan liepen
@@ -266,8 +266,9 @@ soort-editor staan er zonder te bewegen.
 
 ## 8. Wat open staat
 
-- `EXCEPTIONS` in `tests/unit/beweging.test.ts` heeft de dode regel voor
-  `globals.css` `::view-transition-new(root)` (zie §6).
+- ~~`EXCEPTIONS` in `tests/unit/beweging.test.ts` heeft de dode regel voor
+  `globals.css` `::view-transition-new(root)` (zie §6).~~ Weg na golf M,
+  met de vijf regels van het glas van 70 ms.
 - De test meet losse duren, geen curves en geen `calc`. `.plek:target` loopt
   nog op een letterlijke `ease-out`, en regel 5 (niets routineus boven
   500 ms) wordt alleen door lezen bewaakt.

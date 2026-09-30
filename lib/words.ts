@@ -386,6 +386,17 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'nudge', what: 'Iemand hierheen vragen', fallback: 'Kom kijken' },
       { key: 'nudgeAsks', what: 'Tussen de naam en de plek', fallback: 'vraagt je bij' },
       { key: 'nudgeRefused', what: 'Als die ander daar niet bij mag', fallback: 'Daar kan die niet bij.' },
+      { key: 'presenceGoTo', what: 'De knop naast iemand in het lijstje: daarheen gaan', fallback: 'Ga naar' },
+      {
+        key: 'presenceGoToWho',
+        what: 'Voor een schermlezer: naar wie de knop je brengt',
+        fallback: 'Ga naar {naam}',
+        hint: 'Het gat {naam} is wie je volgt; je komt waar die kijkt.',
+      },
+      { key: 'presenceMore', what: 'Voor een schermlezer: hoeveel mensen er niet als schijfje staan', fallback: 'en nog {n}' },
+      { key: 'nudgeGo', what: 'De knop in de uitnodiging om erheen te gaan', fallback: 'Ga' },
+      { key: 'nudgeAsked', what: 'Na Kom kijken: het is gevraagd', fallback: 'gevraagd' },
+      { key: 'nudgeNoFollow', what: 'In de uitnodiging: wegklikken', fallback: 'Wegklikken' },
       { key: 'yourAccount', what: 'Boven je eigen accountpagina', fallback: 'Jouw account' },
       {
         key: 'youMarker',
@@ -1140,6 +1151,71 @@ export const WORD_GROUPS: WordGroup[] = [
       { key: 'treeHandleBoth', what: 'Het woord op de +-knop tussen twee gekozen kaartjes', fallback: 'Kind van beide' },
     ],
   },
+  // golf M — de stamboom: terug, vooruit, en een kind aan de lijn
+  {
+    title: 'De stamboom (golf M)',
+    note:
+      'Ongedaan maken en opnieuw doen op een stamboom, ook voor een lijn die op een artikel staat; de + op de lijn ' +
+      'tussen twee ouders; en het menu onder de rechtermuisknop. {lijn} is jouw woord voor een lijn in een stamboom.',
+    words: [
+      { key: 'treeLineRemoved', what: 'De melding na het weghalen van een lijn', fallback: '{Lijn} weggehaald.' },
+      { key: 'treeUndoAction', what: 'De knop in die melding', fallback: 'Ongedaan maken' },
+      {
+        key: 'treeUndoUnchanged',
+        what: 'Als ongedaan maken of opnieuw doen een lijn niet terugzet, omdat iemand hem intussen al veranderde',
+        fallback: 'Die {lijn} is intussen al veranderd; daar is niets aan gedaan.',
+      },
+      {
+        key: 'treeUndoProposed',
+        what: 'Als ongedaan maken of opnieuw doen een lijn niet zelf mag schrijven en een voorstel indient',
+        fallback: 'Als voorstel ingediend: de {keeper} beslist.',
+      },
+      {
+        key: 'treeUndoRefused',
+        what: 'Als ongedaan maken of opnieuw doen een lijn niet terug kon zetten',
+        fallback: 'Die {lijn} kon niet worden teruggezet.',
+      },
+      { key: 'treeUndoGone', what: 'Als de knop in een melding te laat is: er is sindsdien meer veranderd', fallback: 'Er is sindsdien meer veranderd; gebruik Ctrl+Z.' },
+      { key: 'treeRedo', what: 'De knop naast Ongedaan maken op een stamboom', fallback: 'Opnieuw doen' },
+      {
+        key: 'treeLineChildOf',
+        what: 'De + op de lijn tussen twee ouders (voorgelezen)',
+        fallback: 'Kind van {a} en {b} toevoegen',
+      },
+      { key: 'treeLineChildOfOne', what: 'De + op de lijn onder één ouder (voorgelezen)', fallback: 'Kind van {a} toevoegen' },
+      { key: 'treeMenuAddChild', what: 'In het menu van een lijn tussen twee ouders', fallback: 'Kind toevoegen' },
+      { key: 'treeMenuOf', what: 'De naam van het menu onder de rechtermuisknop (voorgelezen)', fallback: 'Menu bij {naam}' },
+      {
+        key: 'treeConnectHint',
+        what: 'Wat een schermlezer hoort terwijl je een lijn uit een + sleept',
+        fallback: 'Laat los op een kaartje om ze te verbinden; op het lege papier gebeurt er niets.',
+      },
+    ],
+  },
+  // golf M — samen op een vlak: het zachte slot, en wat een ander weghaalt
+  {
+    title: 'Samen op een vlak (golf M)',
+    note:
+      'Op een prikbord, landkaart, tijdlijn of stamboom met meer mensen tegelijk. {naam} is de naam van wie iets ' +
+      'vasthoudt, of van het ding zelf in de zin over weghalen.',
+    words: [
+      {
+        key: 'liveHeldBy',
+        what: 'Als je iets probeert te pakken dat een ander op dat moment sleept',
+        fallback: '{naam} heeft dit vast',
+      },
+      {
+        key: 'liveTakenFirst',
+        what: 'Als jij en een ander hetzelfde in dezelfde tel pakten, en de ander het kreeg',
+        fallback: '{naam} pakte dit net eerder.',
+      },
+      {
+        key: 'liveGoneByOther',
+        what: 'Als iets dat je gekozen of open had, door een ander is weggehaald',
+        fallback: '{naam} is net door iemand anders weggehaald.',
+      },
+    ],
+  },
   // §100 ronde 61 — het palet en één opslaan
   {
     title: 'Het palet',
@@ -1600,6 +1676,11 @@ export const WORD_GROUPS: WordGroup[] = [
         hint: 'Niet "Speld zetten": zo heet de knop in de balk al.',
       },
       {
+        key: 'mapLezenDubbelklik',
+        what: 'Een melding na een dubbelklik op een landkaart die in Lezen staat',
+        fallback: 'Zet de kaart op Bewerken om hier een {speld} te zetten.',
+      },
+      {
         key: 'vlakLeegTijdlijn',
         what: 'Een lege tijdlijn (de zin)',
         fallback: 'Nog geen {gebeurtenissen} op deze {tijdlijn}.',
@@ -1897,6 +1978,27 @@ export const WORD_GROUPS: WordGroup[] = [
         key: 'woordFilterHint',
         what: 'Woorden: onder het zoekvak',
         fallback: 'Enter springt naar het eerste woord dat past. Enter in een vak slaat op.',
+      },
+      // Golf M (C3): het zoekvak boven Gebruikers.
+      {
+        key: 'spelersZoek',
+        what: 'Gebruikers: het zoekvak boven de lijst',
+        fallback: 'Zoek op naam of {karakter}…',
+      },
+      { key: 'spelersFilter', what: 'Gebruikers: de naam van de filterknoppen, voor een schermlezer', fallback: 'Welke accounts' },
+      { key: 'spelersAlle', what: 'Gebruikers: de filterknop voor iedereen', fallback: 'Alle' },
+      { key: 'spelersKeepers', what: 'Gebruikers: de filterknop voor wie Keeper is', fallback: 'Keepers' },
+      { key: 'spelersUit', what: 'Gebruikers: de filterknop voor uitgeschakelde accounts', fallback: 'Uitgeschakeld' },
+      { key: 'spelersTelling', what: 'Gebruikers: hoeveel er in beeld staan, van hoeveel', fallback: '{n} van {totaal}' },
+      {
+        key: 'spelersGeen',
+        what: 'Gebruikers: als niemand past bij wat je zocht',
+        fallback: 'Niemand gevonden voor ‘{zoek}’.',
+      },
+      {
+        key: 'spelersGeenFilter',
+        what: 'Gebruikers: als niemand onder deze filterknop valt',
+        fallback: 'Hier staat niemand onder.',
       },
       { key: 'kopieer', what: 'De knop die iets naar het klembord kopieert', fallback: 'Kopieer' },
       { key: 'delen', what: 'De knop die iets deelt (op een telefoon)', fallback: 'Delen' },

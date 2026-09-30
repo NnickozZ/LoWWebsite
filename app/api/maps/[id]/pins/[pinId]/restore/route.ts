@@ -13,8 +13,8 @@ export const dynamic = 'force-dynamic';
  * speld coming back, and until it does there is nothing for a PATCH to be
  * about (every read filters a buried row, `livePinCondition`).
  *
- * The rights are `restorePin`'s and they are the ones that took it off: a
- * landkaart this hand may see, and a speld that is theirs or a Keeper's.
+ * The rights are `restorePin`'s and they are the ones that took it off: since
+ * golf M, the landkaart's Bewerken dial.
  *
  * 410 rather than 404 when there is nothing to put back — swept after a day
  * (`sweepDeletedRows`), or destroyed with its landkaart. "Gone" and "never

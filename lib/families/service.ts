@@ -587,7 +587,14 @@ function refOf(entryId: string): StoredRef | null {
  * that was already there or already gone. That is not a save: writing it again
  * would file a revision, a feed row and a voorstel for a change nobody made.
  */
-export type RelationResult = SaveResult | { status: 'unchanged' };
+export type RelationResult = (SaveResult | { status: 'unchanged' }) & {
+  /**
+   * Golf M (herstel): the artikel a `+` pushed out of a one-box field
+   * (`entry_link`) to make room. The canvas puts its removal on the undo step
+   * before the add, so a Ctrl+Z gives the box back what it held.
+   */
+  replaced?: string;
+};
 
 export function writeRelation(
   entryId: string,
@@ -595,6 +602,13 @@ export function writeRelation(
   targetId: string,
   add: boolean,
   actor: Author,
+  /**
+   * Golf M: `replace: false` is the road an undo or a redo takes. A one-box
+   * field (`entry_link`) that meanwhile holds *somebody else* is left alone
+   * (`unchanged`) instead of overwritten — taking a step back never clobbers a
+   * later edit. The `+` itself keeps replacing, as it always did.
+   */
+  options: { replace?: boolean } = {},
 ): RelationResult {
   if (entryId === targetId) throw new Error('Een artikel is geen familie van zichzelf.');
   const spec = defsOfEntry(entryId);
@@ -611,12 +625,17 @@ export function writeRelation(
   const standing = refIdsIn(held[fieldKey]);
 
   let value: unknown;
+  let replaced: string | undefined;
   if (def.kind === 'entry_link') {
     // One box, one answer. Removing only empties it when it is *this* artikel
     // standing there, the same rule the mirror follows.
     if (add && standing[0] === targetId) return { status: 'unchanged' };
+    if (add && options.replace === false && standing.length > 0) return { status: 'unchanged' };
     if (!add && standing[0] !== targetId) return { status: 'unchanged' };
     value = add ? target : null;
+    // Only a ref the hand may see comes back (rule 1): an id it cannot follow
+    // is not named to it, and its undo leaves the box as `keepUnseenRefs` does.
+    if (add && standing[0] && seenBy(standing[0], actor)) replaced = standing[0];
   } else {
     const current = Array.isArray(held[fieldKey]) ? (held[fieldKey] as unknown[]) : [];
     const without = current.filter((item) => refIdsIn(item)[0] !== targetId);
@@ -629,7 +648,19 @@ export function writeRelation(
     }
   }
 
-  return updateEntry(entryId, { fields: { [fieldKey]: value } }, actor);
+  const result = updateEntry(entryId, { fields: { [fieldKey]: value } }, actor);
+  return replaced ? { ...result, replaced } : result;
+}
+
+/** Golf M (herstel): may this hand see that artikel? A lookup, so no side (§46). */
+function seenBy(entryId: string, actor: Author): boolean {
+  return Boolean(
+    db
+      .select({ id: schema.entries.id })
+      .from(schema.entries)
+      .where(and(eq(schema.entries.id, entryId), visibleEntryCondition(actor)))
+      .get(),
+  );
 }
 
 /**

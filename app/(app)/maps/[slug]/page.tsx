@@ -14,7 +14,7 @@ import { KeeperPanelServer } from '@/components/keeper/KeeperPanelServer';
 import { KeeperStamp } from '@/components/keeper/KeeperStamp';
 import { BinSlot } from '@/components/ui/BinSlot';
 import { sideOf } from '@/lib/keeper/kinds';
-import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
+import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canManageAccess } from '@/lib/access';
 import { viewerCanEditMap } from '@/lib/maps/service';
@@ -35,7 +35,13 @@ export const dynamic = 'force-dynamic';
  * §19: one map. The pins are read here, behind `visibleEntryCondition`, so a
  * fiche a player may not see is not on their map either.
  */
-export default async function MapPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function MapPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requireViewer();
   const { slug } = await params;
   // §40: a landkaart this viewer's dial does not allow is a 404, not a locked
@@ -47,7 +53,8 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
    * §50: the page decides where you stand. A Keeper who walks onto a landkaart
    * from the other side is turned over on the server, before anything renders.
    */
-  const detour = sideDetour(user, isKeeperSide('map', map.id), `/maps/${map.slug}`);
+  // Golf M: `?pin=` and `?waar=` survive the detour (as on a tijdlijn).
+  const detour = sideDetour(user, isKeeperSide('map', map.id), `/maps/${map.slug}${queryTail(await searchParams)}`);
   if (detour) redirect(detour);
 
   const words = getWords();
@@ -203,6 +210,8 @@ export default async function MapPage({ params }: { params: Promise<{ slug: stri
           initialInk={inkForViewer(getInk(map.id), user?.id ?? null)}
           viewerId={user?.id ?? ''}
           isKeeper={Boolean(user?.isKeeper)}
+          // Golf M: the landkaart's Bewerken dial decides every speld on it.
+          mayEditMap={mayEditMap}
           peopleNames={peopleNames}
         />
       </div>

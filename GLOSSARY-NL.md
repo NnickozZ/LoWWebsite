@@ -331,7 +331,8 @@ red → rood · ink → inkt · blue → blauw · green → groen · gold → go
 | Zoom out / Zoom in / Fit | Uitzoomen / Inzoomen / Passend maken |
 | Drag the pin to move it. | Sleep de speld om hem te verplaatsen. |
 | Remove pin / Remove {name} from the map? | Speld weghalen / {naam} van de landkaart halen? |
-| This pin is someone else's… | Deze speld is van iemand anders: alleen wie hem zette, of een Keeper, kan hem verplaatsen of weghalen. |
+| ~~This pin is someone else's…~~ | ~~Deze speld is van iemand anders: alleen wie hem zette, of een Keeper, kan hem verplaatsen of weghalen.~~ Weg sinds golf M: de Bewerken-knop van de landkaart beslist over elke speld. |
+| You may only look at this map… (golf M, `PIN_NOT_ALLOWED`) | Je mag op deze landkaart alleen kijken; spelden zetten en verschuiven mag wie hem mag bewerken. |
 | Set by {name} | Gezet door {naam} |
 | On the map: / Put on {map} | Op de landkaart: / Zet op {landkaart} |
 | {name} is on {map}. | {naam} staat op {landkaart}. |
@@ -1610,3 +1611,28 @@ staan, zijn nu sleutels.
 | **Een speler uitnodigen** (`beheerIndexUitnodiging`) | Beheer op een telefoon, bovenaan de index | Het etiket boven de uitnodiging met *Kopieer de link*. |
 | **de vouw** (van het maakblad) | begrip | Na twee (computer) of drie (telefoon) hele regels soorten klapt de rij dicht; *Alle soorten* klapt hem open. |
 | **de eerste verf** | begrip | Wat de server tekent vóór de hydratatie. Sinds golf J is dat al de vorm van het scherm: de stylesheet kiest, en er springt niets. |
+
+## Golf M — Nicks lijst van 29 september (§40, §66, §67, §76, §107, §108): twee groepen, 30 sleutels
+
+Twee nieuwe groepen in `lib/words.ts`: *De stamboom (golf M)* (12 sleutels)
+en *Samen op een vlak (golf M)* (3). De andere vijftien kwamen in bestaande
+groepen: zes bij de aanwezigheid, `mapLezenDubbelklik` bij de landkaart en
+acht `spelers*` bij Beheer.
+
+| Woord | Waar het staat | Wat het is |
+|---|---|---|
+| **Ga naar** (`presenceGoTo`) · **Ga naar {naam}** (`presenceGoToWho`) | *Wie is er?*, op elke rij | Naar de plek van die ander: zijn camera op een tekenvlak, zijn sectie op een artikel. Altijd in beeld, niet pas bij een hover. |
+| **Kom kijken** (`nudge`, bestond al) → **Ga** (`nudgeGo`) · **gevraagd** (`nudgeAsked`) · **Wegklikken** (`nudgeNoFollow`) | *Wie is er?* en de uitnodiging die dan komt | *Kom kijken* roept iemand; in de uitnodiging brengt *Ga* je naar waar wie riep staat. |
+| **en nog {n}** (`presenceMore`) | de strip, voor een schermlezer | Bij meer dan vier mensen: drie schijfjes en `+n`. |
+| **Zet de kaart op Bewerken om hier een {speld} te zetten.** (`mapLezenDubbelklik`) | een melding na een dubbelklik op een landkaart in Lezen | Alleen voor wie de kaart mag bewerken. |
+| **{Lijn} weggehaald.** (`treeLineRemoved`) · **Ongedaan maken** (`treeUndoAction`) | de melding na *Lijn verwijderen* op een stamboom | Sinds golf M kan een lijn terug. |
+| **Opnieuw doen** (`treeRedo`) | naast *Ongedaan maken* op een stamboom (niet op een telefoon) | Ctrl+Shift+Z of Ctrl+Y. |
+| **Die {lijn} is intussen al veranderd; …** · **Als voorstel ingediend: de {keeper} beslist.** · **Die {lijn} kon niet worden teruggezet.** · **Er is sindsdien meer veranderd; gebruik Ctrl+Z.** (`treeUndo*`) | meldingen na ongedaan maken of opnieuw doen op een stamboom | Wat er met de ene ref gebeurde: al veranderd (*unchanged*), een voorstel, geweigerd, of een knop die te laat is. |
+| **Kind van {a} en {b} toevoegen** (`treeLineChildOf`) · **Kind van {a} toevoegen** · **Kind toevoegen** (`treeMenuAddChild`) · **Menu bij {naam}** (`treeMenuOf`) | de `+` op de lijn tussen twee ouders, en het menu onder de rechtermuisknop | De `+` opent de kiezer met beide ouders al vast. |
+| **Laat los op een kaartje om ze te verbinden; …** (`treeConnectHint`) | voor een schermlezer, terwijl je een lijn uit een `+` sleept | Slepen om te verbinden, alleen met een muis of pen. |
+| **{naam} heeft dit vast** (`liveHeldBy`) | een melding als je pakt wat een ander sleept | Het zachte slot (§108): niet te pakken, wel te openen en te lezen. |
+| **{naam} pakte dit net eerder.** (`liveTakenFirst`) | een melding na een gelijkspel | Twee handen in dezelfde tel; het kleinste client-id wint. |
+| **{naam} is net door iemand anders weggehaald.** (`liveGoneByOther`) | een melding op alle vier de vlakken | Wat je gekozen of open had, is weg; het laat los. |
+| **Zoek op naam of {karakter}…** (`spelersZoek`) · **Alle** · **Keepers** · **Uitgeschakeld** (`spelersAlle`, `spelersKeepers`, `spelersUit`) · **{n} van {totaal}** (`spelersTelling`) · **Niemand gevonden voor ‘{zoek}’.** · **Hier staat niemand onder.** | Beheer → Gebruikers | Het zoekvak en de filterknoppen, elk met zijn telling; `spelersFilter` (*Welke accounts*) is de naam van de knoppen voor een schermlezer. |
+| **het zachte slot** | begrip | Wat een ander sleept, is van hem zolang hij het draagt; de server weet van niets (§108). |
+| **de plek** (op de plek) | begrip | Waar iemand precies staat: de camera op een tekenvlak of de sectie die hij leest (`?waar=`). |

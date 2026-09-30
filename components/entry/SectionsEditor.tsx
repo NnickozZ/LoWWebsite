@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Icon } from '@/components/Icon';
-import { LivePeople } from '@/components/editor/LivePeople';
 import { RichEditor } from '@/components/editor/RichEditor';
 import { Vooraf, VoorafPlek, VoorafTekst } from '@/components/editor/VoorafTekst';
 import type { LivePerson, LiveSave, LiveStatus, LiveUser } from '@/components/editor/useLiveDoc';
@@ -86,13 +85,9 @@ function SectionText({
         placeholder={placeholder}
         onStatus={setStatus}
       />
-      {/* Golf J (j4): in Lezen not while the line is still being made — "verbinden…" under every
-          sectie for the first second pushed the page down and then pulled it back. */}
-      {(status.others.length > 0 || status.status === 'offline' || (status.status === 'connecting' && !readOnly)) && (
-        <p className="tiny" style={{ margin: '0.3rem 0 0' }}>
-          <LivePeople others={status.others} status={status.status} />
-        </p>
-      )}
+      {/* Golf M (A2): no row of people under a sectie any more. Who is here and whether the
+          line is up is said once, in the strip top right; what this sectie is doing with its
+          words is the shell's save word (`useReportRoomSave` above). */}
     </Vooraf.Provider>
   );
 }

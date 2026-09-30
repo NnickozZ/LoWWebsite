@@ -90,51 +90,15 @@ const EXCEPTIONS: { file: string; selector: string; times: string[]; reason: str
   },
   {
     file: 'globals.css',
-    selector: '::view-transition-new(root)',
-    times: ['550ms'],
-    reason: 'De omslag-cirkel van de Keeperkant (§46/§57): het ene expressieve moment dat de hele pagina omslaat.',
-  },
-  {
-    file: 'globals.css',
-    selector: '.board-cursor',
-    times: ['70ms'],
-    reason: 'Het glas (§69): een cursor van een ander volgt het tempo van de stroom, niet een register.',
-  },
-  {
-    file: 'globals.css',
-    selector: '.board-card.board-card-carried, .board-held.board-card-carried',
-    times: ['70ms'],
-    reason: 'Het glas (§69): een kaartje in de hand van een ander loopt mee met de stroom van de server.',
-  },
-  {
-    file: 'globals.css',
     selector: '.live-cursor',
     times: ['120ms'],
     reason: 'Het glas (§69): de cursor van een ander in een gedeeld vak, afgestemd op de stroom.',
-  },
-  {
-    file: 'globals.css',
-    selector: '.map-pin.map-pin-carried, .map-cursor',
-    times: ['70ms'],
-    reason: 'Het glas (§69): een speld of cursor van een ander op de landkaart, afgestemd op de stroom.',
   },
   {
     file: 'stambomen.css',
     selector: '.tree-node',
     times: ['220ms'],
     reason: 'Het glas (§69): de stamboom die herschikt na een wijziging — een tween op het vlak, niet een register.',
-  },
-  {
-    file: 'stambomen.css',
-    selector: '.tree-node.is-carried',
-    times: ['70ms'],
-    reason: 'Het glas (§69): een kaartje in de hand van een ander loopt mee met de stroom van de server.',
-  },
-  {
-    file: 'timelines.css',
-    selector: '.timeline-event-carried',
-    times: ['70ms'],
-    reason: 'Het glas (§69): een gebeurtenis in de hand van een ander loopt mee met de stroom van de server.',
   },
   {
     file: 'kamer.css',

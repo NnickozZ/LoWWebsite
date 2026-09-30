@@ -19,6 +19,7 @@ import {
   roomSender,
   setAlias,
   setPlace,
+  setSpot,
   setWatches,
   type Connection,
   type SiteEvent,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/live/hub';
 import { frameKind, SATURATED_CLOSE_MS, shouldDropFrame, SSE_HIGH_WATER_MARK } from '@/lib/live/wire';
 import { isRoomKey, isWellFormedKey } from '@/lib/live/keys';
+import { isWellFormedSpot, spotFitsPlace } from '@/lib/live/spot';
 import { readInkFrame } from '@/lib/ink/merge';
 import type { InkFrame } from '@/lib/ink/types';
 import { admit } from '@/lib/live/rooms';
@@ -55,6 +57,9 @@ const HEARTBEAT_MS = 20_000;
  *
  *   watch      the keys to watch from now on (replaces the list; gated)
  *   place      where the tab stands, and what it holds (`null` to leave)
+ *   spot       golf M: where on that place — `{place, at}` (a camera or a
+ *              sectie, `lib/live/spot.ts`), or null; only for the place the
+ *              tab stands on, and only in a shape a camera or sectie can take
  *   cursor     a pointer frame at that place
  *   join       rooms of shared text to enter (`{key, y}`), gated by `admit`
  *   leave      rooms to leave
@@ -206,6 +211,8 @@ type Body = {
   connection?: string;
   watch?: unknown;
   place?: { key?: unknown; holding?: unknown } | null;
+  /** Golf M (A3): waar op die plaats. */
+  spot?: { place?: unknown; at?: unknown } | null;
   cursor?: { x?: unknown; y?: unknown; m?: unknown; s?: unknown };
   /** §60: the leader tab whose socket carries this one. */
   carriedBy?: unknown;
@@ -333,6 +340,24 @@ export async function POST(request: Request) {
       const key = body.place.key;
       if (isWellFormedKey(key) && canWatch(key, user)) setPlace(line, key, body.place.holding);
       else if (key === null) setPlace(line, null);
+    }
+
+    /*
+     * Golf M (A3): de plek op de plaats. Na `place`, zodat een POST die
+     * allebei meeneemt de plek op de nieuwe plaats zet. Een plek die niet bij
+     * de plaats past (een camera van een ander vlak, iets dat geen camera of
+     * sectie is), wordt niet bewaard: wat een ander er later mee krijgt, is
+     * alleen wat hier door kwam, en per kijker nog eens gekeurd (roster.ts).
+     */
+    if (body.spot === null) {
+      if (line.place) setSpot(line, line.place, null);
+    } else if (body.spot && typeof body.spot === 'object') {
+      const at = body.spot.at;
+      const where = body.spot.place;
+      if (typeof where === 'string') {
+        if (at === null) setSpot(line, where, null);
+        else if (isWellFormedSpot(at) && spotFitsPlace(where, at)) setSpot(line, where, at);
+      }
     }
 
     if (body.cursor) {

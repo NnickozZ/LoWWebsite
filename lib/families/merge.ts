@@ -321,12 +321,28 @@ export function mergeTreeState(
   const loose = new Map(base.loose.map((item) => [item.id, item]));
   const ties = new Map(base.ties.map((item) => [item.id, item]));
 
+  /*
+   * Golf M (samen): a client stamps every item it sends with the moment of the
+   * *save* (`useTreeSync`), not of the change — so a card dragged here while
+   * somebody else took it out of the tree arrived stamped after the stone, and
+   * "newer than the tombstone" read it as a deliberate re-add. The drop brought
+   * the person back into a tree they had just been taken out of. A patch that
+   * says what it deliberately revives (`revive`, even empty) is taken at its
+   * word: only those ids lift a stone. A patch without it keeps the old rule.
+   */
+  const ids = (list: unknown) => new Set(Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : []);
+  const revive =
+    patch.revive && typeof patch.revive === 'object'
+      ? { members: ids(patch.revive.members), loose: ids(patch.revive.loose), ties: ids(patch.revive.ties) }
+      : null;
+
   /** One kind of item, one rule. */
   function apply<T extends { id: string; updatedAt: number }>(
     into: Map<string, T>,
     graves: Record<string, number>,
     incoming: (T | null)[],
     record: string[],
+    revived: Set<string> | null,
   ) {
     for (const item of incoming) {
       if (!item) continue;
@@ -334,6 +350,7 @@ export function mergeTreeState(
       // Buried later than this item was written: it stays buried. Anything else
       // is a deliberate re-add and lifts the stone.
       if (buried !== undefined && buried > item.updatedAt) continue;
+      if (buried !== undefined && revived && !revived.has(item.id)) continue;
       if (buried !== undefined) delete graves[item.id];
       const held = into.get(item.id);
       if (held && item.updatedAt < held.updatedAt) continue;
@@ -347,9 +364,10 @@ export function mergeTreeState(
     tombstones.members,
     (patch.members ?? []).map((item) => normaliseMember(item, now)),
     changed.members,
+    revive?.members ?? null,
   );
-  apply(loose, tombstones.loose, (patch.loose ?? []).map((item) => normaliseLoose(item, now)), changed.loose);
-  apply(ties, tombstones.ties, (patch.ties ?? []).map((item) => normaliseTie(item, now)), changed.ties);
+  apply(loose, tombstones.loose, (patch.loose ?? []).map((item) => normaliseLoose(item, now)), changed.loose, revive?.loose ?? null);
+  apply(ties, tombstones.ties, (patch.ties ?? []).map((item) => normaliseTie(item, now)), changed.ties, revive?.ties ?? null);
 
   const bury = <T>(into: Map<string, T>, graves: Record<string, number>, ids: string[], record: string[]) => {
     for (const id of ids) {

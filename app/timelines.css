@@ -35,17 +35,10 @@
 }
 
 /*
-   A tag somebody else is carrying glides between frames instead of jumping
-   sixteen times a second — the same easing a carried card has on a wall.
+   A tag somebody else is carrying glides between frames instead of jumping —
+   golf M: by `useFollow` (a `translate` laid over it every animation frame),
+   the same glide a carried card has on a wall, not a CSS transition.
 */
-.timeline-event-carried {
-  transition: left 70ms linear;
-}
-@media (prefers-reduced-motion: reduce) {
-  .timeline-event-carried {
-    transition: none;
-  }
-}
 
 /*
    §69 (6.4)/§74: de vensters op een telefoon, in de gedeelde `CanvasPeek`.
@@ -167,6 +160,43 @@
 .timeline-event-chosen .timeline-tag {
   outline: 2px solid var(--link);
   outline-offset: 1px;
+}
+
+/*
+   Golf M (samen): een gebeurtenis in de hand van een ander — gekozen of
+   gesleept — draagt de ring van die hand, om de stip, met de naam erboven in
+   dezelfde inkt (de `.board-held` van het prikbord). Gesleept is ook een slot
+   (`lib/live/hands.ts`); die ring is een tik dikker.
+*/
+.timeline-event-held .timeline-marker {
+  outline: 2px solid var(--held-colour);
+  outline-offset: 2px;
+}
+.timeline-event-held.is-locked .timeline-marker {
+  outline-width: 3px;
+}
+.timeline-held-name {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* Aan de kant van de as waar de tag níet staat, zodat hij niets bedekt. */
+  transform: translate(-50%, 0.9rem);
+  max-width: 10rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.05rem 0.3rem;
+  background: var(--held-colour);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  line-height: 1.35;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+.timeline-event-down .timeline-held-name {
+  transform: translate(-50%, calc(-100% - 0.9rem));
 }
 
 /*

@@ -1,11 +1,12 @@
 /* §102–§104: navigatie — zie docs/beweging.md. Eigen bestand zodat globals.css van één hand blijft. */
 
 /* ==========================================================================
-   §102 (ronde 65·b, J2): een navigatie zegt dat hij loopt, in drie lagen.
+   §102 (ronde 65·b, J2): een navigatie zegt dat hij loopt, in twee lagen.
    1. het vakje (`NavPending`): meteen, want dat is de hand die gehoord wordt;
-   2. de streep (`NavProgress`): pas na 150 ms, zodat snel niet flitst;
-   3. het skelet (`Skeleton.tsx`, door `NavProgress` over de inhoudskolom
-      gelegd bij een route met een vaste vorm): pas na 150 ms, plat.
+   2. de streep (`NavProgress`): pas na 150 ms, zodat snel niet flitst.
+   Golf M (A1) haalde de derde laag weg, het skelet over de inhoudskolom, en
+   de fade waarmee de nieuwe pagina inkwam: de oude pagina blijft staan tot de
+   nieuwe er is, en dan wisselen ze in één keer.
    Productief register: --dur-1..3, alleen transform en opacity.
    ========================================================================== */
 
@@ -141,409 +142,6 @@ html {
     opacity var(--dur-3) var(--ease-exit) var(--dur-2);
 }
 
-/* ------------------------------------------------------------- 3. het skelet */
-
-/* Eén klasse voor elk vlak: papier dat donkerder is, meer niet. Geen glans. */
-.skeleton {
-  display: block;
-  background: var(--paper-dark);
-  border-radius: var(--radius);
-}
-/* Over de inhoudskolom, niet over de schil: `.main` is `position: relative`
-   (§21). Het papier dekt de pagina die weggaat; het skelet zelf plakt aan de
-   bovenkant van het venster, ook als je halverwege een lange pagina klikte.
-   `NavProgress` tekent het pas na 150 ms, en dan komt het er in --dur-3 bij. */
-.nav-skeleton {
-  position: absolute;
-  inset: 0;
-  z-index: 35;
-  background: var(--paper);
-  padding: var(--main-pad-t) var(--page-pad) 0;
-  animation: skeleton-in var(--dur-3) var(--ease-enter);
-}
-.nav-skeleton > .skeleton-page {
-  position: sticky;
-  top: var(--main-pad-t);
-}
-/* Het strookje *Wie is er?* is in de echte pagina een float rechtsboven, en
-   een raster ernaast wordt er smaller door (een artikel op een computer).
-   `NavProgress` meet het en zet de maat hier, zodat het skelet dezelfde
-   kolommen heeft als de pagina die komt. Alleen daar: op een telefoon en in
-   de andere vormen loopt de pagina gewoon onder het strookje door. */
-@media (min-width: 1280px) {
-  .nav-skeleton > .skeleton-page[data-shape='entry']::before {
-    content: '';
-    float: right;
-    width: var(--sk-strip-w, 0px);
-    height: var(--sk-strip-h, 0px);
-  }
-}
-@keyframes skeleton-in {
-  from {
-    opacity: 0;
-  }
-}
-.skeleton-narrow {
-  max-width: 64rem;
-}
-
-/* De bouwstenen, op de maat van wat ze vervangen. */
-.sk-eyebrow {
-  height: 0.6rem;
-  margin: 0.2rem 0 0.9rem;
-}
-.sk-title {
-  height: 2.1rem;
-  margin: 0 0 0.8rem;
-  max-width: 100%;
-}
-.sk-lead {
-  height: 0.95rem;
-  margin: 0 0 0.6rem;
-  max-width: 100%;
-}
-.sk-line {
-  height: 0.8rem;
-  margin: 0 0 0.75rem;
-  max-width: 100%;
-}
-.sk-small {
-  height: 0.6rem;
-  margin-bottom: 0.6rem;
-}
-.sk-heading {
-  height: 1.15rem;
-  margin: 1.4rem 0 1rem;
-  max-width: 100%;
-}
-.sk-gap {
-  display: block;
-  height: 0.6rem;
-}
-.sk-chip {
-  width: 5.8rem;
-  height: 1.55rem;
-  border-radius: 999px;
-  margin: 0 0 0.9rem;
-}
-.sk-stamp {
-  width: 3.6rem;
-  height: 1.6rem;
-  margin: 0 0 0.9rem;
-}
-.sk-pill {
-  height: 1.7rem;
-  border-radius: 999px;
-  flex: 0 0 auto;
-  max-width: 100%;
-}
-.sk-pill-big {
-  height: 2.4rem;
-}
-.sk-btn {
-  height: 2.3rem;
-  flex: 0 1 auto;
-  max-width: 100%;
-}
-.sk-tab {
-  height: 1.1rem;
-  flex: 0 0 auto;
-}
-.sk-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.4rem 0 0.9rem;
-}
-.sk-row-center {
-  align-items: center;
-  gap: 0.9rem;
-}
-.sk-row-center .sk-line {
-  margin: 0;
-}
-.sk-rule {
-  display: block;
-  height: 1px;
-  background: var(--rule);
-  margin: 1.2rem 0;
-}
-/* Een kader: het papier van een infobox, paneel of kaartje, met zijn rand. */
-.sk-frame {
-  display: block;
-  border: 1px solid var(--rule);
-  background: var(--paper-raised);
-  padding: 0.9rem;
-  min-width: 0;
-}
-
-/* Een artikel: de wegwijzer, de tekst en het feitenblok — drie kolommen
-   vanaf 1280 px (§25), daaronder kop, feiten, tekst onder elkaar. */
-.sk-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'head' 'jumps' 'aside' 'body';
-}
-.sk-rail {
-  display: none;
-  grid-area: rail;
-}
-.sk-head {
-  grid-area: head;
-}
-.sk-aside {
-  grid-area: aside;
-  margin: 0.4rem 0 0.6rem;
-}
-.sk-body {
-  grid-area: body;
-}
-.sk-infobox .sk-pair {
-  display: none;
-}
-.sk-infobox .sk-eyebrow {
-  margin: 0;
-}
-/* Op een smal scherm staan de sprongchips onder de kop (§92). */
-.sk-jumps {
-  grid-area: jumps;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  padding-bottom: 0.8rem;
-  border-bottom: 1px solid var(--rule);
-}
-@media (min-width: 1280px) {
-  .sk-jumps {
-    display: none;
-  }
-  .sk-entry {
-    grid-template-columns: 12rem minmax(0, 1fr) 320px;
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      'rail head aside'
-      'rail body aside';
-    column-gap: 1.6rem;
-    align-items: start;
-  }
-  .sk-rail {
-    display: block;
-    align-self: stretch;
-    padding-left: 0.8rem;
-    border-left: 1px solid var(--rule);
-  }
-  .sk-rail .sk-line {
-    margin-bottom: 1.05rem;
-  }
-  .sk-aside {
-    margin: 0;
-    grid-row: 1 / span 2;
-  }
-  .sk-infobox .sk-eyebrow {
-    margin: 0.1rem 0 1.1rem;
-  }
-  .sk-infobox .sk-pair {
-    display: flex;
-    gap: 1.2rem;
-    padding: 0.35rem 0;
-    border-bottom: 1px dashed var(--rule);
-    margin-bottom: 0.6rem;
-  }
-  .sk-infobox .sk-pair .sk-line {
-    margin: 0;
-  }
-  .sk-head {
-    margin-bottom: 0.4rem;
-  }
-}
-
-/* Een dossier: stempel, titel, tabbladen, notities, en een rij kaarten. */
-.sk-tabs {
-  display: flex;
-  gap: 1.6rem;
-  overflow: hidden;
-  padding: 1.1rem 0.8rem 1rem;
-  margin: 0.8rem 0 1.3rem;
-  border-bottom: 1px solid var(--rule);
-}
-.sk-tabs-wrap {
-  flex-wrap: wrap;
-  row-gap: 1.4rem;
-}
-.sk-notes {
-  height: 11rem;
-  margin: 0 0 1.4rem;
-}
-.sk-cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
-}
-/* Een kaartje: het plaatje en de tekst, zoals `EntryCard`. */
-.sk-card {
-  display: flex;
-  flex-direction: column;
-  padding: 0.3rem;
-  height: 20.5rem;
-  overflow: hidden;
-}
-.sk-cover {
-  flex: 0 0 58%;
-  border-radius: 0;
-}
-.sk-card-text {
-  display: block;
-  padding: 0.9rem 0.6rem 0;
-}
-.sk-case .sk-cards .sk-card:nth-child(n + 3) {
-  display: none;
-}
-@media (min-width: 768px) {
-  .sk-cards {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  }
-  .sk-case .sk-cards {
-    grid-template-columns: repeat(auto-fill, 154px);
-  }
-  .sk-case .sk-cards .sk-card:nth-child(n + 3) {
-    display: flex;
-  }
-}
-
-/* Een wiki-lijst: kop, soorten, een regel met filters, het raster kaarten. */
-.sk-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin: 0 0 1.2rem;
-}
-.sk-toolbar .sk-line {
-  margin: 0;
-}
-.sk-toolbar-end {
-  display: flex;
-  gap: 0.6rem;
-}
-
-/* De kamer: twaalf tegels van één hoogte (§85), met de gestippelde rand van
-   een lege plek, twee naast elkaar op een telefoon. */
-.sk-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-.sk-tile {
-  position: relative;
-  height: 12rem;
-  border-style: dashed;
-  background: transparent;
-}
-.sk-tile-mark {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 1.6rem;
-  height: 1.6rem;
-  margin: -0.8rem 0 0 -0.8rem;
-}
-@media (min-width: 768px) {
-  .sk-tiles {
-    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
-  }
-  .sk-tile {
-    height: 13.5rem;
-  }
-}
-
-/* De winkel: vier rijen, met een plaatje links en de prijs rechts. */
-.sk-rows {
-  display: grid;
-  gap: 0.55rem;
-  margin-top: 0.6rem;
-}
-.sk-shoprow {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.9rem;
-  padding: 0.6rem;
-  min-height: 6.9rem;
-}
-.sk-thumb {
-  flex: 0 0 3rem;
-  height: 3rem;
-}
-.sk-shoprow-text {
-  flex: 1;
-  min-width: 0;
-  padding-top: 0.2rem;
-}
-.sk-price {
-  flex: 0 0 auto;
-  width: min(15rem, 30%);
-  height: 4.6rem;
-}
-
-/* Een spelerspagina: wie je speelt, de kamer over de volle breedte, en de
-   panelen eronder. */
-.sk-avatar {
-  width: 2.6rem;
-  height: 3.4rem;
-  flex: 0 0 auto;
-}
-.sk-panel-rule {
-  display: block;
-  height: 1px;
-  background: var(--rule);
-  margin: 0 0 1rem;
-}
-.sk-panel .sk-heading,
-.sk-panel-wide .sk-heading {
-  margin: 0.1rem 0 0.8rem;
-}
-.sk-panel-wide {
-  margin: 0.6rem 0 1rem;
-}
-.sk-panels {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-@media (min-width: 768px) {
-  .sk-panels {
-    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
-  }
-}
-
-/* ======================================================================
-   §102 (ronde 68, de lichte variant): bij een navigatie vervaagt de
-   inhoudskolom in — de pagina, niet de schil. Geen View Transitions API,
-   geen experimentele vlag: een CSS-animatie op het wortelelement van de
-   pagina. Next mount dat element opnieuw als het pad wisselt (een ander
-   segment of een andere slug), en een animatie speelt bij het invoegen.
-   Een zoekvraag die wisselt, houdt het element, dus daar gebeurt niets — en
-   dus blijft ook de staat van de pagina staan. `data-navigated` zet
-   `NavProgress` pas bij de eerste navigatie: bij het laden van een document
-   staat de pagina er gewoon.
-   Geen `fill-mode`: na afloop draagt de pagina geen transform meer, en dus
-   geen containing block voor wat erin `position: fixed` staat.
-   Niet op een tekenvlak (§34: het glas beweegt voor de hand). Het skelet
-   staat niet in `.main >` maar in `.nav-skeleton`, en heeft zijn eigen ingang.
-   ====================================================================== */
-:root[data-navigated] .main > :is(.page, .page-wide):not(:has(.page-canvas)) {
-  animation: nav-page-in var(--dur-3) var(--ease-enter);
-}
-/* Ronde 65·herstel (review #5): van 0,6 en niet van 0. Een pagina die van
-   nul begon, liet bij elke klik één leeg frame zien — op de zware kamer ruim
-   100 ms papier zonder iets erop. Nu staat de nieuwe pagina er meteen, iets
-   bleek, en wordt ze in --dur-3 vol. §102. */
-@keyframes nav-page-in {
-  from {
-    opacity: 0.6;
-    transform: translateY(4px);
-  }
-}
-
 /* ------------------------------------------------------ reduced motion */
 @media (prefers-reduced-motion: reduce) {
   /* Het vakje en het streepje staan er meteen; de feedback blijft. */
@@ -558,27 +156,6 @@ html {
     transform: scaleX(1);
     transition: none;
   }
-  /* Het skelet komt nog steeds pas na 150 ms, maar staat er dan meteen. */
-  .nav-skeleton {
-    animation: none;
-  }
-  /* De pagina: alleen opacity, geen verschuiving. */
-  :root[data-navigated] .main > :is(.page, .page-wide):not(:has(.page-canvas)) {
-    animation-name: nav-page-fade;
-  }
-}
-@keyframes nav-page-fade {
-  from {
-    opacity: 0.6;
-  }
-}
-
-/* Het levende strookje (*Wie is er?*) blijft boven het skelet staan: wie er
-   is, verandert niet omdat jij een pagina verder gaat. */
-/* Het is al `position: sticky` (of absoluut op een tekenvlak), dus alleen de
-   laag gaat omhoog. */
-.main:has(> .nav-skeleton) > .live-strip {
-  z-index: 36;
 }
 
 /* ==========================================================================
@@ -680,114 +257,6 @@ html {
 }
 
 /* ==========================================================================
-   §102, golf h1 (T7): de skeletten van de tabpagina's. Dezelfde bouwstenen als
-   hierboven, op de maat van wat ze vervangen.
-   ========================================================================== */
-.skeleton-page:is([data-shape='rows'], [data-shape='hal']) {
-  max-width: 900px;
-}
-.sk-listhead {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 1rem;
-}
-.sk-listhead-text {
-  flex: 1;
-  min-width: 0;
-}
-.sk-btn-new {
-  flex: 0 0 auto;
-  margin-bottom: 0.9rem;
-}
-/* Een rij in een lijst: plaatje, twee regels, en rechts de datum. */
-.sk-listrow {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--rule);
-}
-.sk-listrow-thumb {
-  flex: 0 0 4rem;
-  height: 2.75rem;
-}
-.sk-thumb-staand {
-  flex-basis: 2.6rem;
-  height: 3.4rem;
-}
-.sk-listrow-text {
-  flex: 1;
-  min-width: 0;
-}
-.sk-listrow-text .skeleton:last-child {
-  margin-bottom: 0;
-}
-.sk-listrow-date {
-  flex: 0 0 auto;
-  margin: 0;
-}
-/* De dossiers: staande kaarten, zo breed als op de echte pagina. */
-.sk-casegrid .sk-cards {
-  grid-template-columns: minmax(0, 1fr);
-}
-.sk-casegrid .sk-card {
-  height: 24rem;
-}
-@media (min-width: 768px) {
-  .sk-casegrid .sk-cards {
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  }
-  .sk-casegrid .sk-card {
-    height: 29rem;
-  }
-}
-/* De hal: een smalle kolom deuren, elk met een regel kamers eronder. */
-.sk-hal {
-  max-width: 34rem;
-}
-.sk-hal-speler {
-  display: block;
-  margin-bottom: 0.4rem;
-}
-.sk-hal-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 2.75rem;
-  padding: 0 0.7rem;
-}
-.sk-hal-row .skeleton {
-  margin: 0;
-}
-.sk-hal-kamers {
-  margin: 0.45rem 0 0.5rem 1.6rem;
-}
-/* Start en de wiki: een kop, een alinea, en twee kolommen blokken. */
-.sk-voordeur-lead {
-  max-width: 48rem;
-  margin-bottom: 1.8rem;
-}
-.sk-voordeur-blocks {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1.6rem;
-}
-.sk-voordeur-col {
-  display: block;
-  min-width: 0;
-}
-.sk-voordeur-box {
-  height: 11rem;
-}
-@media (min-width: 768px) {
-  .sk-voordeur-blocks {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-    gap: 2.8rem;
-  }
-}
-
-/* ==========================================================================
    §102, golf h1 (D3, T7): de hand op elke link. `NavProgress` zet `data-pending`
    bij de klik (capture-fase) op de link zelf, en haalt het weg zodra de pagina
    er is. Per vorm, in het productieve register: een kaart blijft ingedrukt,
@@ -862,29 +331,122 @@ a.card[data-pending]::after {
 }
 
 /* ==========================================================================
-   §102, golf h1 (D12, T19): *Wie is er?* staat bovenaan de pagina en scrolt mee weg.
-   Hij plakte (`position: sticky`, 88 % papier) en lag bij scrollen over de
-   inhoud — een kaart op /wiki/alles, een regel tekst op de telefoon. Wie
-   scrolt, heeft hem niet nodig. Eén uitzondering: een pagina waar iets wordt
-   opgeslagen (het woord van §100 staat in de strip). Daar blijft hij staan,
-   als voorwerp: echt papier en een schaduw, geen vlek.
-   Niet op een tekenvlak: daar hangt hij in de hoek van de kop (§34).
+   Golf M (A2): *Wie is er?* rechtsboven, op elke pagina, op elke breedte.
+   Nick: "I think I liked it more in the top right … I just want all of it in
+   the top right and clickable." Tot nu toe waren het zeven regels in drie
+   bestanden die elkaar op specificiteit versloegen: vanaf 1880 px won golf
+   h1's `position: relative` (0,3,0) van golf K's `absolute` (0,2,0), en
+   stond de strip linksboven in de stroom, 2 rem naar links geschoven. Het
+   prikbord zette hem helemaal uit (`presence={false}`).
+
+   Nu staat alles hier, per maat één regel, en niets elders verschuift hem:
+   - **Een gewone pagina van 768 tot 1879 px:** zoals het was — een float
+     rechtsboven, waar de pagina omheen loopt (niets ligt eronder), die
+     meescrolt, behalve waar iets wordt opgeslagen (golf h1, D12: dan plakt
+     hij, als voorwerp); met golf K's ondergrens tegen verspringen.
+   - **Een tekenvlak (vanaf 768 px), en elke pagina vanaf 1880 px:** in de
+     band boven de pagina (`--main-pad-t`, 1,5 rem), in de rechterhoek van de
+     kolom. Hij duwt niets opzij (golf K: een float duwde Start uit het
+     midden), en de kop van een tekenvlak hoeft geen hoek meer vrij te houden.
+     Waar iets wordt opgeslagen blijft hij staan als je scrolt (`fixed`).
+   - **Telefoon:** zoals het was (hieronder, en `globals.css` voor een
+     tekenvlak).
+   Overal: hooguit vier schijfjes (`STRIP_DISCS`, daarboven `+n`) en nooit
+   breder dan de kolom, dus hij loopt niet over de rand.
    ========================================================================== */
-.main:not(:has(.page-canvas)) > .live-strip {
-  position: relative;
-  top: auto;
+@media (min-width: 768px) {
+  /* Past in de band van 1,5 rem: geen rand om de knop, en schijfjes van 20 px. */
+  .main > .live-strip .live-strip-open {
+    padding: 0 0.15rem;
+  }
+  .main > .live-strip .board-person {
+    width: 20px;
+    height: 20px;
+    font-size: 0.62rem;
+    border-width: 1.5px;
+  }
+  .main > .live-strip {
+    max-width: calc(100% - var(--page-pad));
+  }
+  .main:has(.page-canvas) > .live-strip {
+    position: absolute;
+    top: 0.1rem;
+    right: calc(var(--page-pad) * 0.5);
+    float: none;
+    margin: 0;
+    padding: 0.05rem 0.45rem;
+    /* Hooguit 1,45 rem hoog, zodat hij in de band van 1,5 rem past. */
+    line-height: 1.2;
+  }
 }
-.main:not(:has(.page-canvas)) > .live-strip:has(.save-state) {
-  position: sticky;
-  top: 0.4rem;
-  background: var(--paper);
-  box-shadow:
-    0 0 0 1px var(--rule),
-    var(--shadow);
+@media (min-width: 768px) and (max-width: 1879px) {
+  .main:not(:has(.page-canvas)) > .live-strip {
+    position: relative;
+    top: auto;
+    /* Tot in de goot rechts, niet over de rand: 0,5 rem van de kant. */
+    margin-right: calc(0.5rem - var(--page-pad));
+    /* Golf K: vanaf de eerste verf zijn breedte, zodat de pagina ernaast niet
+       verspringt als de stip van *verbinden* naar *live* gaat. */
+    min-width: 5.75rem;
+    justify-content: flex-end;
+  }
+  .main:not(:has(.page-canvas)) > .live-strip:has(.save-state) {
+    position: sticky;
+    top: 0.4rem;
+    background: var(--paper);
+    box-shadow:
+      0 0 0 1px var(--rule),
+      var(--shadow);
+  }
 }
-/* Op de telefoon: het raakvlak van de stip is 44 px, als echte maat van de
-   knop — met een negatieve marge, zodat de strook niet hoger wordt. */
+@media (min-width: 1880px) {
+  .main > .live-strip {
+    position: absolute;
+    top: 0.1rem;
+    right: calc(var(--page-pad) * 0.5);
+    float: none;
+    margin: 0;
+    padding: 0.05rem 0.45rem;
+    line-height: 1.2;
+  }
+}
+@media (min-width: 768px) {
+  /* In de band, waar iets wordt opgeslagen: hij blijft staan als je scrolt. */
+  .main:has(.page-canvas) > .live-strip:has(.save-state) {
+    position: fixed;
+    background: var(--paper);
+    box-shadow:
+      0 0 0 1px var(--rule),
+      var(--shadow);
+  }
+}
+@media (min-width: 1880px) {
+  .main > .live-strip:has(.save-state) {
+    position: fixed;
+    background: var(--paper);
+    box-shadow:
+      0 0 0 1px var(--rule),
+      var(--shadow);
+  }
+}
+
+/* Telefoon: de strook bovenaan scrolt mee weg (golf h1, D12), behalve waar iets
+   wordt opgeslagen. Niet op een tekenvlak: daar hangt hij in de hoek van de kop. */
 @media (max-width: 767px) {
+  .main:not(:has(.page-canvas)) > .live-strip {
+    position: relative;
+    top: auto;
+  }
+  .main:not(:has(.page-canvas)) > .live-strip:has(.save-state) {
+    position: sticky;
+    top: 0.4rem;
+    background: var(--paper);
+    box-shadow:
+      0 0 0 1px var(--rule),
+      var(--shadow);
+  }
+  /* Het raakvlak van de stip is 44 px, als echte maat van de knop — met een
+     negatieve marge, zodat de strook niet hoger wordt. */
   .live-strip .live-strip-open {
     min-width: var(--tap);
     min-height: var(--tap);

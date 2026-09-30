@@ -15,6 +15,7 @@ import { useReportRoomSave, type RoomSave } from '@/components/entry/useAutosave
 import { useLive, useLiveChanges } from '@/components/live/LiveProvider';
 import type { LiveUser } from '@/components/editor/useLiveDoc';
 import { mapKey, pinFieldsRoomKey } from '@/lib/live/keys';
+import { createOwnDeletes, lostByOthers } from '@/lib/live/ownDeletes';
 import { popoverIsOpen } from '@/lib/popoverStack';
 import { Sheet } from '@/components/ui/Sheet';
 import { useUi } from '@/components/ui/UiProvider';
@@ -42,7 +43,8 @@ import { usePanZoomInk } from '@/components/ink/panZoom';
 import { useCanvasInk } from '@/components/ink/useCanvasInk';
 import type { InkLayerView } from '@/lib/ink/types';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/suggest';
-import { useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
+import { heldByOthers as heldByOthersOf, heldMarks } from '@/lib/maps/held';
+import { isBarePaper, useMakeOnEmpty } from '@/components/canvas/useMakeOnEmpty';
 import { usePinch } from '@/components/canvas/usePinch';
 import { useMarqueeSelect } from '@/components/canvas/useMarqueeSelect';
 import { groupDelta, normaliseRect } from '@/lib/canvas/select';
@@ -55,6 +57,9 @@ import { CanvasEmpty } from '@/components/canvas/CanvasEmpty';
 import { CanvasFind } from '@/components/canvas/CanvasFind';
 import type { Findable } from '@/lib/canvas/find';
 import { fill } from '@/lib/words';
+import { useFollow } from '@/components/canvas/useFollow';
+import { useCarried, useDragConflict, useLockHint, useLocks } from '@/components/canvas/useSoftLock';
+import type { Vec } from '@/lib/canvas/follow';
 
 /** §105 (golf J): the glass and the things on it, for `gatePress`. */
 const MAP_GLASS = { glass: '.map-stage', things: '.map-pin, .map-cluster-badge' };
@@ -217,12 +222,21 @@ function writeLegendOpen(open: boolean) {
  */
 const UNDER_FOLD_ID = 'map-underfold';
 
+/**
+ * §69/§71: what on the glass is *not* bare paper for a double-click or a long
+ * press — a speld (its head and its label), the `+n`, the legend and the
+ * panels. `.ink-capture` and `.ink-toolbar` are added by `isBarePaper` itself.
+ * Golf M: one constant, because the Lezen hint asks the same question.
+ */
+const MAP_NOT_PAPER = '.map-pin, .map-cluster-badge, .map-legend, .map-legend-toggle, .map-panel, .canvas-peek, .canvas-leeg-doe';
+
 export function MapCanvas({
   map,
   initialPins,
   pickableMaps,
   viewerId,
   isKeeper,
+  mayEditMap,
   peopleNames,
   liveUser,
   initialInk,
@@ -241,6 +255,13 @@ export function MapCanvas({
   initialInk: InkLayerView;
   viewerId: string;
   isKeeper: boolean;
+  /**
+   * Golf M: may this hand work on this landkaart — its Bewerken dial
+   * (`viewerCanEditMap`, Iedereen · Gekozen personen · Privé, a Keeper always).
+   * One right for every speld on it, whoever set it: set, move, rewrite,
+   * re-layer, pull. Whoever may only look gets no Bewerken switch at all.
+   */
+  mayEditMap: boolean;
   /** §21: this person's name and ink, for the shared fields of a note pin. */
   liveUser: LiveUser;
   /** §18: who set each pin, by the name they wear — keyed by account id. */
@@ -256,7 +277,15 @@ export function MapCanvas({
    * name first. Without an onderzoeker the landkaart is a picture with pins on
    * it: it pans, it zooms, its legend works, and nothing on it moves.
    */
-  const mayType = useMayType();
+  const mayTypeHand = useMayType();
+  /*
+   * Golf M: and it asks the landkaart's Bewerken dial. The name `mayType`
+   * stayed — every road below that asked "may this hand write here?" now gets
+   * both answers at once: an onderzoeker (§18b) *and* the right to work on this
+   * map. Before golf M the dial was never asked, so on a Privé map every
+   * player could set a speld and only the setter could move it.
+   */
+  const mayType = mayTypeHand && mayEditMap;
   // Read by the callbacks below, which are built once and would otherwise
   // close over the answer as it was then.
   const mayTypeRef = useRef(mayType);
@@ -721,9 +750,16 @@ export function MapCanvas({
    */
   const setInkActive = ink.inkTool.setActive;
   const inkToolActive = ink.inkTool.active;
+  /*
+   * Golf M: only where there *is* a Bewerken to leave. The tekenlaag is not the
+   * landkaart's edit dial (§33: whoever may see it may draw, unless the Keeper
+   * switched it off), so a hand that may only look at the spelden keeps the
+   * potlood its bar offers — without this the bar showed a pencil that put
+   * itself down the moment it was picked up.
+   */
   useEffect(() => {
-    if (!editing && inkToolActive) setInkActive(false);
-  }, [editing, inkToolActive, setInkActive]);
+    if (mode.canEdit && !editing && inkToolActive) setInkActive(false);
+  }, [mode.canEdit, editing, inkToolActive, setInkActive]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -817,6 +853,12 @@ export function MapCanvas({
   /** §69: undo runs from a keystroke and from a toast, both outside a render. */
   const pinsRef = useRef(pins);
   pinsRef.current = pins;
+  /*
+   * Golf M (samen, herstel): wat deze hand zelf weghaalt. De lijn meldt ook de
+   * eigen `DELETE`, en een pull tussen twee `DELETE`s van één veeg (of vóór het
+   * antwoord) zei anders "door iemand anders weggehaald" over je eigen speld.
+   */
+  const ownDeletes = useRef(createOwnDeletes()).current;
   useLiveChanges([mapKey(map.id)], () => {
     void (async () => {
       try {
@@ -825,11 +867,27 @@ export function MapCanvas({
         const data = (await response.json()) as { pins?: MapPin[] };
         if (!Array.isArray(data.pins)) return;
         const held = draggingRef.current;
-        setCarried((current) => (current.size ? new Map() : current));
+        /*
+         * Golf M (samen): what another hand carried is *not* cleared here any
+         * more — `useCarried` lets it go when this document says where it
+         * landed. Clearing it on every pull dropped a speld still in the air
+         * back to its old spot for a frame, whenever anybody changed anything.
+         *
+         * And a speld that is gone from the archive is gone from here, even
+         * the one this hand is dragging: it used to be pushed back into the
+         * list, a ghost that stood there until the next pull — and whose drop
+         * then failed with "Opslaan is niet gelukt".
+         */
+        const there = new Set(data.pins.map((pin) => pin.id));
+        const lost = lostByOthers(pinsRef.current, there, (id) => selectionRef.current.has(id), ownDeletes);
+        if (lost.length) {
+          ui.toast(fill(words.liveGoneByOther, { naam: lost.length === 1 ? lost[0].name || cap(words.mapPin) : `${lost.length} ${words.mapPinPlural}` }));
+          const keep = new Set([...selectionRef.current].filter((id) => there.has(id)));
+          selection.setSelected(keep);
+        }
         setPins((current) => {
           const mine = held ? current.find((p) => p.id === held) : undefined;
           const next = data.pins!.map((pin) => (mine && pin.id === mine.id ? mine : pin));
-          if (mine && !next.some((p) => p.id === mine.id)) next.push(mine);
           return JSON.stringify(next) === JSON.stringify(current) ? current : next;
         });
       } catch {
@@ -839,7 +897,7 @@ export function MapCanvas({
   });
   /*
    * §67/§69 (2.1): wat déze hand vasthoudt gaat de lijn op, zodat iedereen
-   * anders er een ring omheen ziet (`.map-held`). Het was alleen de speld die
+   * anders er een ring omheen ziet (`.map-pin-held`). Het was alleen de speld die
    * op dat moment gesleept werd; nu is het de hele keuze, want een keuze is
    * precies het ding dat je "vasthoudt" — de hub kapt af op zestig.
    */
@@ -859,34 +917,29 @@ export function MapCanvas({
    * De roster van de site-lijn laat deze tab er zelf al uit, maar niet elke
    * bron doet dat, dus het wordt hier nog eens gezegd.
    */
-  const heldByOthers = useMemo(() => {
-    const held = new Map<string, { name: string; colour: string }>();
-    for (const person of live.people) {
-      if (person.clientId === live.clientId) continue;
-      for (const id of person.holding ?? []) {
-        if (!held.has(id)) held.set(id, { name: person.name, colour: person.colour });
-      }
-    }
-    return held;
-  }, [live.people, live.clientId]);
+  // Golf M: puur, in `lib/maps/held.ts` — de vorm die een volgende golf op elk vlak kan lenen.
+  const heldByChoice = useMemo(() => heldByOthersOf(live.people, live.clientId), [live.people, live.clientId]);
 
-  const [carried, setCarried] = useState<Map<string, [number, number]>>(new Map());
-  useEffect(() => {
-    setCarried((current) => {
-      let changed = false;
-      const next = new Map(current);
-      for (const pointer of live.pointers) {
-        for (const [id, pos] of Object.entries(pointer.m)) {
-          const known = next.get(id);
-          if (!known || known[0] !== pos[0] || known[1] !== pos[1]) {
-            next.set(id, pos);
-            changed = true;
-          }
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [live.pointers]);
+  /*
+   * Golf M (samen): the spelden in somebody else's hand, and the ones they just
+   * put down — the four canvases' shared rules (`lib/live/hands.ts`). A speld
+   * stays where the hand left it until the pins this tab pulls say otherwise,
+   * or for `SETTLE_MS`; a hand that went quiet mid-drag lets go after
+   * `HAND_STALE_MS` instead of leaving its speld in the air for good.
+   */
+  const pinAt = useMemo(() => new Map(pins.map((pin) => [pin.id, [pin.x, pin.y] as const])), [pins]);
+  const docAt = useCallback((id: string) => pinAt.get(id) ?? null, [pinAt]);
+  const carriedBy = useCarried({ hands: live.pointers, self: live.clientId, docAt });
+  const carried = useMemo(() => {
+    const out = new Map<string, [number, number]>();
+    for (const [id, item] of carriedBy) out.set(id, [item.x, item.y]);
+    return out;
+  }, [carriedBy]);
+  /** Golf M (samen): wat een ander nu sleept — niet te pakken, wel te lezen. */
+  const locks = useLocks(live.pointers, live.clientId);
+  const locksRef = useRef(locks);
+  locksRef.current = locks;
+  const sayHeld = useLockHint(ui.toast, words.liveHeldBy);
 
   const stagePoint = (event: { clientX: number; clientY: number }): Pointer => {
     const rect = stageRef.current?.getBoundingClientRect();
@@ -894,8 +947,12 @@ export function MapCanvas({
   };
   stagePointRef.current = stagePoint;
 
-  /** §18b: the right — this hand may move and pull this speld at all. */
-  const mayTouch = (pin: MapPin) => mayType && (isKeeper || pin.createdBy === viewerId);
+  /**
+   * §18b and golf M: the right — this hand may move and pull this speld at all.
+   * The landkaart's Bewerken dial, for every speld on it; who set it no longer
+   * matters (it used to be `isKeeper || pin.createdBy === viewerId`).
+   */
+  const mayTouch = (_pin: MapPin) => mayType;
   /*
    * §73: and whether it may *now*. In Lezen a press on your own speld is a
    * press on someone else's: it pans the map (`movable: false`), and a tap
@@ -957,6 +1014,14 @@ export function MapCanvas({
      */
     const already = selectionRef.current.has(pin.id);
     selection.select(pin.id, event.shiftKey, already);
+    /*
+     * Golf M (samen): het zachte slot. Een speld die een ander nu sleept, kies
+     * je wel (het blad gaat open: lezen mag), maar hij gaat niet mee — een
+     * sleep die hier begint, schuift de kaart.
+     */
+    const lock = locksRef.current.get(pin.id);
+    if (lock && mayMove(pin)) sayHeld(lock, pin.id);
+    const free = (one: MapPin) => mayMove(one) && !locksRef.current.has(one.id);
 
     /*
      * Wie er meegaat: de gekozen spelden die deze hand ook mág verplaatsen. Een
@@ -966,10 +1031,10 @@ export function MapCanvas({
     const group = new Map<string, { x: number; y: number }>();
     if (!event.shiftKey && already && selectionRef.current.size > 1) {
       for (const one of pinsRef.current) {
-        if (selectionRef.current.has(one.id) && mayMove(one)) group.set(one.id, { x: one.x, y: one.y });
+        if (selectionRef.current.has(one.id) && free(one)) group.set(one.id, { x: one.x, y: one.y });
       }
     }
-    if (!group.has(pin.id) && mayMove(pin)) group.set(pin.id, { x: pin.x, y: pin.y });
+    if (!group.has(pin.id) && free(pin)) group.set(pin.id, { x: pin.x, y: pin.y });
 
     gesture.current = {
       kind: 'pin',
@@ -977,7 +1042,7 @@ export function MapCanvas({
       start: point,
       view: viewRef.current,
       pinId: pin.id,
-      movable: mayMove(pin),
+      movable: free(pin),
       pinStart: { x: pin.x, y: pin.y },
       groupStart: group,
     };
@@ -1063,6 +1128,14 @@ export function MapCanvas({
     if (g.kind === 'pin' && g.pinId) {
       setDragging(null);
       boxRef.current = null;
+      /*
+       * Golf M (samen): de hand laat los, en zegt het meteen. Een frame dat
+       * spelden noemt is een slot op elk ander scherm (`lib/live/hands.ts`);
+       * dat bleef dicht tot de muis weer bewoog. De lijn stuurt eerst nog het
+       * laatste dragende frame, zodat de plek van de neerzetting aankomt.
+       */
+      if (g.moved && g.movable && event.pointerType !== 'touch') reportHand(stagePoint(event));
+      else if (g.moved && g.movable) live.reportPointer(null);
       /*
        * §69 (2.1): het einde van de druk. Een shift-druk op iets dat al gekozen
        * was wisselt hier pas — als de hand niet gereisd heeft (`endPress`); een
@@ -1175,6 +1248,31 @@ export function MapCanvas({
           body: JSON.stringify(patch),
         });
         const data = (await response.json()) as { pin?: MapPin; error?: string };
+        /*
+         * A buried speld answers 403 (`viewerCanEditPin` finds no live row),
+         * so "not allowed" and "gone" look alike from here; the landkaart's
+         * own list tells them apart.
+         */
+        const gone =
+          !response.ok &&
+          (response.status === 404 ||
+            (await fetch(`/api/maps/${map.id}/pins`, { cache: 'no-store' })
+              .then((r) => (r.ok ? (r.json() as Promise<{ pins?: MapPin[] }>) : null))
+              .then((list) => Boolean(list?.pins && !list.pins.some((p) => p.id === pinId)))
+              .catch(() => false)));
+        if (gone) {
+          /*
+           * Golf M (samen): gone is gone. Somebody else pulled this speld while
+           * it was open or in this hand; it comes off here too, rather than
+           * standing there as a ghost whose every save fails.
+           */
+          const lost = pinsRef.current.find((p) => p.id === pinId);
+          setPins((current) => current.filter((p) => p.id !== pinId));
+          selection.setSelected(new Set([...selectionRef.current].filter((id) => id !== pinId)));
+          ui.toast(fill(words.liveGoneByOther, { naam: lost?.name || words.mapPin }));
+          router.refresh();
+          return;
+        }
         if (!response.ok || !data.pin) {
           ui.toast(data.error ?? 'Opslaan is niet gelukt.');
           router.refresh();
@@ -1197,6 +1295,7 @@ export function MapCanvas({
         setBusy(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [map.id, router, ui],
   );
 
@@ -1263,11 +1362,19 @@ export function MapCanvas({
    * double-click on nothing.
    */
   const makeOnEmpty = useMakeOnEmpty({
-    /* §73: making is Bewerken's; in Lezen a long press on the map is just a press. */
-    enabled: mayType && editing && !ink.ink.enabled && !placing,
+    /*
+     * §73: making is Bewerken's; in Lezen a long press on the map is just a press.
+     *
+     * Golf M: `!ink.inkActive`, the potlood in the hand — as on the tijdlijn and
+     * the stamboom. It said `!ink.ink.enabled`, which is the *Keeper's switch*
+     * on the tekenlaag, and that switch is on by default: on every landkaart
+     * whose layer was never switched off a double-click on bare paper did
+     * nothing at all. That was Nick's "dubbelklik opent niets".
+     */
+    enabled: mayType && editing && !ink.inkActive && !placing,
     /* §71: het cijfertje is een knop, geen kaal papier — een dubbelklik erop
        vraagt geen nieuwe speld, hij zoomt in. */
-    ignore: '.map-pin, .map-cluster-badge, .map-legend, .map-legend-toggle, .map-panel',
+    ignore: MAP_NOT_PAPER,
     busy: () => Boolean(gesture.current?.moved),
     onMake: ({ clientX, clientY }) => {
       const point = stagePoint({ clientX, clientY });
@@ -1388,6 +1495,8 @@ export function MapCanvas({
   const removePin = useCallback(
     async (pin: MapPin) => {
       setBusy(true);
+      ownDeletes.begin([pin.id]);
+      let ok = false;
       try {
         const response = await fetch(`/api/maps/${map.id}/pins/${pin.id}`, { method: 'DELETE' });
         if (!response.ok) {
@@ -1395,6 +1504,7 @@ export function MapCanvas({
           ui.toast(data.error ?? 'Weghalen is niet gelukt.');
           return;
         }
+        ok = true;
         setPins((current) => current.filter((p) => p.id !== pin.id));
         setSelectedId(null);
         // §5, as above: a pulled speld must not come back on the way back up.
@@ -1412,10 +1522,12 @@ export function MapCanvas({
       } catch {
         ui.toast('Geen verbinding.');
       } finally {
+        if (ok) ownDeletes.settle([pin.id]);
+        else ownDeletes.drop([pin.id]);
         setBusy(false);
       }
     },
-    [map.id, rememberUndo, router, ui, undoRemovePin, words.map, words.mapPin],
+    [map.id, ownDeletes, rememberUndo, router, ui, undoRemovePin, words.map, words.mapPin],
   );
 
   /**
@@ -1431,10 +1543,17 @@ export function MapCanvas({
    * lawaai. Het aantal in de toast zegt wat er écht gebeurd is.
    */
   const removeSelected = useCallback(async () => {
-    const mine = pinsRef.current.filter((p) => selectionRef.current.has(p.id) && mayMoveRef.current(p));
+    // Golf M (samen): niet wat een ander nu sleept.
+    const lockedNow = pinsRef.current.find((p) => selectionRef.current.has(p.id) && locksRef.current.has(p.id));
+    if (lockedNow) sayHeld(locksRef.current.get(lockedNow.id)!, lockedNow.id);
+    const mine = pinsRef.current.filter(
+      (p) => selectionRef.current.has(p.id) && mayMoveRef.current(p) && !locksRef.current.has(p.id),
+    );
     if (!mine.length) return;
     setBusy(true);
     const gone: string[] = [];
+    // Golf M (samen, herstel): de hele veeg vóór de eerste `DELETE` — zie `ownDeletes`.
+    ownDeletes.begin(mine.map((pin) => pin.id));
     try {
       for (const pin of mine) {
         const response = await fetch(`/api/maps/${map.id}/pins/${pin.id}`, { method: 'DELETE' });
@@ -1460,9 +1579,11 @@ export function MapCanvas({
     } catch {
       ui.toast('Geen verbinding.');
     } finally {
+      ownDeletes.settle(gone);
+      ownDeletes.drop(mine.map((pin) => pin.id).filter((id) => !gone.includes(id)));
       setBusy(false);
     }
-  }, [map.id, rememberUndo, router, selection, ui, undoRemovePin, words.map, words.mapPin, words.mapPinPlural]);
+  }, [map.id, ownDeletes, rememberUndo, router, selection, ui, undoRemovePin, words.map, words.mapPin, words.mapPinPlural]);
   const removeSelectedRef = useRef(removeSelected);
   removeSelectedRef.current = removeSelected;
 
@@ -1652,6 +1773,61 @@ export function MapCanvas({
       }),
     [keepApart, map.height, map.width, shown, view.zoom],
   );
+  /*
+   * Golf M (samen): wat een ander sleept, glijdt tussen zijn frames
+   * (`useFollow`) — de speld, zijn `+n` en zijn pijltje, in fracties van de
+   * plaat, en geschreven in stage-pixels bij deze zoom.
+   */
+  const followScale = useMemo(() => ({ x: map.width * view.zoom, y: map.height * view.zoom }), [map.width, map.height, view.zoom]);
+  const followTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    const mine = gesture.current?.kind === 'pin' && gesture.current.moved ? gesture.current.groupStart : null;
+    for (const [id, at] of carried) {
+      if (dragging === id || mine?.has(id) || !pinAt.has(id)) continue;
+      out.set(id, { x: at[0], y: at[1] });
+    }
+    return out;
+  }, [carried, dragging, pinAt]);
+  const pinFollow = useFollow({ rootRef: stageRef, targets: followTargets, scale: followScale });
+  const cursorTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    for (const pointer of live.pointers) if (pointer.x !== null && pointer.y !== null) out.set(pointer.clientId, { x: pointer.x, y: pointer.y });
+    return out;
+  }, [live.pointers]);
+  useFollow({ rootRef: stageRef, targets: cursorTargets, scale: followScale, prefix: 'hand:' });
+  /*
+   * Golf M (samen): twee handen pakten dezelfde speld in dezelfde tel. Wie het
+   * gelijkspel verliest (`winsTie`), zet zijn spelden terug en laat ze glijden
+   * naar waar de andere hand ze heeft.
+   */
+  useDragConflict({
+    hands: live.pointers,
+    self: live.clientId,
+    mine: () => {
+      const g = gesture.current;
+      return g?.kind === 'pin' && g.moved && g.movable && g.groupStart ? g.groupStart.keys() : [];
+    },
+    onLose: ({ lock }) => {
+      const g = gesture.current;
+      if (!g || g.kind !== 'pin' || !g.groupStart) return;
+      const back = g.groupStart;
+      for (const pin of pinsRef.current) if (back.has(pin.id)) pinFollow.seed(pin.id, { x: pin.x, y: pin.y });
+      gesture.current = null;
+      setDragging(null);
+      setPins((current) => current.map((p) => (back.has(p.id) ? { ...p, ...back.get(p.id)! } : p)));
+      live.reportPointer(null);
+      ui.toast(fill(words.liveTakenFirst, { naam: lock.name || 'Iemand' }));
+    },
+  });
+  /* Golf M: waar de ring van een andere hand komt — om de kop, of om het `+n`. */
+  /* Golf M (samen): a speld in somebody's hand wears their ring whether or not they chose it — the lock, said out loud. */
+  const heldByOthers = useMemo(() => {
+    if (!locks.size) return heldByChoice;
+    const out = new Map(heldByChoice);
+    for (const [id, lock] of locks) out.set(id, { name: lock.name, colour: lock.colour });
+    return out;
+  }, [heldByChoice, locks]);
+  const held = useMemo(() => heldMarks(clusters, heldByOthers), [clusters, heldByOthers]);
 
   /*
    * Golf K (M3): elke naam kiest een plek waar hij geen andere naam of kop
@@ -1764,7 +1940,11 @@ export function MapCanvas({
       editing={editing}
       setBy={selected.createdBy ? (peopleNames[selected.createdBy] ?? null) : null}
       onSave={(patch) => void savePin(selected.id, patch)}
-      onRemove={() => void removePin(selected)}
+      onRemove={() => {
+        const lock = locks.get(selected.id);
+        if (lock) sayHeld(lock, selected.id);
+        else void removePin(selected);
+      }}
       onConvert={(seed) => convertToEntry(selected, seed)}
       onLayer={(command) => void changeLayer(selected, command)}
       liveUser={liveUser}
@@ -1932,8 +2112,10 @@ export function MapCanvas({
           </>
         ) : (
           /* §73: gone in Lezen. A hand with no onderzoeker still sees it
-             greyed, so the author gate can ask for one on the press (§18b). */
-          (!mode.canEdit || editing) && (
+             greyed, so the author gate can ask for one on the press (§18b).
+             Golf M: a hand that may only look at this landkaart does not see
+             it at all — there is nothing an onderzoeker would change. */
+          mayEditMap && (!mode.canEdit || editing) && (
           <button
             type="button"
             /* §105: `canvas-make` — the landkaart's own `+` on a phone. */
@@ -2017,7 +2199,24 @@ export function MapCanvas({
       <div
         ref={stageRef}
         className={`map-stage${placing ? ' map-stage-placing' : ''}`}
-        onDoubleClick={makeOnEmpty.onDoubleClick}
+        onDoubleClick={(event) => {
+          /*
+           * Golf M: in Lezen a double-click on the bare picture says once why
+           * nothing happened, for a hand that *could* set a speld here — §73's
+           * accident protection stays (nothing is made), and the hand learns
+           * where the switch is. Someone who may only look is told nothing:
+           * there is nothing for them to switch to.
+           */
+          if (mode.canEdit && !editing && !placing && isBarePaper(event.target as Element, MAP_NOT_PAPER)) {
+            const point = stagePoint(event);
+            const at = toPicture(point.x, point.y);
+            if (at.x >= 0 && at.x <= 1 && at.y >= 0 && at.y <= 1) {
+              ui.toast(fill(words.mapLezenDubbelklik, { speld: pinWord }), undefined, { key: 'map-lezen' });
+            }
+            return;
+          }
+          makeOnEmpty.onDoubleClick(event);
+        }}
         onPointerDownCapture={(event) => {
           // §72: a second finger is a knijp, before a speld under it can start a press.
           if (pinchHand.onPointerDown(event) && !(event.target as HTMLElement).closest('.ink-capture')) {
@@ -2110,6 +2309,9 @@ export function MapCanvas({
           */}
           {clusters.map(({ lead: pin, count, bounds }) => {
             const colour = pinColour(pin);
+            // Golf M: a speld in someone else's hand is *this* speld, ringed in their ink.
+            const holder = held.pins.get(pin.id);
+            const badgeHolder = held.badges.get(pin.id);
             const isSelected = selectedIds.has(pin.id);
             // A pin in someone else's hand is drawn where their hand has it.
             const hand = dragging === pin.id ? undefined : carried.get(pin.id);
@@ -2121,9 +2323,16 @@ export function MapCanvas({
               <Fragment key={pin.id}>
                 <button
                   type="button"
-                  className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}${hand ? ' map-pin-carried' : ''}`}
-                  style={{ left, top, ['--pin-colour' as string]: colour }}
+                  className={`map-pin${isSelected ? ' map-pin-selected' : ''}${dragging === pin.id ? ' map-pin-dragging' : ''}${hand ? ' map-pin-carried' : ''}${holder ? ' map-pin-held' : ''}`}
+                  style={{
+                    left,
+                    top,
+                    ['--pin-colour' as string]: colour,
+                    ...(holder ? { ['--held-colour' as string]: holder.colour } : {}),
+                  }}
                   data-pin-id={pin.id}
+                  data-follow={pin.id}
+                  data-held-by={holder?.name}
                   aria-label={pin.name}
                   aria-pressed={isSelected}
                   onPointerDown={(event) => onPinPointerDown(event, pin)}
@@ -2165,9 +2374,11 @@ export function MapCanvas({
                   */
                   <button
                     type="button"
-                    className="map-cluster-badge"
-                    style={{ left, top }}
+                    className={`map-cluster-badge${badgeHolder ? ' map-cluster-badge-held' : ''}`}
+                    style={{ left, top, ...(badgeHolder ? { ['--held-colour' as string]: badgeHolder.colour } : {}) }}
                     data-cluster-for={pin.id}
+                    data-follow={pin.id}
+                    data-held-by={badgeHolder?.name}
                     data-testid="map-cluster-badge"
                     aria-label={`Nog ${count} ${count === 1 ? words.mapPin : words.mapPinPlural} hier — inzoomen`}
                     title={`Nog ${count} ${count === 1 ? words.mapPin : words.mapPinPlural} hier`}
@@ -2186,33 +2397,11 @@ export function MapCanvas({
             );
           })}
           {/*
-            §69 (2.1): een ring om een speld die iemand anders vasthoudt.
-
-            Het prikbord en de stamboom tekenen die al sinds §67; de landkaart
-            kon niets vasthouden en had hem dus niet nodig. Eén ring per speld:
-            twee mensen op dezelfde speld is zeldzaam en gestapelde ringen zijn
-            soep.
+            §69 (2.1) en golf M: een speld die iemand anders vasthoudt, draagt
+            zelf de ring (`.map-pin-held`, hierboven) — of, in een kluitje, het
+            cijfertje (`.map-cluster-badge-held`). Hier stond een tweede, lege
+            speld op dezelfde plek; die las als twee spelden. Zie `lib/maps/held.ts`.
           */}
-          {shown.map((pin) => {
-            const holder = heldByOthers.get(pin.id);
-            if (!holder) return null;
-            const hand = carried.get(pin.id);
-            return (
-              <div
-                key={`held-${pin.id}`}
-                className="map-held map-pin"
-                aria-hidden="true"
-                style={{
-                  left: view.tx + (hand ? hand[0] : pin.x) * map.width * view.zoom,
-                  top: view.ty + (hand ? hand[1] : pin.y) * map.height * view.zoom,
-                  ['--held-colour' as string]: holder.colour,
-                }}
-              >
-                <span className="map-pin-head" />
-              </div>
-            );
-          })}
-
           {/*
             §69 (2.1): het kader dat iemand anders trekt. Zicht, geen staat
             (§67): het staat er zolang hun frame het noemt en het is weg zodra
@@ -2241,6 +2430,7 @@ export function MapCanvas({
               <div
                 key={pointer.clientId}
                 className="board-cursor map-cursor"
+                data-follow={`hand:${pointer.clientId}`}
                 aria-hidden="true"
                 style={{
                   left: view.tx + pointer.x * map.width * view.zoom,
@@ -2697,22 +2887,14 @@ function PinSheetBody({
         </>
       )}
 
-      {mayEdit ? (
-        // §73: in Lezen a drag pans, so the hint would be a lie.
-        arranging && (
-          <p className="tiny muted" style={{ margin: 0 }}>
-            Sleep de {words.mapPin} om hem te verplaatsen.
-          </p>
-        )
-      ) : (
-        /* §105 (review 4, L9): a reader is not trying to move it — the
-           sentence is for a hand in Bewerken that finds it will not budge. */
-        editing && (
-          <p className="tiny muted" style={{ margin: 0 }}>
-            Deze {words.mapPin} is van iemand anders: alleen wie hem zette, of een {words.keeper}, kan hem verplaatsen
-            of weghalen.
-          </p>
-        )
+      {/* §73: in Lezen a drag pans, so the hint would be a lie. Golf M: the
+          sentence "Deze speld is van iemand anders…" went with the rule it
+          explained — a hand in Bewerken may move every speld on the landkaart,
+          and a hand that may not is never in Bewerken. */}
+      {mayEdit && arranging && (
+        <p className="tiny muted" style={{ margin: 0 }}>
+          Sleep de {words.mapPin} om hem te verplaatsen.
+        </p>
       )}
 
       {mayEdit && arranging && pin.kind === 'note' && (

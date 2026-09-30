@@ -123,6 +123,17 @@ async function keeperMakesFour(browser: Browser, stamp: string): Promise<Record<
   await sheet.getByRole('button', { name: 'Ophangen' }).click();
   await page.waitForURL('**/maps/**');
   out.landkaart = new URL(page.url()).pathname;
+  /*
+   * Golf M: a landkaart is hung Privé to edit, and on a Privé landkaart a
+   * speler only looks — no Bewerken, no *Speld zetten*. The other three are
+   * made openbaar; this one is turned up to Iedereen the same way, so the
+   * speler below has a maker to press on all four.
+   */
+  const slug = out.landkaart.split('/maps/')[1];
+  const list = (await (await page.request.get('/api/maps')).json()) as { maps: { id: string; slug: string }[] };
+  const mapId = list.maps.find((m) => m.slug === slug)!.id;
+  const opened = await page.request.patch(`/api/access?target=map&id=${mapId}`, { data: { editMode: 'all' } });
+  expect(opened.ok()).toBe(true);
 
   await context.close();
   return out;

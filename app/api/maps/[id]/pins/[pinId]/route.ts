@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
 import {
   convertPinToEntry,
-  PIN_IS_SOMEONE_ELSE_S,
+  PIN_NOT_ALLOWED,
   removePin,
   setPinLayer,
   updatePin,
@@ -12,13 +12,16 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-/** Move, rename or rewrite a pin: whoever set it, or a Keeper. */
+/** Move, rename or rewrite a pin: golf M, whoever may edit the landkaart. */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string; pinId: string }> }) {
   try {
     const user = await requireUser();
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
     const { pinId } = await ctx.params;
+    // Golf M: the landkaart's Bewerken dial, for every branch below — a 403
+    // before anything is read, not a 400 from the service's backstop.
+    if (!viewerCanEditPin(pinId, user)) return json({ error: PIN_NOT_ALLOWED }, { status: 403 });
     const body = (await request.json()) as {
       x?: unknown;
       y?: unknown;
@@ -37,9 +40,6 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
      * against this writer's own visibility inside the service (§1).
      */
     if (typeof body.entryId === 'string' && body.entryId) {
-      if (!viewerCanEditPin(pinId, user)) {
-        return json({ error: PIN_IS_SOMEONE_ELSE_S }, { status: 403 });
-      }
       return json({ pin: convertPinToEntry(pinId, body.entryId, user) });
     }
 
@@ -48,7 +48,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
      * om dezelfde reden als `entryId` hierboven: het is een ander soort schrijf
      * (geen veldkamer, geen hertelling), en het recht wordt in de dienst
      * gevraagd — `setPinLayer` gaat door `ownPin`, dus dit is dezelfde regel als
-     * bij het verschuiven van een speld: wie hem zette, of een Keeper.
+     * bij het verschuiven van een speld: wie de landkaart mag bewerken.
      */
     if (typeof body.layer === 'number' && Number.isFinite(body.layer)) {
       return json({ pin: setPinLayer(pinId, body.layer, user) });
@@ -71,6 +71,7 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
     // §18b: a player who has not said who they are writing as does not write.
     requireAuthor(user);
     const { pinId } = await ctx.params;
+    if (!viewerCanEditPin(pinId, user)) return json({ error: PIN_NOT_ALLOWED }, { status: 403 });
     removePin(pinId, user);
     return json({ ok: true });
   } catch (err) {

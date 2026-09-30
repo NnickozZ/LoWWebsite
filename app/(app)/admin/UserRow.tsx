@@ -15,7 +15,7 @@ import { makePassword } from '@/lib/beheer';
 import { relativeTime } from '@/lib/diff';
 import { setPasswordAction, toggleDisabledAction, toggleKeeperAction, type AdminState } from './actions';
 
-type UserLite = {
+export type UserLite = {
   id: string;
   username: string;
   isKeeper: boolean;
@@ -157,7 +157,7 @@ function AssignedCharacters({ user }: { user: UserLite }) {
   );
 }
 
-export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
+export function UserRow({ user, isSelf, hidden = false }: { user: UserLite; isSelf: boolean; hidden?: boolean }) {
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [passwordState, setPassword] = useActionState<AdminState, FormData>(setPasswordAction, {});
   // §107: een gelukt wachtwoord sluit het blad; de zin staat daarna in de rij.
@@ -209,6 +209,9 @@ export function UserRow({ user, isSelf }: { user: UserLite; isSelf: boolean }) {
       // So a test — and a Keeper's own eye down a long list — can find one
       // account's row without counting.
       data-username={user.username}
+      // Golf M (C3): het zoekvak verbergt een rij, het haalt hem nooit weg —
+      // een half ingevuld blad of een open kiezer in die rij blijft staan (§96).
+      hidden={hidden}
       style={{ borderBottom: '1px solid var(--rule)', padding: '0.7rem 0' }}
     >
       <div className="row-wrap">

@@ -62,6 +62,26 @@ import {
   type TreeView,
 } from '@/lib/families/layout';
 import { SIBLING_WORDS } from '@/lib/families/siblings';
+import { edgeInLineage, lineageOf } from '@/lib/families/lineage';
+import { connectVerdict } from '@/lib/families/connect';
+import { edgesTouching, unionsTouching } from '@/lib/families/followEdges';
+import {
+  closeGroup,
+  isEmptyStep,
+  landedOps,
+  openGroup,
+  oppositeStep,
+  outcomeOf,
+  redoOps,
+  stackMark,
+  stackMoved,
+  undoOps,
+  walkNotice,
+  type OpOutcome,
+  type RelationOp,
+  type StepGroup,
+  type TreeStep,
+} from '@/lib/families/undoSteps';
 import { emptyTreeState, newLooseId, newTieId, normaliseTreeState } from '@/lib/families/merge';
 import { ROLE_LABELS } from '@/lib/families/roles';
 import {
@@ -92,7 +112,9 @@ import CanvasModeToggle from '@/components/canvas/CanvasModeToggle';
 import { CanvasEmpty } from '@/components/canvas/CanvasEmpty';
 import { useCanvasMode } from '@/components/canvas/useCanvasMode';
 import {
+  TreeContextMenu,
   TreeHandles,
+  TreeLineHandle,
   TreeSelectionMenu,
   TreeSharedHandle,
   type HandleOffer,
@@ -104,6 +126,9 @@ import { announceTreeMode } from './TreeTitle';
 import { createUndoStack, UNDO_LIMIT } from './treeUndo';
 import { useTreeHolding } from './useTreeHolding';
 import { useTreeSync, type PendingIds } from './useTreeSync';
+import { useFollow } from '@/components/canvas/useFollow';
+import { useCarried, useDragConflict, useLockHint, useLocks } from '@/components/canvas/useSoftLock';
+import type { Vec } from '@/lib/canvas/follow';
 
 /** §105 (golf J): the glass and the things on it, for `gatePress`. */
 /** §105 (golf J): the height the round `+` takes off the foot of a phone's glass. */
@@ -132,7 +157,11 @@ const TREE_GLASS = { glass: '.tree-stage', things: '.tree-node, .tree-line-hit' 
  *    on the artikel's own page. The only thing it touches in the tree's own
  *    state is membership.
  * 3. **Undo is for the tree's own state** — moves, loose cards, ties,
- *    membership — and never for a field on an artikel. See `treeUndo.ts`.
+ *    membership — *and, since golf M, for the one ref a `+` or* Lijn
+ *    verwijderen *wrote on an artikel*: a step may carry the relation it sent,
+ *    and undoing it sends exactly that ref back, inverted, down the same road
+ *    (`lib/families/undoSteps.ts`). Never a whole field. Redo walks the same
+ *    steps forward (Ctrl+Shift+Z, Ctrl+Y).
  * 4. **The save says only what this hand did** (§61), and a document that comes
  *    back is applied *around* whatever is still unsaved. `useTreeSync` is that.
  *
@@ -254,6 +283,139 @@ type PickerState = {
   both?: [GraphNodeId, GraphNodeId];
 };
 
+/**
+ * Every line of a stamboom, ready to stroke (see `lines` in the canvas). Pulled
+ * out of the component in golf M (samen) so the follower can draw the lines of
+ * a card that glides in somebody else's hand from the same sums, every frame,
+ * without the canvas rendering (`followLines`).
+ */
+function drawLines(
+  edges: readonly GraphEdge[],
+  layout: TreeLayout,
+  geometry: ReturnType<typeof edgeGeometry>,
+  sizes: Record<GraphNodeId, { width: number; height: number }>,
+): DrawnLine[] {
+  const boxOf = (id: GraphNodeId): Box | null => {
+    const at = layout.positions[id];
+    const size = sizes[id];
+    if (!at || !size) return null;
+    return { x: at.x, y: at.y, width: size.width, height: size.height };
+  };
+  const geomById = new Map(geometry.unions.map((union) => [union.unionId, union]));
+  const siblingGeom = new Map(
+    geometry.siblings.map((item) => [[item.a, item.b].sort().join('|'), item]),
+  );
+  const out: DrawnLine[] = [];
+  const polyline = (points: Point[]) =>
+    points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
+  for (const edge of edges) {
+    // A `child` line is a `parent` line the other way round; the graph builder
+    // has already turned them, and a caller that has not is not worth failing.
+    const backwards = edge.role === 'child';
+    const role: FieldRole = backwards ? 'parent' : edge.role;
+    const from = backwards ? edge.to : edge.from;
+    const to = backwards ? edge.from : edge.to;
+    const boxA = boxOf(from);
+    const boxB = boxOf(to);
+    if (!boxA || !boxB) continue;
+    if (role === 'sibling') {
+      /*
+       * The shared bar already says `full`, and `unknown` is a guess. A tie
+       * the tree owns is always drawn: it has no `sibling` kind because
+       * nothing was derived — a hand drew it between a los kaartje and
+       * somebody, which is as explicit as a line gets.
+       */
+      const drawIt = edge.source.kind === 'tie' || edge.sibling === 'half' || edge.sibling === 'explicit';
+      if (!drawIt) continue;
+      const geom = siblingGeom.get([from, to].sort().join('|'));
+      if (!geom) continue;
+      out.push({
+        edge,
+        d: polyline(geom.points),
+        at: polylineMidpoint(geom.points),
+        // A derived half says "half"; a typed one says whatever the Keeper
+        // called the field it came from ("Broers en zussen").
+        word: edge.sibling === 'half' ? SIBLING_WORDS.half : edge.label,
+      });
+      continue;
+    }
+    if (role === 'parent') {
+      const union = layout.unions.find(
+        (item) => item.children.includes(to) && item.parents.includes(from),
+      );
+      const geom = union ? geomById.get(union.id) : undefined;
+      const parent = geom?.parents.find((item) => item.id === from);
+      const child = geom?.children.find((item) => item.id === to);
+      if (geom && parent && child) {
+        out.push({ edge, d: polyline([...parent.points, ...child.points]), at: geom.bar, word: edge.label });
+        continue;
+      }
+      // A back edge of a cycle has no union to hang from: a straight line, so
+      // it is still drawn and still clickable (`layoutTree` keeps it out of
+      // the generations, never out of the picture).
+      const a = boxCentre(boxA);
+      const b = boxCentre(boxB);
+      out.push({
+        edge,
+        d: polyline([a, b]),
+        at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        word: edge.label,
+      });
+      continue;
+    }
+    if (role === 'partner') {
+      const link = partnerLine(boxA, boxB);
+      out.push({
+        edge,
+        d: `M ${link.x1} ${link.y1} L ${link.x2} ${link.y2}`,
+        at: { x: (link.x1 + link.x2) / 2, y: link.y1 },
+        word: edge.label,
+      });
+      continue;
+    }
+    const a = boxCentre(boxA);
+    const b = boxCentre(boxB);
+    out.push({
+      edge,
+      d: curvePath(a.x, a.y, b.x, b.y),
+      at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      word: edge.label,
+    });
+  }
+  return out;
+}
+
+/**
+ * The layout with some cards somewhere else — a drag, or somebody else's
+ * hand — and the union bars that hang off them recentred, which is the only
+ * part of the geometry a move can change. Golf M (samen): shared by the
+ * canvas's `layout` and the follower's `followLines`.
+ */
+function moveInLayout(
+  base: TreeLayout,
+  moved: ReadonlyMap<GraphNodeId, { x: number; y: number }>,
+  sizes: Record<GraphNodeId, { width: number; height: number }>,
+): TreeLayout {
+  if (!moved.size) return base;
+  const positions = { ...base.positions };
+  for (const [id, at] of moved) {
+    const was = positions[id];
+    if (!was) continue;
+    positions[id] = { ...was, x: at.x, y: at.y };
+  }
+  const unions = base.unions.map((union) => {
+    if (!union.parents.some((id) => moved.has(id))) return union;
+    const centres = union.parents
+      .filter((id) => positions[id])
+      .map((id) => positions[id].x + (sizes[id]?.width ?? NODE_SIZE.mortal.width) / 2);
+    if (!centres.length) return union;
+    return { ...union, x: centres.reduce((sum, value) => sum + value, 0) / centres.length };
+  });
+  return { ...base, positions, unions };
+}
+
+type TreeLayout = ReturnType<typeof layoutTree>;
+
 export function FamilyTreeCanvas({
   tree,
   initialGraph,
@@ -309,6 +471,9 @@ export function FamilyTreeCanvas({
     setStateValue(next);
   }, []);
 
+  /** Golf M (samen): who somebody else took out of this tree while it was open here, as node ids. */
+  const goneByOthers = useRef<Set<GraphNodeId>>(new Set());
+  const noteGone = useRef<(gone: GraphNodeId[], names: string[]) => void>(() => undefined);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -338,9 +503,66 @@ export function FamilyTreeCanvas({
   if (!clientIdRef.current) clientIdRef.current = `t_${Math.random().toString(36).slice(2, 12)}`;
   const clientId = clientIdRef.current;
 
-  const undoStack = useRef(createUndoStack<FamilyTreeState>(UNDO_LIMIT));
+  /**
+   * Golf M: a step is the document before it *and* the relations it wrote
+   * (`TreeStep`), so a line rubbed out off an artikel walks back on the same
+   * stack, interleaved with every move and every los kaartje.
+   */
+  const undoStack = useRef(createUndoStack<TreeStep>(UNDO_LIMIT));
   /** §69: only so the shared button can go grey; the stack itself is the truth. */
   const [undoDepth, setUndoDepth] = useState(0);
+  /** Golf M: the same, the other way. */
+  const [redoDepth, setRedoDepth] = useState(0);
+  const syncDepths = useCallback(() => {
+    setUndoDepth(undoStack.current.size());
+    setRedoDepth(undoStack.current.redoSize());
+  }, []);
+  /**
+   * Golf M: one gesture, one step. A `+` that puts somebody in the tree *and*
+   * writes the field that joins them is one thing the hand did, so while a
+   * gesture is running every commit and every relation it makes is collected
+   * and pushed as one step when it ends (`runStep`).
+   *
+   * Golf M (herstel): collected in a `StepGroup` that is handed down the
+   * gesture's own calls, not in one ref for the whole canvas — a drag during a
+   * `+` still waiting on the network is a step of its own.
+   */
+  /** Golf M: Ctrl+Z and Ctrl+Shift+Z wait for each other — an undo may cross the wire. */
+  const walking = useRef<Promise<void>>(Promise.resolve());
+  /** Golf M: a line pulled out of a `+` (`lib/families/connect.ts`). */
+  const connectRef = useRef<{
+    pointerId: number;
+    role: HandleRole;
+    sourceId: GraphNodeId;
+    from: Point;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    target: GraphNodeId | null;
+    /** Golf M (herstel): where the pointer last was, for the next frame. */
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+  /**
+   * Golf M (herstel): React hears about the line only when it starts, lands
+   * on another card or stops — its loose end is written straight onto the
+   * `<line>` (`connectLineRef`), once per animation frame (`connectFrame`).
+   * `to` here is where it was when React last heard.
+   */
+  const [connect, setConnect] = useState<{ from: Point; to: Point; target: GraphNodeId | null } | null>(null);
+  const connectLineRef = useRef<SVGLineElement>(null);
+  const connectFrame = useRef<number | null>(null);
+  /** The click that ends a drag out of a `+` is not a click on the `+`. */
+  const connectSwallow = useRef(false);
+  /** Golf M: the menu the right button opens, in stage coordinates. */
+  const [contextMenu, setContextMenu] = useState<{
+    at: { x: number; y: number };
+    label: string;
+    items: TreeMenuItem[];
+  } | null>(null);
+  /** Golf M: the line the pointer is on, for the `+` between two parents. */
+  const [hoverEdge, setHoverEdge] = useState<string | null>(null);
+  const hoverTimer = useRef<number | null>(null);
 
   /* ---------------------------------------------------------- the stage */
 
@@ -427,6 +649,25 @@ export function FamilyTreeCanvas({
     [setSelectedIds],
   );
   const clearSelection = selection.clear;
+  /*
+   * Golf M (samen): a card somebody else took out of the tree, while it was
+   * chosen here, or its sheet or its kiezer was open: that lets go, and says
+   * why, rather than leaving a ring or a form on somebody who is not there.
+   */
+  noteGone.current = (gone, names) => {
+    const dead = new Set(gone);
+    const chosen = gone.filter((id) => selected.has(id));
+    const sheetGone = sheet ? dead.has(`loose:${sheet.looseId}` as GraphNodeId) : false;
+    const pickerGone = picker ? dead.has(picker.nodeId) || Boolean(picker.both?.some((id) => dead.has(id))) : false;
+    if (!chosen.length && !sheetGone && !pickerGone) return;
+    if (chosen.length) setSelectedIds(new Set([...selected].filter((id) => !dead.has(id))));
+    if (sheetGone) setSheet(null);
+    if (pickerGone) setPicker(null);
+    setContextMenu(null);
+    const named = gone.filter((id) => chosen.includes(id) || sheetGone || pickerGone);
+    const first = names[gone.indexOf(named[0] ?? gone[0])] || words.looseCard;
+    ui.toast(fill(words.liveGoneByOther, { naam: named.length > 1 ? `${named.length} kaartjes` : first }));
+  };
 
   /* ----------------------------------------------------------------- ink */
 
@@ -493,7 +734,7 @@ export function FamilyTreeCanvas({
   /* ---------------------------------------------------------------- save */
 
   /** §59/§61: a box being swept is a hand on the page like any other. */
-  const busy = dragging || ink.busy || picker !== null || sheet !== null || selection.busy;
+  const busy = dragging || ink.busy || picker !== null || sheet !== null || selection.busy || connect !== null;
   useHoldRefresh(busy);
 
   /**
@@ -511,6 +752,39 @@ export function FamilyTreeCanvas({
   const applyDocument = useCallback(
     (next: FamilyTreeState, nextGraph: FamilyGraph, pending: PendingIds) => {
       const mine = stateRef.current;
+      /*
+       * Golf M (samen): what the archive no longer has and this hand did not
+       * take out itself went because somebody else took it out. Remembered, so
+       * an undo of an older step here cannot bring it back (`walkOnce`), and
+       * said, when it was chosen or open here.
+       */
+      const nextMembers = new Set(next.members.map((item) => item.id));
+      const nextLoose = new Set(next.loose.map((item) => item.id));
+      const gone: GraphNodeId[] = [];
+      const names: string[] = [];
+      const nameOf = (id: GraphNodeId) => graphRef.current.nodes.find((node) => node.id === id)?.name ?? '';
+      for (const member of mine.members) {
+        const id = `entry:${member.id}` as GraphNodeId;
+        if (nextMembers.has(member.id)) goneByOthers.current.delete(id);
+        else if (!pending.deletedMembers.has(member.id) && !pending.members.has(member.id)) {
+          gone.push(id);
+          names.push(nameOf(id));
+        }
+      }
+      for (const card of mine.loose) {
+        const id = `loose:${card.id}` as GraphNodeId;
+        if (nextLoose.has(card.id)) goneByOthers.current.delete(id);
+        else if (!pending.deletedLoose.has(card.id) && !pending.loose.has(card.id)) {
+          gone.push(id);
+          names.push(nameOf(id));
+        }
+      }
+      // With the whole document outstanding nothing here can tell a card made
+      // here and not yet saved from one somebody else took out; say nothing.
+      if (!pending.all) {
+        for (const id of gone) goneByOthers.current.add(id);
+        if (gone.length) noteGone.current(gone, names);
+      }
       if (pending.all) {
         setGraph(nextGraph);
         return;
@@ -574,13 +848,28 @@ export function FamilyTreeCanvas({
    * canvas crosses an `await` or a sheet before it writes.
    */
   const commit = useCallback(
-    (make: (prev: FamilyTreeState) => TreeChange, options: { undo?: boolean; now?: boolean } = {}) => {
+    (
+      make: (prev: FamilyTreeState) => TreeChange,
+      options: {
+        undo?: boolean;
+        now?: boolean;
+        /** Golf M (samen): false for a move — a drag never brings anybody back into the tree. */
+        revive?: boolean;
+        /** Golf M (herstel): the gesture this commit is part of (`runStep`). */
+        group?: StepGroup | null;
+      } = {},
+    ) => {
       if (!canEdit) return;
       const prev = stateRef.current;
       const change = make(prev);
       if (options.undo !== false) {
-        undoStack.current.push(prev);
-        setUndoDepth(undoStack.current.size());
+        // Golf M: inside a gesture the step is pushed when the gesture ends,
+        // with the document as it was when the gesture *began*.
+        if (options.group) options.group.touched = true;
+        else {
+          undoStack.current.push({ state: prev, relations: [] });
+          syncDepths();
+        }
       }
 
       const buried = {
@@ -602,6 +891,25 @@ export function FamilyTreeCanvas({
         const was = new Map(before.map((item) => [item.id, item]));
         return after.filter((item) => was.get(item.id) !== item).map((item) => item.id);
       };
+      /*
+       * Golf M (samen): what this change puts in the tree that was not in it a
+       * moment ago is brought back on purpose — only that may lift a tombstone
+       * (`revive` in `mergeTreeState`).
+       */
+      if (options.revive !== false) {
+        const fresh = <T extends { id: string }>(before: T[], after: T[]) => {
+          const had = new Set(before.map((item) => item.id));
+          return after.filter((item) => !had.has(item.id)).map((item) => item.id);
+        };
+        const members = fresh(prev.members, next.members);
+        const loose = fresh(prev.loose, next.loose);
+        const ties = fresh(prev.ties, next.ties);
+        if (members.length) syncRef.current.noteRevived('members', members);
+        if (loose.length) syncRef.current.noteRevived('loose', loose);
+        if (ties.length) syncRef.current.noteRevived('ties', ties);
+        for (const id of members) goneByOthers.current.delete(`entry:${id}` as GraphNodeId);
+        for (const id of loose) goneByOthers.current.delete(`loose:${id}` as GraphNodeId);
+      }
       if (change.deletedMembers?.length) syncRef.current.noteDeleted('members', change.deletedMembers);
       if (change.deletedLoose?.length) syncRef.current.noteDeleted('loose', change.deletedLoose);
       if (change.deletedTies?.length) syncRef.current.noteDeleted('ties', change.deletedTies);
@@ -614,22 +922,211 @@ export function FamilyTreeCanvas({
       else syncRef.current.saveNow(ids);
       refreshArchive();
     },
-    [canEdit, setState, refreshArchive],
+    [canEdit, setState, refreshArchive, syncDepths],
+  );
+
+  /** Golf M: a finished step goes on the stack, unless it changed nothing. */
+  const pushStep = useCallback(
+    (step: TreeStep) => {
+      if (isEmptyStep(step)) return;
+      undoStack.current.push(step);
+      syncDepths();
+    },
+    [syncDepths],
+  );
+
+  /**
+   * Golf M: run a gesture as one step. Nested gestures join the outer one (a
+   * `+` on a line calls `attach`, which is a gesture of its own), and a
+   * gesture that crosses the wire keeps the step open until it lands.
+   *
+   * Golf M (herstel): the step is the gesture's own — `work` gets it and hands
+   * it to every commit and relation it makes, and a nested gesture is passed
+   * the outer one (`outer`). Nothing else joins it, however long it waits.
+   */
+  const runStep = useCallback(
+    async <T,>(work: (group: StepGroup) => Promise<T> | T, outer?: StepGroup | null): Promise<T> => {
+      if (outer) return work(outer);
+      const group = openGroup(stateRef.current);
+      try {
+        return await work(group);
+      } finally {
+        pushStep(closeGroup(group));
+      }
+    },
+    [pushStep],
+  );
+
+  /**
+   * §66: the one road that writes a **field on an artikel**, raw. Everything
+   * the gate, the mirroring, the mentions, the revision and the voorstel road
+   * do happens on the far side of this; the tree's own state is not touched.
+   * Golf M split it from `writeRelation` so an undo can use the road without
+   * putting what it sends on the stack.
+   */
+  const postRelation = useCallback(
+    async (op: RelationOp, walking = false): Promise<{ outcome: OpOutcome; error?: string; replaced?: string }> => {
+      try {
+        const response = await fetch(`/api/family-trees/${tree.id}/relations`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            entryId: op.entryId,
+            fieldKey: op.fieldKey,
+            targetId: op.targetId,
+            ...(op.add ? {} : { remove: true }),
+            // Golf M: a step back or forward never overwrites a one-box field
+            // that somebody has filled with somebody else in the meantime.
+            ...(walking ? { replace: false } : {}),
+          }),
+        });
+        const data = (await response.json()) as {
+          status?: string;
+          graph?: FamilyGraph;
+          error?: string;
+          /** Golf M (herstel): who a `+` pushed out of a one-box field. */
+          replaced?: string;
+        };
+        if (!response.ok) return { outcome: 'refused', error: data.error ?? 'Dat is niet gelukt.' };
+        if (data.graph) {
+          /*
+           * §67: the ref as well as the state. The second question a `+ kind`
+           * asks is answered *after* this await, and it needs the role fields
+           * of the artikel that was created a moment ago — which arrive in this
+           * very answer. `graphRef.current` is otherwise only written on the
+           * next render, which has not run yet.
+           */
+          graphRef.current = data.graph;
+          setGraph(data.graph);
+        }
+        refreshArchive();
+        return { outcome: outcomeOf(data.status, true), ...(data.replaced ? { replaced: data.replaced } : {}) };
+      } catch {
+        return { outcome: 'refused', error: 'Geen verbinding.' };
+      }
+    },
+    [tree.id, refreshArchive],
+  );
+
+  /** Golf M: what a walk owes the hand, said once. */
+  const sayWalk = useCallback(
+    (outcomes: readonly OpOutcome[], error?: string) => {
+      const notice = walkNotice(outcomes);
+      if (!notice) return;
+      const vars = { lijn: words.treeLine, keeper: words.keeper };
+      if (notice === 'refused') ui.toast(error ? `${fill(words.treeUndoRefused, vars)} ${error}` : fill(words.treeUndoRefused, vars));
+      else if (notice === 'proposed') ui.toast(fill(words.treeUndoProposed, vars));
+      else ui.toast(fill(words.treeUndoUnchanged, vars));
+    },
+    [ui, words],
+  );
+
+  /**
+   * One step back, or forward. The relations cross the wire first — each one
+   * through the same road, inverted for an undo — and then the tree's own
+   * document is put back, so a `+` that brought somebody in and drew their line
+   * goes back as: the line rubbed out, then the card gone.
+   *
+   * What comes back is the step for the other direction, holding only the ops
+   * that really landed (`oppositeStep`): a line somebody else redrew in the
+   * meantime is left alone and said out loud, and it is not replayed later.
+   */
+  const walkOnce = useCallback(
+    async (direction: 'undo' | 'redo') => {
+      if (!canEdit) return;
+      const stack = undoStack.current;
+      const step = direction === 'undo' ? stack.pop() : stack.popRedo();
+      syncDepths();
+      if (!step) return;
+      // Golf M (herstel): what the undo side looked like before the wire.
+      const mark = stackMark(stack);
+      const sent = direction === 'undo' ? undoOps(step) : redoOps(step);
+      const outcomes: OpOutcome[] = [];
+      let error: string | undefined;
+      for (const op of sent) {
+        const answer = await postRelation(op, true);
+        outcomes.push(answer.outcome);
+        if (answer.error && !error) error = answer.error;
+      }
+      const current = stateRef.current;
+      if (step.state !== undefined) {
+        /*
+         * Golf M (samen): a step from before somebody else took a card out of
+         * the tree does not bring that card back — and what it does bring back
+         * (this hand's own removal, undone) is said to be on purpose, so the
+         * merge lifts exactly those stones and no others.
+         */
+        const buried = goneByOthers.current;
+        const back = step.state;
+        const kept: FamilyTreeState = buried.size
+          ? {
+              ...back,
+              members: back.members.filter((item) => !buried.has(`entry:${item.id}` as GraphNodeId)),
+              loose: back.loose.filter((item) => !buried.has(`loose:${item.id}` as GraphNodeId)),
+              ties: back.ties.filter(
+                (tie) =>
+                  ![tie.from, tie.to].some((end) =>
+                    buried.has(`${end.kind === 'loose' ? 'loose' : 'entry'}:${end.id}` as GraphNodeId),
+                  ),
+              ),
+            }
+          : back;
+        const fresh = <T extends { id: string }>(before: T[], after: T[]) => {
+          const had = new Set(before.map((item) => item.id));
+          return after.filter((item) => !had.has(item.id)).map((item) => item.id);
+        };
+        syncRef.current.noteRevived('members', fresh(current.members, kept.members));
+        syncRef.current.noteRevived('loose', fresh(current.loose, kept.loose));
+        syncRef.current.noteRevived('ties', fresh(current.ties, kept.ties));
+        setState(kept);
+        // The whole document goes: an undo can move anything, and working out
+        // what it put back is exactly the bookkeeping `all` exists to avoid.
+        syncRef.current.saveNow();
+      }
+      clearSelection();
+      setSelectedEdge(null);
+      const opposite = oppositeStep(step, current, sent, outcomes, direction);
+      if (!isEmptyStep(opposite)) {
+        /*
+         * Golf M (herstel): a hand that made a new step while this undo was on
+         * the wire started another branch (`push` forgot the redos); a redo
+         * left now would replay onto a document it was never taken from.
+         */
+        if (direction === 'undo') {
+          if (!stackMoved(mark, stack)) stack.pushRedo(opposite);
+        } else stack.pushFromRedo(opposite);
+      }
+      syncDepths();
+      sayWalk(outcomes, error);
+      refreshArchive();
+    },
+    [canEdit, postRelation, setState, clearSelection, syncDepths, sayWalk, refreshArchive],
   );
 
   const undo = useCallback(() => {
-    if (!canEdit) return;
-    const previous = undoStack.current.pop();
-    setUndoDepth(undoStack.current.size());
-    if (!previous) return;
-    setState(previous);
-    clearSelection();
-    setSelectedEdge(null);
-    // The whole document goes: an undo can move anything, and working out what
-    // it put back is exactly the bookkeeping `all` exists to avoid.
-    syncRef.current.saveNow();
-    refreshArchive();
-  }, [canEdit, setState, refreshArchive, clearSelection]);
+    walking.current = walking.current.then(() => walkOnce('undo')).catch(() => undefined);
+    return walking.current;
+  }, [walkOnce]);
+  const redo = useCallback(() => {
+    walking.current = walking.current.then(() => walkOnce('redo')).catch(() => undefined);
+    return walking.current;
+  }, [walkOnce]);
+
+  /**
+   * Golf M: the *Ongedaan maken* in a toast undoes **that** step. If the hand
+   * has done something else since, the toast is out of date, and undoing the
+   * newer thing from an old sentence would be a surprise — so it says so.
+   */
+  const undoIfLast = useCallback(
+    (step: TreeStep | undefined) => {
+      if (step && undoStack.current.peek() !== step) {
+        ui.toast(words.treeUndoGone);
+        return;
+      }
+      void undo();
+    },
+    [undo, ui, words.treeUndoGone],
+  );
 
   /**
    * Every viewer's own glass, in their own browser. Never state (rule 20).
@@ -697,28 +1194,40 @@ export function FamilyTreeCanvas({
    * one card and one point.
    */
   const [drag, setDrag] = useState<Record<GraphNodeId, { x: number; y: number }> | null>(null);
-  const [carried, setCarried] = useState<Map<GraphNodeId, { x: number; y: number; colour: string }>>(new Map());
+  /*
+   * Golf M (samen): the cards in somebody else's hand, and the ones they just
+   * put down — the four canvases' shared rules (`lib/live/hands.ts`). A card
+   * stays where the hand left it until this tree's own document says where it
+   * is, or `SETTLE_MS` passed; it used to wait for an exact match for ever, so
+   * a drag called off with Escape, or a hand that vanished mid-drag, left its
+   * card in the air until the page was reloaded.
+   */
+  const docAt = useCallback(
+    (id: string) => {
+      const at = pins.get(id as GraphNodeId) ?? base.positions[id as GraphNodeId];
+      return at ? ([at.x, at.y] as const) : null;
+    },
+    [pins, base],
+  );
+  const carried = useCarried({ hands: live.pointers, self: live.clientId, docAt });
+  /** Golf M (samen): wat een ander nu sleept — niet te pakken, wel te lezen. */
+  const locks = useLocks(live.pointers, live.clientId);
+  const locksRef = useRef(locks);
+  locksRef.current = locks;
+  const sayHeld = useLockHint(ui.toast, words.liveHeldBy);
+  /** Golf M (samen): a card in somebody's hand wears their ring whether or not they chose it — the lock, said out loud. */
+  const heldAll = useMemo(() => {
+    if (!locks.size) return heldByOthers;
+    const out = new Map(heldByOthers);
+    for (const [id, lock] of locks) out.set(id as GraphNodeId, lock);
+    return out;
+  }, [heldByOthers, locks]);
 
   const layout = useMemo(() => {
     const moved = new Map<GraphNodeId, { x: number; y: number }>();
     if (drag) for (const [id, at] of Object.entries(drag)) moved.set(id, at);
     for (const [id, at] of carried) if (!drag?.[id]) moved.set(id, { x: at.x, y: at.y });
-    if (!moved.size) return base;
-    const positions = { ...base.positions };
-    for (const [id, at] of moved) {
-      const was = positions[id];
-      if (!was) continue;
-      positions[id] = { ...was, x: at.x, y: at.y };
-    }
-    const unions = base.unions.map((union) => {
-      if (!union.parents.some((id) => moved.has(id))) return union;
-      const centres = union.parents
-        .filter((id) => positions[id])
-        .map((id) => positions[id].x + (sizes[id]?.width ?? NODE_SIZE.mortal.width) / 2);
-      if (!centres.length) return union;
-      return { ...union, x: centres.reduce((sum, value) => sum + value, 0) / centres.length };
-    });
-    return { ...base, positions, unions };
+    return moveInLayout(base, moved, sizes);
   }, [base, drag, carried, sizes]);
 
   /*
@@ -763,90 +1272,133 @@ export function FamilyTreeCanvas({
    * (two bars, one shared parent) and one somebody typed in because the parents
    * are not recorded at all.
    */
-  const lines = useMemo<DrawnLine[]>(() => {
-    const geomById = new Map(geometry.unions.map((union) => [union.unionId, union]));
-    const siblingGeom = new Map(
-      geometry.siblings.map((item) => [[item.a, item.b].sort().join('|'), item]),
-    );
-    const out: DrawnLine[] = [];
-    const polyline = (points: Point[]) =>
-      points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
-    for (const edge of graph.edges) {
-      // A `child` line is a `parent` line the other way round; the graph builder
-      // has already turned them, and a caller that has not is not worth failing.
-      const backwards = edge.role === 'child';
-      const role: FieldRole = backwards ? 'parent' : edge.role;
-      const from = backwards ? edge.to : edge.from;
-      const to = backwards ? edge.from : edge.to;
-      const boxA = boxOf(from);
-      const boxB = boxOf(to);
-      if (!boxA || !boxB) continue;
-      if (role === 'sibling') {
-        /*
-         * The shared bar already says `full`, and `unknown` is a guess. A tie
-         * the tree owns is always drawn: it has no `sibling` kind because
-         * nothing was derived — a hand drew it between a los kaartje and
-         * somebody, which is as explicit as a line gets.
-         */
-        const drawIt = edge.source.kind === 'tie' || edge.sibling === 'half' || edge.sibling === 'explicit';
-        if (!drawIt) continue;
-        const geom = siblingGeom.get([from, to].sort().join('|'));
-        if (!geom) continue;
-        out.push({
-          edge,
-          d: polyline(geom.points),
-          at: polylineMidpoint(geom.points),
-          // A derived half says "half"; a typed one says whatever the Keeper
-          // called the field it came from ("Broers en zussen").
-          word: edge.sibling === 'half' ? SIBLING_WORDS.half : edge.label,
-        });
-        continue;
-      }
-      if (role === 'parent') {
-        const union = layout.unions.find(
-          (item) => item.children.includes(to) && item.parents.includes(from),
-        );
-        const geom = union ? geomById.get(union.id) : undefined;
-        const parent = geom?.parents.find((item) => item.id === from);
-        const child = geom?.children.find((item) => item.id === to);
-        if (geom && parent && child) {
-          out.push({ edge, d: polyline([...parent.points, ...child.points]), at: geom.bar, word: edge.label });
-          continue;
-        }
-        // A back edge of a cycle has no union to hang from: a straight line, so
-        // it is still drawn and still clickable (`layoutTree` keeps it out of
-        // the generations, never out of the picture).
-        const a = boxCentre(boxA);
-        const b = boxCentre(boxB);
-        out.push({
-          edge,
-          d: polyline([a, b]),
-          at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-          word: edge.label,
-        });
-        continue;
-      }
-      if (role === 'partner') {
-        const link = partnerLine(boxA, boxB);
-        out.push({
-          edge,
-          d: `M ${link.x1} ${link.y1} L ${link.x2} ${link.y2}`,
-          at: { x: (link.x1 + link.x2) / 2, y: link.y1 },
-          word: edge.label,
-        });
-        continue;
-      }
-      const a = boxCentre(boxA);
-      const b = boxCentre(boxB);
-      out.push({
-        edge,
-        d: curvePath(a.x, a.y, b.x, b.y),
-        at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-        word: edge.label,
+  const lines = useMemo<DrawnLine[]>(
+    () => drawLines(graph.edges, layout, geometry, sizes),
+    [graph.edges, layout, geometry, sizes],
+  );
+
+  /*
+   * Golf M (samen): a card in somebody else's hand glides between their frames
+   * (`useFollow`), and — this is the part a CSS transition never managed — the
+   * lines and the union bars go with it. While anything glides, the lines are
+   * worked out again each animation frame from where the cards are *drawn*
+   * (`moveInLayout`, `drawLines`) and written straight into their `d`; when it
+   * stops, once more from the layout, so React's own attributes are what is
+   * left. The canvas itself does not render for any of it.
+   */
+  const threadedLines = useRef(false);
+  const fullLayoutRef = useRef(layout);
+  fullLayoutRef.current = layout;
+  /**
+   * Golf M (herstel): the stroked elements of each line, looked up once per
+   * render instead of three `querySelectorAll`s per line per frame. A render
+   * may have made new elements, so every render marks the map stale and the
+   * next frame that needs it builds it again, in one sweep.
+   */
+  const edgeEls = useRef<Map<string, { d: Element[]; at: Element[]; dot: Element[] }>>(new Map());
+  const edgeElsStale = useRef(true);
+  useLayoutEffect(() => {
+    edgeElsStale.current = true;
+  });
+  const elsOfEdge = useCallback((root: HTMLElement, edgeId: string) => {
+    if (edgeElsStale.current) {
+      const map = new Map<string, { d: Element[]; at: Element[]; dot: Element[] }>();
+      const slot = (id: string) => {
+        let one = map.get(id);
+        if (!one) map.set(id, (one = { d: [], at: [], dot: [] }));
+        return one;
+      };
+      root.querySelectorAll('[data-edge-d],[data-edge-at],[data-edge-dot]').forEach((el) => {
+        const d = el.getAttribute('data-edge-d');
+        const at = el.getAttribute('data-edge-at');
+        const dot = el.getAttribute('data-edge-dot');
+        if (d !== null) slot(d).d.push(el);
+        if (at !== null) slot(at).at.push(el);
+        if (dot !== null) slot(dot).dot.push(el);
       });
+      edgeEls.current = map;
+      edgeElsStale.current = false;
+    }
+    return edgeEls.current.get(edgeId);
+  }, []);
+  /** Golf M (herstel): what glided last frame, so its lines are put back when it stops. */
+  const lastGliding = useRef<Set<string>>(new Set());
+  const followLines = useCallback((visual: ReadonlyMap<string, Vec>) => {
+    const root = stageRef.current;
+    if (!root || (!visual.size && !threadedLines.current)) return;
+    const sizesNow = sizesRef.current;
+    const moved = new Map<GraphNodeId, { x: number; y: number }>();
+    for (const [id, at] of visual) moved.set(id as GraphNodeId, at);
+    /*
+     * Golf M (herstel): only the lines a glide can move — those with a gliding
+     * end, or hanging from a bar whose parents glide (`edgesTouching`) — and
+     * only their unions worked out again. This frame's cards, and last
+     * frame's, so a card that just stopped leaves its lines where React has
+     * them.
+     */
+    const ids = new Set<string>([...moved.keys(), ...lastGliding.current]);
+    lastGliding.current = new Set(moved.keys());
+    const full = fullLayoutRef.current;
+    const edges = edgesTouching(graphRef.current.edges, full.unions, ids);
+    if (edges.length) {
+      const scoped: TreeLayout = { ...full, unions: unionsTouching(full.unions, ids) };
+      const drawnLayout = moveInLayout(scoped, moved, sizesNow);
+      const drawn = drawLines(edges, drawnLayout, edgeGeometry(drawnLayout, sizesNow, edges), sizesNow);
+      for (const line of drawn) {
+        const els = elsOfEdge(root, line.edge.id);
+        if (!els) continue;
+        for (const el of els.d) if (el.getAttribute('d') !== line.d) el.setAttribute('d', line.d);
+        for (const el of els.at) {
+          el.setAttribute('x', String(line.at.x));
+          el.setAttribute('y', String(line.at.y - 4));
+        }
+        for (const el of els.dot) {
+          el.setAttribute('cx', String(line.at.x));
+          el.setAttribute('cy', String(line.at.y));
+        }
+      }
+    }
+    threadedLines.current = visual.size > 0;
+  }, [elsOfEdge]);
+  const followTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    for (const [id, at] of carried) {
+      if (drag?.[id] || !base.positions[id as GraphNodeId]) continue;
+      out.set(id, { x: at.x, y: at.y });
     }
     return out;
-  }, [graph.edges, geometry, layout.unions, boxOf]);
+  }, [carried, drag, base]);
+  const nodeFollow = useFollow({ rootRef: stageRef, targets: followTargets, scale: { x: 1, y: 1 }, onFrame: followLines });
+  /** Golf M (samen): their arrows glide too — on the glass, so in pixels at this zoom. */
+  const handScale = useMemo(() => ({ x: glass.zoom, y: glass.zoom }), [glass.zoom]);
+  const handTargets = useMemo(() => {
+    const out = new Map<string, Vec>();
+    for (const pointer of live.pointers) if (pointer.x !== null && pointer.y !== null) out.set(pointer.clientId, { x: pointer.x, y: pointer.y });
+    return out;
+  }, [live.pointers]);
+  useFollow({ rootRef: stageRef, targets: handTargets, scale: handScale, prefix: 'hand:' });
+  /*
+   * Golf M (samen): twee handen pakten hetzelfde kaartje in dezelfde tel. Wie
+   * het gelijkspel verliest (`winsTie`), laat los — er was nog niets
+   * opgeslagen, een sleep wordt pas bij het neerzetten één commit — en ziet
+   * zijn kaartjes glijden van waar hij ze had naar waar de ander ze heeft.
+   */
+  useDragConflict({
+    hands: live.pointers,
+    self: live.clientId,
+    mine: () => (nodeDrag.current?.moved ? nodeDrag.current.origin.keys() : []),
+    onLose: ({ lock }) => {
+      if (!nodeDrag.current) return;
+      const had = dragRef.current;
+      if (had) for (const [id, at] of Object.entries(had)) nodeFollow.seed(id, at);
+      nodeDrag.current = null;
+      setDragging(false);
+      dragRef.current = null;
+      setDrag(null);
+      reportLivePointer(null);
+      ui.toast(fill(words.liveTakenFirst, { naam: lock.name || 'Iemand' }));
+    },
+  });
 
   /* ------------------------------------------------------ the first view */
 
@@ -1135,44 +1687,6 @@ export function FamilyTreeCanvas({
     };
   }, [reportLivePointer]);
 
-  /** Where somebody else's hand has a card right now. It sticks until a pull lands. */
-  useEffect(() => {
-    setCarried((current) => {
-      let changed = false;
-      const next = new Map(current);
-      for (const pointer of live.pointers) {
-        for (const [id, at] of Object.entries(pointer.m)) {
-          const was = next.get(id);
-          if (!was || was.x !== at[0] || was.y !== at[1] || was.colour !== pointer.colour) {
-            next.set(id, { x: at[0], y: at[1], colour: pointer.colour });
-            changed = true;
-          }
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [live.pointers]);
-  /*
-   * What the archive last said is what a carried card falls back to. Without
-   * this the card snaps home for the length of one round trip and then jumps to
-   * where it was actually dropped — the landkaart's rule for a carried speld.
-   */
-  useEffect(() => {
-    setCarried((current) => {
-      if (!current.size) return current;
-      const next = new Map(current);
-      let changed = false;
-      for (const [id, held] of current) {
-        const pin = pins.get(id);
-        if (pin && pin.x === held.x && pin.y === held.y) {
-          next.delete(id);
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [pins]);
-
   const others = useMemo(
     () => live.people.filter((person) => person.clientId !== clientId),
     [live.people, clientId],
@@ -1295,6 +1809,11 @@ export function FamilyTreeCanvas({
       onNodePointerMove(event);
       return;
     }
+    // Golf M: and so does a line being pulled out of a `+`.
+    if (connectRef.current) {
+      onConnectMove(event);
+      return;
+    }
     // A finger reports nothing: a touch screen has no hovering hand, and an
     // arrow that appears only while somebody presses is a lie.
     if (event.pointerType !== 'touch') {
@@ -1329,6 +1848,11 @@ export function FamilyTreeCanvas({
   };
 
   const onStagePointerUp = (event: React.PointerEvent, cancelled = false) => {
+    // Golf M: a line pulled out of a `+` lands, or does not, before anything else.
+    if (connectRef.current) {
+      endConnect(event, !cancelled);
+      return;
+    }
     /*
      * §69: a shift-press the hook held back, answered now the press is over.
      * `pressTravelled` is this canvas's own answer to `DRAG_SLOP`, and it is
@@ -1429,7 +1953,15 @@ export function FamilyTreeCanvas({
      * standing, because the next thing that press does is drag the group.
      */
     selection.select(node.id, additive, alreadySelected);
-    if (!editOn) {
+    /*
+     * Golf M (samen): het zachte slot. Een kaartje dat een ander nu sleept,
+     * kies je wel (de naam opent het artikel, lezen mag), maar het gaat niet
+     * mee: de druk zegt wie het heeft, en een sleep die erop begint, schuift
+     * het papier — zoals in Lezen.
+     */
+    const lockHere = locksRef.current.get(node.id);
+    if (lockHere && editOn) sayHeld(lockHere, node.id);
+    if (!editOn || lockHere) {
       /*
        * §73: in Lezen — and for a hand that may not edit at all — a finger
        * dragged across a kaartje moves the paper, not the kaartje. Nothing
@@ -1456,7 +1988,8 @@ export function FamilyTreeCanvas({
     const chosen = pressSelection(selected, node.id, additive, alreadySelected);
     const origin = new Map<GraphNodeId, { x: number; y: number }>();
     for (const other of graphRef.current.nodes) {
-      if (!chosen.has(other.id) || other.standing === 'ghost') continue;
+      // Golf M (samen): wat een ander in de keuze vasthoudt, blijft staan.
+      if (!chosen.has(other.id) || other.standing === 'ghost' || locksRef.current.has(other.id)) continue;
       const spot = layout.positions[other.id];
       if (spot) origin.set(other.id, { x: spot.x, y: spot.y });
     }
@@ -1555,7 +2088,11 @@ export function FamilyTreeCanvas({
     const carrying = dragRef.current;
     dragRef.current = null;
     setDrag(null);
-    if (!held.moved || !carrying || !commitIt) return;
+    if (!held.moved || !carrying || !commitIt) {
+      // Golf M (samen): nothing lands, and the hand says it is empty.
+      if (held.moved) reportHand(commitIt ? { clientX: event.clientX, clientY: event.clientY } : null);
+      return;
+    }
 
     /*
      * §67: **one commit for the whole group, and therefore one undo.**
@@ -1584,9 +2121,14 @@ export function FamilyTreeCanvas({
         return at ? { ...card, x: at.x, y: at.y, pinned: true, updatedAt: now } : card;
       });
       return { members, loose };
-    });
-    // The carry sticks on the other screens until their pull lands.
+      // Golf M (samen): a move never brings anybody back into the tree.
+    }, { revive: false });
+    // The carry sticks on the other screens until their document lands
+    // (`useCarried`) — and golf M (samen): then the empty hand, at once. A
+    // frame that names a card is a lock on every other screen, and it stayed
+    // shut until this mouse next moved. The line sends the first one first.
     reportHand({ clientX: event.clientX, clientY: event.clientY }, carrying);
+    reportHand({ clientX: event.clientX, clientY: event.clientY });
   };
 
   /* ------------------------------------------------------------- writes */
@@ -1594,9 +2136,9 @@ export function FamilyTreeCanvas({
   const isMember = useCallback((entryId: string) => state.members.some((member) => member.id === entryId), [state.members]);
 
   const addMember = useCallback(
-    (entryId: string) => {
+    (entryId: string, group?: StepGroup | null) => {
       if (stateRef.current.members.some((member) => member.id === entryId)) return;
-      commit((prev) => ({ members: [...prev.members, { id: entryId, updatedAt: Date.now() }] }));
+      commit((prev) => ({ members: [...prev.members, { id: entryId, updatedAt: Date.now() }] }), { group });
     },
     [commit],
   );
@@ -1617,6 +2159,11 @@ export function FamilyTreeCanvas({
    */
   const removeMember = useCallback(
     async (entryId: string, entryName: string) => {
+      const lock = locksRef.current.get(`entry:${entryId}`);
+      if (lock) {
+        sayHeld(lock, `entry:${entryId}`);
+        return;
+      }
       commit((prev) => ({
         members: prev.members.filter((member) => member.id !== entryId),
         deletedMembers: [entryId],
@@ -1641,6 +2188,11 @@ export function FamilyTreeCanvas({
    */
   const removeLoose = useCallback(
     async (looseId: string, cardName: string) => {
+      const lock = locksRef.current.get(`loose:${looseId}`);
+      if (lock) {
+        sayHeld(lock, `loose:${looseId}`);
+        return;
+      }
       commit((prev) => ({
         loose: prev.loose.filter((card) => card.id !== looseId),
         deletedLoose: [looseId],
@@ -1673,7 +2225,11 @@ export function FamilyTreeCanvas({
    * prikbord's `removeCards` does.
    */
   const removeChosen = useCallback(
-    async (ids: readonly GraphNodeId[]) => {
+    async (asked: readonly GraphNodeId[]) => {
+      // Golf M (samen): niet wat een ander nu sleept.
+      const lockedNow = asked.find((id) => locksRef.current.has(id));
+      if (lockedNow) sayHeld(locksRef.current.get(lockedNow)!, lockedNow);
+      const ids = asked.filter((id) => !locksRef.current.has(id));
       const nodes = graphRef.current.nodes.filter(
         (node) => ids.includes(node.id) && node.standing !== 'ghost',
       );
@@ -1789,6 +2345,7 @@ export function FamilyTreeCanvas({
     },
     onStart: () => {
       makeOnEmpty.cancel();
+      cancelConnect();
       pan.current = null;
       setGrabbing(false);
       if (nodeDrag.current) {
@@ -1851,38 +2408,34 @@ export function FamilyTreeCanvas({
    * happens on the far side of this; the tree's own state is not touched.
    */
   const writeRelation = useCallback(
-    async (entryId: string, fieldKey: string, targetId: string, remove = false) => {
-      try {
-        const response = await fetch(`/api/family-trees/${tree.id}/relations`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ entryId, fieldKey, targetId, ...(remove ? { remove: true } : {}) }),
-        });
-        const data = (await response.json()) as { status?: string; graph?: FamilyGraph; error?: string };
-        if (!response.ok) {
-          ui.toast(data.error ?? 'Dat is niet gelukt.');
-          return false;
-        }
-        if (data.graph) {
-          /*
-           * §67: the ref as well as the state. The second question a `+ kind`
-           * asks is answered *after* this await, and it needs the role fields
-           * of the artikel that was created a moment ago — which arrive in this
-           * very answer. `graphRef.current` is otherwise only written on the
-           * next render, which has not run yet.
-           */
-          graphRef.current = data.graph;
-          setGraph(data.graph);
-        }
-        if (data.status === 'pending') ui.toast('Als voorstel ingediend.');
-        refreshArchive();
-        return true;
-      } catch {
-        ui.toast('Geen verbinding.');
-        return false;
+    async (
+      entryId: string,
+      fieldKey: string,
+      targetId: string,
+      remove = false,
+      /** Golf M (herstel): the gesture this line is part of, if any (`runStep`). */
+      group?: StepGroup | null,
+    ): Promise<OpOutcome> => {
+      const op: RelationOp = { entryId, fieldKey, targetId, add: !remove };
+      const { outcome, error, replaced } = await postRelation(op);
+      if (outcome === 'refused') ui.toast(error ?? 'Dat is niet gelukt.');
+      if (outcome === 'proposed') ui.toast('Als voorstel ingediend.');
+      /*
+       * Golf M: a ref that really changed goes on the stack — in the gesture
+       * it belongs to, or as a step of its own. A voorstel changed nothing yet
+       * (the Keeper decides) and an `unchanged` changed nothing at all, so
+       * neither is anything to take back.
+       */
+      if (outcome === 'landed') {
+        // Golf M (herstel): a `+` that replaced somebody in a one-box field is
+        // two ops — the old ref out, then the new one in (`landedOps`).
+        const ops = landedOps(op, replaced);
+        if (group) group.relations.push(...ops);
+        else pushStep({ relations: ops });
       }
+      return outcome;
     },
-    [tree.id, ui, refreshArchive],
+    [postRelation, ui, pushStep],
   );
 
   const promoteLoose = useCallback(
@@ -2064,12 +2617,13 @@ export function FamilyTreeCanvas({
     async (
       parent: { nodeId: GraphNodeId; entryId?: string; name: string },
       child: { nodeId: GraphNodeId; entryId?: string; name: string },
+      group?: StepGroup | null,
     ): Promise<boolean> => {
       if (parent.entryId && child.entryId) {
         const onParent = (graphRef.current.roleFields[parent.entryId] ?? []).find((f) => f.role === 'child');
-        if (onParent) return writeRelation(parent.entryId, onParent.key, child.entryId);
+        if (onParent) return (await writeRelation(parent.entryId, onParent.key, child.entryId, false, group)) !== 'refused';
         const onChild = (graphRef.current.roleFields[child.entryId] ?? []).find((f) => f.role === 'parent');
-        if (onChild) return writeRelation(child.entryId, onChild.key, parent.entryId);
+        if (onChild) return (await writeRelation(child.entryId, onChild.key, parent.entryId, false, group)) !== 'refused';
         ui.toast(`${child.name} heeft geen veld met de rol ${ROLE_LABELS.parent}.`);
         return false;
       }
@@ -2085,7 +2639,7 @@ export function FamilyTreeCanvas({
             updatedAt: now,
           },
         ],
-      }));
+      }), { group });
       return true;
     },
     [writeRelation, commit, ui],
@@ -2101,14 +2655,14 @@ export function FamilyTreeCanvas({
    * handles close as they always did: a parent, a partner and a sibling are one
    * fact each.
    */
-  const attach = useCallback(
-    async (source: GraphNode, role: HandleRole, target: { id: string; name: string }) => {
+  const attachNow = useCallback(
+    async (source: GraphNode, role: HandleRole, target: { id: string; name: string }, group: StepGroup) => {
       const childId: GraphNodeId = `entry:${target.id}`;
       /* §101: waar we stonden, vóór de tekening opnieuw uitgerekend wordt. */
       markPlace(source.id, childId);
       // Solid straight away: the person is in the tree, then the field is
       // written. The other order leaves them a ghost for a round trip.
-      addMember(target.id);
+      addMember(target.id, group);
 
       const both = pickerRef.current?.both;
       if (role === 'child' && both) {
@@ -2123,6 +2677,7 @@ export function FamilyTreeCanvas({
               name: parent.name,
             },
             { nodeId: childId, entryId: target.id, name: target.name },
+            group,
           );
         }
         selectOne(childId);
@@ -2135,12 +2690,12 @@ export function FamilyTreeCanvas({
           setPicker(null);
           return;
         }
-        await writeRelation(source.entryId, field.key, target.id);
+        await writeRelation(source.entryId, field.key, target.id, false, group);
       } else {
         // A los kaartje has no page to write a field on, so the line is the
         // tree's own (§66: a tie with at least one loose end).
         const now = Date.now();
-        commit((prev) => ({ ties: [...prev.ties, tieFor(role, source.id, childId, now)] }));
+        commit((prev) => ({ ties: [...prev.ties, tieFor(role, source.id, childId, now)] }), { group });
       }
       selectOne(childId);
       if (role === 'child') {
@@ -2152,6 +2707,12 @@ export function FamilyTreeCanvas({
       }
     },
     [fieldFor, addMember, writeRelation, commit, selectOne, linkParent, markPlace],
+  );
+  /** Golf M: the card coming in and the field that joins it are one step. */
+  const attach = useCallback(
+    (source: GraphNode, role: HandleRole, target: { id: string; name: string }, outer?: StepGroup | null) =>
+      runStep((group) => attachNow(source, role, target, group), outer),
+    [runStep, attachNow],
   );
 
   /** And a los kaartje hung on whatever the picker opened for. */
@@ -2213,18 +2774,22 @@ export function FamilyTreeCanvas({
       /* §101: de tweede ouder schuift de tekening nog een keer; het kind is
          waar je naar keek, dus dat blijft staan waar het stond. */
       markPlace(child.id, pick.nodeId ?? (pick.entryId ? `entry:${pick.entryId}` : null));
-      if (pick.entryId) addMember(pick.entryId);
-      const childEntryId = child.id.startsWith('entry:') ? child.id.slice('entry:'.length) : undefined;
-      await linkParent(
-        {
-          nodeId: pick.nodeId ?? (pick.entryId ? `entry:${pick.entryId}` : child.id),
-          entryId: pick.entryId,
-          name: pick.name,
-        },
-        { nodeId: child.id, entryId: childEntryId, name: child.name },
-      );
+      // Golf M: the second parent is an answer of its own, and one step.
+      await runStep(async (group) => {
+        if (pick.entryId) addMember(pick.entryId, group);
+        const childEntryId = child.id.startsWith('entry:') ? child.id.slice('entry:'.length) : undefined;
+        await linkParent(
+          {
+            nodeId: pick.nodeId ?? (pick.entryId ? `entry:${pick.entryId}` : child.id),
+            entryId: pick.entryId,
+            name: pick.name,
+          },
+          { nodeId: child.id, entryId: childEntryId, name: child.name },
+          group,
+        );
+      });
     },
-    [addMember, linkParent, markPlace],
+    [addMember, linkParent, markPlace, runStep],
   );
 
   /** The people this node is drawn beside — the second-parent suggestions. */
@@ -2245,25 +2810,300 @@ export function FamilyTreeCanvas({
 
   /* ------------------------------------------------------- a line's fate */
 
+  /**
+   * Golf M: and since then it can be taken back. A field line is rubbed out
+   * through `writeRelation` like before, but the ref it removed goes on the
+   * undo stack; a tie was always tree state. Either way a toast says so and
+   * carries the *Ongedaan maken* — the same step Ctrl+Z would take.
+   */
   const removeLine = useCallback(
     async (edge: GraphEdge) => {
       setSelectedEdge(null);
+      setContextMenu(null);
       const source = edge.source;
+      let step: TreeStep | undefined;
       if (source.kind === 'field') {
         // A line read off a field is unwritten on the *artikel* — the same road
         // in reverse, so the mirror, the gate and the voorstel all apply.
-        await writeRelation(source.entryId, source.fieldKey, source.targetId, true);
+        const outcome = await writeRelation(source.entryId, source.fieldKey, source.targetId, true);
+        if (outcome !== 'landed') return;
+        step = undoStack.current.peek();
+      } else {
+        // §67: a derived line is nobody's to remove — it follows from two fields.
+        if (source.kind !== 'tie') return;
+        commit((prev) => ({
+          ties: prev.ties.filter((tie) => tie.id !== source.tieId),
+          deletedTies: [source.tieId],
+        }));
+        step = undoStack.current.peek();
+      }
+      ui.toast(
+        fill(words.treeLineRemoved, { Lijn: capitalise(words.treeLine), lijn: words.treeLine }),
+        { label: words.treeUndoAction, onAction: () => undoIfLast(step) },
+        { key: 'tree-line-removed' },
+      );
+    },
+    [writeRelation, commit, ui, words, undoIfLast],
+  );
+
+  /* ------------------------------------------ golf M: a child on the line */
+
+  /**
+   * Golf M — the `+` on a line between two parents, and under a bar that hangs
+   * from one. Which parents, where the `+` stands, and whether it can work:
+   * a card that is only a schim has no place in this tree to be a parent from,
+   * and an artikel whose soort has no field with the role Kind is disabled
+   * with the sentence the shared handle uses. A los kaartje always can: it
+   * writes a tie.
+   */
+  const childLineFor = useCallback(
+    (edgeId: string | null) => {
+      if (!edgeId) return null;
+      const line = lines.find((one) => one.edge.id === edgeId);
+      if (!line) return null;
+      const edge = line.edge;
+      let parentIds: GraphNodeId[];
+      let at: Point;
+      if (edge.role === 'partner') {
+        parentIds = [edge.from, edge.to];
+        at = line.at;
+      } else if (edge.role === 'parent' || edge.role === 'child') {
+        const parent = edge.role === 'child' ? edge.to : edge.from;
+        const child = edge.role === 'child' ? edge.from : edge.to;
+        const union = layout.unions.find((item) => item.children.includes(child) && item.parents.includes(parent));
+        if (!union) return null;
+        parentIds = union.parents;
+        at = line.at;
+      } else {
+        return null;
+      }
+      const parents = parentIds.map((id) => graph.nodes.find((node) => node.id === id));
+      if (!parents.length || parents.length > 2) return null;
+      if (parents.some((node) => !node || node.standing === 'ghost')) return null;
+      const nodes = parents as GraphNode[];
+      const without = nodes.find((node) => node.kind === 'entry' && !fieldFor(node, 'child')) ?? null;
+      const label =
+        nodes.length === 2
+          ? fill(words.treeLineChildOf, { a: nodes[0].name, b: nodes[1].name })
+          : fill(words.treeLineChildOfOne, { a: nodes[0].name });
+      return {
+        edgeId,
+        parents: nodes,
+        at,
+        label,
+        enabled: !without,
+        hint: without
+          ? `De soort van ${without.name} heeft geen veld met de rol ${ROLE_LABELS.child} — voeg het toe in Beheer → Soorten.`
+          : undefined,
+      };
+    },
+    [lines, layout.unions, graph.nodes, fieldFor, words],
+  );
+
+  /** The picker, opened for a child of these parents — both fixed when there are two. */
+  const openChildOf = useCallback(
+    (parents: GraphNode[], at: Point) => {
+      setContextMenu(null);
+      setMenuOpen(false);
+      if (parents.length === 1) {
+        selectOne(parents[0].id);
+        openPicker(parents[0], 'child');
         return;
       }
-      // §67: a derived line is nobody's to remove — it follows from two fields.
-      if (source.kind !== 'tie') return;
-      commit((prev) => ({
-        ties: prev.ties.filter((tie) => tie.id !== source.tieId),
-        deletedTies: [source.tieId],
-      }));
+      const [a, b] = parents;
+      setSelectedEdge(null);
+      setPicker({ nodeId: a.id, role: 'child', at: toScreen(at), both: [a.id, b.id] });
     },
-    [writeRelation, commit],
+    [openPicker, selectOne, toScreen],
   );
+
+  /** The line under the pointer, kept a beat after it leaves so the `+` can be reached. */
+  const hoverLine = useCallback((edgeId: string | null) => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+    if (edgeId) {
+      setHoverEdge(edgeId);
+      return;
+    }
+    hoverTimer.current = window.setTimeout(() => {
+      hoverTimer.current = null;
+      setHoverEdge(null);
+    }, 350);
+  }, []);
+  useEffect(
+    () => () => {
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    },
+    [],
+  );
+
+  /* ---------------------------------------------- golf M: the right button */
+
+  const stagePoint = useCallback((event: { clientX: number; clientY: number }) => {
+    const rect = stageRef.current?.getBoundingClientRect();
+    return rect ? { x: event.clientX - rect.left, y: event.clientY - rect.top } : { x: event.clientX, y: event.clientY };
+  }, []);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  /* ------------------------------------------- golf M: drag to connect */
+
+  const cancelConnect = useCallback(() => {
+    connectRef.current = null;
+    if (connectFrame.current !== null) cancelAnimationFrame(connectFrame.current);
+    connectFrame.current = null;
+    setConnect(null);
+  }, []);
+
+  /**
+   * A press on an enabled `+`, with a mouse or a pen. Nothing happens until
+   * the press passes the slop: a plain click is still the kiezer. A finger
+   * keeps today's tap — on a phone a drag across the glass is a pan, and a
+   * line pulled out of a `+` would fight it.
+   */
+  const onHandlePress = useCallback(
+    (role: HandleRole, event: React.PointerEvent) => {
+      if (event.pointerType === 'touch' || event.button !== 0 || !editOn || inkActive) return;
+      const sourceId = onlySelected;
+      const box = sourceId ? boxOf(sourceId) : null;
+      if (!sourceId || !box) return;
+      const from: Point =
+        role === 'parent'
+          ? { x: box.x + box.width / 2, y: box.y }
+          : role === 'child'
+            ? { x: box.x + box.width / 2, y: box.y + box.height }
+            : role === 'partner'
+              ? { x: box.x + box.width, y: box.y + box.height / 2 }
+              : { x: box.x, y: box.y + box.height / 2 };
+      connectSwallow.current = false;
+      connectRef.current = {
+        pointerId: event.pointerId,
+        role,
+        sourceId,
+        from,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+        target: null,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+    },
+    [editOn, inkActive, onlySelected, boxOf],
+  );
+
+  const onConnectMove = (event: React.PointerEvent) => {
+    const held = connectRef.current;
+    if (!held || held.pointerId !== event.pointerId) return;
+    if (!held.moved) {
+      if (!passedSlop(event.clientX - held.startX, event.clientY - held.startY)) return;
+      held.moved = true;
+      connectSwallow.current = true;
+      setMenuOpen(false);
+      try {
+        stageRef.current?.setPointerCapture(event.pointerId);
+      } catch {
+        /* a pointer that has already gone cannot be captured */
+      }
+    }
+    held.clientX = event.clientX;
+    held.clientY = event.clientY;
+    /*
+     * Golf M (herstel): a pointer reports more often than the screen draws,
+     * and every move used to render the whole stamboom and ask
+     * `elementFromPoint` and `connectVerdict` again. Now: one look per frame.
+     */
+    if (connectFrame.current === null) {
+      connectFrame.current = requestAnimationFrame(() => {
+        connectFrame.current = null;
+        placeConnect();
+      });
+    }
+  };
+
+  /** Golf M (herstel): where the pulled line's end is, and what it would land on — once per frame. */
+  const placeConnect = () => {
+    const held = connectRef.current;
+    if (!held || !held.moved) return;
+    const rect = stageRef.current?.getBoundingClientRect();
+    const point = rect ? { x: held.clientX - rect.left, y: held.clientY - rect.top } : { x: held.clientX, y: held.clientY };
+    const to = toWorld(viewRef.current ?? { x: 0, y: 0, zoom: 1 }, point.x, point.y);
+    const under = document.elementFromPoint(held.clientX, held.clientY)?.closest('.tree-node');
+    const candidate = under?.getAttribute('data-node-id') ?? null;
+    const target =
+      candidate &&
+      graphRef.current.nodes.some((node) => node.id === candidate) &&
+      connectVerdict({ source: held.sourceId, target: candidate, role: held.role, edges: graphRef.current.edges }) === 'ok'
+        ? (candidate as GraphNodeId)
+        : null;
+    const line = connectLineRef.current;
+    if (line) {
+      line.setAttribute('x2', String(to.x));
+      line.setAttribute('y2', String(to.y));
+    }
+    // React only for a line that is not drawn yet, or that lands somewhere else.
+    if (!line || target !== held.target) {
+      held.target = target;
+      setConnect({ from: held.from, to, target });
+    }
+  };
+
+  /** Golf M: let go on a card and the line is drawn; anywhere else, nothing is. */
+  const connectTo = useCallback(
+    (source: GraphNode, role: HandleRole, target: GraphNode) =>
+      runStep(async (group) => {
+        if (target.kind === 'entry') {
+          await attach(source, role, { id: target.entryId, name: target.name }, group);
+          return;
+        }
+        markPlace(source.id, target.id);
+        const now = Date.now();
+        commit((prev) => ({ ties: [...prev.ties, tieFor(role, source.id, target.id, now)] }), { group });
+        selectOne(target.id);
+      }),
+    [runStep, attach, markPlace, commit, selectOne],
+  );
+
+  const endConnect = (event: React.PointerEvent, land: boolean) => {
+    const held = connectRef.current;
+    if (!held || held.pointerId !== event.pointerId) return;
+    // Golf M (herstel): the last move may still be waiting for its frame.
+    if (connectFrame.current !== null && land) {
+      held.clientX = event.clientX;
+      held.clientY = event.clientY;
+      placeConnect();
+    }
+    cancelConnect();
+    // A click on the `+` that never became a drag: the click opens the kiezer.
+    if (!held.moved) return;
+    // The click the drag ends with belongs to no button; let it go by, then forget.
+    window.setTimeout(() => {
+      connectSwallow.current = false;
+    }, 0);
+    if (!land || !held.target) return;
+    const source = graphRef.current.nodes.find((node) => node.id === held.sourceId);
+    const target = graphRef.current.nodes.find((node) => node.id === held.target);
+    if (!source || !target) return;
+    askThen(() => void connectTo(source, held.role, target));
+  };
+
+  /* ---------------------------------------------- golf M: the line of one */
+
+  /**
+   * Golf M: with exactly one card chosen, the people outside its line are
+   * dimmed (`lib/families/lineage.ts`). Nothing is dimmed while a card with
+   * no relatives at all is chosen — a picture where everybody but one person
+   * fades says nothing about that person.
+   */
+  const lineage = useMemo(() => {
+    if (!onlySelected) return null;
+    const node = graph.nodes.find((one) => one.id === onlySelected);
+    if (!node || node.standing === 'ghost') return null;
+    const set = lineageOf(graph.edges, onlySelected);
+    return set.size > 1 ? set : null;
+  }, [onlySelected, graph.nodes, graph.edges]);
 
   /* ------------------------------------------------------------ toolbar */
 
@@ -2305,6 +3145,16 @@ export function FamilyTreeCanvas({
       }
       if (event.key === 'Escape') {
         if (onInkKey(event)) return;
+        // Golf M: the newest layers first — a line being pulled, the menu the
+        // right button opened.
+        if (connectRef.current) {
+          cancelConnect();
+          return;
+        }
+        if (contextMenu) {
+          setContextMenu(null);
+          return;
+        }
         if (picker) {
           setPicker(null);
           return;
@@ -2323,11 +3173,14 @@ export function FamilyTreeCanvas({
       // §33/§67: in the tekenmodus Ctrl+Z lifts your own last streek; outside
       // it, the tree's own undo.
       if (onInkKey(event)) return;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && (key === 'z' || key === 'y')) {
         // §73: in Lezen there is nothing of this hand's to take back.
         if (!editOn) return;
         event.preventDefault();
-        undo();
+        // Golf M: Ctrl/⌘+Shift+Z and Ctrl+Y walk forward again.
+        if (key === 'y' || event.shiftKey) void redo();
+        else void undo();
         return;
       }
       /*
@@ -2345,11 +3198,21 @@ export function FamilyTreeCanvas({
       // §73: Delete and Backspace take something away, so they wait for Bewerken.
       if (!editOn || sheet) return;
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (!selected.size) return;
+        // A key that lands while a kiezer or a menu is open is theirs.
+        if (picker || contextMenu) return;
+        if (selected.size) {
+          event.preventDefault();
+          // §67: one or six, the same road — `removeChosen` asks the one question
+          // that fits what is chosen and makes the one commit that undoes it.
+          void removeChosen([...selected]);
+          return;
+        }
+        // Golf M: a chosen line goes the way *Lijn verwijderen* sends it — and
+        // a derived one is nobody's to take away, from the keyboard either.
+        const line = selectedEdge ? lines.find((one) => one.edge.id === selectedEdge) : undefined;
+        if (!line || line.edge.source.kind === 'derived') return;
         event.preventDefault();
-        // §67: one or six, the same road — `removeChosen` asks the one question
-        // that fits what is chosen and makes the one commit that undoes it.
-        void removeChosen([...selected]);
+        askThen(() => void removeLine(line.edge));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -2363,7 +3226,13 @@ export function FamilyTreeCanvas({
     editOn,
     sheet,
     undo,
+    redo,
     removeChosen,
+    removeLine,
+    lines,
+    askThen,
+    contextMenu,
+    cancelConnect,
     clearSelection,
     fitAll,
     zoomBy,
@@ -2480,6 +3349,81 @@ export function FamilyTreeCanvas({
     return items;
   };
 
+  /**
+   * Golf M — de rechtermuisknop op een kaartje: its own `…`, at the pointer.
+   *
+   * §68 still holds where it was about: a *link* is the browser's, so a right
+   * press on the name (the `<a>` to the artikel) opens the browser's menu with
+   * "open in a new tab" on it, and so does a press on a card this hand has
+   * nothing to offer for. Only where the canvas has a menu does it take the
+   * button, and only there is `preventDefault` called. A card inside a group
+   * that is chosen gets the group's menu, as its `…` would.
+   */
+  const onNodeContextMenu = (event: React.MouseEvent, node: GraphNode) => {
+    if (inkActive || connectRef.current) return;
+    if ((event.target as HTMLElement).closest('a')) return;
+    let items: TreeMenuItem[];
+    let label: string;
+    if (editOn && chosenNodes.length > 1 && selected.has(node.id)) {
+      items = [
+        {
+          key: 'out',
+          label: `${chosenNodes.length} uit de ${words.familyTree}`,
+          icon: 'close',
+          danger: true,
+          onSelect: () => askThen(() => void removeChosen(chosenNodes.map((one) => one.id))),
+        },
+      ];
+      label = `Meer bij ${chosenNodes.length} kaartjes`;
+    } else {
+      items = menuFor(node);
+      label = fill(words.treeMenuOf, { naam: node.name || capitalise(words.looseCard) });
+      if (!items.length) return;
+      if (node.standing === 'ghost') clearSelection();
+      else selectOne(node.id);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(false);
+    setPicker(null);
+    setSelectedEdge(null);
+    setContextMenu({ at: stagePoint(event), label, items });
+  };
+
+  /** Golf M — and on a line: *Kind toevoegen* where a child can hang, and the line's own fate. */
+  const onLineContextMenu = (event: React.MouseEvent, edge: GraphEdge) => {
+    if (inkActive || !editOn || !canEdit) return;
+    const items: TreeMenuItem[] = [];
+    const child = childLineFor(edge.id);
+    if (child?.enabled) {
+      items.push({
+        key: 'child',
+        label: words.treeMenuAddChild,
+        icon: 'plus',
+        onSelect: () => askThen(() => openChildOf(child.parents, child.at)),
+      });
+    }
+    if (edge.source.kind !== 'derived') {
+      items.push({
+        key: 'remove',
+        label: `${capitalise(words.treeLine)} verwijderen`,
+        icon: 'close',
+        danger: true,
+        onSelect: () => askThen(() => void removeLine(edge)),
+      });
+    }
+    if (!items.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearSelection();
+    setMenuOpen(false);
+    setPicker(null);
+    // Not chosen: the line's own menu and its `+` would stand beside this one
+    // and say the same things twice.
+    setSelectedEdge(null);
+    setContextMenu({ at: stagePoint(event), label: fill(words.treeMenuOf, { naam: edge.label || words.treeLine }), items });
+  };
+
   return (
     <div className="tree-page" data-tree-id={tree.id} {...gate}>
       {/*
@@ -2579,7 +3523,25 @@ export function FamilyTreeCanvas({
             gains is the grey: it was pressable with an empty stack.
             §90: and it stays in Lezen, grey, like on the other three — it went
             with the whole making group, which was r37's third answer. */}
-        {canEdit && <CanvasUndoButton onUndo={undo} canUndo={editOn && undoDepth > 0} testId="tree-undo" />}
+        {canEdit && <CanvasUndoButton onUndo={() => void undo()} canUndo={editOn && undoDepth > 0} testId="tree-undo" />}
+        {/* Golf M: and back again. The undo's own shape, turned round; on a
+            phone it is not in the bar (the `+` and *Ongedaan maken* share the
+            thumb's corner there, §105) — Ctrl+Shift+Z is a keyboard's. */}
+        {canEdit && (
+          <button
+            type="button"
+            className="btn btn-small btn-ghost tree-redo"
+            {...maker(() => void redo())}
+            disabled={!(editOn && redoDepth > 0)}
+            aria-label={words.treeRedo}
+            title={`${words.treeRedo} (Ctrl+Shift+Z)`}
+            data-testid="tree-redo"
+          >
+            {/* Icon only: the bar is one row (§64), and the undo beside it
+                already carries the word for the pair. */}
+            <Icon name="undo" size={16} />
+          </button>
+        )}
         {!canEdit && (
           <span className="chip" title={`Je kunt deze ${words.familyTree} bekijken, niet bewerken.`}>
             <Icon name="lock" size={12} />
@@ -2689,17 +3651,20 @@ export function FamilyTreeCanvas({
               const chosen = selectedEdge === line.edge.id;
               const kin = line.edge.role === 'kin';
               const sibling = line.edge.role === 'sibling';
+              // Golf M: outside the chosen person's line, gently dimmed.
+              const dim = lineage !== null && !edgeInLineage(line.edge, lineage);
               return (
                 <g
                   key={line.edge.id}
                   className={`tree-edge tree-edge-${line.edge.role}${chosen ? ' is-selected' : ''}${
                     line.edge.contested ? ' is-contested' : ''
-                  }`}
+                  }${dim ? ' is-dimmed' : ''}`}
                 >
                   <path
                     className={`tree-line tree-line-${line.edge.role}`}
                     d={line.d}
                     data-edge-id={line.edge.id}
+                    data-edge-d={line.edge.id}
                     {...(sibling ? { 'data-sibling-kind': line.edge.sibling ?? 'explicit' } : {})}
                   >
                     <title>{line.word}</title>
@@ -2708,7 +3673,7 @@ export function FamilyTreeCanvas({
                       same path, nudged, which is what says "these two are one
                       thing" without a second geometry. */}
                   {line.edge.role === 'partner' && (
-                    <path className="tree-line tree-line-partner tree-line-partner-second" d={line.d} />
+                    <path className="tree-line tree-line-partner tree-line-partner-second" d={line.d} data-edge-d={line.edge.id} />
                   )}
                   {/*
                     §67: an explicit sibling the recorded parents contradict.
@@ -2719,6 +3684,7 @@ export function FamilyTreeCanvas({
                   {line.edge.contested && (
                     <circle
                       className="tree-line-contested is-contested"
+                      data-edge-dot={line.edge.id}
                       cx={line.at.x}
                       cy={line.at.y}
                       r={4}
@@ -2730,24 +3696,43 @@ export function FamilyTreeCanvas({
                     className="tree-line-hit"
                     d={line.d}
                     data-edge-id={line.edge.id}
+                    data-edge-d={line.edge.id}
                     onPointerDown={(event) => event.stopPropagation()}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType !== 'touch') hoverLine(line.edge.id);
+                    }}
+                    onPointerLeave={() => hoverLine(null)}
                     onClick={() => {
                       setSelectedEdge(line.edge.id);
                       clearSelection();
                       setMenuOpen(false);
+                      setContextMenu(null);
                     }}
+                    onContextMenu={(event) => onLineContextMenu(event, line.edge)}
                   />
                   {/* §67: a sibling line's word is in the list of ones that show
                       on hover — "half" is the whole reason the line is drawn at
                       all, so it must be readable without a click. */}
                   {(kin || chosen || sibling) && line.word && (
-                    <text className="tree-line-label" x={line.at.x} y={line.at.y - 4} textAnchor="middle">
+                    <text className="tree-line-label" data-edge-at={line.edge.id} x={line.at.x} y={line.at.y - 4} textAnchor="middle">
                       {line.word}
                     </text>
                   )}
                 </g>
               );
             })}
+            {/* Golf M: the line a hand is pulling out of a `+`. */}
+            {connect && (
+              <line
+                ref={connectLineRef}
+                className={`tree-connect-line${connect.target ? ' is-landing' : ''}`}
+                data-testid="tree-connect-line"
+                x1={connect.from.x}
+                y1={connect.from.y}
+                x2={connect.to.x}
+                y2={connect.to.y}
+              />
+            )}
           </svg>
 
           {/* The cards. */}
@@ -2755,6 +3740,17 @@ export function FamilyTreeCanvas({
             const box = boxOf(node.id);
             if (!box) return null;
             const held = carried.get(node.id);
+            /*
+             * Golf M: dimmed outside the chosen person's line — never a card
+             * somebody else is carrying or holding, and never one this hand
+             * is carrying: whatever is moving is what the eye should follow.
+             */
+            const dimmed =
+              lineage !== null &&
+              !lineage.has(node.id) &&
+              !held &&
+              !drag?.[node.id] &&
+              !heldAll.has(node.id);
             return (
               <TreeNode
                 key={node.id}
@@ -2765,7 +3761,10 @@ export function FamilyTreeCanvas({
                 carried={Boolean(held) && !drag?.[node.id]}
                 carriedColour={held?.colour ?? null}
                 canEdit={editOn}
+                dimmed={dimmed}
+                connectTarget={connect?.target === node.id}
                 words={{ looseCard: words.looseCard }}
+                onContextMenu={(event) => onNodeContextMenu(event, node)}
                 onPointerDown={(event) => {
                   onNodePointerDown(event, node);
                 }}
@@ -2782,13 +3781,15 @@ export function FamilyTreeCanvas({
             layer of its own — a card's own markup and its own selected state
             stay exactly what they were.
           */}
-          {[...heldByOthers].map(([id, holder]) => {
+          {[...heldAll].map(([id, holder]) => {
             const box = boxOf(id);
             if (!box) return null;
             return (
               <div
                 key={`held-${id}`}
-                className="tree-held"
+                className={`tree-held${locks.has(id) ? ' is-locked' : ''}`}
+                data-follow={id}
+                data-held-by={holder.name}
                 data-testid="tree-held"
                 aria-hidden="true"
                 style={{
@@ -2821,7 +3822,34 @@ export function FamilyTreeCanvas({
                 menu={menuFor(selectedNode)}
                 menuOpen={menuOpen}
                 onMenu={setMenuOpen}
-                onAdd={(role) => openPicker(selectedNode, role)}
+                onAdd={(role) => {
+                  // Golf M: the click a drag out of the `+` ended with opens nothing.
+                  if (connectSwallow.current) {
+                    connectSwallow.current = false;
+                    return;
+                  }
+                  openPicker(selectedNode, role);
+                }}
+                onHandlePointerDown={onHandlePress}
+              />
+            );
+          })()}
+
+          {/* Golf M: a `+` on the line between two parents — on the line the
+              pointer is on, or the one that is chosen. */}
+          {canEdit && editOn && !inkActive && !picker && !connect && (() => {
+            const offer = childLineFor(selectedEdge ?? hoverEdge);
+            if (!offer) return null;
+            return (
+              <TreeLineHandle
+                key={offer.edgeId}
+                at={offer.at}
+                zoom={glass.zoom}
+                label={offer.label}
+                hint={offer.hint}
+                enabled={offer.enabled}
+                onHover={(over) => hoverLine(over ? offer.edgeId : null)}
+                onAdd={() => openChildOf(offer.parents, offer.at)}
               />
             );
           })()}
@@ -2911,6 +3939,7 @@ export function FamilyTreeCanvas({
             <div
               key={pointer.clientId}
               className="board-cursor tree-hand"
+              data-follow={`hand:${pointer.clientId}`}
               aria-hidden="true"
               style={{
                 left: glass.x + pointer.x * glass.zoom,
@@ -2956,6 +3985,22 @@ export function FamilyTreeCanvas({
               </button>
             )}
           </div>
+        )}
+
+        {/* Golf M: the right button's menu, at the pointer. */}
+        {contextMenu && (
+          <TreeContextMenu
+            at={contextMenu.at}
+            stage={size}
+            label={contextMenu.label}
+            menu={contextMenu.items}
+            onClose={closeContextMenu}
+          />
+        )}
+        {connect && (
+          <p className="visually-hidden" role="status">
+            {words.treeConnectHint}
+          </p>
         )}
 
         {/* ------------------------------------------------------- picker */}

@@ -1124,27 +1124,16 @@ a.feed-item:hover {
 /* The fourth thing that ate the screen, and the one that hid behind the other
    three: `.live-strip` is a *float* in the main column, and a `.page-canvas`
    is a flex container — an independent formatting context, which the browser
-   keeps clear of floats rather than letting it flow around one. Beside the
-   strip the whole column was squeezed to the space left over (26 px of it on
-   every screen: the strip's 21.4 plus its 8 px left margin less its -3.2 right
-   one) *and* the half-gutter margins above were dropped on the floor with it.
-   On a page that is a canvas the strip therefore comes out of the flow
-   altogether and hangs in the column's top corner, where `.canvas-head` keeps
-   a hand's breadth free for it. */
-.main:has(.page-canvas) .live-strip {
-  position: absolute;
-  float: none;
-  top: var(--main-pad-t);
-  right: var(--page-pad);
-  margin: 0;
-}
-/* Golf K: de pagina staat in het midden, en vanaf zo'n 1880 px is er naast een
-   brede pagina (1440 px) rechts een marge waar de strip in past. Daar hangt
-   hij in de hoek van de kolom, net als op een tekenvlak: als float duwde hij
-   een pagina die een eigen opmaakcontext is (Start is een raster) opzij, en
-   stond die pagina 65 px uit het midden. */
-@media (min-width: 1880px) {
-  .main .live-strip {
+   keeps clear of floats rather than letting it flow around one. On a page that
+   is a canvas the strip therefore comes out of the flow altogether and hangs
+   in the column's top corner, where `.canvas-head` keeps a hand's breadth free
+   for it (phone only since golf M: from 768 px up the strip hangs in the top
+   band of every page, canvas or not — see golf M in `app/navigatie.css`).
+   Golf K's rule for 1880 px and wider stood here too; it lost to a more
+   specific rule from golf H and put the strip top *left*, and golf M's one
+   rule replaces it. */
+@media (max-width: 767px) {
+  .main:has(.page-canvas) .live-strip {
     position: absolute;
     float: none;
     top: var(--main-pad-t);
@@ -1164,21 +1153,12 @@ a.feed-item:hover {
   gap: 0.1rem 0.6rem;
   min-width: 0;
   margin: 0 0 0.4rem;
-  /* The corner the live strip hangs in, now that it no longer floats here and
-     pushes the heading aside: the strip's own width plus the half-gutter the
-     canvas reaches past the column. Enough for the dot it is nearly always
-     reduced to; a strip that has grown a word ("geen verbinding") lies over
-     the tail of the description, which is what its own background is for. */
-  padding-right: 2.5rem;
+  /* Golf M: no corner kept for the live strip here any more on a computer —
+     it hangs in the band above the heading (`app/navigatie.css`). On a phone
+     the corner is the `::after` spacer in `app/vlakken.css`. */
   /* One line of heading is one line of heading: it gives way to nothing, even
      on a phone held sideways where the column is very short. */
   flex: 0 0 auto;
-}
-/* §90 canvas: de live-strip is zelden alleen een stip — met iemand erbij is hij
-   "2 ●", gemeten 52 px, en 2,5 rem legde hem 28 px over *Verbindingen*
-   ("Verbinding"). De gemeten breedte, dus 3,5 rem. */
-.canvas-head {
-  padding-right: 3.5rem;
 }
 .canvas-head > * {
   margin: 0;
@@ -5855,12 +5835,6 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
   border: 1px solid var(--marquee-colour, var(--ink-muted));
   background: color-mix(in srgb, var(--marquee-colour, #1f4e79) 12%, transparent);
 }
-/* §69 (2.1): een speld die iemand anders vasthoudt. De ring van het prikbord
-   (`.board-held`) en de stamboom (`.tree-held`), op de derde plek. */
-.map-held .map-pin-head {
-  outline: 3px solid var(--held-colour, var(--ink-muted));
-  outline-offset: 1px;
-}
 .map-pin-dragging {
   z-index: 4;
   opacity: 0.85;
@@ -5894,6 +5868,15 @@ body:has(details.admin-type[open] .admin-type-foot) .fab {
   background: var(--pin-colour);
   color: var(--paper);
   outline: 3px solid rgba(31, 27, 22, 0.25);
+}
+/* §69 (2.1) en golf M: een speld die iemand anders vasthoudt. De ring van het
+   prikbord (`.board-held`) en de stamboom (`.tree-held`), op de derde plek — om
+   de kop van de speld zelf, nooit om een tweede speld ernaast (`.map-held`
+   tekende een lege kop die twintig pixel van de echte stond). Na de eigen keuze
+   hierboven, zodat andermans hand wint van je eigen omlijning. */
+.map-pin-held .map-pin-head {
+  outline: 3px solid var(--held-colour, var(--ink-muted));
+  outline-offset: 1px;
 }
 .map-pin-label {
   max-width: 140px;
@@ -6446,8 +6429,7 @@ body:has(.tree-picker) .fab {
   z-index: 8;
   pointer-events: none;
   transform-origin: 0 0;
-  /* Eased between frames: sixteen a second becomes one movement. */
-  transition: left 70ms linear, top 70ms linear;
+  /* Golf M (samen): no transition — the arrow glides by `useFollow`, between frames. */
   --cursor-colour: var(--ink-muted);
 }
 .board-cursor-arrow {
@@ -6475,16 +6457,18 @@ body:has(.tree-picker) .fab {
   border-radius: 2px;
   box-shadow: 1px 1px 0 rgba(31, 27, 22, 0.25);
 }
-/* A card carried by someone else glides between frames rather than jumping. */
-.board-card.board-card-carried,
-.board-held.board-card-carried {
-  transition: left 70ms linear, top 70ms linear;
-}
-@media (prefers-reduced-motion: reduce) {
-  .board-cursor,
-  .board-card.board-card-carried {
-    transition: none;
-  }
+/*
+   Golf M (samen): a card carried by someone else glides between frames — no
+   longer by a CSS transition (70 ms, shorter than the gap between two frames,
+   so it moved, stopped and moved again) but by `components/canvas/useFollow.ts`,
+   which lays a `translate` over it every animation frame. So nothing here
+   eases `left`/`top`: two easings on one card fight.
+
+   And a card somebody is *dragging* is locked (`lib/live/hands.ts`): its ring
+   is drawn solid and a touch thicker than a ring that only says "chosen".
+*/
+.board-held.is-locked {
+  outline-width: 3px;
 }
 
 /* ------------------------------------------------------- §20 shared text */
@@ -6605,20 +6589,9 @@ body:has(.tree-picker) .fab {
 .live-strip .live-dot {
   font-size: 0.68rem;
 }
-/* Golf K: de strip houdt op een computer vanaf de eerste verf zijn breedte.
-   Hij zweeft rechts in de kolom, dus elke pixel die hij bij de hydratatie
-   verloor (de stip van *verbinden* naar *live*, de telling die nog niet binnen
-   was) schoof de hele pagina ernaast mee en brak de tekst opnieuw af: CLS 0,08
-   tot 0,1 op een artikel op 1440 px, ook met alle webfonts tegengehouden —
-   dat was het, niet de letters. Een ondergrens die ruimer is dan de strip in
-   elke stand zonder anderen erbij; komen er mensen bij, dan groeit hij, en
-   dat is nieuws. */
-@media (min-width: 768px) {
-  .main:not(:has(.page-canvas)) .live-strip:not(.live-strip-save-only) {
-    min-width: 5.75rem;
-    justify-content: flex-end;
-  }
-}
+/* Golf K gaf de strip hier op een computer een ondergrens van 5,75 rem, omdat
+   hij als float de kolom smaller maakte. Die regel staat sinds golf M bij de
+   rest van de plaats van de strip, in app/navigatie.css. */
 .live-strip-live .live-strip-word {
   position: absolute;
   width: 1px;
@@ -6632,13 +6605,13 @@ body:has(.tree-picker) .fab {
     margin-top: -0.6rem;
   }
 }
-/* §96 ronde 57: op een computer een woord bij de stip — niet op een canvas,
-   waarvan de kop ruimte houdt voor de strip zoals die was. */
+/* §96 ronde 57: op een computer een woord bij de stip. Sinds golf M ook op een
+   tekenvlak: de strip hangt daar in de band boven de kop, niet meer in zijn hoek. */
 .live-strip-who {
   display: none;
 }
 @media (min-width: 768px) {
-  .main:not(:has(.page-canvas)) .live-strip-who {
+  .main .live-strip-who {
     display: inline;
     font-size: 0.8rem;
     color: var(--ink-muted);
@@ -6838,19 +6811,10 @@ a.beurs:focus-visible {
   white-space: nowrap;
 }
 
-/* §21: a pin in someone else's hand glides between frames; their arrow too. */
-.map-pin.map-pin-carried,
-.map-cursor {
-  transition: left 70ms linear, top 70ms linear;
-}
+/* §21: a pin in someone else's hand glides between frames; their arrow too —
+   golf M: by `useFollow`, not by a transition (see `.board-held.is-locked`). */
 .map-pins .map-cursor {
   pointer-events: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .map-pin.map-pin-carried,
-  .map-cursor {
-    transition: none;
-  }
 }
 
 /* --------------------------------------------------- §24: waar iets vandaan komt */
@@ -8466,6 +8430,12 @@ a.beurs:focus-visible {
   outline: 3px solid var(--stamp-red);
   outline-offset: 1px;
 }
+/* Golf M: een speld in het kluitje zit in iemand anders' hand — de ring om
+   het cijfertje, omdat de speld zelf niet getekend wordt. */
+.map-cluster-badge.map-cluster-badge-held {
+  outline: 3px solid var(--held-colour, var(--ink-muted));
+  outline-offset: 1px;
+}
 /* Op een telefoon is het een raakdoel en geen speldenprikje (§69 6.1). */
 @media (max-width: 767px) {
   .map-pins .map-cluster-badge {
@@ -8629,11 +8599,9 @@ a.beurs:focus-visible {
    waren allemaal plaatsen voor een knop die hier niet meer staat. Ronde
    65·herstel (review #3) zette de strip voor iedereen op dezelfde rand; die
    regel blijft, want zonder knop is hij voor speler en Keeper gelijk. */
-@media (min-width: 768px) {
-  .main:not(:has(.page-canvas)) > .live-strip {
-    margin-right: calc(0.5rem - var(--page-pad));
-  }
-}
+/* Golf M: de rand van de strip op een computer staat in één regel, in
+   app/navigatie.css — niet meer hier, met een negatieve marge die hem tot in
+   de goot trok. */
 
 /* De tabbalk op een telefoon: nog steeds acht (§32). De Jij-tab is een knop
    (hij opent het blad) en tekent zich als de tabs ernaast. §102, golf h1 (T3): met

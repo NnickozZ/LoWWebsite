@@ -24,6 +24,8 @@
  * een vlak laten zien.
  */
 
+import { parseSpot, SPOT_PARAM } from '@/lib/live/spot';
+
 export type CanvasKind = 'board' | 'map' | 'timeline' | 'family_tree';
 
 /** Welke parameter de keuze van een vlak draagt. */
@@ -67,8 +69,31 @@ export function readChoice(param: string): string | null {
   return new URLSearchParams(window.location.search).get(param);
 }
 
+/**
+ * Golf M (A3): een camera die iemand anders meegaf. *Ga naar* in *Wie is er?*
+ * en *Ga* in een uitnodiging zetten `?waar=c.{soort}.{id}.…` in het adres
+ * (`lib/live/spot.ts`). Hoort die plek bij dit vlak en is hij een geldige
+ * camera voor dit vlak (dezelfde `valid` als de eigen camera), dan wint hij
+ * van wat dit tabblad onthield: je komt waar de ander kijkt. Hij wordt meteen
+ * de camera van dit tabblad en gaat uit het adres, zoals een keuze
+ * (`writeChoice`): een herlaadbeurt houdt hem, Terug neemt hem niet mee.
+ */
+export function spotCamera<T>(kind: CanvasKind, id: string, valid: (value: unknown) => value is T): T | null {
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get(SPOT_PARAM);
+  if (!raw) return null;
+  const spot = parseSpot(raw);
+  if (!spot || spot.kind !== 'camera' || spot.canvas !== kind || spot.id !== id) return null;
+  writeChoice(SPOT_PARAM, null);
+  if (!valid(spot.view)) return null;
+  writeCamera(kind, id, spot.view);
+  return spot.view;
+}
+
 export function readCamera<T>(kind: CanvasKind, id: string, valid: (value: unknown) => value is T): T | null {
   if (typeof window === 'undefined') return null;
+  const sent = spotCamera(kind, id, valid);
+  if (sent) return sent;
   try {
     const raw = window.sessionStorage.getItem(cameraStoreKey(kind, id));
     if (!raw) return null;
@@ -79,12 +104,35 @@ export function readCamera<T>(kind: CanvasKind, id: string, valid: (value: unkno
   }
 }
 
+/**
+ * Golf M (A3): wie wil weten waar dit tabblad kijkt. De schil (`useSpot` in
+ * `components/live/`) luistert hier en zegt het, als de hand stil ligt, tegen
+ * de lijn. Eén luisteraar-lijst, module-breed: een canvas hoeft er niets voor
+ * te doen, want elke camera gaat al door `writeCamera`.
+ */
+type CameraListener = (kind: CanvasKind, id: string, value: unknown) => void;
+const cameraListeners = new Set<CameraListener>();
+
+export function onCameraWrite(listener: CameraListener): () => void {
+  cameraListeners.add(listener);
+  return () => {
+    cameraListeners.delete(listener);
+  };
+}
+
 export function writeCamera(kind: CanvasKind, id: string, value: unknown): void {
   if (typeof window === 'undefined') return;
   try {
     window.sessionStorage.setItem(cameraStoreKey(kind, id), JSON.stringify(value));
   } catch {
     /* een browser zonder opslag schuift nog steeds */
+  }
+  for (const listener of cameraListeners) {
+    try {
+      listener(kind, id, value);
+    } catch {
+      /* een luisteraar die struikelt, houdt de camera niet tegen */
+    }
   }
 }
 

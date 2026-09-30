@@ -906,3 +906,48 @@ details.admin-type[open] > summary .soort-rij-pijl {
     margin-top: 0.9rem;
   }
 }
+
+/* ------------------------------------------------------------ gebruikers */
+/*
+ * Golf M (C3): het zoekvak, de drie filterknoppen en de telling boven de lijst
+ * accounts. Op een computer staan vak en knoppen op één regel; op een telefoon
+ * het vak over de volle breedte en de knoppen eronder, elk een duim hoog.
+ */
+.spelers-beheer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.spelers-zoek-rij {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.8rem;
+}
+.spelers-zoek {
+  flex: 1 1 18rem;
+  min-width: 0;
+  max-width: 28rem;
+}
+.spelers-filter {
+  gap: 0.35rem;
+}
+.spelers-filter-telling {
+  margin-left: 0.15rem;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+.spelers-telling,
+.spelers-geen {
+  margin: 0;
+}
+@media (max-width: 767px) {
+  .spelers-zoek {
+    flex-basis: 100%;
+    max-width: none;
+    min-height: var(--tap);
+  }
+  .spelers-filter .chip {
+    min-height: var(--tap);
+  }
+}

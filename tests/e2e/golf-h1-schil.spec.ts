@@ -128,7 +128,7 @@ test.describe('golf h1 — de computer', () => {
     await page.screenshot({ path: `${SHOTS}/d2-404.png` });
   });
 
-  test('D3 en T7: een kaart antwoordt binnen 100 ms, en een tabpagina heeft een skelet', async ({ page }) => {
+  test('D3 en T7: een kaart antwoordt binnen 100 ms, en een tabpagina blijft staan tot de volgende er is (golf M)', async ({ page }) => {
     await signIn(page, ...KEEPER);
     await page.goto('/wiki/alles');
     await page.waitForTimeout(1500);
@@ -156,25 +156,24 @@ test.describe('golf h1 — de computer', () => {
     await page.waitForURL('**/e/**');
     await expect(page.locator('a[data-pending]')).toHaveCount(0, { timeout: 10_000 });
 
-    // T7: Dossiers, Prikborden en Spelers hebben een vorm.
-    for (const [name, click, shape] of [
-      ['dossiers', () => page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Dossiers', exact: true }), 'cases'],
-      ['prikborden', () => page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Prikborden', exact: true }), 'rows'],
-      ['spelers', () => page.getByTestId('yours-spelers'), 'hal'],
-      ['start', () => page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Start', exact: true }), 'voordeur'],
+    // T7, golf M: geen skelet meer. De oude pagina staat onder de streep tot de
+    // nieuwe er is, en dan wisselen ze in één keer.
+    for (const [name, click] of [
+      ['dossiers', () => page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Dossiers', exact: true })],
+      ['prikborden', () => page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Prikborden', exact: true })],
+      ['start', () => page.getByRole('navigation', { name: 'Hoofdmenu' }).getByRole('link', { name: 'Start', exact: true })],
     ] as const) {
       await page.goto('/wiki/alles');
       await page.waitForTimeout(1200);
+      await page.evaluate(() => document.querySelector('main :is(.page, .page-wide)')?.setAttribute('data-oud', ''));
       await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 4000, downloadThroughput: -1, uploadThroughput: -1 });
       await click().click({ noWaitAfter: true });
-      await expect(page.getByTestId('nav-skeleton')).toBeVisible({ timeout: 5_000 });
-      await expect(page.getByTestId('skeleton')).toHaveAttribute('data-shape', shape);
-      await page.waitForTimeout(450);
-      await page.screenshot({ path: `${SHOTS}/t7-skelet-${name}.png` });
+      await expect(page.locator('.nav-progress')).toHaveAttribute('data-shown', '1', { timeout: 5_000 });
+      await expect(page.getByTestId('nav-skeleton')).toHaveCount(0);
+      await expect(page.locator('main [data-oud]')).toBeVisible();
+      await page.screenshot({ path: `${SHOTS}/t7-streep-${name}.png` });
       await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
-      await expect(page.locator('main .skeleton')).toHaveCount(0, { timeout: 20_000 });
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: `${SHOTS}/t7-echt-${name}.png` });
+      await expect(page.locator('main [data-oud]')).toHaveCount(0, { timeout: 20_000 });
     }
   });
 

@@ -1509,48 +1509,6 @@
 }
 
 /*
- * §104 (golf H, D30/D1): het skelet van een artikel (components/shell/Skeleton.tsx,
- * de rest van de vorm in app/navigatie.css). Een omslagvlak bovenaan de
- * zijkolom — staand, op elke breedte, zoals de echte omslag (golf K) —
- * en tussen 1280 en 1499 px de vorm van D1: tekst en feiten, met de wegwijzer
- * als rij chips boven de tekst.
- */
-.sk-omslag {
-  display: block;
-  /* Golf K: staand, zoals de hele omslag in zijn kaart (golf k, onderaan). */
-  width: min(100%, 45dvh);
-  aspect-ratio: 3 / 4;
-  margin: 0 auto 0.6rem;
-  border-radius: 0;
-}
-@media (min-width: 1280px) {
-  .sk-omslag {
-    aspect-ratio: 3 / 4;
-    max-height: none;
-    margin-bottom: 1.2rem;
-  }
-}
-@media (min-width: 1280px) and (max-width: 1499px) {
-  .sk-entry {
-    grid-template-columns: minmax(0, 1fr) 300px;
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      'head aside'
-      'jumps aside'
-      'body aside';
-  }
-  .sk-rail {
-    display: none;
-  }
-  .sk-jumps {
-    display: flex;
-  }
-  .sk-aside {
-    grid-row: 1 / span 3;
-  }
-}
-
-/*
  * §104 (golf H, T23): een tag op een artikel is op een telefoon een duim
  * groot om op te tikken (44 px), zonder dat de rij tags groeit: het raakvlak
  * is een onzichtbare rand om het etiket heen.

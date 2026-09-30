@@ -11,7 +11,7 @@ import { getWords } from '@/lib/admin/words';
 import { requireViewer } from '@/lib/auth/session';
 import { relativeTime } from '@/lib/diff';
 import { readMany, readOne, type ListParams } from '@/lib/listParams';
-import { listMaps } from '@/lib/maps/service';
+import { listMaps, viewerCanEditMap } from '@/lib/maps/service';
 import { fill } from '@/lib/words';
 import { LegeStaat } from '@/components/ui/LegeStaat';
 import { MaakDeur } from '@/components/eerste-keer/Deuren';
@@ -28,12 +28,20 @@ export default async function MapsPage({ searchParams }: { searchParams: Promise
   const sort = readOne(query, 'sort', SORTS, 'order') as (typeof SORTS)[number];
   const mine = readMany(query, 'show', ['mine']).includes('mine');
 
-  const maps = listMaps(user, { sort, mine: mine && user ? user.id : undefined });
-
   // "Zet op een andere landkaart…" from a fiche: carry the fiche along to
   // whichever map is opened next, which then starts in placing mode.
   const placeRaw = query.place;
   const place = Array.isArray(placeRaw) ? placeRaw[0] : placeRaw;
+
+  /*
+   * Golf M: carrying a fiche, the shelf offers only the landkaarten this hand
+   * may set a speld on — the Bewerken dial. A Privé landkaart is a door that
+   * opens on a map where nothing can be placed (§80: the lock needs its slot on
+   * the outside of the door too).
+   */
+  const maps = listMaps(user, { sort, mine: mine && user ? user.id : undefined }).filter(
+    (map) => !place || viewerCanEditMap(map.id, user),
+  );
   const nameRaw = query.name;
   const placeName = Array.isArray(nameRaw) ? nameRaw[0] : nameRaw;
   const mapHref = (slug: string) =>

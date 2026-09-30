@@ -135,6 +135,12 @@ export type FamilyTreePatch = {
   deletedMembers?: string[];
   deletedLoose?: string[];
   deletedTies?: string[];
+  /**
+   * Golf M (samen): what this hand *deliberately* brought back — a person
+   * added again, an undo of its own removal. Present (even empty) means the
+   * merge lifts a tombstone for these ids only; see `mergeTreeState`.
+   */
+  revive?: { members?: string[]; loose?: string[]; ties?: string[] };
   /** The tab that wrote it, so its own echo can be told apart. */
   clientId?: string;
 };

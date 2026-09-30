@@ -8,6 +8,7 @@ import { EntryPreview } from '@/components/EntryPreview';
 import { Icon } from '@/components/Icon';
 import { LiveProvider } from '@/components/live/LiveProvider';
 import { LiveStrip } from '@/components/live/LiveStrip';
+import { LiveSpot } from '@/components/live/LiveSpot';
 import { useShellBeurs } from '@/components/kamer/ShellBeurs';
 import { CommandPalette, useRememberRecent } from '@/components/palette/CommandPalette';
 // §102 (ronde 65·b): het vakje dat meteen antwoordt, en de streep na 150 ms.
@@ -474,6 +475,8 @@ export function AppShell({
             {/* §102 (ronde 65·b): één streep, vast bovenaan deze kolom. */}
             <NavProgress label={words.navLoading} />
             <LiveStrip words={words} />
+            {/* Golf M (A3): waar op de pagina je staat, en aankomen waar een ander stond. */}
+            <LiveSpot />
             {/*
              * §84 zette hier de beurs, als pil in de hoek van elke pagina: de
              * voordeur van de meta-progressie. §91 haalde hem weg — op een

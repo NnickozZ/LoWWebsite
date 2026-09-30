@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
+import { goToSpotHere } from './LiveSpot';
 import { useLiveBase } from './LiveProvider';
 import { RosterPopover } from './RosterPopover';
 import { SaveStatus } from './SaveStatus';
@@ -18,10 +19,23 @@ import { useSaveStatus } from './saveRegister';
 export const CONNECTING_WORD_AFTER_MS = 1500;
 
 /**
+ * Golf M (A2): hoeveel schijfjes de strip draagt. Daarboven zegt hij `+n`,
+ * zodat hij op elke breedte in de hoek past en nooit over de rand van het
+ * venster loopt — een tafel van twaalf is vier schijfjes en een `+8`.
+ */
+export const STRIP_DISCS = 4;
+
+/**
  * §21: the shell's own strip — who else is on this page, and whether the line
  * is up. The same coloured initials a board bar shows, in the same ink per
- * person, sitting in the top corner of every page. A page with a strip of its
- * own (a prikbord) turns this one off through `LivePage presence={false}`.
+ * person, sitting in the top corner of every page.
+ *
+ * Golf M (A2): **one strip, top right, on every page** — the prikbord too,
+ * whose own row of discs in its bar is gone (it had no roster, no *Kom
+ * kijken*, and was hidden on a phone, so a phone on a prikbord saw nobody).
+ * The per-sectie row under a live text on an artikel is gone as well: who is
+ * here, and whether the line is up, is said once, here. `LivePage
+ * presence={false}` still turns it off, and no page passes it any more.
  *
  * §60: it reads the *base* value, so a hand moving on the page does not
  * re-render it — and it knows a fourth word. `idle` is a tab that gave its
@@ -107,20 +121,27 @@ export function LiveStrip({ words }: { words: Words }) {
       >
         {/* §96: on a computer the button says what it is — *Wie is er?*, the
             count, the dot — instead of an unlabelled 12 px circle (§85's
-            leftover). Not on a canvas, whose heading keeps room for the strip
-            as it was; and never on a phone, where the corner is too narrow.
+            leftover). Since golf M on a canvas too (the strip hangs in the band
+            above its heading); never on a phone, where the corner is too narrow.
             The accessible name is the same word, so nothing reads it twice. */}
         <span className="live-strip-who" aria-hidden="true">
           {words.presenceHeading}
         </span>
         {here.length > 0 && (
           <span className="board-people" aria-label={`Ook hier: ${here.map((p) => p.name).join(', ')}`}>
-            {here.slice(0, 6).map((person) => (
+            {here.slice(0, here.length > STRIP_DISCS ? STRIP_DISCS - 1 : STRIP_DISCS).map((person) => (
               <span key={person.clientId} className="board-person" style={{ background: person.colour }} title={person.name}>
                 {person.name.slice(0, 1).toUpperCase()}
               </span>
             ))}
-            {here.length > 6 && <span className="board-person board-person-more">+{here.length - 6}</span>}
+            {here.length > STRIP_DISCS && (
+              <span
+                className="board-person board-person-more"
+                title={fill(words.presenceMore, { n: String(here.length - (STRIP_DISCS - 1)) })}
+              >
+                +{here.length - (STRIP_DISCS - 1)}
+              </span>
+            )}
           </span>
         )}
         {elsewhere > 0 && (
@@ -142,20 +163,40 @@ export function LiveStrip({ words }: { words: Words }) {
        * is answered or not. Which is why it may live in the corner of the page
        * rather than in an inbox that would have to be built.
        */}
+      {/*
+       * Golf M (A4): an invitation you accept. *Ga* lands you where the asker
+       * stands — their camera on a canvas, their sectie on an artikel — when
+       * the server let the spot through for you (`spotForViewer`); otherwise
+       * on the page. It is a real button now, not a small link.
+       */}
       {nudge && (
         <div className="roster-nudge" role="status" data-testid="nudge">
           <span className="board-person roster-disc" style={{ background: nudge.colour }} aria-hidden="true">
             {nudge.name.slice(0, 1).toUpperCase()}
           </span>
-          <span className="small">
+          <span className="small roster-nudge-text">
             <strong>{nudge.name}</strong> {words.nudgeAsks} <em>{nudge.label}</em>
+            {nudge.detail && <span className="roster-detail"> · {nudge.detail}</span>}
           </span>
           {nudge.href && (
-            <Link href={nudge.href} className="roster-nudge-go small" onClick={() => live.dismissNudge()}>
-              Ga
+            <Link
+              href={nudge.href}
+              className="btn btn-small btn-primary roster-nudge-go"
+              data-testid="nudge-go"
+              onClick={(event) => {
+                live.dismissNudge();
+                if (goToSpotHere(nudge.href!)) event.preventDefault();
+              }}
+            >
+              {words.nudgeGo}
             </Link>
           )}
-          <button type="button" className="roster-nudge-no" onClick={() => live.dismissNudge()} aria-label="Wegklikken">
+          <button
+            type="button"
+            className="roster-nudge-no"
+            onClick={() => live.dismissNudge()}
+            aria-label={words.nudgeNoFollow}
+          >
             ×
           </button>
         </div>

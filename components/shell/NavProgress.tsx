@@ -2,7 +2,6 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { SkeletonPage, skeletonShapeFor, type SkeletonShape } from '@/components/shell/Skeleton';
 
 /**
  * §102 (ronde 65·b, J2): de streep bovenaan de inhoudskolom die zegt dat een
@@ -10,7 +9,8 @@ import { SkeletonPage, skeletonShapeFor, type SkeletonShape } from '@/components
  *
  * De review mat het: bij 300 ms vertraging stond het scherm 385 ms stil na een
  * klik, bij 900 ms ruim een seconde, zonder enig teken. Dit is de tweede van
- * drie lagen (het vakje, `NavPending`; de streep en het skelet, dit).
+ * twee lagen (het vakje, `NavPending`; de streep, dit). Sinds golf M zijn het
+ * er twee: het skelet is weg, zie hieronder.
  *
  * **Start.** Op een `click` in de *bubble*-fase op `document`, dus ná de eigen
  * handlers, op een `<a>` met een interne `href`, en alleen als:
@@ -34,15 +34,16 @@ import { SkeletonPage, skeletonShapeFor, type SkeletonShape } from '@/components
  * melding die al antwoordt, en een streep bovenop zou twee tekens voor één
  * klik zijn.
  *
- * **Streep of skelet.** Na 150 ms komt er één teken. Gaat de klik naar een
- * route met een vaste vorm (`skeletonShapeFor`: artikel, dossier, wiki-lijst,
- * kamer, winkel, spelerspagina), dan is dat het skelet over de inhoudskolom
- * (`components/shell/Skeleton.tsx`, waar ook staat waarom het geen
- * `loading.tsx` is). Anders is het de streep. Nooit allebei.
+ * **Alleen de streep** (golf M, A1 — draait §102's skelet en de fade om).
+ * De oude pagina blijft staan tot de nieuwe klaar is, en wisselt dan in één
+ * keer, zonder skelet ertussen en zonder dat de nieuwe pagina invervaagt. Nick:
+ * "When I switch tabs on the left hand it blinks? It looks laggy and wrong." Het
+ * skelet (na 150 ms over de kolom) en de fade (van 0,6) waren samen twee
+ * wissels voor één klik; nu is er één. Het vakje dat je aanklikt (`NavPending`,
+ * `data-pending`) antwoordt nog steeds meteen, en de streep komt na 150 ms.
  *
  * **Stop.** Zodra `usePathname()` of `useSearchParams()` wisselt: dan staat de
- * nieuwe pagina er, in dezelfde commit, en gaan streep en skelet in een
- * layout-effect weg vóór er getekend wordt.
+ * nieuwe pagina er, in dezelfde commit, en schiet de streep naar het eind.
  *
  * **Tekening.** Pas zichtbaar na 150 ms (`--dur-3`), zodat een snelle
  * navigatie niet flitst. 2 px, `--accent`, vast bovenaan de inhoudskolom en
@@ -103,13 +104,9 @@ function Bar({ label }: { label: string }) {
   const search = useSearchParams().toString();
   const here = `${pathname}?${search}`;
   const [phase, setPhase] = useState<Phase>('idle');
-  // Welk skelet, als de klik naar een route met een vaste vorm gaat.
-  const [shape, setShape] = useState<SkeletonShape | null>(null);
   const timers = useRef<number[]>([]);
   const phaseRef = useRef<Phase>('idle');
   phaseRef.current = phase;
-  const shapeRef = useRef<SkeletonShape | null>(null);
-  shapeRef.current = shape;
 
   // §102, golf h1 (D3): wat nu `data-pending` draagt, tot de pagina er is.
   const held = useRef<Element | null>(null);
@@ -134,21 +131,16 @@ function Bar({ label }: { label: string }) {
     const onClick = (event: MouseEvent) => {
       const found = startsNavigation(event);
       if (!found) return;
-      const to = found.url;
       clear();
       release();
       held.current = pendingHolder(found.link);
       held.current.setAttribute('data-pending', '');
-      // Een skelet alleen naar een ander pad: een andere zoekvraag op dezelfde
-      // pagina houdt die pagina (en dus zijn vorm) staan.
-      setShape(to.pathname !== window.location.pathname ? skeletonShapeFor(to.pathname) : null);
       // Een tweede klik tijdens een lopende streep laat hem staan.
       if (phaseRef.current !== 'shown') setPhase('waiting');
       timers.current.push(
         window.setTimeout(() => setPhase((now) => (now === 'waiting' ? 'shown' : now)), SHOW_AFTER_MS),
         window.setTimeout(() => {
           setPhase('idle');
-          setShape(null);
           release();
         }, GIVE_UP_MS),
       );
@@ -164,7 +156,7 @@ function Bar({ label }: { label: string }) {
   /*
    * Het adres is gewisseld: de navigatie is aangekomen. Een streep die nog
    * niet te zien was, komt nooit; een die er stond, schiet naar het eind en
-   * vervaagt; een skelet maakt plaats voor de pagina.
+   * vervaagt.
    */
   const first = useRef(here);
   useLayoutEffect(() => {
@@ -175,71 +167,28 @@ function Bar({ label }: { label: string }) {
     const now = phaseRef.current;
     if (now === 'idle' || now === 'done') return;
     clear();
-    if (now === 'waiting' || shapeRef.current) {
-      // Nog niets te zien geweest, of het skelet: de pagina staat er nu, en
-      // het skelet gaat in dezelfde commit weg.
+    if (now === 'waiting') {
+      // Nog niets te zien geweest: een snelle navigatie toont niets.
       setPhase('idle');
-      setShape(null);
       return;
     }
     setPhase('done');
     timers.current.push(window.setTimeout(() => setPhase('idle'), FINISH_MS));
   }, [here]);
 
-  /*
-   * §102 (ronde 68): de inhoudskolom vervaagt in bij een navigatie — maar pas
-   * ná de eerste. Bij het laden van een document staat de pagina er gewoon.
-   * Gezet in een layout-effect, in dezelfde commit als de nieuwe pagina, zodat
-   * er geen beeld tussen zit waarin hij al vol staat en dan wegspringt. Alleen
-   * op een ander pad: een zoekvraag die wisselt, houdt de pagina (Next mount
-   * hem niet opnieuw), en er is dan niets dat in hoeft te komen.
-   */
-  const firstPath = useRef(pathname);
-  useLayoutEffect(() => {
-    if (firstPath.current === pathname) return;
-    document.documentElement.setAttribute('data-navigated', '');
-  }, [pathname]);
+  const shown = phase === 'shown' || phase === 'done';
 
-  const skeleton = phase === 'shown' && shape ? shape : null;
-  const shown = !skeleton && (phase === 'shown' || phase === 'done');
-
-  /*
-   * Het strookje *Wie is er?* is een float in de inhoudskolom, en op een
-   * computer maakt het een artikel smaller. Het skelet krijgt zijn maat
-   * (`--sk-strip-w`/`-h`, zie `app/navigatie.css`), zodat de kolommen van
-   * het skelet dezelfde zijn als die van de pagina die komt.
-   */
-  const cover = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const overlay = cover.current;
-    const strip = document.querySelector<HTMLElement>('.main > .live-strip');
-    if (!overlay || !strip) return;
-    const box = strip.getBoundingClientRect();
-    const style = getComputedStyle(strip);
-    if (style.float !== 'right' || box.width === 0) return;
-    const width = box.width + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
-    const height = box.height + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
-    overlay.style.setProperty('--sk-strip-w', `${Math.max(0, width)}px`);
-    overlay.style.setProperty('--sk-strip-h', `${Math.max(0, height)}px`);
-  }, [skeleton]);
   return (
-    <>
-      <div
-        className="nav-progress"
-        role="progressbar"
-        aria-label={label}
-        aria-hidden={shown ? undefined : true}
-        data-shown={shown ? '1' : '0'}
-        data-done={phase === 'done' ? '1' : undefined}
-      >
-        <span className="nav-progress-bar" />
-      </div>
-      {skeleton && (
-        <div ref={cover} className="nav-skeleton" data-testid="nav-skeleton">
-          <SkeletonPage shape={skeleton} />
-        </div>
-      )}
-    </>
+    <div
+      className="nav-progress"
+      role="progressbar"
+      aria-label={label}
+      aria-hidden={shown ? undefined : true}
+      data-shown={shown ? '1' : '0'}
+      data-done={phase === 'done' ? '1' : undefined}
+    >
+      <span className="nav-progress-bar" />
+    </div>
   );
 }
 

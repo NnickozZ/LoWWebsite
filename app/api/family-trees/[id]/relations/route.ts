@@ -38,19 +38,28 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       fieldKey?: string;
       targetId?: string;
       remove?: boolean;
+      /** Golf M: false from an undo or a redo — never overwrite a one-box field. */
+      replace?: boolean;
       clientId?: string;
     };
     if (!body.entryId || !body.fieldKey || !body.targetId) {
       return json({ error: 'Een lijn heeft twee artikelen en een veld nodig.' }, { status: 400 });
     }
 
-    const result = writeRelation(body.entryId, body.fieldKey, body.targetId, body.remove !== true, user);
+    const result = writeRelation(body.entryId, body.fieldKey, body.targetId, body.remove !== true, user, {
+      replace: body.replace !== false,
+    });
     publishChange(id, typeof body.clientId === 'string' ? body.clientId : null);
 
     // Rebuilt, because the drawing is read off the artikelen: the line that was
     // just written is only in the graph once the field is.
     const after = getFamilyTreeById(id, user)!;
-    return json({ status: result.status, graph: buildFamilyGraph(after, user) });
+    // Golf M (herstel): who a `+` pushed out of a one-box field, so its undo can put them back.
+    return json({
+      status: result.status,
+      ...(result.replaced ? { replaced: result.replaced } : {}),
+      graph: buildFamilyGraph(after, user),
+    });
   } catch (err) {
     return apiError(err);
   }

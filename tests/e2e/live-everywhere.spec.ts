@@ -190,10 +190,11 @@ test('eight tabs share one line, a ninth still navigates, and closing the leader
   tabs.push(ninth);
 
   // Nine tabs, nine people: a tab that gave up its socket did not give up its
-  // place on the strip. Six avatars and a count of the rest.
+  // place on the strip. Golf M (A2): at most four discs in the corner (so it
+  // never runs off the edge) — three people and a count of the other five.
   const strip = ninth.getByTestId('live-strip');
-  await expect(strip.locator('.board-person')).toHaveCount(7, { timeout: 30_000 });
-  await expect(strip.locator('.board-person-more')).toHaveText('+2', { timeout: 30_000 });
+  await expect(strip.locator('.board-person')).toHaveCount(4, { timeout: 30_000 });
+  await expect(strip.locator('.board-person-more')).toHaveText('+5', { timeout: 30_000 });
 
   // Close the tab holding the line. The lock releases, the next tab in the
   // queue takes it, opens a line and everybody says everything again — so a

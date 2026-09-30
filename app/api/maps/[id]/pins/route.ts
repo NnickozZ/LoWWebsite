@@ -1,7 +1,7 @@
 import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
 import { apiError, json } from '@/lib/api';
-import { addPin, getMapById, listPins, type NewPin } from '@/lib/maps/service';
+import { addPin, getMapById, listPins, PIN_NOT_ALLOWED, viewerCanEditMap, type NewPin } from '@/lib/maps/service';
 import { OTHER_SIDE, sameSide } from '@/lib/keeper/side';
 
 export const dynamic = 'force-dynamic';
@@ -18,8 +18,9 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 }
 
 /**
- * §19 with §39: anyone signed in may set a pin — a fiche they can see, a note, or
- * another landkaart they can see (the town on the map of the province).
+ * §19 with §39: a pin is a fiche they can see, a note, or another landkaart
+ * they can see (the town on the map of the province). Golf M: and only whoever
+ * may *edit* this landkaart sets one — a Privé map is looked at, not pinned.
  */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -28,6 +29,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     requireAuthor(user);
     const { id } = await ctx.params;
     if (!getMapById(id, user)) return json({ error: 'Landkaart niet gevonden' }, { status: 404 });
+    // Golf M: the landkaart's Bewerken dial, asked before anything is read.
+    if (!viewerCanEditMap(id, user)) return json({ error: PIN_NOT_ALLOWED }, { status: 403 });
     const body = (await request.json()) as Partial<NewPin> & { x?: unknown; y?: unknown };
     const x = Number(body.x);
     const y = Number(body.y);

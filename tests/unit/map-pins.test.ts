@@ -175,12 +175,25 @@ describe('setting one', () => {
   });
 
   it('refuses a landkaart the writer may not see, rather than storing it', () => {
-    expect(() =>
-      deps.addPin('m-zeeland', { kind: 'map', targetMapId: 'm-huis', x: 0.1, y: 0.1 }, BRAM),
-    ).toThrow(/niet gevonden/i);
+    // Golf M: setting a speld is the landkaart's Bewerken dial, so Bram needs
+    // it before the question of the *target* is even asked.
+    deps.sqlite.prepare(`UPDATE maps SET edit_mode = 'all' WHERE id = 'm-zeeland'`).run();
+    try {
+      expect(() =>
+        deps.addPin('m-zeeland', { kind: 'map', targetMapId: 'm-huis', x: 0.1, y: 0.1 }, BRAM),
+      ).toThrow(/niet gevonden/i);
+    } finally {
+      deps.sqlite.prepare(`UPDATE maps SET edit_mode = 'private' WHERE id = 'm-zeeland'`).run();
+    }
     expect(
       deps.sqlite.prepare(`SELECT count(*) AS n FROM map_pins WHERE target_map_id = 'm-huis'`).get(),
     ).toEqual({ n: 1 });
+  });
+
+  it('golf M: refuses anyone who may only look, whatever the speld points at', () => {
+    expect(() =>
+      deps.addPin('m-zeeland', { kind: 'map', targetMapId: 'm-stad', x: 0.1, y: 0.1 }, BRAM),
+    ).toThrow(/alleen kijken/i);
   });
 
   it('writes no name and no text of its own', () => {

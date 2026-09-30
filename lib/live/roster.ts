@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getWords } from '@/lib/admin/words';
 import { db, schema } from '@/lib/db';
-import type { Viewer } from '@/lib/entries/visibility';
+import { canSeeSection, type Viewer } from '@/lib/entries/visibility';
 import { spelerBySlug, spelerHref } from '@/lib/spelers/service';
 import { canWatch } from './gate';
 import {
@@ -14,6 +14,7 @@ import {
   type Connection,
 } from './hub';
 import { parseRecordKey } from './keys';
+import { parseSpot, spotFitsPlace, withSpot } from './spot';
 import {
   NUDGE_FLOOR_MS,
   REST_TO_TAIL_MS,
@@ -385,6 +386,8 @@ type Window = {
   name: string;
   colour: string;
   place: string | null;
+  /** Golf M (A3): waar op `place` — alleen van de tab die voor dit venster spreekt. */
+  spot?: string | null;
   places: Set<string>;
   verb: RosterVerb;
   freshness: number;
@@ -419,6 +422,7 @@ function windowsNow(now: number): Window[] {
         name: line.name,
         colour: line.colour,
         place: line.place,
+        spot: line.place ? (line.spot ?? null) : null,
         places: new Set(line.place ? [line.place] : []),
         verb,
         freshness,
@@ -430,6 +434,7 @@ function windowsNow(now: number): Window[] {
     if (freshness > existing.freshness) {
       existing.freshness = freshness;
       existing.place = line.place ?? existing.place;
+      existing.spot = line.place ? (line.spot ?? null) : existing.spot;
       existing.verb = verb;
     }
   }
@@ -448,6 +453,9 @@ function windowsNow(now: number): Window[] {
       name: row.name,
       colour: row.colour,
       place: row.place,
+      // Wie even weg is, heeft geen plek meer: de camera van toen is geen
+      // uitnodiging voor nu.
+      spot: null,
       places: new Set(row.place ? [row.place] : []),
       verb: 'kijkt',
       freshness: row.at,
@@ -471,8 +479,54 @@ function peopleById(userIds: string[]): Map<string, Person> {
 }
 
 /**
+ * Golf M (A3): wat een kijker van iemands plek mag weten.
+ *
+ * Een camera alleen als hij bij de plaats zelf hoort (`spotFitsPlace`) — de
+ * plaats is dan al door `canWatch` gekomen, en een camera is alleen getallen.
+ * Een sectie alleen als hij aan díe plaats hangt en de kijker hem mag lezen
+ * (§9: `canSeeSection`, met wat hem onthuld is); dan komt zijn titel mee, want
+ * die staat op de pagina die de kijker mag openen. Anders: niets. Nooit een
+ * lege plek, nooit "een sectie die je niet mag zien".
+ */
+export type SpotAnswer = { spot: string; detail: string | null };
+
+export function spotForViewer(viewer: Viewer, place: string | null, spot: string | null | undefined): SpotAnswer | null {
+  if (!viewer || !place || !spot || !spotFitsPlace(place, spot)) return null;
+  const parsed = parseSpot(spot);
+  if (!parsed) return null;
+  if (parsed.kind === 'camera') return { spot, detail: null };
+  const section = db
+    .select({
+      id: schema.sections.id,
+      ownerKind: schema.sections.ownerKind,
+      ownerId: schema.sections.ownerId,
+      title: schema.sections.title,
+      visibility: schema.sections.visibility,
+    })
+    .from(schema.sections)
+    .where(eq(schema.sections.id, parsed.id))
+    .get();
+  if (!section || `${section.ownerKind}:${section.ownerId}` !== place) return null;
+  const revealed = new Set<string>();
+  if (!viewer.isKeeper && section.visibility === 'players') {
+    const row = db
+      .select({ sectionId: schema.entrySectionReveals.sectionId })
+      .from(schema.entrySectionReveals)
+      .where(and(eq(schema.entrySectionReveals.sectionId, section.id), eq(schema.entrySectionReveals.userId, viewer.id)))
+      .get();
+    if (row) revealed.add(row.sectionId);
+  }
+  if (!canSeeSection(section, viewer, revealed, section.id)) return null;
+  return { spot, detail: section.title.trim() || null };
+}
+
+/**
  * The roster as one viewer may see it. Exported whole so a unit test can ask
  * the question the popover asks, from the other side, without a socket.
+ *
+ * Golf M: `spotOf` says what this viewer may know of a window's *plek* (its
+ * camera or sectie). Left out, no row carries one — which is what a test that
+ * is only about places wants.
  */
 export function rosterFor(
   viewer: { id: string; isKeeper: boolean; windowKey?: string },
@@ -480,6 +534,7 @@ export function rosterFor(
   people: Map<string, Person>,
   allowed: (key: string) => boolean,
   now: number,
+  spotOf: (place: string, spot: string) => SpotAnswer | null = () => null,
 ): RosterFrame {
   const rows: RosterRow[] = [];
   for (const window of windows) {
@@ -496,6 +551,8 @@ export function rosterFor(
     else mode = 'hidden';
 
     const named = mode === 'place' && window.place ? labelOfPlace(window.place, now) : null;
+    // Golf M (A3): de deur gaat naar de plek zelf, als deze kijker die mag weten.
+    const spot = named && window.place && window.spot && !window.resting ? spotOf(window.place, window.spot) : null;
     rows.push({
       id: window.key,
       name: window.name,
@@ -507,7 +564,8 @@ export function rosterFor(
       // row falls back to the placeholder rather than to an empty line.
       mode: named ? 'place' : mode === 'place' ? 'hidden' : mode,
       label: named?.label ?? null,
-      href: named?.href ?? null,
+      href: named?.href ? (spot ? withSpot(named.href, spot.spot) : named.href) : null,
+      detail: spot?.detail ?? null,
       verb: mode === 'quiet' ? 'kijkt' : window.verb,
       resting: window.resting,
       elsewhere: mode === 'quiet' ? 0 : Math.max(0, window.places.size - 1),
@@ -576,7 +634,11 @@ function publishNow() {
         memo.set(memoKey, answer);
         return answer;
       };
-      byAccount.set(line.userId, rosterFor({ id: line.userId, isKeeper: person.isKeeper }, windows, people, allowed, now));
+      const spotOf = (place: string, spot: string) => spotForViewer(viewer, place, spot);
+      byAccount.set(
+        line.userId,
+        rosterFor({ id: line.userId, isKeeper: person.isKeeper }, windows, people, allowed, now, spotOf),
+      );
     }
     const frame = byAccount.get(line.userId)!;
     const mine = windowKey(line.userId, line.name);
@@ -643,6 +705,10 @@ export function nudge(from: Connection, toWindow: string, now = Date.now()): Nud
   if (!canWatch(place, { id: toUserId, isKeeper: person.isKeeper })) return 'refused';
   const named = labelOfPlace(place, now);
   if (!named) return 'refused';
+  // Golf M (A4): de uitnodiging brengt je waar de vrager staat — zijn camera,
+  // zijn sectie — als de ontvanger die plek mag weten. Anders de pagina.
+  const spot = spotForViewer({ id: toUserId, isKeeper: person.isKeeper }, place, from.spot ?? null);
+  const href = named.href && spot ? withSpot(named.href, spot.spot) : named.href;
 
   state.nudges.set(floorKey, now);
   for (const line of lines) {
@@ -656,7 +722,8 @@ export function nudge(from: Connection, toWindow: string, now = Date.now()): Nud
         name: from.name,
         colour: from.colour,
         label: named.label,
-        href: named.href,
+        href,
+        detail: spot?.detail ?? null,
         at: now,
       },
     });

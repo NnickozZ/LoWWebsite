@@ -30,7 +30,7 @@ import {
   restoreCaseRevisionAction,
 } from './actions';
 import { TrashRow } from './TrashRow';
-import { UserRow } from './UserRow';
+import { SpelersLijst } from './SpelersLijst';
 
 export const dynamic = 'force-dynamic';
 
@@ -189,11 +189,8 @@ export default async function AdminPage({
           </p>
 
           <h2 style={{ marginTop: '1.6rem' }}>{words.adminUsers}</h2>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {users.map((user) => (
-              <UserRow key={user.id} user={user} isSelf={user.id === me.id} />
-            ))}
-          </ul>
+          {/* Golf M (C3): zoeken en filteren, in de browser, over deze lijst. */}
+          <SpelersLijst users={users} meId={me.id} />
         </>
       ),
     },

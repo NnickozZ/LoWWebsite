@@ -5,7 +5,8 @@ import { useCallback, useRef, useState, type RefObject } from 'react';
 import { useDismiss } from '@/components/ui/useDismiss';
 import { relativeTime } from '@/lib/diff';
 import type { RosterRow, RosterVerb } from '@/lib/live/rosterWire';
-import type { Words } from '@/lib/words';
+import { fill, type Words } from '@/lib/words';
+import { goToSpotHere } from './LiveSpot';
 import { useLiveBase } from './LiveProvider';
 
 /**
@@ -24,7 +25,9 @@ import { useLiveBase } from './LiveProvider';
  *
  * Three things a row can be, and the middle one is the whole of §76:
  *
- *   place   a link. Clicking it puts you where they are.
+ *   place   a link. Clicking it puts you where they are — since golf M on
+ *           their very spot (their camera, their sectie) when the server let
+ *           it through for you, and with a *Ga naar* button beside it.
  *   hidden  "ergens anders in het archief", and **not a link**. A row that
  *           navigated into a 403 would answer the question the row just
  *           refused to answer.
@@ -61,7 +64,7 @@ export function RosterPopover({
       const answer = await live.sendNudge(row.id);
       const message =
         answer === 'ok'
-          ? 'gevraagd'
+          ? words.nudgeAsked
           : answer === 'refused'
             ? words.nudgeRefused
             : answer === 'soon'
@@ -72,7 +75,7 @@ export function RosterPopover({
       setSaid((current) => ({ ...current, [row.id]: message }));
       setTimeout(() => setSaid((current) => ({ ...current, [row.id]: '' })), 4000);
     },
-    [live, words.nudgeRefused],
+    [live, words.nudgeRefused, words.nudgeAsked],
   );
 
   return (
@@ -82,9 +85,9 @@ export function RosterPopover({
       {others.length === 0 && <p className="roster-alone small muted">{words.presenceAlone}</p>}
 
       <ul className="roster-list">
-        {me && <Row key={me.id} row={me} words={words} onAsk={null} said="" />}
+        {me && <Row key={me.id} row={me} words={words} onAsk={null} said="" onGo={onClose} />}
         {others.map((row) => (
-          <Row key={row.id} row={row} words={words} onAsk={ask} said={said[row.id] ?? ''} />
+          <Row key={row.id} row={row} words={words} onAsk={ask} said={said[row.id] ?? ''} onGo={onClose} />
         ))}
       </ul>
 
@@ -136,12 +139,19 @@ function Row({
   words,
   onAsk,
   said,
+  onGo,
 }: {
   row: RosterRow;
   words: Words;
   onAsk: ((row: RosterRow) => void) | null;
   said: string;
+  /** Golf M: a door out of the list closes the list — the strip stays in the shell. */
+  onGo: () => void;
 }) {
+  const go = (event: React.MouseEvent) => {
+    onGo();
+    if (row.href && goToSpotHere(row.href)) event.preventDefault();
+  };
   const verb = words[VERB_WORD[row.verb]] ?? row.verb;
   const where =
     row.mode === 'place' ? (
@@ -164,6 +174,8 @@ function Row({
   const place = (
     <>
       {where}
+      {/* Golf M (A2): which sectie, when this viewer may read it. */}
+      {row.mode === 'place' && row.detail && <span className="roster-detail"> · {row.detail}</span>}
       {trailing && <> · {trailing}</>}
       {row.elsewhere > 0 && (
         <>
@@ -205,7 +217,7 @@ function Row({
          * that the thing exists — which is exactly what the row refuses to say.
          */}
         {row.href ? (
-          <Link href={row.href} className="roster-where roster-body-link tiny muted">
+          <Link href={row.href} className="roster-where roster-body-link tiny muted" onClick={go}>
             {place}
           </Link>
         ) : (
@@ -214,17 +226,34 @@ function Row({
           </span>
         )}
       </span>
-      {onAsk && !row.resting && (
-        <button
-          type="button"
-          className="roster-ask tiny"
-          onClick={() => onAsk(row)}
-          title={words.nudge}
-          data-nudge-state={said ? said : 'rust'}
-        >
-          {said || words.nudge}
-        </button>
-      )}
+      {/*
+       * Golf M (A3/A4): two clear doors, both always in view (no hover to find
+       * them). *Ga naar* goes where they are; *Kom kijken* asks them here.
+       */}
+      <span className="roster-actions">
+        {!row.self && row.href && (
+          <Link
+            href={row.href}
+            className="roster-go tiny"
+            data-testid="roster-go"
+            aria-label={fill(words.presenceGoToWho, { naam: row.name })}
+            onClick={go}
+          >
+            {words.presenceGoTo}
+          </Link>
+        )}
+        {onAsk && !row.resting && (
+          <button
+            type="button"
+            className="roster-ask tiny"
+            onClick={() => onAsk(row)}
+            title={words.nudge}
+            data-nudge-state={said ? said : 'rust'}
+          >
+            {said || words.nudge}
+          </button>
+        )}
+      </span>
     </li>
   );
 }

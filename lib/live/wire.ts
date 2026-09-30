@@ -116,6 +116,20 @@ export const HIDDEN_CLOSE_MS = 45_000;
 export const POINTER_THROTTLE_MS = 80;
 
 /**
+ * Golf M (samen): en een hand die iets *draagt*, wat vaker. Een pijltje dat
+ * achterloopt valt niemand op; een kaartje dat schokkend over de kurk gaat
+ * wel. De ontvanger laat het tussen twee frames glijden (`lib/canvas/follow.ts`),
+ * maar hoe dichter de frames, hoe kleiner de achterstand. Twintig per seconde,
+ * alleen tijdens een sleep, en alleen als er iemand is om het te zien.
+ */
+export const POINTER_CARRY_THROTTLE_MS = 50;
+
+/** Hoe lang de lijn wacht voor hij het volgende frame verstuurt. */
+export function pointerWait(carrying: boolean, sinceLast: number): number {
+  return Math.max(0, (carrying ? POINTER_CARRY_THROTTLE_MS : POINTER_THROTTLE_MS) - sinceLast);
+}
+
+/**
  * Should a hidden tab close its line now?
  *
  * `hiddenSince` is when the *last* thing that wants the line went away — for a

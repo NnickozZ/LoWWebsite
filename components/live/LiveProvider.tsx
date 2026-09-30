@@ -4,11 +4,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { PublicPerson } from '@/lib/live/hub';
 import type { InkFrame } from '@/lib/ink/types';
 import { NUDGE_TTL_MS, type NudgeFrame, type RosterFrame } from '@/lib/live/rosterWire';
+import { spotFitsPlace } from '@/lib/live/spot';
+import { CARRY_KEEPALIVE_MS, HAND_STALE_MS, carries } from '@/lib/live/hands';
 import { announceAuthorNeeded, isAuthorRefusal } from '@/lib/authorSignal';
 import {
   HIDDEN_CLOSE_MS,
-  POINTER_THROTTLE_MS,
   backoffDelay,
+  pointerWait,
   shouldCloseHidden,
   shouldKeepalive,
   splitUpdates,
@@ -160,6 +162,13 @@ export type LiveValue = {
   /** Where the tab stands, and (optionally) what it is holding there. */
   setPlace: (place: string | null, holding?: string[]) => void;
   setHolding: (holding: string[]) => void;
+  /**
+   * Golf M (A3): waar op de plaats deze tab staat — een camera of een sectie
+   * (`lib/live/spot.ts`). Alleen iets dat bij de huidige plaats past; een
+   * nieuwe plaats begint zonder. De schil zegt het (`useSpotReport`), pas als
+   * de hand stil ligt.
+   */
+  setSpot: (spot: string | null) => void;
   reportPointer: (frame: PointerFrame | null) => void;
   /** §33: frames of a stroke this tab is drawing, for everyone else at its place. */
   reportInk: (frames: InkFrame[]) => void;
@@ -326,6 +335,8 @@ type Outgoing = {
   alias?: string | null;
   watch?: string[];
   place?: { key: string; holding?: string[] } | null;
+  /** Golf M (A3): waar op `place`. Merged below, like every field here (§76's lesson). */
+  spot?: { place: string; at: string | null } | null;
   cursor?: PointerFrame;
   ink?: InkFrame[];
   join?: { key: string; y: number }[];
@@ -375,6 +386,8 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
   const connectionRef = useRef<string | null>(null);
   const watchCounts = useRef<Map<string, number>>(new Map());
   const placeRef = useRef<{ key: string; holding: string[] } | null>(null);
+  /** Golf M (A3): waar op `placeRef` — de laatste plek die de hand stil liet liggen. */
+  const spotRef = useRef<{ place: string; at: string } | null>(null);
   const rooms = useRef<Map<string, { yClient: number; handlers: RoomHandlers }>>(new Map());
   const changeListeners = useRef<Set<(keys: string[], info: ChangeInfo) => void>>(new Set());
   const inkListeners = useRef<Set<(clientId: string, frames: InkFrame[]) => void>>(new Set());
@@ -624,6 +637,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
         if (partial.alias !== undefined) current.alias = partial.alias;
         if (partial.watch) current.watch = partial.watch;
         if (partial.place !== undefined) current.place = partial.place;
+        if (partial.spot !== undefined) current.spot = partial.spot;
         if (partial.cursor) current.cursor = partial.cursor;
         if (partial.ink) current.ink = [...(current.ink ?? []), ...partial.ink];
         if (partial.join) current.join = [...(current.join ?? []), ...partial.join];
@@ -669,10 +683,13 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
     // lives in this browser (and in the hub's memory), never in a column —
     // which is why a new line has to re-assert it or the Keeper reappears on
     // everybody's roster the first time his socket blinks.
+    // Golf M: de plek hoort bij de plaats, en een verse lijn kent geen van beide.
+    const spot = spotRef.current && spotRef.current.place === place?.key ? spotRef.current : undefined;
     void post({
       alias: aliasRef.current,
       watch,
       place,
+      ...(spot ? { spot } : {}),
       join,
       ...(invisibleRef.current ? { ghost: true } : {}),
     });
@@ -1342,21 +1359,42 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
 
   /* ------------------------------------------------------------ pointers */
 
+  /**
+   * Golf M (samen): wanneer elke hand voor het laatst iets zei. Niet in
+   * `pointerMap`: een frame dat hetzelfde zegt als het vorige (de herhaling van
+   * een hand die stil vasthoudt, `CARRY_KEEPALIVE_MS`) verandert die map niet
+   * — met opzet, zie `samePointer` — maar het zegt wel dat de hand er nog is.
+   */
+  const lastSeen = useRef<Map<string, number>>(new Map());
+
   useEffect(() => {
     const sweep = setInterval(() => {
       setPointerMap((current) => {
-        const cutoff = Date.now() - POINTER_TTL_MS;
+        const now = Date.now();
+        const cutoff = now - POINTER_TTL_MS;
+        const stale = now - HAND_STALE_MS;
         let changed = false;
         const next = new Map(current);
         for (const [id, pointer] of next) {
-          if (pointer.at < cutoff || (pointer.x === null && !pointer.s)) {
+          const seen = lastSeen.current.get(id) ?? pointer.at;
+          if (seen < cutoff || (pointer.x === null && !pointer.s)) {
             next.delete(id);
+            lastSeen.current.delete(id);
+            changed = true;
+          } else if (seen < stale && Object.keys(pointer.m).length) {
+            /*
+             * Golf M (samen): een hand die iets droeg en al `HAND_STALE_MS`
+             * zweeg, heeft losgelaten — de tab bevroor, de lijn viel weg. Wat
+             * ze droeg is dan niet meer van haar (`lib/live/hands.ts`); het
+             * pijltje mag nog even blijven staan.
+             */
+            next.set(id, { ...pointer, m: {} });
             changed = true;
           }
         }
         return changed ? next : current;
       });
-    }, 2000);
+    }, 1000);
     return () => clearInterval(sweep);
   }, []);
 
@@ -1376,6 +1414,14 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
     const buffered = frameBuffer.current;
     if (!buffered.size) return;
     frameBuffer.current = new Map();
+    /*
+     * Golf M (herstel): a hand that is dropped below is forgotten here too —
+     * outside the updater, which React may run later (or twice), after a new
+     * frame of the same hand already said it is back.
+     */
+    for (const [id, pointer] of buffered) {
+      if (pointer.x === null && !pointer.s && !Object.keys(pointer.m).length) lastSeen.current.delete(id);
+    }
     setPointerMap((current) => {
       let changed = false;
       const next = new Map(current);
@@ -1402,6 +1448,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
   }, []);
   const pushFrame = useCallback(
     (pointer: LivePointer) => {
+      lastSeen.current.set(pointer.clientId, pointer.at);
       frameBuffer.current.set(pointer.clientId, pointer);
       if (frameRaf.current !== null) return;
       frameRaf.current =
@@ -1422,9 +1469,49 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
   const lastFrame = useRef(0);
   const frameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextFrame = useRef<PointerFrame | null>(null);
+  /** Golf M (samen): het laatste frame dat de lijn op ging, en de herhaling ervan. */
+  const sentFrame = useRef<PointerFrame | null>(null);
+  const keepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** How many other people are standing where this tab stands. Read without re-rendering. */
   const peopleCount = useRef(0);
   peopleCount.current = people.length;
+  const sendFrame = useCallback(
+    (frame: PointerFrame) => {
+      lastFrame.current = Date.now();
+      sentFrame.current = frame;
+      void post({ cursor: frame });
+      /*
+       * Golf M (samen): een hand die iets draagt, zegt het elke seconde
+       * opnieuw, ook als ze stil ligt. Anders zou een ander na `HAND_STALE_MS`
+       * denken dat ze losliet (het zachte slot, `lib/live/hands.ts`) terwijl ze
+       * het kaartje gewoon vasthoudt en nadenkt.
+       */
+      if (keepTimer.current) clearTimeout(keepTimer.current);
+      keepTimer.current = null;
+      if (!carries(frame)) return;
+      const again = () => {
+        keepTimer.current = null;
+        const last = sentFrame.current;
+        if (!last || !carries(last) || !placeRef.current || !peopleCount.current) return;
+        if (Date.now() - lastFrame.current < CARRY_KEEPALIVE_MS) {
+          keepTimer.current = setTimeout(again, CARRY_KEEPALIVE_MS - (Date.now() - lastFrame.current));
+          return;
+        }
+        lastFrame.current = Date.now();
+        void post({ cursor: last });
+        keepTimer.current = setTimeout(again, CARRY_KEEPALIVE_MS);
+      };
+      keepTimer.current = setTimeout(again, CARRY_KEEPALIVE_MS);
+    },
+    [post],
+  );
+  useEffect(
+    () => () => {
+      if (keepTimer.current) clearTimeout(keepTimer.current);
+      if (frameTimer.current) clearTimeout(frameTimer.current);
+    },
+    [],
+  );
   const reportPointer = useCallback(
     (frame: PointerFrame | null) => {
       if (!placeRef.current) return;
@@ -1435,19 +1522,35 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
        */
       if (!peopleCount.current) {
         nextFrame.current = null;
+        sentFrame.current = null;
         return;
       }
-      nextFrame.current = frame ?? { x: null, y: null, m: {}, s: null };
+      const incoming = frame ?? { x: null, y: null, m: {}, s: null };
+      /*
+       * Golf M (samen): de laatste plek van een sleep gaat nooit verloren. Een
+       * frame dat iets droeg en nog wachtte, gevolgd door een dat niets draagt
+       * (de hand liet los), vielen hier samen tot het tweede — en dan hoorde
+       * niemand anders ooit wáár het kaartje neergezet werd. Het dragende gaat
+       * dan eerst, meteen; het lege wacht zijn beurt af.
+       */
+      const pending = nextFrame.current;
+      if (frameTimer.current && pending && carries(pending) && !carries(incoming)) {
+        clearTimeout(frameTimer.current);
+        frameTimer.current = null;
+        nextFrame.current = null;
+        sendFrame(pending);
+      }
+      nextFrame.current = incoming;
       if (frameTimer.current) return;
-      const wait = Math.max(0, POINTER_THROTTLE_MS - (Date.now() - lastFrame.current));
+      const wait = pointerWait(carries(incoming), Date.now() - lastFrame.current);
       frameTimer.current = setTimeout(() => {
         frameTimer.current = null;
-        lastFrame.current = Date.now();
-        if (nextFrame.current) void post({ cursor: nextFrame.current });
+        const next = nextFrame.current;
         nextFrame.current = null;
+        if (next) sendFrame(next);
       }, wait);
     },
-    [post],
+    [sendFrame],
   );
 
   /** §33: a stroke's frames ride the same POST as everything else; the hook that draws batches them. */
@@ -1507,9 +1610,32 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
       if (previous?.key !== place) {
         setPeople([]);
         setPointerMap(new Map());
+        // Golf M (samen): wat deze hand op de vorige plaats droeg, draagt ze hier niet.
+        sentFrame.current = null;
+        // Golf M: een nieuwe plaats begint zonder plek (de hub doet hetzelfde).
+        spotRef.current = null;
       }
       placeRef.current = next;
       void post({ place: next });
+    },
+    [post],
+  );
+
+  /**
+   * Golf M (A3): waar op de plaats. Hoort de plek niet bij de plaats waar deze
+   * tab staat (een tijdlijn in een dossier, een camera van een vlak dat al weg
+   * is), dan gaat hij niet de lijn op — de server zou hem toch weigeren.
+   */
+  const setSpot = useCallback(
+    (at: string | null) => {
+      const place = placeRef.current?.key;
+      if (!place) return;
+      if (at && !spotFitsPlace(place, at)) return;
+      const previous = spotRef.current;
+      if (previous?.place === place && previous.at === at) return;
+      if (!at && !previous) return;
+      spotRef.current = at ? { place, at } : null;
+      void post({ spot: { place, at } });
     },
     [post],
   );
@@ -1660,6 +1786,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
       setAlias,
       setPlace,
       setHolding,
+      setSpot,
       reportPointer,
       reportInk,
       onInk,
@@ -1683,6 +1810,7 @@ export function LiveProvider({ children, userId = '' }: { children: ReactNode; u
       setAlias,
       setPlace,
       setHolding,
+      setSpot,
       reportPointer,
       reportInk,
       onInk,

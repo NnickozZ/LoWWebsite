@@ -42,8 +42,17 @@ export type RosterRow = {
   mode: RosterPlaceMode;
   /** Only ever set when `mode` is `place`. */
   label: string | null;
-  /** Where clicking goes. Null means the row is not a link — see rule 2 of §76. */
+  /**
+   * Where clicking goes. Null means the row is not a link — see rule 2 of §76.
+   * Golf M: carries `?waar=` (their camera or sectie) when this viewer may
+   * know it — see `spotForViewer` in `roster.ts`.
+   */
   href: string | null;
+  /**
+   * Golf M: which sectie of the page, by its title, when this viewer may read
+   * that sectie. Only ever set beside `mode: 'place'`.
+   */
+  detail?: string | null;
   verb: RosterVerb;
   /** §60: every tab of this window has given its socket back. Greyed, not gone. */
   resting: boolean;
@@ -74,6 +83,8 @@ export type NudgeFrame = {
   colour: string;
   label: string;
   href: string | null;
+  /** Golf M: the sectie the asker is reading, when the recipient may read it too. */
+  detail?: string | null;
   at: number;
 };
 

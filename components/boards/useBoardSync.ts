@@ -440,6 +440,23 @@ export function useBoardSync({
     dirty.current.strings.delete(id);
   }, []);
 
+  /**
+   * Golf M (samen): a change this hand gave up before it was saved — a drag
+   * that lost the tie to somebody else's hand (`lib/live/hands.ts`). The cards
+   * are back where the archive has them, and staying in the dirty set would
+   * make `pending()` shield them from the other hand's drop and the next save
+   * post the old spot over it.
+   */
+  const untouch = useCallback((cardIds: readonly string[]) => {
+    for (const id of cardIds) dirty.current.cards.delete(id);
+  }, []);
+
+  /**
+   * Golf M (herstel): the cards waiting for the next save, right now — so a
+   * drag can remember which were dirty before it and `untouch` only its own.
+   */
+  const dirtyCards = useCallback((): Set<string> => new Set(dirty.current.cards), []);
+
   useEffect(() => {
     const onHide = () => void flush();
     window.addEventListener('pagehide', onHide);
@@ -497,6 +514,8 @@ export function useBoardSync({
     noteDeletedCard,
     noteDeletedString,
     noteRestored,
+    untouch,
+    dirtyCards,
   };
 }
 

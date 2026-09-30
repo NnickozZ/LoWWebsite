@@ -18,7 +18,8 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 146 bestanden, 2649 tests na golf L; 145 / 2633 na golf K; 144 / 2618 na golf J (branch
+npx vitest run         # 155 bestanden, 2755 tests na golf M·herstel; 153 / 2739 na golf M; 146 / 2649 na golf L;
+                       # 145 / 2633 na golf K; 144 / 2618 na golf J (branch
                        # `gevoel`, 4afc3a5); 140 / 2557 na golf I
                        # (d1dc532); 137 / 2487 na golf H;
                        # 134 / 2441 na rondes 65–67 en hun
@@ -157,7 +158,7 @@ Rough calibration from past rounds:
 | `npm run build` | Production build. |
 | `npx playwright test` | Full suite, desktop + phone, ~20 min. |
 | `npx playwright test tests/e2e/x.spec.ts --project=desktop` | One spec, ~2–4 min. Use this while iterating. |
-| `E2E_DEV=1 npx playwright test` | Same specs under React Strict Mode, where updaters double-invoke. Run it after touching pointer handling, refs, or a provider. |
+| `E2E_DEV=1 npx playwright test` | Same specs under React Strict Mode, where updaters double-invoke. Run it after touching pointer handling, refs, or a provider. **One spec at a time** (golf M): in a combined run the dev `next-server` climbs to ~4 GB. The glide case in `golf-m-samen.spec.ts` skips itself under `E2E_DEV` (it measures a production build). |
 
 **Never run two Playwright invocations at once** in one working tree — they
 share port 3101 and `data-e2e/`. One at a time, always. Sinds ronde 65 is
@@ -210,7 +211,8 @@ freely there.
   markers pointing at them. A new rule gets the next number *and* the code
   markers to match. Check `grep -rn "§[5-9][0-9]\|§1[0-9][0-9]" app components lib`
   before choosing a number (the old pattern `§[5-9][0-9]` stops at 99) — the
-  latest is **§107 / rule 107**, so the next rule is **§108**. **Golf I** (na
+  latest is **§108 / rule 108** (golf M; its code markers still say
+  `Golf M (samen)`, not `§108`), so the next rule is **§109**. **Golf I** (na
   golf H en design-review 4, `REVIEW4.md`; drie worktrees i1/i2/i3 op
   `gevoel`, samengevoegd als `d1dc532`) voegde er drie toe, elk met een eigen
   laag in `app/layout.tsx` na `leeskamer.css`: **§105** (i1, de tekenvlakken
@@ -269,6 +271,28 @@ freely there.
   `burnt`, `seal`); het kurk en de punaise in een nieuwe laag
   `app/tekens.css`; het merk als icoontje (`public/merk.svg`, `lib/merk.ts`).
   Geen migratie. Zie `tests/unit/golf-l.test.ts`.
+  **Golf M** (Nick, 29 september 's avonds: de knipperende tabwissel, *Wie is
+  er?* overal rechtsboven, naar iemand toe gaan en iemand roepen, de rechten
+  op een landkaart, de tijdlijn aan de randen, Gebruikers zoeken, samen op
+  een vlak, en de stamboom; vijf werkstromen, `91e1e41..5c61b6e`) gaf
+  **één nieuw nummer, §108** (samen op een vlak: `lib/canvas/follow.ts` +
+  `useFollow` laten wat een ander draagt glijden, `lib/live/hands.ts` +
+  `useSoftLock` zijn het zachte slot, `POINTER_CARRY_THROTTLE_MS` 50 ms,
+  `goneByOthers`/`revive`). Het draait vier dingen om: het skelet en de fade
+  van §102 (alleen de streep, `Skeleton.tsx`/`skeletonShape.ts` weg), ronde
+  57's *Wie is er?* niet op een tekenvlak (de strip staat overal, het
+  prikbord heeft geen eigen rij), "wie een speld zette is de baas" (§19; nu
+  `viewerCanEditMap` voor elke speld, §40) en §29/§66's undo zonder veld (op
+  de stamboom zet Ctrl+Z een ref gericht terug, `lib/families/undoSteps.ts`).
+  Verder: de plek op de plek (§76, `lib/live/spot.ts`, `?waar=`,
+  `spotForViewer`, `LiveSpot`), de ring om de speld zelf (`lib/maps/held.ts`),
+  `stableRanks`/`anchorOnGlass` op de tijdlijn (§62), `askedFor` voor
+  `?event=` (§94), `spelerPast` in Beheer (§107), en de QOL van de stamboom
+  (§67: `TreeLineHandle`, `TreeContextMenu`, `lib/families/connect.ts`,
+  `lib/families/lineage.ts`). Geen migratie; drie bestanden weg
+  (`components/editor/LivePeople.tsx`, `components/shell/Skeleton.tsx`,
+  `components/shell/skeletonShape.ts`). Zie `tests/unit/golf-m-*.test.ts` en
+  `tests/e2e/golf-m-*.spec.ts`.
   Rondes 65–67
   (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
   worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
@@ -279,7 +303,8 @@ freely there.
   kruisje en de achtergrond (`exit`, `onLeave`); `ToastView` pauzeert, 6 s of
   10 s met een knop; `NavPending` + `NavProgress` + `Skeleton`: het vakje
   meteen, na 150 ms een skelet of een streep, geen `loading.tsx`; de pagina
-  vervaagt in vanaf 0,6; de voorbeeldkaart die je kunt pakken (`data-reach`,
+  vervaagt in vanaf 0,6 (skelet en fade sinds golf M weg: alleen de streep);
+  de voorbeeldkaart die je kunt pakken (`data-reach`,
   500/250 ms, Escape); de cirkel van de omslag terug als cross-document view
   transition achter `FLIP_SCRIPT` en een verse `lw:flip`; in Lezen vraagt
   niets naar de schrijver; de FAB wijkt op een leespagina. Geen migratie),
@@ -706,13 +731,16 @@ freely there.
 - **A page stands in the middle of the column** (golf K, reversing golf H's
   D5). `.page` (900 px) and `.page-wide` (1440 px, was 1200) are
   `margin: 0 auto`. The lists behind the archive's tabs (prikborden,
-  tijdlijnen, stambomen, like landkaarten and dossiers) are `.page-wide`, and
-  so is their skeleton (`rows` in `Skeleton.tsx`), so everything under *Het
-  archief* keeps one left edge. A new list page of the archive is
-  `.page-wide`; a form or a personal page is `.page`. From 1880 px the live
-  strip hangs in the column's corner instead of floating, because a float
-  pushes a page that is its own formatting context (a grid, like Start) out
-  of the middle.
+  tijdlijnen, stambomen, like landkaarten and dossiers) are `.page-wide`, so
+  everything under *Het archief* keeps one left edge. A new list page of the
+  archive is `.page-wide`; a form or a personal page is `.page`. From 1880 px
+  the live strip hangs in the column's corner instead of floating, because a
+  float pushes a page that is its own formatting context (a grid, like Start)
+  out of the middle. **Since golf M the strip's place is one block in
+  `app/navigatie.css`**, one rule per width (a float from 768 to 1879 px on
+  an ordinary page; absolute in the band above the page on a canvas and
+  from 1880 px), on every page including the prikbord. Move it there and
+  nowhere else.
 - **An artikel's omslag is whole on every width** (golf K, reversing §104
   L5): `CoverEditor` has no `landscape` any more, and under 1280 px the
   figure is a card (`.entry-aside-box-stacked > .entry-figure`, the golf k
@@ -1309,8 +1337,12 @@ freely there.
   `{ state, graph }` and both must be applied *around* whatever this hand has
   not saved (`pending()`). §61's rule is intact: a save says only what this hand
   touched, absence is never a deletion, a tombstone is. Undo
-  (`components/families/treeUndo.ts`) covers the tree's **own** state only —
-  never a field on an artikel, for §29's reason.
+  (`components/families/treeUndo.ts`) covers the tree's **own** state ~~only —
+  never a field on an artikel, for §29's reason~~ **and since golf M also the
+  one ref a `+` or *Lijn verwijderen* wrote, sent back targeted through
+  `writeRelation` (`lib/families/undoSteps.ts`), never a whole field**; a ref
+  already in place is `unchanged`, and a one-box link somebody else now holds
+  is left alone (`replace: false`). Redo is Ctrl+Shift+Z / Ctrl+Y.
 - **Three counts on a stamboom are per viewer, and one is not stored at all**
   (§66). `memberCount` on the shelf counts only the members *this* reader may
   see (a shelf saying "12" about eleven secrets counts the secrets out loud);
@@ -1648,7 +1680,11 @@ freely there.
   three, and `tests/unit/ronde-55-tekenvlakken.test.ts` holds the pure halves.
   A maker sends you to its new canvas through `freshHref(path)` (`?new=1`),
   which `useCanvasMode` reads once and strips a frame later; do not invent a
-  second "just made" flag.
+  second "just made" flag. **Since golf M a new canvas reports and receives
+  its spot for free by using `readCamera`/`writeCamera`** (`onCameraWrite`
+  feeds `LiveSpot`, and `readCamera` takes a `?waar=` camera once). Never
+  write a camera to `sessionStorage` directly, or *Ga naar* and *Kom kijken*
+  cannot land on it (§76, `lib/live/spot.ts`).
 - **Opening is not fitting** (§94). The prikbord and the stamboom open with
   `readableFit(bounds, stage, readingFloor(nameSize))`, never below a 10 px
   name; the *Alles in beeld* button still calls the plain fit and shows
@@ -1733,17 +1769,17 @@ freely there.
   `exit={false}`. Een bevestigingsvraag antwoordt in `onLeave`, nooit na de
   uitgang.
 - **Er is geen `loading.tsx` in `app/(app)`, en dat is gemeten** (§102, zie
-  §8). Het skelet is `NavProgress` + `components/shell/Skeleton.tsx`, alleen in
-  de browser, en welke route welke vorm heeft staat in `skeletonShapeFor`.
+  §8), **en sinds golf M ook geen skelet**: `NavProgress` tekent alleen de
+  streep, en de oude pagina blijft staan tot de nieuwe er is.
   `aria-current` volgt de pagina, niet de klik; `data-pending` volgt de klik.
 - **Alleen de omslag krijgt een pagina-overgang** (§102).
   `@view-transition { navigation: auto }` staat aan voor elk document, en
   `FLIP_SCRIPT` in de `<head>` van `app/layout.tsx` slaat hem over bij
   `pageswap` en `pagereveal` zonder verse `lw:flip`. Schrijf die notitie
   nergens anders dan in `SideToggle.flip()` met een aanwijzer als oorsprong, en
-  zet er nooit een tweede inline script bij. Voor gewone navigaties is er
-  alleen de fade van `nav-page-in` (ronde 68, de lichte variant); een morph
-  komt er niet.
+  zet er nooit een tweede inline script bij. Een gewone navigatie heeft geen
+  overgang: sinds golf M wisselt de pagina in één keer (`nav-page-in` en
+  `nav-page-fade` zijn weg); een morph komt er niet.
 - **Een melding en de FAB weten waar ze elkaar vinden** (§102, herstel).
   `UiProvider` schrijft de hoogte van de meldingenstapel naar `--toast-stack`
   op `:root`, en `.fab` klimt die hoogte omhoog. Een pagina met een plakkende
@@ -1771,6 +1807,19 @@ freely there.
   `holdBeforeRefresh` met een §59-hold tot *Gekocht* geland is, plus
   `--dur-5`. Een nieuwe knop die een moment tekent vóór de rij wisselt, doet
   hetzelfde, anders ververst `LivePage` hem na 150 ms weg.
+- **Wat een ander draagt, glijdt, en is zacht op slot** (§108, golf M). Op
+  een tekenvlak zet de hand wat ze sleept in `m`; een ander volgt het met
+  `useFollow` (`lib/canvas/follow.ts`, een `translate` over elk element met
+  `data-follow`) en vraagt het slot met `useSoftLock` (`lib/live/hands.ts`).
+  Zet nooit een CSS-`transition` op `left`/`top` van iets dat een ander
+  draagt: twee versnellingen op één ding vechten. Het slot is beleefdheid:
+  de server weigert er niets op, en openen en lezen mogen altijd. Een oude
+  Ctrl+Z brengt niet terug wat een ander weghaalde (`goneByOthers`; op de
+  stamboom alleen `revive` in de patch).
+- **Een speld is van wie de landkaart mag bewerken** (§40, golf M):
+  `viewerCanEditMap` voor zetten, verschuiven, herschrijven, laag, weghalen
+  en terugzetten, en voor de kamer `pin:{id}:fields`. Vraag nooit meer
+  `pin.createdBy === viewer.id`.
 - **Plek-iconen botsen niet met soort-iconen** (§103, herstel):
   `tests/unit/ronde-66-herstel.test.ts` leest de iconen uit `lib/db/seed.mjs`.
   Botsingen buiten de plekken staan nog open: `home` (kamer en Huisraad).
@@ -2467,12 +2516,23 @@ mistakes. Check yours against these before declaring a spec finished.
   inspector is a scroll, and the browser answers it with `pointercancel`.
 - **On a phone a canvas's panel is a `.canvas-peek` with its own `Sluiten`**
   (§74), so scope any `Sluiten` locator to the dialog you mean.
-- **Een vertraagde navigatie tekent `.nav-skeleton` of
-  `.nav-progress[data-shown="1"]`** (§102). Zoek het skelet op
-  `getByTestId('nav-skeleton')`, niet op `.skeleton` met `.first()` (de
-  wegwijzer van een artikel is onder 1280 px `display: none`, en sinds golf H
-  is hij pas vanaf 1500 px een kolom). Wacht na een
+- **Een vertraagde navigatie tekent alleen `.nav-progress[data-shown="1"]`**
+  (§102); `nav-skeleton` bestaat sinds golf M niet meer, en de oude pagina
+  staat er nog tot de nieuwe er is. Wacht na een
   `goto` niet op `networkidle`: de live-lijn staat altijd open.
+- ***Wie is er?* heeft op elke rij `roster-go` (*Ga naar*) en `.roster-ask`
+  (*Kom kijken*)**, altijd in beeld, en de uitnodiging heeft `nudge-go`
+  (*Ga*) (§76, golf M). Een plek gaat pas de lijn op na 700 ms stilte
+  (`SPOT_SETTLE_MS`): wacht tot de `href` van de deur `?waar=` draagt, zoals
+  `golf-m-aanwezig.spec.ts` doet. Het prikbord heeft geen eigen rij
+  schijfjes meer; de strip van de schil staat er.
+- **Een venster op een tijdlijn waarvan de tag buiten beeld is, bestaat niet
+  als `.timeline-popout`** (§62, golf M): het blijft open maar wordt niet
+  getekend. Een spec die vensters telt, drukt eerst *Alles in beeld*.
+- **Op een landkaart die de kijker niet mag bewerken, is er geen
+  Lezen/Bewerken-schakelaar en geen *Speld zetten*** (§40, golf M), en de
+  API antwoordt 403. `edit_mode` begint op `'private'`: een spec die een
+  speler een speld laat zetten, zet de kaart eerst op *Iedereen*.
 - **Een blad dat je met het kruisje sluit, is nog 150 ms in de DOM**
   (§102), met `data-closing` en `inert`. Wacht op `toHaveCount(0)` of
   `toBeHidden()`, niet op een vaste pauze; met Escape is het meteen weg.
@@ -2516,9 +2576,10 @@ mistakes. Check yours against these before declaring a spec finished.
 - **Een tijd tot `data-pending` meet je vanaf een listener op `window` in de
   capture-fase** (§102, golf H): `NavProgress` zet het teken in de capture-fase
   op `document`, en een `MutationObserver` loopt tussen twee listeners.
-- **Een streep zonder skelet vraag je nu aan Beheer of Zoeken** (§102, golf H,
+- ~~**Een streep zonder skelet vraag je nu aan Beheer of Zoeken** (§102, golf H,
   T7): Dossiers, Prikborden, Landkaarten, Tijdlijnen, Stambomen, Spelers,
-  Start en de wiki hebben een skelet.
+  Start en de wiki hebben een skelet.~~ Sinds golf M is er nergens een
+  skelet; elke vertraagde navigatie is de streep.
 - **De dichte plekken staan niet meer in `getByTestId('kamer-grid')`** (§103,
   golf H) maar in `kamer-dicht`. Let op: de CSS-klasse `.kamer-grid` staat op
   allebei de lijsten, dus zoek op de testid. Een telefoon verbergt in
@@ -2695,7 +2756,50 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J and K
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J, K, L and M
+
+*Golf M (29 september 's avonds; Nick: de knipperende tabwissel, *Wie is
+er?* overal rechtsboven, naar iemand toe en iemand roepen, de rechten op een
+landkaart, de tijdlijn aan de randen, Gebruikers zoeken, samen op een vlak,
+de stamboom) is gebouwd in vijf werkstromen: A de schil en de aanwezigheid
+(`65f8499`), B de landkaart (`72331cc`), C de tijdlijn en Beheer
+(`cebad02`), D de stamboom (`9eacf53`) en E samen (`5c61b6e`, §108). Eén
+nieuw nummer, geen migratie. **Drie bestanden zijn weg, en dat is werk voor
+Nick** (§7): `git rm components/editor/LivePeople.tsx
+components/shell/Skeleton.tsx components/shell/skeletonShape.ts`.*
+
+**Leftovers — golf M, allemaal met opzet genoemd.** Hij sloot uit golf K de
+helft van *Wie is er?* vanaf 1880 px (zie hieronder), en uit ronde 46 het
+laatste stuk van de strip: hij staat nu ook op een tekenvlak.
+
+- ~~Dode CSS van het skelet en vijf dode `EXCEPTIONS`-regels~~ — opgeruimd in
+  golf M·herstel (`30945ce`), samen met de dode `::view-transition-new(root)`-rij.
+- **Een undo-stap op de stamboom bewaart nog het hele document** als
+  momentopname: wie een `+` ongedaan maakt terwijl er tijdens het wachten op het
+  net een sleep landde, zet die sleep ook terug (golf M·herstel).
+- **Het `setHolding`-effect van de landkaart ruimt niet op bij het afbreken**
+  (de tijdlijn wel, sinds golf M·herstel); `LiveProvider` wist het wel bij een
+  plaatswissel.
+- **De baanwissel van een tag op de tijdlijn glijdt niet**: alleen de
+  gedragen tag volgt de veer; een tag die door een ander een baan opschuift,
+  springt.
+- **Geen e2e voor het zachte slot op de landkaart**; de regels zelf
+  (`lib/live/hands.ts`) hebben hun unit-test in `golf-m-samen.test.ts`.
+- **Verbinden door een `+` te slepen kan alleen met een muis of pen**, niet
+  met een vinger.
+- ***Opnieuw doen* staat niet in de werkbalk van een telefoon**
+  (`.tree-redo` is daar `display: none`).
+- **Ongedaan maken van een *+ kind* haalt het artikel niet weg** dat die `+`
+  maakte: alleen de lijn gaat terug.
+- **Een `E2E_DEV=1`-run van meer dan één spec** laat de dev-`next-server`
+  oplopen tot ±4 GB; draai ze één tegelijk (zie §3). De glijproef in
+  `golf-m-samen.spec.ts` slaat zichzelf over onder `E2E_DEV`.
+- **Playwright na golf M** (volle suite vóór het herstel, 1008 zaken): 770
+  passed / 236 skipped / 2 rood — `per-place-crops` (de bekende) en
+  `timelines.spec.ts:76` op desktop, dat alleen en in de herstelrun groen was
+  (de §21-tel "de tekst landt nog": een toets in die tel valt vóór de chip).
+  Na het herstel 15 specs over alle vlakken en de aanwezigheid opnieuw: 161
+  passed / 69 skipped / 0 rood.
 
 *Golf L (29 september; Nick: de tekens, en een kaal donker prikbord) is in
 één werkboom gebouwd, na een index van elke vorm op de site. Geen nieuw
@@ -2741,6 +2845,11 @@ de labels van twee regels op de tijdlijn en de plaatser voor kaartlabels.
   het niet, daarboven wel.
 - **Tussen ±1700 en 1880 px zweeft *Wie is er?* nog**, en duwt daar Start (een
   raster) tot 65 px uit het midden. Vanaf 1880 px hangt hij in de hoek.
+  *Half gesloten in golf M:* vanaf 1880 px hing hij pas sinds golf M echt in
+  de hoek (daarvoor won golf h1's `position: relative` van deze `absolute`,
+  en stond hij linksboven), in één blok in `app/navigatie.css`. Van 768 tot
+  1879 px is hij op een gewone pagina nog de float van altijd, dus de
+  65 px tussen ±1700 en 1880 staan er nog.
 - **Een staande omslag duwt op een telefoon de eerste zin onder de vouw**
   (de prijs van het omdraaien van L5; hooguit de helft van het scherm).
 - **Wat er op een artikel op 1440 px nog verspringt (≤ 0,021)**: een knop in
@@ -3448,7 +3557,9 @@ they are repeated here because that is where somebody looks.**
   44 px on a phone.~~ **Closed in round 57 (§96)**, except on a canvas: on a
   desk the strip says *Wie is er?* beside the count and the dot
   (`.live-strip-who`, `presenceHeading`). A canvas heading keeps room for the
-  strip as it was, and a phone keeps the dot.
+  strip as it was, and a phone keeps the dot. *Since golf M the strip is on
+  a canvas and the prikbord too, in the band above the page; the heading
+  keeps no room for it any more.*
 - **The e2e suite has two reds that are not damage.**
   `per-place-crops.spec.ts:13` is the documented one from round 19 (see below),
   and `round-28-mention-overlay.spec.ts:54` on the **phone** project lost once

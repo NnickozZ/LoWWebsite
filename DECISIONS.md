@@ -7526,3 +7526,133 @@ bestand, geen nieuwe route.
   ⟦⟧ — dat zijn leestekens, geen iconen), de kaartspelden (een speld van een
   Locatie draagt nog een speld in een speld), en het web, dat zijn vormen per
   soort al heeft (`knotPath`).
+
+## Golf M — Nicks lijst van 29 september (§40, §62, §66, §67, §76, §94, §102, §107 aangevuld; §108 nieuw)
+
+Nick, 29 september, 's avonds: een tabwissel knippert; *Wie is er?* staat op
+een breed scherm linksboven en loopt rechts van de rand, en hij wil álle
+aanwezigheid rechtsboven en aanklikbaar, ook onder de secties van een
+artikel; het prikbord was zijn rij online kwijt, dus daar kon je niemand
+roepen; naar een ander toe gaan; op de landkaart konden spelers een speld
+niet verschuiven die de Keeper wél kon, kon een speler zonder recht een speld
+zetten op een kaart die op *Privé* stond, en zag een ander bij een gekozen
+speld er twee; een dubbelklik op de kaart moet het speldblad openen; een
+gebeurtenis die je langs een andere sleept, springt terug; wat er aan de
+randen van de tijdlijn gebeurt als de tags buiten beeld zijn; zoeken in
+Beheer → Gebruikers; samenwerken voelt schokkerig (het prikbord) en mist
+vangrails; en op de stamboom: een weggehaalde lijn kan niet terug, *+ kind*
+vanaf de lijn tussen twee ouders, en een QOL-pas. Gebouwd in vijf
+werkstromen (A de schil en de aanwezigheid, B de landkaart, C de tijdlijn en
+Beheer, D de stamboom, E samen). Eén nieuw nummer (§108), geen migratie;
+drie bestanden weg (`components/editor/LivePeople.tsx`,
+`components/shell/Skeleton.tsx`, `components/shell/skeletonShape.ts`).
+
+**Wat Nick besliste.**
+
+- **Een tabwissel is één wissel: de oude pagina blijft staan tot de nieuwe er
+  is, alleen de dunne streep, geen skelet en geen fade.** Dit draait drie
+  eerdere keuzes om. Ronde 65 (§102): *"Het skelet is daarom `NavProgress` +
+  `Skeleton.tsx`, alleen in de browser."* Ronde 65 (§102): *"**Ronde 68 als
+  lichte variant.** Een CSS-animatie op het opnieuw gemounte wortelelement van
+  de pagina (`html[data-navigated]`, gezet bij de eerste padwissel)"*.
+  Ronde 65·herstel: *"**Een paginanavigatie begint bij opacity 0,6, niet bij
+  0.**"* En golf H (h1) gaf de tabpagina's een skelet (T7). Nick zag het
+  skelet en de fade samen als een knippering. De reden van 65·b om geen
+  `loading.tsx` te hebben blijft staan; het vakje dat meteen antwoordt
+  (`NavPending`, `data-pending`) ook.
+- ***Wie is er?* staat overal rechtsboven, ook op een tekenvlak en het
+  prikbord.** Dit draait ronde 57 om: *"***Wie is er?* alleen op een
+  computer, en niet op een tekenvlak.** De kop van een tekenvlak houdt ruimte
+  voor de strip zoals die was"*, en de afspraak uit de docblock van
+  `LiveStrip` dat *"a page with a strip of its own (a prikbord) turns this one
+  off through `LivePage presence={false}`"*. Het prikbord heeft geen eigen rij
+  schijfjes meer; de strip van de schil staat er. Een sectie verloor haar
+  `LivePeople`-regel om dezelfde reden: één plek voor wie er is.
+- **Naar iemand toe gaan is de bestaande deur in de roster, maar dan naar de
+  plek zelf.** Regel 76 bouwde op *"if you click on it you get transported to
+  the same page"*: een rij ging naar de pagina. Nu landt hij op de camera of
+  de sectie, met dezelfde zichtbaarheid: de server hangt een plek alleen aan
+  een deur als de kijker hem mag zien (`spotForViewer`), anders is er geen
+  plek, geen lege. Een camera wordt aangeboden, niet gedeeld: wie op de deur
+  drukt, neemt hem mee in zijn eigen tabblad (regel 20 blijft).
+- **Roepen is een uitnodiging met *Ga*, die landt waar wie roept staat**,
+  vanaf elke pagina, ook het prikbord. *Kom kijken* en *Ga naar* staan altijd
+  in de rij, niet pas bij een hover: een knop die je moet zoeken, bestaat niet.
+- **Op de landkaart beslist de Bewerken-knop over elke speld. Dit draait
+  fase 4 en ronde 9 om.** Fase 4: *"**Whoever set a pin owns it; everyone may
+  set one.** A map with a hundred spelden is a shared thing, and "anyone may
+  move anything" would have made it a shared mess."* Ronde 9: *"A landkaart
+  is a picture the Keeper hung and a speld belongs to whoever set it"*. En de
+  docblock van `viewerCanEditPin`: *"The *edit* dial of the map is
+  deliberately not consulted — a speld is not the map."* Nu: wie de kaart mag
+  bewerken (`viewerCanEditMap`: Iedereen, Gekozen personen, Privé; een Keeper
+  altijd), mag elke speld zetten, verschuiven, herschrijven, van laag
+  wisselen, weghalen en terugzetten; wie alleen mag kijken, kijkt. Een speld
+  is van wie aan de kaart mag werken, zoals een gebeurtenis op een tijdlijn
+  en een kaartje op een muur. De prijs: `edit_mode` begint sinds §40 op
+  `'private'`, dus op een kaart waarvan niemand de knop omzette, zetten
+  spelers geen spelden meer tot de Keeper hem op *Iedereen* zet. Dat is wat
+  de knop zegt, en precies wat Nick zag misgaan.
+- **Samen: een zacht slot zolang iemand iets vasthoudt, plus hardening.**
+  Dit amendeert drie keuzes, zie *Samen* hieronder.
+- **De stamboom: ongedaan maken en opnieuw doen voor lijnen. Dit draait ronde
+  31 (§66) en §29 om, alleen voor de stamboom.** Ronde 31: *"13. **Ongedaan
+  maken gaat over wat dit scherm bezit.** Plekken, kaartjes, lijnen en wie
+  erin staat — nooit een veld op een artikel. Dezelfde redenering als §29's
+  op het prikbord: één iemands Ctrl+Z mag niet weghalen wat een ander net
+  ergens anders opschreef."* Nick: een weggehaalde lijn kon niet terug. De
+  vangrails die §29's zorg overeind houden: een stap stuurt één ref gericht
+  terug, nooit een heel veld; langs dezelfde weg (`writeRelation` →
+  `updateEntry`), dus poort, spiegel, revisie en voorstel gelden terug; een
+  ref die al staat waar hij heen moet is `unchanged` en schrijft niets; een
+  eenvaks-koppeling die intussen iemand anders draagt, wordt niet
+  overschreven (`replace: false`). Plus een melding *Lijn weggehaald.* met
+  *Ongedaan maken*, *+ kind* op de lijn tussen twee ouders, Delete/Esc en de
+  rechtermuisknop, slepen om te verbinden, en de bloedlijn die oplicht.
+
+**Wat Claude koos, waar Nick niets zei.**
+
+- **Een venster op de tijdlijn waarvan de tag van het glas is, wordt niet
+  getekend** (met een halve tag speling), maar blijft open (`open`,
+  `?event=`) en komt terug met zijn tag; zolang neemt hij geen baan. Escape
+  en een klik op de kale as sluiten het voorste venster dat je kúnt zien.
+- **Beheer → Gebruikers: een zoekvak met de filterknoppen *Alle · Keepers ·
+  Uitgeschakeld***, elk met hun telling over de hele lijst, op de
+  accountnaam en de karakters. Een rij die niet past, is `hidden`, niet weg
+  (§96).
+
+**Samen (§108).**
+
+- **Amendement op fase 3:** *"**Last write still wins on a single card, and
+  that is the right answer.** … the fix is not consensus but *sight*"*. Op de
+  server nog steeds: er is geen serverslot en de merge beslist. Maar sinds
+  golf M is wat een ander sleept ook een beleefd slot in de browser
+  (`lib/live/hands.ts`): een druk zegt *{naam} heeft dit vast* en doet niets,
+  en bij een gelijkspel wint het kleinste client-id (`winsTie`), op elk
+  scherm hetzelfde. Zicht bleek niet genoeg: twee handen pakten het tóch.
+- **Amendement op fase 5:** *"**A carried card stays where the hand left it
+  until the save has been pulled.**"* Nu: tot het eigen document van de
+  ontvanger zegt waar het is, hooguit `SETTLE_MS` (4 s). Loslaten wordt
+  meteen gezegd (het laatste dragende frame gaat vóór het lege), en een hand
+  die 3 s niets zegt (`HAND_STALE_MS`), heeft losgelaten; een dragende hand
+  herhaalt zich daarom elke seconde.
+- **Amendement op fase 5:** *"sixteen a second at most"* (sinds §60 al 12,5:
+  80 ms). Tijdens een sleep nu 20 per seconde (`POINTER_CARRY_THROTTLE_MS`,
+  50 ms), alleen als er iemand kijkt; een kale cursor blijft op 80 ms.
+  Gemeten in `golf-m-samen.spec.ts` bij het bouwen: 18,6 frames per seconde,
+  mediaan 15 ms per POST.
+- **Glijden in plaats van een overgang.** De CSS-overgangen van 70 ms op wat
+  een ander draagt (`docs/beweging.md` §6) waren korter dan de afstand tussen
+  twee frames: het ding bewoog, stond stil, bewoog. Nu een kritisch gedempte
+  veer per ding die de frame-afstand meet (`lib/canvas/follow.ts`); onder
+  reduced motion niets.
+- **Wat een ander weghaalt, blijft weg.** Een oude Ctrl+Z brengt het niet
+  terug (`goneByOthers`, en op de stamboom `revive`: alleen wat deze hand
+  met opzet terugzet, tilt een grafsteen op). Wat hier gekozen of open was,
+  laat los met een zin.
+
+**Bewust niet gedaan.** De baanwissel van een tag op de tijdlijn glijdt niet
+(alleen de gedragen tag); geen e2e voor het slot op de landkaart; verbinden
+door te slepen alleen met een muis of pen, niet met een vinger; *Opnieuw
+doen* staat niet in de werkbalk van een telefoon; en ongedaan maken van een
+*+ kind* haalt het artikel dat die `+` maakte niet weg. Zie CLAUDE.md §8.

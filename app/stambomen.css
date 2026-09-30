@@ -309,8 +309,10 @@
   cursor: grabbing;
   z-index: 5;
 }
+/* Golf M (samen): a carried card glides by `useFollow` (a `translate` over
+   the transform), so its own transform must not ease as well. */
 .tree-node.is-carried {
-  transition: transform 70ms linear;
+  transition: none;
   box-shadow: 0 0 0 2px var(--carried, var(--tree-line));
   border-radius: 2px;
 }
@@ -900,5 +902,92 @@ a.tree-node-name:focus-visible {
     width: auto;
     min-width: var(--tap);
     border-radius: 22px;
+  }
+}
+
+/* ----------------------------------------------------- golf M: de stamboom */
+
+/*
+   De bloedlijn van één kaartje (`lib/families/lineage.ts`). Wie erbuiten
+   staat, wordt zacht gedimd — op de kinderen van de kaart, niet op de kaart
+   zelf, zodat een schim (die zelf al `opacity` draagt) er gewoon nog een
+   laag bij krijgt in plaats van zijn eigen waarde kwijt te raken. Alleen
+   `opacity`, dus het leest in alle vier de paletten hetzelfde: de kleuren
+   van een kaart blijven de hare (§45/§66), er gaat alleen licht af.
+*/
+.tree-node > *,
+.tree-edge {
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+.tree-node.is-dimmed > * {
+  opacity: 0.32;
+}
+.tree-edge.is-dimmed {
+  opacity: 0.22;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-node > *,
+  .tree-edge {
+    transition: none;
+  }
+}
+
+/*
+   Slepen om te verbinden: de lijn uit een `+` en het kaartje waar hij zou
+   landen. In de goudkleur van de stamboom (`--tree-accent`), de kleur van de
+   handgreep die van twee kaartjes is — nooit `--link`, dat is "kiezen".
+*/
+.tree-connect-line {
+  fill: none;
+  stroke: var(--tree-accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.tree-connect-line.is-landing {
+  stroke-dasharray: none;
+}
+.tree-node.is-connect-target .tree-node-body {
+  border-color: var(--tree-accent);
+  box-shadow:
+    0 0 0 3px var(--tree-accent),
+    1px 2px 0 rgba(31, 27, 22, 0.16);
+}
+/* Terwijl er een lijn getrokken wordt, is de `+` een draad en geen knop. */
+.tree-stage:has(.tree-connect-line) {
+  cursor: crosshair;
+}
+
+/*
+   De `+` op de lijn tussen twee ouders. Klein en in dezelfde goudrand als de
+   handgreep tussen twee gekozen kaartjes: hij hoort bij allebei. Hij staat
+   ónder het midden van de lijn (de component schuift hem 6 px omlaag), want
+   erboven staat het menu van een gekozen lijn.
+*/
+.tree-handle.tree-handle-line {
+  z-index: 9;
+  border-color: var(--tree-accent);
+  box-shadow:
+    0 1px 2px rgba(31, 27, 22, 0.25),
+    0 0 0 3px var(--paper-dark);
+}
+
+/* Het menu onder de rechtermuisknop: de `.tree-menu` van een `…`, maar op de
+   plek van de wijzer, in de coördinaten van het glas zelf — dus zonder de
+   verschuiving die het lijstje onder een hoek-knop heeft. Boven de kiezer. */
+.tree-menu.tree-context-menu {
+  z-index: 41;
+  transform: none;
+}
+
+/* Opnieuw doen: het teken van ongedaan maken, omgedraaid. Op een telefoon
+   niet in de balk — daar delen de `+` en Ongedaan maken de hoek (§105). */
+.tree-redo svg {
+  transform: scaleX(-1);
+}
+@media (max-width: 767px) {
+  .tree-tools .tree-redo {
+    display: none;
   }
 }

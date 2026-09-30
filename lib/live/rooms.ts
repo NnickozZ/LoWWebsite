@@ -6,7 +6,7 @@ import { db, schema } from '@/lib/db';
 import { liveFieldValues, updateEntry } from '@/lib/entries/service';
 import { canEditSections, updateSection } from '@/lib/sections/service';
 import { canSeeSection, visibleEntryCondition, type Viewer } from '@/lib/entries/visibility';
-import { getPin, updateMap, updatePin, viewerCanEditMap } from '@/lib/maps/service';
+import { getPin, updateMap, updatePin, viewerCanEditMap, viewerCanEditPin } from '@/lib/maps/service';
 import { visibleMapCondition } from '@/lib/maps/visibility';
 import { getEvent, updateEvent, viewerCanEditTimeline } from '@/lib/timelines/service';
 import type { FieldValues, RoomSpec } from './docs';
@@ -163,7 +163,9 @@ function pinFieldsAdmission(pinId: string, viewer: Viewer): Admission | null {
   const pin = getPin(pinId, viewer);
   if (!pin || pin.kind !== 'note') return null;
   return {
-    canEdit: Boolean(viewer.isKeeper || pin.createdBy === viewer.id),
+    // Golf M: the landkaart's Bewerken dial, the same rule as every other road
+    // into a speld — not "whoever set it, or a Keeper".
+    canEdit: viewerCanEditPin(pinId, viewer),
     spec: {
       key: pinFieldsRoomKey(pinId),
       kind: 'fields',

@@ -97,6 +97,12 @@ export type Connection = {
   watches: Set<string>;
   place: string | null;
   holding: string[];
+  /**
+   * Golf M (A3): waar op die plaats — een camera of een sectie
+   * (`lib/live/spot.ts`). Nooit op de draad naar anderen zoals hij is: de
+   * roster hangt hem per kijker aan een deur, of niet.
+   */
+  spot?: string | null;
   joinedAt: number;
   seenAt: number;
   /** Rooms of shared text this line is in: key → how to leave. */
@@ -512,6 +518,8 @@ export function setPlace(connection: Connection, place: string | null, holding?:
   if (previous && previous !== place) {
     removeFrom(hub.places, previous, connection);
     connection.place = null;
+    // Golf M: een plek hoort bij een plaats; een nieuwe plaats begint zonder.
+    connection.spot = null;
     publishPresence(previous);
   }
   connection.holding = nextHolding;
@@ -524,6 +532,18 @@ export function setPlace(connection: Connection, place: string | null, holding?:
     }
     publishPresence(place);
   }
+  rosterMoved();
+}
+
+/**
+ * Golf M (A3): waar deze tab op zijn plaats staat. Alleen voor de plaats waar
+ * hij nu staat — een plek die met een oude plaats meereisde in één POST, valt
+ * weg. Zegt de roster alleen iets als er echt iets veranderde.
+ */
+export function setSpot(connection: Connection, place: string, spot: string | null) {
+  if (connection.place !== place) return;
+  if ((connection.spot ?? null) === spot) return;
+  connection.spot = spot;
   rosterMoved();
 }
 

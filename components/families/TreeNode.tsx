@@ -68,6 +68,16 @@ export type TreeNodeProps = {
   onAdopt?: () => void;
   /** A los kaartje's own small sheet. */
   onEdit?: () => void;
+  /**
+   * Golf M: the right button on a card opens its own menu at the pointer. The
+   * canvas decides (and calls `preventDefault` only when it has a menu to
+   * show); the name link is left to the browser, §68.
+   */
+  onContextMenu?: (event: React.MouseEvent) => void;
+  /** Golf M: outside the chosen person's line, gently dimmed (`lib/families/lineage.ts`). */
+  dimmed?: boolean;
+  /** Golf M: a line dragged out of a `+` would land here if the hand let go now. */
+  connectTarget?: boolean;
   words: { looseCard: string };
 };
 
@@ -87,6 +97,9 @@ export function TreeNode({
   onNameClick,
   onAdopt,
   onEdit,
+  onContextMenu,
+  dimmed = false,
+  connectTarget = false,
   words,
 }: TreeNodeProps) {
   const ghost = node.standing === 'ghost';
@@ -117,6 +130,8 @@ export function TreeNode({
     ghost ? 'is-ghost' : '',
     dragging ? 'is-dragging' : '',
     carried ? 'is-carried' : '',
+    dimmed ? 'is-dimmed' : '',
+    connectTarget ? 'is-connect-target' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -166,10 +181,13 @@ export function TreeNode({
       className={className}
       style={style}
       data-node-id={node.id}
+      /* Golf M (samen): the follower's handle (`useFollow`) — a card in someone else's hand glides. */
+      data-follow={node.id}
       data-frame={node.frame}
       data-standing={node.standing}
       data-testid="tree-node"
       onPointerDown={onPointerDown}
+      onContextMenu={onContextMenu}
     >
       {node.frame === 'house' ? (
         <div className="tree-node-body tree-house">

@@ -7,6 +7,7 @@
  */
 import type { FieldDef } from '@/lib/db/schema';
 import { DEFAULT_WORDS, WORD_DEFS, fill, type Words } from '@/lib/words';
+import { normalise } from '@/lib/search/fuzzy';
 
 /* ------------------------------------------------------------ pictogrammen */
 
@@ -241,6 +242,7 @@ const SAMPLE: Record<string, string> = {
   versie: 'de vorige versie',
   prijs: '5 munten',
   wanneer: 'gisteren',
+  totaal: '12',
 };
 
 /** De gaten `{x}` in een sjabloon, in volgorde en zonder dubbelen. */
@@ -384,4 +386,42 @@ export function openPanes(reports: ReadonlyMap<string, ReadonlyMap<string, numbe
     }
   }
   return open;
+}
+
+/* ------------------------------------------------------------------ spelers */
+
+/**
+ * Golf M (C3): het zoekvak boven Beheer → Gebruikers. Waar een rij van laat
+ * zien, daar zoek je op: de accountnaam, het karakter dat hij nu speelt en elk
+ * karakter dat hij heeft. Zonder hoofdletters en zonder accenten (`normalise`,
+ * dezelfde als overal waar het archief op naam zoekt), en elk woord dat je
+ * typt moet ergens in de rij staan — "bram dijk" vindt Bram, die Van Dijk
+ * speelt.
+ */
+export type SpelerSoort = 'alle' | 'keepers' | 'uit';
+
+export type SpelerZoekRij = {
+  username: string;
+  isKeeper: boolean;
+  isDisabled: boolean;
+  character?: string | null;
+  characters?: readonly { name: string }[];
+};
+
+export function spelerPast(user: SpelerZoekRij, query: string, soort: SpelerSoort = 'alle'): boolean {
+  if (soort === 'keepers' && !user.isKeeper) return false;
+  if (soort === 'uit' && !user.isDisabled) return false;
+  const needles = normalise(query).split(/\s+/).filter(Boolean);
+  if (!needles.length) return true;
+  const hay = [user.username, user.character ?? '', ...(user.characters ?? []).map((one) => one.name)].map(normalise);
+  return needles.every((needle) => hay.some((text) => text.includes(needle)));
+}
+
+/** Hoeveel er per filterknop zijn, over de héle lijst — het zoekvak telt niet mee. */
+export function spelerTellingen(users: readonly SpelerZoekRij[]): Record<SpelerSoort, number> {
+  return {
+    alle: users.length,
+    keepers: users.filter((user) => user.isKeeper).length,
+    uit: users.filter((user) => user.isDisabled).length,
+  };
 }

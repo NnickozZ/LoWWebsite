@@ -192,18 +192,22 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   await openEntryWaar(page);
   await expect(page.getByRole('link', { name: mapName })).toBeVisible();
 
-  // A player sees both pins but may not pull the Keeper's.
+  /*
+   * Golf M: a landkaart is hung Privé to edit, and on a Privé landkaart a
+   * player *looks*. They see both spelden, get no Bewerken switch and no
+   * "Speld zetten", and the archive refuses them on every road — the rule used
+   * to be "anyone who sees it may set one, and pull their own".
+   */
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
   await signUpWriting(other, `Kaartlezer ${stamp}`);
   await other.goto(mapUrl);
   await expect(other.locator('.map-pin')).toHaveCount(2);
+  await expect(other.getByRole('radio', { name: 'Bewerken', exact: true })).toHaveCount(0);
+  await expect(other.getByRole('button', { name: 'Speld zetten' })).toHaveCount(0);
   await other.locator('.map-pin', { hasText: 'Hier lag de boot' }).click();
   const theirs = other.getByRole('dialog', { name: 'Hier lag de boot' });
-  // §105 (review 4, L9): the sentence is for a hand in Bewerken that finds
-  // the speld will not budge; a phone opens in Lezen, where it is noise.
-  if (info.project.name === 'phone') await expect(theirs.getByText(/van iemand anders/)).toHaveCount(0);
-  else await expect(theirs.getByText(/van iemand anders/)).toBeVisible();
+  await expect(theirs).toBeVisible();
   await expect(theirs.getByRole('button', { name: 'Speld weghalen' })).toHaveCount(0);
   const pinId = await other.locator('.map-pin', { hasText: 'Hier lag de boot' }).getAttribute('data-pin-id');
   const mapSlug = mapUrl.split('/maps/')[1];
@@ -211,11 +215,20 @@ test('the Keeper hangs a map, pins go on it, the legend remembers, and a player 
   const maps = (await list.json()) as { maps: { id: string; slug: string }[] };
   const found = maps.maps.find((m) => m.slug === mapSlug);
   expect(found).toBeTruthy();
-  const refused = await other.request.delete(`/api/maps/${found!.id}/pins/${pinId}`);
-  expect(refused.ok()).toBe(false);
-  // …but may set one of their own, and pull that.
+  expect((await other.request.delete(`/api/maps/${found!.id}/pins/${pinId}`)).status()).toBe(403);
+  expect(
+    (await other.request.post(`/api/maps/${found!.id}/pins`, { data: { kind: 'note', name: 'Stiekem', x: 0.3, y: 0.3 } })).status(),
+  ).toBe(403);
   await other.keyboard.press('Escape');
-  // §73: the player may set one, so they get the switch — and on a phone they are reading.
+
+  // Golf M: the Keeper turns Bewerken up to Iedereen, and now they may.
+  await page.goto(mapUrl);
+  await openMapRights(page);
+  const everyone = page.getByRole('radiogroup', { name: 'Wie mag bewerken' }).getByRole('radio', { name: 'Iedereen' });
+  await everyone.click();
+  await expect(everyone).toHaveAttribute('aria-checked', 'true');
+  await page.waitForTimeout(400);
+  await other.goto(mapUrl);
   await editMap(other);
   await other.getByRole('button', { name: 'Speld zetten' }).click();
   await placeAt(other, 0.3, 0.7);

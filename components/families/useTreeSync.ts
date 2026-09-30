@@ -95,6 +95,8 @@ export function useTreeSync({
   const inFlightDirty = useRef<Dirty>(emptyDirty());
   const deleted = useRef({ members: new Set<string>(), loose: new Set<string>(), ties: new Set<string>() });
   const inFlightDeleted = useRef({ members: new Set<string>(), loose: new Set<string>(), ties: new Set<string>() });
+  /** Golf M (samen): what this hand deliberately brought back — see `revive` in `mergeTreeState`. */
+  const revived = useRef({ members: new Set<string>(), loose: new Set<string>(), ties: new Set<string>() });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   const again = useRef(false);
@@ -154,6 +156,11 @@ export function useTreeSync({
       loose: [...deleted.current.loose],
       ties: [...deleted.current.ties],
     };
+    const sendingRevived = {
+      members: [...revived.current.members],
+      loose: [...revived.current.loose],
+      ties: [...revived.current.ties],
+    };
     const anything =
       sending.all ||
       sending.members.size ||
@@ -168,6 +175,7 @@ export function useTreeSync({
     dirty.current = emptyDirty();
     inFlightDirty.current = sending;
     deleted.current = { members: new Set(), loose: new Set(), ties: new Set() };
+    revived.current = { members: new Set(), loose: new Set(), ties: new Set() };
     inFlightDeleted.current = {
       members: new Set(sendingDeleted.members),
       loose: new Set(sendingDeleted.loose),
@@ -184,11 +192,15 @@ export function useTreeSync({
       for (const id of sendingDeleted.members) deleted.current.members.add(id);
       for (const id of sendingDeleted.loose) deleted.current.loose.add(id);
       for (const id of sendingDeleted.ties) deleted.current.ties.add(id);
+      for (const id of sendingRevived.members) revived.current.members.add(id);
+      for (const id of sendingRevived.loose) revived.current.loose.add(id);
+      for (const id of sendingRevived.ties) revived.current.ties.add(id);
     };
 
     const held = snapshotRef.current();
     const now = Date.now();
-    const patch: FamilyTreePatch = { clientId };
+    // Golf M (samen): always said, even empty — an absent `revive` is the old rule.
+    const patch: FamilyTreePatch = { clientId, revive: sendingRevived };
     const stamp = <T extends { updatedAt: number }>(item: T): T => ({ ...item, updatedAt: now });
     if (sending.all) {
       patch.members = held.members.map(stamp);
@@ -292,8 +304,22 @@ export function useTreeSync({
   const noteDeleted = useCallback((kind: 'members' | 'loose' | 'ties', ids: readonly string[]) => {
     for (const id of ids) {
       deleted.current[kind].add(id);
+      revived.current[kind].delete(id);
       // It is gone: nothing about it needs sending any more.
       dirty.current[kind].delete(id);
+    }
+  }, []);
+
+  /**
+   * Golf M (samen): this hand put these back on purpose — a person added
+   * again, an undo of its own removal. Only these may lift a tombstone; a card
+   * that is merely *moved* while somebody else takes it out of the tree stays
+   * out (`mergeTreeState`). A removal still waiting to go is called off.
+   */
+  const noteRevived = useCallback((kind: 'members' | 'loose' | 'ties', ids: readonly string[]) => {
+    for (const id of ids) {
+      revived.current[kind].add(id);
+      deleted.current[kind].delete(id);
     }
   }, []);
 
@@ -354,7 +380,7 @@ export function useTreeSync({
     [],
   );
 
-  return { state, error, pending, markDirty, saveNow, noteDeleted, flush, pull };
+  return { state, error, pending, markDirty, saveNow, noteDeleted, noteRevived, flush, pull };
 }
 
 /**

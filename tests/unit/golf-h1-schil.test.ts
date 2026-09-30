@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { currentDoor, jijIsHere } from '@/components/shell/jouwPlekPad';
-import { skeletonShapeFor } from '@/components/shell/skeletonShape';
 import { DEFAULT_WORDS, fill } from '@/lib/words';
 
 /**
@@ -31,11 +30,8 @@ describe('T7: de Jij-tab is actief in jouw plek', () => {
     for (const path of ['/', '/wiki', '/kamers', '/winkelier', '/spelersx', '/e/kees']) expect(jijIsHere(path), path).toBe(false);
   });
 
-  it('elke tabpagina heeft een skelet', () => {
-    for (const path of ['/', '/cases', '/wiki', '/boards', '/maps', '/timelines', '/spelers']) {
-      expect(skeletonShapeFor(path), path).not.toBeNull();
-    }
-  });
+  // Golf M (A1): de skeletten van de tabpagina's zijn weg — de oude pagina
+  // blijft staan tot de nieuwe er is (zie `ronde-65-navigatie.test.ts`).
 });
 
 describe('D4: de Keeperkant in de mast', () => {

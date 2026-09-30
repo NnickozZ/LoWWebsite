@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { skeletonShapeFor } from '@/components/shell/skeletonShape';
 import { DEFAULT_WORDS } from '@/lib/words';
 
 /**
@@ -11,30 +10,26 @@ import { DEFAULT_WORDS } from '@/lib/words';
 
 const ROOT = join(__dirname, '..', '..');
 
-describe('skeletonShapeFor — welke route een skelet krijgt', () => {
-  it('geeft de zes vormen', () => {
-    expect(skeletonShapeFor('/e/veere')).toBe('entry');
-    expect(skeletonShapeFor('/c/het-holle-tij')).toBe('case');
-    expect(skeletonShapeFor('/wiki/person')).toBe('list');
-    expect(skeletonShapeFor('/wiki/alles')).toBe('list');
-    expect(skeletonShapeFor('/kamer/cornelis-vermeulen')).toBe('kamer');
-    expect(skeletonShapeFor('/winkel')).toBe('winkel');
-    expect(skeletonShapeFor('/spelers/kees')).toBe('speler');
-  });
+/*
+ * Golf M (A1): het skelet en de fade zijn weg. De oude pagina blijft staan tot
+ * de nieuwe er is; alleen het vakje (meteen) en de streep (na 150 ms) zeggen
+ * dat er iets loopt. `skeletonShapeFor` bestaat niet meer.
+ */
+describe('golf M: één wissel, geen skelet en geen fade', () => {
+  const css = readFileSync(join(ROOT, 'app', 'navigatie.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const progress = readFileSync(join(ROOT, 'components', 'shell', 'NavProgress.tsx'), 'utf8');
 
-  // Golf h1 (T7): de tabpagina's kregen een vorm; ze stonden 2,5 s stil.
-  it('geeft de vormen van de tabpagina’s', () => {
-    for (const path of ['/boards', '/maps', '/timelines', '/stambomen']) expect(skeletonShapeFor(path), path).toBe('rows');
-    expect(skeletonShapeFor('/cases')).toBe('cases');
-    expect(skeletonShapeFor('/spelers')).toBe('hal');
-    expect(skeletonShapeFor('/')).toBe('voordeur');
-    expect(skeletonShapeFor('/wiki')).toBe('voordeur');
-  });
-
-  it('geeft niets op een tekenvlak (§34), een overzicht of een lijst zonder vaste vorm', () => {
-    for (const path of ['/b/abc', '/maps/zeeland', '/timelines/x', '/stambomen/x', '/web', '/wiki/overzicht/start', '/search', '/admin', '/uitdelen', '/you', '/e/x/y']) {
-      expect(skeletonShapeFor(path), path).toBeNull();
+  it('tekent geen skelet over de kolom en laat de pagina niet invervagen', () => {
+    for (const gone of ['.nav-skeleton', 'nav-page-in', 'nav-page-fade', 'data-navigated', 'skeleton-in']) {
+      expect(css, gone).not.toContain(gone);
     }
+    expect(progress).not.toMatch(/Skeleton|data-navigated/);
+  });
+
+  it('houdt het vakje en de streep', () => {
+    expect(css).toContain('.sidenav a[data-pending]');
+    expect(css).toContain(".nav-progress[data-shown='1'] .nav-progress-bar");
+    expect(progress).toMatch(/SHOW_AFTER_MS = 150/);
   });
 });
 
@@ -50,7 +45,7 @@ describe('de woorden en de beweging', () => {
       expect(declaration.replace(/--dur-\d/g, ''), declaration).not.toMatch(/\d(ms|s)\b/);
     }
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-    for (const selector of ['.sidenav a[data-pending]::before', '.nav-progress-bar', '.nav-skeleton', 'nav-page-fade']) {
+    for (const selector of ['.sidenav a[data-pending]::before', '.nav-progress-bar']) {
       expect(reduced, selector).toContain(selector);
     }
   });

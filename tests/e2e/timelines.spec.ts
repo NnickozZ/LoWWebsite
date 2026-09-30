@@ -166,7 +166,12 @@ test('a tijdlijn with a note and an artikel on it', async ({ page }, info) => {
    * §62 (round 29): the new one joins the windows that were already open —
    * it used to replace them, which shut what somebody was reading in order to
    * show one tag.
+   *
+   * Golf M (C2): a window whose tag is off the glass is not drawn (it is still
+   * open), and the new one, a month earlier, is brought into view — which may
+   * push the note out. Everything on the glass first, then count.
    */
+  await page.getByRole('button', { name: 'Alles in beeld' }).first().click();
   const open = page.getByTestId('timeline-popout');
   await expect(open).toHaveCount(2);
   const fresh = open.filter({ hasText: 'Westkapelle Lighthouse' });

@@ -37,9 +37,14 @@ import { uniqueSlug } from '@/lib/slug';
  *     a secret fiche on the map would give the secret away by its icon alone.
  *     That rule stacks on top of the map's own — a pin is never visible on a
  *     map the viewer may not see, whatever the pin itself is.
- *   - Anyone who may see the map may set a pin on it. Only whoever set it, or a
- *     Keeper, may move, edit or pull it — a map with a hundred spelden is a
- *     shared thing, and someone else's speld is someone else's.
+ *   - Golf M: **the landkaart's Bewerken dial decides everything about its
+ *     spelden.** Whoever may edit the map (`viewerCanEditMap`: Iedereen,
+ *     Gekozen personen, Privé — and a Keeper always) may set, move, rewrite,
+ *     re-layer, pull and convert *every* speld on it, whoever set it; whoever
+ *     may only look, looks. This reverses §19's "a speld is its setter's": on
+ *     a Privé map every player who could see it could still pin it, and only
+ *     the setter could move their own — so a player could not move a pin the
+ *     Keeper could, while an unauthorised player could still add one.
  *   - Only a Keeper *hangs* a map. Renaming, redrawing and taking one down are
  *     `edit_mode`, which starts at 'private' (the owner — always a Keeper — and
  *     the Keepers), so that is the same rule as before, now turnable.
@@ -637,6 +642,8 @@ export function addPin(mapId: string, input: NewPin, actor: Author): MapPin {
    */
   // §17: a landkaart this writer may not see is a landkaart that is not there.
   if (!getMapById(mapId, actor)) throw new Error('Landkaart niet gevonden');
+  // Golf M: and setting a speld is editing the landkaart — its Bewerken dial.
+  if (!viewerCanEditMap(mapId, actor)) throw new Error(PIN_NOT_ALLOWED);
   const id = newId();
   if (input.kind === 'map') {
     if (input.targetMapId === mapId) throw new Error(PIN_ON_ITSELF);
@@ -732,9 +739,15 @@ export function addPin(mapId: string, input: NewPin, actor: Author): MapPin {
   return getPin(id, actor)!;
 }
 
-/** One wording for "not yours", so the route and the service cannot drift apart. */
-export const PIN_IS_SOMEONE_ELSE_S =
-  'Die speld is van iemand anders. Alleen wie hem zette, of een Keeper, mag eraan.';
+/**
+ * Golf M: one wording for "you may look at this landkaart, not work on it",
+ * so the routes and the service cannot drift apart. It replaced
+ * `PIN_IS_SOMEONE_ELSE_S` ("Die speld is van iemand anders…") when the rule
+ * stopped being about who set a speld.
+ */
+export const PIN_NOT_ALLOWED = 'Je mag op deze landkaart alleen kijken; spelden zetten en verschuiven mag wie hem mag bewerken.';
+/** @deprecated golf M — the setter no longer matters; kept as an alias for old imports. */
+export const PIN_IS_SOMEONE_ELSE_S = PIN_NOT_ALLOWED;
 
 function ownPin(pinId: string, actor: Author) {
   const pin = db
@@ -754,9 +767,8 @@ function ownPin(pinId: string, actor: Author) {
   // spelden for them, so there is nothing here to own — and "niet gevonden"
   // rather than "van iemand anders", which would confirm the pin exists.
   if (!getMapById(pin.mapId, actor)) throw new Error('Speld niet gevonden');
-  if (!actor.isKeeper && pin.createdBy !== actor.id) {
-    throw new Error(PIN_IS_SOMEONE_ELSE_S);
-  }
+  // Golf M: the landkaart's Bewerken dial, not the speld's setter.
+  if (!viewerCanEditMap(pin.mapId, actor)) throw new Error(PIN_NOT_ALLOWED);
   return pin;
 }
 
@@ -764,23 +776,23 @@ function ownPin(pinId: string, actor: Author) {
  * §10 as a question rather than an exception, so a route can answer 403 before
  * it does anything.
  *
- * A landkaart now has its own `view_mode` (§17), so this asks two things: may
- * this person see the map at all, and is the speld theirs. The *edit* dial of
- * the map is deliberately not consulted — a speld is not the map. §19's rule
- * for a speld is the one this file has always had and it stands: whoever set
- * it, or a Keeper, on a map they may see. `ownPin` stays the backstop; this
- * only lets the answer be the right number.
+ * Golf M: this asks the landkaart's Bewerken dial (`viewerCanEditMap`, which
+ * asks its view rule first) and nothing about who set the speld. Until golf M
+ * the edit dial was "deliberately not consulted — a speld is not the map", and
+ * the rule was "whoever set it, or a Keeper"; that is reversed. A speld on a
+ * landkaart is everyone's who may work on that landkaart, like a gebeurtenis
+ * on a tijdlijn or a card on a wall. `ownPin` stays the backstop.
  */
-export function viewerCanEditPin(pinId: string, actor: Author): boolean {
+export function viewerCanEditPin(pinId: string, actor: Viewer): boolean {
+  if (!actor) return false;
   const pin = db
-    .select({ mapId: schema.mapPins.mapId, createdBy: schema.mapPins.createdBy })
+    .select({ mapId: schema.mapPins.mapId })
     .from(schema.mapPins)
     // §69: buried is gone.
     .where(and(livePinCondition(), eq(schema.mapPins.id, pinId)))
     .get();
   if (!pin) return false;
-  if (!getMapById(pin.mapId, actor)) return false;
-  return actor.isKeeper || pin.createdBy === actor.id;
+  return viewerCanEditMap(pin.mapId, actor);
 }
 
 export function updatePin(
@@ -829,7 +841,7 @@ export function updatePin(
  * plek: er hoeft geen veldkamer voor teruggezet te worden (§21) en er hoeft
  * niets herteld te worden over wat de speld noemt (§27) — hij zegt precies
  * hetzelfde, hij ligt alleen hoger. Het recht is wél hetzelfde als bij
- * verschuiven: wie hem zette, of een Keeper (§10, `ownPin`).
+ * verschuiven: wie de landkaart mag bewerken (golf M, `ownPin`).
  *
  * Het getal komt van de hand die drukt — de vier bevelen worden in de tekening
  * uitgerekend met `layerAfter` uit `lib/maps/cluster.ts`, omdat die alle
@@ -855,8 +867,8 @@ export function setPinLayer(pinId: string, layer: number, actor: Author): MapPin
  * seeds the artikel's name and one-liner, the artikel comes back, and the thing
  * on the wall keeps its place.
  *
- * Two rules meet here. §10: only whoever set the speld, or a Keeper, may touch
- * it — the route asks `viewerCanEditPin` first and answers 403. §1: the artikel
+ * Two rules meet here. §10 (golf M): only whoever may edit the landkaart may
+ * touch it — the route asks `viewerCanEditPin` first and answers 403. §1: the artikel
  * has to be one this writer may actually see, so it goes through
  * `visibleEntryCondition` exactly as `addPin` does; an id that resolves to
  * nothing is refused rather than stored, which would leave a speld pointing at
@@ -940,8 +952,8 @@ export function removePin(pinId: string, actor: Author) {
  * The right asked is the one that took it off — `ownPin` cannot be used,
  * because it refuses a buried speld on purpose (that is what stops a second
  * Delete counting as an edit), so the same two questions are asked here
- * directly: the landkaart has to be one this hand may see, and the speld has
- * to be theirs or a Keeper's.
+ * directly: since golf M that is the landkaart's Bewerken dial
+ * (`viewerCanEditMap`, which asks the view rule first).
  *
  * Answers `false` where there is nothing to put back — swept, destroyed with
  * its landkaart, or never there. The canvas says so rather than pretending.
@@ -958,8 +970,8 @@ export function restorePin(pinId: string, actor: Author): boolean {
     .where(eq(schema.mapPins.id, pinId))
     .get();
   if (!pin || pin.deletedAt === null) return false;
-  if (!getMapById(pin.mapId, actor)) return false;
-  if (!actor.isKeeper && pin.createdBy !== actor.id) return false;
+  // Golf M: the landkaart's Bewerken dial, the same one that took it off.
+  if (!viewerCanEditMap(pin.mapId, actor)) return false;
   db
     .update(schema.mapPins)
     .set({ deletedAt: null, updatedAt: now() })

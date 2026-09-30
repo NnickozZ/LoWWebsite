@@ -9,7 +9,7 @@ import { getWords } from '@/lib/admin/words';
 import { ShortChips } from '@/components/ui/ShortChips';
 import { shortChipsFor } from '@/lib/entries/shortRefs';
 import { sideOf } from '@/lib/keeper/kinds';
-import { isKeeperSide, keeperRef, sideDetour } from '@/lib/keeper/side';
+import { isKeeperSide, keeperRef, queryTail, sideDetour } from '@/lib/keeper/side';
 import { twinOf } from '@/lib/keeper/ties';
 import { accessSettings, canEdit, canManageAccess, grantFor } from '@/lib/access';
 import { requireViewer } from '@/lib/auth/session';
@@ -33,18 +33,26 @@ import { getInk } from '@/lib/ink/service';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BoardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requireViewer();
   const { id } = await params;
+  const query = await searchParams;
 
   const board = getBoard(id, user);
   if (!board) notFound();
 
   /*
-   * §50: the page decides where you stand. A prikbord has no query of its own
-   * to carry, so the address is just the wall.
+   * §50: the page decides where you stand. Golf M: and the address keeps
+   * what it carried — `?card=` (§94) and `?waar=`, the spot of whoever you
+   * went to — through the detour, like an artikel's `?new=1`.
    */
-  const detour = sideDetour(user, isKeeperSide('board', board.id), `/b/${board.id}`);
+  const detour = sideDetour(user, isKeeperSide('board', board.id), `/b/${board.id}${queryTail(query)}`);
   if (detour) redirect(detour);
 
   // §17: may this viewer touch the wall, and may they turn its dials.
@@ -107,7 +115,8 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
     <ShortChips map={shortChipsFor(user, [board.description, ...board.state.cards.map((card) => card.text)])}>
     <div className="page-wide">
       <div className="page-canvas board-page-canvas">
-      <LivePage place={boardKey(board.id)} watch={[]} pointers={false} presence={false} refresh={false} />
+      {/* Golf M (A2): the shell's strip stands here too, with the roster and *Kom kijken*. */}
+      <LivePage place={boardKey(board.id)} watch={[]} pointers={false} refresh={false} />
       <BoardCanvas
       stamp={
         /* §44/§45/§46: which side this prikbord is on — the word and the
