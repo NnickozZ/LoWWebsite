@@ -353,7 +353,14 @@ a.card[data-pending]::after {
      tekenvlak).
    Overal: hooguit vier schijfjes (`STRIP_DISCS`, daarboven `+n`) en nooit
    breder dan de kolom, dus hij loopt niet over de rand.
+
+   Golf N (Nick: "super dichtbij de top … 0 speling"): waar hij in de hoek
+   hangt, staat hij `--strip-inset` (0,75 rem, 12 px) van de bovenkant, in
+   plaats van 0,1 rem. De float van 768–1879 px stond al ±17 px van de top.
    ========================================================================== */
+:root {
+  --strip-inset: 0.75rem;
+}
 @media (min-width: 768px) {
   /* Past in de band van 1,5 rem: geen rand om de knop, en schijfjes van 20 px. */
   .main > .live-strip .live-strip-open {
@@ -370,7 +377,7 @@ a.card[data-pending]::after {
   }
   .main:has(.page-canvas) > .live-strip {
     position: absolute;
-    top: 0.1rem;
+    top: var(--strip-inset);
     right: calc(var(--page-pad) * 0.5);
     float: none;
     margin: 0;
@@ -402,7 +409,7 @@ a.card[data-pending]::after {
 @media (min-width: 1880px) {
   .main > .live-strip {
     position: absolute;
-    top: 0.1rem;
+    top: var(--strip-inset);
     right: calc(var(--page-pad) * 0.5);
     float: none;
     margin: 0;

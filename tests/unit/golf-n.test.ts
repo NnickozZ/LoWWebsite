@@ -59,3 +59,13 @@ describe('golf N: de tabrij', () => {
     expect(read('lib/words.ts')).not.toContain('wikiMoreKinds');
   });
 });
+
+describe('golf N: speling boven Wie is er?', () => {
+  it('waar de strip in de hoek hangt, staat hij --strip-inset van de top, niet 0,1 rem', () => {
+    const css = read('app/navigatie.css');
+    expect(css).toMatch(/--strip-inset: 0\.75rem;/);
+    const golfM = css.slice(css.indexOf('Golf M (A2)'), css.indexOf('Telefoon: de strook bovenaan'));
+    expect(golfM).not.toContain('top: 0.1rem');
+    expect(golfM.match(/top: var\(--strip-inset\)/g)?.length).toBe(2);
+  });
+});

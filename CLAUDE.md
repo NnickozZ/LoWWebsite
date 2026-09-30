@@ -751,7 +751,8 @@ freely there.
   `app/navigatie.css`**, one rule per width (a float from 768 to 1879 px on
   an ordinary page; absolute in the band above the page on a canvas and
   from 1880 px), on every page including the prikbord. Move it there and
-  nowhere else.
+  nowhere else. In the corner it stands `--strip-inset` (0.75 rem) from the
+  top (golf N; it was 0.1 rem and touched the edge).
 - **An artikel's omslag is whole on every width** (golf K, reversing §104
   L5): `CoverEditor` has no `landscape` any more, and under 1280 px the
   figure is a card (`.entry-aside-box-stacked > .entry-figure`, the golf k
