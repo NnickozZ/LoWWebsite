@@ -15,8 +15,11 @@
  *   hidden  somewhere this viewer may not follow. One constant sentence, the
  *           same for a Keeper-only artikel, a private prikbord and the far
  *           side of a §44 pair — the *variation* is the leak, not the label
- *   quiet   the Keeper, seen by a player: he is here, and that is all. His
- *           whereabouts are the shape of tonight's session
+ *   quiet   no longer sent (golf N). It was the Keeper seen by a player —
+ *           "he is here, and that is all". Since golf N a Keeper is `place` or
+ *           `hidden` under the same rule as everybody; the word stays in the
+ *           type so an older tab reading a newer frame (or the reverse) still
+ *           draws a row
  */
 
 /** What somebody is doing, decided from what the line already carries. */

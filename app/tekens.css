@@ -18,46 +18,52 @@
  *      pijltje van de iconen in plaats van een letter uit het lettertype.
  */
 
-/* ------------------------------------------------------------ 1. het kurk */
+/* ------------------------------------------------------------ 1. het vlak */
 
 /*
- * De lamp is alleen in het donker aan. De twee kiezers zijn die van het
- * gegenereerde blok in globals.css (§45) — hier niet gegenereerd, want het is
- * geen kleur die een Keeper kiest maar een lichtval.
+ * Golf N (Nick, 30 september): "The prikbord backgrounds are ugly and I can see
+ * the repeating pattern, it completely breaks the clean look of the website."
+ * Golf L's kurk was elf tegels van verlopen over elkaar; hoe ongelijk de maten
+ * ook waren, het oog vond de herhaling toch. Er is nu geen patroon meer.
+ *
+ * Het bord is één rustig, warm vlak in de kleuren van de pagina zelf: het
+ * kurk (`--cork`, §45, nog steeds wat een Keeper kiest) door het papier
+ * gemengd, een zachte schaduw naar de randen, en een korrel die zo fijn en zo
+ * zwak is dat je hem voelt eerder dan ziet. Die korrel is één `feTurbulence`
+ * over het hele glas (`100% 100%`, geen tegel): ruis herhaalt zich niet, dus
+ * er is niets om terug te vinden. In het donker hangt er nog een lamp boven:
+ * een warme kring licht bovenaan, verder niets.
+ *
+ * `--cork-speck` (*De spikkels in het kurk*) tekent niet meer op het bord; het
+ * token blijft voor een schema dat het al draagt.
  */
 :root {
-  --cork-mottle-dark: color-mix(in srgb, var(--cork) 90%, #000);
-  --cork-mottle-light: color-mix(in srgb, var(--cork) 92%, #fff);
-  --cork-lamp: transparent;
-  --cork-shade: rgb(40 26 12 / 0.16);
-  --cork-fleck: color-mix(in srgb, var(--cork) 78%, #fff8e6);
-  --cork-hole: color-mix(in srgb, var(--cork) 55%, #000);
+  --board-surface: color-mix(in srgb, var(--cork) 34%, var(--paper));
+  --board-lamp: transparent;
+  --board-shade: rgb(60 40 18 / 0.1);
 }
 :root:has([data-theme='dark']) {
-  --cork-lamp: rgb(255 214 150 / 0.13);
-  --cork-shade: rgb(0 0 0 / 0.42);
-  --cork-fleck: color-mix(in srgb, var(--cork) 82%, #ffe7b8);
-  --cork-hole: color-mix(in srgb, var(--cork) 45%, #000);
+  --board-surface: color-mix(in srgb, var(--cork) 42%, var(--paper));
+  --board-lamp: rgb(255 214 150 / 0.07);
+  --board-shade: rgb(0 0 0 / 0.32);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(:has([data-theme='light'])) {
-    --cork-lamp: rgb(255 214 150 / 0.13);
-    --cork-shade: rgb(0 0 0 / 0.42);
-    --cork-fleck: color-mix(in srgb, var(--cork) 82%, #ffe7b8);
-    --cork-hole: color-mix(in srgb, var(--cork) 45%, #000);
-  }
+    --board-surface: color-mix(in srgb, var(--cork) 42%, var(--paper));
+    --board-lamp: rgb(255 214 150 / 0.07);
+    --board-shade: rgb(0 0 0 / 0.32);
+    }
 }
 
 /*
- * De korrel zit op een eigen laag onder alles (`::before`, z −1 in een eigen
- * stapel), niet op de achtergrond van het glas: zo wordt hij één keer getekend
- * en niet bij elke veeg opnieuw, en blijft wat erop ligt wat het was.
- *
- * Vier tegels met maten die niets gemeen hebben (23, 37, 53, 97, 173), zodat er
- * geen raster te zien is; elk met een eigen verschuiving.
+ * Het vlak zit op een eigen laag onder alles (`::before`, z −1 in een eigen
+ * stapel), niet op de achtergrond van het glas: zo wordt het één keer getekend
+ * en niet bij elke veeg opnieuw. Het beweegt niet mee met een veeg — er is
+ * niets aan dat zou moeten meebewegen.
  */
 .board-viewport {
   isolation: isolate;
+  background-color: var(--board-surface);
   background-image: none;
 }
 .board-viewport::before {
@@ -68,43 +74,20 @@
   pointer-events: none;
   will-change: transform;
   background:
-    /* de lamp boven het bord (alleen in het donker niet doorzichtig) */
-    radial-gradient(ellipse 75% 65% at 50% -8%, var(--cork-lamp), transparent 72%),
-    /* oude gaatjes: een donker puntje met een licht randje eromheen */
-    radial-gradient(circle at 30% 40%, var(--cork-hole) 0 0.9px, var(--cork-fleck) 1.3px 1.9px, transparent 2.3px)
-      11px 29px / 173px 149px,
-    radial-gradient(circle at 70% 65%, var(--cork-hole) 0 0.9px, var(--cork-fleck) 1.3px 1.9px, transparent 2.3px)
-      83px 7px / 211px 181px,
-    /* grove korrels */
-    radial-gradient(circle at 50% 50%, var(--cork-speck) 0 1.9px, transparent 2.6px) 13px 17px / 97px 83px,
-    radial-gradient(circle at 20% 70%, var(--cork-speck) 0 1.5px, transparent 2.2px) 41px 5px / 53px 61px,
-    /* lichte vezels */
-    radial-gradient(ellipse 1.6px 1px at 60% 30%, var(--cork-fleck) 0 100%, transparent 110%) 3px 9px / 37px 29px,
-    radial-gradient(circle at 25% 75%, var(--cork-fleck) 0 0.8px, transparent 1.4px) 19px 2px / 31px 43px,
-    /* fijne korrels */
-    radial-gradient(circle at 40% 30%, var(--cork-speck) 0 1px, transparent 1.6px) 0 0 / 23px 19px,
-    radial-gradient(circle at 80% 80%, var(--cork-speck) 0 0.8px, transparent 1.4px) 7px 11px / 17px 23px,
-    /* vlekken: kurk is nooit één kleur, het is geperst uit stukjes */
-    /* (met een straal die binnen de tegel blijft: een verloop dat tot de rand
-       loopt, wordt daar afgeknipt en tekent een naad) */
-    radial-gradient(circle 52px at 50% 50%, var(--cork-mottle-dark), transparent) 0 0 / 131px 113px,
-    radial-gradient(circle 64px at 50% 50%, var(--cork-mottle-light), transparent) 47px 23px / 167px 139px,
-    radial-gradient(circle 90px at 50% 50%, var(--cork-mottle-dark), transparent) 91px 67px / 229px 197px;
-  /* De rand van het bord ligt in de schaduw; het midden krijgt het licht. */
+    radial-gradient(ellipse 80% 70% at 50% -10%, var(--board-lamp), transparent 75%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cfilter id='k'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.14 0 0 0 0 0.07 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23k)'/%3E%3C/svg%3E")
+      0 0 / 100% 100% no-repeat;
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.05),
-    inset 0 0 90px var(--cork-shade);
+    inset 0 0 0 1px rgb(255 255 255 / 0.04),
+    inset 0 0 120px var(--board-shade);
 }
-
-/* Het lapje kurk in de lijst van prikborden: dezelfde korrel, kleiner. */
+/* Het lapje in de lijst van prikborden: hetzelfde vlak, zonder korrel. */
 .cork-swatch {
-  background-image:
-    radial-gradient(circle at 40% 30%, var(--cork-speck) 0 1px, transparent 1.6px) 0 0 / 11px 9px,
-    radial-gradient(circle at 70% 70%, var(--cork-fleck) 0 0.7px, transparent 1.2px) 3px 2px / 13px 11px,
-    radial-gradient(ellipse 80% 90% at 50% -10%, var(--cork-lamp), transparent 75%);
+  background-color: var(--board-surface);
+  background-image: radial-gradient(ellipse 80% 90% at 50% -10%, var(--board-lamp), transparent 75%);
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.1),
-    inset 0 0 14px var(--cork-shade);
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    inset 0 0 18px var(--board-shade);
 }
 
 /* ------------------------------------------------------------ 2. de punaise */

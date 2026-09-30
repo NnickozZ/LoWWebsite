@@ -7656,3 +7656,48 @@ drie bestanden weg (`components/editor/LivePeople.tsx`,
 door te slepen alleen met een muis of pen, niet met een vinger; *Opnieuw
 doen* staat niet in de werkbalk van een telefoon; en ongedaan maken van een
 *+ kind* haalt het artikel dat die `+` maakte niet weg. Zie CLAUDE.md §8.
+
+## Golf N — de ruimte, en de Keeper is te volgen (§76, §104 en golf L omgekeerd)
+
+Nick, 30 september 's ochtends, na golf M: vier dingen. Hij beantwoordde drie
+vragen vooraf (het prikbord, de maat van de tekst, de tabrij); de vierde was
+duidelijk. Geen nieuw nummer, geen migratie, geen nieuwe route; nieuw is
+`app/ruimte.css`, en **twee bestanden zijn weg** (`components/MeerSoorten.tsx`,
+`lib/wiki/tabrij.ts`).
+
+- **Draait ronde 39's `quiet` om: de Keeper is voor een speler een plek.**
+  Ronde 39 (§76): *"a speler sees of the Keeper that he is here, and that is
+  all — his whereabouts are the shape of tonight's session."* Nick: een
+  speler moet de Keeper kunnen volgen, *"unless the keeper is on a page the
+  player cannot reach"*. Die uitzondering is precies wat `canWatch` al per
+  kijker beslist, dus de Keeper gaat nu door dezelfde regel als iedereen: een
+  plek die de speler mag zien, heeft een naam en een deur (met de plek van
+  golf M); een Keeperartikel, Beheer, Uitdelen of iets privés is *ergens
+  anders*, zonder link. Wat blijft: het aantal andere plekken van de Keeper is
+  voor een speler 0 — hoeveel dingen hij tegelijk open heeft, is wél de vorm
+  van de avond.
+- **Draait golf L's kurk om: een vlak zonder patroon.** *"I can see the
+  repeating pattern … looks amateurish."* Golf L had elf tegels met maten die
+  niets gemeen hadden, en het oog vond de herhaling toch. Gekozen (Nick):
+  *rustig, geen patroon* — boven *kurk maar naadloos* en *papier met
+  stippen*. Eén kleur uit het kurk en het papier, een schaduw naar de randen,
+  ruis in plaats van tegels. Het kurk van de Keeper (§45) kleurt het vlak nog.
+- **Draait §104 L8 (68ch) en de rem-maten om: de tekst vult de kolom.**
+  L8 zei, met Butterick en Baymard, 50–75 tekens per regel. Nick koos *de
+  volle kolom, overal* boven *vol behalve de lopende tekst* en *een ruimere
+  maat*. Op een artikel is de kolom nog steeds de ruimte tussen de wegwijzer
+  en de infobox, dus de regel is daar niet eindeloos; op een overzicht en op
+  Start loopt hij tot 1440 px. De smalle pagina (`.page`, 900 px) en de
+  64 rem-pagina's (spelerspagina, kamer, winkel) zijn mee naar 1440 px: een
+  smalle pagina in een brede kolom was dezelfde lege strook.
+- **Draait golf H's D6 om: elke soort is een tab.** *"Either show all of them
+  at the same time or make it scrollable. Not this half solution."* Gekozen:
+  allemaal, brekend over meer rijen (boven één rij die scrolt). D6 had de drie
+  rijen juist weggenomen ("130 px, met een onderlijn die per rij afbrak"); die
+  onderlijn tekent nu elke tab zelf, met een vulstuk achter de laatste, zodat
+  de gekozen tab op elke rij zijn inkeping houdt.
+- **Niet gedaan**: een eigen maat voor lopende tekst op een heel breed scherm
+  zonder infobox (een overzicht op 1920 px leest nu ±200 tekens per regel;
+  dat is gekozen), en een tweede, kleinere tabvorm op de telefoon (daar
+  breekt de rij naar vijf of zes rijen; de tabs zijn er iets smaller).
+

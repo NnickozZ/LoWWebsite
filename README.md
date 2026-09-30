@@ -4481,6 +4481,21 @@ A hundred and seven rules worth knowing before changing anything:
     > De proef staat in `tests/unit/golf-m-aanwezig.test.ts` en
     > `tests/e2e/golf-m-aanwezig.spec.ts`.
 
+    > **Aangevuld in golf N: de Keeper is te volgen.** Nick, 30 september:
+    > *"Is it normal that keepers do not show where they are currently? … As a
+    > keeper I can see where a player is and follow them to that page but not
+    > vice-versa. This should be possible unless the keeper is on a page the
+    > player cannot reach."* Tot hier was de Keeper voor een speler `quiet`:
+    > *hij is er, en dat is alles* (ronde 39). Nu geldt voor hem dezelfde
+    > regel als voor iedereen: waar hij staat, gaat per kijker langs
+    > `canWatch`, en wordt een naam en een deur (met zijn plek, golf M) — of,
+    > op een Keeperartikel, Beheer, Uitdelen of iets privés, de vaste zin
+    > *ergens anders*, zonder link. Alleen het aantal andere plekken dat hij
+    > open heeft (`elsewhere`) blijft voor een speler 0: dat is nog steeds de
+    > vorm van de avond. `quiet` staat nog in `RosterPlaceMode` voor een oud
+    > tabblad, maar `rosterFor` stuurt het niet meer. Zie
+    > `tests/unit/roster.test.ts` (B) en `tests/e2e/golf-n.spec.ts`.
+
 77. **Een speler is een adres, en een paneel is een samenvatting met een deur.**
     §77. `/spelers/<slug>` is de voordeur van één persoon — niet van één
     onderzoeker: rechten zijn per account (§17, §18 regel 1), en een karakter is
@@ -7422,6 +7437,32 @@ A hundred and seven rules worth knowing before changing anything:
     > De proef staat in `tests/unit/golf-j4-eerste-verf.test.ts` en
     > `tests/e2e/golf-j4-eerste-verf.spec.ts`.
 
+    > **Omgekeerd in golf N: elke soort is een tab, en de tekst vult de
+    > kolom.** Nick, 30 september.
+    > - **De tabrij** (*"The current solution in wiki where the extra pages are
+    >   hidden behind the button called 'Meer soorten' I dislike very much.
+    >   Either show all of them at the same time or make it scrollable."*).
+    >   Hij koos: allemaal. `TypeTabs` tekent Start, Alles en élke soort; de
+    >   rij breekt naar een tweede en derde rij (`.type-tabs-alle` in
+    >   `app/ruimte.css`), elke tab met zijn eigen lijn eronder en een
+    >   vulstuk dat de laatste rij afmaakt. `MeerSoorten.tsx`,
+    >   `lib/wiki/tabrij.ts` (`rangSoorten`, `IN_RIJ`, `MENU_RANG`), de
+    >   `data-rang`-regels en het woord `wikiMoreKinds` zijn weg. Dat draait
+    >   golf H's D6 om; de drie rijen die D6 wegnam, zijn er bewust weer.
+    > - **De maat** (*"the text box doesn't utilize the entire screen the page
+    >   affords it. Very ugly."*). L8's 68ch op `.prose` en de lead, de 48 rem
+    >   van een overzicht, de 44 rem van het welkom op Start en de kleinere
+    >   maten van *Genoemd in*, de beschrijving onder een prikbord, *Waarom?*
+    >   op `/you`, de Keeper onder de vouw en de uitleg bij een soort zijn
+    >   weg: tekst vult de kolom waar hij in staat. De kolom zelf bleef: de
+    >   tekstkolom naast een infobox, en `.page-wide`. De smalle pagina
+    >   (`.page`, 900 px) en de 64 rem van een spelerspagina, de kamer en de
+    >   winkel zijn 1440 px geworden, zoals `.page-wide` (golf K), zodat elke
+    >   pagina dezelfde rand heeft. Alles in één laag, `app/ruimte.css`, na
+    >   `tekens.css`, en elke regel begint met `.main`: overzichten.css en
+    >   spelers.css worden door een pagina geladen en komen dus na de lagen
+    >   van `app/layout.tsx`.
+
 105. **Op een telefoon is een tekenvlak het glas, één regel om het glas, en een
     `+` onder de duim.** §105. Golf I, deel i1 (de tekenvlakken op de
     telefoon), na design-review 3 (T18) en de meting na golf 3, met een tweede
@@ -7998,6 +8039,20 @@ A hundred and seven rules worth knowing before changing anything:
     >   het licht draagt een zweem van zijn soortkleur.
     >
     > De proef staat in `tests/unit/golf-l.test.ts`.
+    >
+    > **Omgekeerd in golf N: het prikbord is een rustig vlak.** Nick, 30
+    > september: *"The prikbord backgrounds are ugly and I can see the
+    > repeating pattern, it completely breaks the clean look of the website
+    > and just looks amateurish."* De korrels, vezels, vlekken en gaatjes van
+    > golf L zijn weg, met hun lichtval (`--cork-mottle-*`, `--cork-fleck`,
+    > `--cork-hole`, `--cork-lamp`, `--cork-shade`). Het bord is één kleur,
+    > `--board-surface` (het kurk van de Keeper, §45, door het papier
+    > gemengd: 34 % in het licht, 42 % in het donker), met een zachte
+    > schaduw naar de randen (`--board-shade`) en een korrel van één
+    > `feTurbulence` over het hele glas (`100% 100% no-repeat`): ruis
+    > herhaalt zich niet, dus er is geen tegel om terug te vinden. In het
+    > donker blijft een zwakke lamp bovenaan (`--board-lamp`). Het blijft
+    > `.board-viewport::before`. `--cork-speck` tekent niet meer op het bord.
 
     > **Aangevuld in golf M: Gebruikers zoeken.** Nick vroeg een zoekvak in
     > Beheer → Gebruikers.

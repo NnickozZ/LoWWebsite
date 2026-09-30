@@ -27,9 +27,10 @@ test('1: de tabrij op /wiki is die van elke wikipagina, zonder sprong naar bened
   const tabs = page.getByRole('navigation', { name: 'Soorten' });
   await expect(tabs.getByRole('link', { name: 'Start' })).toHaveAttribute('aria-current', 'page');
   await expect(tabs.locator('a[href^="#"]')).toHaveCount(0);
-  await expect(tabs.getByTestId('meer-soorten')).toBeAttached();
-  // De eerste soort in de rij gaat naar haar eigen lijst.
-  const soort = tabs.locator('a.type-tab[data-rang="1"]');
+  // Golf N: geen *Meer soorten* meer; elke soort staat in de rij.
+  await expect(tabs.getByTestId('meer-soorten')).toHaveCount(0);
+  // De eerste soort in de rij (na Start en Alles) gaat naar haar eigen lijst.
+  const soort = tabs.locator('a.type-tab').nth(2);
   await expect(soort).toBeVisible();
   const href = await soort.getAttribute('href');
   expect(href).toMatch(/^\/wiki\/[^/?#]+/);

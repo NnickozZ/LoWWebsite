@@ -44,42 +44,32 @@ test('D1: op 1280 px leest een artikel op zijn maat, de wegwijzer staat erboven'
   await expect(page.locator('.entry-rail')).toBeVisible();
 });
 
-test('D6: één rij soorttabs met Meer soorten, en de soort waar je bent staat erin', async ({ page }, info) => {
+test('D6, sinds golf N: elke soort is een tab, de rij breekt en verbergt niets', async ({ page }, info) => {
   await signIn(page, ...KEEPER);
   await page.goto('/wiki/alles');
   const nav = page.getByRole('navigation', { name: 'Soorten' });
-  const row = nav.locator('.type-tabs');
-  // One row: every visible tab has the same top.
-  const tops = await row.locator('.type-tab').evaluateAll((els) =>
-    els.filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => Math.round(el.getBoundingClientRect().top)),
-  );
-  expect(new Set(tops).size).toBe(1);
-  expect((await row.boundingBox())!.height).toBeLessThan(60);
-
-  // The menu holds the rest, with their counts, and opens and closes like a popover.
-  const meer = nav.getByTestId('meer-soorten');
-  await expect(meer).toBeVisible();
-  await meer.click();
-  const lijst = nav.locator('.meer-soorten-lijst');
-  await expect(lijst).toBeVisible();
-  const inMenu = lijst.locator('.type-tab:visible');
-  expect(await inMenu.count()).toBeGreaterThan(0);
-  await expect(inMenu.first().locator('.type-tab-count')).toHaveText(/^\d+$/);
-  await shot(page, 'd6-menu', info.project.name);
-  await page.keyboard.press('Escape');
-  await expect(lijst).toHaveCount(0);
-
-  // Open a soort from the menu: on its page it stands in the row, chosen.
-  await meer.click();
-  const naam = (await inMenu.first().locator('.meer-soorten-naam').innerText()).trim();
-  await inMenu.first().click();
-  await page.waitForURL(/\/wiki\/(?!alles)/);
-  const chosen = page.getByRole('navigation', { name: 'Soorten' }).locator('.type-tabs .type-tab[aria-current="page"]');
-  await expect(chosen).toContainText(naam, { ignoreCase: true });
-  const rowBox = (await page.locator('.type-tabs').boundingBox())!;
-  const chosenBox = (await chosen.boundingBox())!;
-  expect(chosenBox.x).toBeGreaterThanOrEqual(rowBox.x - 1);
-  expect(chosenBox.x + chosenBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  // Golf N (Nick): no *Meer soorten* — every soort stands in the row.
+  await expect(nav.getByTestId('meer-soorten')).toHaveCount(0);
+  const tabs = nav.locator('.type-tabs .type-tab');
+  const count = await tabs.count();
+  expect(count).toBeGreaterThan(8);
+  // Every tab is visible and inside the page's column: nothing scrolls away.
+  const rowBox = (await nav.locator('.type-tabs').boundingBox())!;
+  for (let i = 0; i < count; i++) {
+    const tab = tabs.nth(i);
+    await expect(tab).toBeVisible();
+    const box = (await tab.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(rowBox.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  }
+  // An empty soort is there, quiet.
+  await expect(nav.locator('.type-tab.is-leeg').first()).toBeVisible();
+  // Open the last soort: on its page it is the chosen tab.
+  const last = tabs.nth(count - 1);
+  const href = (await last.getAttribute('href'))!;
+  await last.click();
+  await page.waitForURL((url) => url.pathname === href.split('?')[0]);
+  await expect(page.getByRole('navigation', { name: 'Soorten' }).locator('[aria-current="page"]')).toHaveAttribute('href', href);
   await shot(page, 'd6-soort', info.project.name);
 });
 

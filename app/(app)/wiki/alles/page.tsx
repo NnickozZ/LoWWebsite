@@ -80,7 +80,6 @@ export default async function WikiAllesPage({ searchParams }: { searchParams: Pr
         active="alles"
         allCount={total}
         query={query}
-        moreLabel={words.wikiMoreKinds}
       />
 
       {/* §106 (na review 4, M8): geen sorteerbalk boven een lijst zonder één regel. */}

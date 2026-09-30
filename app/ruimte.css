@@ -1,0 +1,80 @@
+/*
+ * Golf N: de ruimte — Nick, 30 september. Een eigen laag, na tekens.css, zodat
+ * hij wint zonder dat een oudere regel verandert (§102). Twee dingen staan hier.
+ *
+ *   1. De tekst vult de kolom. "The wiki start page, the dossier descriptions
+ *      and I am sure on many other pages as well the text box doesn't utilize
+ *      the entire screen the page affords it. Very ugly." Lopende tekst,
+ *      inleidingen en beschrijvingen hadden een maat (68ch, 62ch, 44–48rem):
+ *      §104 L8's leesregel, en vóór hem een rem-maat per blok. Nick koos: de
+ *      volle kolom, overal. De kolom zelf (`.page`, `.page-wide`, de
+ *      tekstkolom naast een infobox) blijft wat hij was; alleen het plafond
+ *      op de tekst erin is weg. Elke regel begint met `.main`: een paar van
+ *      die plafonds staan in een stylesheet die een component zelf laadt
+ *      (overzichten.css, spelers.css), en die komt na deze laag.
+ *
+ *   2. Elke soort is een tab. *Meer soorten ▾* is weg (components/TypeTabs.tsx);
+ *      de rij breekt naar een tweede en derde rij als ze niet passen. Elke tab
+ *      tekent zijn eigen lijn eronder (zoals in de strook van golf H), en een
+ *      vulstuk maakt de lijn van de laatste rij af, zodat de tab waar je op
+ *      staat zijn inkeping houdt op welke rij hij ook staat.
+ */
+
+/* ------------------------------------------------------------ 1. de kolom */
+
+.main .prose,
+.main .entry-page-reading .entry-lead,
+.main .overzicht-page .entry-lead,
+.main .overzicht-page .entry-section,
+.main .genoemd-zin,
+.main .home-intro,
+.main .overzicht-page .entry-sections,
+.main .overzicht-page .entry-title-input,
+.main .board-description-under,
+.main .you-why[open] .you-why-body,
+.main .keeper-underfold,
+.main .soort-uitleg {
+  max-width: none;
+}
+
+/*
+ * De smalle pagina (`.page`, 900 px: zoeken, Jij, de spelershal; en 64 rem
+ * voor een spelerspagina, de kamer en de winkel) liet op een breed scherm de
+ * helft van de kolom leeg. Hij krijgt dezelfde maat als de brede pagina
+ * (golf K: 1440 px, in het midden), zodat alles dezelfde rand heeft; de lijst
+ * van spelers vult hem.
+ */
+.main .page,
+.main .speler-page,
+.main .kamer-page,
+.main .winkel-page {
+  max-width: 1440px;
+}
+.main .spelers-lijst,
+.main .spelers-koppen {
+  max-width: none;
+}
+
+/* ------------------------------------------------------------ 2. de tabrij */
+
+.type-tabs.type-tabs-alle {
+  flex-wrap: wrap;
+  row-gap: 0;
+  overflow: visible;
+  border-bottom: 0;
+}
+.type-tabs.type-tabs-alle > .type-tab {
+  margin-bottom: 0;
+}
+.type-tabs.type-tabs-alle::after {
+  content: '';
+  flex: 1 0 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+/* Op een telefoon staan er meer rijen: iets smaller, zodat het er minder zijn. */
+@media (max-width: 767px) {
+  .type-tabs.type-tabs-alle > .type-tab {
+    padding: 0 0.5rem;
+    gap: 0.25rem;
+  }
+}

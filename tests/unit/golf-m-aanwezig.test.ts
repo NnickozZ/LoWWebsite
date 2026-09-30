@@ -198,8 +198,11 @@ describe('de rij en de uitnodiging dragen de plek', () => {
       Date.now(),
       (place, spot) => roster.spotForViewer(BRAM, place, spot),
     );
-    // Een Keeper is voor een speler `quiet`: geen plaats, dus ook geen plek.
-    expect(hidden.rows[0].href).toBeNull();
+    // Golf N: een Keeper is voor een speler niet meer `quiet`. De speler krijgt
+    // de pagina die hij mag lezen, maar niet de Keepersectie: geen `?waar=`.
+    expect(hidden.rows[0].mode).toBe('place');
+    expect(hidden.rows[0].href).toBe('/e/de-veerman');
+    expect(hidden.rows[0].detail).toBeNull();
     expect(JSON.stringify(hidden)).not.toContain('verzwijgt');
     expect(JSON.stringify(hidden)).not.toContain('s-geheim');
   });

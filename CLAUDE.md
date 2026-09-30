@@ -18,7 +18,7 @@ baseline you have not seen is not a baseline.
 ```bash
 npm ci                 # see the trap below if this fails
 npx tsc --noEmit       # must be silent
-npx vitest run         # 155 bestanden, 2755 tests na golf M·herstel; 153 / 2739 na golf M; 146 / 2649 na golf L;
+npx vitest run         # 156 bestanden, 2756 tests na golf N; 155 / 2755 na golf M·herstel; 153 / 2739 na golf M; 146 / 2649 na golf L;
                        # 145 / 2633 na golf K; 144 / 2618 na golf J (branch
                        # `gevoel`, 4afc3a5); 140 / 2557 na golf I
                        # (d1dc532); 137 / 2487 na golf H;
@@ -293,6 +293,17 @@ freely there.
   (`components/editor/LivePeople.tsx`, `components/shell/Skeleton.tsx`,
   `components/shell/skeletonShape.ts`). Zie `tests/unit/golf-m-*.test.ts` en
   `tests/e2e/golf-m-*.spec.ts`.
+  **Golf N** (Nick, 30 september 's ochtends: het prikbord met een zichtbaar
+  patroon, de Keeper die niet te volgen was, tekst die de kolom niet vult, en
+  *Meer soorten*) gaf **geen nieuw nummer** en draait vier dingen om: ronde
+  39's `quiet` Keeper (§76: hij is nu een plek als ieder ander, langs
+  `canWatch`), golf L's kurk (een rustig vlak, `--board-surface`, één
+  `feTurbulence` over het glas), §104 L8's 68ch en de rem-maten (tekst vult de
+  kolom; `.page` en de 64 rem-pagina's zijn 1440 px) en golf H's D6 (elke
+  soort is een tab, de rij breekt). Nieuwe laag `app/ruimte.css` na
+  `tekens.css`, elke regel met `.main` ervoor. Geen migratie; twee bestanden
+  weg (`components/MeerSoorten.tsx`, `lib/wiki/tabrij.ts`). Zie
+  `tests/unit/golf-n.test.ts` en `tests/e2e/golf-n.spec.ts`.
   Rondes 65–67
   (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
   worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
@@ -729,8 +740,8 @@ freely there.
   chip breaks). A new node type in `documentExtensions` gets a case in
   `VoorafTekst` too, or its height is wrong until the editor arrives.
 - **A page stands in the middle of the column** (golf K, reversing golf H's
-  D5). `.page` (900 px) and `.page-wide` (1440 px, was 1200) are
-  `margin: 0 auto`. The lists behind the archive's tabs (prikborden,
+  D5). `.page` (900 px; **1440 px since golf N**, `app/ruimte.css`) and
+  `.page-wide` (1440 px, was 1200) are `margin: 0 auto`. The lists behind the archive's tabs (prikborden,
   tijdlijnen, stambomen, like landkaarten and dossiers) are `.page-wide`, so
   everything under *Het archief* keeps one left edge. A new list page of the
   archive is `.page-wide`; a form or a personal page is `.page`. From 1880 px
@@ -1832,13 +1843,14 @@ freely there.
   in `SOORT_ICONEN` (`lib/beheer.ts`) met een Nederlandse naam van één woord.
   Het web tekent dezelfde `d` met `Path2D`, dus een pad dat alleen in SVG
   werkt, werkt daar niet.
-- **Het kurk is `.board-viewport::before`, niet de achtergrond van het glas**
-  (golf L, `app/tekens.css`): een eigen laag onder alles (`isolation:
-  isolate`, z −1), gebouwd uit `--cork`, `--cork-speck` en de lichtval
-  `--cork-lamp`/`--cork-shade`/`--cork-fleck`/`--cork-hole`/
-  `--cork-mottle-*` (geen tokens in Kleuren). Leg niets anders op die
-  `::before`, en geen `background-image` terug op `.board-viewport`: dat is
-  de tegel met de vaste kleur die het token van de Keeper negeerde.
+- **Het vlak van het prikbord is `.board-viewport::before`, niet de
+  achtergrond van het glas** (golf L, sinds golf N rustig; `app/tekens.css`):
+  een eigen laag onder alles (`isolation: isolate`, z −1). De kleur is
+  `--board-surface` (`--cork` door `--paper` gemengd), met `--board-shade` en
+  in het donker `--board-lamp`; de enige afbeelding is één `feTurbulence`
+  over het hele glas (`100% 100% no-repeat`). **Geen tegel**: Nick zag elke
+  herhaling, ook die van elf tegels met ongelijke maten. Geen
+  `background-image` terug op `.board-viewport`.
 - **"Waarom noemt dit mij?" is `mentionSentences`** (`lib/wiki/genoemd.ts`,
   §104). Het leest alleen bronnen die `listMentions` en `getBacklinks` al voor
   deze lezer teruggaven, per id (`sectionId` voor een sectie). Een nieuwe
@@ -1886,10 +1898,22 @@ freely there.
   Geen eigen `mask-image` en geen `scrollIntoView` (dat scrolt elke voorouder
   mee). Een rij van artikelen of dossiers op de telefoon is `.rijen`, niet een
   eigen lijstvorm.
-- **Hoeveel soorten er in de tabrij van de wiki passen, zegt de stylesheet**
+- ~~**Hoeveel soorten er in de tabrij van de wiki passen, zegt de stylesheet**
   (§104, golf H, D6): `rangSoorten` geeft een rang, `data-rang` en
-  `data-nodig-tot` in `app/leeskamer.css` kiezen per breedte. Meet het niet in
-  de browser; dan rendert de server een andere rij dan de browser toont.
+  `data-nodig-tot` in `app/leeskamer.css` kiezen per breedte.~~ **Sinds golf N
+  staat elke soort in de rij** (`TypeTabs`, `.type-tabs-alle` in
+  `app/ruimte.css`); de rij breekt. `rangSoorten`, `MeerSoorten` en
+  `data-rang` bestaan niet meer.
+- **Tekst heeft geen maat van zichzelf** (golf N, §104): hij vult de kolom
+  waar hij in staat. Zet geen `max-width` in `ch` of `rem` op lopende tekst,
+  een inleiding of een beschrijving; wie een smallere regel wil, maakt de
+  *kolom* smaller. Een stylesheet die een pagina zelf laadt, komt na de lagen
+  van `app/layout.tsx`: daarom begint elke regel in `app/ruimte.css` met
+  `.main`.
+- **Een Keeper in *Wie is er?* is een plek als ieder ander** (§76, golf N):
+  `rosterFor` vraagt `canWatch` voor zijn plek zoals voor elke rij. Alleen
+  `elsewhere` blijft voor een speler 0. Bouw geen tweede regel voor de
+  Keeper.
 - **Een lege lijst is een `LegeStaat`, nooit een los `.empty`-kader** (§106,
   golf I; `components/ui/LegeStaat.tsx`). Eén zin uit `lib/words.ts`, hooguit
   één regel uitleg, één deur die op een bestaande knop drukt (`ArtikelDeur`,
@@ -2605,10 +2629,13 @@ mistakes. Check yours against these before declaring a spec finished.
   `.ProseMirror`; they go with the hydration, so `toHaveCount(0)` needs its
   auto-wait. Wait for the editor with `[contenteditable="true"]` or
   `.ProseMirror:not(.vooraf-tekst)`, never a bare `.ProseMirror`.
-- **Een soort staat niet altijd als tab in de rij** (§104, golf H, D6). Wat
-  niet past, staat in *Meer soorten* (`getByTestId('meer-soorten')`, het menu
-  is `.meer-soorten-lijst`). Een lege soort staat altijd in het menu, de soort
-  waar je op staat altijd in de rij.
+- ~~**Een soort staat niet altijd als tab in de rij** (§104, golf H, D6).~~
+  **Sinds golf N staat elke soort als tab in de rij**, die breekt;
+  `meer-soorten` bestaat niet meer (`toHaveCount(0)`). Een lege soort is een
+  gedempte tab (`.type-tab.is-leeg`).
+- **Een speler ziet waar de Keeper is** (§76, golf N): de rij van de Keeper
+  heeft `roster-go` als de speler daar mag komen, en geen deur op Beheer of
+  een Keeperartikel (`golf-n.spec.ts`).
 - **De dossiertabs breken nog steeds** (ronde 36, bevestigd in golf h4). Alleen
   de soorttabs van de wiki en de chips op `/search` zijn één rij.
 - **Op een telefoon staan de regels "Op de landkaart / Op de tijdlijn / In:" achter
@@ -2684,7 +2711,7 @@ mistakes. Check yours against these before declaring a spec finished.
   `aanwezig.spec.ts` zoekt de link zo.
 
 - **The voordeur of the wiki has the ordinary tab row** (golf K): Start,
-  Alles, `a.type-tab[data-rang]` and *Meer soorten*. There is no
+  Alles and every soort (since golf N; no `data-rang`, no *Meer soorten*). There is no
   `.type-tab-naar` and no `#leeskamer-soorten-kop` link any more; a spec that
   counted "at most three links" there now counts more than three.
 - **A pin on a landkaart is hit on its head** (golf K). `.map-pin` itself is
@@ -2756,7 +2783,26 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J, K, L and M
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J, K, L, M and N
+
+*Golf N (30 september 's ochtends; Nick: het patroon op het prikbord, de
+Keeper die niet te volgen was, de tekst die de kolom niet vult, en *Meer
+soorten*) is in één werkboom gebouwd, na drie vragen vooraf. Geen nieuw
+nummer, geen migratie. **Twee bestanden zijn weg, en dat is werk voor Nick**
+(§7): `git rm components/MeerSoorten.tsx lib/wiki/tabrij.ts`. De
+rondenotitie is `claude/golf-n-de-ruimte.md`.*
+
+**Leftovers — golf N, allemaal met opzet genoemd.**
+
+- **Een overzicht op 1920 px leest ±200 tekens per regel.** Gekozen (de volle
+  kolom, overal); een smallere regel is een smallere kolom, niet een maat op
+  de tekst.
+- **Op een telefoon breekt de tabrij van de wiki naar vijf of zes rijen.** Ook
+  gekozen (alles in beeld); de tabs zijn daar wat smaller.
+- **`--cork-speck` tekent niets meer op het prikbord** maar staat nog in
+  Kleuren (§45): een token weghalen is een wijziging in elk schema.
+- **De e2e-suite is niet volledig gedraaid**, alleen de specs die de wiki,
+  de aanwezigheid, de breedte en het prikbord raken; zie de rondenotitie.
 
 *Golf M (29 september 's avonds; Nick: de knipperende tabwissel, *Wie is
 er?* overal rechtsboven, naar iemand toe en iemand roepen, de rechten op een

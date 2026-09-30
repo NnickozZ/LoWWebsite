@@ -109,25 +109,30 @@ describe('golf L: de randen', () => {
   });
 });
 
-describe('golf L: het kurk', () => {
+describe('golf L: het kurk (sinds golf N: het vlak)', () => {
   const css = read('app/tekens.css');
 
-  it('leest het token van de spikkels, zodat Kleuren het prikbord bereikt', () => {
+  it('golf N: het vlak is één rustige kleur uit het kurk en het papier, zonder tegel', () => {
     const before = css.slice(css.indexOf('.board-viewport::before {'), css.indexOf('.cork-swatch {'));
-    expect(before).toContain('var(--cork-speck)');
-    expect(before).toContain('var(--cork-lamp)');
+    expect(before).toContain('var(--board-lamp)');
+    expect(before).toContain('var(--board-shade)');
     expect(before).toContain('pointer-events: none');
     expect(before).toContain('z-index: -1');
+    // Geen herhaling: de enige afbeelding is ruis over het hele glas, niet een tegel.
+    expect(before).toContain('feTurbulence');
+    expect(before).toContain('100% 100% no-repeat');
+    expect(before).not.toMatch(/\d+px \d+px \/ \d+px \d+px/);
+    expect(css).toMatch(/--board-surface: color-mix\(in srgb, var\(--cork\) \d+%, var\(--paper\)\)/);
     // De oude tegel met de vaste kleur staat er niet meer overheen.
     expect(css).toMatch(/\.board-viewport \{[^}]*background-image: none/);
     expect(css).toMatch(/\.board-viewport \{[^}]*isolation: isolate/);
   });
 
   it('doet de lamp alleen in het donker aan, in beide donkere kiezers', () => {
-    expect(css).toMatch(/:root \{[^}]*--cork-lamp: transparent/);
-    expect(css).toMatch(/:root:has\(\[data-theme='dark'\]\) \{[^}]*--cork-lamp: rgb/);
+    expect(css).toMatch(/:root \{[^}]*--board-lamp: transparent/);
+    expect(css).toMatch(/:root:has\(\[data-theme='dark'\]\) \{[^}]*--board-lamp: rgb/);
     expect(css).toMatch(
-      /prefers-color-scheme: dark\)[^@]*:root:not\(:has\(\[data-theme='light'\]\)\) \{[^}]*--cork-lamp: rgb/,
+      /prefers-color-scheme: dark\)[^@]*:root:not\(:has\(\[data-theme='light'\]\)\) \{[^}]*--board-lamp: rgb/,
     );
   });
 

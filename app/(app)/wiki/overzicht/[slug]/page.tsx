@@ -78,7 +78,6 @@ export default async function OverzichtPage({
         active={null}
         allCount={total}
         query={query as Record<string, string>}
-        moreLabel={getWords().wikiMoreKinds}
       />
       {/* §98: the inleiding's chips, resolved for this reader with the page —
           §101 naden: and the secties' (`chipTexts`). */}

@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import type { ListParams } from '@/lib/listParams';
-import { MeerSoorten } from './MeerSoorten';
-import { Schuifrij } from './Schuifrij';
-import { MENU_RANG, rangSoorten } from '@/lib/wiki/tabrij';
 
 /**
  * The wiki's soorten as one row of tabs. Navigation, not a filter — each tab is
@@ -18,9 +15,12 @@ import { MENU_RANG, rangSoorten } from '@/lib/wiki/tabrij';
  * you meet. Start carries no count, on purpose: an overzicht counts nothing,
  * and a number beside it would invite the reader to read it as a soort.
  *
- * One row at every width (§104, golf H): the soorten that do not fit are in
- * *Meer soorten*, and the row scrolls under the thumb if a long name still
- * does not fit.
+ * Golf N (Nick, 30 september): every soort is a tab, always. Golf H had one
+ * row with the biggest soorten and the rest behind *Meer soorten ▾*; Nick:
+ * "I dislike very much … either show all of them at the same time or make it
+ * scrollable. Not this half solution which is super confusing." He chose all
+ * of them: the row wraps onto a second (and third) row when they do not fit,
+ * and nothing is hidden anywhere.
  */
 /** Query keys that belong to the page they were set on (§104: the list's *Meer*). */
 const NOT_CARRIED = new Set(['pagina', 'per']);
@@ -40,7 +40,6 @@ export function TypeTabs({
   query,
   allLabel = 'Alles',
   startLabel = 'Start',
-  moreLabel = 'Meer soorten',
 }: {
   types: TypeTab[];
   /**
@@ -54,8 +53,6 @@ export function TypeTabs({
   query: ListParams;
   allLabel?: string;
   startLabel?: string;
-  /** §104 (golf H, D6): the menu at the end of the row, with the soorten that are not in it. */
-  moreLabel?: string;
 }) {
   const carried = new URLSearchParams();
   for (const [key, raw] of Object.entries(query)) {
@@ -66,25 +63,9 @@ export function TypeTabs({
   const qs = carried.toString();
   const href = (path: string) => (qs ? `${path}?${qs}` : path);
 
-  /*
-   * §104 (golf H, D6): één rij. Tot hier stonden alle soorten als tabs op drie
-   * rijen (21 tabs, 130 px, met een onderlijn die per rij afbrak). Nu: Start,
-   * Alles, de soorten met de meeste artikelen, en *Meer soorten ▾* met de rest
-   * en hun tellingen. Welke soorten in de rij staan, is een rang (`rangSoorten`);
-   * hoeveel er passen, zegt de stylesheet per breedte (`data-rang`,
-   * app/leeskamer.css), zodat de server de goede rij rendert en er niets
-   * verspringt. De soort waar je op staat heeft rang 0 en staat er altijd. Past
-   * de rij toch niet (een lange naam), dan scrolt hij, met een zachte rand.
-   */
-  const { rang, nodigTot } = rangSoorten(types, active);
-  // The menu holds every soort but the one you are on; those that the row
-  // shows at this width are hidden in it by the same `data-rang`.
-  const inMenu = types.filter((type) => rang.get(type.slug) !== 0);
-  const zichtbaar = (type: TypeTab) => rang.has(type.slug);
-
   return (
     <nav className="type-tabs-rij" aria-label="Soorten">
-      <Schuifrij className="type-tabs">
+      <div className="type-tabs type-tabs-alle">
         {/* §75: de voordeur. Geen telling — een overzicht telt niets. */}
         <Link
           className="type-tab"
@@ -109,14 +90,13 @@ export function TypeTabs({
             hover and then did nothing (Nick: "hoverable maar niet
             clickable"). One row, the same on every page of the wiki: every
             tab in it is a page. */}
-        {types.filter(zichtbaar).map((type) => (
+        {types.map((type) => (
             <Link
               key={type.slug}
               /* §104 (#16): a soort with nothing in it on this side is there, and quiet. */
               className={`type-tab${type.count ? '' : ' is-leeg'}`}
               href={href(`/wiki/${type.slug}`)}
               aria-current={active === type.slug ? 'page' : undefined}
-              data-rang={rang.get(type.slug)}
             >
               {/* §104 (#9): the soort's colour, mixed towards the ink (`.soort-inkt`). */}
               <Icon name={type.icon} size={14} className="soort-inkt" style={{ ['--soort' as string]: type.colour }} />
@@ -124,22 +104,7 @@ export function TypeTabs({
               <span className="type-tab-count">{type.count}</span>
             </Link>
           ))}
-      </Schuifrij>
-      {inMenu.length > 0 && (
-        <MeerSoorten
-          label={moreLabel}
-          nodigTot={nodigTot}
-          items={inMenu.map((type) => ({
-            slug: type.slug,
-            label: type.label,
-            icon: type.icon,
-            colour: type.colour,
-            count: type.count,
-            href: href(`/wiki/${type.slug}`),
-            rang: rang.get(type.slug) ?? MENU_RANG,
-          }))}
-        />
-      )}
+      </div>
     </nav>
   );
 }

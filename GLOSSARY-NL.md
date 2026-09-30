@@ -1524,7 +1524,7 @@ een eerdere ronde is veranderd.
 
 | Woord | Waar het staat | Wat het is |
 |---|---|---|
-| **Meer soorten** (`wikiMoreKinds`) | aan het eind van de tabrij in de wiki | Het menu met de soorten die op deze breedte niet in de rij passen, met tellingen. |
+| ~~**Meer soorten** (`wikiMoreKinds`)~~ | ~~aan het eind van de tabrij in de wiki~~ | Weg sinds golf N: elke soort is een tab. |
 | **Nieuw in dit {dossier}** (`navNewInCase`) | de grote knop in het menu, op een dossier | Op één regel; de toegankelijke naam is *Nieuw artikel in dit dossier*. |
 | **{nieuw} in dit {dossier}** (`navNewInCaseLabel`) | de toegankelijke naam van die knop en van de + op een dossier | Voor een schermlezer; *Nieuw artikel in dit dossier*. |
 | **Dossiernotities** (`caseNotes`) · **Nog niets opgeschreven.** (`caseNotesNone`) | de kop boven de notities van een dossier, en de regel als ze leeg zijn | Leeg is in Lezen één gedempte regel. |

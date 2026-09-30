@@ -80,7 +80,6 @@ export default async function BrowseTypePage({
         active={type.slug}
         allCount={total}
         query={query}
-        moreLabel={words.wikiMoreKinds}
       />
 
       {/*

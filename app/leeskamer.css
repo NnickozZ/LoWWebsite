@@ -890,13 +890,9 @@
 /* ======================================================== golf H — lezen en de wiki */
 
 /*
- * §104 (golf H, D6): de tabrij van de wiki is één rij. Start, Alles, de
- * grootste soorten, en *Meer soorten ▾* rechts ernaast. Hoeveel soorten er in
- * de rij passen is een getal per breedte; elke tab draagt zijn rang
- * (`rangSoorten`, lib/wiki/tabrij.ts) en het menu toont precies de soorten die
- * de rij op deze breedte niet toont. Rang 0 — de soort waar je op staat — staat
- * altijd in de rij. Op een telefoon scrolt de rij (zeven soorten) en staat het
- * menu vast rechts.
+ * §104 (golf H, D6), sinds golf N: de tabrij van de wiki toont elke soort. Het
+ * menu *Meer soorten ▾* en de rang per breedte (`data-rang`) zijn weg; de rij
+ * breekt (app/ruimte.css, `.type-tabs-alle`).
  */
 .type-tabs-rij {
   position: relative;
@@ -907,146 +903,6 @@
 .type-tabs-rij > .type-tabs {
   flex: 1 1 auto;
   min-width: 0;
-}
-.meer-soorten {
-  flex: 0 0 auto;
-  border-bottom: 1px solid var(--rule);
-}
-.meer-soorten-knop {
-  background: none;
-  cursor: pointer;
-  border-left-color: transparent;
-}
-.meer-soorten-knop[aria-expanded='true'] {
-  color: var(--ink);
-  background: var(--paper-raised);
-}
-.meer-soorten-pijl {
-  transform: rotate(90deg);
-  transition: transform var(--dur-2) var(--ease-standard);
-}
-.meer-soorten-knop[aria-expanded='true'] .meer-soorten-pijl {
-  transform: rotate(-90deg);
-}
-/* Op een telefoon is de knop alleen zijn tekens (het woord staat in `aria-label`): de rij houdt de ruimte. */
-@media (max-width: 767px) {
-  .meer-soorten-woord {
-    display: none;
-  }
-  .meer-soorten-knop {
-    padding: 0 0.55rem;
-    min-width: var(--tap);
-    justify-content: center;
-  }
-}
-/* Het menu hangt aan de rij, niet aan de scrollende strook: die knipt niets af. */
-.meer-soorten-lijst {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  right: 0;
-  z-index: 30;
-  list-style: none;
-  margin: 0;
-  padding: 0.35rem;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.1rem 0.4rem;
-  width: min(34rem, calc(100vw - 2 * var(--page-pad, 1rem)));
-  max-height: min(70vh, 30rem);
-  overflow-y: auto;
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  box-shadow: 3px 3px 0 rgba(31, 27, 22, 0.14);
-  animation: meer-soorten-komt var(--dur-3) var(--ease-enter);
-}
-@media (prefers-reduced-motion: reduce) {
-  .meer-soorten-lijst {
-    animation: none;
-  }
-}
-@media (min-width: 640px) {
-  .meer-soorten-lijst {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.meer-soorten-item {
-  display: flex;
-  width: 100%;
-  margin: 0;
-  border: 0;
-  border-radius: 2px;
-}
-.meer-soorten-item:hover,
-.meer-soorten-item:focus-visible {
-  background: var(--paper-dark);
-}
-.meer-soorten-naam {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-@keyframes meer-soorten-komt {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Wie in de rij staat, staat niet in het menu — en omgekeerd. */
-.meer-soorten-lijst > li:is([data-rang='1'], [data-rang='2'], [data-rang='3'], [data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
-  display: none;
-}
-.meer-soorten[data-nodig-tot] {
-  display: none;
-}
-@media (min-width: 768px) and (max-width: 1023px) {
-  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='3'], [data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
-    display: none;
-  }
-  .meer-soorten-lijst > li:is([data-rang='3'], [data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
-    display: block;
-  }
-  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='3'], [data-nodig-tot='4'], [data-nodig-tot='5'], [data-nodig-tot='6'], [data-nodig-tot='7']) {
-    display: block;
-  }
-}
-@media (min-width: 1024px) and (max-width: 1279px) {
-  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
-    display: none;
-  }
-  .meer-soorten-lijst > li:is([data-rang='4'], [data-rang='5'], [data-rang='6'], [data-rang='7']) {
-    display: block;
-  }
-  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='4'], [data-nodig-tot='5'], [data-nodig-tot='6'], [data-nodig-tot='7']) {
-    display: block;
-  }
-}
-@media (min-width: 1280px) and (max-width: 1499px) {
-  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='5'], [data-rang='6'], [data-rang='7']) {
-    display: none;
-  }
-  .meer-soorten-lijst > li:is([data-rang='5'], [data-rang='6'], [data-rang='7']) {
-    display: block;
-  }
-  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='5'], [data-nodig-tot='6'], [data-nodig-tot='7']) {
-    display: block;
-  }
-}
-@media (min-width: 1500px) and (max-width: 1799px) {
-  .type-tabs-rij .type-tabs > .type-tab:is([data-rang='6'], [data-rang='7']) {
-    display: none;
-  }
-  .meer-soorten-lijst > li:is([data-rang='6'], [data-rang='7']) {
-    display: block;
-  }
-  .meer-soorten[data-nodig-tot]:is([data-nodig-tot='6'], [data-nodig-tot='7']) {
-    display: block;
-  }
 }
 
 /*
@@ -1527,17 +1383,6 @@
   }
   .infobox-tag-rij {
     row-gap: 0.55rem;
-  }
-}
-
-/* ======================================================== golf H — minder beweging */
-@media (prefers-reduced-motion: reduce) {
-  /* Het menu verschijnt; het schuift niet. De pijl draait niet, hij staat. */
-  .meer-soorten-lijst {
-    animation: leeskamer-komt var(--dur-3) linear;
-  }
-  .meer-soorten-pijl {
-    transition: none;
   }
 }
 

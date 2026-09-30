@@ -545,10 +545,18 @@ export function rosterFor(
     // other Keeper — two Keepers are one voice, never two secrets.
     if (ghost && !viewer.isKeeper) continue;
 
+    /*
+     * Golf N (Nick, 30 september): een Keeper is voor de tafel niet meer
+     * `quiet`. Waar hij staat, wordt gezegd en is een deur (met zijn plek,
+     * golf M) — onder precies dezelfde regel als ieder ander: wat de kijker
+     * niet mag zien (een Keeperartikel, Beheer, Uitdelen, een privé ding) is
+     * `hidden`, "ergens anders", zonder naam en zonder link. Alleen het aantal
+     * andere plekken houdt hij voor zich: dat blijft de vorm van de avond.
+     */
     let mode: RosterRow['mode'];
-    if (person.isKeeper && !viewer.isKeeper) mode = 'quiet';
-    else if (window.place && allowed(window.place)) mode = 'place';
+    if (window.place && allowed(window.place)) mode = 'place';
     else mode = 'hidden';
+    const keeperForTable = person.isKeeper && !viewer.isKeeper;
 
     const named = mode === 'place' && window.place ? labelOfPlace(window.place, now) : null;
     // Golf M (A3): de deur gaat naar de plek zelf, als deze kijker die mag weten.
@@ -566,9 +574,9 @@ export function rosterFor(
       label: named?.label ?? null,
       href: named?.href ? (spot ? withSpot(named.href, spot.spot) : named.href) : null,
       detail: spot?.detail ?? null,
-      verb: mode === 'quiet' ? 'kijkt' : window.verb,
+      verb: window.verb,
       resting: window.resting,
-      elsewhere: mode === 'quiet' ? 0 : Math.max(0, window.places.size - 1),
+      elsewhere: keeperForTable ? 0 : Math.max(0, window.places.size - 1),
       speler: spelerHref(window.userId),
       ghost: ghost && viewer.isKeeper,
     });

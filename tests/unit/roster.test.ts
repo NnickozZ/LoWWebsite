@@ -376,27 +376,30 @@ describe('§76: a place is named per viewer, or not at all', () => {
 /* =========================================================== B. the Keeper */
 
 describe('§76: the Keeper, seen by the table', () => {
-  it('is here, and that is all a speler is told', () => {
+  it('golf N: where he stands is hidden when the speler may not go there', () => {
+    // entry:e-geheim is Keeper-only for Bram (allowed() says no), so the row is
+    // the same placeholder as for anybody: no name, no link, no count.
     const row = ask(BRAM, [
       win('keeper-1', 'Keeper', 'entry:e-geheim', {
         places: new Set(['entry:e-geheim', 'board:b-prive', 'page:/admin']),
         verb: 'typt',
       }),
     ]).rows[0];
-    expect(row.mode).toBe('quiet');
+    expect(row.mode).toBe('hidden');
     expect(row.label).toBeNull();
     expect(row.href).toBeNull();
-    // Not even how many places he is in: that count is the shape of the evening.
+    // How many places he has open stays his: that count is the shape of the evening.
     expect(row.elsewhere).toBe(0);
-    expect(row.verb).toBe('kijkt');
     expect(row.isKeeper).toBe(true);
   });
 
-  it('is quiet even where he stands somewhere the speler may see', () => {
-    // The place is `page:/wiki`, which Bram may watch. It is still not said.
+  it('golf N: where the speler may follow, the Keeper is a door like anybody', () => {
+    // Nick, 30 september: "you cannot follow a keeper to the page where they are".
     const row = ask(BRAM, [win('keeper-1', 'Keeper', 'page:/wiki')]).rows[0];
-    expect(row.mode).toBe('quiet');
-    expect(row.label).toBeNull();
+    expect(row.mode).toBe('place');
+    expect(row.label).toBe(words.getWords().navWiki);
+    expect(row.href).toBe('/wiki');
+    expect(row.elsewhere).toBe(0);
   });
 
   it('resolves normally for another Keeper — two Keepers are one voice', () => {

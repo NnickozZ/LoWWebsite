@@ -1618,13 +1618,8 @@ export const WORD_GROUPS: WordGroup[] = [
   // §104 (aangevuld in golf H)
   {
     title: 'Lezen en de wiki (golf H)',
-    note: 'De tabrij van de wiki, de knop in het menu op een dossier, en de dossiernotities.',
+    note: 'De knop in het menu op een dossier, en de dossiernotities.',
     words: [
-      {
-        key: 'wikiMoreKinds',
-        what: 'Aan het eind van de tabrij in de wiki: het menu met de soorten die niet in de rij passen',
-        fallback: 'Meer soorten',
-      },
       {
         key: 'navNewInCase',
         what: 'De grote knop in het menu, als je op een dossier staat (past op één regel)',

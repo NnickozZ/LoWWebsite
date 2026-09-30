@@ -287,10 +287,8 @@ test('#14 #16: de voorpagina heeft één rij, de lijst zegt hoeveel van hoeveel'
   const listTabs = page.getByRole('navigation', { name: 'Soorten' });
   expect(await listTabs.getByRole('link').count()).toBeGreaterThan(5);
   // An empty soort is dimmed, not gone (the seed has soorten with nothing in them).
-  // §104 (golf H, D6): it is in *Meer soorten* now — the row holds the largest.
-  await listTabs.getByTestId('meer-soorten').click();
-  await expect(listTabs.locator('.meer-soorten-lijst .type-tab.is-leeg').first()).toBeVisible();
-  await page.keyboard.press('Escape');
+  // Golf N: every soort is in the row again (no *Meer soorten*), the empty ones quiet.
+  await expect(listTabs.locator('.type-tabs .type-tab.is-leeg').first()).toBeVisible();
 
   // #14: the summary says how many of how many, and *Meer* shows the rest — in the URL (§12).
   const total = Number((await listTabs.getByRole('link', { name: /^Alles/ }).locator('.type-tab-count').innerText()).trim());
