@@ -7847,3 +7847,36 @@ nieuw nummer, geen migratie, geen verwijderd bestand; nieuw is `app/rust.css`
   spiegel al (§66–§67, met een rol) en zijn niet aangeraakt. Een veld dat
   naar een *dossier*, een stamboom of een speler wijst, heeft geen andere kant
   op een artikel.
+
+### Golf O, vijfde pas: verwijderen, Bewerken en de schakelaar na volgen
+
+- **Verwijderen staat alleen in Bewerken.** *"Als lezer moet de knop om een
+  artikel te verwijderen niet zichtbaar zijn."* Het blok *Dit artikel
+  verwijderen* staat niet meer onder *Beheer van dit artikel* in Lezen; in
+  Bewerken wel.
+- **Naar de prullenbak vraagt *akkoord*.** *"Moet je ook 'akkoord' typen (niet
+  de titel van het artikel)."* Eén woord (`deleteConfirmWord`, door de Keeper
+  te hernoemen), hoofdletters en spaties tellen niet (`confirmsBin` in
+  `lib/entries/binConfirm.ts`, één vergelijking voor de knop en voor
+  `deleteEntryAction`, dat het opnieuw vraagt). *Voorgoed wissen* in Beheer
+  vraagt nog steeds de naam: daar komt niets terug. De dossiers, prikborden en
+  andere dingen zijn niet veranderd.
+- **Draait §22's "het bewerkgezicht is geen recht" om.** *"Je moet niet op
+  bewerken kunnen klikken als je in een artikel zit die je niet kan editen."*
+  Gevraagd en bevestigd (*Knop weg, geen voorstellen*): wie een artikel niet
+  mag bewerken, krijgt geen *Bewerken*, en dus op de pagina van een artikel
+  ook geen voorstel meer (`canToggle` vraagt `access.canEdit`). De weg van een
+  voorstel op de server is niet aangeraakt; een stamboom en de andere vlakken
+  sturen er nog voorstellen langs. De regel *Je kunt dit artikel lezen. Wat je
+  verandert gaat als voorstel…* is weg (hij kon niet meer verschijnen).
+- **Volgen naar de andere kant zet de schakelaar mee** (bug). *Ga naar* in
+  *Wie is er?* is een `<Link>`; liep de speler aan de andere kant, dan zette
+  `sideDetour` het koekje om maar bleef de schil van daarvoor staan, met de
+  schakelaar op Keeper, en terug kostte twee klikken. Twee fouten:
+  `SideSwitched` las `window.location.search` tijdens de render, toen de router
+  het nieuwe adres nog niet had geschreven (dus zag hij de landing nooit), en
+  een landing via de client houdt de oude layout. Nu leest hij de zoekstring
+  van de router, en laadt de kopie in de schil het adres opnieuw als document
+  zodra een nieuwe landing `gewisseld=1` draagt (§57: elke oversteek is een
+  documentlading). Dat geldt voor elke `<Link>` die onverwacht oversteekt, niet
+  alleen voor *Ga naar*.

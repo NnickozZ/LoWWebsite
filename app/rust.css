@@ -345,3 +345,13 @@
 .main .veld-andere-kant > input {
   max-width: 18rem;
 }
+
+/* ------------------------------------------ 9. de prullenbak met een woord */
+/* Golf O, vijfde pas: *Naar de prullenbak* vraagt eerst *akkoord*. */
+.main .entry-bin-form {
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.main .entry-bin-confirm {
+  max-width: 14rem;
+}

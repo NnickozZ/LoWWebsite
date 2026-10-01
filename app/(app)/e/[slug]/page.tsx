@@ -73,6 +73,7 @@ import { formatWhen } from '@/lib/timelines/time';
 import { viewerCanEdit } from '@/lib/access';
 import { cleanTypeText, defaultBlockTitle, resolveBlocks, twinFieldOf } from '@/lib/pageBlocks';
 import { deleteEntryAction, restoreRevisionAction } from './actions';
+import { DeleteEntryForm } from '@/components/entry/DeleteEntryForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -891,13 +892,7 @@ export default async function EntryPage({
           <p className="small muted">
             Niets wordt echt gewist — een {words.keeper} kan dit terughalen uit de prullenbak.
           </p>
-          <form action={deleteEntryAction}>
-            <input type="hidden" name="entryId" value={entry.id} />
-            <button className="btn btn-small btn-danger" type="submit">
-              <Icon name="trash" size={14} />
-              Naar de prullenbak
-            </button>
-          </form>
+          <DeleteEntryForm entryId={entry.id} action={deleteEntryAction} />
         </div>
       </details>
     );

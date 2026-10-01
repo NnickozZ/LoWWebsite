@@ -4,7 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireAuthor } from '@/lib/auth/author';
 import { requireUser } from '@/lib/auth/session';
+import { getWords } from '@/lib/admin/words';
+import { confirmsBin } from '@/lib/entries/binConfirm';
 import { getEntrySummaryById, restoreRevision, softDeleteEntry } from '@/lib/entries/service';
+import { fill } from '@/lib/words';
 
 export async function restoreRevisionAction(formData: FormData) {
   const user = await requireUser();
@@ -17,10 +20,21 @@ export async function restoreRevisionAction(formData: FormData) {
   redirect(`/e/${entry?.slug ?? ''}`);
 }
 
-export async function deleteEntryAction(formData: FormData) {
+export type DeleteEntryState = { error: string | null };
+
+/**
+ * Golf O, vijfde pas: the bin asks for one typed word first (`deleteConfirmWord`,
+ * *akkoord*). The browser keeps the button shut until it is there; this is the
+ * rule, because a disabled button is a courtesy and a server check is a rule.
+ */
+export async function deleteEntryAction(_prev: DeleteEntryState, formData: FormData): Promise<DeleteEntryState> {
   const user = await requireUser();
   // §18b: a player who has not said who they are writing as does not write.
   requireAuthor(user);
+  const words = getWords();
+  if (!confirmsBin(String(formData.get('confirmWord') ?? ''), words.deleteConfirmWord)) {
+    return { error: fill(words.deleteConfirmWrong, { woord: words.deleteConfirmWord }) };
+  }
   const entryId = String(formData.get('entryId') ?? '');
   softDeleteEntry(entryId, user);
   // §75: de lijst waar dit artikel uit verdwijnt is /wiki/alles; op /wiki

@@ -129,10 +129,11 @@ export type EntryCaseLite = { id: string; slug: string; name: string; confidenti
  * your role decides — a Keeper writes the archive so a Keeper lands in
  * editing, everyone else came to read.
  *
- * The editing face is not a right. A player who may only propose can open it
- * too; their changes simply travel as proposals (§10, §17). What the two faces
- * separate is intent, not permission — the old page asked everyone to fill in
- * a form whether they had come to write or only to look something up.
+ * ~~The editing face is not a right.~~ Since golf O's fifth pass it is: only
+ * somebody who may edit gets *Bewerken* (`canToggle`), so a reader is no
+ * longer offered a voorstel here. What the two faces separate is still
+ * intent as well — the old page asked everyone to fill in a form whether they
+ * had come to write or only to look something up.
  *
  * Three columns on a wide screen (§25), in this order across the page: the
  * text — title, body, sections, lists, backlinks, history, in the order the
@@ -358,7 +359,15 @@ export function EntryView({
    * A brand-new artikel (`?new=1`) is the one exception and opens in editing:
    * you have just made it, so you are here to fill it in.
    */
-  const canToggle = Boolean(access.viewerId);
+  /*
+   * Golf O, vijfde pas (Nick: "Je moet niet op bewerken kunnen klikken als je
+   * in een artikel zit die je niet kan editen"): the editing face is for
+   * whoever may edit. This reverses §22's "the editing face is not a right":
+   * somebody who may only read no longer gets a Bewerken that turns every
+   * change into a voorstel. The server's proposal road is untouched; this
+   * page simply no longer offers it to a reader.
+   */
+  const canToggle = Boolean(access.viewerId) && access.canEdit;
   const [mode, setMode] = useState<ArticleMode>(canToggle && openAddMore ? 'edit' : 'view');
   const reading = mode === 'view';
 
@@ -630,7 +639,11 @@ export function EntryView({
   const infoboxHeading = fieldsBlock ? fieldsBlock.title || defaultBlockTitle('fields', words) : defaultBlockTitle('fields', words);
 
   const showManage =
-    access.canManage || access.settings.locked || proposals.length > 0 || isKeeper || Boolean(slots.delete);
+    access.canManage ||
+    access.settings.locked ||
+    proposals.length > 0 ||
+    isKeeper ||
+    (!reading && Boolean(slots.delete));
 
   /*
    * §101: a Tekst with nothing in it is a heading over a blank while reading —
@@ -1581,7 +1594,8 @@ export function EntryView({
        */}
       {slots.keeper ?? null}
 
-      {slots.delete ?? null}
+      {/* Golf O, vijfde pas: the bin is a writing act, so it is on the editing face only. */}
+      {!reading && (slots.delete ?? null)}
     </section>
   ) : null;
 
@@ -1647,13 +1661,6 @@ export function EntryView({
         <div className="entry-kop">
           {header}
 
-          {/* Only worth saying on the face where it changes what happens next. */}
-          {!reading && !access.canEdit && (
-            <p className="small entry-readonly-note">
-              <Icon name="lock" size={13} /> Je kunt dit {words.entry} lezen. Wat je verandert gaat als
-              voorstel naar de eigenaar.
-            </p>
-          )}
 
           {/* §92 (B11): the jump chips straight under the header, before what
               they are there to skip. §104 (golf H, D1): up to 1499 px — from

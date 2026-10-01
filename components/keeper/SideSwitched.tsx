@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useUi } from '@/components/ui/UiProvider';
 import type { Side } from '@/lib/keeper/kinds';
 import { readLanding, SWITCHED_PARAM, switchedMessage, TWINLESS_PARAM } from './flipRoad';
@@ -33,6 +33,23 @@ import { readLanding, SWITCHED_PARAM, switchedMessage, TWINLESS_PARAM } from './
  * from being two different answers about the same landing.
  */
 let saidFor: string | null = null;
+
+/*
+ * Golf O, vijfde pas (Nick: "Als ik iemand volg van de keeper side naar de
+ * player side dan wordt de switch niet correct geplaatst, en moet ik 2x klikken
+ * om terug te gaan"). *Ga naar* in *Wie is er?* is a `<Link>`, so following a
+ * player across the border was a client-side navigation: the page sent it
+ * through `sideDetour` and the cookie turned over, but the shell — the
+ * switch, the palette, §48's born-on-a-side — was the layout's from before,
+ * and still said Keeper. Every road that crosses the border has to be a
+ * document load (§57); this one could not know beforehand that it would
+ * cross. So the shell's copy, which is the only one that lives through a
+ * client-side navigation, notices a *new* landing with the flag and loads the
+ * same address again as a document, flag and all. That load says the
+ * sentence; nothing is said before it.
+ */
+let reloading = false;
+let reloadTo = '';
 
 export function SideSwitched({ side }: { side: Side }) {
   const { toast, words } = useUi();
@@ -80,9 +97,16 @@ export function SideSwitched({ side }: { side: Side }) {
    * link, and on the Back button.
    */
   const params = useSearchParams();
+  const pathname = usePathname();
   if (typeof window !== 'undefined') {
-    void params;
-    const search = window.location.search;
+    /*
+     * Golf O, vijfde pas: the router's own search, not `window.location`. On a
+     * client-side navigation this renders *before* the router writes the new
+     * address into history, so `window.location.search` was still the old one
+     * and the landing was never seen at all.
+     */
+    const query = params?.toString() ?? '';
+    const search = query ? `?${query}` : '';
     if (landing.current === null) {
       landing.current = readLanding(search);
       readFor.current = search;
@@ -92,6 +116,8 @@ export function SideSwitched({ side }: { side: Side }) {
       if (next.switched) {
         landing.current = next;
         said.current = false;
+        reloading = true;
+        reloadTo = `${pathname}${search}`;
       }
     }
   } else if (landing.current === null) {
@@ -99,7 +125,12 @@ export function SideSwitched({ side }: { side: Side }) {
   }
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !landing.current?.switched) return;
+    if (!reloading || typeof window === 'undefined') return;
+    window.location.replace(reloadTo || window.location.href);
+  });
+
+  useEffect(() => {
+    if (reloading || typeof window === 'undefined' || !landing.current?.switched) return;
     const url = new URL(window.location.href);
     if (!url.searchParams.has(SWITCHED_PARAM) && !url.searchParams.has(TWINLESS_PARAM)) return;
     url.searchParams.delete(SWITCHED_PARAM);
@@ -108,7 +139,7 @@ export function SideSwitched({ side }: { side: Side }) {
   });
 
   useEffect(() => {
-    if (said.current || !landing.current?.switched) return;
+    if (reloading || said.current || !landing.current?.switched) return;
     said.current = true;
     const here = typeof window === 'undefined' ? '' : window.location.pathname;
     if (saidFor === here) return;

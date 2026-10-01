@@ -104,7 +104,7 @@ test('what one person types, the other sees as it is typed — and it is saved',
   await otherCtx.close();
 });
 
-test('someone who may only look sees the text live, and proposes rather than types', async ({ page, browser }, info) => {
+test('someone who may only look sees the text live, and has nothing to press', async ({ page, browser }, info) => {
   test.setTimeout(150_000);
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
 
@@ -119,33 +119,16 @@ test('someone who may only look sees the text live, and proposes rather than typ
   const reader = await readerCtx.newPage();
   await signUpWriting(reader, `Lezer ${stamp}`);
   await reader.goto(path);
-  // §22: proposing is an act of editing, so the button for it is on the
-  // editing face. The reading face shows this same text and nothing to press.
-  await editArticle(reader);
+  // Golf O, vijfde pas: no Bewerken for a reader who may not edit, so no
+  // editing face and no *Wijziging voorstellen*.
   await expect(reader.locator('.live-dot-live')).toBeVisible({ timeout: 15_000 });
+  await expect(reader.locator('.entry-mode-toggle')).toHaveCount(0);
+  await expect(reader.getByRole('button', { name: 'Wijziging voorstellen' })).toHaveCount(0);
 
-  // Read-only: no contenteditable, but the owner's typing still arrives.
-  await expect(body(reader)).toHaveAttribute('contenteditable', 'false');
+  // The owner's typing still arrives on the reading face.
   await body(page).click();
   await page.keyboard.type('Vandaag regen.');
-  await expect(body(reader)).toContainText('Vandaag regen.', { timeout: 5000 });
-
-  // A proposal: a copy to edit, sent to the owner.
-  await reader.getByRole('button', { name: 'Wijziging voorstellen' }).click();
-  const proposal = reader.locator('.proposal-editor .prose');
-  await expect(proposal).toContainText('Vandaag regen.');
-  await proposal.click();
-  await reader.keyboard.press('End');
-  await reader.keyboard.type(' En wind.');
-  await reader.getByRole('button', { name: 'Voorstel sturen' }).click();
-  await expect(reader.getByText('Als voorstel naar de eigenaar gestuurd.')).toBeVisible({ timeout: 10_000 });
-  // The shared text itself did not change.
-  await expect(body(page)).not.toContainText('En wind.');
-  await expect(body(reader)).not.toContainText('En wind.');
-
-  // The owner has it waiting.
-  await page.reload();
-  await expect(page.locator('summary', { hasText: 'Voorstellen (1)' })).toBeVisible({ timeout: 10_000 });
+  await expect(reader.locator('.entry-body-block')).toContainText('Vandaag regen.', { timeout: 10_000 });
 
   await readerCtx.close();
 });

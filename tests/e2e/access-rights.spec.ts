@@ -92,10 +92,7 @@ test('a private fiche is nobody else\'s, and a Keeper sees it anyway', async ({ 
   await keeperCtx.close();
 });
 
-test('someone who may look but not touch sends a proposal, and the owner judges it', async ({
-  page,
-  browser,
-}, info) => {
+test('someone who may look but not touch gets no Bewerken', async ({ page, browser }, info) => {
   test.setTimeout(150_000);
   const stamp = `${info.project.name}-${Date.now().toString(36)}`;
   const entryName = `Logboek ${stamp}`;
@@ -113,25 +110,16 @@ test('someone who may look but not touch sends a proposal, and the owner judges 
   const other = await otherCtx.newPage();
   await signUpWriting(other, `Lezer ${stamp}`);
   await other.goto(path);
-  // §22: a player lands on the reading face; the note about proposals belongs
-  // to the editing one, where it changes what the next keystroke does.
-  await editArticle(other);
-  await expect(other.getByText(/Je kunt dit artikel lezen/)).toBeVisible();
-  await other.getByLabel('Korte beschrijving').fill('Voorstel van een lezer');
-  await other.getByLabel('Korte beschrijving').blur();
-  await expect(other.getByText('Als voorstel naar de eigenaar gestuurd.')).toBeVisible();
+  // Golf O, vijfde pas (reverses §22's "the editing face is not a right"):
+  // a reader who may not edit is offered no Bewerken, and so no proposal.
+  await expect(other.getByRole('heading', { name: entryName })).toBeVisible({ timeout: 15_000 });
+  await expect(other.locator('.entry-mode-toggle')).toHaveCount(0);
+  await expect(other.locator('summary', { hasText: 'Dit artikel verwijderen' })).toHaveCount(0);
   await otherCtx.close();
 
-  // Nothing landed on the fiche itself…
+  // The owner still has the button.
   await page.reload();
-  await editArticle(page);
-  await expectBoxValue(page.getByLabel('Korte beschrijving'), '');
-  // …but the owner has it waiting, and takes it.
-  await expect(page.locator('summary', { hasText: 'Voorstellen (1)' })).toBeVisible();
-  await expect(page.getByText('Voorstel van een lezer')).toBeVisible();
-  await page.getByRole('button', { name: 'Overnemen' }).click();
-  await page.waitForTimeout(1500);
-  await expectBoxValue(page.getByLabel('Korte beschrijving'), 'Voorstel van een lezer');
+  await expect(page.locator('.entry-mode-toggle')).toBeVisible({ timeout: 15_000 });
 });
 
 test('a private board is created private, and a chosen person may look but not pin', async ({

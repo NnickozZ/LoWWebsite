@@ -160,7 +160,11 @@ test('the trash gives an entry back', async ({ page }, testInfo) => {
   const url = await newEntry(page, 'object', entryName);
 
   await page.locator('summary', { hasText: 'Dit artikel verwijderen' }).click();
-  await page.getByRole('button', { name: 'Naar de prullenbak' }).click();
+  // Golf O, vijfde pas: the button opens only once *akkoord* is typed.
+  const go = page.getByRole('button', { name: 'Naar de prullenbak' });
+  await expect(go).toBeDisabled();
+  await page.getByTestId('entry-bin-confirm').fill('Akkoord');
+  await go.click();
   await page.waitForURL((candidate) => !candidate.pathname.startsWith('/e/'));
 
   await page.goto('/admin');

@@ -2097,6 +2097,23 @@ export const WORD_GROUPS: WordGroup[] = [
         what: 'Onder dat vakje',
         fallback: 'Noemen twee velden elkaar zo, dan vult het archief de andere pagina zelf in, en haalt het daar ook weg.',
       },
+      {
+        key: 'deleteConfirmWord',
+        what: 'Het woord dat je typt om een artikel naar de prullenbak te verplaatsen',
+        fallback: 'akkoord',
+        hint: 'Eén woord, in kleine letters. Hoofdletters en spaties tellen bij het typen niet mee.',
+      },
+      {
+        key: 'deleteConfirmLabel',
+        what: 'Boven het vakje waarin je dat woord typt',
+        fallback: 'Typ {woord} om dit {artikel} naar de prullenbak te verplaatsen',
+      },
+      {
+        key: 'deleteConfirmWrong',
+        what: 'Als het getypte woord niet klopt',
+        fallback: 'Typ {woord} om te bevestigen.',
+      },
+      { key: 'deleteToBin', what: 'De knop die een artikel naar de prullenbak verplaatst', fallback: 'Naar de prullenbak' },
       { key: 'navCollapse', what: 'De knop die de zijbalk inklapt (voorleestekst en tip)', fallback: 'Menu inklappen' },
       { key: 'navExpand', what: 'De knop die de zijbalk weer uitklapt (voorleestekst en tip)', fallback: 'Menu uitklappen' },
       {

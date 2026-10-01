@@ -2328,6 +2328,12 @@ mistakes. Check yours against these before declaring a spec finished.
   `entry-bijgewerkt` instead (the tail of the Geschiedenis summary, *laatst
   door X, …*, with the account as `title`; `signedLine` in
   `characters.spec.ts`). A feed thumb is a search row now (`/search?q=`).
+- **Golf O, vijfde pas: a reader who may not edit has no `.entry-mode-toggle`**
+  and no *Dit artikel verwijderen*; a spec that wants a voorstel on an artikel
+  has no road left on the page. *Naar de prullenbak* is shut until
+  `entry-bin-confirm` holds *akkoord*. A spec that follows somebody across the
+  border (`roster-go`) lands after one extra document load; wait for
+  `side-toggle`'s `data-side-now`, not for the URL alone.
 - **Golf O: the head of an artikel is title, lead, text.** The soort and the
   dossiers are the first rows of *Meer info* (`infobox-feiten`,
   `infobox-soort`, `infobox-dossiers`); in Bewerken the §24/§49 line
@@ -2854,6 +2860,12 @@ migratie, geen verwijderd bestand. De rondenotitie is `claude/golf-o-rust.md`.*
   staan uit, niet weg. *Achternaam* is weg als veld; de waarden staan nog in
   `entries.fields`. `infoKind` heet nu *In de wiki* (*Categorie* botste met het
   veld van Abnormaliteiten).
+- **Vijfde pas**: *Bewerken* staat er alleen voor wie mag bewerken (§22
+  omgekeerd), dus op een artikel kan een lezer geen voorstel meer doen; de
+  serverweg en `ProposalsPanel` bleven. `.entry-readonly-note` in
+  `globals.css` is dode CSS. *Naar de prullenbak* vraagt *akkoord*
+  (`entry-bin-confirm`, `entry-bin-go`); een dossier niet. Een `<Link>` die
+  onverwacht oversteekt, laadt de pagina één keer opnieuw (`SideSwitched`).
 - **De e2e-suite is niet volledig gedraaid**, alleen de specs die Start, de
   wiki en de kop van een artikel raken.
 
