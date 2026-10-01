@@ -153,9 +153,11 @@ describe('de vier machten', () => {
       // Partner, Geschapen door, Schepselen, Aspect van) en §67 een zevende
       // (Broers en zussen) — die zijn van de stamboom en niet van deze ronde,
       // dus ze tellen hier niet mee. Wat ronde 28 leverde is nog steeds acht.
-      const eigen = fieldsOf(slug).filter((field) => !field.role);
+      // Golf O zette er *Dienaren* bij, de andere kant van *Dienaar van*; ook
+      // die is niet van deze ronde.
+      const eigen = fieldsOf(slug).filter((field) => !field.role && field.key !== 'dienaren');
       expect(eigen.length, slug).toBe(8);
-      expect(fieldsOf(slug).length, slug).toBe(15);
+      expect(fieldsOf(slug).length, slug).toBe(16);
     }
   });
 

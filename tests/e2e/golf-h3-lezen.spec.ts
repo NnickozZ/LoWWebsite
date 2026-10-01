@@ -53,14 +53,24 @@ test('D6, sinds golf N: elke soort is een tab, de rij breekt en verbergt niets',
   const tabs = nav.locator('.type-tabs .type-tab');
   const count = await tabs.count();
   expect(count).toBeGreaterThan(8);
-  // Every tab is visible and inside the page's column: nothing scrolls away.
   const rowBox = (await nav.locator('.type-tabs').boundingBox())!;
-  for (let i = 0; i < count; i++) {
-    const tab = tabs.nth(i);
-    await expect(tab).toBeVisible();
-    const box = (await tab.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(rowBox.x - 1);
-    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  if (info.project.name === 'phone') {
+    // Golf O: on a phone the row is one line that scrolls sideways, not six to
+    // eight lines above the first sentence.
+    const first = (await tabs.first().boundingBox())!;
+    const lastBox = (await tabs.nth(count - 1).boundingBox())!;
+    expect(Math.abs(lastBox.y - first.y)).toBeLessThan(2);
+    expect(rowBox.height).toBeLessThan(60);
+    expect(await nav.locator('.type-tabs').evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  } else {
+    // Every tab is visible and inside the page's column: nothing scrolls away.
+    for (let i = 0; i < count; i++) {
+      const tab = tabs.nth(i);
+      await expect(tab).toBeVisible();
+      const box = (await tab.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(rowBox.x - 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+    }
   }
   // An empty soort is there, quiet.
   await expect(nav.locator('.type-tab.is-leeg').first()).toBeVisible();
@@ -70,6 +80,8 @@ test('D6, sinds golf N: elke soort is een tab, de rij breekt en verbergt niets',
   await last.click();
   await page.waitForURL((url) => url.pathname === href.split('?')[0]);
   await expect(page.getByRole('navigation', { name: 'Soorten' }).locator('[aria-current="page"]')).toHaveAttribute('href', href);
+  // …and in view, also when the row scrolls (golf O, `useSchuifrij`).
+  await expect(page.getByRole('navigation', { name: 'Soorten' }).locator('[aria-current="page"]')).toBeInViewport();
   await shot(page, 'd6-soort', info.project.name);
 });
 

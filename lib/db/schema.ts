@@ -252,6 +252,18 @@ export type FieldDef = {
    * (`lib/families/mirror.ts`, inside `updateEntry`). `kin` is never mirrored.
    */
   role?: FieldRole;
+  /**
+   * Golf O (Nick, 1 oktober: *"Sjaantje worships God, then God should also get
+   * 'is worshipped by' Sjaantje … if it is removed then it is removed on both
+   * sides"*): the key of this field's other side, on the soorten it points at.
+   * "Vereert" (`vereert`, inverse `vereerd_door`) on a Persoon and "Vereerd
+   * door" (`vereerd_door`, inverse `vereert`) on a god are one fact, and the
+   * server writes the other page (`lib/families/mirror.ts`, the same seam as
+   * `role`). Both fields name each other, or nothing is mirrored: a pair is two
+   * keys that agree. A field may name itself ("Verwant aan"). A `role` wins
+   * over this; only on a koppelingsveld.
+   */
+  inverse?: string;
 };
 
 export type Visibility = 'all' | 'keeper' | 'players';

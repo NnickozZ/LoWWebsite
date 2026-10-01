@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import type { ListParams } from '@/lib/listParams';
 import { getWords } from '@/lib/admin/words';
+import { Schuifrij } from '@/components/Schuifrij';
 
 /**
  * The wiki's soorten as one row of tabs. Navigation, not a filter — each tab is
@@ -22,6 +23,11 @@ import { getWords } from '@/lib/admin/words';
  * scrollable. Not this half solution which is super confusing." He chose all
  * of them: the row wraps onto a second (and third) row when they do not fit,
  * and nothing is hidden anywhere.
+ *
+ * Golf O (Nick, 1 oktober: *"On phone … that top bar is weirdly stacked and
+ * occupies 80% of my screen"*): on a phone it is the other half of his golf N
+ * answer — *"or make it scrollable"*. One row that scrolls sideways, the tab
+ * you are on scrolled into view; on a computer it still wraps.
  */
 /** Query keys that belong to the page they were set on (§104: the list's *Meer*). */
 const NOT_CARRIED = new Set(['pagina', 'per']);
@@ -67,7 +73,10 @@ export function TypeTabs({
 
   return (
     <nav className="type-tabs-rij" aria-label="Soorten">
-      <div className="type-tabs type-tabs-alle">
+      {/* Golf O, derde pas: op een telefoon één rij die opzij scrolt (de tab waar
+          je op staat schuift in beeld); op een computer breekt hij nog, zoals
+          golf N koos. Zie `app/rust.css`, 7. */}
+      <Schuifrij className="type-tabs type-tabs-alle">
         {/* §75: de voordeur. Geen telling — een overzicht telt niets. */}
         <Link
           className="type-tab"
@@ -118,7 +127,7 @@ export function TypeTabs({
               <span className="type-tab-count">{type.count}</span>
             </Link>
           ))}
-      </div>
+      </Schuifrij>
     </nav>
   );
 }

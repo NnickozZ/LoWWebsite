@@ -79,6 +79,16 @@ export function cleanFields(input: unknown): FieldDef[] {
     if ((kind === 'entry_link' || kind === 'entry_links') && isFieldRole(field.role)) {
       def.role = field.role;
     }
+    // Golf O: the other side of a pair, by key. Not beside a role (the role's
+    // own mirror decides there), and only a key-shaped string.
+    if (
+      (kind === 'entry_link' || kind === 'entry_links') &&
+      !def.role &&
+      typeof field.inverse === 'string' &&
+      /^[a-z0-9_]{1,60}$/.test(field.inverse)
+    ) {
+      def.inverse = field.inverse;
+    }
     out.push(def);
   }
   return out;

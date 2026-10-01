@@ -2070,8 +2070,8 @@ export const WORD_GROUPS: WordGroup[] = [
       {
         key: 'infoKind',
         what: 'In Meer info: het label voor de soort van het artikel (de chip gaat naar de lijst van die soort)',
-        fallback: 'Categorie',
-        hint: 'Niet “Soort”: een soort heeft vaak zelf een veld dat zo heet, en dan staan er twee onder elkaar.',
+        fallback: 'In de wiki',
+        hint: 'Niet “Soort” of “Categorie”: een soort heeft vaak zelf een veld dat zo heet, en dan staan er twee onder elkaar.',
       },
       {
         key: 'historyLast',
@@ -2086,6 +2086,17 @@ export const WORD_GROUPS: WordGroup[] = [
         fallback: 'Wat er in het archief geschreven, veranderd en onthuld is, het nieuwste bovenaan.',
       },
       { key: 'wikiHistoryNew', what: 'Het stempeltje bij een regel van na je vorige bezoek', fallback: 'Nieuw' },
+      { key: 'fieldInverse', what: 'Soort-editor: bij een koppelingsveld, het vakje voor de andere kant', fallback: 'Andere kant' },
+      {
+        key: 'fieldInversePlaceholder',
+        what: 'Daarin, zolang het leeg is',
+        fallback: 'sleutel van het veld daar, bijv. vereerd_door',
+      },
+      {
+        key: 'fieldInverseHint',
+        what: 'Onder dat vakje',
+        fallback: 'Noemen twee velden elkaar zo, dan vult het archief de andere pagina zelf in, en haalt het daar ook weg.',
+      },
       { key: 'navCollapse', what: 'De knop die de zijbalk inklapt (voorleestekst en tip)', fallback: 'Menu inklappen' },
       { key: 'navExpand', what: 'De knop die de zijbalk weer uitklapt (voorleestekst en tip)', fallback: 'Menu uitklappen' },
       {

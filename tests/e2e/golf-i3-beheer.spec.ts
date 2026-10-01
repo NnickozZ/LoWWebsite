@@ -164,9 +164,11 @@ test('een bestaande soort: compacte rijen, en een veld erbij', async ({ page }, 
   await shot(page, 'soort-personen', testInfo.project.name);
   if (testInfo.project.name === 'desktop') {
     // Was 3.000 px van de kop tot Veld toevoegen (drie schermen); nu ongeveer één.
+    // Golf O (vierde pas) gaf Personen vier velden van de andere kant (Leidt,
+    // Hoofd van, In bezit, Maakte), elk een rij van ±62 px: vandaar 1400.
     const top = (await editor.boundingBox())!.y;
     const addBox = await editor.getByRole('button', { name: 'Veld toevoegen' }).boundingBox();
-    expect(addBox!.y - top).toBeLessThan(1000);
+    expect(addBox!.y - top).toBeLessThan(1400);
   }
 });
 

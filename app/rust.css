@@ -305,3 +305,43 @@
 .main .geschiedenis-meer {
   margin: 1rem 0 0;
 }
+
+/* ------------------------------------------- 7. de tabrij van de wiki */
+/*
+ * Golf O, derde pas (Nick: "On phone, the start wiki page is very cluttered
+ * because that top bar is weirdly stacked and occupies 80% of my screen").
+ * Golf N liet de rij breken, op elke breedte; op een telefoon werden dat zes
+ * tot acht rijen boven de eerste zin. Daar is hij nu één rij die opzij scrolt
+ * (`.schuifrij`, met de vervaagde rand die zegt dat er meer is, en de tab waar
+ * je op staat in beeld via `Schuifrij`). Op een computer blijft hij breken:
+ * daar zijn het twee of drie rijen en zie je alles.
+ */
+@media (min-width: 768px) {
+  .type-tabs.type-tabs-alle.schuifrij {
+    -webkit-mask-image: none;
+    mask-image: none;
+    animation: none;
+  }
+}
+@media (max-width: 767px) {
+  .type-tabs.type-tabs-alle.schuifrij {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+}
+
+/* --------------------------------------- 8. Beheer: de andere kant van een veld */
+/*
+ * Golf O, vierde pas (Nick: "Sjaantje worships God, then God should also get
+ * 'is worshipped by' Sjaantje"): een koppelveld zonder rol kan een veld op de
+ * andere soort noemen. Dan vullen ze elkaar.
+ */
+.main .veld-andere-kant {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+.main .veld-andere-kant > input {
+  max-width: 18rem;
+}

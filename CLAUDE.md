@@ -1289,6 +1289,19 @@ freely there.
   second box, or the Keeper may have reordered the fields since, and a mirror
   that only looks in the first box leaves a line nobody can delete. Taking away
   too much is impossible here: only the source artikel is ever swept out.
+- **A koppelveld without a role can name its other side** (golf O, vierde
+  pas): `FieldDef.inverse` is the key of the field on the target soort, and
+  two fields that name each other are a pair. It rides the mirror above —
+  `pairFields` in `lib/families/mirror.ts` finds the other field by key where
+  `inverseFields` finds it by role — so every rule of the mirror holds (direct
+  `db.update`, no revision, add in the first, remove from every). A role wins:
+  `cleanFields` keeps `inverse` only on a link field without one. When a
+  one-box link is overwritten, `dropFromOtherSide` (`lib/entries/service.ts`)
+  takes the source off the *old* target's paired field too. The archive's
+  own pairs are a table, `TWO_SIDED` in `lib/entries/tweeKanten.mjs`, applied
+  once by the marker `seed:golf-o-twee-kanten` (and at the end of
+  `seed-wereld`); a new pair in the seed goes in that table, with a `make`
+  when the other side has no field yet.
 - **A stamboom's layout is never stored; only the pins are** (§66).
   `layoutTree` in `lib/families/layout.ts` is pure and recomputed from the
   graph on every change — a stored layout goes stale the moment somebody fills
@@ -2824,11 +2837,23 @@ migratie, geen verwijderd bestand. De rondenotitie is `claude/golf-o-rust.md`.*
   `zijbalk-open` (*Menu inklappen* / *Menu uitklappen*). De tab *Wiki
   geschiedenis* staat derde in de rij (`tab-geschiedenis`), dus de eerste
   soort is `a.type-tab` nummer 3, niet 2.
+- **Op een telefoon is de tabrij van de wiki één rij die opzij scrolt**
+  (derde pas; op een computer breekt hij nog). Een spec op het `phone`-project
+  die een tab ver in de rij zoekt, vindt hem buiten beeld maar `toBeVisible`;
+  na een klik staat de gekozen tab in beeld (`useSchuifrij`).
 - **Dode CSS en woorden**: de Jij-rij, de feed en de leeskamer in
   `globals.css`/`leeskamer.css`, en `homeJij*`, `wikiRecent*`,
   `wikiFromArchive`, `wikiKinds`, `entryWhereIn`, `lastEdit*`.
   `app/(app)/wiki/willekeurig/UitHetArchief.tsx` heeft geen lezer meer
   (weghalen is een `git rm`).
+- **Twee kanten (vierde pas)**: Ouders/Kinderen/Partner/Broers en zussen
+  hadden hun spiegel al en zijn niet aangeraakt. De gevulde andere kanten
+  kwamen er één keer bij, alleen toevoegend; een vakje van één dat al iets
+  anders hield, bleef staan, dus daar kunnen de twee kanten nog verschillen
+  tot iemand het veld opslaat. De afgeleide blokken die nu een veld herhalen,
+  staan uit, niet weg. *Achternaam* is weg als veld; de waarden staan nog in
+  `entries.fields`. `infoKind` heet nu *In de wiki* (*Categorie* botste met het
+  veld van Abnormaliteiten).
 - **De e2e-suite is niet volledig gedraaid**, alleen de specs die Start, de
   wiki en de kop van een artikel raken.
 

@@ -1383,6 +1383,14 @@ writeFileSync(MANIFEST, JSON.stringify(manifest, null, 2), 'utf8');
   db.transaction(() => upgradeDocs(db))();
 }
 
+// Golf O, vierde pas: de twee kanten. De vulling schrijft één kant van elke
+// koppeling; dit vult de andere (Sjaantje vereert God → God, *Vereerd door*).
+// Als er iets bijkwam, is `entry_mentions` leeg en bouwt de start hem opnieuw.
+{
+  const { applyTwoSides } = await import('../lib/entries/tweeKanten.mjs');
+  db.transaction(() => applyTwoSides(db))();
+}
+
 const tel = (sql, ...args) => db.prepare(sql).get(...args).n;
 console.log('');
 console.log(`Klaar. ${manifest.entries.length} artikelen over ${perSoort.size} soorten:`);

@@ -430,6 +430,20 @@ export function TypeEditor({
     );
   }
 
+  /** Golf O: de andere kant, als sleutel; leeg is de afwezigheid van de sleutel, net als bij een rol. */
+  function setInverse(index: number, typed: string) {
+    setFields((current) =>
+      current.map((field, i) => {
+        if (i !== index) return field;
+        const next = { ...field };
+        const value = cleanKeyInput(typed);
+        if (value) next.inverse = value;
+        else delete next.inverse;
+        return next;
+      }),
+    );
+  }
+
   function move(index: number, by: number) {
     // `meta` loopt op index mee, dus wat hier verwisselt, verwisselt daar ook —
     // anders zou een nieuw veld na één keer omhoog zijn sleutelvakje kwijt zijn.
@@ -811,6 +825,21 @@ export function TypeEditor({
                                   andere kant zelf in. Verwant wordt getekend en niet gespiegeld.
                                 </span>
                               </div>
+                              {/* Golf O: de andere kant van een koppeling zonder rol. */}
+                              {!field.role && (
+                                <label className="veld-andere-kant">
+                                  <span className="tiny">{words.fieldInverse}</span>
+                                  <input
+                                    className="input"
+                                    value={field.inverse ?? ''}
+                                    placeholder={words.fieldInversePlaceholder}
+                                    aria-label={`${words.fieldInverse} van veld ${index + 1}`}
+                                    onChange={(event) => setInverse(index, event.target.value)}
+                                    data-testid="veld-andere-kant"
+                                  />
+                                  <span className="tiny muted">{words.fieldInverseHint}</span>
+                                </label>
+                              )}
                             </>
                           )}
                         </div>
@@ -1152,7 +1181,9 @@ function fieldSummary(field: FieldDef, types: TypeLite[], words: Words): string 
   const names = types.filter((option) => (field.ofType ?? []).includes(option.slug)).map((option) => option.label);
   const target = names.length ? `→ ${names.join(', ')}` : `→ ${words.typeTargetsAll}`;
   // De rol eerst: een lange rij soorten wordt afgekapt, de rol mag dat niet.
-  return field.role ? `${ROLE_LABELS[field.role]} · ${target}` : target;
+  if (field.role) return `${ROLE_LABELS[field.role]} · ${target}`;
+  // Golf O: een paar zegt het ook in de ingeklapte rij.
+  return field.inverse ? `↔ ${field.inverse} · ${target}` : target;
 }
 
 /**

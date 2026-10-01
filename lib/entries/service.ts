@@ -13,7 +13,7 @@ import { linkedEntryIds } from './docRefs';
 import { cleanDocRefs, cleanShort, indexShort, isShortFieldKind } from './shortRefs';
 import { checkFieldPatch, cleanFieldPatch, listBlockKeys, type StoredEntryRef } from './fieldValues';
 // §66: the pure half of the mirror — what should be written on the other page.
-import { mirrorPlan, refIdsOf } from '@/lib/families/mirror';
+import { inverseOf, mirrorPlan, refIdsOf } from '@/lib/families/mirror';
 import { recomputeFieldMentions } from './mentions';
 import { visibleEntryCondition, type Viewer } from './visibility';
 import { visibleCaseCondition } from '@/lib/cases/visibility';
@@ -841,6 +841,14 @@ function applyMirror(
       const there = idOf(held) === sourceId;
       if (step.add === there) continue;
       next = step.add ? selfRef : null;
+      /*
+       * Golf O: and whoever was in that box loses this target on *their* page.
+       * "Leden: C" on factie F puts F in C's one Factie box; if C stood in Z,
+       * then Z's "Leden" must let C go, or Z keeps a member who left — the
+       * one-way line this whole mirror exists to prevent.
+       */
+      const displaced = step.add ? idOf(held) : null;
+      if (displaced && displaced !== sourceId) dropFromOtherSide(displaced, def, step.targetId);
     } else {
       const raw = Array.isArray(held) ? held : held === null || held === undefined || held === '' ? [] : [held];
       const without = raw.filter((item) => idOf(item) !== sourceId);
@@ -856,6 +864,50 @@ function applyMirror(
     // §27: the other side is a mention of this artikel too.
     recomputeFieldMentions(step.targetId);
   }
+}
+
+/**
+ * Golf O: take `refId` out of every field on `holderId` that is the other side
+ * of `def` (the field on `refId`'s page that held `holderId`). The second
+ * order of a one-box field: see `applyMirror`. A direct write like the mirror
+ * itself, and it goes no further — the box on `refId` already says the new
+ * answer.
+ */
+function dropFromOtherSide(holderId: string, def: FieldDef, refId: string) {
+  const row = db
+    .select({ typeId: schema.entries.typeId, fields: schema.entries.fields, deletedAt: schema.entries.deletedAt })
+    .from(schema.entries)
+    .where(eq(schema.entries.id, holderId))
+    .get();
+  if (!row || row.deletedAt) return;
+  const inverseRole = def.role ? inverseOf(def.role) : null;
+  const keys = typeFieldSpec(row.typeId)
+    .defs.filter(
+      (other) =>
+        (other.kind === 'entry_link' || other.kind === 'entry_links') &&
+        (inverseRole
+          ? other.role === inverseRole
+          : Boolean(def.inverse) && !other.role && other.key === def.inverse && other.inverse === def.key),
+    )
+    .map((other) => other.key);
+  if (!keys.length) return;
+  const current = (row.fields ?? {}) as Record<string, unknown>;
+  const next = { ...current };
+  let changed = false;
+  for (const key of keys) {
+    const held = current[key];
+    const raw = Array.isArray(held) ? held : held === null || held === undefined || held === '' ? [] : [held];
+    const without = raw.filter((item) => refIdsOf(item)[0] !== refId);
+    if (without.length === raw.length) continue;
+    next[key] = Array.isArray(held) ? without : null;
+    changed = true;
+  }
+  if (!changed) return;
+  db.update(schema.entries)
+    .set({ fields: next, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(schema.entries.id, holderId))
+    .run();
+  recomputeFieldMentions(holderId);
 }
 
 /**

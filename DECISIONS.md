@@ -7729,9 +7729,10 @@ nieuw nummer, geen migratie, geen verwijderd bestand; nieuw is `app/rust.css`
   (§106) blijft. `lib/wiki/leeskamer.ts` blijft (`randomEntry` is de kiezer
   van `/wiki/willekeurig`); `UitHetArchief.tsx` heeft geen lezer meer.
 - **De kop van een artikel: titel, lead, en dan de tekst.** De soort en de
-  dossiers zijn de eerste rijen van *Meer info* (`infoFacts`): *Categorie*
+  dossiers zijn de eerste rijen van *Meer info* (`infoFacts`): *In de wiki*
   (een chip naar de lijst van die soort; niet *Soort*, want Locaties hebben
-  een veld dat zo heet) en *Dossier(s)*, met het herkomstdossier eerst. Dat
+  een veld dat zo heet, en sinds de vierde pas ook niet *Categorie*, want
+  Abnormaliteiten hebben er een) en *Dossier(s)*, met het herkomstdossier eerst. Dat
   waren drie plekken voor twee feiten: de soortchip, de wenkbrauw *Uit:* boven
   de titel (§24) en de rij *In:* onder de knoppen. In Bewerken staat de regel
   van §24/§49 (het vinkje *Dossier voor de naam* en *Kiezen*) bovenaan de
@@ -7779,3 +7780,70 @@ nieuw nummer, geen migratie, geen verwijderd bestand; nieuw is `app/rust.css`
   zodat geen soort dat adres kan pakken, en in `PAGE_PLACES` voor *Wie is er?*.
   Daarmee is het eerste punt van *Niet gedaan* hierboven (er is nergens een
   feed) gesloten.
+
+### Golf O, derde pas: de tabrij van de wiki op een telefoon
+
+- **Draait golf N's tabrij op een telefoon om.** *"On phone, the start wiki
+  page is very cluttered because that top bar is weirdly stacked and occupies
+  80% of my screen."* Golf N liet de rij op elke breedte breken (*"either show
+  all of them at the same time or make it scrollable"*); op een telefoon waren
+  dat zes tot acht rijen boven de eerste zin. Daar is hij nu één rij die opzij
+  scrolt: de andere helft van Nicks eigen keuze toen. `TypeTabs` zet de tabs
+  in een `Schuifrij`, zodat de tab waar je op staat in beeld schuift, met de
+  vervaagde rand die zegt dat er meer is (`app/rust.css`, 7). Op een computer
+  breekt de rij nog, zonder masker. Ook overwogen: de rij onder het overzicht
+  zetten (dan is hij weg waar je hem zoekt) en *Soorten ▾* als uitklapper (de
+  halve oplossing die Nick in golf N afwees).
+
+### Golf O, vierde pas: twee kanten, en Achternaam weg
+
+- **Een koppelveld zonder rol kan een veld op de andere soort noemen, en dan
+  vullen ze elkaar.** *"Lets say Sjaantje worships "God" then "God" should
+  also get 'is worshipped by' sjaantje … if it is removed then it is removed
+  on both sides."* `FieldDef.inverse` (`lib/db/schema.ts`) is de sleutel van
+  het veld aan de andere kant; twee velden die elkaars sleutel noemen, zijn
+  een paar. Het is §66's spiegel (`mirrorPlan` → `applyMirror` in
+  `updateEntry`), niet een tweede weg: `pairFields` in
+  `lib/families/mirror.ts` zoekt het andere veld op sleutel in plaats van op
+  rol, en verder gelden dezelfde regels (na de §38-poort, een directe
+  `db.update`, geen versie en geen feedregel aan de andere kant, toevoegen in
+  het eerste veld, weghalen uit elk). Een rol wint: een veld met een rol
+  heeft geen `inverse`. Een veld met één vakje dat al iets anders hield,
+  wordt overschreven, en dan verdwijnt de oude waarde ook aan zijn eigen
+  andere kant (`dropFromOtherSide`): wie van factie wisselt, staat niet meer
+  bij de oude leden. In Beheer is het *Andere kant* onder *Instellen* van een
+  koppelveld zonder rol.
+- **De paren die er al waren, zijn gekoppeld** (`TWO_SIDED` in
+  `lib/entries/tweeKanten.mjs`, marker `seed:golf-o-twee-kanten`): Vereert ↔
+  Vereerd door, Dienaar van ↔ Dienaren, Factie ↔ Leden, Familie ↔ Leden,
+  Leider ↔ Leidt, Hoofd ↔ Hoofd van, In bezit van ↔ In bezit, Gevonden door ↔
+  Gevonden, Maker ↔ Maakte, Gevonden op ↔ Hier gevonden, Laatst gezien bij ↔
+  Laatst hier gezien, Huidige locatie ↔ Hier bewaard, Basis ↔ Basis van,
+  Thuisbasis ↔ Thuisbasis van, Standplaats ↔ Standplaats van, Leefgebied ↔
+  Leefgebied van, Eerste waarneming ↔ Hier voor het eerst gezien, de plek van een
+  gebeurtenis ↔ Gebeurtenissen hier, Bevindt zich ↔ Werken hier, Gebied ↔
+  Gesproken talen, Talen ↔ Sprekers, Verwant aan ↔ zichzelf, Gevonden op (clue) ↔
+  Clues, en de aanwezige onderzoekers van een sessie ↔ Sessies. Waar de
+  andere kant nog geen veld had, komt er een bij (nooit voorbij de twintig van
+  `cleanFields`), en een veld dat de Keeper al een eigen `inverse` of rol gaf,
+  blijft van hem.
+- **Wat er al ingevuld stond, krijgt één keer zijn andere kant**
+  (`fillOtherSides`): alleen toevoegen, nooit weghalen, en een vakje van één
+  dat al iets anders houdt blijft staan. Daarna is `entry_mentions` leeg en
+  bouwt de start hem opnieuw (zoals 0036). `seed-wereld` doet hetzelfde aan
+  het eind.
+- **Een afgeleid blok dat nu een veld herhaalt, staat uit** (*Vereerders*,
+  *Dienaren*, de leden van een factie en een familie, *Hier gevonden*, *Laatst
+  hier gezien*, *Gevonden aanwijzingen*, *Sprekers*): anders staat dezelfde
+  lijst twee keer op de pagina, één keer in *Meer info* en één keer eronder.
+  Uit, niet weg: in Beheer zet de Keeper hem met één klik terug.
+- **Achternaam is weg uit Personen en Onderzoekers**
+  (`seed:golf-o-achternaam-weg`, `dropAchternaam`). *"The achternaam field is
+  useless, remove it."* Ronde 33 haalde hem alleen weg als hij leeg was; dit
+  archief had er nog waarden in. Het veld gaat, de waarden blijven in de data
+  staan (een veld dat je terugzet, brengt zijn waarde mee, zoals Beheer
+  belooft). De familie staat in *Familie*.
+- **Niet gedaan**: *Ouders/Kinderen/Partner/Broers en zussen* hadden hun
+  spiegel al (§66–§67, met een rol) en zijn niet aangeraakt. Een veld dat
+  naar een *dossier*, een stamboom of een speler wijst, heeft geen andere kant
+  op een artikel.
