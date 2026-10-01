@@ -38,4 +38,4 @@ export function uniqueSlug(input: string, taken: (candidate: string) => boolean)
  * nothing.
  */
 // §104 (ronde 67): and `/wiki/willekeurig`, the door to one artikel at random.
-export const RESERVED_WIKI_SLUGS = ['alles', 'overzicht', 'overzichten', 'willekeurig'];
+export const RESERVED_WIKI_SLUGS = ['alles', 'overzicht', 'overzichten', 'willekeurig', 'geschiedenis'];

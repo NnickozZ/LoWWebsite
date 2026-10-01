@@ -249,6 +249,7 @@ function pageLabel(path: string): PlaceLabel | null {
     '/cases': words.navCases,
     '/wiki': words.navWiki,
     '/wiki/alles': `${words.navWiki} — alle ${words.entryPlural}`,
+    '/wiki/geschiedenis': words.wikiHistory,
     '/boards': words.navBoards,
     '/maps': words.navMaps,
     '/timelines': words.navTimelines,

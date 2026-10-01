@@ -29,8 +29,8 @@ test('1: de tabrij op /wiki is die van elke wikipagina, zonder sprong naar bened
   await expect(tabs.locator('a[href^="#"]')).toHaveCount(0);
   // Golf N: geen *Meer soorten* meer; elke soort staat in de rij.
   await expect(tabs.getByTestId('meer-soorten')).toHaveCount(0);
-  // De eerste soort in de rij (na Start en Alles) gaat naar haar eigen lijst.
-  const soort = tabs.locator('a.type-tab').nth(2);
+  // De eerste soort in de rij (na Start, Alles en sinds golf O Wiki geschiedenis) gaat naar haar eigen lijst.
+  const soort = tabs.locator('a.type-tab').nth(3);
   await expect(soort).toBeVisible();
   const href = await soort.getAttribute('href');
   expect(href).toMatch(/^\/wiki\/[^/?#]+/);

@@ -71,20 +71,42 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/*
+ * Golf O, tweede pas (Nick: "kan wel wat meer een knop voorstellen, misschien
+ * een cirkel eromheen"): een rond knopje van 36 px met een rand, in een raakvlak
+ * van 44 (`--tap`). De cirkel is `::before`, zodat het raakvlak niet meegroeit.
+ */
 .main .connections-icoon {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: var(--tap);
   height: var(--tap);
-  border-radius: var(--radius);
+  border-radius: 50%;
   color: var(--ink-muted);
-  transition: color var(--dur-1) var(--ease-standard), background-color var(--dur-1) var(--ease-standard);
+  transition: color var(--dur-1) var(--ease-standard);
+}
+.main .connections-icoon::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--paper-raised);
+  box-shadow: 0 1px 0 var(--rule);
+  transition: border-color var(--dur-1) var(--ease-standard), background-color var(--dur-1) var(--ease-standard);
+}
+.main .connections-icoon > svg {
+  position: relative;
 }
 @media (hover: hover) {
   .main .connections-icoon:hover {
     color: var(--ink);
+  }
+  .main .connections-icoon:hover::before {
+    border-color: var(--ink-muted);
     background: var(--paper-dark);
   }
 }
@@ -142,4 +164,144 @@
   .main .infobox-dossier:hover > span {
     text-decoration: underline;
   }
+}
+
+/* --------------------------------------------- 5. de zijbalk in en uit */
+/*
+ * Golf O (Nick: "Ik wil de sidebar in en uit kunnen klappen met een knop").
+ * Open: een knopje rechtsboven in de zijbalk. Dicht: een rail van 3,25 rem met
+ * hetzelfde teken, op dezelfde hoogte, zodat de weg terug op één plek staat.
+ * `--nav-w` volgt de rail, dus wat zich aan de zijbalk meet (de streep van
+ * `NavProgress`) schuift mee. Een telefoon heeft geen zijbalk en geen rail.
+ */
+.zijbalk-rail {
+  display: none;
+}
+.zijbalk-knop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-standard), background-color var(--dur-1) var(--ease-standard);
+}
+@media (hover: hover) {
+  .zijbalk-knop:hover {
+    color: var(--ink);
+    background: var(--paper);
+    border-color: var(--rule);
+  }
+}
+.zijbalk-knop:focus-visible {
+  color: var(--ink);
+}
+.sidenav > .zijbalk-dicht {
+  display: none;
+}
+@media (min-width: 768px) {
+  .sidenav > .zijbalk-dicht {
+    display: inline-flex;
+    position: absolute;
+    top: 0.55rem;
+    right: 0.45rem;
+    z-index: 2;
+  }
+  .sidenav .masthead {
+    padding-right: 2.2rem;
+  }
+  .shell[data-zijbalk='dicht'] {
+    --nav-w: 3.25rem;
+  }
+  .shell[data-zijbalk='dicht'] > .sidenav {
+    display: none;
+  }
+  .shell[data-zijbalk='dicht'] > .zijbalk-rail {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    flex: 0 0 var(--nav-w);
+    width: var(--nav-w);
+    padding-top: 0.55rem;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    border-right: 1px solid var(--rule);
+    background: var(--paper-dark);
+  }
+}
+
+/* ------------------------------------------------ 6. Wiki geschiedenis */
+
+.main .geschiedenis-lead {
+  margin: 0.9rem 0 1.4rem;
+}
+.main .geschiedenis-dag {
+  margin: 0 0 1.6rem;
+}
+.main .geschiedenis-dag-kop {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.3rem;
+  font-family: var(--stamp-face);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.main .geschiedenis-dag-kop::after {
+  content: '';
+  flex: 1 1 auto;
+  border-top: 1px solid var(--rule);
+}
+.main .geschiedenis-rijen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.main .geschiedenis-rij {
+  color: inherit;
+  text-decoration: none;
+  align-items: center;
+}
+.main .geschiedenis-tekst {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.main .geschiedenis-tijd {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.main .geschiedenis-nieuw {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--stamp-red);
+  border-radius: 999px;
+  color: var(--stamp-red);
+  font-family: var(--stamp-face);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+@media (hover: hover) {
+  .main .geschiedenis-rij:hover strong {
+    text-decoration: underline;
+  }
+}
+.main .geschiedenis-meer {
+  margin: 1rem 0 0;
 }

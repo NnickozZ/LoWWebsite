@@ -65,6 +65,8 @@ export const PAGE_PLACES = [
   // §75: the wiki's front door is the home overzicht, and `/wiki/alles` is the
   // list that used to be there.
   '/wiki/alles',
+  // Golf O: wat er in de wiki gebeurde, per dag.
+  '/wiki/geschiedenis',
   '/boards',
   '/maps',
   '/timelines',

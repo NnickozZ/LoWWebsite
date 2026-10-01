@@ -7755,3 +7755,27 @@ nieuw nummer, geen migratie, geen verwijderd bestand; nieuw is `app/rust.css`
   van de Jij-rij), net als de woorden die niemand meer leest (`homeJij*`,
   `wikiRecent*`, `wikiFromArchive`, `wikiKinds`). `UitHetArchief.tsx`
   weghalen is een `git rm` en dus Nicks keuze.
+
+### Golf O, tweede pas (1 oktober, later die ochtend)
+
+- ***Verbindingen* is een rond knopje**: een cirkel van 36 px met een rand
+  (`::before`) in een raakvlak van 44 px. *"Kan wel wat meer een knop
+  voorstellen."*
+- **De zijbalk klapt in en uit** (`lib/zijbalk.ts`). Een knopje rechtsboven in
+  de zijbalk klapt hem in; dicht staat er een rail van 3,25 rem met hetzelfde
+  teken (`sidebar`, nieuw in `components/Icon.tsx`). De keuze is een koekje
+  (`lw-zijbalk`), geen `localStorage`: de layout leest het op de server, dus
+  een verversing tekent meteen de goede schil en de pagina schuift niet opzij
+  (§106's regel voor wat per browser onthouden wordt). Alleen op een computer;
+  een telefoon heeft de tabbalk. Geen sneltoets: niemand vroeg erom, en elke
+  letter is al van iets.
+- ***Wiki geschiedenis*, `/wiki/geschiedenis`**, de derde tab van de wiki (na
+  Start en Alles): *Sinds je laatste bezoek* van de oude Start, als pagina.
+  Dezelfde lezing (`recentActivity`, met §46, §101 en §18b), per dag
+  (*Vandaag*, *Gisteren*, *Maandag 28 september*) in de tijd van het archief
+  (`Europe/Amsterdam`, `lib/wiki/geschiedenis.ts`; een VPS draait op UTC), met
+  het uur en een stempeltje *Nieuw* voor wat na je vorige bezoek kwam; 60 per
+  stap met *Meer* (`?pagina=`). `geschiedenis` staat in `RESERVED_WIKI_SLUGS`,
+  zodat geen soort dat adres kan pakken, en in `PAGE_PLACES` voor *Wie is er?*.
+  Daarmee is het eerste punt van *Niet gedaan* hierboven (er is nergens een
+  feed) gesloten.

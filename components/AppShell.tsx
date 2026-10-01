@@ -37,6 +37,7 @@ import { SideToggle } from '@/components/keeper/SideToggle';
 import { useIsPhone } from '@/components/useIsPhone';
 import { fabTypeFor } from '@/lib/newEntryType';
 import { fill, type Words } from '@/lib/words';
+import { zijbalkCookie } from '@/lib/zijbalk';
 
 /**
  * The eight places in the menu. What each is *called* comes from Beheer →
@@ -165,6 +166,7 @@ function Nav({
   me,
   purse,
   myPage,
+  onCollapse,
 }: {
   siteName: string;
   tagline: string;
@@ -172,6 +174,8 @@ function Nav({
   me: Me;
   purse: Purse;
   myPage: string | null;
+  /** Golf O: klap de zijbalk in (alleen op een computer; een telefoon heeft hem niet). */
+  onCollapse: () => void;
 }) {
   const pathname = usePathname();
   const ui = useUi();
@@ -200,6 +204,18 @@ function Nav({
   return (
     <>
       <nav className="sidenav" aria-label="Hoofdmenu">
+        {/* Golf O: de zijbalk klapt in; de rail ernaast (`AppShell`) klapt hem weer uit. */}
+        <button
+          type="button"
+          className="zijbalk-knop zijbalk-dicht"
+          onClick={onCollapse}
+          aria-label={words.navCollapse}
+          title={words.navCollapse}
+          aria-expanded={true}
+          data-testid="zijbalk-dicht"
+        >
+          <Icon name="sidebar" size={18} />
+        </button>
         <div className="masthead">
           {logoAssetId ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -382,8 +398,11 @@ export function AppShell({
   siteName,
   tagline,
   logoAssetId,
+  navDicht = false,
   children,
 }: {
+  /** Golf O: of deze browser de zijbalk dicht had (het koekje, op de server gelezen). */
+  navDicht?: boolean;
   types: EntryTypeLite[];
   /** §11: the Keeper's words, resolved on the server in the layout. */
   words: Words;
@@ -413,6 +432,19 @@ export function AppShell({
 }) {
   // §102, golf h1 (D4): the corner button is the phone's only.
   const isPhone = useIsPhone();
+  // Golf O: de zijbalk in of uit, en het koekje dat het onthoudt.
+  const [dicht, setDicht] = useState(navDicht);
+  const zetDicht = (next: boolean) => {
+    setDicht(next);
+    document.cookie = zijbalkCookie(next);
+    // De focus naar de knop die het terug kan doen, zodat een toetsenbord niet
+    // op een knop staat die net verdween.
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>(next ? '[data-testid="zijbalk-open"]' : '[data-testid="zijbalk-dicht"]')
+        ?.focus();
+    });
+  };
   return (
     <UiProvider
       types={types}
@@ -434,13 +466,41 @@ export function AppShell({
         {/* §102, golf h1 (D4): `data-keeper-hand` says, from the server's first HTML,
             that a Keeper's toggle belongs on this screen — so the phone's band
             for the corner button is there before the button hydrates in. */}
-        <div className="shell" data-keeper-hand={me.isRealKeeper && !me.asPlayer ? '' : undefined}>
+        <div
+          className="shell"
+          data-keeper-hand={me.isRealKeeper && !me.asPlayer ? '' : undefined}
+          data-zijbalk={dicht ? 'dicht' : undefined}
+        >
           {/* §90: the first stop for a keyboard, and invisible until it is one —
               otherwise fourteen menu stops stand between Tab and the page. */}
           <a className="skip-link" href="#main">
             {words.skipToContent}
           </a>
-          <Nav siteName={siteName} tagline={tagline} logoAssetId={logoAssetId} me={me} purse={purse} myPage={myPage} />
+          {/* Golf O: met de zijbalk dicht een smalle rail met één knop, zodat de
+              weg terug altijd op dezelfde plek staat. Alleen op een computer
+              getekend (CSS); een telefoon heeft de tabbalk. */}
+          <div className="zijbalk-rail">
+            <button
+              type="button"
+              className="zijbalk-knop"
+              onClick={() => zetDicht(false)}
+              aria-label={words.navExpand}
+              title={words.navExpand}
+              aria-expanded={false}
+              data-testid="zijbalk-open"
+            >
+              <Icon name="sidebar" size={18} />
+            </button>
+          </div>
+          <Nav
+            siteName={siteName}
+            tagline={tagline}
+            logoAssetId={logoAssetId}
+            me={me}
+            purse={purse}
+            myPage={myPage}
+            onCollapse={() => zetDicht(true)}
+          />
           {/*
            * §46: de spiegel. Outside the menu, in the corner of the viewport,
            * the same spot on a desk and on a phone — and rendered only for a

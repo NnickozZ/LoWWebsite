@@ -68,6 +68,8 @@ const PATHS: Record<string, string> = {
   link: 'M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.5 1.5M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.5-1.5',
   check: 'M5 12.5 10 17.5 19 7',
   chevron: 'M9 6l6 6-6 6',
+  // Golf O: de zijbalk — een venster met een smalle kolom links.
+  sidebar: 'M4.5 5h15v14h-15zM9.5 5v14M6.5 8.5h1M6.5 11h1',
   map: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
   // §32: a ruled axis with marks above and below it — a tijdlijn. Golf L: drie
   // stelen met een knop, om en om, zodat het op 16 px geen kriebel is.

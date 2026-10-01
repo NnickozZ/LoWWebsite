@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { ZIJBALK_COOKIE, zijbalkDicht } from '@/lib/zijbalk';
 import { eq } from 'drizzle-orm';
 import { AppShell } from '@/components/AppShell';
 import { AuthorProvider } from '@/components/you/AuthorProvider';
@@ -140,6 +142,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           siteName={settings?.name ?? DEFAULT_SITE_NAME}
           tagline={settings?.tagline ?? ''}
           logoAssetId={settings?.logoAssetId ?? null}
+          // Golf O: de zijbalk zoals deze browser hem achterliet.
+          navDicht={zijbalkDicht((await cookies()).get(ZIJBALK_COOKIE)?.value)}
         >
           {children}
         </AppShell>

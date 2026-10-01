@@ -2816,9 +2816,14 @@ migratie, geen verwijderd bestand. De rondenotitie is `claude/golf-o-rust.md`.*
 
 **Leftovers — golf O, allemaal met opzet genoemd.**
 
-- **Er is nergens meer een feed van het archief.** *Sinds je laatste bezoek*
-  stond alleen op Start; `recentActivity` leest nog voor de spelerspagina en
-  `ownRecentWork`. Een eigen pagina (*Wat is er nieuw*) is Nicks keuze.
+- ~~**Er is nergens meer een feed van het archief.**~~ **Gesloten in de
+  tweede pas:** `/wiki/geschiedenis`, de tab *Wiki geschiedenis*.
+- **De zijbalk klapt in** (tweede pas, `lib/zijbalk.ts`, koekje `lw-zijbalk`,
+  op de server gelezen in `app/(app)/layout.tsx`). Een spec die met een dichte
+  zijbalk begint, zet het koekje; de knoppen zijn `zijbalk-dicht` en
+  `zijbalk-open` (*Menu inklappen* / *Menu uitklappen*). De tab *Wiki
+  geschiedenis* staat derde in de rij (`tab-geschiedenis`), dus de eerste
+  soort is `a.type-tab` nummer 3, niet 2.
 - **Dode CSS en woorden**: de Jij-rij, de feed en de leeskamer in
   `globals.css`/`leeskamer.css`, en `homeJij*`, `wikiRecent*`,
   `wikiFromArchive`, `wikiKinds`, `entryWhereIn`, `lastEdit*`.

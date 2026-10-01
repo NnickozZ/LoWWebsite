@@ -2079,6 +2079,15 @@ export const WORD_GROUPS: WordGroup[] = [
         fallback: 'laatst door {naam}, {wanneer}',
         hint: '{naam} is het karakter dat de laatste versie schreef; {wanneer} is bijvoorbeeld “10 uur geleden”.',
       },
+      { key: 'wikiHistory', what: 'De tab in de wiki met wat er in het archief gebeurde', fallback: 'Wiki geschiedenis' },
+      {
+        key: 'wikiHistoryLead',
+        what: 'Onder de kop van die pagina',
+        fallback: 'Wat er in het archief geschreven, veranderd en onthuld is, het nieuwste bovenaan.',
+      },
+      { key: 'wikiHistoryNew', what: 'Het stempeltje bij een regel van na je vorige bezoek', fallback: 'Nieuw' },
+      { key: 'navCollapse', what: 'De knop die de zijbalk inklapt (voorleestekst en tip)', fallback: 'Menu inklappen' },
+      { key: 'navExpand', what: 'De knop die de zijbalk weer uitklapt (voorleestekst en tip)', fallback: 'Menu uitklappen' },
       {
         key: 'historyLastWhen',
         what: 'Hetzelfde, als er geen naam bij de laatste versie hoort',

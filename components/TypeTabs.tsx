@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import type { ListParams } from '@/lib/listParams';
+import { getWords } from '@/lib/admin/words';
 
 /**
  * The wiki's soorten as one row of tabs. Navigation, not a filter — each tab is
@@ -44,7 +45,8 @@ export function TypeTabs({
   types: TypeTab[];
   /**
    * Which tab is the page you are on: a soort's slug, `'alles'` for the browse
-   * list, `'start'` for the front door, or null for a page that is in the wiki
+   * list, `'start'` for the front door, `'geschiedenis'` for what happened
+   * (golf O), or null for a page that is in the wiki
    * but is none of those (an overzicht that is not home).
    */
   active: string | null;
@@ -83,6 +85,18 @@ export function TypeTabs({
           <Icon name="book" size={14} />
           {allLabel}
           <span className="type-tab-count">{allCount}</span>
+        </Link>
+        {/* Golf O: wat er in de wiki gebeurde, per dag — *Sinds je laatste
+            bezoek* van Start, hier als een pagina van de wiki. Geen telling:
+            een geschiedenis telt geen soort. */}
+        <Link
+          className="type-tab"
+          href="/wiki/geschiedenis"
+          aria-current={active === 'geschiedenis' ? 'page' : undefined}
+          data-testid="tab-geschiedenis"
+        >
+          <Icon name="clock" size={14} />
+          {getWords().wikiHistory}
         </Link>
         {/* Golf K: the voordeur has this same row. Until now it had Start, Alles
             and *De soorten*, a tab that only scrolled to the tiles under it —
