@@ -13,7 +13,8 @@ test('sign up and file a first entry', async ({ page }, testInfo) => {
   await signUp(page, username, 'onderzeeboot');
 
   // Landed straight in the archive.
-  await expect(page.getByRole('heading', { name: 'Sinds je laatste bezoek' })).toBeVisible();
+  // Golf O: Start is the welcome and its doors.
+  await expect(page.getByTestId('home-deuren')).toBeVisible();
 
   await pressNewEntry(page);
 

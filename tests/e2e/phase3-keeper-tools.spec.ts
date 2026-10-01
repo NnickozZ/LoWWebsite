@@ -368,7 +368,8 @@ test('site settings rename the archive, and the export downloads', async ({ page
   await expect(welcome.getByRole('heading', { level: 1 })).toHaveText('LoW: Land over Water Archief');
   await expect(welcome.locator('.home-intro p')).toHaveCount(2);
   await expect(welcome.locator('.home-intro p').first()).toHaveText('Welkom, onderzoekers.');
-  await expect(welcome.locator('.home-numbers')).toContainText('artikel');
+  // Golf O: under the welcome, its doors (the numbers are gone).
+  await expect(welcome.getByTestId('home-deuren')).toBeVisible();
   // …and cleared again, the archive's own words come back.
   await page.goto('/admin?tab=site');
   await page.getByLabel('Welkomsttekst op de startpagina').fill('');

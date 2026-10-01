@@ -93,8 +93,15 @@ test('T9: de handelingen van een artikel zijn op een telefoon knoppen van 44 px 
   test.skip(info.project.name !== 'phone', 'de kop van een artikel op de telefoon');
   await signIn(page, ...KEEPER);
   await page.goto('/e/pier-boone');
+  // Golf O: in Lezen the Keeper's row is empty (*Aan dossier toevoegen* and
+  // *Op prikbord prikken* are Bewerken's, *Verbindingen* is an icon by the
+  // title), and an empty row is not drawn. What stands in it (a stamboom door,
+  // *Speel als*) still keeps to T9.
+  await expect(page.locator('.entry-title')).toBeVisible();
   const acties = page.locator('.entry-acties');
-  await expect(acties).toBeVisible();
+  await expect(acties).toBeHidden();
+  const icon = (await page.getByTestId('connections-link').boundingBox())!;
+  expect(icon.height).toBeGreaterThanOrEqual(43.5);
   const width = page.viewportSize()!.width;
   for (const button of await acties.locator('.btn:visible').all()) {
     const box = (await button.boundingBox())!;

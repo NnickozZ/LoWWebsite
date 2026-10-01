@@ -46,9 +46,10 @@ test('a zoomed cover stays inside its thumbnail in the feed', async ({ page }, t
     .not.toBe('none');
   await expect(page.locator('.save-state')).toHaveText('Opgeslagen', { timeout: 15_000 });
 
-  // In the feed the thumbnail is a wrapper that clips, not the image itself.
-  await page.goto('/');
-  const thumb = page.locator('.feed-thumb').first();
+  // In a feed row the thumbnail is a wrapper that clips, not the image itself.
+  // Golf O: the feed left Start; a search hit is the same row.
+  await page.goto(`/search?q=${encodeURIComponent(name)}`);
+  const thumb = page.getByRole('main').locator('a.feed-item[data-entry-id] .feed-thumb').first();
   await expect(thumb).toBeVisible();
 
   expect(await thumb.evaluate((n) => n.tagName)).toBe('SPAN');
@@ -60,6 +61,6 @@ test('a zoomed cover stays inside its thumbnail in the feed', async ({ page }, t
 
   // The row it sits in is no taller than the thumbnail plus its padding — the
   // symptom of the bug was a feed item stretched to the height of a full card.
-  const row = (await page.locator('.feed-item').first().boundingBox())!;
+  const row = (await page.getByRole('main').locator('a.feed-item[data-entry-id]').first().boundingBox())!;
   expect(row.height).toBeLessThan(140);
 });

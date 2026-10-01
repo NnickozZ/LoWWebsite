@@ -117,16 +117,6 @@ function autosize(element: HTMLTextAreaElement | null) {
 
 export type EntryCaseLite = { id: string; slug: string; name: string; confidential: boolean };
 
-/** §104 (L4): see the `lastEdit` prop. */
-export type LastEdit = {
-  by: string | null;
-  account: string | null;
-  when: string;
-  count: number;
-  more: boolean;
-  href: string | null;
-};
-
 /**
  * The artikel page (reworked 5 Sep 2026; two faces since §22).
  *
@@ -203,7 +193,6 @@ export function EntryView({
   origin,
   live,
   liveFields,
-  lastEdit = null,
   emptyBlocks = [],
 }: {
   entry: EntryViewData;
@@ -213,13 +202,6 @@ export function EntryView({
    * line, and there is nothing to jump to, so they are not in the outline.
    */
   emptyBlocks?: string[];
-  /**
-   * §104 (ronde 67, L4): the newest version this reader is given — who wrote
-   * it (the onderzoeker the revision recorded, never the account), when, and
-   * how many there are. Worded on the server; `href` is the history block, or
-   * null when the soort hid it.
-   */
-  lastEdit?: LastEdit | null;
   knownTags: string[];
   isKeeper: boolean;
   openAddMore: boolean;
@@ -643,7 +625,9 @@ export function EntryView({
   }, []);
 
   const fieldsBlock = entry.typeBlocks.find((block) => block.kind === 'fields' && !block.hidden) ?? null;
-  const infoboxHeading = fieldsBlock ? fieldsBlock.title || defaultBlockTitle('fields', words) : '';
+  // Golf O: reading, the infobox is always there (it carries the soort), so it
+  // has a heading even where the soort hid its fields block.
+  const infoboxHeading = fieldsBlock ? fieldsBlock.title || defaultBlockTitle('fields', words) : defaultBlockTitle('fields', words);
 
   const showManage =
     access.canManage || access.settings.locked || proposals.length > 0 || isKeeper || Boolean(slots.delete);
@@ -735,19 +719,72 @@ export function EntryView({
       />
     ) : null;
   /*
-   * §104: "no infobox at all while reading" meant it — but `readableFields` is
-   * an element whenever the soort *has* fields, so an artikel with every field
-   * still empty drew a box with only its title (on a phone: a fold with
-   * nothing in it, between the lead and the first sentence). Asked of the
-   * values now, the way `FieldsView` itself asks them.
+   * §104 asked whether anything was filled in before drawing the box at all
+   * while reading. Golf O: the soort is always a fact, so the box always has
+   * a row; an empty field still gets none (`FieldsView`).
    */
-  const hasReadableInfo =
-    tags.length > 0 ||
-    Object.keys(derivedFields).length > 0 ||
-    entry.typeFields.some((field) => fieldValue(field, fields[field.key], caseRefs, resolvedRefs) !== null);
+
+  /*
+   * Golf O (Nick: "What type it is, move it to the more info box" and "remove
+   * from what case it is, move it to the more info box"): the soort and the
+   * dossiers stood above the title, the dossiers twice ("Uit:" and "In:").
+   * Now they are the first rows of *Meer info*, in the same label/value shape
+   * as a field. The dossier the artikel came from first, then the rest it is
+   * filed in — every one already behind this reader's rules (`cases` and
+   * `origin.case` are read per viewer on the server).
+   */
+  const infoCases = (() => {
+    const seen = new Set<string>();
+    const rows: { id: string; slug: string; name: string; confidential: boolean }[] = [];
+    if (origin.case) {
+      const filed = cases.find((item) => item.id === origin.case!.id);
+      rows.push({ ...origin.case, confidential: filed?.confidential ?? false });
+      seen.add(origin.case.id);
+    }
+    for (const item of cases) if (!seen.has(item.id)) rows.push(item);
+    return rows;
+  })();
+  const infoFacts = (
+    <div className="stack fields-compact fields-view infobox-feiten" data-testid="infobox-feiten">
+      <div>
+        <span className="label">{words.infoKind}</span>
+        <div className="field-value">
+          <Link
+            className="chip chip-soort"
+            href={entry.typeSlug ? `/wiki/${entry.typeSlug}` : '/wiki/alles'}
+            style={{ ['--soort' as string]: entry.typeColour }}
+            data-testid="infobox-soort"
+          >
+            <Icon name={entry.typeIcon} size={13} />
+            {entry.typeLabel}
+          </Link>
+        </div>
+      </div>
+      {reading && infoCases.length > 0 && (
+        <div>
+          <span className="label">{capitalise(infoCases.length === 1 ? words.case : words.casePlural)}</span>
+          <div className="field-value infobox-dossiers" data-testid="infobox-dossiers">
+            {infoCases.map((item) => (
+              <Link key={item.id} className="infobox-dossier" href={`/c/${item.slug}`}>
+                <Icon name="folder" size={14} />
+                <span>{item.name}</span>
+                {item.confidential && (
+                  <>
+                    <Icon name="lock" size={12} />
+                    <span className="visually-hidden">(vertrouwelijk)</span>
+                  </>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const infoboxBody = reading ? (
     <div className="stack entry-infobox-body">
+      {infoFacts}
       {readableFields}
       {tags.length > 0 && (
         <div className="infobox-tags">
@@ -764,6 +801,19 @@ export function EntryView({
     </div>
   ) : (
     <div className="stack entry-fields entry-infobox-body">
+      {infoFacts}
+      {/* §24/§49, golf O: where it came from, with the tickbox and *Kiezen*. */}
+      {origin.offer && (origin.case || origin.cases.length > 0) && (
+        <OriginLine
+          entryId={entry.id}
+          origin={origin.case}
+          pinned={origin.pinned}
+          prefix={origin.prefix}
+          cases={origin.cases}
+          canEdit={access.canEdit}
+          reading={reading}
+        />
+      )}
       {fieldsBlock?.note && (
         <p className="tiny muted" style={{ margin: 0 }}>
           {fieldsBlock.note}
@@ -802,7 +852,8 @@ export function EntryView({
     </div>
   );
 
-  const showInfobox = Boolean(fieldsBlock) && (!reading || hasReadableInfo);
+  // Golf O: reading, the soort is always a fact, so the box is always drawn.
+  const showInfobox = reading || Boolean(fieldsBlock);
   // §92 (B11): on a narrow screen the fold is closed while reading unless the
   // hand opened it; editing, the soort's own "open" still decides.
   const infoboxShownOpen = infoboxOpen ?? ((Boolean(fieldsBlock?.open) && !reading) || openAddMore);
@@ -1069,7 +1120,6 @@ export function EntryView({
       waarTijdlijnen
         ? fill(words.entryWhereOn, { n: String(waarTijdlijnen), ding: waarTijdlijnen === 1 ? words.timeline : words.timelinePlural })
         : '',
-      cases.length ? fill(words.entryWhereIn, { n: String(cases.length), ding: cases.length === 1 ? words.case : words.casePlural }) : '',
     ]
       .filter(Boolean)
       .join(' · '),
@@ -1129,18 +1179,9 @@ export function EntryView({
           </p>
         )}
 
-        {cases.length > 0 && (
-          <p className="row-wrap tiny entry-waar-rij">
-            <span className="muted entry-waar-label">In:</span>
-            {cases.map((item) => (
-              <Link key={item.id} className="chip" href={`/c/${item.slug}`}>
-                <Icon name="folder" size={12} />
-                {item.name}
-                {item.confidential && <Icon name="lock" size={11} />}
-              </Link>
-            ))}
-          </p>
-        )}
+        {/* Golf O: the dossiers it is filed in moved to the infobox (*Meer
+            info*), beside the soort — they are facts about the artikel, and
+            here they stood twice, once as "Uit:" above the title. */}
     </>
   );
 
@@ -1150,12 +1191,7 @@ export function EntryView({
     <div className="entry-head entry-head-solo">
       <div style={{ minWidth: 0 }}>
         <div className="row-wrap" style={{ marginBottom: '0.4rem' }}>
-          {/* §104 (ronde 67·herstel, #9): the soort's colour, mixed towards the
-              ink so a small label reads in every palette (`.chip-soort`). */}
-          <span className="chip chip-soort" style={{ ['--soort' as string]: entry.typeColour }}>
-            <Icon name={entry.typeIcon} size={14} />
-            {entry.typeLabel}
-          </span>
+          {/* Golf O: the soort is a row of the infobox now (`infoFacts`). */}
           {isLocked && (
             <span className="chip">
               <Icon name="lock" size={13} />
@@ -1216,17 +1252,10 @@ export function EntryView({
         {/* §92 (B23): only for an artikel that is in a dossier. The tickbox
             "Dossier voor de naam" with nothing to point at was two lines above
             the title for a setting that had no meaning yet. */}
-        {origin.offer && (origin.case || origin.cases.length > 0) && (
-          <OriginLine
-            entryId={entry.id}
-            origin={origin.case}
-            pinned={origin.pinned}
-            prefix={origin.prefix}
-            cases={origin.cases}
-            canEdit={access.canEdit}
-            reading={reading}
-          />
-        )}
+        {/* Golf O (Nick: "remove from what case it is, move it to the more
+            info box"): the eyebrow is a row of the infobox now — reading, the
+            dossiers as chips (`infoFacts`); editing, this same line with its
+            tickbox and *Kiezen*, at the top of the infobox's form. */}
 
         {/*
           §22: reading, the title is a heading and the one-liner is a
@@ -1236,7 +1265,12 @@ export function EntryView({
         */}
         {reading ? (
           <>
-            <h1 className="entry-title">{name}</h1>
+            {/* Golf O: *Verbindingen* is an icon beside the name, not a
+                button in a row of them. */}
+            <div className="entry-titel-rij">
+              <h1 className="entry-title">{name}</h1>
+              <ConnectionsLink kind="entry" id={entry.id} as="icon" />
+            </div>
             {/* §48: the korte beschrijving is text like any other — an `@` in
                 it is a chip, and the box that writes it offers the names. */}
             {shortDescription.trim() && (
@@ -1244,9 +1278,8 @@ export function EntryView({
                 <MentionText text={shortDescription} tokens />
               </p>
             )}
-            {/* §104 (L4): wie het laatst schreef, wanneer, en hoeveel versies —
-                één regel, gelinkt naar de geschiedenis. */}
-            {lastEdit && <LastEditLine edit={lastEdit} words={words} />}
+            {/* Golf O: wie het laatst schreef staat sinds golf O in de kop van
+                de geschiedenis (de server tekent hem daar), niet hier. */}
           </>
         ) : (
           <>
@@ -1305,12 +1338,17 @@ export function EntryView({
             sideways (leeskamer.css) instead of three rows of buttons between
             the lead and the first sentence. */}
         <div className="row-wrap entry-acties" style={{ marginTop: '0.7rem' }}>
-          <AddToCaseButton
-            entryId={entry.id}
-            entryName={entry.name}
-            inCaseIds={cases.map((item) => item.id)}
-          />
-          <PinToBoardButton entryId={entry.id} entryName={entry.name} />
+          {/* Golf O: filing and pinning are things you do while working on
+              the artikel, and mostly from the dossier or the wall itself; in
+              Lezen they were the two biggest buttons above the first sentence. */}
+          {!reading && (
+            <AddToCaseButton
+              entryId={entry.id}
+              entryName={entry.name}
+              inCaseIds={cases.map((item) => item.id)}
+            />
+          )}
+          {!reading && <PinToBoardButton entryId={entry.id} entryName={entry.name} />}
           {!reading && (
             <PlaceOnButton
               entryId={entry.id}
@@ -1324,8 +1362,9 @@ export function EntryView({
           {isKeeper && !reading && mapsOfThis.length === 0 && (
             <ConnectMapButton entryId={entry.id} entryName={name || entry.name} asAction />
           )}
-          {/* §43: the web, with this artikel in the middle. */}
-          <ConnectionsLink kind="entry" id={entry.id} />
+          {/* §43: the web, with this artikel in the middle — reading, the icon
+              beside the title (golf O). */}
+          {!reading && <ConnectionsLink kind="entry" id={entry.id} />}
           {/* §94 (C20): and the stamboom this artikel stands in, with it chosen. */}
           <InTreeDoors />
           {/* §18c: offered only while there is nobody on the peg. A speler's
@@ -1651,60 +1690,6 @@ export function EntryView({
   );
 }
 
-/**
- * §104 (ronde 67, L4): "Bijgewerkt door Bram Ossewaarde · 4 dagen geleden ·
- * 7 versies". Klein en `--ink-muted`: het is een voetnoot bij de lead, geen
- * kop. De naam is het karakter dat de versie vastlegde (§11); het account
- * staat in de tooltip, zoals in de geschiedenis zelf. De hele regel is de deur
- * naar die geschiedenis, en een klik vouwt hem open (§11: het blok is een
- * `<details>`).
- */
-function LastEditLine({ edit, words }: { edit: LastEdit; words: Record<string, string> }) {
-  const count = edit.more ? `${edit.count}+` : String(edit.count);
-  const versions = fill(edit.count === 1 && !edit.more ? words.lastEditOneVersion : words.lastEditVersions, { n: count });
-  // The Keeper's sentence around the name, with the name set apart in it.
-  const [before, ...rest] = words.lastEditBy.split('{naam}');
-  const after = rest.join('{naam}');
-  const text = (
-    <>
-      {edit.by && (
-        <>
-          {before}
-          <span className="entry-bijgewerkt-naam" title={edit.account ?? undefined}>
-            {edit.by}
-          </span>
-          {after}
-          <span aria-hidden="true"> · </span>
-        </>
-      )}
-      <span>{edit.when}</span>
-      <span aria-hidden="true"> · </span>
-      <span>{versions}</span>
-    </>
-  );
-  return (
-    <p className="entry-bijgewerkt" data-testid="entry-bijgewerkt">
-      {edit.href ? (
-        <a
-          href={edit.href}
-          onClick={(event) => {
-            const target = document.getElementById(edit.href!.slice(1));
-            if (!target) return;
-            event.preventDefault();
-            const fold = target.querySelector<HTMLDetailsElement>(':scope > details');
-            if (fold) fold.open = true;
-            const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            target.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
-          }}
-        >
-          {text}
-        </a>
-      ) : (
-        text
-      )}
-    </p>
-  );
-}
 
 /**
  * §104 (ronde 67·herstel, #17): on a phone, *where* this artikel is — "Op 2

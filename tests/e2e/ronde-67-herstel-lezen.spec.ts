@@ -210,7 +210,8 @@ test('#13 #17 #23: de kop op een telefoon is één regel, en lege blokken zijn e
     // #17: the facts about where it is are one line with a door.
     const waar = page.getByTestId('entry-waar');
     await expect(waar).toBeVisible();
-    await expect(waar.locator('summary')).toHaveText(/Op 2 landkaarten · in 2 dossiers/);
+    // Golf O: the dossiers are rows of Meer info now, so the line counts the landkaarten.
+    await expect(waar.locator('summary')).toHaveText(/Op 2 landkaarten/);
     // The rows are behind it until it is opened.
     await expect(page.locator('.entry-waar-rijen')).toBeHidden();
     // #17/#23: no Meer info in the chip row — the peek is right under it.
@@ -248,24 +249,11 @@ test('#14 #16: de voorpagina heeft één rij, de lijst zegt hoeveel van hoeveel'
 
   // The screens first, so a run before the change has them too.
   await page.goto('/wiki');
-  await expect(page.getByTestId('soort-tegel').first()).toBeVisible({ timeout: 20_000 });
+  // Golf O: the voordeur is the overzicht and the tabs; the tiles and *Uit het
+  // archief* (#11's omslag) are gone.
+  await expect(page.getByRole('navigation', { name: 'Soorten' })).toBeVisible({ timeout: 20_000 });
   await shots(page, 'wiki');
   await shot(page, 'wiki-vol', true);
-  // #11: the other shape of *Uit het archief* — an artikel with an omslag (the
-  // case above made one). Chance decides which comes up; ask until it does.
-  const archief = page.getByTestId('uit-het-archief');
-  for (let i = 0; i < 80 && !(await page.locator('.leeskamer-archief-inhoud.met-omslag').count()); i++) {
-    const before = await archief.getAttribute('data-slug');
-    await page.getByTestId('nog-een').click();
-    await expect.poll(() => archief.getAttribute('data-slug'), { timeout: 5000 }).not.toBe(before);
-  }
-  if (await page.locator('.leeskamer-archief-inhoud.met-omslag').count()) {
-    const omslag = (await page.locator('.leeskamer-archief-omslag').boundingBox())!;
-    // Upright: the staande crop, whole, not a landscape strip across the name.
-    expect(omslag.height).toBeGreaterThan(omslag.width);
-    await archief.scrollIntoViewIfNeeded();
-    await shots(page, 'wiki-archief-omslag');
-  }
   await page.goto('/wiki/alles');
   await expect(page.locator('.sortbar-summary')).toBeVisible();
   await shots(page, 'wiki-alles');

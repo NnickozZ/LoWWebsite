@@ -60,56 +60,26 @@ async function openGenoemdIn(page: Page) {
 }
 
 test.describe('§104 de leeskamer', () => {
-  test('L1: de voorpagina — het overzicht bovenaan, drie blokken eronder, boven de vouw', async ({ page }, info) => {
+  test('L1 → golf O: de voorpagina is het overzicht en de tabrij, zonder blokken eronder', async ({ page }, info) => {
     test.setTimeout(120_000);
     await signIn(page, KEEPER.name, KEEPER.password);
-    const stamp = Date.now().toString(36);
-    // Something freshly written, so Onlangs has a name to say.
-    await make(page, `Havenmeester ${stamp}`, { shortDescription: 'Houdt het tweede grootboek bij, in zijn jas.' });
-
     await page.goto('/wiki');
     // Het overzicht van de Keeper staat er nog, bovenaan (§75/§87), en de tabs ook.
     await expect(page.locator('.overzicht-page h1')).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Soorten' })).toBeVisible();
-
-    const recent = page.getByTestId('onlangs-fiche');
-    await expect(recent.first()).toBeVisible();
-    expect(await recent.count()).toBe(6);
-    await expect(recent.first()).toContainText(`Havenmeester ${stamp}`);
-    await expect(recent.first()).toContainText(KEEPER.name);
-    const archive = page.getByTestId('uit-het-archief');
-    await expect(archive).toBeVisible();
-    expect(await page.getByTestId('soort-tegel').count()).toBeGreaterThan(5);
-
-    if (info.project.name === 'desktop') {
-      // Boven de vouw op 1440×900: minstens één fiche en het uitgelichte stuk.
-      const fold = 900;
-      const first = (await recent.first().boundingBox())!;
-      expect(first.y + first.height).toBeLessThanOrEqual(fold);
-      const card = (await archive.boundingBox())!;
-      expect(card.y).toBeLessThan(fold - 120);
-      // Het overzicht staat erboven.
-      const intro = (await page.locator('.overzicht-page h1').boundingBox())!;
-      expect(intro.y).toBeLessThan(card.y);
-    }
-
-    // Nog één: een ander, zonder de pagina te verlaten.
-    const before = await archive.getAttribute('data-slug');
-    const url = page.url();
-    await expect(async () => {
-      await page.getByTestId('nog-een').click();
-      await expect(archive).not.toHaveAttribute('data-slug', before!, { timeout: 3000 });
-    }).toPass({ timeout: 20_000 });
-    expect(page.url()).toBe(url);
+    // Golf O (Nick: "everything below De wiki, start, welcome text needs to
+    // go"): geen Onlangs, geen Uit het archief, geen tegels meer.
+    await expect(page.getByTestId('leeskamer')).toHaveCount(0);
+    await expect(page.getByTestId('onlangs-fiche')).toHaveCount(0);
+    await expect(page.getByTestId('uit-het-archief')).toHaveCount(0);
+    await expect(page.getByTestId('soort-tegel')).toHaveCount(0);
 
     // Geen horizontale scroll, ook niet op een telefoon.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
     await shot(page, `wiki-${info.project.name}-licht`);
-    await shot(page, `wiki-${info.project.name}-licht-heel`, true);
     await page.emulateMedia({ colorScheme: 'dark' });
     await shot(page, `wiki-${info.project.name}-donker`);
-    await shot(page, `wiki-${info.project.name}-donker-heel`, true);
   });
 
   test('L2 + L3: willekeurig en Genoemd in, vanaf de kant van wie er niet bij mag', async ({ page, browser }, info) => {
@@ -159,15 +129,9 @@ test.describe('§104 de leeskamer', () => {
       landed.add(slug);
     }
     expect(landed.size).toBeGreaterThan(2);
-    // En Nog één op de wiki volgt dezelfde regel.
-    await speler.goto('/wiki');
-    const archive = speler.getByTestId('uit-het-archief');
-    for (let i = 0; i < 6; i++) {
-      const was = await archive.getAttribute('data-slug');
-      expect(forbidden.has(was!)).toBe(false);
-      await speler.getByTestId('nog-een').click();
-      await expect(archive).not.toHaveAttribute('data-slug', was!, { timeout: 10_000 });
-    }
+    // Golf O: *Nog één* op de wiki is weg; Verras me op Start is deze deur.
+    await speler.goto('/');
+    await expect(speler.getByTestId('home-deuren').locator('a[href="/wiki/willekeurig"]')).toHaveCount(1);
     expect(await speler.content()).not.toContain(geheim.name);
     await ctx.close();
 
@@ -218,11 +182,12 @@ test.describe('§104 de leeskamer', () => {
       await expect(page.getByRole('navigation', { name: 'Op deze pagina' }).getByRole('link', { name: 'Tekst' })).toBeVisible();
     }
 
-    // L4: één regel onder de lead — wie, wanneer, hoeveel versies — naar de geschiedenis.
+    // L4 → golf O: wie het laatst schreef staat in de kop van de geschiedenis,
+    // niet meer onder de lead (Nick: "move that to the history openable menu").
     const line = page.getByTestId('entry-bijgewerkt');
-    await expect(line).toContainText(`Bijgewerkt door ${KEEPER.name}`);
-    await expect(line).toContainText(/versies?/);
-    await expect(line.getByRole('link')).toHaveAttribute('href', /#block-/);
+    await expect(line).toContainText(`laatst door ${KEEPER.name}`);
+    await expect(page.locator('.entry-head').getByTestId('entry-bijgewerkt')).toHaveCount(0);
+    await expect(page.locator('details.section > summary').filter({ has: line })).toContainText('Geschiedenis');
 
     // L7: het anker naast De haven.
     const anchor = page.locator('a.kop-anker#de-haven');

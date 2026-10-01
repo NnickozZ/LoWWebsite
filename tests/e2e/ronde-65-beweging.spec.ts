@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { becomeInvestigator, fillWhenReady, inviteCode, setPlekken, signIn } from './helpers';
+import { becomeInvestigator, editArticle, fillWhenReady, inviteCode, setPlekken, signIn } from './helpers';
 
 /**
  * §102, ronde 65·a — beweging en meldingen.
@@ -128,6 +128,8 @@ async function addToCaseToast(page: Page, candidates: readonly string[]): Promis
 
 async function openAddToCase(page: Page, slug: string): Promise<Locator> {
   await page.goto(`/e/${slug}`);
+  // Golf O: *Aan dossier toevoegen* is een knop van Bewerken.
+  await editArticle(page);
   const sheet = page.getByRole('dialog', { name: 'Aan dossier toevoegen' });
   await expect(async () => {
     if (!(await sheet.isVisible().catch(() => false))) {

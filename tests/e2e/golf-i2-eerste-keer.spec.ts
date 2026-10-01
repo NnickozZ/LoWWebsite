@@ -100,11 +100,9 @@ test('wie ben jij aan tafel: één vraag, één welkom, en daarna geen schrijfvr
   const welcome = page.getByTestId('wie-welkom');
   await expect(welcome).toBeVisible({ timeout: 20_000 });
   await expect(welcome.getByRole('heading')).toHaveText(`Welkom, ${character}.`);
-  // De verversing brengt de Jij-rij met het karakter — maar zolang het welkom
-  // staat, ís het welkom jouw plek (M6, na review 4): geen tweede rij die
-  // binnenschuift en *Naar de kamer* nog eens zegt.
-  await expect(page.getByTestId('home-jij-card')).toContainText(character, { timeout: 20_000 });
-  await expect(page.getByTestId('home-jij')).toBeHidden();
+  // Golf O: Start has no Jij-rij any more; the welcome is the one place that
+  // says *Naar de kamer* (M6, na review 4, held by having nothing to hide).
+  await expect(page.getByTestId('home-jij')).toHaveCount(0);
   await expect(welcome).toBeVisible();
   await expect(welcome.getByTestId('wie-welkom-kamer')).toHaveAttribute('href', /^\/kamer\//);
 
@@ -120,10 +118,8 @@ test('wie ben jij aan tafel: één vraag, één welkom, en daarna geen schrijfvr
 
   // Eén keer vieren, en klaar: bij het volgende bezoek is er niets meer.
   await page.goto('/');
-  await expect(page.getByTestId('home-jij')).toBeVisible();
-  await expect(page.getByTestId('home-jij-card')).toContainText(character);
-  // M7 (na review 4): het feed zegt dat je aanschoof, niet "X wijzigde X".
-  await expect(page.locator('.feed-item').filter({ hasText: `${character} schoof aan` }).first()).toBeVisible();
+  // Golf O: Start is the welcome and its doors (no Jij-rij, no feed).
+  await expect(page.getByTestId('home-deuren')).toBeVisible();
   await expect(page.getByTestId('wie-welkom')).toHaveCount(0);
   await expect(page.getByTestId('wie-ben-jij')).toHaveCount(0);
   await expect(page.getByTestId('no-author-banner')).toHaveCount(0);
@@ -217,7 +213,8 @@ test('een nieuwe soort: de lege lijst heeft een deur naar het eerste artikel van
   ).toHaveAttribute('open', '', { timeout: 20_000 });
 
   await page.goto('/wiki');
-  await page.getByTestId('soort-tegel').filter({ hasText: soort }).click();
+  // Golf O: the tiles are gone from the voordeur; every soort is a tab (golf N).
+  await page.locator('.type-tab').filter({ hasText: soort }).click();
   await page.waitForURL(/\/wiki\/[^/]+$/);
 
   const empty = page.getByTestId('lege-staat');
@@ -252,6 +249,6 @@ test('een eerste bezoek aan de wiki en de kamer: één regel, en daarna niet mee
   await page.getByTestId('eerste-bezoek-weg').click();
   await expect(page.getByTestId('eerste-bezoek')).toHaveCount(0);
   await page.goto('/wiki');
-  await expect(page.getByTestId('leeskamer')).toBeVisible();
+  await expect(page.locator('.type-tabs-rij')).toBeVisible();
   await expect(page.getByTestId('eerste-bezoek')).toHaveCount(0);
 });

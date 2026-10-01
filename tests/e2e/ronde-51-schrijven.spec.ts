@@ -70,12 +70,13 @@ test('S17 + S16: a failed login puts the caret in the password box, under the ar
   await expect(page.getByLabel('Wachtwoord')).toBeFocused();
 });
 
-test('S9 + S20: the numbers on Start are doors, and there is a way past the menu', async ({ page }) => {
+test('S9 + S20: Start has doors, and there is a way past the menu', async ({ page }) => {
   await signIn(page, KEEPER.name, KEEPER.password);
   await page.goto('/');
-  const numbers = page.locator('.home-numbers');
-  for (const href of ['/wiki/alles', '/cases', '/boards', '/maps', '/stambomen', '/web']) {
-    await expect(numbers.locator(`a[href="${href}"]`), href).toHaveCount(1);
+  // Golf O: the line of numbers is gone; three doors stand under the welcome.
+  const doors = page.getByTestId('home-deuren');
+  for (const href of ['/wiki', '/cases', '/wiki/willekeurig']) {
+    await expect(doors.locator(`a[href="${href}"]`), href).toHaveCount(1);
   }
   await expect(page.locator('a.skip-link[href="#main"]')).toHaveCount(1);
   await expect(page.locator('main#main')).toHaveCount(1);

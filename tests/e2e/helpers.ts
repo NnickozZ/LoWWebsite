@@ -518,3 +518,20 @@ export async function openNewEntry(page: Page) {
   await pressUntil(page, () => releaseCaret(page).then(() => newEntryButton(page).click({ timeout: 5000 })), sheet);
   return sheet;
 }
+
+/**
+ * Golf O: the dossier line of an artikel (*Uit:* with its tickbox and
+ * *Kiezen*) stands at the top of the infobox in Bewerken. On a phone that is a
+ * folded `<details id="block-info">`, so a spec that touches the line opens it
+ * first — pressing until it answers, because a page that has just switched
+ * faces is not yet listening. A no-op on a desk, where the box is a section.
+ */
+export async function openInfoboxFold(page: Page) {
+  const box = page.locator('details#block-info');
+  if (!(await box.count())) return;
+  const isOpen = () => box.evaluate((el) => (el as HTMLDetailsElement).open);
+  await expect(async () => {
+    if (!(await isOpen())) await box.locator('summary').click();
+    expect(await isOpen()).toBe(true);
+  }).toPass({ timeout: 15_000 });
+}

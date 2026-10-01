@@ -2061,6 +2061,31 @@ export const WORD_GROUPS: WordGroup[] = [
       },
     ],
   },
+  //
+  // ── golf O — rust: Start, de voordeur van de wiki en de kop van een artikel ──
+  {
+    title: 'Rust (golf O)',
+    note: 'De rij in Meer info die zegt van welke soort een artikel is, en de regel in de kop van Geschiedenis.',
+    words: [
+      {
+        key: 'infoKind',
+        what: 'In Meer info: het label voor de soort van het artikel (de chip gaat naar de lijst van die soort)',
+        fallback: 'Categorie',
+        hint: 'Niet “Soort”: een soort heeft vaak zelf een veld dat zo heet, en dan staan er twee onder elkaar.',
+      },
+      {
+        key: 'historyLast',
+        what: 'In de kop van Geschiedenis: wie het artikel het laatst bijwerkte, en wanneer',
+        fallback: 'laatst door {naam}, {wanneer}',
+        hint: '{naam} is het karakter dat de laatste versie schreef; {wanneer} is bijvoorbeeld “10 uur geleden”.',
+      },
+      {
+        key: 'historyLastWhen',
+        what: 'Hetzelfde, als er geen naam bij de laatste versie hoort',
+        fallback: 'laatst {wanneer}',
+      },
+    ],
+  },
 ];
 
 export const WORD_DEFS: WordDef[] = WORD_GROUPS.flatMap((group) => group.words);

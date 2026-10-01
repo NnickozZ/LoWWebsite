@@ -87,9 +87,9 @@ test('an artikel sets three crops once, and every list draws the one for its sha
   await expect(wikiCard.locator('img')).toBeVisible();
   expect(await focus(wikiCard.locator('img'))).toBe(portraitFocus);
 
-  // -- so does the feed thumb ---------------------------------------------------
-  await page.goto('/');
-  const feedThumb = page.locator('.feed-item', { hasText: entryName }).first().locator('.feed-thumb img');
+  // -- so does the feed thumb (golf O: a search row; the feed left Start) -------
+  await page.goto(`/search?q=${encodeURIComponent(entryName)}`);
+  const feedThumb = page.getByRole('main').locator('.feed-item', { hasText: entryName }).first().locator('.feed-thumb img');
   await expect(feedThumb).toBeVisible();
   expect(await focus(feedThumb)).toBe(portraitFocus);
 

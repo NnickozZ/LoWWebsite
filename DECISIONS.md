@@ -7701,3 +7701,57 @@ duidelijk. Geen nieuw nummer, geen migratie, geen nieuwe route; nieuw is
   dat is gekozen), en een tweede, kleinere tabvorm op de telefoon (daar
   breekt de rij naar vijf of zes rijen; de tabs zijn er iets smaller).
 
+
+## Golf O — rust: Start, de voordeur van de wiki en de kop van een artikel (§91, §104 omgekeerd; §24, §43 aangevuld)
+
+Nick, 1 oktober, met drie schermafdrukken: *"The home page is too cluttered"*,
+*"In the main page in wikis everything below 'De wiki, start, welcome text'
+needs to go"*, en een lijst voor de kop van een artikel. Eén werkboom, geen
+nieuw nummer, geen migratie, geen verwijderd bestand; nieuw is `app/rust.css`
+(na `ruimte.css`).
+
+- **Draait §91's Jij-rij op Start om, en de Start van 5 september.** Start
+  is het welkom van de Keeper en drie deuren: *Wiki*, *Dossiers*, *Verras me*
+  (`/wiki/willekeurig`). Weg: de Jij-rij (*"there is already a button for it
+  in the sidebar"* — *Jouw plek* en de Jij-tab zijn dezelfde deuren), *Sinds
+  je laatste bezoek*, *Open dossiers*, *Recente artikelen* (*"'recent' things
+  and 'open dossiers' are just not it"*) en de regel met getallen (elk getal
+  staat al naast zijn tab). De eerste keer blijft: *Wie ben jij aan tafel?* en
+  de route van een Keeper (§106); onder de route staan geen deuren (M8).
+  Waarom deze drie: Nick wilde *"some buttons, but way way less"* en wist
+  nog niet wat er meer moest staan. De wiki is de deur voor wie leest, de
+  dossiers voor wie speelt, en *Verras me* is de enige van de oude Start die
+  iets doet wat de zijbalk niet doet. Wat er verder komt, is zijn keuze.
+- **Draait §104's leeskamer om.** *Uit het archief*, *Onlangs bijgewerkt* en
+  *De soorten* staan niet meer onder het overzicht op `/wiki`; de tabrij (golf
+  N: elke soort een tab) en het overzicht zijn de voordeur. *Verras me* staat
+  nu op Start en in het palet. De lege staat van een wiki zonder één artikel
+  (§106) blijft. `lib/wiki/leeskamer.ts` blijft (`randomEntry` is de kiezer
+  van `/wiki/willekeurig`); `UitHetArchief.tsx` heeft geen lezer meer.
+- **De kop van een artikel: titel, lead, en dan de tekst.** De soort en de
+  dossiers zijn de eerste rijen van *Meer info* (`infoFacts`): *Categorie*
+  (een chip naar de lijst van die soort; niet *Soort*, want Locaties hebben
+  een veld dat zo heet) en *Dossier(s)*, met het herkomstdossier eerst. Dat
+  waren drie plekken voor twee feiten: de soortchip, de wenkbrauw *Uit:* boven
+  de titel (§24) en de rij *In:* onder de knoppen. In Bewerken staat de regel
+  van §24/§49 (het vinkje *Dossier voor de naam* en *Kiezen*) bovenaan de
+  infobox in plaats van boven de titel. Op een telefoon telt de regel onder de
+  kop (`entry-waar`) alleen nog landkaarten en tijdlijnen.
+- **Draait §104 L4 om: *Bijgewerkt door* staat in de kop van Geschiedenis**
+  (*"move that to the history openable menu"*), als *· laatst door X, 10 uur
+  geleden* naast het aantal versies. Dezelfde lezing (de nieuwste versie die
+  deze lezer krijgt, het karakter en niet het account), nu op de server in
+  `app/(app)/e/[slug]/page.tsx`; `LastEditLine` is weg.
+- ***Aan dossier toevoegen* en *Op prikbord prikken* staan alleen in
+  Bewerken.** *"you probably add things WHILE in a case or prikbord"*. Niet
+  weggehaald, omdat ze de enige weg vanaf het artikel zijn; in Lezen waren het
+  de twee grootste knoppen boven de eerste zin. Een lege rij handelingen neemt
+  geen ruimte (`.entry-acties:empty`).
+- ***Verbindingen* (§43) is in Lezen een icoon naast de naam**
+  (`ConnectionsLink as="icon"`, 44 px raakvlak, de naam als `aria-label`). In
+  Bewerken is het de knop in de rij, zoals op een tekenvlak (§105).
+- **Niet gedaan**: de dode CSS van de Jij-rij, de feed en de leeskamer in
+  `globals.css` en `leeskamer.css` is blijven staan (een test leest een regel
+  van de Jij-rij), net als de woorden die niemand meer leest (`homeJij*`,
+  `wikiRecent*`, `wikiFromArchive`, `wikiKinds`). `UitHetArchief.tsx`
+  weghalen is een `git rm` en dus Nicks keuze.

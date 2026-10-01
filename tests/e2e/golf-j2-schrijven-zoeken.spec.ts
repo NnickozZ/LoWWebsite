@@ -210,15 +210,14 @@ test('5: onder de dichte infobox staan altijd de tags, met een raakvlak van 44 p
   await page.screenshot({ path: `${SHOTS}/e2e-tags-${info.project.name}.png` });
 });
 
-test('6: de voorpagina van de wiki zet op een telefoon de soorten eerst', async ({ page }, info) => {
-  test.skip(info.project.name !== 'phone', 'op een computer blijft het krantenritme');
+test('6 → golf O: de voorpagina van de wiki is de tabrij en het overzicht, verder niets', async ({ page }, info) => {
   test.setTimeout(90_000);
   await signIn(page, ...KEEPER);
   await page.goto('/wiki');
-  const tegel = page.getByTestId('soort-tegel').first();
-  await expect(tegel).toBeVisible({ timeout: 20_000 });
-  const archief = page.locator('.leeskamer-archief');
-  const tegelY = (await tegel.boundingBox())!.y;
-  if (await archief.count()) expect(tegelY).toBeLessThan((await archief.boundingBox())!.y);
+  // Golf O (Nick: "everything below De wiki, start, welcome text needs to go"):
+  // de leeskamer van ronde 67 is weg; de soorten zijn tabs (golf N).
+  await expect(page.locator('.type-tabs-rij')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('leeskamer')).toHaveCount(0);
+  await expect(page.getByTestId('soort-tegel')).toHaveCount(0);
   await page.screenshot({ path: `${SHOTS}/e2e-wiki-${info.project.name}.png`, fullPage: true });
 });

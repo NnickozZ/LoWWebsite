@@ -18,6 +18,7 @@ import './beheer.css';
 // Golf L: de tekens — het kurk, de punaise, het merk en het pijltje.
 import './tekens.css';
 import './ruimte.css';
+import './rust.css';
 
 /**
  * §88: de naam in de tab is de naam van het archief.

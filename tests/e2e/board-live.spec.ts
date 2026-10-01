@@ -401,10 +401,14 @@ test('a Keeper signs with their account name, in the feed as well as on the stri
     const alsoHere = player.getByTestId('live-strip').locator('.board-person').first();
     await expect(alsoHere).toHaveAttribute('title', 'Keeper', { timeout: 15_000 });
 
-    // …and §81: so is the feed under it. Same name, same person, one rule.
-    const row = player.locator('.feed-item').filter({ hasText: entryName }).first();
-    await expect(row.locator('strong').first()).toHaveText('Keeper');
-    await expect(row.locator('strong').first()).toHaveAttribute('title', 'Keeper');
+    // …and §81: so is who wrote an artikel last. Same name, same person, one
+    // rule. Golf O: the feed left Start, so the artikel's Geschiedenis says it.
+    await player.goto(`/search?q=${encodeURIComponent(entryName)}`);
+    await player.getByRole('main').locator('a.feed-item[data-entry-id]', { hasText: entryName }).first().click();
+    await player.waitForURL('**/e/**');
+    const row = player.getByTestId('entry-bijgewerkt');
+    await expect(row).toContainText('laatst door Keeper');
+    await expect(row).toHaveAttribute('title', 'Keeper');
     // The renamed *word* is what the old rule printed here. It must not be on
     // this row at all — not in the label, not in a tooltip, not in the markup.
     await expect(row).not.toContainText('Spelleider');

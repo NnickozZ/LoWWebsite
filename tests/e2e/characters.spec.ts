@@ -172,15 +172,15 @@ test('a player wears a fiche, the archive uses its name, and the name sticks', a
     await expect(nav.locator('.who-writing')).toHaveCount(0);
   }
 
-  // With a name to write under, the player can make something — and the feed
-  // calls them by it, with the account one tooltip away.
+  // With a name to write under, the player can make something — and the
+  // archive calls them by it, with the account one tooltip away. Golf O: the
+  // feed left Start; the head of the artikel's Geschiedenis says who wrote it.
   await page.goto('/');
   const made = await newEntry(page, `Aantekening ${stamp}`);
   expect(made).toContain('/e/');
-  await page.goto('/');
-  const row = page.locator('.feed-item').filter({ hasText: `Aantekening ${stamp}` }).first();
-  await expect(row.locator('strong').first()).toHaveText(character);
-  await expect(row.locator('strong').first()).toHaveAttribute('title', account);
+  const row = await signedLine(page, made);
+  await expect(row).toContainText(`laatst door ${character}`);
+  await expect(row).toHaveAttribute('title', account);
 
   // The Jij page lists it, and can take it off.
   await page.goto('/you');
@@ -194,9 +194,8 @@ test('a player wears a fiche, the archive uses its name, and the name sticks', a
    * used to rename everything the player had ever done; it does not any more,
    * because the log would otherwise lie about who found what.
    */
-  await page.goto('/');
-  const stillTheirs = page.locator('.feed-item').filter({ hasText: `Aantekening ${stamp}` }).first();
-  await expect(stillTheirs.locator('strong').first()).toHaveText(character);
+  const stillTheirs = await signedLine(page, made);
+  await expect(stillTheirs).toContainText(`laatst door ${character}`);
 
   /*
    * And with the account wearing nobody, a request that carries no window
@@ -404,9 +403,8 @@ test('the question comes before the nieuw-artikel sheet, not on top of it', asyn
   await writer.waitForURL('**/e/**');
 
   // And it is signed by the onderzoeker this window answered with.
-  await writer.goto('/');
-  const row = writer.locator('.feed-item').filter({ hasText: `Aantekening ${stamp}` }).first();
-  await expect(row.locator('strong').first()).toHaveText(character);
+  const row = await signedLine(writer, new URL(writer.url()).pathname);
+  await expect(row).toContainText(`laatst door ${character}`);
 
   await context.close();
 });
@@ -548,11 +546,10 @@ test('a speler with no onderzoeker may make their first artikel, and nothing els
   const madePath = await newEntry(page, character);
   expect(madePath).toContain('/e/');
 
-  // Made before the archive asked, so it is signed by nobody — and the feed
-  // falls back to the account rather than inventing a name.
-  await page.goto('/');
-  const row = page.locator('.feed-item').filter({ hasText: character }).first();
-  await expect(row.locator('strong').first()).toHaveText(`Toeschouwer ${stamp}`);
+  // Made before the archive asked, so it is signed by nobody — and the
+  // history falls back to the account rather than inventing a name.
+  const row = await signedLine(page, madePath);
+  await expect(row).toContainText(`laatst door Toeschouwer ${stamp}`);
 
   // They tie it on, and the archive is theirs to write.
   await page.goto(madePath);
@@ -570,9 +567,8 @@ test('a speler with no onderzoeker may make their first artikel, and nothing els
   await page.waitForTimeout(1000);
   const second = await newEntry(page, `Aantekening ${stamp}`);
   expect(second).toContain('/e/');
-  await page.goto('/');
-  const signed = page.locator('.feed-item').filter({ hasText: `Aantekening ${stamp}` }).first();
-  await expect(signed.locator('strong').first()).toHaveText(character);
+  const signed = await signedLine(page, second);
+  await expect(signed).toContainText(`laatst door ${character}`);
 });
 
 test('a speler ties on their first onderzoeker and no more; the Keeper hands out the rest', async ({
@@ -656,3 +652,15 @@ test('a speler ties on their first onderzoeker and no more; the Keeper hands out
   await expect(page.getByPlaceholder('Zoek het artikel van je karakter…')).toHaveCount(0);
   await expect(page.getByRole('button', { name: `${extra} ontkoppelen` })).toHaveCount(0);
 });
+
+/**
+ * Golf O: who wrote an artikel last is the tail of its Geschiedenis summary
+ * (`entry-bijgewerkt`), the karakter with the account as its tooltip. Until
+ * golf O these cases read it off the feed on Start, which is gone.
+ */
+async function signedLine(page: Page, path: string) {
+  await page.goto(path.replace(/\?.*$/, ''));
+  const line = page.getByTestId('entry-bijgewerkt');
+  await expect(line).toBeAttached({ timeout: 20_000 });
+  return line;
+}

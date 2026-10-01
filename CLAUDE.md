@@ -304,6 +304,12 @@ freely there.
   `tekens.css`, elke regel met `.main` ervoor. Geen migratie; twee bestanden
   weg (`components/MeerSoorten.tsx`, `lib/wiki/tabrij.ts`). Zie
   `tests/unit/golf-n.test.ts` en `tests/e2e/golf-n.spec.ts`.
+  **Golf O** (Nick, 1 oktober: rust — Start te vol, de voordeur van de wiki
+  te vol, de kop van een artikel te vol) gaf **geen nieuw nummer** en draait
+  §91's Jij-rij op Start, §104's leeskamer en §104 L4 (*Bijgewerkt door*
+  onder de lead) om. Nieuwe laag `app/rust.css` na `ruimte.css`, elke regel
+  met `.main` ervoor. Geen migratie, geen verwijderd bestand. Zie
+  `DECISIONS.md`, golf O.
   Rondes 65–67
   (*het gevoel*, na `claude/review-ui-ux-het-gevoel.md`, gebouwd in vijf
   worktrees, samengevoegd als `gevoel`, met een herstelronde per ronde)
@@ -2299,10 +2305,27 @@ mistakes. Check yours against these before declaring a spec finished.
   it to its new address, and with the line down that is a navigation into
   nothing. Type into the korte beschrijving instead, as the offline case in
   `ronde-61-palet.spec.ts` does.
-- **Start prints your own last three artikelen above the welcome** (§91,
+- ~~**Start prints your own last three artikelen above the welcome** (§91,
   `home-jij-recent`). An artikel you just wrote is therefore on Start **twice**,
   once in the Jij-rij and once in the feed, and a bare `getByText(name)` on `/`
-  matches both. Scope it to `home-jij` or to the feed.
+  matches both. Scope it to `home-jij` or to the feed.~~ **Since golf O Start
+  is the welcome and three doors (`home-deuren`: `/wiki`, `/cases`,
+  `/wiki/willekeurig`)**: no Jij-rij, no feed, no numbers, no lists. A spec
+  that read who wrote something off the feed reads the artikel's
+  `entry-bijgewerkt` instead (the tail of the Geschiedenis summary, *laatst
+  door X, …*, with the account as `title`; `signedLine` in
+  `characters.spec.ts`). A feed thumb is a search row now (`/search?q=`).
+- **Golf O: the head of an artikel is title, lead, text.** The soort and the
+  dossiers are the first rows of *Meer info* (`infobox-feiten`,
+  `infobox-soort`, `infobox-dossiers`); in Bewerken the §24/§49 line
+  (`.entry-origin`, *Dossier voor de naam*, `.entry-origin-set`) is at the top
+  of the infobox, so on a phone call `openInfoboxFold(page)` from `helpers.ts`
+  first. *Aan dossier toevoegen* and *Op prikbord prikken* are Bewerken's
+  (`editArticle` first); in Lezen `.entry-acties` is often empty and then
+  hidden. *Verbindingen* in Lezen is an icon beside the `h1`
+  (`connections-link`, still the same testid and name). The voordeur of the
+  wiki has no `leeskamer`, `onlangs-fiche`, `uit-het-archief` or
+  `soort-tegel` any more.
 - **A player needs an onderzoeker before they can write anything** (§18b). Use
   `becomeInvestigator` / `writeAs` from `helpers.ts`; a fresh account can create
   artikelen and tie its *first* one on, and nothing else — everything after that
@@ -2785,7 +2808,24 @@ than trusting this line). There is no shell on that machine, so the loop is:
 
 ---
 
-## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J, K, L, M and N
+## 8. Leftovers — rounds 11, 12, 13, 17, 18, 19, 22, 23, 24, 25, 29, 31, 32, 33, 35, 37, 38, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 66 and 67, and golf H, I, J, K, L, M, N and O
+
+*Golf O (1 oktober; Nick: Start, de voordeur van de wiki en de kop van een
+artikel te vol) is in één werkboom gebouwd. Geen nieuw nummer, geen
+migratie, geen verwijderd bestand. De rondenotitie is `claude/golf-o-rust.md`.*
+
+**Leftovers — golf O, allemaal met opzet genoemd.**
+
+- **Er is nergens meer een feed van het archief.** *Sinds je laatste bezoek*
+  stond alleen op Start; `recentActivity` leest nog voor de spelerspagina en
+  `ownRecentWork`. Een eigen pagina (*Wat is er nieuw*) is Nicks keuze.
+- **Dode CSS en woorden**: de Jij-rij, de feed en de leeskamer in
+  `globals.css`/`leeskamer.css`, en `homeJij*`, `wikiRecent*`,
+  `wikiFromArchive`, `wikiKinds`, `entryWhereIn`, `lastEdit*`.
+  `app/(app)/wiki/willekeurig/UitHetArchief.tsx` heeft geen lezer meer
+  (weghalen is een `git rm`).
+- **De e2e-suite is niet volledig gedraaid**, alleen de specs die Start, de
+  wiki en de kop van een artikel raken.
 
 *Golf N (30 september 's ochtends; Nick: het patroon op het prikbord, de
 Keeper die niet te volgen was, de tekst die de kolom niet vult, en *Meer

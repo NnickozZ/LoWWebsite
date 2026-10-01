@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { editArticle, fillWhenReady, pressNewEntry, openEmptyFields, signIn } from './helpers';
+import { editArticle, fillWhenReady, pressNewEntry, openEmptyFields, openInfoboxFold, signIn } from './helpers';
 
 /**
  * Round 26, §49–§51 — the three things of this round, in a browser.
@@ -142,6 +142,7 @@ test.describe('§49 het dossier voor de naam is een vinkje', () => {
     const prefix = page.getByRole('checkbox', { name: 'Dossier voor de naam' });
     await page.goto(personUrl);
     await editArticle(page);
+    await openInfoboxFold(page);
     await expect(prefix).not.toBeChecked();
     // A click, not `check()`: this box is not its own state. It posts the
     // change and the server's answer is what ticks it, so the tick arrives a
@@ -153,6 +154,7 @@ test.describe('§49 het dossier voor de naam is een vinkje', () => {
     // Unticked, it is a plain name again — and nothing about the filing moved.
     await page.goto(personUrl);
     await editArticle(page);
+    await openInfoboxFold(page);
     await expect(prefix).toBeChecked();
     await prefix.click();
     await expect(prefix).not.toBeChecked({ timeout: 20_000 });
@@ -204,6 +206,7 @@ test.describe('§49 overal te maken, en er weer uit te halen', () => {
 
     await page.goto(entryUrl);
     await editArticle(page);
+    await openInfoboxFold(page);
     await page.locator('.entry-origin-set').click();
     await page.getByRole('menuitem', { name: 'Uit dit dossier halen' }).click();
     // The page comes back without the eyebrow's dossier: nothing to print.

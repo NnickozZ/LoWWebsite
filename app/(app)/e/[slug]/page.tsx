@@ -552,6 +552,25 @@ export default async function EntryPage({
    * browser as props. `EntryView` only decides where each one lands.
    */
   const slots: Record<string, ReactNode> = {};
+
+  /*
+   * §104 (ronde 67, L4) → golf O: who wrote the newest version this reader is
+   * given, and when. It stood under the lead as "Bijgewerkt door … · … ·
+   * n versies"; Nick: "Who last edited it, move that to the history openable
+   * menu, not up there right at the top". So it is the tail of that menu's
+   * own summary now, where the count already was. From the newest row of the
+   * history this reader is given — the onderzoeker the revision recorded, not
+   * the account (§11/§18b), and for a speler no Keeper-epoch version (§89/§65).
+   * Worded here, on the server, so nothing rewords it during hydration.
+   */
+  const newest = revisions[0];
+  const historyLast = newest ? (
+    <span className="geschiedenis-laatst" data-testid="entry-bijgewerkt" title={newest.actorAccount ?? undefined}>
+      {newest.actorLabel
+        ? fill(words.historyLast, { naam: newest.actorLabel, wanneer: relativeTime(newest.createdAt) })
+        : fill(words.historyLastWhen, { wanneer: relativeTime(newest.createdAt) })}
+    </span>
+  ) : null;
   /** §104 (ronde 67·herstel, #13): the read blocks that are empty for this reader. */
   const emptyBlocks: string[] = [];
 
@@ -685,6 +704,7 @@ export default async function EntryPage({
           <summary>
             {block.title || defaultBlockTitle('history', words)}{' '}
             <span className="muted">({revisions.length})</span>
+            {historyLast}
           </summary>
           <div style={{ padding: '0.6rem 0 1rem' }}>
             {shutEpoch && (
@@ -883,25 +903,6 @@ export default async function EntryPage({
     );
   }
 
-  /*
-   * §104 (ronde 67, L4): "Bijgewerkt door … · … geleden · n versies", under the
-   * lead. From the newest row of the history this reader is given — so the
-   * onderzoeker the revision recorded, not the account (§11/§18b), and for a
-   * speler no Keeper-epoch version at all (§89/§65: `listRevisions` already
-   * left those out). The time is worded here, on the server, so the client
-   * component does not reword it a second later during hydration.
-   */
-  const historyBlock = blocks.find((block) => block.kind === 'history' && !block.hidden);
-  const lastEdit = revisions[0]
-    ? {
-        by: revisions[0].actorLabel ?? null,
-        account: revisions[0].actorAccount ?? null,
-        when: relativeTime(revisions[0].createdAt),
-        count: revisions.length,
-        more: revisionRows.length > REVISION_PAGE,
-        href: historyBlock ? `#block-${historyBlock.id}` : null,
-      }
-    : null;
 
   // §21: the name, the one-liner and the infobox texts as shared fields.
   const fieldsAdmission = admit(entryFieldsRoomKey(entry.id), user);
@@ -1002,7 +1003,6 @@ export default async function EntryPage({
          * made this second — `?new=1`, which is how the sheet lands you here.
          */
         openAddMore={query.new === '1'}
-        lastEdit={lastEdit}
         emptyBlocks={emptyBlocks}
         cases={cases.map((item) => ({
           id: item.id,

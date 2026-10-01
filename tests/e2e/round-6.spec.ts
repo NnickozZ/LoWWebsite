@@ -51,6 +51,8 @@ test('a card pinned from the artikel still asks about the dossier', async ({ pag
   // Now the long way round: pin from the artikel, not from the wall. This is
   // the path that used to file nothing and say nothing.
   await page.goto('/e/pier-boone');
+  // Golf O: *Op prikbord prikken* is a button of Bewerken.
+  await editArticle(page);
   await page.getByRole('button', { name: 'Op prikbord prikken' }).click();
   const sheet = page.getByRole('dialog').first();
   await sheet.getByPlaceholder('Zoek een prikbord…').fill(boardName);

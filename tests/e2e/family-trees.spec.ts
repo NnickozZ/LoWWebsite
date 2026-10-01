@@ -566,15 +566,14 @@ test('een dossier heeft een Stamboom-tabblad, en de stamboom draagt het dossier'
   await expect(row).toBeVisible();
   await expect(row).toContainText('0 personen');
 
-  // And so do the shelf and the count on the home page.
+  // And so does the shelf.
   await page.goto('/stambomen');
   const shelfRow = page.locator('.tree-shelf li', { hasText: name });
   await expect(shelfRow).toBeVisible();
   // The chip is printed in small capitals, the shelf is not — so the name is
   // compared as a name rather than as the letters either of them draws.
   await expect(shelfRow).toContainText(new RegExp(caseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-  await page.goto('/');
-  await expect(page.locator('.home-numbers')).toContainText(/\d+ stambomen|1 stamboom/);
+  // Golf O: Start no longer counts anything; the shelf above is the count.
 });
 
 /* ------------------------------------------- h2. de familie en haar stamboom */

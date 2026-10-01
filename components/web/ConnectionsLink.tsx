@@ -17,10 +17,26 @@ export function ConnectionsLink({
 }: {
   kind: WebNodeKind;
   id: string;
-  /** A small button beside other buttons, or a chip in a row of chips. */
-  as?: 'button' | 'chip';
+  /**
+   * A small button beside other buttons, or a chip in a row of chips — or,
+   * golf O, only the icon, beside an artikel's title.
+   */
+  as?: 'button' | 'chip' | 'icon';
 }) {
   const ui = useUi();
+  if (as === 'icon') {
+    return (
+      <Link
+        className="connections-icoon"
+        href={`/web?focus=${encodeURIComponent(webNodeId(kind, id))}`}
+        data-testid="connections-link"
+        title={`${ui.words.connections}: het web, met dit in het midden`}
+        aria-label={ui.words.connections}
+      >
+        <Icon name="web" size={18} />
+      </Link>
+    );
+  }
   return (
     <Link
       className={as === 'chip' ? 'chip' : 'btn btn-small'}

@@ -330,34 +330,20 @@ test.describe('§91 jouw plek — het Jij-blad op de telefoon', () => {
   });
 });
 
-test.describe('§91 jouw plek — Start', () => {
-  test('de Jij-rij staat boven de welkomsttekst, met kamer en winkel', async ({ page }, info) => {
+test.describe('§91 jouw plek — Start (golf O: niet meer op Start)', () => {
+  test('Start heeft geen Jij-rij: de deuren staan in de zijbalk, en Start is het welkom', async ({ page }, info) => {
     test.setTimeout(180_000);
     const stamp = `${info.project.name}-${Date.now().toString(36)}`;
-    const { character, slug } = await signUpWearing(page, `Start ${stamp}`);
+    const { slug } = await signUpWearing(page, `Start ${stamp}`);
     await page.goto('/');
-    const row = page.getByTestId('home-jij');
-    await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(row.getByTestId('home-jij-card')).toContainText(character);
-    await expect(row.getByTestId('home-jij-kamer')).toHaveAttribute('href', `/kamer/${slug}`);
-    await expect(row.getByTestId('home-jij-winkel')).toHaveAttribute('href', /^\/winkel\?kamer=/);
-    // Wat je net zelf maakte staat in je laatste drie.
-    await expect(row.getByTestId('home-jij-recent')).toContainText(character);
-
-    const rowBox = await row.boundingBox();
-    const welcome = await page.locator('.home-welcome').boundingBox();
-    expect(rowBox!.y + rowBox!.height).toBeLessThanOrEqual(welcome!.y + 1);
-    // De welkomsttekst is er nog.
+    // Golf O (Nick: "on the top you see 'your place' but there is already a
+    // button for it in the sidebar. Lets just remove that too").
+    await expect(page.getByTestId('home-deuren')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('home-jij')).toHaveCount(0);
     await expect(page.locator('.home-intro')).toBeVisible();
-  });
-
-  test('de Keeper krijgt Beheer en Uitdelen in de rij', async ({ page }) => {
-    await signIn(page, ...KEEPER);
-    await page.goto('/');
-    const row = page.getByTestId('home-jij');
-    await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(row.getByTestId('home-jij-admin')).toHaveAttribute('href', '/admin');
-    await expect(row.getByTestId('home-jij-uitdelen')).toHaveAttribute('href', '/uitdelen');
-    await expect(row.getByTestId('home-jij-kamer')).toHaveCount(0);
+    // De kamer is er nog, in *Jouw plek* (zijbalk) of de Jij-tab (telefoon).
+    if (info.project.name !== 'phone') {
+      await expect(page.getByTestId('yours-kamer')).toHaveAttribute('href', `/kamer/${slug}`);
+    }
   });
 });

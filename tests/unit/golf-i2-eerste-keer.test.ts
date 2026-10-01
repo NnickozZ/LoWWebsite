@@ -162,7 +162,7 @@ describe('§106: één familie van lege staten', () => {
     ['app', '(app)', 'stambomen', 'page.tsx'],
     ['app', '(app)', 'wiki', 'alles', 'page.tsx'],
     ['app', '(app)', 'wiki', '[type]', 'page.tsx'],
-    ['app', '(app)', 'page.tsx'],
+    // Golf O: Start has no list any more (no feed, no open dossiers), so no empty state either.
     ['components', 'cases', 'CaseDossier.tsx'],
   ];
 
@@ -237,8 +237,8 @@ describe('§106 na review 4', () => {
   });
 
   it('M7: een koppeling leest "schoof aan", niet "wijzigde"', () => {
-    const start = read('app', '(app)', 'page.tsx');
-    expect(start).toContain("item.verb === 'character.added'");
+    // Golf O: the feed left Start, and with it the one reader of this verb;
+    // the word stays for the day a feed comes back.
     expect(DEFAULT_WORDS.feedSatDown).toBe('schoof aan');
   });
 

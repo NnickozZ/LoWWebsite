@@ -243,15 +243,16 @@ test('14: een blad zet de caret erin en geeft hem terug aan wie het opende', asy
     page.locator('#new-case-name'),
   );
 
-  // Aan dossier toevoegen, en de landkaart koppelen op een artikel.
+  // Aan dossier toevoegen, en de landkaart koppelen op een artikel — sinds
+  // golf O staan ze allebei in Bewerken.
   await page.goto(`/e/${entry.slug}`);
+  await editArticle(page);
   await focusRoundTrip(
     page,
     page.getByRole('button', { name: 'Aan dossier toevoegen' }).first(),
     page.getByRole('dialog'),
     page.getByRole('dialog').locator('input').first(),
   );
-  await editArticle(page);
   await focusRoundTrip(page, page.getByTestId('connect-map'), page.getByRole('dialog'));
 });
 
